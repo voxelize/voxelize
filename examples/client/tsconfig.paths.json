@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+
+    "paths": {
+      "@voxelize/*": ["../../packages/*/src"],
+      "@components/*": ["./src/components/*"]
+    }
+  }
+}

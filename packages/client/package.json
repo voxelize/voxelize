@@ -1,0 +1,16 @@
+{
+  "name": "@voxelize/client",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "yarn run clean && yarn run compile",
+    "clean": "rimraf -rf ./dist",
+    "compile": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "yarn run build"
+  },
+  "peerDependencies": {
+    "three": "^0.137.5"
+  },
+  "devDependencies": {
+    "rimraf": "^3.0.2"
+  }
+}

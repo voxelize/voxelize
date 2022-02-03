@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@voxelize/client/*": ["packages/client/src/*"],
+      "@voxelize/server/*": ["packages/server/src/*"],
+      "@voxelize/*": ["packages/*/src"]
+    },
+    "noEmit": true
+  }
+}
