@@ -1,3 +1,3 @@
-import { meaningOfLife } from '@voxelize/server';
+import { meaningOfLife } from "@voxelize/server";
 
 console.log(meaningOfLife);

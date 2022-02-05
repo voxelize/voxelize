@@ -1,39 +1,39 @@
-import peerDepsExternal from 'rollup-plugin-peer-deps-external';
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import typescript from 'rollup-plugin-typescript2';
-import workerLoader from 'rollup-plugin-web-worker-loader';
+import commonjs from "@rollup/plugin-commonjs";
+import resolve from "@rollup/plugin-node-resolve";
+import peerDepsExternal from "rollup-plugin-peer-deps-external";
+import typescript from "rollup-plugin-typescript2";
+import workerLoader from "rollup-plugin-web-worker-loader";
 
-const packageJson = require('./package.json');
+const packageJson = require("./package.json");
 
 const globals = {
   ...packageJson.devDependencies,
 };
 
 export default {
-  input: 'src/index.ts',
+  input: "src/index.ts",
   output: [
     {
       file: packageJson.module,
-      format: 'esm',
+      format: "esm",
       sourcemap: true,
     },
   ],
   plugins: [
     workerLoader({
-      targetPlatform: 'browser',
+      targetPlatform: "browser",
     }),
     peerDepsExternal(),
     resolve(),
     commonjs(),
     typescript({
-      tsconfig: './tsconfig.build.json',
+      tsconfig: "./tsconfig.build.json",
       tsconfigOverride: {
-        compilerOptions: { module: 'es2015' },
+        compilerOptions: { module: "es2015" },
       },
     }),
     commonjs({
-      exclude: 'node_modules',
+      exclude: "node_modules",
       ignoreGlobal: true,
     }),
   ],

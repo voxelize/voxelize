@@ -1,12 +1,12 @@
-const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
-const ForkTSCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
-const { pathsToModuleNameMapper } = require('ts-jest');
-const { compilerOptions } = require('./tsconfig.paths.json');
+const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
+const ForkTSCheckerWebpackPlugin = require("fork-ts-checker-webpack-plugin");
+const { pathsToModuleNameMapper } = require("ts-jest");
+const { compilerOptions } = require("./tsconfig.paths.json");
 
 module.exports = {
   eslint: { enable: false },
   webpack: {
-    stats: 'errors-only',
+    stats: "errors-only",
     configure: (config) => {
       // Remove ModuleScopePlugin which throws when we try to import something
       // outside of src/.
@@ -18,7 +18,7 @@ module.exports = {
       // Let Babel compile outside of src/.
       const oneOfRule = config.module.rules.find((rule) => rule.oneOf);
       const tsRule = oneOfRule.oneOf.find((rule) =>
-        rule.test.toString().includes('ts|tsx'),
+        rule.test.toString().includes("ts|tsx")
       );
 
       tsRule.include = undefined;
@@ -30,7 +30,7 @@ module.exports = {
       remove: [
         // This plugin is too old and causes problems in monorepos. We'll
         // replace it with a newer version.
-        'ForkTsCheckerWebpackPlugin',
+        "ForkTsCheckerWebpackPlugin",
       ],
       add: [
         // Use newer version of ForkTSCheckerWebpackPlugin to type check
@@ -40,16 +40,16 @@ module.exports = {
             // The exclude rules are copied from CRA.
             exclude: [
               {
-                file: '**/src/**/__tests__/**',
+                file: "**/src/**/__tests__/**",
               },
               {
-                file: '**/src/**/?(*.)(spec|test).*',
+                file: "**/src/**/?(*.)(spec|test).*",
               },
               {
-                file: '**/src/setupProxy.*',
+                file: "**/src/setupProxy.*",
               },
               {
-                file: '**/src/setupTests.*',
+                file: "**/src/setupTests.*",
               },
             ],
           },
@@ -59,11 +59,11 @@ module.exports = {
   },
   jest: {
     configure: {
-      preset: 'ts-jest',
+      preset: "ts-jest",
 
       moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths, {
         // This has to match the baseUrl defined in tsconfig.json.
-        prefix: '<rootDir>/',
+        prefix: "<rootDir>/",
       }),
     },
   },
