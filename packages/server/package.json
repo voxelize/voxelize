@@ -23,8 +23,12 @@
     "rollup-plugin-web-worker-loader": "^1.6.1"
   },
   "dependencies": {
+    "@types/ws": "^8.2.2",
+    "cors": "^2.8.5",
     "express": "^4.17.2",
+    "peer": "^0.6.1",
     "socket.io": "^4.4.1",
-    "uuid": "^8.3.2"
+    "uuid": "^8.3.2",
+    "ws": "^8.4.2"
   }
 }

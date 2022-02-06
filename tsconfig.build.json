@@ -8,6 +8,7 @@
     "noEmitOnError": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "strictPropertyInitialization": false,
     "types": [],
     "jsx": "react",
     "noEmit": false

@@ -4,7 +4,8 @@
 
     "paths": {
       "@voxelize/*": ["../../packages/*/src"],
-      "@components/*": ["./src/components/*"]
+      "@components/*": ["./src/components/*"],
+      "@containers/*": ["./src/containers/*"]
     }
   }
 }

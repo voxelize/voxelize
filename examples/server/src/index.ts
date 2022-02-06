@@ -1,3 +1,4 @@
-import { meaningOfLife } from "@voxelize/server";
+import { Server } from "@voxelize/server";
 
-console.log(meaningOfLife);
+const server = new Server({ port: 5000, peerPort: 443 });
+server.start();
