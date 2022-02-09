@@ -17,6 +17,7 @@ class Network {
   public ws: CustomWebSocket;
 
   public url: URL<any>;
+  public room: string;
   public socket: URL<any>;
   public connected = false;
 
@@ -64,6 +65,17 @@ class Network {
     };
 
     this.ws = ws;
+    this.room = room;
+  };
+
+  disconnect = () => {
+    this.ws.onclose = null;
+    this.ws.onmessage = null;
+    this.ws.close();
+
+    if (this.reconnection) {
+      clearTimeout(this.reconnection);
+    }
   };
 
   fetch = async (path: string, query: { [key: string]: any } = {}) => {

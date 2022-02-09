@@ -49,6 +49,7 @@ class Rooms {
       this.list.forEach((room) => {
         rooms.push({
           name: room.name,
+          clients: room.clients.map((c) => c.id),
         });
       });
       res.json(rooms);

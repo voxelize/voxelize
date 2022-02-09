@@ -1,7 +1,7 @@
 import { Network } from "./core";
 
 class Client {
-  public network: Network;
+  public network: Network | undefined;
 
   connect = async ({
     room,
@@ -30,6 +30,15 @@ class Client {
     this.network = network;
 
     return true;
+  };
+
+  disconnect = async () => {
+    if (this.network) {
+      this.network.disconnect();
+      console.log(`Left room "${this.network.room}"`);
+    }
+
+    this.network = undefined;
   };
 }
 

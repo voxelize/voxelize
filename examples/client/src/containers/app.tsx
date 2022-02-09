@@ -1,16 +1,29 @@
 import { Client } from "@voxelize/client";
-import { useEffect } from "react";
+import { useRef, useState } from "react";
 
 export const App = () => {
-  useEffect(() => {
-    const client = new Client();
+  const [room, setRoom] = useState("");
+  const client = useRef(new Client());
 
-    client.connect({
+  const onConnect = () => {
+    client.current.disconnect();
+    client.current.connect({
       serverURL: "http://localhost:5000",
       reconnectTimeout: 5000,
-      room: "test",
+      room,
     });
-  }, []);
+  };
 
-  return <div>hi</div>;
+  const onDisconnect = () => {
+    client.current.disconnect();
+    setRoom("");
+  };
+
+  return (
+    <div>
+      <input value={room} onChange={(e) => setRoom(e.target.value)} />
+      <button onClick={onConnect}>connect</button>
+      <button onClick={onDisconnect}>disconnect</button>
+    </div>
+  );
 };
