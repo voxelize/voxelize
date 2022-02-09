@@ -1,44 +1,21 @@
-import URL from "domurl";
-
-type CustomWebSocket = WebSocket & {
-  sendEvent: (event: any) => void;
-  serverURL: string;
-};
+import { Network } from "./core";
 
 type ClientOptions = {
-  serverURL: string;
+  network: Network;
 };
 
 class Client {
-  url: URL<any>;
-  server: CustomWebSocket;
+  public network: Network;
 
-  private reconnection: any;
-
-  constructor(public options: ClientOptions) {}
+  constructor({ network }: ClientOptions) {
+    this.network = network;
+  }
 
   connect = () => {
-    const { serverURL } = this.options;
-
-    this.url = new URL(serverURL);
-
-    if (this.server) {
-      this.server.onclose = null;
-      this.server.onmessage = null;
-      this.server.close();
-      if (this.reconnection) {
-        clearTimeout(this.reconnection);
-      }
-    }
-
-    const socket = new URL(serverURL);
-    socket.protocol =
-      !socket.protocol || socket.protocol === "http" ? "ws" : "wss";
-    socket.hash = "";
-
-    this.server = new WebSocket(socket.toString()) as CustomWebSocket;
-    this.server.binaryType = "arraybuffer";
+    this.network.connect();
   };
 }
 
 export { Client };
+
+export * from "./core";
