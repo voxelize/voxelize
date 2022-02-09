@@ -12,7 +12,7 @@ export const App = () => {
       network,
     });
 
-    client.connect();
+    client.connect("test");
   }, []);
 
   return <div>hi</div>;

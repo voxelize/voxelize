@@ -1,7 +1,7 @@
 import { DeepPartial } from "@voxelize/common";
 import merge from "deepmerge";
 
-import { Network } from "./core";
+import { Network, Rooms } from "./core";
 
 type ServerOptions = {
   port: number;
@@ -18,6 +18,7 @@ const defaultOptions: ServerOptions = {
 class Server {
   public options: ServerOptions;
   public network: Network;
+  public rooms: Rooms;
 
   constructor(options: DeepPartial<ServerOptions>) {
     const { maxClients, pingInterval } = (this.options = merge(
@@ -25,7 +26,11 @@ class Server {
       options
     ));
 
-    this.network = new Network({
+    this.network = new Network(this, {
+      test: "test",
+    });
+
+    this.rooms = new Rooms(this, {
       maxClients,
       pingInterval,
     });
@@ -37,6 +42,12 @@ class Server {
       this.network.listen(port);
       resolve(this.options);
     });
+  };
+
+  createRoom = (name: string) => {
+    const room = this.rooms.createRoom(name);
+    console.log(`Room created: ${room.id}`);
+    return room;
   };
 }
 

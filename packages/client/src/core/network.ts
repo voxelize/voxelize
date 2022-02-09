@@ -16,21 +16,17 @@ type NetworkOptions = {
 class Network {
   public ws: CustomWebSocket;
 
-  public url: URL<string>;
-  public socket: URL<string>;
+  public url: URL<any>;
+  public socket: URL<any>;
   public connected = false;
 
   private reconnection: any;
 
   constructor(public options: NetworkOptions) {
     this.url = new URL(this.options.serverURL);
-
-    this.socket = new URL(this.options.serverURL);
-    this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
-    this.socket.hash = "";
   }
 
-  connect = () => {
+  connect = async (room: string) => {
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
@@ -39,6 +35,12 @@ class Network {
         clearTimeout(this.reconnection);
       }
     }
+
+    // clear path
+    this.socket = new URL(this.url.toString());
+    this.socket.query.room = room;
+    this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
+    this.socket.hash = "";
 
     const ws = new WebSocket(this.socket.toString()) as CustomWebSocket;
     ws.binaryType = "arraybuffer";
@@ -57,11 +59,26 @@ class Network {
     ws.onclose = () => {
       this.connected = false;
       this.reconnection = setTimeout(() => {
-        this.connect();
+        this.connect(room);
       }, this.options.reconnectTimeout);
     };
 
     this.ws = ws;
+  };
+
+  fetch = async (path: string, query: { [key: string]: any } = {}) => {
+    if (!path.startsWith("/")) path = `/${path}`;
+    this.url.path = path;
+
+    Object.keys(query).forEach((key) => {
+      this.url.query[key] = query[key];
+    });
+    const result = await fetch(this.url.toString());
+
+    this.url.path = "";
+    this.url.clearQuery();
+
+    return result.json();
   };
 
   private onEvent = (event: any) => {

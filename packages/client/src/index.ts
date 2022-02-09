@@ -11,8 +11,16 @@ class Client {
     this.network = network;
   }
 
-  connect = () => {
-    this.network.connect();
+  connect = async (room: string) => {
+    const hasRoom = await this.network.fetch("has-room", { room });
+
+    if (!hasRoom) {
+      console.error("Room not found.");
+      return false;
+    }
+
+    this.network.connect(room);
+    return true;
   };
 }
 
