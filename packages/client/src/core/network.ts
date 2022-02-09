@@ -64,7 +64,7 @@ class Network {
     this.ws = ws;
   };
 
-  onEvent = (event: any) => {
+  private onEvent = (event: any) => {
     console.log(event);
 
     const { type } = event;
@@ -76,7 +76,7 @@ class Network {
     }
   };
 
-  onMessage = ({ data }: MessageEvent) => {
+  private onMessage = ({ data }: MessageEvent) => {
     let event: any;
     try {
       event = Network.decode(new Uint8Array(data));
@@ -86,7 +86,7 @@ class Network {
     this.onEvent(event);
   };
 
-  static decode = (buffer: any) => {
+  private static decode = (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
       buffer = Pako.inflate(buffer);
     }
@@ -99,7 +99,7 @@ class Network {
     return message;
   };
 
-  static encode(message: any) {
+  private static encode(message: any) {
     if (message.json) {
       message.json = JSON.stringify(message.json);
     }

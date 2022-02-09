@@ -24,12 +24,13 @@
   },
   "dependencies": {
     "@types/ws": "^8.2.2",
+    "@voxelize/common": "*",
     "cors": "^2.8.5",
+    "deepmerge": "^4.2.2",
     "express": "^4.17.2",
     "peer": "^0.6.1",
     "socket.io": "^4.4.1",
     "uuid": "^8.3.2",
-    "ws": "^8.4.2",
-    "@voxelize/common": "*"
+    "ws": "^8.4.2"
   }
 }

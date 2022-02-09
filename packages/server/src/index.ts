@@ -1,55 +1,42 @@
-import { createServer, Server as HTTPServer } from "http";
+import { DeepPartial } from "@voxelize/common";
+import merge from "deepmerge";
 
-import cors from "cors";
-import express, { Express } from "express";
-import WebSocket, { WebSocketServer } from "ws";
+import { Network } from "./core";
 
 type ServerOptions = {
   port: number;
-  peerPort: number;
+  maxClients: number;
+  pingInterval: number;
 };
 
-const corsConfig = {
-  origin: "*",
+const defaultOptions: ServerOptions = {
+  port: 5000,
+  maxClients: 100,
+  pingInterval: 50000,
 };
 
 class Server {
-  app: Express;
-  server: HTTPServer;
-  wss: WebSocketServer;
+  public options: ServerOptions;
+  public network: Network;
 
-  constructor(public options: ServerOptions) {
-    this.app = express();
+  constructor(options: DeepPartial<ServerOptions>) {
+    const { maxClients, pingInterval } = (this.options = merge(
+      defaultOptions,
+      options
+    ));
 
-    this.app.use(cors(corsConfig));
-
-    this.server = createServer(this.app);
-    this.wss = new WebSocket.Server({ server: this.server });
-
-    this.setupEvents();
+    this.network = new Network({
+      maxClients,
+      pingInterval,
+    });
   }
 
-  setupEvents = () => {
-    this.wss.on("connection", (socket) => {
-      socket.on("join-room", (roomId: string, userId: string) => {
-        console.log(roomId, userId);
-      });
+  listen = () => {
+    const { port } = this.options;
+    return new Promise<ServerOptions>((resolve) => {
+      this.network.listen(port);
+      resolve(this.options);
     });
-  };
-
-  start = (callback?: () => void) => {
-    return this.server.listen(
-      {
-        port: this.options.port,
-      },
-      callback
-        ? callback
-        : () => {
-            console.log(
-              `Voxelize server started on port ${this.options.port}!`
-            );
-          }
-    );
   };
 }
 
