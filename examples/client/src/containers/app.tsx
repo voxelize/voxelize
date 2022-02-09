@@ -1,18 +1,15 @@
-import { Client, Network } from "@voxelize/client";
+import { Client } from "@voxelize/client";
 import { useEffect } from "react";
 
 export const App = () => {
   useEffect(() => {
-    const network = new Network({
+    const client = new Client();
+
+    client.connect({
       serverURL: "http://localhost:5000",
       reconnectTimeout: 5000,
+      room: "test",
     });
-
-    const client = new Client({
-      network,
-    });
-
-    client.connect("test");
   }, []);
 
   return <div>hi</div>;

@@ -31,12 +31,15 @@ class Network {
       this.ws.onclose = null;
       this.ws.onmessage = null;
       this.ws.close();
+
       if (this.reconnection) {
         clearTimeout(this.reconnection);
       }
     }
 
-    // clear path
+    // set url query
+    this.url.query.room = room;
+
     this.socket = new URL(this.url.toString());
     this.socket.query.room = room;
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
@@ -49,9 +52,6 @@ class Network {
     };
     ws.onopen = () => {
       this.connected = true;
-
-      console.log("Websocket connected.");
-
       clearTimeout(this.reconnection);
     };
     ws.onerror = console.error;
@@ -67,6 +67,8 @@ class Network {
   };
 
   fetch = async (path: string, query: { [key: string]: any } = {}) => {
+    const stage = this.url.toString();
+
     if (!path.startsWith("/")) path = `/${path}`;
     this.url.path = path;
 
@@ -75,8 +77,7 @@ class Network {
     });
     const result = await fetch(this.url.toString());
 
-    this.url.path = "";
-    this.url.clearQuery();
+    this.url = new URL(stage);
 
     return result.json();
   };

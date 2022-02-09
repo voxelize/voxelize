@@ -46,7 +46,7 @@ class Server {
 
   createRoom = (name: string) => {
     const room = this.rooms.createRoom(name);
-    console.log(`Room created: ${room.id}`);
+    console.log(`🚪  Room created: ${room.name}`);
     return room;
   };
 }

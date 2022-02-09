@@ -1,25 +1,34 @@
 import { Network } from "./core";
 
-type ClientOptions = {
-  network: Network;
-};
-
 class Client {
   public network: Network;
 
-  constructor({ network }: ClientOptions) {
-    this.network = network;
-  }
+  connect = async ({
+    room,
+    serverURL,
+    reconnectTimeout,
+  }: {
+    room: string;
+    serverURL: string;
+    reconnectTimeout?: number;
+  }) => {
+    reconnectTimeout = reconnectTimeout || 5000;
 
-  connect = async (room: string) => {
-    const hasRoom = await this.network.fetch("has-room", { room });
+    // re-instantiate networking instance
+    const network = new Network({ reconnectTimeout, serverURL });
+    const hasRoom = await network.fetch("has-room", { room });
 
     if (!hasRoom) {
       console.error("Room not found.");
       return false;
     }
 
-    this.network.connect(room);
+    network.connect(room).then(() => {
+      console.log(`Joined room "${room}"`);
+    });
+
+    this.network = network;
+
     return true;
   };
 }
