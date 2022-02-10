@@ -5,3 +5,15 @@ export type ClientType = WebSocket & {
   name: string;
   isAlive: boolean;
 };
+
+export type ClientFilter = {
+  roomId?: string;
+  exclude?: string[];
+  include?: string[];
+};
+
+export const defaultFilter: ClientFilter = {
+  roomId: "",
+  exclude: [],
+  include: [],
+};

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
 import { Network } from "./network";
-import { ClientType } from "./shared";
+import { ClientFilter, ClientType, defaultFilter } from "./shared";
 import { World } from "./world";
 
 const { Message } = protocol;
@@ -39,6 +39,14 @@ class Room {
     client.id = uuidv4();
     client.isAlive = true;
 
+    client.send(
+      Network.encode({
+        type: "INIT",
+        json: { id: client.id },
+        peers: this.clients.map(({ id }) => id),
+      })
+    );
+
     this.broadcast({
       type: "JOIN",
       text: client.id,
@@ -65,8 +73,24 @@ class Room {
     this.onRequest(client, request);
   };
 
-  onRequest = (client: ClientType, request: protocol.Message) => {
+  onRequest = (client: ClientType, request: any) => {
     switch (request.type) {
+      case "SIGNAL": {
+        const { id, signal } = request.json;
+        const other = this.findClient(id);
+        if (other) {
+          other.send(
+            Network.encode({
+              type: "SIGNAL",
+              json: {
+                id: client.id,
+                signal,
+              },
+            })
+          );
+        }
+        break;
+      }
       default:
         break;
     }
@@ -96,11 +120,32 @@ class Room {
     });
   };
 
-  broadcast = (event: any) => {
+  findClient = (id: string) => {
+    const client = this.clients.find((c) => c.id === id);
+    return client || null;
+  };
+
+  broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
     const encoded = Network.encode(event);
 
-    this.clients.forEach((client) => {
+    this.filterClients(filter, (client) => {
       client.send(encoded);
+    });
+  };
+
+  private filterClients = (
+    { exclude, include }: ClientFilter,
+    func: (client: ClientType) => void
+  ) => {
+    include = include || [];
+    exclude = exclude || [];
+
+    this.clients.forEach((client) => {
+      if (
+        (!include.length || include.indexOf(client.id) >= 0) &&
+        (!exclude.length || exclude.indexOf(client.id) === -1)
+      )
+        func(client);
     });
   };
 }

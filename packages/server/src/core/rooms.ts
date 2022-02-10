@@ -4,15 +4,7 @@ import { Server } from "..";
 
 import { Network } from "./network";
 import { Room } from "./room";
-import { ClientType } from "./shared";
-
-type ClientFilter = { roomId?: string; exclude?: string[]; include?: string[] };
-
-const defaultFilter: ClientFilter = {
-  roomId: "",
-  exclude: [],
-  include: [],
-};
+import { ClientFilter, ClientType, defaultFilter } from "./shared";
 
 type RoomsOptions = {
   maxClients: number;
@@ -80,7 +72,7 @@ class Rooms {
   broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
     const encoded = Network.encode(event);
 
-    return this.filterClients(filter, (client) => {
+    this.filterClients(filter, (client) => {
       client.send(encoded);
     });
   };
@@ -89,6 +81,9 @@ class Rooms {
     { roomId, exclude, include }: ClientFilter,
     func: (client: ClientType) => void
   ) => {
+    include = include || [];
+    exclude = exclude || [];
+
     const pass = (client: ClientType) =>
       include &&
       (!include.length || include.indexOf(client.id) >= 0) &&

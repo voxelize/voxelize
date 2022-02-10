@@ -3,16 +3,18 @@ package protocol;
 
 message Message {
   enum Type {
-    ECHO = 0;
-    ERROR = 1;
-    INIT = 2;
-    JOIN = 3;
-    LEAVE = 4;
-    LOAD = 5;
+    INIT = 0;
+    JOIN = 1;
+    SIGNAL = 2;
+    ECHO = 3;
+    ERROR = 4;
+    LEAVE = 5;
     PEER = 6;
   }
   
   Type type = 1;
   string json = 2;
   string text = 3;
+
+  repeated string peers = 4;
 }

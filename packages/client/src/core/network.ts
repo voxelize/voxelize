@@ -1,6 +1,9 @@
 import { protocol } from "@voxelize/common";
 import URL from "domurl";
 import Pako from "pako";
+import { Instance as PeerInstance } from "simple-peer";
+// @ts-ignore
+import SimplePeer from "simple-peer/simplepeer.min";
 
 const { Message } = protocol;
 
@@ -16,15 +19,19 @@ type NetworkOptions = {
 class Network {
   public ws: CustomWebSocket;
 
+  public id: string;
   public url: URL<any>;
   public room: string;
   public socket: URL<any>;
+  // public peer: PeerInstance;
   public connected = false;
 
+  private peers: Map<string, PeerInstance>;
   private reconnection: any;
 
   constructor(public options: NetworkOptions) {
     this.url = new URL(this.options.serverURL);
+    this.peers = new Map();
   }
 
   connect = async (room: string) => {
@@ -73,6 +80,10 @@ class Network {
     this.ws.onmessage = null;
     this.ws.close();
 
+    this.peers.forEach((peer) => {
+      peer.destroy();
+    });
+
     if (this.reconnection) {
       clearTimeout(this.reconnection);
     }
@@ -94,13 +105,48 @@ class Network {
     return result.json();
   };
 
-  private onEvent = (event: any) => {
-    console.log(event);
+  sendToPeers = (event: any) => {
+    const encoded = Network.encode(event);
 
+    this.peers.forEach((peer) => {
+      peer.send(encoded);
+    });
+  };
+
+  private onEvent = (event: any) => {
     const { type } = event;
 
     switch (type) {
       case "INIT": {
+        const {
+          peers,
+          json: { id },
+        } = event;
+
+        this.id = id;
+
+        if (peers) {
+          peers.forEach((i: string) => {
+            this.connectToPeer(i, true);
+          });
+        }
+
+        break;
+      }
+      case "JOIN": {
+        const { text: id } = event;
+        this.connectToPeer(id);
+
+        break;
+      }
+      case "SIGNAL": {
+        const {
+          json: { id, signal },
+        } = event;
+        const other = this.peers.get(id);
+        if (other && !other.destroyed) {
+          other.signal(signal);
+        }
         break;
       }
     }
@@ -114,6 +160,37 @@ class Network {
       return;
     }
     this.onEvent(event);
+  };
+
+  private connectToPeer = (id: string, initiator = false) => {
+    const other = new SimplePeer({
+      initiator,
+      trickle: false,
+      channelName: this.room,
+    }) as PeerInstance;
+
+    other.on("data", (data) => {
+      const decoded = Network.decode(data);
+      console.log(decoded);
+    });
+    other.on("error", () => {
+      this.peers.delete(id);
+      console.log(`removed peer ${id}`);
+    });
+    other.on("connect", () => {
+      console.log(`connected to peer ${id}`);
+    });
+    other.on("signal", (signal) => {
+      this.ws.sendEvent({
+        type: "SIGNAL",
+        json: {
+          id,
+          signal,
+        },
+      });
+    });
+
+    this.peers.set(id, other);
   };
 
   private static decode = (buffer: any) => {
