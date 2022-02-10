@@ -19,6 +19,7 @@
     "@types/domurl": "^0.0.7",
     "@types/pako": "^1.0.3",
     "@types/simple-peer": "^9.11.4",
+    "@types/three": "^0.137.0",
     "rimraf": "^3.0.2",
     "rollup": "^2.67.0",
     "rollup-plugin-peer-deps-external": "^2.2.4",

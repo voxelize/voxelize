@@ -2945,6 +2945,11 @@
   dependencies:
     "@types/jest" "*"
 
+"@types/three@^0.137.0":
+  version "0.137.0"
+  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.137.0.tgz#6047e0658262b4de7c464a40288f9071ddd9a6d5"
+  integrity sha512-Xc5EAlfYmgrCLI/VlSVqiRJAtzhWF0Rw2jSq48nqJy+Hcb5sfDOXyfZn1+RNcHyi9l8CeCAXCZygO8IyeOJVEA==
+
 "@types/trusted-types@^2.0.2":
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/@types/trusted-types/-/trusted-types-2.0.2.tgz#fc25ad9943bcac11cceb8168db4f275e0e72e756"
@@ -11312,6 +11317,11 @@ text-table@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/text-table/-/text-table-0.2.0.tgz#7f5ee823ae805207c00af2df4a84ec3fcfa570b4"
   integrity sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
+
+three@^0.137.5:
+  version "0.137.5"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.137.5.tgz#a1e34bedd0412f2d8797112973dfadac78022ce6"
+  integrity sha512-rTyr+HDFxjnN8+N/guZjDgfVxgHptZQpf6xfL/Mo7a5JYIFwK6tAq3bzxYYB4Ae0RosDZlDuP+X5aXDXz+XnHQ==
 
 throat@^6.0.1:
   version "6.0.1"

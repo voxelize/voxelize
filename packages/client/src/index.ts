@@ -1,7 +1,25 @@
-import { Network } from "./core";
+import { EventEmitter } from "events";
 
-class Client {
+import { Network } from "./core";
+import { Container } from "./core/container";
+
+type ClientParams = {
+  domElement?: HTMLElement;
+  canvas?: HTMLCanvasElement;
+};
+
+class Client extends EventEmitter {
   public network: Network | undefined;
+
+  public container: Container;
+
+  constructor(params: ClientParams = {}) {
+    super();
+
+    const { canvas, domElement } = params;
+
+    this.container = new Container(this, { canvas, domElement });
+  }
 
   connect = async ({
     room,
@@ -15,7 +33,7 @@ class Client {
     reconnectTimeout = reconnectTimeout || 5000;
 
     // re-instantiate networking instance
-    const network = new Network({ reconnectTimeout, serverURL });
+    const network = new Network(this, { reconnectTimeout, serverURL });
     const hasRoom = await network.fetch("has-room", { room });
 
     if (!hasRoom) {

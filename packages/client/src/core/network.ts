@@ -5,32 +5,38 @@ import { Instance as PeerInstance } from "simple-peer";
 // @ts-ignore
 import SimplePeer from "simple-peer/simplepeer.min";
 
+import { Client } from "..";
+
 const { Message } = protocol;
 
 type CustomWebSocket = WebSocket & {
   sendEvent: (event: any) => void;
 };
 
-type NetworkOptions = {
+type NetworkParams = {
   serverURL: string;
   reconnectTimeout: number;
+};
+
+type QueryParams = {
+  [key: string]: any;
 };
 
 class Network {
   public ws: CustomWebSocket;
 
   public id: string;
-  public url: URL<any>;
+  public url: URL<QueryParams>;
   public room: string;
-  public socket: URL<any>;
+  public socket: URL<QueryParams>;
   // public peer: PeerInstance;
   public connected = false;
 
   private peers: Map<string, PeerInstance>;
   private reconnection: any;
 
-  constructor(public options: NetworkOptions) {
-    this.url = new URL(this.options.serverURL);
+  constructor(public client: Client, public params: NetworkParams) {
+    this.url = new URL(this.params.serverURL);
     this.peers = new Map();
   }
 
@@ -68,7 +74,7 @@ class Network {
       this.connected = false;
       this.reconnection = setTimeout(() => {
         this.connect(room);
-      }, this.options.reconnectTimeout);
+      }, this.params.reconnectTimeout);
     };
 
     this.ws = ws;
@@ -215,6 +221,6 @@ class Network {
   }
 }
 
-export type { NetworkOptions };
+export type { NetworkParams };
 
 export { Network };

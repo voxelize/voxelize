@@ -1,11 +1,22 @@
 import { Client } from "@voxelize/client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export const App = () => {
   const [room, setRoom] = useState("test");
-  const client = useRef(new Client());
+  const client = useRef<Client | null>(null);
+  const container = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (container.current) {
+      client.current = new Client({
+        domElement: container.current,
+      });
+    }
+  }, []);
 
   const onConnect = () => {
+    if (!client.current) return;
+
     client.current.disconnect();
     client.current.connect({
       serverURL: "http://localhost:5000",
@@ -15,10 +26,14 @@ export const App = () => {
   };
 
   const onDisconnect = () => {
+    if (!client.current) return;
+
     client.current.disconnect();
   };
 
   const onSignal = () => {
+    if (!client.current) return;
+
     client.current.network?.sendToPeers({
       type: "PEER",
     });
@@ -30,6 +45,10 @@ export const App = () => {
       <button onClick={onConnect}>connect</button>
       <button onClick={onDisconnect}>disconnect</button>
       <button onClick={onSignal}>signal</button>
+      <div
+        style={{ background: "black", width: 800, height: 600 }}
+        ref={container}
+      />
     </div>
   );
 };
