@@ -1,7 +1,6 @@
 import { EventEmitter } from "events";
 
-import { Network } from "./core";
-import { Container } from "./core/container";
+import { Container, Network } from "./core";
 
 type ClientParams = {
   domElement?: HTMLElement;
