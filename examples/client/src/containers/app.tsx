@@ -16,7 +16,6 @@ export const App = () => {
 
   const onDisconnect = () => {
     client.current.disconnect();
-    setRoom("");
   };
 
   const onSignal = () => {
