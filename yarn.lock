@@ -11318,6 +11318,11 @@ text-table@^0.2.0:
   resolved "https://registry.yarnpkg.com/text-table/-/text-table-0.2.0.tgz#7f5ee823ae805207c00af2df4a84ec3fcfa570b4"
   integrity sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
 
+three-spritetext@^1.6.4:
+  version "1.6.4"
+  resolved "https://registry.yarnpkg.com/three-spritetext/-/three-spritetext-1.6.4.tgz#81d6d6aef761dd805fcc0009a5e49d3366d938c5"
+  integrity sha512-KngnmDnpRe5UdnhD1N+5GrhGC9aibs5/5nnBWFH23FDSYdLIk8NUwZFtEJpXXYKjUp/jjAw4dz0vRKroz8cILg==
+
 three@^0.137.5:
   version "0.137.5"
   resolved "https://registry.yarnpkg.com/three/-/three-0.137.5.tgz#a1e34bedd0412f2d8797112973dfadac78022ce6"

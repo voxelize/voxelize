@@ -2,11 +2,18 @@ import { Client } from "..";
 import { Helper } from "../utils";
 
 type ContainerParams = {
-  domElement?: HTMLElement;
-  canvas?: HTMLCanvasElement;
+  domElement: HTMLElement;
+  canvas: HTMLCanvasElement;
+};
+
+const defaultParams: ContainerParams = {
+  domElement: document.body,
+  canvas: document.createElement("canvas"),
 };
 
 class Container {
+  public params: ContainerParams;
+
   public focused = false;
 
   public domElement: HTMLElement;
@@ -14,10 +21,11 @@ class Container {
 
   private unbinds: (() => void)[] = [];
 
-  constructor(public client: Client, public options: ContainerParams) {
-    let { domElement, canvas } = options;
-    domElement = domElement || document.body;
-    canvas = canvas || document.createElement("canvas");
+  constructor(public client: Client, params: Partial<ContainerParams> = {}) {
+    const { domElement, canvas } = (this.params = {
+      ...defaultParams,
+      ...params,
+    });
 
     Helper.applyStyles(canvas, {
       position: "absolute",
@@ -98,8 +106,8 @@ class Container {
 
   fitCanvas = () => {
     Helper.applyStyles(this.canvas, {
-      width: `${this.domElement.clientWidth}px`,
-      height: `${this.domElement.clientHeight}px`,
+      width: `${this.domElement.offsetWidth}px`,
+      height: `${this.domElement.offsetHeight}px`,
     });
   };
 
@@ -107,5 +115,7 @@ class Container {
     this.unbinds.forEach((fn) => fn());
   };
 }
+
+export type { ContainerParams };
 
 export { Container };

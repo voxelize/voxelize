@@ -29,18 +29,16 @@ class Network {
   public url: URL<QueryParams>;
   public room: string;
   public socket: URL<QueryParams>;
-  // public peer: PeerInstance;
   public connected = false;
 
-  private peers: Map<string, PeerInstance>;
   private reconnection: any;
 
   constructor(public client: Client, public params: NetworkParams) {
     this.url = new URL(this.params.serverURL);
-    this.peers = new Map();
   }
 
   connect = async (room: string) => {
+    // if websocket connection already exists, disconnect it
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
@@ -59,8 +57,10 @@ class Network {
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
 
+    // initialize a websocket connection to socket
     const ws = new WebSocket(this.socket.toString()) as CustomWebSocket;
     ws.binaryType = "arraybuffer";
+    // custom Protobuf event sending
     ws.sendEvent = (event: any) => {
       ws.send(Network.encode(event));
     };
@@ -72,6 +72,7 @@ class Network {
     ws.onmessage = this.onMessage;
     ws.onclose = () => {
       this.connected = false;
+      // fire reconnection every "reconnectTimeout" ms
       this.reconnection = setTimeout(() => {
         this.connect(room);
       }, this.params.reconnectTimeout);
@@ -85,10 +86,6 @@ class Network {
     this.ws.onclose = null;
     this.ws.onmessage = null;
     this.ws.close();
-
-    this.peers.forEach((peer) => {
-      peer.destroy();
-    });
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
@@ -111,14 +108,6 @@ class Network {
     return result.json();
   };
 
-  sendToPeers = (event: any) => {
-    const encoded = Network.encode(event);
-
-    this.peers.forEach((peer) => {
-      peer.send(encoded);
-    });
-  };
-
   private onEvent = (event: any) => {
     const { type } = event;
 
@@ -131,6 +120,8 @@ class Network {
 
         this.id = id;
 
+        // if any other peers exist on load:
+        // try to reach out to them as an initiator
         if (peers) {
           peers.forEach((i: string) => {
             this.connectToPeer(i, true);
@@ -140,6 +131,8 @@ class Network {
         break;
       }
       case "JOIN": {
+        // if a new peer joined, connect to them passively,
+        // as they would have already tried to reach out
         const { text: id } = event;
         this.connectToPeer(id);
 
@@ -149,9 +142,11 @@ class Network {
         const {
           json: { id, signal },
         } = event;
-        const other = this.peers.get(id);
-        if (other && !other.destroyed) {
-          other.signal(signal);
+        const { connection } = this.client.peers.get(id) || {};
+
+        // receiving signal from another peer
+        if (connection && !connection.destroyed) {
+          connection.signal(signal);
         }
         break;
       }
@@ -169,37 +164,15 @@ class Network {
   };
 
   private connectToPeer = (id: string, initiator = false) => {
-    const other = new SimplePeer({
+    const connection = new SimplePeer({
       initiator,
       trickle: false,
       channelName: this.room,
     }) as PeerInstance;
-
-    other.on("data", (data) => {
-      const decoded = Network.decode(data);
-      console.log(decoded);
-    });
-    other.on("error", () => {
-      this.peers.delete(id);
-      console.log(`removed peer ${id}`);
-    });
-    other.on("connect", () => {
-      console.log(`connected to peer ${id}`);
-    });
-    other.on("signal", (signal) => {
-      this.ws.sendEvent({
-        type: "SIGNAL",
-        json: {
-          id,
-          signal,
-        },
-      });
-    });
-
-    this.peers.set(id, other);
+    this.client.peers.addPeer(id, connection);
   };
 
-  private static decode = (buffer: any) => {
+  static decode = (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
       buffer = Pako.inflate(buffer);
     }
@@ -212,7 +185,7 @@ class Network {
     return message;
   };
 
-  private static encode(message: any) {
+  static encode(message: any) {
     if (message.json) {
       message.json = JSON.stringify(message.json);
     }

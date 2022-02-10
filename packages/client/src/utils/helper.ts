@@ -1,8 +1,9 @@
 class Helper {
   static applyStyles = (
-    ele: HTMLElement | HTMLElement[],
+    ele: HTMLElement | HTMLElement[] | undefined,
     style: Partial<CSSStyleDeclaration>
   ) => {
+    if (!ele) return;
     Object.keys(style).forEach((key: string) => {
       // @ts-ignore
       const attribute = style[key];

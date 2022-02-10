@@ -1,23 +1,51 @@
 import { EventEmitter } from "events";
 
-import { Container, Network } from "./core";
+import {
+  Container,
+  ContainerParams,
+  World,
+  WorldParams,
+  Network,
+  RenderingParams,
+  Rendering,
+  Camera,
+  CameraParams,
+  Peers,
+  PeersParams,
+} from "./core";
 
 type ClientParams = {
-  domElement?: HTMLElement;
-  canvas?: HTMLCanvasElement;
+  container?: Partial<ContainerParams>;
+  rendering?: Partial<RenderingParams>;
+  world?: Partial<WorldParams>;
+  camera?: Partial<CameraParams>;
+  peers?: Partial<PeersParams>;
 };
 
 class Client extends EventEmitter {
   public network: Network | undefined;
 
   public container: Container;
+  public rendering: Rendering;
+  public camera: Camera;
+  public world: World;
+  public peers: Peers;
+
+  private animationFrame: number;
 
   constructor(params: ClientParams = {}) {
     super();
 
-    const { canvas, domElement } = params;
+    const { container, rendering, world, camera, peers } = params;
 
-    this.container = new Container(this, { canvas, domElement });
+    this.container = new Container(this, container);
+    this.rendering = new Rendering(this, rendering);
+    this.world = new World(this, world);
+    this.camera = new Camera(this, camera);
+    this.peers = new Peers(this, peers);
+
+    // all members has been initialized
+    this.emit("initialized");
   }
 
   connect = async ({
@@ -46,16 +74,38 @@ class Client extends EventEmitter {
 
     this.network = network;
 
+    this.run();
+
     return true;
   };
 
   disconnect = async () => {
+    this.peers.dispose();
+
     if (this.network) {
       this.network.disconnect();
       console.log(`Left room "${this.network.room}"`);
     }
 
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+    }
+
     this.network = undefined;
+  };
+
+  private run = () => {
+    const animate = () => {
+      this.animationFrame = requestAnimationFrame(animate);
+      this.animate();
+    };
+
+    animate();
+  };
+
+  private animate = () => {
+    this.camera.tick();
+    this.rendering.render();
   };
 }
 

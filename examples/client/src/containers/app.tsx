@@ -9,7 +9,9 @@ export const App = () => {
   useEffect(() => {
     if (container.current) {
       client.current = new Client({
-        domElement: container.current,
+        container: {
+          domElement: container.current,
+        },
       });
     }
   }, []);
@@ -34,7 +36,7 @@ export const App = () => {
   const onSignal = () => {
     if (!client.current) return;
 
-    client.current.network?.sendToPeers({
+    client.current.peers.broadcast({
       type: "PEER",
     });
   };
