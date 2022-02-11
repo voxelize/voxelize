@@ -34,6 +34,7 @@ class Peers extends Map<string, Peer> {
   addPeer = (id: string, connection: PeerInstance) => {
     const { headColor, headDimension, lerpFactor, maxNameDistance } =
       this.params;
+    const { scene } = this.client.rendering;
 
     const peer = new Peer(connection, {
       headColor,
@@ -45,11 +46,16 @@ class Peers extends Map<string, Peer> {
     // connection made
     connection.on("connect", () => {
       console.log(`connected to peer ${id}`);
+      peer.connected = true;
+      scene.add(peer.mesh);
     });
 
     // disconnected
     connection.on("error", () => {
+      console.log(`disconnected from peer ${id}`);
+      peer.connected = false;
       connection.destroy();
+      scene.remove(peer.mesh);
       this.delete(id);
     });
 
@@ -77,7 +83,39 @@ class Peers extends Map<string, Peer> {
     const encoded = Network.encode(event);
 
     this.forEach((peer) => {
-      peer.connection.send(encoded);
+      if (peer.connected) {
+        peer.connection.send(encoded);
+      }
+    });
+  };
+
+  tick = () => {
+    const { name, controls, peers } = this.client;
+
+    if (peers.size > 0) {
+      const { object } = controls;
+      const {
+        position: { x: px, y: py, z: pz },
+        quaternion: { x: qx, y: qy, z: qz, w: qw },
+      } = object;
+
+      peers.broadcast({
+        type: "PEER",
+        peer: {
+          name,
+          px,
+          py,
+          pz,
+          qx,
+          qy,
+          qz,
+          qw,
+        },
+      });
+    }
+
+    this.forEach((peer) => {
+      peer.tick();
     });
   };
 }

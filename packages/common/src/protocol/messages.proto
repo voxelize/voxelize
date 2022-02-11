@@ -1,6 +1,17 @@
 syntax = "proto3";
 package protocol;
 
+message Peer {
+  string name = 1;
+  float px = 2;
+  float py = 3;
+  float pz = 4;
+  float qx = 5;
+  float qy = 6;
+  float qz = 7;
+  float qw = 8;
+}
+
 message Message {
   enum Type {
     INIT = 0;
@@ -11,10 +22,11 @@ message Message {
     LEAVE = 5;
     PEER = 6;
   }
-  
+
   Type type = 1;
   string json = 2;
   string text = 3;
+  Peer peer = 4;
 
-  repeated string peers = 4;
+  repeated string peers = 5;
 }

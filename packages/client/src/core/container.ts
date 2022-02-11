@@ -38,6 +38,12 @@ class Container {
       right: "0px",
     });
 
+    const styles = document.createElement("style");
+    styles.innerHTML = `
+      @import url("https://fonts.googleapis.com/css2?family=Fira+Mono&display=swap");
+    `;
+    document.head.appendChild(styles);
+
     this.canvas = canvas;
 
     this.domElement = domElement;
@@ -46,6 +52,7 @@ class Container {
 
     Helper.applyStyles(this.domElement, {
       position: "relative",
+      fontFamily: `"Fira Mono", monospace`,
     });
 
     // add listeners

@@ -16,6 +16,8 @@ type PeerParams = {
 class Peer {
   public head: Head;
 
+  public connected = false;
+
   public name = "testtesttest";
   public newPosition: Vector3;
   public newQuaternion: Quaternion;
@@ -30,7 +32,7 @@ class Peer {
     this.newQuaternion = this.head.mesh.quaternion;
 
     this.nameMesh = new SpriteText(this.name, headDimension / 3);
-    this.nameMesh.fontFace = "Ponderosa";
+    this.nameMesh.fontFace = "Fira Mono";
     this.nameMesh.position.y += headDimension * 1;
     this.nameMesh.backgroundColor = "#00000077";
     this.nameMesh.material.depthTest = false;
@@ -58,18 +60,34 @@ class Peer {
     this.newQuaternion = quaternion;
   };
 
-  tick = (camPos: Vector3) => {
+  tick = (camPos?: Vector3) => {
     const { lerpFactor, maxNameDistance } = this.params;
 
     this.head.mesh.position.lerp(this.newPosition, lerpFactor);
     this.head.mesh.quaternion.slerp(this.newQuaternion, lerpFactor);
 
-    this.nameMesh.visible =
-      this.head.mesh.position.distanceTo(camPos) < maxNameDistance;
+    if (camPos) {
+      this.nameMesh.visible =
+        this.head.mesh.position.distanceTo(camPos) < maxNameDistance;
+    }
   };
 
   private onData = (data: any) => {
-    console.log(data);
+    const { type } = data;
+
+    switch (type) {
+      case "PEER": {
+        const { peer } = data;
+        if (peer) {
+          const { name, px, py, pz, qx, qy, qz, qw } = peer;
+          const position = new Vector3(px, py, pz);
+          const quaternion = new Quaternion(qx, qy, qz, qw);
+
+          this.update(name, position, quaternion);
+        }
+        break;
+      }
+    }
   };
 
   get mesh() {

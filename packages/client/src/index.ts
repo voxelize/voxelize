@@ -12,6 +12,10 @@ import {
   CameraParams,
   Peers,
   PeersParams,
+  Inputs,
+  Clock,
+  Controls,
+  ControlsParams,
 } from "./core";
 
 type ClientParams = {
@@ -20,13 +24,19 @@ type ClientParams = {
   world?: Partial<WorldParams>;
   camera?: Partial<CameraParams>;
   peers?: Partial<PeersParams>;
+  controls?: Partial<ControlsParams>;
 };
 
 class Client extends EventEmitter {
+  public name = "default";
+
   public network: Network | undefined;
 
   public container: Container;
   public rendering: Rendering;
+  public inputs: Inputs;
+  public clock: Clock;
+  public controls: Controls;
   public camera: Camera;
   public world: World;
   public peers: Peers;
@@ -36,13 +46,16 @@ class Client extends EventEmitter {
   constructor(params: ClientParams = {}) {
     super();
 
-    const { container, rendering, world, camera, peers } = params;
+    const { container, rendering, world, camera, peers, controls } = params;
 
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
     this.world = new World(this, world);
     this.camera = new Camera(this, camera);
     this.peers = new Peers(this, peers);
+    this.controls = new Controls(this, controls);
+    this.inputs = new Inputs(this);
+    this.clock = new Clock(this);
 
     // all members has been initialized
     this.emit("initialized");
@@ -94,6 +107,10 @@ class Client extends EventEmitter {
     this.network = undefined;
   };
 
+  setName = (name: string) => {
+    this.name = name;
+  };
+
   private run = () => {
     const animate = () => {
       this.animationFrame = requestAnimationFrame(animate);
@@ -104,7 +121,11 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
+    this.clock.tick();
     this.camera.tick();
+    this.peers.tick();
+    this.controls.tick();
+
     this.rendering.render();
   };
 }
