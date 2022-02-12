@@ -2611,6 +2611,11 @@
   resolved "https://registry.yarnpkg.com/@tsconfig/node16/-/node16-1.0.2.tgz#423c77877d0569db20e1fc80885ac4118314010e"
   integrity sha512-eZxlbI8GZscaGS7kkc/trHTT5xgrjH3/1n2JDwusC9iahPKWMRvRjJSAN5mCXviuTGQ/lHnhvv8Q1YTpnfz9gA==
 
+"@tweakpane/core@^1.0.8":
+  version "1.0.8"
+  resolved "https://registry.yarnpkg.com/@tweakpane/core/-/core-1.0.8.tgz#428246eae841bbf32bed2f27e54311849fdd8501"
+  integrity sha512-q7BQrqM4NYiaSoErRgRY0EBxxC8AzsZJoz52K8SNJ/IfYu9lTzfFTwW7ouYqgElSOx+3ybXBcMlkCPZdOBZg6Q==
+
 "@types/aria-query@^4.2.0":
   version "4.2.2"
   resolved "https://registry.yarnpkg.com/@types/aria-query/-/aria-query-4.2.2.tgz#ed4e0ad92306a704f9fb132a0cfcf77486dbe2bc"
@@ -11674,6 +11679,11 @@ tunnel-agent@^0.6.0:
   integrity sha1-J6XeoGs2sEoKmWZ3SykIaPD8QP0=
   dependencies:
     safe-buffer "^5.0.1"
+
+tweakpane@^3.0.7:
+  version "3.0.7"
+  resolved "https://registry.yarnpkg.com/tweakpane/-/tweakpane-3.0.7.tgz#a514a08aa4fafb542923d83e4be6915887dac7e5"
+  integrity sha512-rgxqoo6T10atYoKHVif6aYlAMIAlHJ84hi5LXqi6ZgVEPcmnzPI34C88y6HquarBY0ZKE/ZCXVaZm8NibhQRtA==
 
 tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   version "0.14.5"

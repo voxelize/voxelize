@@ -17,6 +17,10 @@ class Helper {
 
     return ele;
   };
+
+  static round = (n: number, digits: number) => {
+    return Math.round(n * 10 ** digits) / 10 ** digits;
+  };
 }
 
 export { Helper };

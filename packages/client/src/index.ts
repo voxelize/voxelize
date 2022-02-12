@@ -17,6 +17,7 @@ import {
   Controls,
   ControlsParams,
 } from "./core";
+import { Debug } from "./core/debug";
 
 type ClientParams = {
   container?: Partial<ContainerParams>;
@@ -32,6 +33,7 @@ class Client extends EventEmitter {
 
   public network: Network | undefined;
 
+  public debug: Debug;
   public container: Container;
   public rendering: Rendering;
   public inputs: Inputs;
@@ -48,6 +50,7 @@ class Client extends EventEmitter {
 
     const { container, rendering, world, camera, peers, controls } = params;
 
+    this.debug = new Debug(this);
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
     this.world = new World(this, world);
@@ -125,6 +128,7 @@ class Client extends EventEmitter {
     this.camera.tick();
     this.peers.tick();
     this.controls.tick();
+    this.debug.tick();
 
     this.rendering.render();
   };
