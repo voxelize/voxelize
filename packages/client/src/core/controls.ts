@@ -245,9 +245,9 @@ class Controls extends EventDispatcher {
       this.onPointerlockError
     );
 
-    this.client.container.domElement.addEventListener("click", () =>
-      this.lock()
-    );
+    this.client.container.domElement.addEventListener("click", () => {
+      if (this.client.network?.connected) this.lock();
+    });
 
     document.addEventListener("keydown", this.onKeyDown, false);
     document.addEventListener("keyup", this.onKeyUp, false);

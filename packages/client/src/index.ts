@@ -28,7 +28,7 @@ type ClientParams = {
 };
 
 class Client extends EventEmitter {
-  public name = "default";
+  public name = "test";
 
   public network: Network | undefined;
 

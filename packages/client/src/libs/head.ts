@@ -21,36 +21,23 @@ class Head {
 
     this.box.paint("all", this.drawBackground);
     this.box.paint("front", this.drawFace);
-    this.box.paint("sides", this.drawCrown, 1);
+    // this.box.paint("sides", this.drawCrown, 1);
 
     // to fix the transparency with leaves issue
     this.mesh.renderOrder = 10000000000;
   }
 
-  private drawBackground = (material: MeshBasicMaterial) => {
-    const canvas = <HTMLCanvasElement>material.map?.image;
-    if (!canvas) return;
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
+  private drawBackground = (
+    context: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement
+  ) => {
     context.fillStyle = "#8e9775";
     context.fillRect(0, 0, canvas.width, canvas.height);
   };
 
-  private drawFace = (material: MeshBasicMaterial) => {
-    const canvas = <HTMLCanvasElement>material.map?.image;
-    if (!canvas) return;
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
+  private drawFace = (context: CanvasRenderingContext2D) => {
     context.fillStyle = "#e7d4b5";
     context.fillRect(1, 1, 6, 6);
-
-    // context.fillStyle = 'white';
-    // context.fillRect(2, 3, 1, 1);
-    // context.fillRect(5, 3, 1, 1);
 
     context.fillStyle = "#121013";
     // mouth
@@ -64,13 +51,7 @@ class Head {
     context.fillRect(7, 3, 1, 1);
   };
 
-  private drawCrown = (material: MeshBasicMaterial) => {
-    const canvas = <HTMLCanvasElement>material.map?.image;
-    if (!canvas) return;
-
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
+  private drawCrown = (context: CanvasRenderingContext2D) => {
     const gold = [
       [0, 0],
       [0, 1],

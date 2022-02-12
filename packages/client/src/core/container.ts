@@ -27,6 +27,23 @@ class Container {
       ...params,
     });
 
+    const afloat = document.createElement("div");
+    Helper.applyStyles(afloat, {
+      position: "absolute",
+      top: "0",
+      left: "0",
+      maxWidth: "100vw",
+      zIndex: "100",
+    });
+
+    if (domElement) {
+      Array.from(domElement.children).forEach((ele) => {
+        domElement.removeChild(ele);
+        afloat.appendChild(ele);
+      });
+      domElement.appendChild(afloat);
+    }
+
     Helper.applyStyles(canvas, {
       position: "absolute",
       margin: "0",

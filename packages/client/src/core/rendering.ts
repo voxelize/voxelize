@@ -67,6 +67,8 @@ class Rendering {
       canvas,
     });
     this.renderer.setClearColor(new Color(clearColor));
+    this.renderer.extensions.get("EXT_color_buffer_float");
+    this.renderer.extensions.get("EXT_float_blend");
 
     // composer
     const { width, height } = this.renderSize;

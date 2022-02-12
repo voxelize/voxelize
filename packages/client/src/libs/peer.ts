@@ -23,7 +23,11 @@ class Peer {
   public newQuaternion: Quaternion;
   public nameMesh: SpriteText;
 
-  constructor(public connection: PeerInstance, public params: PeerParams) {
+  constructor(
+    public id: string,
+    public connection: PeerInstance,
+    public params: PeerParams
+  ) {
     const { headDimension } = params;
 
     this.head = new Head({ headDimension });

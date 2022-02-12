@@ -20,7 +20,10 @@ type CanvasBoxParams = {
   side: Side;
 };
 
-type ArtFunction = (mat: MeshBasicMaterial) => void;
+type ArtFunction = (
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement
+) => void;
 
 type BoxSides =
   | "back"
@@ -92,7 +95,14 @@ class Layer {
     for (const face of actualSides) {
       const material = this.materials.get(face);
       if (!material) continue;
-      art(material);
+
+      const canvas = <HTMLCanvasElement>material.map?.image;
+      if (!canvas) continue;
+
+      const context = canvas.getContext("2d");
+      if (!context) continue;
+
+      art(context, canvas);
 
       if (material.map) {
         material.map.needsUpdate = true;

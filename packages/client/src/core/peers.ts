@@ -36,7 +36,7 @@ class Peers extends Map<string, Peer> {
       this.params;
     const { scene } = this.client.rendering;
 
-    const peer = new Peer(connection, {
+    const peer = new Peer(id, connection, {
       headColor,
       headDimension,
       lerpFactor,
@@ -53,10 +53,7 @@ class Peers extends Map<string, Peer> {
     // disconnected
     connection.on("error", () => {
       console.log(`disconnected from peer ${id}`);
-      peer.connected = false;
-      connection.destroy();
-      scene.remove(peer.mesh);
-      this.delete(id);
+      this.removePeer(peer);
     });
 
     // signaling
@@ -75,7 +72,7 @@ class Peers extends Map<string, Peer> {
 
   dispose = () => {
     this.forEach((peer) => {
-      peer.connection.destroy();
+      this.removePeer(peer);
     });
   };
 
@@ -83,7 +80,7 @@ class Peers extends Map<string, Peer> {
     const encoded = Network.encode(event);
 
     this.forEach((peer) => {
-      if (peer.connected) {
+      if (peer.connected && peer.connection.connected) {
         peer.connection.send(encoded);
       }
     });
@@ -117,6 +114,13 @@ class Peers extends Map<string, Peer> {
     this.forEach((peer) => {
       peer.tick();
     });
+  };
+
+  private removePeer = (peer: Peer) => {
+    peer.connected = false;
+    peer.connection.destroy();
+    this.client.rendering.scene.remove(peer.mesh);
+    this.delete(peer.id);
   };
 }
 
