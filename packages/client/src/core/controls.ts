@@ -74,7 +74,8 @@ class Controls extends EventDispatcher {
 
     this.client.rendering.scene.add(this.object);
 
-    this.setPosition(0, 10, 0);
+    this.setPosition(6, 6, 6);
+    this.lookAt(0, 0, 0);
   }
 
   tick = () => {
@@ -322,6 +323,13 @@ class Controls extends EventDispatcher {
 
   setPosition = (x: number, y: number, z: number) => {
     this.object.position.set(x, y, z);
+  };
+
+  lookAt = (x: number, y: number, z: number) => {
+    const vec = this.object.position
+      .clone()
+      .add(this.object.position.clone().sub(new Vector3(x, y, z)));
+    this.object.lookAt(vec);
   };
 }
 

@@ -1,8 +1,10 @@
 import {
+  AxesHelper,
   Color,
   DepthFormat,
   DepthTexture,
   FloatType,
+  GridHelper,
   LinearFilter,
   RGBAFormat,
   Scene,
@@ -100,6 +102,11 @@ class Rendering {
       this.composer.addPass(
         new RenderPass(this.scene, client.camera.threeCamera)
       );
+
+      const axesHelper = new AxesHelper(16);
+      const gridHelper = new GridHelper(15, 15);
+
+      this.scene.add(axesHelper, gridHelper);
 
       this.adjustRenderer();
     });

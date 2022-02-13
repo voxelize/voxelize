@@ -1,3 +1,0 @@
-class World {}
-
-export { World };

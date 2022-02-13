@@ -1,7 +1,7 @@
 import http from "http";
 
 import { Server } from "..";
-import { Room } from "../libs";
+import { Room } from "../app";
 
 import { ClientFilter, ClientType, defaultFilter, Network } from ".";
 
