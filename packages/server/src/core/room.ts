@@ -8,7 +8,7 @@ import { World } from "./world";
 
 const { Message } = protocol;
 
-type RoomOptions = {
+type RoomParams = {
   maxClients: number;
   pingInterval: number;
 };
@@ -20,10 +20,10 @@ class Room {
 
   private pingInterval: NodeJS.Timeout;
 
-  constructor(public name: string, public options: RoomOptions) {}
+  constructor(public name: string, public params: RoomParams) {}
 
   onConnect = (client: ClientType) => {
-    const { maxClients, pingInterval } = this.options;
+    const { maxClients, pingInterval } = this.params;
 
     if (this.clients.length === maxClients) {
       client.send(

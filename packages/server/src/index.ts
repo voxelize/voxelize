@@ -3,26 +3,26 @@ import merge from "deepmerge";
 
 import { Network, Rooms } from "./core";
 
-type ServerOptions = {
+type ServerParams = {
   port: number;
   maxClients: number;
   pingInterval: number;
 };
 
-const defaultOptions: ServerOptions = {
+const defaultParams: ServerParams = {
   port: 5000,
   maxClients: 100,
   pingInterval: 50000,
 };
 
 class Server {
-  public options: ServerOptions;
+  public params: ServerParams;
   public network: Network;
   public rooms: Rooms;
 
-  constructor(options: DeepPartial<ServerOptions>) {
-    const { maxClients, pingInterval } = (this.options = merge(
-      defaultOptions,
+  constructor(options: DeepPartial<ServerParams>) {
+    const { maxClients, pingInterval } = (this.params = merge(
+      defaultParams,
       options
     ));
 
@@ -37,10 +37,10 @@ class Server {
   }
 
   listen = () => {
-    const { port } = this.options;
-    return new Promise<ServerOptions>((resolve) => {
+    const { port } = this.params;
+    return new Promise<ServerParams>((resolve) => {
       this.network.listen(port);
-      resolve(this.options);
+      resolve(this.params);
     });
   };
 

@@ -14,7 +14,7 @@ const corsConfig = {
   origin: "*",
 };
 
-type NetworkOptions = {
+type NetworkParams = {
   test: string;
 };
 
@@ -23,7 +23,7 @@ class Network {
   public http: http.Server;
   public wss: WebSocketServer;
 
-  constructor(public server: Server, public options: NetworkOptions) {
+  constructor(public server: Server, public params: NetworkParams) {
     this.app = express();
     this.app.use(cors(corsConfig));
 

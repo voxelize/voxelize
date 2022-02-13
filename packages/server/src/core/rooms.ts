@@ -6,7 +6,7 @@ import { Network } from "./network";
 import { Room } from "./room";
 import { ClientFilter, ClientType, defaultFilter } from "./shared";
 
-type RoomsOptions = {
+type RoomsParams = {
   maxClients: number;
   pingInterval: number;
 };
@@ -14,7 +14,7 @@ type RoomsOptions = {
 class Rooms {
   private list: Map<string, Room> = new Map();
 
-  constructor(public server: Server, public options: RoomsOptions) {
+  constructor(public server: Server, public params: RoomsParams) {
     const { network } = this.server;
 
     network.wss.on(
@@ -49,7 +49,7 @@ class Rooms {
   }
 
   createRoom = (name: string) => {
-    const { maxClients, pingInterval } = this.options;
+    const { maxClients, pingInterval } = this.params;
 
     const room = new Room(name, {
       maxClients,
