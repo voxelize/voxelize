@@ -1,1 +1,3 @@
 class Entities {}
+
+export { Entities };

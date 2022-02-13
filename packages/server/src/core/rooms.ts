@@ -1,10 +1,9 @@
 import http from "http";
 
 import { Server } from "..";
+import { Room } from "../libs";
 
-import { Network } from "./network";
-import { Room } from "./room";
-import { ClientFilter, ClientType, defaultFilter } from "./shared";
+import { ClientFilter, ClientType, defaultFilter, Network } from ".";
 
 type RoomsParams = {
   maxClients: number;

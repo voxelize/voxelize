@@ -2,9 +2,13 @@ import { protocol } from "packages/common/dist";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
-import { Network } from "./network";
-import { ClientFilter, ClientType, defaultFilter } from "./shared";
-import { World } from "./world";
+import {
+  Network,
+  World,
+  ClientFilter,
+  ClientType,
+  defaultFilter,
+} from "../core";
 
 const { Message } = protocol;
 
