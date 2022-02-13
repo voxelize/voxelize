@@ -1,3 +1,5 @@
+import { Button } from "@components/button";
+import { Input } from "@components/input";
 import { Client } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -32,60 +34,14 @@ const ControlsWrapper = styled.div`
     border-radius: 4px;
   }
 
-  & button,
-  & input {
-    padding: 4px 0px;
-  }
-
-  & h3,
-  button {
-    color: #eee;
-  }
-
-  & .room {
-    display: flex;
-    align-items: center;
-    border-radius: 4px;
-    overflow: hidden;
-
-    & * {
-      flex: 1;
-      height: 100%;
-      font-size: 1rem;
-    }
-
-    & input {
-      border-radius: 0;
-      border: none;
-      width: 100px;
-      outline: none;
-      padding: 4px;
-    }
-
-    & span {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: #313552;
-      color: white;
-      padding: 4px 8px;
-    }
-  }
-
   & h3 {
+    color: #eee;
     margin-bottom: 12px;
   }
 
-  & button {
-    cursor: pointer;
-    background: transparent;
-    text-transform: uppercase;
-    border: none;
-    border-bottom: 1px solid transparent;
-
-    &:hover {
-      border-bottom-color: #eee;
-    }
+  & .error {
+    font-size: 0.8rem;
+    color: red;
   }
 `;
 
@@ -94,6 +50,7 @@ const BACKEND_SERVER = "http://localhost:5000/?room=";
 export const App = () => {
   const [room, setRoom] = useState("test");
   const [connected, setConnected] = useState(false);
+  const [error, setError] = useState("");
   const [showControls, setShowControls] = useState(true);
   const client = useRef<Client | null>(null);
   const container = useRef<HTMLDivElement>(null);
@@ -124,23 +81,36 @@ export const App = () => {
         });
       }
 
-      connectOrResume();
+      connectOrResume(false);
     }
   }, []);
 
-  const connectOrResume = () => {
+  const connectOrResume = (lock = true) => {
     if (!client.current) return;
 
-    client.current.controls.lock();
-
-    if (connected) return;
+    if (connected) {
+      if (lock) {
+        client.current.controls.lock();
+      }
+      return;
+    }
 
     client.current.disconnect().then(() => {
-      client.current?.connect({
-        serverURL: BACKEND_SERVER,
-        reconnectTimeout: 5000,
-        room,
-      });
+      client.current
+        ?.connect({
+          serverURL: BACKEND_SERVER,
+          reconnectTimeout: 5000,
+          room,
+        })
+        .then((success) => {
+          if (success) {
+            if (lock) {
+              client.current?.controls.lock();
+            }
+          } else {
+            setError("Room not found.");
+          }
+        });
     });
   };
 
@@ -156,18 +126,20 @@ export const App = () => {
         <ControlsWrapper>
           <div>
             <h3>Voxelize Demo!</h3>
-            <div className="room">
-              <span>room</span>
-              <input
-                value={room}
-                onChange={(e) => setRoom(e.target.value)}
-                disabled={connected}
-              />
-            </div>
-            <button onClick={connectOrResume}>
+            <Input
+              label="room"
+              value={room}
+              onChange={(e) => {
+                setRoom(e.target.value);
+                setError("");
+              }}
+              disabled={connected}
+            />
+            <Button onClick={() => connectOrResume()}>
               {connected ? "resume" : "connect"}
-            </button>
-            {connected && <button onClick={disconnect}>disconnect</button>}
+            </Button>
+            {connected && <Button onClick={disconnect}>disconnect</Button>}
+            <span className="error">{error}</span>
           </div>
         </ControlsWrapper>
       )}

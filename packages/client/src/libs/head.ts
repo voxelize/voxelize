@@ -40,15 +40,19 @@ class Head {
     context.fillRect(1, 1, 6, 6);
 
     context.fillStyle = "#121013";
-    // mouth
-    context.fillRect(3, 4, 1, 1);
-    context.fillRect(3, 5, 1, 1);
-    context.fillRect(4, 5, 1, 1);
-    context.fillRect(5, 5, 1, 1);
-    context.fillRect(5, 4, 1, 1);
-    // eyes
-    context.fillRect(0, 4, 1, 1);
-    context.fillRect(7, 3, 1, 1);
+    context.fillRect(2, 2, 4, 4);
+
+    context.fillStyle = "#eee";
+    context.fillRect(3, 3, 2, 2);
+    // // mouth
+    // context.fillRect(3, 4, 1, 1);
+    // context.fillRect(3, 5, 1, 1);
+    // context.fillRect(4, 5, 1, 1);
+    // context.fillRect(5, 5, 1, 1);
+    // context.fillRect(5, 4, 1, 1);
+    // // eyes
+    // context.fillRect(0, 4, 1, 1);
+    // context.fillRect(7, 3, 1, 1);
   };
 
   private drawCrown = (context: CanvasRenderingContext2D) => {
