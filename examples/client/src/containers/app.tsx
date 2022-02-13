@@ -20,7 +20,7 @@ const ControlsWrapper = styled.div`
   background: #00000022;
 
   & > div {
-    padding: 24px 32px;
+    padding: 32px 48px;
     display: flex;
     flex-direction: column;
     justify-content: center;
