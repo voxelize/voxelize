@@ -11,6 +11,7 @@ type PeerParams = {
   headColor: string;
   headDimension: number;
   maxNameDistance: number;
+  fontFace: string;
 };
 
 class Peer {
@@ -36,7 +37,7 @@ class Peer {
     this.newQuaternion = this.head.mesh.quaternion;
 
     this.nameMesh = new SpriteText(this.name, headDimension / 3);
-    this.nameMesh.fontFace = "Fira Mono";
+    this.nameMesh.fontFace = this.params.fontFace;
     this.nameMesh.position.y += headDimension * 1;
     this.nameMesh.backgroundColor = "#00000077";
     this.nameMesh.material.depthTest = false;

@@ -10,6 +10,7 @@ type PeersParams = {
   headColor: string;
   headDimension: number;
   maxNameDistance: number;
+  fontFace: string;
 };
 
 const defaultParams: PeersParams = {
@@ -17,6 +18,7 @@ const defaultParams: PeersParams = {
   headColor: "#94d0cc",
   headDimension: 0.4,
   maxNameDistance: 50,
+  fontFace: `'Syne Mono', monospace`,
 };
 
 class Peers extends Map<string, Peer> {
@@ -32,7 +34,7 @@ class Peers extends Map<string, Peer> {
   }
 
   addPeer = (id: string, connection: PeerInstance) => {
-    const { headColor, headDimension, lerpFactor, maxNameDistance } =
+    const { headColor, headDimension, lerpFactor, maxNameDistance, fontFace } =
       this.params;
     const { scene } = this.client.rendering;
 
@@ -41,6 +43,7 @@ class Peers extends Map<string, Peer> {
       headDimension,
       lerpFactor,
       maxNameDistance,
+      fontFace,
     });
 
     // connection made

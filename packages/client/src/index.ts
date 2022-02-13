@@ -104,6 +104,8 @@ class Client extends EventEmitter {
     }
 
     if (this.animationFrame) {
+      // render one last time to clear things
+      this.rendering.render();
       cancelAnimationFrame(this.animationFrame);
     }
 

@@ -27,21 +27,12 @@ class Container {
       ...params,
     });
 
-    const afloat = document.createElement("div");
-    Helper.applyStyles(afloat, {
-      position: "absolute",
-      top: "0",
-      left: "0",
-      maxWidth: "100vw",
-      zIndex: "100",
-    });
-
     if (domElement) {
       Array.from(domElement.children).forEach((ele) => {
-        domElement.removeChild(ele);
-        afloat.appendChild(ele);
+        Helper.applyStyles(ele as HTMLElement, {
+          zIndex: "100",
+        });
       });
-      domElement.appendChild(afloat);
     }
 
     Helper.applyStyles(canvas, {
@@ -57,7 +48,7 @@ class Container {
 
     const styles = document.createElement("style");
     styles.innerHTML = `
-      @import url("https://fonts.googleapis.com/css2?family=Fira+Mono&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap");
     `;
     document.head.appendChild(styles);
 

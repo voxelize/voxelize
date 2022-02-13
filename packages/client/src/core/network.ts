@@ -66,6 +66,7 @@ class Network {
     };
     ws.onopen = () => {
       this.connected = true;
+      this.client.emit("connected");
       clearTimeout(this.reconnection);
     };
     ws.onerror = console.error;
@@ -86,6 +87,8 @@ class Network {
     this.ws.onclose = null;
     this.ws.onmessage = null;
     this.ws.close();
+
+    this.client.emit("disconnected");
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
