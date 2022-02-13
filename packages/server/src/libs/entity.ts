@@ -1,0 +1,3 @@
+class Entity {}
+
+export { Entity };

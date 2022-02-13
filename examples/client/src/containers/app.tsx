@@ -34,6 +34,10 @@ const ControlsWrapper = styled.div`
     border-radius: 4px;
   }
 
+  & img {
+    width: 60px;
+  }
+
   & h3 {
     color: #eee;
     margin-bottom: 12px;
@@ -125,6 +129,10 @@ export const App = () => {
       {showControls && (
         <ControlsWrapper>
           <div>
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/226/226904.png"
+              alt="logo"
+            />
             <h3>Voxelize Demo!</h3>
             <Input
               label="room"
