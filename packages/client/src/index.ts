@@ -16,8 +16,11 @@ import {
   Clock,
   Controls,
   ControlsParams,
+  Debug,
+  Entities,
+  EntitiesParams,
+  NewEntity,
 } from "./core";
-import { Debug } from "./core/debug";
 
 type ClientParams = {
   container?: Partial<ContainerParams>;
@@ -25,6 +28,7 @@ type ClientParams = {
   world?: Partial<WorldParams>;
   camera?: Partial<CameraParams>;
   peers?: Partial<PeersParams>;
+  entities?: Partial<EntitiesParams>;
   controls?: Partial<ControlsParams>;
 };
 
@@ -42,13 +46,15 @@ class Client extends EventEmitter {
   public camera: Camera;
   public world: World;
   public peers: Peers;
+  public entities: Entities;
 
   private animationFrame: number;
 
   constructor(params: ClientParams = {}) {
     super();
 
-    const { container, rendering, world, camera, peers, controls } = params;
+    const { container, rendering, world, camera, peers, entities, controls } =
+      params;
 
     this.debug = new Debug(this);
     this.container = new Container(this, container);
@@ -56,6 +62,7 @@ class Client extends EventEmitter {
     this.world = new World(this, world);
     this.camera = new Camera(this, camera);
     this.peers = new Peers(this, peers);
+    this.entities = new Entities(this, entities);
     this.controls = new Controls(this, controls);
     this.inputs = new Inputs(this);
     this.clock = new Clock(this);
@@ -112,8 +119,8 @@ class Client extends EventEmitter {
     this.network = undefined;
   };
 
-  setName = (name: string) => {
-    this.name = name;
+  registerEntity = (type: string, protocol: NewEntity) => {
+    this.entities.registerEntity(type, protocol);
   };
 
   private run = () => {
@@ -128,6 +135,7 @@ class Client extends EventEmitter {
   private animate = () => {
     this.clock.tick();
     this.camera.tick();
+    this.entities.tick();
     this.peers.tick();
     this.controls.tick();
     this.debug.tick();
@@ -139,3 +147,4 @@ class Client extends EventEmitter {
 export { Client };
 
 export * from "./core";
+export * from "./libs";

@@ -23,6 +23,7 @@
     "rollup-plugin-web-worker-loader": "^1.6.1"
   },
   "dependencies": {
+    "@math.gl/core": "^3.5.7",
     "@types/ws": "^8.2.2",
     "@voxelize/common": "*",
     "cors": "^2.8.5",

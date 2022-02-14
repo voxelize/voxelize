@@ -3,24 +3,26 @@ import http from "http";
 import { Server } from "..";
 import { Room } from "../app";
 
-import { ClientFilter, ClientType, defaultFilter, Network } from ".";
+import { Network } from "./network";
+import { ClientFilter, ClientType, defaultFilter } from "./shared";
 
 type RoomsParams = {
   maxClients: number;
   pingInterval: number;
+  tickInterval: number;
 };
 
-class Rooms {
-  private list: Map<string, Room> = new Map();
-
+class Rooms extends Map<string, Room> {
   constructor(public server: Server, public params: RoomsParams) {
+    super();
+
     const { network } = this.server;
 
     network.wss.on(
       "connection",
       (client: ClientType, req: http.IncomingMessage) => {
         const roomId = new URLSearchParams(req.url.split("?")[1]).get("room");
-        const room = this.list.get(roomId);
+        const room = this.get(roomId);
 
         if (!room) {
           console.warn("Room not found.");
@@ -32,12 +34,12 @@ class Rooms {
     );
 
     network.app.get("/has-room", (req, res) => {
-      res.json(this.list.has(req.query.room as string));
+      res.json(this.has(req.query.room as string));
     });
 
     network.app.get("/rooms", (_, res) => {
       const rooms = [];
-      this.list.forEach((room) => {
+      this.forEach((room) => {
         rooms.push({
           name: room.name,
           clients: room.clients.map((c) => c.id),
@@ -48,20 +50,22 @@ class Rooms {
   }
 
   createRoom = (name: string) => {
-    const { maxClients, pingInterval } = this.params;
+    const { maxClients, pingInterval, tickInterval } = this.params;
 
-    const room = new Room(name, {
+    const room = new Room(this, {
+      name,
       maxClients,
       pingInterval,
+      tickInterval,
     });
 
-    this.list.set(name, room);
+    this.set(name, room);
 
     return room;
   };
 
   findClient = (id: string) => {
-    for (const [, room] of Array.from(this.list)) {
+    for (const [, room] of Array.from(this)) {
       const client = room.clients.find((c) => (c.id = id));
       if (client) return client;
     }
@@ -90,14 +94,14 @@ class Rooms {
       (!exclude.length || exclude.indexOf(client.id) === -1);
 
     if (roomId) {
-      const room = this.list.get(roomId);
+      const room = this.get(roomId);
       if (!room) return [];
 
       room.clients.forEach((client) => {
         if (pass(client)) func(client);
       });
     } else {
-      this.list.forEach((room) =>
+      this.forEach((room) =>
         room.clients.forEach((client) => {
           if (pass(client)) func(client);
         })

@@ -23,6 +23,8 @@ class Network {
   public http: http.Server;
   public wss: WebSocketServer;
 
+  public listening = false;
+
   constructor(public server: Server, public params: NetworkParams) {
     this.app = express();
     this.app.use(cors(corsConfig));
@@ -33,6 +35,7 @@ class Network {
 
   listen = (port: number) => {
     this.http.listen({ port });
+    this.listening = true;
   };
 
   static decode = (buffer: any) => {

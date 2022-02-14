@@ -7,12 +7,14 @@ type ServerParams = {
   port: number;
   maxClients: number;
   pingInterval: number;
+  tickInterval: number;
 };
 
 const defaultParams: ServerParams = {
   port: 5000,
   maxClients: 100,
   pingInterval: 50000,
+  tickInterval: 1000 / 60,
 };
 
 class Server {
@@ -21,7 +23,7 @@ class Server {
   public rooms: Rooms;
 
   constructor(options: DeepPartial<ServerParams>) {
-    const { maxClients, pingInterval } = (this.params = merge(
+    const { maxClients, pingInterval, tickInterval } = (this.params = merge(
       defaultParams,
       options
     ));
@@ -33,6 +35,7 @@ class Server {
     this.rooms = new Rooms(this, {
       maxClients,
       pingInterval,
+      tickInterval,
     });
   }
 
@@ -52,3 +55,6 @@ class Server {
 }
 
 export { Server };
+
+export * from "./app";
+export * from "./core";

@@ -5,6 +5,7 @@ import SpriteText from "three-spritetext";
 import { Network } from "../core";
 
 import { Head } from "./head";
+import { NameTag } from "./nametag";
 
 type PeerParams = {
   lerpFactor: number;
@@ -22,33 +23,26 @@ class Peer {
   public name = "testtesttest";
   public newPosition: Vector3;
   public newQuaternion: Quaternion;
-  public nameMesh: SpriteText;
+  public nameMesh: NameTag;
 
   constructor(
     public id: string,
     public connection: PeerInstance,
     public params: PeerParams
   ) {
-    const { headDimension } = params;
+    const { fontFace, headDimension } = params;
 
     this.head = new Head({ headDimension });
 
     this.newPosition = this.head.mesh.position;
     this.newQuaternion = this.head.mesh.quaternion;
 
-    this.nameMesh = new SpriteText(this.name, headDimension / 3);
-    this.nameMesh.fontFace = this.params.fontFace;
-    this.nameMesh.position.y += headDimension * 1;
-    this.nameMesh.backgroundColor = "#00000077";
-    this.nameMesh.material.depthTest = false;
-    this.nameMesh.renderOrder = 1000000;
-
-    const image = this.nameMesh.material.map;
-
-    if (image) {
-      image.minFilter = NearestFilter;
-      image.magFilter = NearestFilter;
-    }
+    this.nameMesh = new NameTag(this.name, {
+      fontFace,
+      fontSize: headDimension / 3,
+      backgroundColor: "#00000077",
+      yOffset: headDimension,
+    });
 
     this.head.mesh.add(this.nameMesh);
 
@@ -60,7 +54,6 @@ class Peer {
 
   update = (name: string, position: Vector3, quaternion: Quaternion) => {
     this.name = name;
-    this.nameMesh.text = name;
     this.newPosition = position;
     this.newQuaternion = quaternion;
   };
@@ -84,7 +77,12 @@ class Peer {
       case "PEER": {
         const { peer } = data;
         if (peer) {
-          const { name, px, py, pz, qx, qy, qz, qw } = peer;
+          const {
+            name,
+            position: { x: px, y: py, z: pz },
+            rotation: { x: qx, y: qy, z: qz, w: qw },
+          } = peer;
+
           const position = new Vector3(px, py, pz);
           const quaternion = new Quaternion(qx, qy, qz, qw);
 

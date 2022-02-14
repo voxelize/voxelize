@@ -103,13 +103,17 @@ class Peers extends Map<string, Peer> {
         type: "PEER",
         peer: {
           name,
-          px,
-          py,
-          pz,
-          qx,
-          qy,
-          qz,
-          qw,
+          position: {
+            x: px,
+            y: py,
+            z: pz,
+          },
+          rotation: {
+            x: qx,
+            y: qy,
+            z: qz,
+            w: qw,
+          },
         },
       });
     }

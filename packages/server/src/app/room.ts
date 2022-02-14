@@ -1,26 +1,42 @@
-import { protocol } from "packages/common/dist";
+import { protocol } from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
-import { Network, ClientFilter, ClientType, defaultFilter } from "../core";
+import {
+  Network,
+  ClientFilter,
+  ClientType,
+  defaultFilter,
+  Rooms,
+} from "../core";
 
 import { World } from "./world";
 
 const { Message } = protocol;
 
 type RoomParams = {
+  name: string;
   maxClients: number;
   pingInterval: number;
+  tickInterval: number;
 };
 
 class Room {
-  public world: World;
+  public name: string;
 
+  public world: World;
   public clients: ClientType[] = [];
 
   private pingInterval: NodeJS.Timeout;
 
-  constructor(public name: string, public params: RoomParams) {}
+  constructor(public rooms: Rooms, public params: RoomParams) {
+    const { name, tickInterval } = params;
+
+    this.name = name;
+    this.world = new World(this);
+
+    setInterval(this.tick, tickInterval);
+  }
 
   onConnect = (client: ClientType) => {
     const { maxClients, pingInterval } = this.params;
@@ -126,11 +142,19 @@ class Room {
   };
 
   broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
+    if (this.clients.length === 0) return;
+
     const encoded = Network.encode(event);
 
     this.filterClients(filter, (client) => {
       client.send(encoded);
     });
+  };
+
+  tick = () => {
+    if (!this.rooms.server.network.listening) return;
+
+    this.world.tick();
   };
 
   private filterClients = (

@@ -1,3 +1,0 @@
-class Entities {}
-
-export { Entities };

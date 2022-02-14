@@ -7,7 +7,7 @@ import SimplePeer from "simple-peer/simplepeer.min";
 
 import { Client } from "..";
 
-const { Message } = protocol;
+const { Message, Entity } = protocol;
 
 type CustomWebSocket = WebSocket & {
   sendEvent: (event: any) => void;
@@ -152,6 +152,12 @@ class Network {
           connection.signal(signal);
         }
         break;
+      }
+      case "ENTITY": {
+        const { entities } = event;
+        entities.forEach((entity: any) => {
+          this.client.entities.onEvent(entity);
+        });
       }
     }
   };

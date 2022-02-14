@@ -1,8 +1,9 @@
 import { Button } from "@components/button";
 import { Input } from "@components/input";
-import { Client } from "@voxelize/client";
+import { Client, Entity, NameTag } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
+import { BoxBufferGeometry, Mesh, MeshNormalMaterial, Scene } from "three";
 
 const GameWrapper = styled.div`
   background: black;
@@ -51,6 +52,36 @@ const ControlsWrapper = styled.div`
 
 const BACKEND_SERVER = "http://localhost:5000/?room=";
 
+class Box extends Entity {
+  public geometry: BoxBufferGeometry;
+  public material: MeshNormalMaterial;
+
+  constructor() {
+    super();
+
+    this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
+    this.material = new MeshNormalMaterial();
+    this.mesh = new Mesh(this.geometry, this.material);
+
+    const nameTag = new NameTag("BOX", {
+      backgroundColor: "#00000077",
+      fontFace: "Syne Mono",
+      fontSize: 0.2,
+      yOffset: 0.3,
+    });
+
+    this.mesh.add(nameTag);
+  }
+
+  onCreation = (scene: Scene) => {
+    scene.add(this.mesh);
+  };
+
+  protected lookAt = () => {
+    this.mesh.lookAt(this.target);
+  };
+}
+
 export const App = () => {
   const [room, setRoom] = useState("test");
   const [connected, setConnected] = useState(false);
@@ -67,6 +98,8 @@ export const App = () => {
             domElement: container.current,
           },
         });
+
+        client.current.registerEntity("Box", Box);
 
         client.current.on("unlock", () => {
           setShowControls(true);

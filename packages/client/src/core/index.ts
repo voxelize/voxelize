@@ -7,3 +7,5 @@ export * from "./network";
 export * from "./peers";
 export * from "./rendering";
 export * from "./world";
+export * from "./debug";
+export * from "./entities";
