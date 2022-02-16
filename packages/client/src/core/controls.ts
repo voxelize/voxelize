@@ -281,10 +281,14 @@ class Controls extends EventDispatcher {
   };
 
   getDirection = (() => {
+    const v = new Vector3();
     const direction = new Vector3(0, 0, -1);
 
-    return (v: Vector3) => {
-      return v.copy(direction).applyQuaternion(this.object.quaternion);
+    return () => {
+      return v
+        .copy(direction)
+        .applyQuaternion(this.object.quaternion)
+        .normalize();
     };
   })();
 

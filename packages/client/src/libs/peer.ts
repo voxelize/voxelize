@@ -1,6 +1,5 @@
 import { Instance as PeerInstance } from "simple-peer";
-import { NearestFilter, Quaternion, Vector3 } from "three";
-import SpriteText from "three-spritetext";
+import { Matrix4, Quaternion, Vector3 } from "three";
 
 import { Network } from "../core";
 
@@ -54,6 +53,7 @@ class Peer {
 
   update = (name: string, position: Vector3, quaternion: Quaternion) => {
     this.name = name;
+    this.nameMesh.text = name;
     this.newPosition = position;
     this.newQuaternion = quaternion;
   };
@@ -80,11 +80,27 @@ class Peer {
           const {
             name,
             position: { x: px, y: py, z: pz },
-            rotation: { x: qx, y: qy, z: qz, w: qw },
+            direction: { x: dx, y: dy, z: dz },
           } = peer;
 
           const position = new Vector3(px, py, pz);
-          const quaternion = new Quaternion(qx, qy, qz, qw);
+
+          // using closure to reuse objects
+          // reference: https://stackoverflow.com/questions/32849600/direction-vector-to-a-rotation-three-js
+          const updateQuaternion = () => {
+            const m = new Matrix4();
+            const q = new Quaternion();
+            const zero = new Vector3(0, 0, 0);
+            const one = new Vector3(0, 1, 0);
+
+            return () => {
+              return q.setFromRotationMatrix(
+                m.lookAt(new Vector3(dx, dy, dz), zero, one)
+              );
+            };
+          };
+
+          const quaternion = updateQuaternion()();
 
           this.update(name, position, quaternion);
         }

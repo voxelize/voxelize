@@ -1,3 +1,4 @@
+import Stats from "three/examples/jsm/libs/stats.module";
 import { Pane } from "tweakpane";
 
 import { Client } from "..";
@@ -8,6 +9,7 @@ type FormatterType = (input: any) => string;
 
 class Debug {
   public gui: Pane;
+  public stats: Stats;
   public dataWrapper: HTMLDivElement;
   public dataEntries: {
     ele: HTMLParagraphElement;
@@ -40,6 +42,8 @@ class Debug {
       const newValue = obj && attribute ? obj[attribute] : "";
       ele.innerHTML = `${name ? `${name}: ` : ""}${formatter(newValue)}`;
     }
+
+    this.stats.update();
   };
 
   makeDataEntry = (newline = false) => {
@@ -75,12 +79,22 @@ class Debug {
       right: "10px",
       zIndex: "1000000000000",
     });
+
+    this.stats = Stats();
+    Helper.applyStyles(this.stats.dom, {
+      position: "fixed",
+      top: "unset",
+      bottom: "10px",
+      left: "10px",
+      zIndex: "1000000000000",
+    });
   };
 
   mount = () => {
     const { domElement } = this.client.container;
     domElement.appendChild(this.dataWrapper);
     domElement.appendChild(this.gui.element);
+    domElement.appendChild(this.stats.dom);
   };
 
   toggle = () => {
@@ -89,6 +103,7 @@ class Debug {
 
     this.dataWrapper.style.display = newDisplay;
     this.gui.element.style.display = newDisplay;
+    this.stats.dom.style.display = newDisplay;
   };
 
   registerDisplay = (

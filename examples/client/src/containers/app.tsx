@@ -1,6 +1,6 @@
 import { Button } from "@components/button";
 import { Input } from "@components/input";
-import { Client, Entity, NameTag } from "@voxelize/client";
+import { Client, Entity, NameTag, Head } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { BoxBufferGeometry, Mesh, MeshNormalMaterial, Scene } from "three";
@@ -59,9 +59,10 @@ class Box extends Entity {
   constructor() {
     super();
 
-    this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
-    this.material = new MeshNormalMaterial();
-    this.mesh = new Mesh(this.geometry, this.material);
+    // this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
+    // this.material = new MeshNormalMaterial();
+    // this.mesh = new Mesh(this.geometry, this.material);
+    this.mesh = new Head({ headDimension: 0.3 }).mesh;
 
     const nameTag = new NameTag("BOX", {
       backgroundColor: "#00000077",
@@ -76,14 +77,11 @@ class Box extends Entity {
   onCreation = (scene: Scene) => {
     scene.add(this.mesh);
   };
-
-  protected lookAt = () => {
-    this.mesh.lookAt(this.target);
-  };
 }
 
 export const App = () => {
   const [room, setRoom] = useState("test");
+  const [name, setName] = useState("");
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
   const [showControls, setShowControls] = useState(true);
@@ -116,11 +114,20 @@ export const App = () => {
         client.current.on("disconnected", () => {
           setConnected(false);
         });
+
+        console.log(client.current.name);
+        setName(client.current.name);
       }
 
       connectOrResume(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (client.current) {
+      client.current.setName(name);
+    }
+  }, [name]);
 
   const connectOrResume = (lock = true) => {
     if (!client.current) return;
@@ -176,6 +183,14 @@ export const App = () => {
               }}
               disabled={connected}
             />
+            {connected && (
+              <Input
+                label="name"
+                onChange={(e) => setName(e.target.value)}
+                maxLength={16}
+                value={name}
+              />
+            )}
             <Button onClick={() => connectOrResume()}>
               {connected ? "resume" : "connect"}
             </Button>

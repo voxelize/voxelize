@@ -123,6 +123,10 @@ class Client extends EventEmitter {
     this.entities.registerEntity(type, protocol);
   };
 
+  setName = (name: string) => {
+    this.name = name || " ";
+  };
+
   private run = () => {
     const animate = () => {
       this.animationFrame = requestAnimationFrame(animate);

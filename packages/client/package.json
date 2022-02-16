@@ -36,7 +36,7 @@
     "pako": "^2.0.4",
     "simple-peer": "^9.11.0",
     "socket.io-client": "^4.4.1",
-    "three-spritetext": "^1.6.4",
+    "three-spritetext": "^1.6.5",
     "tweakpane": "^3.0.7"
   }
 }

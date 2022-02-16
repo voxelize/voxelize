@@ -58,7 +58,8 @@ class Layer {
     }
 
     this.mesh = new Mesh(this.geometry, Array.from(this.materials.values()));
-    this.mesh.rotation.y = -Math.PI / 2;
+
+    this.mesh.rotation.y = Math.PI / 2;
   }
 
   createCanvasMaterial = (width: number) => {
@@ -134,8 +135,6 @@ class CanvasBox {
       this.layers.push(newLayer);
       this.meshes.add(newLayer.mesh);
     }
-
-    this.meshes.rotation.y = -Math.PI * 0.5;
   };
 
   paint = (side: BoxSides[] | BoxSides, art: ArtFunction, layer = 0) => {

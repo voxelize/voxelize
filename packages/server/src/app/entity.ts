@@ -15,8 +15,10 @@ abstract class Entity {
 
   onCreation?: () => void;
 
-  constructor() {
-    this.position = new Vector3(0, 0, 0);
+  constructor(
+    { x, y, z }: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 }
+  ) {
+    this.position = new Vector3(x, y, z);
     this.target = new Vector3(0, 0, 0);
     this.heading = new Vector3(0, 0, 0);
   }

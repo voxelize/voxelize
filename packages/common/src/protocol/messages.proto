@@ -17,7 +17,7 @@ message Quaternion {
 message Peer {
   string name = 0;
   Vector3 position = 1;
-  Quaternion rotation = 2;
+  Vector3 direction = 2;
 }
 
 message Entity {

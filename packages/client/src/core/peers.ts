@@ -96,8 +96,8 @@ class Peers extends Map<string, Peer> {
       const { object } = controls;
       const {
         position: { x: px, y: py, z: pz },
-        quaternion: { x: qx, y: qy, z: qz, w: qw },
       } = object;
+      const { x: dx, y: dy, z: dz } = controls.getDirection();
 
       peers.broadcast({
         type: "PEER",
@@ -108,11 +108,10 @@ class Peers extends Map<string, Peer> {
             y: py,
             z: pz,
           },
-          rotation: {
-            x: qx,
-            y: qy,
-            z: qz,
-            w: qw,
+          direction: {
+            x: dx,
+            y: dy,
+            z: dz,
           },
         },
       });
