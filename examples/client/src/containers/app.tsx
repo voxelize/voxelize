@@ -1,6 +1,6 @@
 import { Button } from "@components/button";
 import { Input } from "@components/input";
-import { Client, Entity, NameTag, Head } from "@voxelize/client";
+import { Client, Entity, NameTag } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { BoxBufferGeometry, Mesh, MeshNormalMaterial, Scene } from "three";
@@ -59,10 +59,9 @@ class Box extends Entity {
   constructor() {
     super();
 
-    // this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
-    // this.material = new MeshNormalMaterial();
-    // this.mesh = new Mesh(this.geometry, this.material);
-    this.mesh = new Head({ headDimension: 0.3 }).mesh;
+    this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
+    this.material = new MeshNormalMaterial();
+    this.mesh = new Mesh(this.geometry, this.material);
 
     const nameTag = new NameTag("BOX", {
       backgroundColor: "#00000077",
