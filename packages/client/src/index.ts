@@ -20,6 +20,7 @@ import {
   Entities,
   EntitiesParams,
   NewEntity,
+  Mesher,
 } from "./core";
 
 type ClientParams = {
@@ -47,6 +48,7 @@ class Client extends EventEmitter {
   public world: World;
   public peers: Peers;
   public entities: Entities;
+  public mesher: Mesher;
 
   private animationFrame: number;
 
@@ -66,6 +68,7 @@ class Client extends EventEmitter {
     this.controls = new Controls(this, controls);
     this.inputs = new Inputs(this);
     this.clock = new Clock(this);
+    this.mesher = new Mesher(this);
 
     // all members has been initialized
     this.emit("initialized");
