@@ -9,4 +9,3 @@ export * from "./rendering";
 export * from "./world";
 export * from "./debug";
 export * from "./entities";
-export * from "./mesher";

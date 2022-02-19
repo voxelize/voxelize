@@ -1,5 +1,4 @@
 import commonjs from "@rollup/plugin-commonjs";
-import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
 import typescript from "rollup-plugin-typescript2";
@@ -24,16 +23,15 @@ export default {
     workerLoader({
       targetPlatform: "browser",
     }),
+    peerDepsExternal(),
+    resolve(),
+    commonjs(),
     typescript({
-      typescript: require("typescript"),
       tsconfig: "./tsconfig.build.json",
       tsconfigOverride: {
-        compilerOptions: { module: "esnext" },
+        compilerOptions: { module: "es2015" },
       },
     }),
-    json(),
-    peerDepsExternal(),
-    resolve({ browser: true, preferBuiltins: false }),
     commonjs({
       exclude: "node_modules",
       ignoreGlobal: true,

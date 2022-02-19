@@ -3,8 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "jsx": "react",
-    "esModuleInterop": true,
-    "resolveJsonModule": true
+    "esModuleInterop": true
   },
   "include": ["src/**/*"]
 }
