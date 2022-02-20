@@ -6,13 +6,11 @@
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
-    "noEmitOnError": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "strictPropertyInitialization": false,
     "types": [],
-    "jsx": "react",
-    "noEmit": false
+    "jsx": "react"
   },
   "exclude": ["node_modules", "dist"]
 }

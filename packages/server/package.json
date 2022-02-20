@@ -22,10 +22,12 @@
     "rollup-plugin-typescript2": "^0.31.2",
     "rollup-plugin-web-worker-loader": "^1.6.1"
   },
+  "peerDependencies": {
+    "@voxelize/common": "*"
+  },
   "dependencies": {
     "@math.gl/core": "^3.5.7",
     "@types/ws": "^8.2.2",
-    "@voxelize/common": "*",
     "cors": "^2.8.5",
     "deepmerge": "^4.2.2",
     "express": "^4.17.2",
