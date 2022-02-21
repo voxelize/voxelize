@@ -12,7 +12,7 @@ export default {
   input: "src/index.ts",
   output: {
     file: packageJson.main,
-    format: "module",
+    format: "cjs",
   },
   onwarn: (warning, next) => {
     if (!(warning.importer || warning.id).includes("protobufjs")) {
@@ -23,6 +23,13 @@ export default {
     resolve(),
     commonjs(),
     swc({
+      jsc: {
+        parser: {
+          syntax: "typescript",
+        },
+        target: "es2015",
+        transform: {},
+      },
       tsconfig: "./tsconfig.build.json",
     }),
   ],

@@ -1,7 +1,8 @@
 import commonjs from "@rollup/plugin-commonjs";
+import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
-import typescript from "rollup-plugin-typescript2";
+import swc from "rollup-plugin-swc3";
 import workerLoader from "rollup-plugin-web-worker-loader";
 
 const packageJson = require("./package.json");
@@ -19,22 +20,22 @@ export default {
       sourcemap: true,
     },
   ],
+  onwarn: (warning, next) => {
+    if (!(warning.importer || warning.id).includes("depd")) {
+      next(warning);
+    }
+  },
   plugins: [
+    json(),
     workerLoader({
       targetPlatform: "node",
     }),
-    peerDepsExternal(),
-    resolve(),
+    resolve({ preferBuiltins: true, exportConditions: ["node"] }),
     commonjs(),
-    typescript({
+    peerDepsExternal(),
+    swc({
+      sourceMaps: true,
       tsconfig: "./tsconfig.build.json",
-      tsconfigOverride: {
-        compilerOptions: { module: "es2015" },
-      },
-    }),
-    commonjs({
-      exclude: "node_modules",
-      ignoreGlobal: true,
     }),
   ],
   external: Object.keys(globals),

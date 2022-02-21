@@ -4,7 +4,7 @@ import zlib from "zlib";
 import { protocol } from "@voxelize/common";
 import cors from "cors";
 import express, { Express } from "express";
-import WebSocket, { WebSocketServer } from "ws";
+import { WebSocketServer } from "ws";
 
 import { Server } from "..";
 
@@ -30,7 +30,7 @@ class Network {
     this.app.use(cors(corsConfig));
 
     this.http = createServer(this.app);
-    this.wss = new WebSocket.Server({ server: this.http });
+    this.wss = new WebSocketServer({ server: this.http });
   }
 
   listen = (port: number) => {

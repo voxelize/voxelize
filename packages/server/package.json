@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/server",
-  "version": "1.0.0",
+  "version": "1.0.12",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -8,17 +8,21 @@
   ],
   "license": "MIT",
   "scripts": {
-    "build": "yarn run clean && yarn run compile",
+    "build": "yarn run clean && yarn run compile && yarn run types",
     "clean": "rimraf -rf ./dist",
     "compile": "rollup -c rollup.config.js",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p tsconfig.build.json --declaration --allowJs",
     "prepublishOnly": "yarn run build"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
+    "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.1.3",
+    "@swc/core": "^1.2.143",
     "rimraf": "^3.0.2",
     "rollup": "^2.67.0",
     "rollup-plugin-peer-deps-external": "^2.2.4",
+    "rollup-plugin-swc3": "^0.2.0",
     "rollup-plugin-typescript2": "^0.31.2",
     "rollup-plugin-web-worker-loader": "^1.6.1"
   },

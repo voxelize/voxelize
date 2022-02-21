@@ -2,13 +2,9 @@ import { protocol } from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
-import {
-  Network,
-  ClientFilter,
-  ClientType,
-  defaultFilter,
-  Rooms,
-} from "../core";
+import { Network } from "../core/network";
+import { Rooms } from "../core/rooms";
+import { ClientFilter, ClientType, defaultFilter } from "../core/shared";
 
 import { World } from "./world";
 
