@@ -1,8 +1,9 @@
 {
   "name": "@voxelize/client",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "umd": "dist/voxelize.min.js",
   "license": "MIT",
   "scripts": {
     "dev": "npm-run-all --parallel \"compile -- -w\" \"types -- -w --preserveWatchOutput\"",

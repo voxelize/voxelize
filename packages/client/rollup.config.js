@@ -20,6 +20,20 @@ export default {
       format: "esm",
       sourcemap: true,
     },
+    {
+      file: packageJson.umd,
+      extend: true,
+      format: "umd",
+      indent: false,
+      name: "Voxelize",
+      globals: {
+        three: "THREE",
+        "three/examples/jsm/postprocessing/EffectComposer":
+          "THREE.EffectComposer",
+        "three/examples/jsm/postprocessing/RenderPass": "THREE.RenderPass",
+        "three/examples/jsm/libs/stats.module": "Stats",
+      },
+    },
   ],
   onwarn: (warning, next) => {
     if (!warning.message.includes("Use of eval is strongly discouraged")) {
