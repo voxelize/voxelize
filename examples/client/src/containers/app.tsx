@@ -3,7 +3,7 @@ import { Input } from "@components/input";
 import { Client, Entity, NameTag, Head } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { BoxBufferGeometry, Mesh, MeshNormalMaterial, Scene } from "three";
+import { BoxBufferGeometry, MeshNormalMaterial, Scene } from "three";
 
 const GameWrapper = styled.div`
   background: black;

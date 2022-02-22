@@ -3,6 +3,7 @@ import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
 import swc from "rollup-plugin-swc3";
+import { terser } from "rollup-plugin-terser";
 import workerLoader from "rollup-plugin-web-worker-loader";
 
 const packageJson = require("./package.json");
@@ -37,6 +38,7 @@ export default {
       sourceMaps: true,
       tsconfig: "./tsconfig.build.json",
     }),
+    ...(process.env.ROLLUP_WATCH ? [] : [terser()]),
   ],
   external: Object.keys(globals),
 };

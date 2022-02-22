@@ -3,7 +3,7 @@
     "baseUrl": ".",
 
     "paths": {
-      "@voxelize/*": ["../../packages/*/src"],
+      "@voxelize/*": ["../../packages/*/dist"],
       "@components/*": ["./src/components/*"],
       "@containers/*": ["./src/containers/*"]
     }

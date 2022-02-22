@@ -1,6 +1,7 @@
 import commonjs from "@rollup/plugin-commonjs";
 import resolve from "@rollup/plugin-node-resolve";
 import swc from "rollup-plugin-swc3";
+import { terser } from "rollup-plugin-terser";
 
 const packageJson = require("./package.json");
 
@@ -32,6 +33,8 @@ export default {
       },
       tsconfig: "./tsconfig.build.json",
     }),
+    ...(process.env.ROLLUP_WATCH ? [] : [terser()]),
   ],
   external: Object.keys(globals),
+  watch: { clearScreen: false },
 };

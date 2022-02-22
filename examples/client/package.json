@@ -14,7 +14,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "dev": "cross-env FORCE_COLOR=true SKIP_PREFLIGHT_CHECK=true craco start | cat",
+    "demo": "cross-env FORCE_COLOR=true SKIP_PREFLIGHT_CHECK=true craco start | cat",
     "build": "cross-env SKIP_PREFLIGHT_CHECK=true craco build",
     "test": "cross-env SKIP_PREFLIGHT_CHECK=true craco test",
     "eject": "react-scripts eject"

@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "dev": "lerna run dev --parallel",
+    "demo": "lerna run demo --parallel",
     "peer": "peerjs --port 9000 --path /peerjs",
     "clean": "lerna run clean",
     "build": "lerna run build",

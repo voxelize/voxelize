@@ -1,7 +1,7 @@
 import { Instance as PeerInstance } from "simple-peer";
 import { Matrix4, Quaternion, Vector3 } from "three";
 
-import { Network } from "../core";
+import { Network } from "../core/network";
 
 import { Head } from "./head";
 import { NameTag } from "./nametag";
