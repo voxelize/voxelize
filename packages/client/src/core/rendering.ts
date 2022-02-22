@@ -12,8 +12,8 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from "three";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 
 import { Client } from "..";
 

@@ -20,20 +20,25 @@ export default {
       format: "esm",
       sourcemap: true,
     },
-    {
-      file: packageJson.umd,
-      extend: true,
-      format: "umd",
-      indent: false,
-      name: "Voxelize",
-      globals: {
-        three: "THREE",
-        "three/examples/jsm/postprocessing/EffectComposer":
-          "THREE.EffectComposer",
-        "three/examples/jsm/postprocessing/RenderPass": "THREE.RenderPass",
-        "three/examples/jsm/libs/stats.module": "Stats",
-      },
-    },
+    ...(process.env.ROLLUP_WATCH
+      ? []
+      : [
+          {
+            file: packageJson.umd,
+            extend: true,
+            format: "umd",
+            indent: false,
+            name: "Voxelize",
+            globals: {
+              three: "THREE",
+              "three/examples/jsm/postprocessing/EffectComposer":
+                "THREE.EffectComposer",
+              "three/examples/jsm/postprocessing/RenderPass":
+                "THREE.RenderPass",
+              "three/examples/jsm/libs/stats.module": "Stats",
+            },
+          },
+        ]),
   ],
   onwarn: (warning, next) => {
     if (!warning.message.includes("Use of eval is strongly discouraged")) {
@@ -45,7 +50,11 @@ export default {
     workerLoader({
       targetPlatform: "browser",
     }),
-    resolve({ browser: true, preferBuiltins: false }),
+    resolve({
+      browser: true,
+      preferBuiltins: false,
+      dedupe: (i) => i === "three" || i.startsWith("three/"),
+    }),
     commonjs(),
     peerDepsExternal(),
     swc({

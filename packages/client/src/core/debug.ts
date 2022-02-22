@@ -1,4 +1,4 @@
-import Stats from "three/examples/jsm/libs/stats.module";
+import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
 import { Client } from "..";
