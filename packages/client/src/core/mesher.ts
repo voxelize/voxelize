@@ -1,4 +1,4 @@
-import MeshWorker from "web-worker:./workers/mesh-worker.ts";
+import MeshWorker from "web-worker:./workers/mesh-worker";
 
 import { Client } from "..";
 import { WorkerPool } from "../libs";
@@ -9,14 +9,14 @@ class Mesher {
   constructor(public client: Client) {
     this.pool = new WorkerPool(MeshWorker);
 
-    setInterval(() => {
-      this.pool.addJob({
-        message: "bruh",
-        resolve(d) {
-          console.log(d);
-        },
-      });
-    }, 1000);
+    // setInterval(() => {
+    //   this.pool.addJob({
+    //     message: "bruh",
+    //     resolve(d) {
+    //       console.log(d);
+    //     },
+    //   });
+    // }, 1000);
   }
 }
 

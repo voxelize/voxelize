@@ -1,4 +1,4 @@
-declare module "web-worker:*" {
-  const WorkerFactory: new () => Worker;
+declare module "*?worker" {
+  const WorkerFactory: new () => import("worker_thread").Worker;
   export default WorkerFactory;
 }
