@@ -114,7 +114,6 @@ export const App = () => {
           setConnected(false);
         });
 
-        console.log(client.current.name);
         setName(client.current.name);
       }
 

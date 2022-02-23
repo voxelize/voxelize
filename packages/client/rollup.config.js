@@ -31,11 +31,11 @@ export default {
             name: "Voxelize",
             globals: {
               three: "THREE",
-              "three/examples/jsm/postprocessing/EffectComposer":
+              "three/examples/jsm/postprocessing/EffectComposer.js":
                 "THREE.EffectComposer",
-              "three/examples/jsm/postprocessing/RenderPass":
+              "three/examples/jsm/postprocessing/RenderPass.js":
                 "THREE.RenderPass",
-              "three/examples/jsm/libs/stats.module": "Stats",
+              "three/examples/jsm/libs/stats.module.js": "Stats",
             },
           },
         ]),
