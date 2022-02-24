@@ -1,6 +1,7 @@
 import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
+import replace from "@rollup/plugin-replace";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
 import swc from "rollup-plugin-swc3";
 import { terser } from "rollup-plugin-terser";
@@ -49,6 +50,7 @@ export default {
     json(),
     workerLoader({
       targetPlatform: "browser",
+      extensions: [".ts"],
     }),
     resolve({
       browser: true,
@@ -57,6 +59,10 @@ export default {
     }),
     commonjs(),
     peerDepsExternal(),
+    replace({
+      preventAssignment: true,
+      values: { __buildVersion__: `${packageJson.version}` },
+    }),
     swc({
       sourceMaps: true,
       tsconfig: "./tsconfig.build.json",

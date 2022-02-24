@@ -3,7 +3,7 @@ import { Input } from "@components/input";
 import { Client, Entity, NameTag } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { BoxBufferGeometry, MeshNormalMaterial, Scene, Mesh } from "three";
+import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
   background: black;
@@ -73,8 +73,12 @@ class Box extends Entity {
     this.mesh.add(nameTag);
   }
 
-  onCreation = (scene: Scene) => {
-    scene.add(this.mesh);
+  onCreation = (client: Client) => {
+    client.rendering.scene.add(this.mesh);
+  };
+
+  onDeletion = (client: Client) => {
+    client.rendering.scene.remove(this.mesh);
   };
 }
 

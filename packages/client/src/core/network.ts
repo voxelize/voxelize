@@ -7,7 +7,7 @@ import SimplePeer from "simple-peer/simplepeer.min";
 
 import { Client } from "..";
 
-const { Message, Entity } = protocol;
+const { Message } = protocol;
 
 type CustomWebSocket = WebSocket & {
   sendEvent: (event: any) => void;
@@ -66,6 +66,7 @@ class Network {
     };
     ws.onopen = () => {
       this.connected = true;
+      this.client.entities.reset();
       this.client.emit("connected");
       clearTimeout(this.reconnection);
     };
@@ -73,6 +74,7 @@ class Network {
     ws.onmessage = this.onMessage;
     ws.onclose = () => {
       this.connected = false;
+
       // fire reconnection every "reconnectTimeout" ms
       this.reconnection = setTimeout(() => {
         this.connect(room);

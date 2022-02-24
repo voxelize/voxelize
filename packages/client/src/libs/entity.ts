@@ -1,4 +1,6 @@
-import { Object3D, Scene, Vector3 } from "three";
+import { Object3D, Vector3 } from "three";
+
+import { Client } from "..";
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -21,7 +23,8 @@ abstract class Entity {
   }
 
   onEvent?: (e: any) => void;
-  onCreation?: (scene: Scene) => void;
+  onCreation?: (client: Client) => void;
+  onDeletion?: (client: Client) => void;
   tick?: () => void;
 
   onTarget = () => {

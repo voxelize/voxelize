@@ -6,12 +6,11 @@
   "umd": "dist/voxelize.min.js",
   "license": "MIT",
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -- -w\" \"types -- -w --preserveWatchOutput\"",
+    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "clean": "rimraf -rf ./dist",
     "compile": "rollup -c rollup.config.js",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p tsconfig.build.json --declaration --allowJs",
-    "posttypes": "mv ./dist/src/* ./dist && rimraf ./dist/src",
     "prepublishOnly": "yarn run build"
   },
   "peerDependencies": {
@@ -21,6 +20,7 @@
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.1.3",
+    "@rollup/plugin-replace": "^4.0.0",
     "@tweakpane/core": "^1.0.8",
     "@types/domurl": "^0.0.7",
     "@types/mousetrap": "^1.6.9",

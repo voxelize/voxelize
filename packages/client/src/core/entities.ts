@@ -61,6 +61,15 @@ class Entities extends Map<string, Entity> {
     this.knownTypes.set(type.toLowerCase(), protocol);
   };
 
+  reset = () => {
+    this.forEach((entity, key) => {
+      if (entity.onDeletion) {
+        entity.onDeletion(this.client);
+        this.delete(key);
+      }
+    });
+  };
+
   tick = () => {
     if (this.size === 0) return;
 
@@ -85,7 +94,7 @@ class Entities extends Map<string, Entity> {
     entity.type = type;
 
     if (entity.onCreation) {
-      entity.onCreation(this.client.rendering.scene);
+      entity.onCreation(this.client);
     }
 
     this.set(id, entity);

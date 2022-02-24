@@ -2,7 +2,6 @@ import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
 import { Client } from "..";
-import pkg from "../../package.json";
 import { Helper } from "../utils";
 
 type FormatterType = (input: any) => string;
@@ -143,7 +142,7 @@ class Debug {
       .addButton({ title: "test" })
       .on("click", () => console.log("hi"));
 
-    this.displayTitle(`Voxelize ${pkg.version}`);
+    this.displayTitle(`Voxelize ${"__buildVersion__"}`);
     this.registerDisplay("", this, "fps");
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
