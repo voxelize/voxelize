@@ -2,7 +2,38 @@ export type DeepPartial<T> = {
   [P in keyof T]?: DeepPartial<T[P]>;
 };
 
-export type BlockParams = {
+type AllFaces = {
+  all: string;
+};
+
+type ThreeFaces = {
+  top: string;
+  side: string;
+  bottom: string;
+};
+
+type SixFaces = {
+  px: string;
+  py: string;
+  pz: string;
+  nx: string;
+  ny: string;
+  nz: string;
+};
+
+type PlantFaces = {
+  diagonal: string;
+};
+
+export type BlockFace =
+  | keyof AllFaces
+  | keyof ThreeFaces
+  | keyof SixFaces
+  | keyof PlantFaces;
+
+export type Block = {
+  id: number;
+  name: string;
   redLightLevel: number;
   greenLightLevel: number;
   blueLightLevel: number;
@@ -16,12 +47,12 @@ export type BlockParams = {
   isPlantable: boolean;
   isSolid: boolean;
   isTransparent: boolean;
-  name: string;
-  textures: { [key: string]: string };
   transparentStandalone: boolean;
+  faces: BlockFace[];
 };
 
-export const defaultBlockParams: BlockParams = {
+export const defaultBlock: Block = {
+  id: 0,
   name: "",
   rotatable: false,
   yRotatable: false,
@@ -37,14 +68,12 @@ export const defaultBlockParams: BlockParams = {
   greenLightLevel: 0,
   blueLightLevel: 0,
   transparentStandalone: false,
-  textures: {},
+  faces: [],
 };
 
 export type TextureRange = {
-  [key: string]: {
-    startU: number;
-    endU: number;
-    startV: number;
-    endV: number;
-  };
+  startU: number;
+  endU: number;
+  startV: number;
+  endV: number;
 };

@@ -3,6 +3,7 @@ import { Input } from "@components/input";
 import { Client, Entity, NameTag } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
+import OrangeImage from "../assets/test.jpeg";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
@@ -101,6 +102,11 @@ export const App = () => {
         });
 
         client.current.registerEntity("Box", Box);
+        client.current.registry.applyTextureByName(
+          "Orange",
+          "all",
+          OrangeImage
+        );
 
         client.current.on("unlock", () => {
           setShowControls(true);

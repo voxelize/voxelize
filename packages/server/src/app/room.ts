@@ -19,19 +19,19 @@ type RoomParams = {
 
 class Room {
   public name: string;
+  public started = false;
 
   public world: World;
   public clients: ClientType[] = [];
 
-  private pingInterval: NodeJS.Timeout;
+  private tickInterval: NodeJS.Timeout = null;
+  private pingInterval: NodeJS.Timeout = null;
 
   constructor(public rooms: Rooms, public params: RoomParams) {
-    const { name, tickInterval } = params;
+    const { name } = params;
 
     this.name = name;
     this.world = new World(this);
-
-    setInterval(this.tick, tickInterval);
   }
 
   onConnect = (client: ClientType) => {
@@ -48,13 +48,19 @@ class Room {
       return;
     }
 
+    const { registry } = this.world;
+
     client.id = uuidv4();
     client.isAlive = true;
 
     client.send(
       Network.encode({
         type: "INIT",
-        json: { id: client.id },
+        json: {
+          id: client.id,
+          blocks: registry.getBlockMap(),
+          ranges: registry.getRanges(),
+        },
         peers: this.clients.map(({ id }) => id),
       })
     );
@@ -118,6 +124,21 @@ class Room {
         type: "LEAVE",
         text: client.id,
       });
+    }
+  };
+
+  start = () => {
+    const { tickInterval } = this.params;
+    this.world.start();
+    this.tickInterval = setInterval(this.tick, tickInterval);
+    this.started = true;
+  };
+
+  // TODO: maybe stop clients too?
+  stop = () => {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
     }
   };
 

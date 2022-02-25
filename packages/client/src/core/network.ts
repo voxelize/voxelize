@@ -120,7 +120,7 @@ class Network {
       case "INIT": {
         const {
           peers,
-          json: { id },
+          json: { blocks, ranges, id },
         } = event;
 
         this.id = id;
@@ -131,6 +131,10 @@ class Network {
           peers.forEach((i: string) => {
             this.connectToPeer(i, true);
           });
+        }
+
+        if (blocks && ranges) {
+          this.client.registry.load(blocks, ranges);
         }
 
         break;

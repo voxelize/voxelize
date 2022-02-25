@@ -21,6 +21,8 @@ import {
   EntitiesParams,
   NewEntity,
   Mesher,
+  Registry,
+  RegistryParams,
 } from "./core";
 
 type ClientParams = {
@@ -31,6 +33,7 @@ type ClientParams = {
   peers?: Partial<PeersParams>;
   entities?: Partial<EntitiesParams>;
   controls?: Partial<ControlsParams>;
+  registry?: Partial<RegistryParams>;
 };
 
 class Client extends EventEmitter {
@@ -49,14 +52,23 @@ class Client extends EventEmitter {
   public peers: Peers;
   public entities: Entities;
   public mesher: Mesher;
+  public registry: Registry;
 
   private animationFrame: number;
 
   constructor(params: ClientParams = {}) {
     super();
 
-    const { container, rendering, world, camera, peers, entities, controls } =
-      params;
+    const {
+      container,
+      rendering,
+      world,
+      camera,
+      peers,
+      entities,
+      controls,
+      registry,
+    } = params;
 
     this.debug = new Debug(this);
     this.container = new Container(this, container);
@@ -66,6 +78,7 @@ class Client extends EventEmitter {
     this.peers = new Peers(this, peers);
     this.entities = new Entities(this, entities);
     this.controls = new Controls(this, controls);
+    this.registry = new Registry(this, registry);
     this.inputs = new Inputs(this);
     this.mesher = new Mesher(this);
     this.clock = new Clock(this);

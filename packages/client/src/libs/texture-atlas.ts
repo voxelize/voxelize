@@ -1,3 +1,4 @@
+import { TextureRange } from "@voxelize/common";
 import {
   Texture,
   CompressedTexture,
@@ -5,63 +6,51 @@ import {
   ClampToEdgeWrapping,
   NearestFilter,
   TextureLoader,
+  MeshBasicMaterial,
+  DoubleSide,
 } from "three";
 
-type TextureAtlasOptionsType = {
-  textureDimension: number;
-};
-
-const defaultTextureAtlasOptions = {
-  textureDimension: 16,
+type TextureAtlasParams = {
+  countPerSide: number;
+  dimension: number;
 };
 
 class TextureAtlas {
-  public options: TextureAtlasOptionsType;
-  public mergedTexture: CanvasTexture;
-
-  public ranges: {
-    [key: string]: {
-      startV: number;
-      endV: number;
-      startU: number;
-      endU: number;
-    };
-  } = {};
-  public dataURLs: { [key: string]: string } = {};
+  public params: TextureAtlasParams;
+  public texture: CanvasTexture;
+  public material: MeshBasicMaterial;
+  public dataURLs: Map<string, string> = new Map();
   public canvas = document.createElement("canvas");
 
   static create = async (
-    textureSources: { [key: string]: string },
-    options: Partial<TextureAtlasOptionsType> = {}
+    textureSources: Map<string, string>,
+    ranges: Map<string, TextureRange>,
+    params: TextureAtlasParams
   ) => {
     const atlas = new TextureAtlas();
+    atlas.params = params;
 
-    const { textureDimension } = (atlas.options = {
-      ...defaultTextureAtlasOptions,
-      ...options,
-    });
+    const { countPerSide, dimension } = params;
 
     const loader = new TextureLoader();
-    const textureMap: { [key: string]: Texture } = {};
-    for (const key of Object.keys(textureSources)) {
-      textureMap[key] = await loader.loadAsync(textureSources[key]);
+    const textureMap: Map<string, Texture> = new Map();
+
+    for (const [key, source] of textureSources) {
+      try {
+        textureMap.set(key, await loader.loadAsync(source));
+      } catch (e) {
+        textureMap.set(key, TextureAtlas.makeUnknownTexture(dimension));
+      }
     }
 
-    const countPerSide = Math.ceil(Math.sqrt(Object.keys(textureMap).length));
-    const canvasWidth = countPerSide * textureDimension;
-    const canvasHeight = countPerSide * textureDimension;
+    const canvasWidth = countPerSide * dimension;
+    const canvasHeight = countPerSide * dimension;
     atlas.canvas.width = canvasWidth;
     atlas.canvas.height = canvasHeight;
 
-    let row = 0;
-    let col = 0;
-    for (const textureName in textureMap) {
-      if (col >= countPerSide) {
-        col = 0;
-        row++;
-      }
-
-      const texture = textureMap[textureName];
+    ranges.forEach((range, textureName) => {
+      const { startU, startV } = range;
+      const texture = textureMap.get(textureName);
 
       if (texture instanceof CompressedTexture) {
         throw new Error("CompressedTextures are not supported.");
@@ -73,48 +62,36 @@ class TextureAtlas {
         tempCanvas.width = texture.image.naturalWidth;
         tempCanvas.height = texture.image.naturalHeight;
         tempCanvas.getContext("2d")?.drawImage(texture.image, 0, 0);
-        atlas.dataURLs[textureName] = tempCanvas.toDataURL();
+        atlas.dataURLs.set(textureName, tempCanvas.toDataURL());
       } else {
-        atlas.dataURLs[textureName] = texture.image.toDataURL();
+        atlas.dataURLs.set(textureName, texture.image.toDataURL());
       }
 
       const context = atlas.canvas.getContext("2d");
       if (context) {
-        const startX = col * textureDimension;
-        const startY = row * textureDimension;
-
         context.drawImage(
           texture.image,
-          startX,
-          startY,
-          textureDimension,
-          textureDimension
+          startU * canvasWidth,
+          (1 - startV) * canvasHeight,
+          dimension,
+          dimension
         );
 
-        const startU = startX / canvasWidth;
-        const endU = (startX + textureDimension) / canvasWidth;
-        const startV = 1 - startY / canvasHeight;
-        const endV = 1 - (startY + textureDimension) / canvasHeight;
-
-        atlas.ranges[textureName] = {
-          startU,
-          endU,
-          startV,
-          endV,
-        };
-
         atlas.makeCanvasPowerOfTwo(atlas.canvas);
-        atlas.mergedTexture = new CanvasTexture(atlas.canvas);
-        atlas.mergedTexture.wrapS = ClampToEdgeWrapping;
-        atlas.mergedTexture.wrapT = ClampToEdgeWrapping;
-        atlas.mergedTexture.minFilter = NearestFilter;
-        atlas.mergedTexture.magFilter = NearestFilter;
-        atlas.mergedTexture.generateMipmaps = false;
-        atlas.mergedTexture.needsUpdate = true;
-      }
+        atlas.texture = new CanvasTexture(atlas.canvas);
+        atlas.texture.wrapS = ClampToEdgeWrapping;
+        atlas.texture.wrapT = ClampToEdgeWrapping;
+        atlas.texture.minFilter = NearestFilter;
+        atlas.texture.magFilter = NearestFilter;
+        atlas.texture.generateMipmaps = false;
+        atlas.texture.needsUpdate = true;
 
-      col++;
-    }
+        atlas.material = new MeshBasicMaterial({
+          map: atlas.texture,
+          side: DoubleSide,
+        });
+      }
+    });
 
     return atlas;
   };
@@ -140,6 +117,31 @@ class TextureAtlas {
       this.canvas = newCanvas;
     }
   }
+
+  private static makeUnknownTexture = (
+    dimension: number,
+    color1 = "purple",
+    color2 = "black",
+    segments = 2
+  ) => {
+    const tempCanvas = document.createElement("canvas") as HTMLCanvasElement;
+    const context = tempCanvas.getContext("2d");
+    const blockSize = dimension / segments;
+
+    context.canvas.width = dimension;
+    context.canvas.height = dimension;
+    for (let i = 0; i < segments; i++) {
+      for (let j = 0; j < segments; j++) {
+        context.fillStyle =
+          (i % 2 === 0 && j % 2 === 1) || (i % 2 === 1 && j % 2 === 0)
+            ? color1
+            : color2;
+        context.fillRect(i * blockSize, j * blockSize, blockSize, blockSize);
+      }
+    }
+
+    return new CanvasTexture(context ? context.canvas : tempCanvas);
+  };
 }
 
 export { TextureAtlas };

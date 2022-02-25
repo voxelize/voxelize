@@ -17,6 +17,9 @@ class Box extends Entity {
 }
 
 test.world.registerEntity("Box", Box);
+test.world.registerBlock("Orange", {
+  faces: ["all"],
+});
 
 const box = test.world.addEntity("Box");
 box.setPosition(3, 3, 3);
@@ -24,8 +27,10 @@ box.setPosition(3, 3, 3);
 const box2 = test.world.addEntity("Box");
 box2.setPosition(-3, 3, -3);
 
-server.createRoom("test2");
+const test2 = server.createRoom("test2");
 
 server.listen().then(({ port }) => {
+  test.start();
+  test2.start();
   console.log(`🚀  Server ready at http://localhost:${port}`);
 });

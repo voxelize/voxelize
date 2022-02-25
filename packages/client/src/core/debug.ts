@@ -1,7 +1,9 @@
+import { Mesh, PlaneBufferGeometry } from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
 import { Client } from "..";
+import { NameTag } from "../libs";
 import { Helper } from "../utils";
 
 type FormatterType = (input: any) => string;
@@ -18,6 +20,8 @@ class Debug {
     formatter: FormatterType;
   }[] = [];
 
+  private atlasTest: Mesh;
+
   constructor(public client: Client) {
     this.gui = new Pane();
 
@@ -33,6 +37,27 @@ class Debug {
       this.setupAll();
       this.setupInputs();
       this.mount();
+    });
+
+    client.on("texture-loaded", () => {
+      const atlas = client.registry.atlas;
+      const width = atlas.params.countPerSide * atlas.params.dimension;
+
+      this.atlasTest = new Mesh(
+        new PlaneBufferGeometry(width * 0.1, width * 0.1),
+        atlas.material
+      );
+      this.atlasTest.visible = false;
+      this.atlasTest.renderOrder = 10000000000;
+      this.atlasTest.position.y += (width * 0.1) / 2;
+      this.atlasTest.add(
+        new NameTag(`${width}x${width}`, {
+          fontSize: width * 0.01,
+          yOffset: width * 0.06,
+        })
+      );
+
+      client.rendering.scene.add(this.atlasTest);
     });
   }
 
@@ -137,10 +162,11 @@ class Debug {
   };
 
   setupAll = () => {
-    const testFolder = this.gui.addFolder({ title: "Test" });
-    testFolder
-      .addButton({ title: "test" })
-      .on("click", () => console.log("hi"));
+    const testFolder = this.gui.addFolder({ title: "Registry" });
+    testFolder.addButton({ title: "atlas test" }).on("click", () => {
+      if (!this.atlasTest) return;
+      this.atlasTest.visible = !this.atlasTest.visible;
+    });
 
     this.displayTitle(`Voxelize ${"__buildVersion__"}`);
     this.registerDisplay("", this, "fps");
