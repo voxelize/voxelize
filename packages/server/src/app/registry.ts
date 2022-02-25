@@ -27,10 +27,10 @@ class Registry extends SharedRegistry {
       const startX = col;
       const startY = row;
 
-      const startU = startX;
-      const endU = startX + 1 / countPerSide;
-      const startV = 1 - startY;
-      const endV = 1 - startY - 1 / countPerSide;
+      const startU = startX / countPerSide;
+      const endU = (startX + 1) / countPerSide;
+      const startV = 1 - startY / countPerSide;
+      const endV = 1 - (startY - 1) / countPerSide;
 
       this.ranges.set(textureName, {
         startU,
@@ -38,6 +38,8 @@ class Registry extends SharedRegistry {
         startV,
         endV,
       });
+
+      col++;
     });
   };
 

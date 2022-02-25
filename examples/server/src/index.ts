@@ -17,7 +17,11 @@ class Box extends Entity {
 }
 
 test.world.registerEntity("Box", Box);
+
 test.world.registerBlock("Orange", {
+  faces: ["all"],
+});
+test.world.registerBlock("Grape", {
   faces: ["all"],
 });
 

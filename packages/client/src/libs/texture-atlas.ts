@@ -37,6 +37,7 @@ class TextureAtlas {
 
     for (const [key, source] of textureSources) {
       try {
+        if (!source) throw new Error();
         textureMap.set(key, await loader.loadAsync(source));
       } catch (e) {
         textureMap.set(key, TextureAtlas.makeUnknownTexture(dimension));
@@ -47,6 +48,8 @@ class TextureAtlas {
     const canvasHeight = countPerSide * dimension;
     atlas.canvas.width = canvasWidth;
     atlas.canvas.height = canvasHeight;
+
+    console.log(ranges);
 
     ranges.forEach((range, textureName) => {
       const { startU, startV } = range;

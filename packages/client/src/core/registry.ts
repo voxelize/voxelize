@@ -87,7 +87,7 @@ class Registry extends SharedRegistry {
 
     Array.from(this.ranges.keys()).forEach((key) => {
       if (!this.sources.has(key)) {
-        throw new Error(`Missing texture source for: ${key}`);
+        this.sources.set(key, null);
       }
     });
 
