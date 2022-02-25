@@ -1,4 +1,10 @@
-import { Mesh, PlaneBufferGeometry } from "three";
+import {
+  AxesHelper,
+  GridHelper,
+  Group,
+  Mesh,
+  PlaneBufferGeometry,
+} from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
@@ -19,6 +25,8 @@ class Debug {
     name: string;
     formatter: FormatterType;
   }[] = [];
+
+  private group = new Group();
 
   private atlasTest: Mesh;
 
@@ -57,7 +65,7 @@ class Debug {
         })
       );
 
-      client.rendering.scene.add(this.atlasTest);
+      this.group.add(this.atlasTest);
     });
   }
 
@@ -128,6 +136,8 @@ class Debug {
     this.dataWrapper.style.display = newDisplay;
     this.gui.element.style.display = newDisplay;
     this.stats.dom.style.display = newDisplay;
+
+    this.group.visible = !this.group.visible;
   };
 
   registerDisplay = (
@@ -172,6 +182,12 @@ class Debug {
     this.registerDisplay("", this, "fps");
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
+
+    const axesHelper = new AxesHelper(16);
+    const gridHelper = new GridHelper(15, 15);
+
+    this.group.add(axesHelper, gridHelper);
+    this.client.rendering.scene.add(this.group);
   };
 
   setupInputs = () => {
