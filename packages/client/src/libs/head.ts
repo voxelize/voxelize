@@ -31,12 +31,12 @@ class Head {
     context: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement
   ) => {
-    context.fillStyle = "#8e9775";
+    context.fillStyle = "#323232";
     context.fillRect(0, 0, canvas.width, canvas.height);
   };
 
   private drawFace = (context: CanvasRenderingContext2D) => {
-    context.fillStyle = "#e7d4b5";
+    context.fillStyle = "#E9DAC1";
     context.fillRect(1, 1, 6, 6);
 
     context.fillStyle = "#121013";
