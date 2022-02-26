@@ -49,21 +49,33 @@ class Debug {
 
     client.on("texture-loaded", () => {
       const atlas = client.registry.atlas;
-      const width = atlas.params.countPerSide * atlas.params.dimension;
+      const { countPerSide, dimension } = atlas.params;
+      const width = countPerSide * dimension;
+      const planeWidth = width * 0.1;
 
       this.atlasTest = new Mesh(
-        new PlaneBufferGeometry(width * 0.1, width * 0.1),
+        new PlaneBufferGeometry(planeWidth, planeWidth),
         atlas.material
       );
       this.atlasTest.visible = false;
       this.atlasTest.renderOrder = 10000000000;
-      this.atlasTest.position.y += (width * 0.1) / 2;
+      this.atlasTest.position.y += planeWidth / 2;
       this.atlasTest.add(
         new NameTag(`${width}x${width}`, {
           fontSize: width * 0.01,
           yOffset: width * 0.06,
         })
       );
+
+      client.registry.ranges.forEach(({ startU, endV }, name) => {
+        const tag = new NameTag(name, { fontSize: planeWidth * 0.06 });
+        tag.position.set(
+          -planeWidth / 2 + (startU + 1 / 2 / countPerSide) * planeWidth,
+          planeWidth - (1 - endV) * planeWidth - planeWidth / 2,
+          0
+        );
+        this.atlasTest.add(tag);
+      });
 
       this.group.add(this.atlasTest);
     });

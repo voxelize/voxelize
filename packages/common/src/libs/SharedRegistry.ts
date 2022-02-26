@@ -126,7 +126,12 @@ abstract class SharedRegistry {
   };
 
   protected perSide = () => {
-    return Math.ceil(Math.sqrt(this.textures.size));
+    let i = 1;
+    const sqrt = Math.ceil(Math.sqrt(this.textures.size));
+    while (i < sqrt) {
+      i *= 2;
+    }
+    return i;
   };
 
   protected makeSideName = (name: string, side: BlockFace) => {

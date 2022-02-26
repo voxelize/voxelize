@@ -27,10 +27,17 @@ class Registry extends SharedRegistry {
       const startX = col;
       const startY = row;
 
-      const startU = startX / countPerSide;
-      const endU = (startX + 1) / countPerSide;
-      const startV = 1 - startY / countPerSide;
-      const endV = 1 - (startY - 1) / countPerSide;
+      let startU = startX / countPerSide;
+      let endU = (startX + 1) / countPerSide;
+      let startV = 1 - startY / countPerSide;
+      let endV = 1 - (startY + 1) / countPerSide;
+
+      [startU, startV, endU, endV] = Registry.fixTextureBleeding(
+        startU,
+        startV,
+        endU,
+        endV
+      );
 
       this.ranges.set(textureName, {
         startU,
