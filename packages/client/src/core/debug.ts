@@ -14,15 +14,37 @@ import { Helper } from "../utils";
 
 type FormatterType = (input: any) => string;
 
+/**
+ * Debugger for Voxelize, including the following features:
+ * - Top-left panel for in-game object attribute inspection
+ * - Bottom-left corner for detailed FPS data
+ * - Top-right corner for interactive debugging pane
+ *
+ * @class Debug
+ */
 class Debug {
+  /**
+   * Top-right corner of debug, used for interactive debugging
+   *
+   * @type {Pane}
+   * @memberof Debug
+   */
   public gui: Pane;
+
+  /**
+   * Bottom-left panel for performance statistics
+   *
+   * @type {Stats}
+   * @memberof Debug
+   */
   public stats: Stats;
+
   public dataWrapper: HTMLDivElement;
   public dataEntries: {
     ele: HTMLParagraphElement;
     obj?: any;
     attribute?: string;
-    name: string;
+    title: string;
     formatter: FormatterType;
   }[] = [];
 
@@ -33,11 +55,13 @@ class Debug {
   constructor(public client: Client) {
     this.gui = new Pane();
 
+    // detach tweakpane from it's default parent
     const parentElement = this.gui.element;
     if (parentElement) {
       parentElement.parentNode?.removeChild(parentElement);
     }
 
+    // wait till all client members are initialized
     client.on("initialized", () => {
       client.inputs.bind("j", this.toggle, "*");
 
@@ -47,50 +71,124 @@ class Debug {
       this.mount();
     });
 
+    // wait till texture to be loaded
     client.on("texture-loaded", () => {
-      const atlas = client.registry.atlas;
-      const { countPerSide, dimension } = atlas.params;
-      const width = countPerSide * dimension;
-      const planeWidth = width * 0.1;
-
-      this.atlasTest = new Mesh(
-        new PlaneBufferGeometry(planeWidth, planeWidth),
-        atlas.material
-      );
-      this.atlasTest.visible = false;
-      this.atlasTest.renderOrder = 10000000000;
-      this.atlasTest.position.y += planeWidth / 2;
-      this.atlasTest.add(
-        new NameTag(`${width}x${width}`, {
-          fontSize: width * 0.01,
-          yOffset: width * 0.06,
-        })
-      );
-
-      client.registry.ranges.forEach(({ startU, endV }, name) => {
-        const tag = new NameTag(name, { fontSize: planeWidth * 0.06 });
-        tag.position.set(
-          -planeWidth / 2 + (startU + 1 / 2 / countPerSide) * planeWidth,
-          planeWidth - (1 - endV) * planeWidth - planeWidth / 2,
-          0
-        );
-        this.atlasTest.add(tag);
-      });
-
-      this.group.add(this.atlasTest);
+      this.makeAtlasTest();
     });
   }
 
+  /**
+   * Main tick loop for the debug of the game
+   *
+   * @memberof Debug
+   */
   tick = () => {
-    for (const { ele, name, attribute, obj, formatter } of this.dataEntries) {
+    // loop through all data entries, and get their latest updated values
+    for (const { ele, title, attribute, obj, formatter } of this.dataEntries) {
       const newValue = obj && attribute ? obj[attribute] : "";
-      ele.innerHTML = `${name ? `${name}: ` : ""}${formatter(newValue)}`;
+      ele.innerHTML = `${title ? `${title}: ` : ""}${formatter(newValue)}`;
     }
 
+    // fps update
     this.stats.update();
   };
 
-  makeDataEntry = (newline = false) => {
+  /**
+   * Toggle debug visually, both UI and in-game elements
+   *
+   * @memberof Debug
+   */
+  toggle = () => {
+    const display = this.dataWrapper.style.display;
+    const newDisplay = display === "none" ? "inline" : "none";
+
+    this.dataWrapper.style.display = newDisplay;
+    this.gui.element.style.display = newDisplay;
+    this.stats.dom.style.display = newDisplay;
+
+    this.group.visible = !this.group.visible;
+  };
+
+  /**
+   * Register an entry for the debug info-panel, which gets appended
+   * to the top left corner of the debug screen
+   *
+   * @param title - The title of the entry
+   * @param object - The object to listen to changes on
+   * @param [attribute] - The attribute in the object to listen on
+   * @param [formatter] - A function passed on the new data before updating the entry
+   *
+   * @memberof Debug
+   */
+  registerDisplay = (
+    title: string,
+    object?: any,
+    attribute?: string,
+    formatter: FormatterType = (str) => str
+  ) => {
+    const wrapper = this.makeDataEntry();
+
+    const newEntry = {
+      ele: wrapper,
+      obj: object,
+      title,
+      formatter,
+      attribute,
+    };
+
+    this.dataEntries.push(newEntry);
+    this.dataWrapper.insertBefore(wrapper, this.dataWrapper.firstChild);
+  };
+
+  /**
+   * Display a static title in the debug info-panel
+   *
+   * @param title - Title content of display entry
+   *
+   * @memberof Debug
+   */
+  displayTitle = (title: string) => {
+    const newline = this.makeDataEntry(true);
+    newline.innerHTML = title;
+    this.dataWrapper.insertBefore(newline, this.dataWrapper.firstChild);
+  };
+
+  /**
+   * Add a new line at the bottom of current info-panel
+   *
+   * @memberof Debug
+   */
+  displayNewline = () => {
+    const newline = this.makeDataEntry(true);
+    this.dataWrapper.insertBefore(newline, this.dataWrapper.firstChild);
+  };
+
+  /**
+   * FPS of the game
+   *
+   * @readonly
+   * @memberof Debug
+   */
+  get fps() {
+    return this.calculateFPS();
+  }
+
+  /**
+   * Memory usage of current page
+   *
+   * @readonly
+   * @memberof Debug
+   */
+  get memoryUsage() {
+    // @ts-ignore
+    const info = window.performance.memory;
+    if (!info) return "unknown";
+    const { usedJSHeapSize, jsHeapSizeLimit } = info;
+    return `${Helper.round(usedJSHeapSize / jsHeapSizeLimit, 2)}%`;
+  }
+
+  // create a data entry element
+  private makeDataEntry = (newline = false) => {
     const dataEntry = document.createElement("p");
     Helper.applyStyles(dataEntry, {
       fontSize: "13.3333px",
@@ -100,7 +198,7 @@ class Debug {
     return dataEntry;
   };
 
-  makeDOM = () => {
+  private makeDOM = () => {
     this.dataWrapper = document.createElement("div");
     this.dataWrapper.id = "data-wrapper";
     Helper.applyStyles(this.dataWrapper, {
@@ -134,56 +232,48 @@ class Debug {
     });
   };
 
-  mount = () => {
+  private mount = () => {
     const { domElement } = this.client.container;
     domElement.appendChild(this.dataWrapper);
     domElement.appendChild(this.gui.element);
     domElement.appendChild(this.stats.dom);
   };
 
-  toggle = () => {
-    const display = this.dataWrapper.style.display;
-    const newDisplay = display === "none" ? "inline" : "none";
+  private makeAtlasTest = () => {
+    const atlas = this.client.registry.atlas;
+    const { countPerSide, dimension } = atlas.params;
+    const width = countPerSide * dimension;
+    const planeWidth = width * 0.1;
 
-    this.dataWrapper.style.display = newDisplay;
-    this.gui.element.style.display = newDisplay;
-    this.stats.dom.style.display = newDisplay;
+    // create a plane to view texture atlas
+    this.atlasTest = new Mesh(
+      new PlaneBufferGeometry(planeWidth, planeWidth),
+      atlas.material
+    );
+    this.atlasTest.visible = false;
+    this.atlasTest.renderOrder = 10000000000;
+    this.atlasTest.position.y += planeWidth / 2;
+    this.atlasTest.add(
+      new NameTag(`${width}x${width}`, {
+        fontSize: width * 0.01,
+        yOffset: width * 0.06,
+      })
+    );
 
-    this.group.visible = !this.group.visible;
+    this.client.registry.ranges.forEach(({ startU, endV }, name) => {
+      const tag = new NameTag(name, { fontSize: planeWidth * 0.06 });
+      tag.position.set(
+        -planeWidth / 2 + (startU + 1 / 2 / countPerSide) * planeWidth,
+        planeWidth - (1 - endV) * planeWidth - planeWidth / 2,
+        0
+      );
+      this.atlasTest.add(tag);
+    });
+
+    this.group.add(this.atlasTest);
   };
 
-  registerDisplay = (
-    name: string,
-    object?: any,
-    attribute?: string,
-    formatter: FormatterType = (str) => str
-  ) => {
-    const wrapper = this.makeDataEntry();
-
-    const newEntry = {
-      ele: wrapper,
-      obj: object,
-      name,
-      formatter,
-      attribute,
-    };
-
-    this.dataEntries.push(newEntry);
-    this.dataWrapper.insertBefore(wrapper, this.dataWrapper.firstChild);
-  };
-
-  displayTitle = (title: string) => {
-    const newline = this.makeDataEntry(true);
-    newline.innerHTML = title;
-    this.dataWrapper.insertBefore(newline, this.dataWrapper.firstChild);
-  };
-
-  displayNewline = () => {
-    const newline = this.makeDataEntry(true);
-    this.dataWrapper.insertBefore(newline, this.dataWrapper.firstChild);
-  };
-
-  setupAll = () => {
+  private setupAll = () => {
     const testFolder = this.gui.addFolder({ title: "Registry" });
     testFolder.addButton({ title: "atlas test" }).on("click", () => {
       if (!this.atlasTest) return;
@@ -202,7 +292,7 @@ class Debug {
     this.client.rendering.scene.add(this.group);
   };
 
-  setupInputs = () => {
+  private setupInputs = () => {
     const { inputs, camera } = this.client;
 
     inputs.bind(
@@ -228,7 +318,7 @@ class Debug {
     );
   };
 
-  calculateFPS = (function () {
+  private calculateFPS = (function () {
     const sampleSize = 60;
     let value = 0;
     const sample: any[] = [];
@@ -243,6 +333,7 @@ class Debug {
         lastTick = performance.now();
         return 0;
       }
+
       // calculate necessary values to obtain current tick FPS
       const now = performance.now();
       const delta = (now - lastTick) / 1000;
@@ -272,18 +363,6 @@ class Debug {
       return `${value} fps (${min}, ${max})`;
     };
   })();
-
-  get fps() {
-    return this.calculateFPS();
-  }
-
-  get memoryUsage() {
-    // @ts-ignore
-    const info = window.performance.memory;
-    if (!info) return "unknown";
-    const { usedJSHeapSize, jsHeapSizeLimit } = info;
-    return `${Helper.round(usedJSHeapSize / jsHeapSizeLimit, 2)}%`;
-  }
 }
 
 export { Debug };

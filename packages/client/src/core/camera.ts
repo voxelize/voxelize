@@ -20,6 +20,12 @@ const defaultParams: CameraParams = {
   maxPolarAngle: Math.PI,
 };
 
+/**
+ * A wrapper class around THREE.JS's perspective camera, adding on custom functionalities
+ * for Voxelize and in-game utilities
+ *
+ * @class Camera
+ */
 class Camera {
   public params: CameraParams;
 

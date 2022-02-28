@@ -1,7 +1,12 @@
 {
   "root": true,
   "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "import", "unused-imports"],
+  "plugins": [
+    "@typescript-eslint",
+    "import",
+    "unused-imports",
+    "eslint-plugin-tsdoc"
+  ],
   "env": {
     "node": true,
     "browser": true
