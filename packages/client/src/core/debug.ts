@@ -78,7 +78,7 @@ class Debug {
   }
 
   /**
-   * Main tick loop for the debug of the game
+   * Tick for the debug of the game
    *
    * @memberof Debug
    */

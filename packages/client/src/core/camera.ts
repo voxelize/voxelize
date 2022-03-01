@@ -22,13 +22,25 @@ const defaultParams: CameraParams = {
 
 /**
  * A wrapper class around THREE.JS's perspective camera, adding on custom functionalities
- * for Voxelize and in-game utilities
+ * for Voxelize and in-game utilities such as FOV interpolating
  *
  * @class Camera
  */
 class Camera {
+  /**
+   * An object storing the parameters passed on `Camera` construction
+   *
+   * @type {CameraParams}
+   * @memberof Camera
+   */
   public params: CameraParams;
 
+  /**
+   * Actual THREE.JS `PerspectiveCamera` instance
+   *
+   * @type {PerspectiveCamera}
+   * @memberof Camera
+   */
   public threeCamera: PerspectiveCamera;
 
   private newZoom: number;
@@ -65,6 +77,13 @@ class Camera {
     });
   }
 
+  /**
+   * Tick for the camera of the game, does the following:
+   * - interpolate FOV to a new value if `camera.setFOV` is called
+   * - interpolate zoom to a new value if `camera.setZoom` is called
+   *
+   * @memberof Camera
+   */
   tick = () => {
     if (this.newFOV !== this.threeCamera.fov) {
       this.threeCamera.fov = MathUtils.lerp(
@@ -85,10 +104,24 @@ class Camera {
     }
   };
 
+  /**
+   * Set the zoom of the game camera, gets lerp over time. Default is 1.
+   *
+   * @param zoom - The desired zoom for camera
+   *
+   * @memberof Camera
+   */
   setZoom = (zoom: number) => {
     this.newZoom = zoom;
   };
 
+  /**
+   * Set the FOV of the game camera, gets lerp over time. Default is 90.
+   *
+   * @param fov - The desired FOV for camera
+   *
+   * @memberof Camera
+   */
   setFOV = (fov: number) => {
     this.newFOV = fov;
   };

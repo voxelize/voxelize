@@ -11,12 +11,44 @@ const defaultParams: ContainerParams = {
   canvas: document.createElement("canvas"),
 };
 
+/**
+ * The class managing the container of the game. Does the following:
+ * - Create/use passed in `HTMLDivElement` to contain the game
+ * - Create/use passed in `HTMLCanvasElement` to draw the game on
+ *
+ * @class Container
+ */
 class Container {
+  /**
+   * An object storing the parameters passed on `Container` construction
+   *
+   * @type {ContainerParams}
+   * @memberof Container
+   */
   public params: ContainerParams;
 
+  /**
+   * A flag to indicate whether the game is locked, in other words, if
+   * the pointer-lock controls are locked
+   *
+   * @memberof Container
+   */
   public focused = false;
 
+  /**
+   * The `div` containing the game, parent to `container.canvas`
+   *
+   * @type {HTMLElement}
+   * @memberof Container
+   */
   public domElement: HTMLElement;
+
+  /**
+   * The `canvas` that the game draws on, child of `container.domElement`
+   *
+   * @type {HTMLCanvasElement}
+   * @memberof Container
+   */
   public canvas: HTMLCanvasElement;
 
   private unbinds: (() => void)[] = [];
@@ -85,6 +117,11 @@ class Container {
     this.fitCanvas();
   }
 
+  /**
+   * Toggle fullscreen for game
+   *
+   * @memberof Container
+   */
   toggleFullScreen = () => {
     const elem = document.body as any;
     const doc = document as any;
@@ -119,6 +156,11 @@ class Container {
     }
   };
 
+  /**
+   * Fit `container.canvas` inside `container.domElement`
+   *
+   * @memberof Container
+   */
   fitCanvas = () => {
     Helper.applyStyles(this.canvas, {
       width: `${this.domElement.offsetWidth}px`,
@@ -126,6 +168,12 @@ class Container {
     });
   };
 
+  /**
+   * Disposal of container, unbinds all existing event listeners
+   * on `domElement` and `canvas`
+   *
+   * @memberof Container
+   */
   dispose = () => {
     this.unbinds.forEach((fn) => fn());
   };
