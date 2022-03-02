@@ -1,0 +1,3 @@
+class ChunkPipeline {}
+
+export { ChunkPipeline };

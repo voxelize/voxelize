@@ -1,0 +1,3 @@
+class ChunkUtils {}
+
+export { ChunkUtils };

@@ -1,3 +1,4 @@
+import { MathUtils } from "@voxelize/common";
 import {
   AxesHelper,
   GridHelper,
@@ -10,7 +11,7 @@ import { Pane } from "tweakpane";
 
 import { Client } from "..";
 import { NameTag } from "../libs";
-import { Helper } from "../utils";
+import { DOMUtils } from "../utils";
 
 type FormatterType = (input: any) => string;
 
@@ -184,13 +185,13 @@ class Debug {
     const info = window.performance.memory;
     if (!info) return "unknown";
     const { usedJSHeapSize, jsHeapSizeLimit } = info;
-    return `${Helper.round(usedJSHeapSize / jsHeapSizeLimit, 2)}%`;
+    return `${MathUtils.round(usedJSHeapSize / jsHeapSizeLimit, 2)}%`;
   }
 
   // create a data entry element
   private makeDataEntry = (newline = false) => {
     const dataEntry = document.createElement("p");
-    Helper.applyStyles(dataEntry, {
+    DOMUtils.applyStyles(dataEntry, {
       fontSize: "13.3333px",
       margin: "0",
       ...(newline ? { height: "16px" } : {}),
@@ -201,7 +202,7 @@ class Debug {
   private makeDOM = () => {
     this.dataWrapper = document.createElement("div");
     this.dataWrapper.id = "data-wrapper";
-    Helper.applyStyles(this.dataWrapper, {
+    DOMUtils.applyStyles(this.dataWrapper, {
       position: "fixed",
       top: "10px",
       left: "10px",
@@ -215,7 +216,7 @@ class Debug {
       zIndex: "1000000000000",
     });
 
-    Helper.applyStyles(this.gui.element, {
+    DOMUtils.applyStyles(this.gui.element, {
       position: "fixed",
       top: "10px",
       right: "10px",
@@ -223,7 +224,7 @@ class Debug {
     });
 
     this.stats = Stats();
-    Helper.applyStyles(this.stats.dom, {
+    DOMUtils.applyStyles(this.stats.dom, {
       position: "fixed",
       top: "unset",
       bottom: "10px",

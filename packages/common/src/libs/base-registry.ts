@@ -1,6 +1,6 @@
 import { Block, TextureRange, BlockFace } from "../types";
 
-abstract class SharedRegistry {
+abstract class BaseRegistry {
   public ranges: Map<string, TextureRange> = new Map();
 
   protected blocks: Map<string, Block> = new Map();
@@ -153,4 +153,4 @@ abstract class SharedRegistry {
   };
 }
 
-export { SharedRegistry };
+export { BaseRegistry };

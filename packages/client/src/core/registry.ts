@@ -1,9 +1,4 @@
-import {
-  Block,
-  SharedRegistry,
-  BlockFace,
-  TextureRange,
-} from "@voxelize/common";
+import { Block, BaseRegistry, BlockFace, TextureRange } from "@voxelize/common";
 import {
   BackSide,
   FrontSide,
@@ -31,7 +26,7 @@ const defaultParams: RegistryParams = {
 
 const TRANSPARENT_SIDES = [FrontSide, BackSide];
 
-class Registry extends SharedRegistry {
+class Registry extends BaseRegistry {
   public params: RegistryParams;
   public atlas: TextureAtlas;
 

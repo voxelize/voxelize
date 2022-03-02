@@ -1,4 +1,4 @@
-class Helper {
+class DOMUtils {
   static applyStyles = (
     ele: HTMLElement | HTMLElement[] | undefined,
     style: Partial<CSSStyleDeclaration>
@@ -17,10 +17,6 @@ class Helper {
 
     return ele;
   };
-
-  static round = (n: number, digits: number) => {
-    return Math.round(n * 10 ** digits) / 10 ** digits;
-  };
 }
 
-export { Helper };
+export { DOMUtils };

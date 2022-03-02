@@ -1,1 +1,1 @@
-export * from "./SharedRegistry";
+export * from "./base-registry";

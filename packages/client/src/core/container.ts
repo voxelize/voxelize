@@ -1,5 +1,5 @@
 import { Client } from "..";
-import { Helper } from "../utils";
+import { DOMUtils } from "../utils";
 
 type ContainerParams = {
   domElement: HTMLElement;
@@ -61,13 +61,13 @@ class Container {
 
     if (domElement) {
       Array.from(domElement.children).forEach((ele) => {
-        Helper.applyStyles(ele as HTMLElement, {
+        DOMUtils.applyStyles(ele as HTMLElement, {
           zIndex: "100",
         });
       });
     }
 
-    Helper.applyStyles(canvas, {
+    DOMUtils.applyStyles(canvas, {
       position: "absolute",
       margin: "0",
       outline: "none",
@@ -90,7 +90,7 @@ class Container {
     this.domElement.appendChild(this.canvas);
     this.domElement.id = "voxelize-container";
 
-    Helper.applyStyles(this.domElement, {
+    DOMUtils.applyStyles(this.domElement, {
       position: "relative",
       fontFamily: `"Fira Mono", monospace`,
     });
@@ -162,7 +162,7 @@ class Container {
    * @memberof Container
    */
   fitCanvas = () => {
-    Helper.applyStyles(this.canvas, {
+    DOMUtils.applyStyles(this.canvas, {
       width: `${this.domElement.offsetWidth}px`,
       height: `${this.domElement.offsetHeight}px`,
     });

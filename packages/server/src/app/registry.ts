@@ -1,8 +1,8 @@
-import { Block, defaultBlock, SharedRegistry } from "@voxelize/common";
+import { Block, defaultBlock, BaseRegistry } from "@voxelize/common";
 
 import { World } from "./world";
 
-class Registry extends SharedRegistry {
+class Registry extends BaseRegistry {
   constructor(public world: World) {
     super();
 
