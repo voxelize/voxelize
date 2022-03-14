@@ -70,14 +70,8 @@ class Entities extends Map<string, Entity> {
     });
   };
 
-  tick = () => {
-    if (this.size === 0) return;
-
-    this.forEach((entity) => {
-      if (entity.tick) {
-        entity.tick();
-      }
-    });
+  update = () => {
+    // TODO
   };
 
   private addEntity = (id: string, type: string) => {

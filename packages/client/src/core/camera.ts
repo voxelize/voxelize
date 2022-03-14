@@ -78,13 +78,13 @@ class Camera {
   }
 
   /**
-   * Tick for the camera of the game, does the following:
+   * Update for the camera of the game, does the following:
    * - interpolate FOV to a new value if `camera.setFOV` is called
    * - interpolate zoom to a new value if `camera.setZoom` is called
    *
    * @memberof Camera
    */
-  tick = () => {
+  update = () => {
     if (this.newFOV !== this.threeCamera.fov) {
       this.threeCamera.fov = MathUtils.lerp(
         this.threeCamera.fov,

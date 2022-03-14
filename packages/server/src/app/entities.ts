@@ -54,7 +54,7 @@ class Entities extends Map<number, Entity> {
     this.packets.push(event);
   };
 
-  tick = () => {
+  update = () => {
     if (this.size === 0) return;
 
     if (this.packets.length > 0) {

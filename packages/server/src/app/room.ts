@@ -14,7 +14,7 @@ type RoomParams = {
   name: string;
   maxClients: number;
   pingInterval: number;
-  tickInterval: number;
+  updateInterval: number;
 };
 
 class Room {
@@ -24,7 +24,7 @@ class Room {
   public world: World;
   public clients: ClientType[] = [];
 
-  private tickInterval: NodeJS.Timeout = null;
+  private updateInterval: NodeJS.Timeout = null;
   private pingInterval: NodeJS.Timeout = null;
 
   constructor(public rooms: Rooms, public params: RoomParams) {
@@ -128,18 +128,18 @@ class Room {
   };
 
   start = () => {
-    const { tickInterval } = this.params;
+    const { updateInterval } = this.params;
     this.world.start();
-    this.tickInterval = setInterval(this.tick, tickInterval);
+    this.updateInterval = setInterval(this.update, updateInterval);
     this.started = true;
   };
 
   // TODO: maybe stop clients too?
   stop = () => {
-    if (this.tickInterval) {
-      clearInterval(this.tickInterval);
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
       this.world.stop();
-      this.tickInterval = null;
+      this.updateInterval = null;
     }
   };
 
@@ -169,10 +169,10 @@ class Room {
     });
   };
 
-  tick = () => {
+  update = () => {
     if (!this.rooms.server.network.listening) return;
 
-    this.world.tick();
+    this.world.update();
   };
 
   private filterClients = (

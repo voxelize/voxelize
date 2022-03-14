@@ -51,14 +51,14 @@ class Peer {
     });
   }
 
-  update = (name: string, position: Vector3, quaternion: Quaternion) => {
+  set = (name: string, position: Vector3, quaternion: Quaternion) => {
     this.name = name;
     this.nameMesh.text = name;
     this.newPosition = position;
     this.newQuaternion = quaternion;
   };
 
-  tick = (camPos?: Vector3) => {
+  update = (camPos?: Vector3) => {
     const { lerpFactor, maxNameDistance } = this.params;
 
     this.head.mesh.position.lerp(this.newPosition, lerpFactor);
@@ -102,7 +102,7 @@ class Peer {
 
           const quaternion = updateQuaternion()();
 
-          this.update(name, position, quaternion);
+          this.set(name, position, quaternion);
         }
         break;
       }

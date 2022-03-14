@@ -9,7 +9,7 @@ import { ClientFilter, ClientType, defaultFilter } from "./shared";
 type RoomsParams = {
   maxClients: number;
   pingInterval: number;
-  tickInterval: number;
+  updateInterval: number;
 };
 
 class Rooms extends Map<string, Room> {
@@ -50,13 +50,13 @@ class Rooms extends Map<string, Room> {
   }
 
   createRoom = (name: string) => {
-    const { maxClients, pingInterval, tickInterval } = this.params;
+    const { maxClients, pingInterval, updateInterval } = this.params;
 
     const room = new Room(this, {
       name,
       maxClients,
       pingInterval,
-      tickInterval,
+      updateInterval,
     });
 
     this.set(name, room);

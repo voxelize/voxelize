@@ -1,5 +1,7 @@
 import { EventEmitter } from "events";
 
+import { ECS } from "@voxelize/common";
+
 import {
   Container,
   ContainerParams,
@@ -41,6 +43,8 @@ class Client extends EventEmitter {
 
   public network: Network | undefined;
 
+  public ecs: ECS;
+
   public debug: Debug;
   public container: Container;
   public rendering: Rendering;
@@ -69,6 +73,8 @@ class Client extends EventEmitter {
       controls,
       registry,
     } = params;
+
+    this.ecs = new ECS();
 
     this.debug = new Debug(this);
     this.container = new Container(this, container);
@@ -153,12 +159,14 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
-    this.clock.tick();
-    this.camera.tick();
-    this.entities.tick();
-    this.peers.tick();
-    this.controls.tick();
-    this.debug.tick();
+    this.ecs.update();
+
+    this.clock.update();
+    this.camera.update();
+    this.entities.update();
+    this.peers.update();
+    this.controls.update();
+    this.debug.update();
 
     this.rendering.render();
   };

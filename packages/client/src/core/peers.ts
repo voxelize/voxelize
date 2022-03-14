@@ -89,7 +89,7 @@ class Peers extends Map<string, Peer> {
     });
   };
 
-  tick = () => {
+  update = () => {
     const { name, controls, peers } = this.client;
 
     if (peers.size > 0) {
@@ -118,7 +118,7 @@ class Peers extends Map<string, Peer> {
     }
 
     this.forEach((peer) => {
-      peer.tick();
+      peer.update();
     });
   };
 

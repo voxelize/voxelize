@@ -25,7 +25,6 @@ abstract class Entity {
   onEvent?: (e: any) => void;
   onCreation?: (client: Client) => void;
   onDeletion?: (client: Client) => void;
-  tick?: () => void;
 
   onTarget = () => {
     this.mesh.lookAt(this.target);

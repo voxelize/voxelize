@@ -52,9 +52,9 @@ class World {
     this.ecs.timeScale = 0;
   };
 
-  tick = () => {
+  update = () => {
     this.ecs.update();
-    this.entities.tick();
+    this.entities.update();
   };
 }
 

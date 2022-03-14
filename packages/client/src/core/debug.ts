@@ -79,11 +79,11 @@ class Debug {
   }
 
   /**
-   * Tick for the debug of the game
+   * Update for the debug of the game
    *
    * @memberof Debug
    */
-  tick = () => {
+  update = () => {
     // loop through all data entries, and get their latest updated values
     for (const { ele, title, attribute, obj, formatter } of this.dataEntries) {
       const newValue = obj && attribute ? obj[attribute] : "";

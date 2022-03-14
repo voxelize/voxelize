@@ -24,7 +24,7 @@ class Clock {
   public params: ClockParams;
 
   /**
-   * Last time of tick, gets updated each tick
+   * Last time of update, gets updated each game loop
    *
    * @type {number}
    * @memberof Clock
@@ -32,7 +32,7 @@ class Clock {
   public lastFrameTime: number;
 
   /**
-   * Delta time elapsed each tick
+   * Delta time elapsed each update
    *
    * @type {number}
    * @memberof Clock
@@ -52,12 +52,12 @@ class Clock {
   }
 
   /**
-   * Tick for the camera of the game, does the following:
-   * - Calculate the time elapsed since last tick
+   * Update for the camera of the game, does the following:
+   * - Calculate the time elapsed since last update
    *
    * @memberof Camera
    */
-  tick = () => {
+  update = () => {
     const now = Date.now();
     this.delta = Math.min(
       (now - this.lastFrameTime) / 1000,

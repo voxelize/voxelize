@@ -84,12 +84,12 @@ class Controls extends EventDispatcher {
   }
 
   /**
-   * Tick for the camera of the game, does the following:
+   * Update for the camera of the game, does the following:
    * - Move `controls.object` around according to input
    *
    * @memberof Controls
    */
-  tick = () => {
+  update = () => {
     const { delta } = this.client.clock;
 
     const { right, left, up, down, front, back } = this.movements;
@@ -150,6 +150,9 @@ class Controls extends EventDispatcher {
 
     this.addEventListener("lock", this.onLock);
     this.addEventListener("unlock", this.onUnlock);
+
+    this.setPosition(-5, 5, 5);
+    this.lookAt(0, 0, 0);
   };
 
   /**
