@@ -1,19 +1,31 @@
-import { Block } from "@voxelize/common";
+import { ECS, Entity, System, Block } from "@voxelize/common";
 
-import { NewEntity, Entities } from "./entities";
+import { Entities } from "./entities";
 import { Registry } from "./registry";
 import { Room } from "./room";
+import { Constructor } from "./shared";
+import { BroadcastEntitiesSystem } from "./systems";
 
 class World {
   public entities: Entities;
   public registry: Registry;
 
+  public ecs: ECS;
+
   constructor(public room: Room) {
     this.entities = new Entities(this);
     this.registry = new Registry(this);
+
+    this.ecs = new ECS();
+    this.ecs.timeScale = 0;
+
+    this.ecs.addSystem(new BroadcastEntitiesSystem(this.entities));
   }
 
-  registerEntity = (type: string, protocol: NewEntity) => {
+  registerEntity = <T extends Entity>(
+    type: string,
+    protocol: Constructor<T>
+  ) => {
     return this.entities.registerEntity(type, protocol);
   };
 
@@ -22,14 +34,26 @@ class World {
   };
 
   addEntity = (type: string) => {
-    return this.entities.addEntity(type);
+    const entity = this.entities.addEntity(type);
+    this.ecs.addEntity(entity);
+    return entity;
+  };
+
+  addSystem = (system: System) => {
+    this.ecs.addSystem(system);
   };
 
   start = () => {
+    this.ecs.timeScale = 1;
     this.registry.generate();
   };
 
+  stop = () => {
+    this.ecs.timeScale = 0;
+  };
+
   tick = () => {
+    this.ecs.update();
     this.entities.tick();
   };
 }

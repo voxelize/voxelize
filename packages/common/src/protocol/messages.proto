@@ -21,7 +21,7 @@ message Peer {
 }
 
 message Entity {
-  string id = 0;
+  int32 id = 0;
   string type = 1;
   string data = 2;
   Vector3 position = 3;

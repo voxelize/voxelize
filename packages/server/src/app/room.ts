@@ -138,6 +138,7 @@ class Room {
   stop = () => {
     if (this.tickInterval) {
       clearInterval(this.tickInterval);
+      this.world.stop();
       this.tickInterval = null;
     }
   };
