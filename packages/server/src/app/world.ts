@@ -1,6 +1,7 @@
 import { ECS, System, Block } from "@voxelize/common";
 
 import { BaseEntity, Entities } from "./entities";
+import { Pipeline } from "./pipeline";
 import { Registry } from "./registry";
 import { Room } from "./room";
 import { Constructor } from "./shared";
@@ -13,6 +14,7 @@ type WorldParams = {
 class World {
   public entities: Entities;
   public registry: Registry;
+  public pipeline: Pipeline;
 
   public ecs: ECS;
 

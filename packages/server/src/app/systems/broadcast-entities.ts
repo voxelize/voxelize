@@ -6,14 +6,18 @@ import {
   TypeComponent,
 } from "@voxelize/common";
 
-import { HeadingComponent, PositionComponent, TargetComponent } from "../comps";
+import {
+  HeadingComponent,
+  Position3DComponent,
+  TargetComponent,
+} from "../comps";
 import { Entities } from "../entities";
 
 class BroadcastEntitiesSystem extends System {
   constructor(private entities: Entities) {
     super([
       IDComponent.type,
-      PositionComponent.type,
+      Position3DComponent.type,
       TargetComponent.type,
       HeadingComponent.type,
       TypeComponent.type,
@@ -23,7 +27,7 @@ class BroadcastEntitiesSystem extends System {
 
   update(entity: Entity) {
     const id = IDComponent.get(entity).data;
-    const position = PositionComponent.get(entity).data;
+    const position = Position3DComponent.get(entity).data;
     const target = TargetComponent.get(entity).data;
     const heading = HeadingComponent.get(entity).data;
     const type = TypeComponent.get(entity).data;

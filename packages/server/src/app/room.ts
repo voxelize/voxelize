@@ -4,7 +4,7 @@ import WebSocket from "ws";
 import { Network } from "../core/network";
 import { ClientFilter, defaultFilter } from "../core/shared";
 
-import { ClientEntity } from "./client";
+import { ClientEntity } from "./ents/client";
 import { World } from "./world";
 
 const { Message } = protocol;

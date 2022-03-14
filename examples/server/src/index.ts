@@ -1,5 +1,5 @@
 import { Component, System } from "@voxelize/common";
-import { Server, PositionComponent, BaseEntity } from "@voxelize/server";
+import { Server, Position3DComponent, BaseEntity } from "@voxelize/server";
 
 const server = new Server({ port: 5000 });
 
@@ -19,11 +19,11 @@ class Box extends BaseEntity {
 
 class UpdateBoxSystem extends System {
   constructor() {
-    super([TestFlyComponent.type, PositionComponent.type]);
+    super([TestFlyComponent.type, Position3DComponent.type]);
   }
 
   update(entity: BaseEntity): void {
-    const position = PositionComponent.get(entity).data;
+    const position = Position3DComponent.get(entity).data;
     position.x += Math.cos(performance.now() * BOX_SPEED) * 0.005;
     position.y += Math.sin(performance.now() * BOX_SPEED) * 0.005;
     position.z += Math.sin(performance.now() * BOX_SPEED) * 0.005;
@@ -42,10 +42,10 @@ test.world.registerBlock("Grape", {
 });
 
 const box = test.world.addEntity("Box");
-PositionComponent.get(box).data.set(3, 3, 3);
+Position3DComponent.get(box).data.set(3, 3, 3);
 
 const box2 = test.world.addEntity("Box");
-PositionComponent.get(box2).data.set(-3, 3, -3);
+Position3DComponent.get(box2).data.set(-3, 3, -3);
 
 const test2 = server.createRoom("test2");
 

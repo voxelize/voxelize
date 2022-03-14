@@ -4,7 +4,7 @@ import {
   Client,
   BaseEntity,
   NameTag,
-  PositionComponent,
+  Position3DComponent,
   TargetComponent,
   HeadingComponent,
 } from "@voxelize/client";
@@ -106,7 +106,7 @@ class UpdateBoxSystem extends System {
   constructor() {
     super([
       EntityComponent.type,
-      PositionComponent.type,
+      Position3DComponent.type,
       HeadingComponent.type,
       TargetComponent.type,
     ]);

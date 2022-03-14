@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "@math.gl/core";
+import { Vector3 } from "@math.gl/core";
 import {
   Entity,
   IDComponent,
@@ -8,13 +8,13 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
-import { Network } from "../core/network";
-
+import { Network } from "../../core/network";
 import {
-  PositionComponent,
+  Position3DComponent,
   DirectionComponent,
   CurrentChunkComponent,
-} from "./comps";
+  CurrentChunk,
+} from "../comps";
 
 class ClientEntity extends Entity {
   public id: string;
@@ -26,11 +26,22 @@ class ClientEntity extends Entity {
     this.id = uuidv4();
 
     this.add(new ClientComponent());
+
     this.add(new IDComponent(this.id));
     this.add(new NameComponent(""));
-    this.add(new PositionComponent(new Vector3()));
+
+    this.add(new Position3DComponent(new Vector3()));
     this.add(new DirectionComponent(new Vector3()));
-    this.add(new CurrentChunkComponent(new Vector2()));
+
+    this.add(
+      new CurrentChunkComponent({
+        changed: true,
+        chunk: {
+          x: 0,
+          z: 0,
+        },
+      })
+    );
   }
 
   set name(n: string) {
@@ -42,11 +53,11 @@ class ClientEntity extends Entity {
   }
 
   set position(p: Vector3) {
-    PositionComponent.get(this).data.set(p.x, p.y, p.z);
+    Position3DComponent.get(this).data.set(p.x, p.y, p.z);
   }
 
   get position() {
-    return PositionComponent.get(this).data;
+    return Position3DComponent.get(this).data;
   }
 
   set direction(d: Vector3) {
@@ -57,8 +68,8 @@ class ClientEntity extends Entity {
     return DirectionComponent.get(this).data;
   }
 
-  set currentChunk(c: Vector2) {
-    CurrentChunkComponent.get(this).data.copy(c);
+  set currentChunk(c: CurrentChunk) {
+    CurrentChunkComponent.get(this).data = c;
   }
 
   get currentChunk() {

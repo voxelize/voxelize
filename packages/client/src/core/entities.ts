@@ -12,7 +12,7 @@ import { Client } from "..";
 import {
   HeadingComponent,
   MeshComponent,
-  PositionComponent,
+  Position3DComponent,
   TargetComponent,
 } from "./comps";
 
@@ -37,18 +37,18 @@ class BaseEntity extends Entity {
 
     this.add(new EntityComponent());
     this.add(new MeshComponent());
-    this.add(new PositionComponent(new Vector3()));
+    this.add(new Position3DComponent(new Vector3()));
     this.add(new HeadingComponent(new Vector3()));
     this.add(new TargetComponent(new Vector3()));
     this.add(new MetadataComponent({}));
   }
 
   set position(p: Vector3) {
-    PositionComponent.get(this).data.set(p.x, p.y, p.z);
+    Position3DComponent.get(this).data.set(p.x, p.y, p.z);
   }
 
   get position() {
-    return PositionComponent.get(this).data;
+    return Position3DComponent.get(this).data;
   }
 
   set target(t: Vector3) {

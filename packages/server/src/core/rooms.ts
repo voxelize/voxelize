@@ -3,7 +3,7 @@ import http from "http";
 import WebSocket from "ws";
 
 import { Server } from "..";
-import { ClientEntity } from "../app/client";
+import { ClientEntity } from "../app/ents";
 import { Room } from "../app/room";
 
 import { ClientFilter, defaultFilter } from "./shared";

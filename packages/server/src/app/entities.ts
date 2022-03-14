@@ -1,41 +1,8 @@
-import { Vector2, Vector3 } from "@math.gl/core";
-import {
-  Entity,
-  IDComponent,
-  MetadataComponent,
-  TypeComponent,
-  EntityComponent,
-} from "@voxelize/common";
-import { v4 as uuidv4 } from "uuid";
+import { Entity, TypeComponent } from "@voxelize/common";
 
-import { CurrentChunkComponent } from "./comps";
-import {
-  DirtyComponent,
-  HeadingComponent,
-  PositionComponent,
-  TargetComponent,
-} from "./comps";
+import { BaseEntity } from "./ents";
 import { Constructor } from "./shared";
 import { World } from "./world";
-
-class BaseEntity extends Entity {
-  public id: string;
-
-  constructor() {
-    super();
-
-    this.id = uuidv4();
-
-    this.add(new IDComponent(this.id));
-    this.add(new EntityComponent());
-    this.add(new PositionComponent(new Vector3()));
-    this.add(new HeadingComponent(new Vector3()));
-    this.add(new TargetComponent(new Vector3()));
-    this.add(new CurrentChunkComponent(new Vector2()));
-    this.add(new MetadataComponent({}));
-    this.add(new DirtyComponent(true));
-  }
-}
 
 class Entities extends Map<string, Entity> {
   knownTypes: Map<string, Constructor<BaseEntity>> = new Map();

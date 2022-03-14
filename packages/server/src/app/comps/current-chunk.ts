@@ -1,4 +1,11 @@
-import { Vector2 } from "@math.gl/core";
 import { Component } from "@voxelize/common";
 
-export const CurrentChunkComponent = Component.register<Vector2>();
+export type CurrentChunk = {
+  changed: boolean;
+  chunk: {
+    x: number;
+    z: number;
+  };
+};
+
+export const CurrentChunkComponent = Component.register<CurrentChunk>();

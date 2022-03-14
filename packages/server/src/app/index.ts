@@ -6,3 +6,4 @@ export * from "./chunk";
 export * from "./comps";
 export * from "./systems";
 export * from "./entities";
+export * from "./pipeline";
