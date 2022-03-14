@@ -160,7 +160,6 @@ class Client extends EventEmitter {
 
   private animate = () => {
     this.ecs.update();
-
     this.clock.update();
     this.camera.update();
     this.entities.update();

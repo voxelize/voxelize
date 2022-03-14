@@ -6,12 +6,14 @@ import {
   PositionComponent,
   MetadataComponent,
   TargetComponent,
+  IDComponent,
 } from "../comps";
 import { Entities } from "../entities";
 
 class BroadcastEntitiesSystem extends System {
   constructor(private entities: Entities) {
     super([
+      IDComponent.type,
       PositionComponent.type,
       TargetComponent.type,
       HeadingComponent.type,
@@ -21,6 +23,7 @@ class BroadcastEntitiesSystem extends System {
   }
 
   update(entity: Entity): void {
+    const id = IDComponent.get(entity).data;
     const position = PositionComponent.get(entity).data;
     const target = TargetComponent.get(entity).data;
     const heading = HeadingComponent.get(entity).data;
@@ -32,8 +35,8 @@ class BroadcastEntitiesSystem extends System {
     const { x: hx, y: hy, z: hz } = heading;
 
     this.entities.addPacket({
-      id: entity.id,
-      type: type,
+      id,
+      type,
       position: { x: px, y: py, z: pz },
       target: { x: tx, y: ty, z: tz },
       heading: { x: hx, y: hy, z: hz },

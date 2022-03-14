@@ -90,18 +90,20 @@ class Peers extends Map<string, Peer> {
   };
 
   update = () => {
-    const { name, controls, peers } = this.client;
+    const { name, controls, peers, network } = this.client;
 
     if (peers.size > 0) {
+      const { id } = network;
       const { object } = controls;
       const {
         position: { x: px, y: py, z: pz },
       } = object;
       const { x: dx, y: dy, z: dz } = controls.getDirection();
 
-      peers.broadcast({
+      const event = {
         type: "PEER",
         peer: {
+          id,
           name,
           position: {
             x: px,
@@ -114,7 +116,10 @@ class Peers extends Map<string, Peer> {
             z: dz,
           },
         },
-      });
+      };
+
+      peers.broadcast(event);
+      network.send(event);
     }
 
     this.forEach((peer) => {

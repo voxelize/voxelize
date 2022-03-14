@@ -113,6 +113,10 @@ class Network {
     return result.json();
   };
 
+  send = (event: any) => {
+    this.ws.sendEvent(event);
+  };
+
   private onEvent = (event: any) => {
     const { type } = event;
 

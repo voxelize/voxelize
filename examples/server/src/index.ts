@@ -1,5 +1,5 @@
-import { Component, Entity, System } from "@voxelize/common";
-import { Server, PositionComponent } from "@voxelize/server";
+import { Component, System } from "@voxelize/common";
+import { Server, PositionComponent, BaseEntity } from "@voxelize/server";
 
 const server = new Server({ port: 5000 });
 
@@ -9,7 +9,7 @@ const BOX_SPEED = 0.001;
 
 const TestFlyComponent = Component.register();
 
-class Box extends Entity {
+class Box extends BaseEntity {
   constructor() {
     super();
 
@@ -22,7 +22,7 @@ class UpdateBoxSystem extends System {
     super([TestFlyComponent.type, PositionComponent.type]);
   }
 
-  update(entity: Entity): void {
+  update(entity: BaseEntity): void {
     const position = PositionComponent.get(entity).data;
     position.x += Math.cos(performance.now() * BOX_SPEED) * 0.005;
     position.y += Math.sin(performance.now() * BOX_SPEED) * 0.005;

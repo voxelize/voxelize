@@ -1,6 +1,6 @@
-import { ECS, Entity, System, Block } from "@voxelize/common";
+import { ECS, System, Block } from "@voxelize/common";
 
-import { Entities } from "./entities";
+import { BaseEntity, Entities } from "./entities";
 import { Registry } from "./registry";
 import { Room } from "./room";
 import { Constructor } from "./shared";
@@ -22,7 +22,7 @@ class World {
     this.ecs.addSystem(new BroadcastEntitiesSystem(this.entities));
   }
 
-  registerEntity = <T extends Entity>(
+  registerEntity = <T extends BaseEntity>(
     type: string,
     protocol: Constructor<T>
   ) => {

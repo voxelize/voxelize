@@ -15,13 +15,14 @@ message Quaternion {
 }
 
 message Peer {
-  string name = 0;
-  Vector3 position = 1;
-  Vector3 direction = 2;
+  string id = 0;
+  string name = 1;
+  Vector3 position = 2;
+  Vector3 direction = 3;
 }
 
 message Entity {
-  int32 id = 0;
+  string id = 0;
   string type = 1;
   string data = 2;
   Vector3 position = 3;

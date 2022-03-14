@@ -158,7 +158,7 @@ export abstract class Entity {
     [key: number]: Component<any>[];
   } = {};
 
-  public id: number;
+  public entId: number;
 
   /**
    * Informs if the entity is active
@@ -166,7 +166,7 @@ export abstract class Entity {
   public active = true;
 
   constructor() {
-    this.id = SEQ_ENTITY++;
+    this.entId = SEQ_ENTITY++;
   }
 
   /**
@@ -333,7 +333,7 @@ export abstract class System {
   /**
    * Unique identifier of an instance of this system
    */
-  public readonly id: number;
+  public readonly sysId: number;
 
   /**
    * The maximum times per second this system should be updated
@@ -423,7 +423,7 @@ export abstract class System {
    * @param frequence The maximum times per second this system should be updated. Defaults 0
    */
   constructor(componentTypes: number[], frequence = 0) {
-    this.id = SEQ_SYSTEM++;
+    this.sysId = SEQ_SYSTEM++;
     this.componentTypes = componentTypes;
     this.frequence = frequence;
   }
@@ -586,10 +586,10 @@ export default class ECS {
   /**
    * Get an entity by id
    *
-   * @param id
+   * @param entId
    */
-  public getEntity(id: number): Entity | undefined {
-    return this.entities.find((entity) => entity.id === id);
+  public getEntity(entId: number): Entity | undefined {
+    return this.entities.find((entity) => entity.entId === entId);
   }
 
   /**
@@ -603,16 +603,16 @@ export default class ECS {
     }
 
     this.entities.push(entity);
-    this.entitySystemLastUpdate[entity.id] = {};
-    this.entitySystemLastUpdateGame[entity.id] = {};
+    this.entitySystemLastUpdate[entity.entId] = {};
+    this.entitySystemLastUpdateGame[entity.entId] = {};
 
     // Remove subscription
-    if (this.entitySubscription[entity.id]) {
-      this.entitySubscription[entity.id]();
+    if (this.entitySubscription[entity.entId]) {
+      this.entitySubscription[entity.entId]();
     }
 
     // Add new subscription
-    this.entitySubscription[entity.id] = entity.subscribe(
+    this.entitySubscription[entity.entId] = entity.subscribe(
       (entity, added, removed) => {
         this.onEntityUpdate(entity, added, removed);
         this.indexEntity(entity);
@@ -643,12 +643,12 @@ export default class ECS {
     }
 
     // Remove subscription, if any
-    if (this.entitySubscription[entity.id]) {
-      this.entitySubscription[entity.id]();
+    if (this.entitySubscription[entity.entId]) {
+      this.entitySubscription[entity.entId]();
     }
 
     // Invoke system exit
-    const systems = this.entitySystems[entity.id];
+    const systems = this.entitySystems[entity.entId];
     if (systems) {
       systems.forEach((system) => {
         if (system.exit) {
@@ -659,9 +659,9 @@ export default class ECS {
     }
 
     // Remove associative indexes
-    delete this.entitySystems[entity.id];
-    delete this.entitySystemLastUpdate[entity.id];
-    delete this.entitySystemLastUpdateGame[entity.id];
+    delete this.entitySystems[entity.entId];
+    delete this.entitySystemLastUpdate[entity.entId];
+    delete this.entitySystemLastUpdateGame[entity.entId];
   }
 
   /**
@@ -688,7 +688,7 @@ export default class ECS {
     // Invokes system enter
     this.entities.forEach((entity) => {
       if (entity.active) {
-        const systems = this.entitySystems[entity.id];
+        const systems = this.entitySystems[entity.entId];
         if (systems && systems.indexOf(system) >= 0) {
           if (system.enter) {
             this.inject(system);
@@ -714,7 +714,7 @@ export default class ECS {
       // Invoke system exit
       this.entities.forEach((entity) => {
         if (entity.active) {
-          const systems = this.entitySystems[entity.id];
+          const systems = this.entitySystems[entity.entId];
           if (systems && systems.indexOf(system) >= 0) {
             if (system.exit) {
               this.inject(system);
@@ -797,21 +797,22 @@ export default class ECS {
         return this.removeEntity(entity);
       }
 
-      const systems = this.entitySystems[entity.id];
+      const systems = this.entitySystems[entity.entId];
       if (!systems) {
         return;
       }
 
-      const entityLastUpdates = this.entitySystemLastUpdate[entity.id];
-      const entityLastUpdatesGame = this.entitySystemLastUpdateGame[entity.id];
+      const entityLastUpdates = this.entitySystemLastUpdate[entity.entId];
+      const entityLastUpdatesGame =
+        this.entitySystemLastUpdateGame[entity.entId];
       let elapsed, elapsedScaled, interval;
 
       systems.forEach((system) => {
         if (system.update) {
           this.inject(system);
 
-          elapsed = now - entityLastUpdates[system.id];
-          elapsedScaled = this.gameTime - entityLastUpdatesGame[system.id];
+          elapsed = now - entityLastUpdates[system.sysId];
+          elapsedScaled = this.gameTime - entityLastUpdatesGame[system.sysId];
 
           // Limit FPS
           if (system.frequence > 0) {
@@ -821,14 +822,14 @@ export default class ECS {
             }
 
             // adjust for fpsInterval not being a multiple of RAF's interval (16.7ms)
-            entityLastUpdates[system.id] = now - (elapsed % interval);
-            entityLastUpdatesGame[system.id] = this.gameTime;
+            entityLastUpdates[system.sysId] = now - (elapsed % interval);
+            entityLastUpdatesGame[system.sysId] = this.gameTime;
           } else {
-            entityLastUpdates[system.id] = now;
-            entityLastUpdatesGame[system.id] = this.gameTime;
+            entityLastUpdates[system.sysId] = now;
+            entityLastUpdatesGame[system.sysId] = this.gameTime;
           }
 
-          const id = `_${system.id}`;
+          const id = `_${system.sysId}`;
           if (!toCallAfterUpdateAll[id]) {
             // Call afterUpdateAll
             if (system.beforeUpdateAll) {
@@ -891,11 +892,11 @@ export default class ECS {
     added?: Component<any>,
     removed?: Component<any>
   ) {
-    if (!this.entitySystems[entity.id]) {
+    if (!this.entitySystems[entity.entId]) {
       return;
     }
 
-    const toNotify: System[] = this.entitySystems[entity.id].slice(0);
+    const toNotify: System[] = this.entitySystems[entity.entId].slice(0);
 
     outside: for (let idx = toNotify.length - 1; idx >= 0; idx--) {
       const system = toNotify[idx];
@@ -945,14 +946,14 @@ export default class ECS {
   }
 
   private indexEntitySystem = (entity: Entity, system: System) => {
-    const idx = this.entitySystems[entity.id].indexOf(system);
+    const idx = this.entitySystems[entity.entId].indexOf(system);
 
     // Sistema não existe neste mundo, remove indexação
     if (this.systems.indexOf(system) < 0) {
       if (idx >= 0) {
-        this.entitySystems[entity.id].splice(idx, 1);
-        delete this.entitySystemLastUpdate[entity.id][system.id];
-        delete this.entitySystemLastUpdateGame[entity.id][system.id];
+        this.entitySystems[entity.entId].splice(idx, 1);
+        delete this.entitySystemLastUpdate[entity.entId][system.sysId];
+        delete this.entitySystemLastUpdateGame[entity.entId][system.sysId];
       }
       return;
     }
@@ -975,9 +976,9 @@ export default class ECS {
             system.exit(entity);
           }
 
-          this.entitySystems[entity.id].splice(idx, 1);
-          delete this.entitySystemLastUpdate[entity.id][system.id];
-          delete this.entitySystemLastUpdateGame[entity.id][system.id];
+          this.entitySystems[entity.entId].splice(idx, 1);
+          delete this.entitySystemLastUpdate[entity.entId][system.sysId];
+          delete this.entitySystemLastUpdateGame[entity.entId][system.sysId];
         }
         return;
       }
@@ -985,9 +986,10 @@ export default class ECS {
 
     // Entity has all the components this system needs
     if (idx < 0) {
-      this.entitySystems[entity.id].push(system);
-      this.entitySystemLastUpdate[entity.id][system.id] = NOW();
-      this.entitySystemLastUpdateGame[entity.id][system.id] = this.gameTime;
+      this.entitySystems[entity.entId].push(system);
+      this.entitySystemLastUpdate[entity.entId][system.sysId] = NOW();
+      this.entitySystemLastUpdateGame[entity.entId][system.sysId] =
+        this.gameTime;
 
       // Informs the system about the new relationship
       if (system.enter) {
@@ -1003,8 +1005,8 @@ export default class ECS {
    * @param entity
    */
   private indexEntity(entity: Entity, system?: System) {
-    if (!this.entitySystems[entity.id]) {
-      this.entitySystems[entity.id] = [];
+    if (!this.entitySystems[entity.entId]) {
+      this.entitySystems[entity.entId] = [];
     }
 
     if (system) {

@@ -4,3 +4,6 @@ export * from "./target";
 export * from "./type";
 export * from "./metadata";
 export * from "./dirty";
+export * from "./id";
+export * from "./name";
+export * from "./direction";

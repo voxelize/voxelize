@@ -1,5 +1,6 @@
 import { Vector3 } from "@math.gl/core";
-import { Entity } from "@voxelize/common";
+import { Component, Entity } from "@voxelize/common";
+import { v4 as uuidv4 } from "uuid";
 
 import {
   DirtyComponent,
@@ -8,12 +9,33 @@ import {
   PositionComponent,
   TargetComponent,
   TypeComponent,
+  IDComponent,
 } from "./comps";
 import { Constructor } from "./shared";
 import { World } from "./world";
 
-class Entities extends Map<number, Entity> {
-  knownTypes: Map<string, Constructor<Entity>> = new Map();
+const EntityComponent = Component.register();
+
+class BaseEntity extends Entity {
+  public id: string;
+
+  constructor() {
+    super();
+
+    this.id = uuidv4();
+
+    this.add(new IDComponent(this.id));
+    this.add(new EntityComponent());
+    this.add(new PositionComponent(new Vector3()));
+    this.add(new HeadingComponent(new Vector3()));
+    this.add(new TargetComponent(new Vector3()));
+    this.add(new MetadataComponent({}));
+    this.add(new DirtyComponent(true));
+  }
+}
+
+class Entities extends Map<string, Entity> {
+  knownTypes: Map<string, Constructor<BaseEntity>> = new Map();
 
   private packets: any[] = [];
 
@@ -21,7 +43,7 @@ class Entities extends Map<number, Entity> {
     super();
   }
 
-  registerEntity = <T extends Entity>(
+  registerEntity = <T extends BaseEntity>(
     type: string,
     protocol: Constructor<T>
   ) => {
@@ -38,13 +60,7 @@ class Entities extends Map<number, Entity> {
 
     const entity = new Protocol();
 
-    entity.add(new PositionComponent(new Vector3()));
-    entity.add(new HeadingComponent(new Vector3()));
-    entity.add(new TargetComponent(new Vector3()));
-    entity.add(new MetadataComponent({}));
     entity.add(new TypeComponent(type));
-    entity.add(new DirtyComponent(true));
-
     this.set(entity.id, entity);
 
     return entity;
@@ -66,4 +82,4 @@ class Entities extends Map<number, Entity> {
   };
 }
 
-export { Entities };
+export { BaseEntity, EntityComponent, Entities };

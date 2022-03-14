@@ -1,3 +1,0 @@
-class ChunkPipeline {}
-
-export { ChunkPipeline };

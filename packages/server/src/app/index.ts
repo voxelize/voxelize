@@ -3,7 +3,6 @@ export * from "./entities";
 export * from "./world";
 export * from "./registry";
 export * from "./chunk";
-export * from "./pipeline";
 export * from "./comps";
 export * from "./systems";
 export * from "./entities";

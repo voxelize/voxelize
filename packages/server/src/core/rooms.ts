@@ -1,10 +1,13 @@
 import http from "http";
 
+import WebSocket from "ws";
+
 import { Server } from "..";
+import { ClientEntity } from "../app/client";
 import { Room } from "../app/room";
 
 import { Network } from "./network";
-import { ClientFilter, ClientType, defaultFilter } from "./shared";
+import { ClientFilter, defaultFilter } from "./shared";
 
 type RoomsParams = {
   maxClients: number;
@@ -20,7 +23,7 @@ class Rooms extends Map<string, Room> {
 
     network.wss.on(
       "connection",
-      (client: ClientType, req: http.IncomingMessage) => {
+      (client: WebSocket, req: http.IncomingMessage) => {
         const roomId = new URLSearchParams(req.url.split("?")[1]).get("room");
         const room = this.get(roomId);
 
@@ -42,7 +45,7 @@ class Rooms extends Map<string, Room> {
       this.forEach((room) => {
         rooms.push({
           name: room.name,
-          clients: room.clients.map((c) => c.id),
+          clients: Array.from(room.clients.values()).map((c) => c.id),
         });
       });
       res.json(rooms);
@@ -52,7 +55,7 @@ class Rooms extends Map<string, Room> {
   createRoom = (name: string) => {
     const { maxClients, pingInterval, updateInterval } = this.params;
 
-    const room = new Room(this, {
+    const room = new Room({
       name,
       maxClients,
       pingInterval,
@@ -66,32 +69,34 @@ class Rooms extends Map<string, Room> {
 
   findClient = (id: string) => {
     for (const [, room] of Array.from(this)) {
-      const client = room.clients.find((c) => (c.id = id));
+      const client = room.clients.get(id);
       if (client) return client;
     }
     return null;
   };
 
   broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
-    const encoded = Network.encode(event);
-
     this.filterClients(filter, (client) => {
-      client.send(encoded);
+      client.send(event);
     });
   };
 
   private filterClients = (
     { roomId, exclude, include }: ClientFilter,
-    func: (client: ClientType) => void
+    func: (client: ClientEntity) => void
   ) => {
     include = include || [];
     exclude = exclude || [];
 
-    const pass = (client: ClientType) =>
-      include &&
-      (!include.length || include.indexOf(client.id) >= 0) &&
-      exclude &&
-      (!exclude.length || exclude.indexOf(client.id) === -1);
+    const pass = (client: ClientEntity) => {
+      if (include.length !== 0) {
+        return include.includes(client.id);
+      } else if (exclude.length !== 0) {
+        return !exclude.includes(client.id);
+      } else {
+        return true;
+      }
+    };
 
     if (roomId) {
       const room = this.get(roomId);
