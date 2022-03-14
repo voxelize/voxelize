@@ -14,6 +14,7 @@ type RoomParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
+  chunkSize: number;
 };
 
 class Room {
@@ -27,10 +28,13 @@ class Room {
   private pingInterval: NodeJS.Timeout = null;
 
   constructor(public params: RoomParams) {
-    const { name } = params;
+    const { name, chunkSize } = params;
 
     this.name = name;
-    this.world = new World(this);
+
+    this.world = new World(this, {
+      chunkSize,
+    });
   }
 
   onConnect = (socket: WebSocket) => {
@@ -75,6 +79,7 @@ class Room {
       this.pingInterval = setInterval(this.ping, pingInterval);
     }
 
+    this.world.ecs.addEntity(client);
     this.clients.set(client.id, client);
   };
 
@@ -97,9 +102,9 @@ class Room {
           const client = this.clients.get(id);
 
           if (client) {
-            client.setName(name);
-            client.setPosition(position.x, position.y, position.z);
-            client.setDirection(direction.x, direction.y, direction.z);
+            client.name = name;
+            client.position = position;
+            client.direction = direction;
           }
         }
         break;

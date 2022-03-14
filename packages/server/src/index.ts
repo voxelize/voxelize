@@ -8,6 +8,7 @@ type ServerParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
+  chunkSize: number;
 };
 
 const defaultParams: ServerParams = {
@@ -15,6 +16,7 @@ const defaultParams: ServerParams = {
   maxClients: 100,
   pingInterval: 50000,
   updateInterval: 1000 / 60,
+  chunkSize: 16,
 };
 
 class Server {
@@ -23,10 +25,8 @@ class Server {
   public rooms: Rooms;
 
   constructor(options: DeepPartial<ServerParams>) {
-    const { maxClients, pingInterval, updateInterval } = (this.params = merge(
-      defaultParams,
-      options
-    ));
+    const { maxClients, pingInterval, updateInterval, chunkSize } =
+      (this.params = merge(defaultParams, options));
 
     this.network = new Network(this, {
       test: "test",
@@ -36,6 +36,7 @@ class Server {
       maxClients,
       pingInterval,
       updateInterval,
+      chunkSize,
     });
   }
 

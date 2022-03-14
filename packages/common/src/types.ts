@@ -77,3 +77,6 @@ export type TextureRange = {
   startV: number;
   endV: number;
 };
+
+export type Coords2 = [number, number];
+export type Coords3 = [number, number, number];

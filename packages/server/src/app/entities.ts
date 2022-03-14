@@ -1,4 +1,4 @@
-import { Vector3 } from "@math.gl/core";
+import { Vector2, Vector3 } from "@math.gl/core";
 import {
   Entity,
   IDComponent,
@@ -8,6 +8,7 @@ import {
 } from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 
+import { CurrentChunkComponent } from "./comps";
 import {
   DirtyComponent,
   HeadingComponent,
@@ -30,6 +31,7 @@ class BaseEntity extends Entity {
     this.add(new PositionComponent(new Vector3()));
     this.add(new HeadingComponent(new Vector3()));
     this.add(new TargetComponent(new Vector3()));
+    this.add(new CurrentChunkComponent(new Vector2()));
     this.add(new MetadataComponent({}));
     this.add(new DirtyComponent(true));
   }

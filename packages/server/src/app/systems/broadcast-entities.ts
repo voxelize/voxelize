@@ -21,7 +21,7 @@ class BroadcastEntitiesSystem extends System {
     ]);
   }
 
-  update(entity: Entity): void {
+  update(entity: Entity) {
     const id = IDComponent.get(entity).data;
     const position = PositionComponent.get(entity).data;
     const target = TargetComponent.get(entity).data;

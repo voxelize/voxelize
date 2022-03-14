@@ -4,7 +4,11 @@ import { BaseEntity, Entities } from "./entities";
 import { Registry } from "./registry";
 import { Room } from "./room";
 import { Constructor } from "./shared";
-import { BroadcastEntitiesSystem } from "./systems";
+import { BroadcastEntitiesSystem, CurrentChunkSystem } from "./systems";
+
+type WorldParams = {
+  chunkSize: number;
+};
 
 class World {
   public entities: Entities;
@@ -12,7 +16,9 @@ class World {
 
   public ecs: ECS;
 
-  constructor(public room: Room) {
+  constructor(public room: Room, public params: WorldParams) {
+    const { chunkSize } = params;
+
     this.entities = new Entities(this);
     this.registry = new Registry(this);
 
@@ -20,6 +26,7 @@ class World {
     this.ecs.timeScale = 0;
 
     this.ecs.addSystem(new BroadcastEntitiesSystem(this.entities));
+    this.ecs.addSystem(new CurrentChunkSystem(chunkSize));
   }
 
   registerEntity = <T extends BaseEntity>(

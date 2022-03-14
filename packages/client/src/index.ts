@@ -163,6 +163,10 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
+    if (!this.network.connected) {
+      return;
+    }
+
     this.ecs.update();
     this.clock.update();
     this.camera.update();

@@ -1,4 +1,4 @@
-import { Vector3 } from "@math.gl/core";
+import { Vector2, Vector3 } from "@math.gl/core";
 import {
   Entity,
   IDComponent,
@@ -10,7 +10,11 @@ import WebSocket from "ws";
 
 import { Network } from "../core/network";
 
-import { PositionComponent, DirectionComponent } from "./comps";
+import {
+  PositionComponent,
+  DirectionComponent,
+  CurrentChunkComponent,
+} from "./comps";
 
 class ClientEntity extends Entity {
   public id: string;
@@ -26,23 +30,44 @@ class ClientEntity extends Entity {
     this.add(new NameComponent(""));
     this.add(new PositionComponent(new Vector3()));
     this.add(new DirectionComponent(new Vector3()));
+    this.add(new CurrentChunkComponent(new Vector2()));
   }
 
-  setName = (name: string) => {
-    NameComponent.get(this).data = name;
-  };
+  set name(n: string) {
+    NameComponent.get(this).data = n;
+  }
 
-  setPosition = (x: number, y: number, z: number) => {
-    PositionComponent.get(this).data.set(x, y, z);
-  };
+  get name() {
+    return NameComponent.get(this).data;
+  }
 
-  setDirection = (x: number, y: number, z: number) => {
-    DirectionComponent.get(this).data.set(x, y, z);
-  };
+  set position(p: Vector3) {
+    PositionComponent.get(this).data.set(p.x, p.y, p.z);
+  }
+
+  get position() {
+    return PositionComponent.get(this).data;
+  }
+
+  set direction(d: Vector3) {
+    DirectionComponent.get(this).data.set(d.x, d.y, d.z);
+  }
+
+  get direction() {
+    return DirectionComponent.get(this).data;
+  }
+
+  set currentChunk(c: Vector2) {
+    CurrentChunkComponent.get(this).data.copy(c);
+  }
+
+  get currentChunk() {
+    return CurrentChunkComponent.get(this).data;
+  }
 
   send = (data: any) => {
     this.socket.send(Network.encode(data));
   };
 }
 
-export { ClientEntity, PositionComponent };
+export { ClientEntity };

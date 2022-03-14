@@ -6,13 +6,13 @@ import { Server } from "..";
 import { ClientEntity } from "../app/client";
 import { Room } from "../app/room";
 
-import { Network } from "./network";
 import { ClientFilter, defaultFilter } from "./shared";
 
 type RoomsParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
+  chunkSize: number;
 };
 
 class Rooms extends Map<string, Room> {
@@ -42,24 +42,29 @@ class Rooms extends Map<string, Room> {
 
     network.app.get("/rooms", (_, res) => {
       const rooms = [];
+      const fields = ["id", "name", "position", "direction", "currentChunk"];
       this.forEach((room) => {
         rooms.push({
           name: room.name,
-          clients: Array.from(room.clients.values()).map((c) => c.id),
+          clients: Array.from(room.clients.values()).map((client) => {
+            const print = {};
+            fields.forEach((f) => {
+              print[f] = client[f];
+            });
+            return print;
+          }),
         });
       });
-      res.json(rooms);
+
+      res.header("Content-Type", "application/json");
+      res.send(JSON.stringify(rooms, null, 4));
     });
   }
 
   createRoom = (name: string) => {
-    const { maxClients, pingInterval, updateInterval } = this.params;
-
     const room = new Room({
       name,
-      maxClients,
-      pingInterval,
-      updateInterval,
+      ...this.params,
     });
 
     this.set(name, room);
