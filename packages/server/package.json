@@ -34,6 +34,7 @@
   "dependencies": {
     "@math.gl/core": "^3.5.7",
     "@types/ws": "^8.2.2",
+    "ammojs-typed": "github:shaoruu/ammojs-typed",
     "cors": "^2.8.5",
     "deepmerge": "^4.2.2",
     "express": "^4.17.2",

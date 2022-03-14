@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "repository": "https://github.com/iantheearl/voxelize.git",
-  "author": "Ian Huang <21ianh1@students.tas.tw>",
+  "author": "Ian Huang <ian1314159@gmail.com>",
   "license": "MIT",
   "private": true,
   "workspaces": [
@@ -13,7 +13,6 @@
   "scripts": {
     "dev": "lerna run dev --parallel",
     "demo": "lerna run demo --parallel",
-    "peer": "peerjs --port 9000 --path /peerjs",
     "clean": "lerna run clean",
     "build": "lerna run build",
     "test": "lerna run test",
