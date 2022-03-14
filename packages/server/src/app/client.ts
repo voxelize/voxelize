@@ -1,18 +1,16 @@
 import { Vector3 } from "@math.gl/core";
-import { Component, Entity } from "@voxelize/common";
+import {
+  Entity,
+  IDComponent,
+  NameComponent,
+  ClientComponent,
+} from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
 import { Network } from "../core/network";
 
-import {
-  IDComponent,
-  PositionComponent,
-  NameComponent,
-  DirectionComponent,
-} from "./comps";
-
-const ClientComponent = Component.register();
+import { PositionComponent, DirectionComponent } from "./comps";
 
 class ClientEntity extends Entity {
   public id: string;
@@ -47,4 +45,4 @@ class ClientEntity extends Entity {
   };
 }
 
-export { ClientEntity, ClientComponent, PositionComponent };
+export { ClientEntity, PositionComponent };

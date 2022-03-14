@@ -1,13 +1,12 @@
-import { Entity, System } from "@voxelize/common";
-
 import {
-  TypeComponent,
-  HeadingComponent,
-  PositionComponent,
-  MetadataComponent,
-  TargetComponent,
+  Entity,
   IDComponent,
-} from "../comps";
+  MetadataComponent,
+  System,
+  TypeComponent,
+} from "@voxelize/common";
+
+import { HeadingComponent, PositionComponent, TargetComponent } from "../comps";
 import { Entities } from "../entities";
 
 class BroadcastEntitiesSystem extends System {

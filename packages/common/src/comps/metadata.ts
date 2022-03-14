@@ -1,3 +1,3 @@
-import { Component } from "@voxelize/common";
+import { Component } from "../libs";
 
 export const MetadataComponent = Component.register<object>();

@@ -1,20 +1,21 @@
 import { Vector3 } from "@math.gl/core";
-import { Component, Entity } from "@voxelize/common";
+import {
+  Entity,
+  IDComponent,
+  MetadataComponent,
+  TypeComponent,
+  EntityComponent,
+} from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 
 import {
   DirtyComponent,
   HeadingComponent,
-  MetadataComponent,
   PositionComponent,
   TargetComponent,
-  TypeComponent,
-  IDComponent,
 } from "./comps";
 import { Constructor } from "./shared";
 import { World } from "./world";
-
-const EntityComponent = Component.register();
 
 class BaseEntity extends Entity {
   public id: string;
@@ -82,4 +83,4 @@ class Entities extends Map<string, Entity> {
   };
 }
 
-export { BaseEntity, EntityComponent, Entities };
+export { BaseEntity, Entities };

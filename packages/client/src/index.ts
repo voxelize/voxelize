@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 
-import { ECS } from "@voxelize/common";
+import { ECS, System } from "@voxelize/common";
 
 import {
   Container,
@@ -143,6 +143,10 @@ class Client extends EventEmitter {
 
   registerEntity = (type: string, protocol: NewEntity) => {
     this.entities.registerEntity(type, protocol);
+  };
+
+  addSystem = (system: System) => {
+    this.ecs.addSystem(system);
   };
 
   setName = (name: string) => {

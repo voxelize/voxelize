@@ -1,6 +1,14 @@
 import { Button } from "@components/button";
 import { Input } from "@components/input";
-import { Client, Entity, NameTag } from "@voxelize/client";
+import {
+  Client,
+  BaseEntity,
+  NameTag,
+  PositionComponent,
+  TargetComponent,
+  HeadingComponent,
+} from "@voxelize/client";
+import { System, EntityComponent } from "@voxelize/common";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import OrangeImage from "../assets/test.jpeg";
@@ -64,7 +72,7 @@ const ControlsWrapper = styled.div`
 
 const BACKEND_SERVER = "http://localhost:5000/?room=";
 
-class Box extends Entity {
+class Box extends BaseEntity {
   public geometry: BoxBufferGeometry;
   public material: MeshNormalMaterial;
 
@@ -94,6 +102,23 @@ class Box extends Entity {
   };
 }
 
+class UpdateBoxSystem extends System {
+  constructor() {
+    super([
+      EntityComponent.type,
+      PositionComponent.type,
+      HeadingComponent.type,
+      TargetComponent.type,
+    ]);
+  }
+
+  update(entity: BaseEntity) {
+    const { mesh, position, target } = entity;
+    mesh.position.lerp(position, BaseEntity.LERP_FACTOR);
+    mesh.lookAt(target);
+  }
+}
+
 export const App = () => {
   const [room, setRoom] = useState("test");
   const [name, setName] = useState("");
@@ -118,6 +143,8 @@ export const App = () => {
           "all",
           OrangeImage
         );
+
+        client.current.addSystem(new UpdateBoxSystem());
 
         client.current.on("unlock", () => {
           setShowControls(true);

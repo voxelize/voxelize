@@ -1,7 +1,22 @@
-import { Client } from "..";
-import { Entity } from "../libs";
+import {
+  Entity,
+  EntityComponent,
+  IDComponent,
+  MetadataComponent,
+  TypeComponent,
+} from "@voxelize/common";
+import { Object3D, Vector3 } from "three";
 
-type NewEntity = new () => Entity;
+import { Client } from "..";
+
+import {
+  HeadingComponent,
+  MeshComponent,
+  PositionComponent,
+  TargetComponent,
+} from "./comps";
+
+type NewEntity = new () => BaseEntity;
 
 type EntitiesParams = {
   lerpFactor: number;
@@ -11,7 +26,61 @@ const defaultParams: EntitiesParams = {
   lerpFactor: 0.7,
 };
 
-class Entities extends Map<string, Entity> {
+class BaseEntity extends Entity {
+  static LERP_FACTOR = 1;
+
+  public id: string;
+  public type: string;
+
+  constructor() {
+    super();
+
+    this.add(new EntityComponent());
+    this.add(new MeshComponent());
+    this.add(new PositionComponent(new Vector3()));
+    this.add(new HeadingComponent(new Vector3()));
+    this.add(new TargetComponent(new Vector3()));
+    this.add(new MetadataComponent({}));
+  }
+
+  set position(p: Vector3) {
+    PositionComponent.get(this).data.set(p.x, p.y, p.z);
+  }
+
+  get position() {
+    return PositionComponent.get(this).data;
+  }
+
+  set target(t: Vector3) {
+    TargetComponent.get(this).data.set(t.x, t.y, t.z);
+  }
+
+  get target() {
+    return TargetComponent.get(this).data;
+  }
+
+  set heading(h: Vector3) {
+    HeadingComponent.get(this).data.set(h.x, h.y, h.z);
+  }
+
+  get heading() {
+    return HeadingComponent.get(this).data;
+  }
+
+  set mesh(mesh: Object3D) {
+    MeshComponent.get(this).data = mesh;
+  }
+
+  get mesh() {
+    return MeshComponent.get(this).data;
+  }
+
+  onEvent?: (e: any) => void;
+  onCreation?: (client: Client) => void;
+  onDeletion?: (client: Client) => void;
+}
+
+class Entities extends Map<string, BaseEntity> {
   params: EntitiesParams;
 
   knownTypes: Map<string, NewEntity> = new Map();
@@ -24,7 +93,7 @@ class Entities extends Map<string, Entity> {
       ...params,
     });
 
-    Entity.LERP_FACTOR = lerpFactor;
+    BaseEntity.LERP_FACTOR = lerpFactor;
   }
 
   onEvent = ({ id, type, position, target, heading, ...other }: any) => {
@@ -50,7 +119,9 @@ class Entities extends Map<string, Entity> {
       return;
     }
 
-    entity.update(position, target, heading);
+    entity.position = position;
+    entity.target = target;
+    entity.heading = heading;
 
     if (entity.onEvent) {
       entity.onEvent(other);
@@ -65,6 +136,7 @@ class Entities extends Map<string, Entity> {
     this.forEach((entity, key) => {
       if (entity.onDeletion) {
         entity.onDeletion(this.client);
+        this.client.ecs.removeEntity(entity);
         this.delete(key);
       }
     });
@@ -84,12 +156,17 @@ class Entities extends Map<string, Entity> {
 
     const entity = new Protocol();
 
+    entity.add(new IDComponent(id));
+    entity.add(new TypeComponent(type));
+
     entity.id = id;
     entity.type = type;
 
     if (entity.onCreation) {
       entity.onCreation(this.client);
     }
+
+    this.client.ecs.addEntity(entity);
 
     this.set(id, entity);
 
@@ -99,4 +176,4 @@ class Entities extends Map<string, Entity> {
 
 export type { NewEntity, EntitiesParams };
 
-export { Entities };
+export { BaseEntity, Entities };
