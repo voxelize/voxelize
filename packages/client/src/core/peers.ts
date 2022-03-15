@@ -61,7 +61,7 @@ class Peers extends Map<string, Peer> {
 
     // signaling
     connection.on("signal", (signal) => {
-      this.client.network?.ws.sendEvent({
+      this.client.network?.send({
         type: "SIGNAL",
         json: {
           id,
@@ -79,9 +79,7 @@ class Peers extends Map<string, Peer> {
     });
   };
 
-  broadcast = (event: any) => {
-    const encoded = Network.encode(event);
-
+  broadcast = (encoded: any) => {
     this.forEach((peer) => {
       if (peer.connected && peer.connection.connected) {
         peer.connection.send(encoded);
@@ -90,7 +88,7 @@ class Peers extends Map<string, Peer> {
   };
 
   update = () => {
-    const { name, controls, peers, network } = this.client;
+    const { name, controls, network } = this.client;
 
     const { id } = network;
     const { object } = controls;
@@ -117,10 +115,11 @@ class Peers extends Map<string, Peer> {
       },
     };
 
-    network.send(event);
+    const encoded = Network.encode(event);
+    network.ws.send(encoded);
 
-    if (peers.size > 0) {
-      peers.broadcast(event);
+    if (this.size > 0) {
+      this.broadcast(encoded);
     }
 
     this.forEach((peer) => {

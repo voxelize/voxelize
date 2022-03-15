@@ -6,6 +6,7 @@ import { Server } from "..";
 import { ClientEntity } from "../app/ents";
 import { Room } from "../app/room";
 
+import { Network } from "./network";
 import { ClientFilter, defaultFilter } from "./shared";
 
 type RoomsParams = {
@@ -81,8 +82,10 @@ class Rooms extends Map<string, Room> {
   };
 
   broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
+    const encoded = Network.encode(event);
+
     this.filterClients(filter, (client) => {
-      client.send(event);
+      client.send(encoded);
     });
   };
 

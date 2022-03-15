@@ -91,6 +91,7 @@ class Network {
     this.ws.close();
 
     this.client.emit("disconnected");
+    this.client.entities.reset();
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
@@ -127,7 +128,9 @@ class Network {
           json: { blocks, ranges, id },
         } = event;
 
-        this.id = id;
+        if (id) {
+          this.id = id;
+        }
 
         // if any other peers exist on load:
         // try to reach out to them as an initiator

@@ -56,15 +56,17 @@ class Room {
     const client = new ClientEntity(socket);
     client.isAlive = true;
 
-    client.send({
-      type: "INIT",
-      json: {
-        id: client.id,
-        blocks: registry.getBlockMap(),
-        ranges: registry.getRanges(),
-      },
-      peers: Array.from(this.clients.values()).map(({ id }) => id),
-    });
+    client.send(
+      Network.encode({
+        type: "INIT",
+        json: {
+          id: client.id,
+          blocks: registry.getBlockMap(),
+          ranges: registry.getRanges(),
+        },
+        peers: Array.from(this.clients.values()).map(({ id }) => id),
+      })
+    );
 
     this.broadcast({
       type: "JOIN",
@@ -111,7 +113,7 @@ class Room {
       }
       case "SIGNAL": {
         const { id, signal } = request.json;
-        const other = this.findClient(id);
+        const other = this.clients.get(id);
         if (other) {
           other.send(
             Network.encode({
@@ -135,6 +137,8 @@ class Room {
 
     // would return true if client exists
     if (this.clients.delete(id)) {
+      this.world.ecs.removeEntity(client);
+
       this.broadcast({
         type: "LEAVE",
         text: client.id,
@@ -169,16 +173,13 @@ class Room {
     });
   };
 
-  findClient = (id: string) => {
-    const client = this.clients.get(id);
-    return client || null;
-  };
-
   broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
     if (this.clients.size === 0) return;
 
+    const encoded = Network.encode(event);
+
     this.filterClients(filter, (client) => {
-      client.send(event);
+      client.send(encoded);
     });
   };
 
@@ -201,7 +202,7 @@ class Room {
       });
     } else if (include.length !== 0) {
       include.forEach((id) => {
-        const client = this.findClient(id);
+        const client = this.clients.get(id);
         func(client);
       });
     } else {

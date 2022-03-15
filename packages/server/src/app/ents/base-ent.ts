@@ -8,7 +8,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 
 import {
-  DirtyComponent,
   HeadingComponent,
   Position3DComponent,
   TargetComponent,
@@ -23,13 +22,13 @@ class BaseEntity extends Entity {
 
     this.id = uuidv4();
 
-    this.add(new IDComponent(this.id));
     this.add(new EntityComponent());
+
+    this.add(new IDComponent(this.id));
     this.add(new Position3DComponent(new Vector3()));
     this.add(new HeadingComponent(new Vector3()));
     this.add(new TargetComponent(new Vector3()));
     this.add(new MetadataComponent({}));
-    this.add(new DirtyComponent(true));
 
     this.add(
       new CurrentChunkComponent({

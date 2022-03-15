@@ -8,7 +8,6 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
 
-import { Network } from "../../core/network";
 import {
   Position3DComponent,
   DirectionComponent,
@@ -76,8 +75,8 @@ class ClientEntity extends Entity {
     return CurrentChunkComponent.get(this).data;
   }
 
-  send = (data: any) => {
-    this.socket.send(Network.encode(data));
+  send = (encoded: any) => {
+    this.socket.send(encoded);
   };
 }
 

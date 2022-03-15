@@ -41,14 +41,13 @@ class Entities extends Map<string, Entity> {
   };
 
   update = () => {
-    if (this.size === 0) return;
+    if (this.size === 0 || this.packets.length === 0) return;
 
-    if (this.packets.length > 0) {
-      this.world.room.broadcast({
-        type: "ENTITY",
-        entities: this.packets.splice(0, this.packets.length),
-      });
-    }
+    const entities = this.packets.splice(0, this.packets.length);
+    this.world.room.broadcast({
+      type: "ENTITY",
+      entities,
+    });
   };
 }
 

@@ -20,6 +20,8 @@
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.1.3",
     "@swc/core": "^1.2.143",
+    "@types/ndarray": "^1.0.11",
+    "@types/typedarray-pool": "^1.1.2",
     "npm-run-all": "^4.1.5",
     "rimraf": "^3.0.2",
     "rollup": "^2.67.0",
@@ -38,10 +40,12 @@
     "cors": "^2.8.5",
     "deepmerge": "^4.2.2",
     "express": "^4.17.2",
+    "ndarray": "^1.0.19",
     "peer": "^0.6.1",
     "socket.io": "^4.4.1",
     "threads": "^1.0.0-beta-esm.2",
     "tiny-worker": "^2.3.0",
+    "typedarray-pool": "^1.2.0",
     "uuid": "^8.3.2",
     "ws": "^8.4.2"
   }

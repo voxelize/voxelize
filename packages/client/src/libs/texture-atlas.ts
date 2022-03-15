@@ -49,8 +49,6 @@ class TextureAtlas {
     atlas.canvas.width = canvasWidth;
     atlas.canvas.height = canvasHeight;
 
-    console.log(ranges);
-
     ranges.forEach((range, textureName) => {
       const { startU, startV } = range;
       const texture = textureMap.get(textureName);

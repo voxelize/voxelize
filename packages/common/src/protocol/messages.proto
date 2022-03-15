@@ -2,32 +2,25 @@ syntax = "proto3";
 package protocol;
 
 message Vector3 {
-  float x = 0;
-  float y = 1;
-  float z = 2;
-}
-
-message Quaternion {
-  float x = 0;
-  float y = 1;
-  float z = 2;
-  float w = 3;
+  float x = 1;
+  float y = 2;
+  float z = 3;
 }
 
 message Peer {
-  string id = 0;
-  string name = 1;
-  Vector3 position = 2;
-  Vector3 direction = 3;
+  string id = 1;
+  string name = 2;
+  Vector3 position = 3;
+  Vector3 direction = 4;
 }
 
 message Entity {
-  string id = 0;
-  string type = 1;
-  string data = 2;
-  Vector3 position = 3;
-  Vector3 target = 4;
-  Vector3 heading = 5;
+  string id = 1;
+  string type = 2;
+  string data = 3;
+  Vector3 position = 4;
+  Vector3 target = 5;
+  Vector3 heading = 6;
 }
 
 message Message {
@@ -35,18 +28,17 @@ message Message {
     INIT = 0;
     JOIN = 1;
     SIGNAL = 2;
-    ECHO = 3;
-    ERROR = 4;
-    LEAVE = 5;
-    PEER = 6;
-    ENTITY = 7;
+    ERROR = 3;
+    LEAVE = 4;
+    PEER = 5;
+    ENTITY = 6;
   }
 
-  Type type = 0;
-  string json = 1;
-  string text = 2;
-  Peer peer = 3;
+  Type type = 1;
+  string json = 2;
+  string text = 3;
+  Peer peer = 4;
 
-  repeated string peers = 4;
-  repeated Entity entities = 5;
+  repeated string peers = 5;
+  repeated Entity entities = 6;
 }
