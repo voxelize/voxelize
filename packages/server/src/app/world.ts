@@ -1,5 +1,6 @@
 import { ECS, System, Block } from "@voxelize/common";
 
+import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
 import { Pipeline } from "./pipeline";
 import { Registry } from "./registry";
@@ -8,10 +9,15 @@ import { Constructor } from "./shared";
 import { BroadcastEntitiesSystem, CurrentChunkSystem } from "./systems";
 
 type WorldParams = {
+  padding: number;
   chunkSize: number;
+  dimension: number;
+  maxHeight: number;
+  maxLightLevel: number;
 };
 
 class World {
+  public chunks: Chunks;
   public entities: Entities;
   public registry: Registry;
   public pipeline: Pipeline;
@@ -21,8 +27,10 @@ class World {
   constructor(public room: Room, public params: WorldParams) {
     const { chunkSize } = params;
 
+    this.chunks = new Chunks(this);
     this.entities = new Entities(this);
     this.registry = new Registry(this);
+    this.pipeline = new Pipeline(this);
 
     this.ecs = new ECS();
     this.ecs.timeScale = 0;

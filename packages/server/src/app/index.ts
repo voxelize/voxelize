@@ -6,3 +6,6 @@ export * from "./comps";
 export * from "./systems";
 export * from "./entities";
 export * from "./pipeline";
+export * from "./chunks";
+export * from "./lights";
+export * from "./space";

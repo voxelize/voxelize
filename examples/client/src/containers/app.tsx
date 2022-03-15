@@ -12,7 +12,12 @@ import { System, EntityComponent } from "@voxelize/common";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import OrangeImage from "../assets/test.jpeg";
-import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
+import {
+  BoxBufferGeometry,
+  MeshNormalMaterial,
+  Mesh,
+  SphereBufferGeometry,
+} from "three";
 
 const GameWrapper = styled.div`
   background: black;
@@ -73,17 +78,17 @@ const ControlsWrapper = styled.div`
 const BACKEND_SERVER = "http://localhost:5000/?room=";
 
 class Box extends BaseEntity {
-  public geometry: BoxBufferGeometry;
+  public geometry: SphereBufferGeometry;
   public material: MeshNormalMaterial;
 
   constructor() {
     super();
 
-    this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
+    this.geometry = new SphereBufferGeometry(0.5);
     this.material = new MeshNormalMaterial();
     this.mesh = new Mesh(this.geometry, this.material);
 
-    const nameTag = new NameTag("BOX", {
+    const nameTag = new NameTag("adjkflhalskjdfhlkasdjfhlkajsdhfklja", {
       backgroundColor: "#00000077",
       fontFace: "Syne Mono",
       fontSize: 0.2,

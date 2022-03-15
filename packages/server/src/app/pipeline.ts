@@ -1,15 +1,16 @@
 import { WorkerPool } from "../libs";
 
-import { ChunkEntity } from "./ents";
+import { World } from "./world";
 
 class ChunkStage {
   public pool: WorkerPool;
-  public chunks: Set<ChunkEntity> = new Set();
 
   process: () => void;
 }
 
 class Pipeline {
+  constructor(public world: World) {}
+
   addStage = (stage: ChunkStage) => {
     if (!stage.process) {
       throw new Error("Chunk stage does nothing!");

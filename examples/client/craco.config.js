@@ -6,6 +6,7 @@ const { compilerOptions } = require("./tsconfig.paths.json");
 module.exports = {
   eslint: { enable: false },
   webpack: {
+    writeToDisk: true,
     stats: "errors-only",
     configure: (config) => {
       // Remove ModuleScopePlugin which throws when we try to import something
