@@ -1,7 +1,7 @@
 import { Component } from "../libs";
 
-export const DirtyComponent = Component.register();
+export const DirtyFlag = Component.register();
 
-export const EntityComponent = Component.register();
-export const ClientComponent = Component.register();
-export const ChunkComponent = Component.register();
+export const EntityFlag = Component.register();
+export const ClientFlag = Component.register();
+export const ChunkFlag = Component.register();

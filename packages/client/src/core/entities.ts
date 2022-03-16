@@ -1,6 +1,6 @@
 import {
   Entity,
-  EntityComponent,
+  EntityFlag,
   IDComponent,
   MetadataComponent,
   TypeComponent,
@@ -35,7 +35,8 @@ class BaseEntity extends Entity {
   constructor() {
     super();
 
-    this.add(new EntityComponent());
+    this.add(new EntityFlag());
+
     this.add(new MeshComponent());
     this.add(new Position3DComponent(new Vector3()));
     this.add(new HeadingComponent(new Vector3()));

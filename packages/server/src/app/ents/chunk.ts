@@ -1,11 +1,11 @@
 import { Vector2 } from "@math.gl/core";
 import {
-  ChunkComponent,
+  ChunkFlag,
   ChunkUtils,
   Entity,
   IDComponent,
   NameComponent,
-  DirtyComponent,
+  DirtyFlag,
   Coords3,
   Coords2,
 } from "@voxelize/common";
@@ -45,12 +45,12 @@ class Chunk extends Entity {
     this.name = ChunkUtils.getChunkName([x, z]);
     this.coords = [x, z];
 
-    this.add(new ChunkComponent());
+    this.add(new ChunkFlag());
+    this.add(new DirtyFlag());
 
     this.add(new IDComponent(this.id));
     this.add(new NameComponent(this.name));
     this.add(new Position2DComponent(new Vector2(x, z)));
-    this.add(new DirtyComponent());
     this.add(new StageComponent(0));
 
     const { size, maxHeight, padding } = params;

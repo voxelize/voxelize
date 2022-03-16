@@ -1,4 +1,4 @@
-import { ChunkComponent, System } from "@voxelize/common";
+import { ChunkFlag, DirtyFlag, System } from "@voxelize/common";
 
 import { Chunks } from "../chunks";
 import { StageComponent } from "../comps";
@@ -7,7 +7,7 @@ import { Pipeline } from "../pipeline";
 
 class PipelineChunksSystem extends System {
   constructor(private pipeline: Pipeline, private chunks: Chunks) {
-    super([StageComponent.type, ChunkComponent.type]);
+    super([StageComponent.type, ChunkFlag.type, DirtyFlag.type]);
   }
 
   update(chunk: Chunk): void {

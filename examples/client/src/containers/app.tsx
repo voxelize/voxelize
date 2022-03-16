@@ -8,7 +8,7 @@ import {
   TargetComponent,
   HeadingComponent,
 } from "@voxelize/client";
-import { System, EntityComponent } from "@voxelize/common";
+import { System, EntityFlag } from "@voxelize/common";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import OrangeImage from "../assets/test.jpeg";
@@ -105,7 +105,7 @@ class Box extends BaseEntity {
 class UpdateBoxSystem extends System {
   constructor() {
     super([
-      EntityComponent.type,
+      EntityFlag.type,
       Position3DComponent.type,
       HeadingComponent.type,
       TargetComponent.type,

@@ -3,7 +3,7 @@ import {
   Entity,
   IDComponent,
   NameComponent,
-  ClientComponent,
+  ClientFlag,
 } from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket from "ws";
@@ -11,7 +11,7 @@ import WebSocket from "ws";
 import {
   Position3DComponent,
   DirectionComponent,
-  CurrentChunkComponent,
+  CurrentChunkFlag,
   CurrentChunk,
 } from "../comps";
 
@@ -24,7 +24,7 @@ class Client extends Entity {
 
     this.id = uuidv4();
 
-    this.add(new ClientComponent());
+    this.add(new ClientFlag());
 
     this.add(new IDComponent(this.id));
     this.add(new NameComponent(""));
@@ -33,7 +33,7 @@ class Client extends Entity {
     this.add(new DirectionComponent(new Vector3()));
 
     this.add(
-      new CurrentChunkComponent({
+      new CurrentChunkFlag({
         changed: true,
         chunk: {
           x: 0,
@@ -68,11 +68,11 @@ class Client extends Entity {
   }
 
   set currentChunk(c: CurrentChunk) {
-    CurrentChunkComponent.get(this).data = c;
+    CurrentChunkFlag.get(this).data = c;
   }
 
   get currentChunk() {
-    return CurrentChunkComponent.get(this).data;
+    return CurrentChunkFlag.get(this).data;
   }
 
   send = (encoded: any) => {

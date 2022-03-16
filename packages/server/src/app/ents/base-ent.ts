@@ -3,7 +3,7 @@ import {
   Entity,
   IDComponent,
   MetadataComponent,
-  EntityComponent,
+  EntityFlag,
 } from "@voxelize/common";
 import { v4 as uuidv4 } from "uuid";
 
@@ -11,7 +11,7 @@ import {
   HeadingComponent,
   Position3DComponent,
   TargetComponent,
-  CurrentChunkComponent,
+  CurrentChunkFlag,
 } from "../comps";
 
 class BaseEntity extends Entity {
@@ -22,7 +22,7 @@ class BaseEntity extends Entity {
 
     this.id = uuidv4();
 
-    this.add(new EntityComponent());
+    this.add(new EntityFlag());
 
     this.add(new IDComponent(this.id));
     this.add(new Position3DComponent(new Vector3()));
@@ -31,7 +31,7 @@ class BaseEntity extends Entity {
     this.add(new MetadataComponent({}));
 
     this.add(
-      new CurrentChunkComponent({
+      new CurrentChunkFlag({
         changed: true,
         chunk: {
           x: 0,

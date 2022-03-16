@@ -41,18 +41,18 @@ const ChunkStages = {
   LightStage,
 };
 
-class Pipeline {
-  private stages: ChunkStage[] = [];
-
-  constructor(public world: World) {}
+class Pipeline extends Array<ChunkStage> {
+  constructor(public world: World) {
+    super();
+  }
 
   addStage = (stage: ChunkStage) => {
     if (!stage.process) {
       throw new Error("Chunk stage does nothing!");
     }
 
-    this.stages[this.stages.length - 1].isLast = false;
-    this.stages.push(stage);
+    this[this.length - 1].isLast = false;
+    this.push(stage);
 
     return this;
   };

@@ -2,11 +2,16 @@ import { ECS, System, Block } from "@voxelize/common";
 
 import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
+import { Chunk } from "./ents";
 import { ChunkStage, Pipeline } from "./pipeline";
 import { Registry } from "./registry";
 import { Room } from "./room";
 import { Constructor } from "./shared";
-import { BroadcastEntitiesSystem, CurrentChunkSystem } from "./systems";
+import {
+  BroadcastEntitiesSystem,
+  CurrentChunkSystem,
+  PipelineChunksSystem,
+} from "./systems";
 
 type WorldParams = {
   padding: number;
@@ -37,6 +42,7 @@ class World {
     this.ecs.timeScale = 0;
 
     this.ecs.addSystem(new BroadcastEntitiesSystem(this.entities));
+    this.ecs.addSystem(new PipelineChunksSystem(this.pipeline, this.chunks));
     this.ecs.addSystem(new CurrentChunkSystem(chunkSize));
   }
 
