@@ -2,7 +2,7 @@ import { ECS, System, Block } from "@voxelize/common";
 
 import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
-import { Pipeline } from "./pipeline";
+import { ChunkStage, Pipeline } from "./pipeline";
 import { Registry } from "./registry";
 import { Room } from "./room";
 import { Constructor } from "./shared";
@@ -14,6 +14,7 @@ type WorldParams = {
   dimension: number;
   maxHeight: number;
   maxLightLevel: number;
+  maxChunksPerTick: number;
 };
 
 class World {
@@ -58,6 +59,10 @@ class World {
 
   addSystem = (system: System) => {
     this.ecs.addSystem(system);
+  };
+
+  addStage = (stage: ChunkStage) => {
+    this.pipeline.addStage(stage);
   };
 
   start = () => {

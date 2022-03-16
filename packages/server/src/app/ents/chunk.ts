@@ -23,7 +23,7 @@ type ChunkParams = {
   maxHeight: number;
 };
 
-class ChunkEntity extends Entity {
+class Chunk extends Entity {
   public id: string;
   public name: string;
   public stage: number;
@@ -343,4 +343,4 @@ class ChunkEntity extends Entity {
   };
 }
 
-export { ChunkEntity, ChunkParams };
+export { Chunk, ChunkParams };

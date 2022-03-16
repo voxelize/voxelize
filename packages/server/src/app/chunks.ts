@@ -1,11 +1,11 @@
 import { ChunkUtils, Coords2, Coords3 } from "@voxelize/common";
 
-import { ChunkEntity } from "./ents";
+import { Chunk } from "./ents";
 import { LightColor } from "./lights";
 import { World } from "./world";
 
 class Chunks {
-  private map = new Map<string, ChunkEntity>();
+  private map = new Map<string, Chunk>();
 
   constructor(public world: World) {}
 
@@ -176,7 +176,7 @@ class Chunks {
   };
 
   private neighbors = (cx: number, cz: number) => {
-    const neighbors: ChunkEntity[] = [];
+    const neighbors: Chunk[] = [];
     const { maxLightLevel, chunkSize } = this.world.params;
     const r = Math.ceil(maxLightLevel / chunkSize);
 

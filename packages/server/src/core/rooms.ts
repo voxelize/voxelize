@@ -3,7 +3,7 @@ import http from "http";
 import WebSocket from "ws";
 
 import { Server } from "..";
-import { ClientEntity } from "../app/ents";
+import { Client } from "../app/ents";
 import { Room } from "../app/room";
 
 import { Network } from "./network";
@@ -13,7 +13,12 @@ type RoomsParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
+  padding: number;
   chunkSize: number;
+  dimension: number;
+  maxHeight: number;
+  maxLightLevel: number;
+  maxChunksPerTick: number;
 };
 
 class Rooms extends Map<string, Room> {
@@ -91,12 +96,12 @@ class Rooms extends Map<string, Room> {
 
   private filterClients = (
     { roomId, exclude, include }: ClientFilter,
-    func: (client: ClientEntity) => void
+    func: (client: Client) => void
   ) => {
     include = include || [];
     exclude = exclude || [];
 
-    const pass = (client: ClientEntity) => {
+    const pass = (client: Client) => {
       if (include.length !== 0) {
         return include.includes(client.id);
       } else if (exclude.length !== 0) {

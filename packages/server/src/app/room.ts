@@ -4,7 +4,7 @@ import WebSocket from "ws";
 import { Network } from "../core/network";
 import { ClientFilter, defaultFilter } from "../core/shared";
 
-import { ClientEntity } from "./ents/client";
+import { Client } from "./ents/client";
 import { World } from "./world";
 
 const { Message } = protocol;
@@ -14,7 +14,13 @@ type RoomParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
+
+  padding: number;
   chunkSize: number;
+  dimension: number;
+  maxHeight: number;
+  maxLightLevel: number;
+  maxChunksPerTick: number;
 };
 
 class Room {
@@ -22,18 +28,31 @@ class Room {
   public started = false;
 
   public world: World;
-  public clients: Map<string, ClientEntity> = new Map();
+  public clients: Map<string, Client> = new Map();
 
   private updateInterval: NodeJS.Timeout = null;
   private pingInterval: NodeJS.Timeout = null;
 
   constructor(public params: RoomParams) {
-    const { name, chunkSize } = params;
+    const {
+      name,
+      padding,
+      chunkSize,
+      dimension,
+      maxHeight,
+      maxLightLevel,
+      maxChunksPerTick,
+    } = params;
 
     this.name = name;
 
     this.world = new World(this, {
+      padding,
       chunkSize,
+      dimension,
+      maxHeight,
+      maxLightLevel,
+      maxChunksPerTick,
     });
   }
 
@@ -53,7 +72,7 @@ class Room {
 
     const { registry } = this.world;
 
-    const client = new ClientEntity(socket);
+    const client = new Client(socket);
     client.isAlive = true;
 
     client.send(
@@ -85,7 +104,7 @@ class Room {
     this.clients.set(client.id, client);
   };
 
-  onMessage = (client: ClientEntity, data: WebSocket.Data) => {
+  onMessage = (client: Client, data: WebSocket.Data) => {
     let request: protocol.Message;
     try {
       request = Network.decode(data);
@@ -95,7 +114,7 @@ class Room {
     this.onRequest(client, request);
   };
 
-  onRequest = (client: ClientEntity, request: any) => {
+  onRequest = (client: Client, request: any) => {
     switch (request.type) {
       case "PEER": {
         const { peer } = request;
@@ -132,7 +151,7 @@ class Room {
     }
   };
 
-  onDisconnect = (client: ClientEntity) => {
+  onDisconnect = (client: Client) => {
     const { id } = client;
 
     // would return true if client exists
@@ -189,7 +208,7 @@ class Room {
 
   private filterClients = (
     { exclude, include }: ClientFilter,
-    func: (client: ClientEntity) => void
+    func: (client: Client) => void
   ) => {
     include = include || [];
     exclude = exclude || [];

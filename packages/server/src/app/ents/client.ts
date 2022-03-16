@@ -15,7 +15,7 @@ import {
   CurrentChunk,
 } from "../comps";
 
-class ClientEntity extends Entity {
+class Client extends Entity {
   public id: string;
   public isAlive = true;
 
@@ -80,4 +80,4 @@ class ClientEntity extends Entity {
   };
 }
 
-export { ClientEntity };
+export { Client };
