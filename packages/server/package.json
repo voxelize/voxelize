@@ -13,6 +13,7 @@
     "clean": "rimraf -rf ./dist",
     "compile": "yarn run types && rollup -c rollup.config.js",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p tsconfig.build.json --declaration --allowJs",
+    "test": "jest",
     "prepublishOnly": "yarn run build"
   },
   "devDependencies": {

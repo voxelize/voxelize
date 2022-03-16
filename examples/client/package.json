@@ -16,7 +16,6 @@
   "scripts": {
     "demo": "cross-env FORCE_COLOR=true SKIP_PREFLIGHT_CHECK=true craco start | cat",
     "build": "cross-env SKIP_PREFLIGHT_CHECK=true craco build",
-    "test": "cross-env SKIP_PREFLIGHT_CHECK=true craco test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

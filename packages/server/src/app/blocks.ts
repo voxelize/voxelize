@@ -8,7 +8,7 @@ const PZ_ROTATION = 4;
 const NZ_ROTATION = 5;
 
 const ROTATION_MASK = 0xfff0ffff;
-const STAGE_MASK = 0xf0ffffff;
+const STAGE_MASK = 0x000fffff;
 
 const PI = Math.PI;
 const PI_2 = Math.PI / 2.0;
@@ -148,20 +148,20 @@ class BlockRotation {
     const sinTheta = Math.sin(theta);
     const cosTheta = Math.cos(theta);
 
-    const [x, y] = node;
+    const [x, , z] = node;
 
-    node[0] = x * cosTheta - y * sinTheta;
-    node[1] = y * cosTheta + x * sinTheta;
+    node[0] = x * cosTheta + z * sinTheta;
+    node[2] = z * cosTheta - x * sinTheta;
   };
 
   private static rotateZ = (node: Coords3, theta: number) => {
     const sinTheta = Math.sin(theta);
     const cosTheta = Math.cos(theta);
 
-    const [x, , z] = node;
+    const [x, y] = node;
 
-    node[0] = x * cosTheta + z * sinTheta;
-    node[2] = z * cosTheta - x * sinTheta;
+    node[0] = x * cosTheta - y * sinTheta;
+    node[1] = y * cosTheta + x * sinTheta;
   };
 }
 

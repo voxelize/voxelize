@@ -4,8 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "demo": "ts-node-dev --respawn -r tsconfig-paths/register src/index.ts",
-    "start": "ts-node -r tsconfig-paths/register src/index.ts",
-    "test": "yarn run start"
+    "start": "ts-node -r tsconfig-paths/register src/index.ts"
   },
   "devDependencies": {
     "@types/node": "^17.0.14",
