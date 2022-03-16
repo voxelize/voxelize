@@ -3,6 +3,7 @@ import http from "http";
 import WebSocket from "ws";
 
 import { Server } from "..";
+import { ChunkRequestsComponent } from "../app/comps";
 import { Client } from "../app/ents";
 import { Room } from "../app/room";
 
@@ -56,6 +57,11 @@ class Rooms extends Map<string, Room> {
             const print = {};
             fields.forEach((f) => {
               print[f] = client[f];
+            });
+            const requests = ChunkRequestsComponent.get(client).data;
+            print["requests"] = {};
+            Object.keys(requests).forEach((key) => {
+              print["requests"][key] = Array.from(requests[key]);
             });
             return print;
           }),

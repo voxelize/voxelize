@@ -24,8 +24,6 @@ abstract class ChunkStage {
 
 class TestStage extends ChunkStage {
   process = async (chunk: Chunk) => {
-    console.log(`Test stage processing chunk: ${chunk.name}`);
-
     const { voxels, minInner, maxInner } = chunk;
     const [minX, , minZ] = minInner;
     const [maxX, , maxZ] = maxInner;
@@ -85,8 +83,6 @@ class Pipeline {
     this.flags.set(chunk.name, flag);
     this.chunkStages.set(chunk.name, stage);
 
-    console.log(`Generating chunk: ${chunk.name}`);
-
     return this;
   };
 
@@ -132,8 +128,6 @@ class Pipeline {
       // cleanup
       this.flags.delete(chunk.name);
       this.chunkStages.delete(chunk.name);
-
-      console.log(`Generated chunk: ${chunk.name}`);
 
       return;
     }
