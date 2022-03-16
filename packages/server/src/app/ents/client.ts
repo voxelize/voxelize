@@ -11,9 +11,11 @@ import WebSocket from "ws";
 import {
   Position3DComponent,
   DirectionComponent,
-  CurrentChunkFlag,
+  CurrentChunkComponent,
   CurrentChunk,
+  ChunkRequestsComponent,
 } from "../comps";
+import { SettingsComponent } from "../comps/settings";
 
 class Client extends Entity {
   public id: string;
@@ -32,8 +34,13 @@ class Client extends Entity {
     this.add(new Position3DComponent(new Vector3()));
     this.add(new DirectionComponent(new Vector3()));
 
+    this.add(new SettingsComponent({ renderRadius: 4 }));
     this.add(
-      new CurrentChunkFlag({
+      new ChunkRequestsComponent({ pending: new Set(), finished: new Set() })
+    );
+
+    this.add(
+      new CurrentChunkComponent({
         changed: true,
         chunk: {
           x: 0,
@@ -68,11 +75,11 @@ class Client extends Entity {
   }
 
   set currentChunk(c: CurrentChunk) {
-    CurrentChunkFlag.get(this).data = c;
+    CurrentChunkComponent.get(this).data = c;
   }
 
   get currentChunk() {
-    return CurrentChunkFlag.get(this).data;
+    return CurrentChunkComponent.get(this).data;
   }
 
   send = (encoded: any) => {

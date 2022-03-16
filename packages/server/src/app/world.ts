@@ -2,7 +2,6 @@ import { ECS, System, Block } from "@voxelize/common";
 
 import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
-import { Chunk } from "./ents";
 import { ChunkStage, Pipeline } from "./pipeline";
 import { Registry } from "./registry";
 import { Room } from "./room";
@@ -11,6 +10,7 @@ import {
   BroadcastEntitiesSystem,
   CurrentChunkSystem,
   PipelineChunksSystem,
+  GenerateChunksSystem,
 } from "./systems";
 
 type WorldParams = {
@@ -42,8 +42,9 @@ class World {
     this.ecs.timeScale = 0;
 
     this.ecs.addSystem(new BroadcastEntitiesSystem(this.entities));
-    this.ecs.addSystem(new PipelineChunksSystem(this.pipeline, this.chunks));
     this.ecs.addSystem(new CurrentChunkSystem(chunkSize));
+    this.ecs.addSystem(new GenerateChunksSystem(this.chunks));
+    this.ecs.addSystem(new PipelineChunksSystem(this.pipeline));
   }
 
   registerEntity = <T extends BaseEntity>(
@@ -67,7 +68,7 @@ class World {
     this.ecs.addSystem(system);
   };
 
-  addStage = (stage: ChunkStage) => {
+  addStage = (stage: new (c: Chunks, r: Registry) => ChunkStage) => {
     this.pipeline.addStage(stage);
   };
 

@@ -1,17 +1,44 @@
-import { ChunkFlag, DirtyFlag, System } from "@voxelize/common";
+import { ChunkFlag, DirtyFlag, Entity, System } from "@voxelize/common";
 
-import { Chunks } from "../chunks";
-import { StageComponent } from "../comps";
 import { Chunk } from "../ents";
 import { Pipeline } from "../pipeline";
 
 class PipelineChunksSystem extends System {
-  constructor(private pipeline: Pipeline, private chunks: Chunks) {
-    super([StageComponent.type, ChunkFlag.type, DirtyFlag.type]);
+  private processing = 0;
+
+  constructor(private pipeline: Pipeline) {
+    super([ChunkFlag.type, DirtyFlag.type]);
   }
 
+  /**
+   * Problem: don't know how to prioritize chunks
+   *
+   * @param {Chunk} chunk
+   * @returns {void}
+   * @memberof PipelineChunksSystem
+   */
   update(chunk: Chunk): void {
-    console.log(chunk.name);
+    // check through pipeline to see how many stages
+    if (!(chunk instanceof Chunk))
+      throw new Error(
+        `Pipelining unknown entity: ${(chunk as any as Entity).entId}`
+      );
+
+    // if this system is already processing too many chunks, then
+    // stop ticking the system
+    if (this.isBusy) {
+      return;
+    }
+
+    this.processing++;
+    this.pipeline.process(chunk).then(() => {
+      this.processing--;
+    });
+  }
+
+  private get isBusy() {
+    const { maxChunksPerTick } = this.pipeline.world.params;
+    return this.processing >= maxChunksPerTick;
   }
 }
 

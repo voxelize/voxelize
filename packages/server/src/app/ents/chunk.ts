@@ -5,7 +5,6 @@ import {
   Entity,
   IDComponent,
   NameComponent,
-  DirtyFlag,
   Coords3,
   Coords2,
 } from "@voxelize/common";
@@ -14,7 +13,7 @@ import pool from "typedarray-pool";
 import { v4 as uuidv4 } from "uuid";
 
 import { Blocks } from "../blocks";
-import { StageComponent, Position2DComponent } from "../comps";
+import { Position2DComponent } from "../comps";
 import { LightColor, Lights } from "../lights";
 
 type ChunkParams = {
@@ -26,7 +25,6 @@ type ChunkParams = {
 class Chunk extends Entity {
   public id: string;
   public name: string;
-  public stage: number;
   public coords: Coords2;
 
   public min: Coords3;
@@ -46,12 +44,9 @@ class Chunk extends Entity {
     this.coords = [x, z];
 
     this.add(new ChunkFlag());
-    this.add(new DirtyFlag());
-
     this.add(new IDComponent(this.id));
     this.add(new NameComponent(this.name));
     this.add(new Position2DComponent(new Vector2(x, z)));
-    this.add(new StageComponent(0));
 
     const { size, maxHeight, padding } = params;
 

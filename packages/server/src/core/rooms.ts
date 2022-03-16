@@ -59,6 +59,18 @@ class Rooms extends Map<string, Room> {
             });
             return print;
           }),
+          world: {
+            chunks: room.world.chunks.all().map((chunk) => ({
+              id: chunk.id,
+              name: chunk.name,
+              coords: chunk.coords,
+              min: chunk.min,
+              max: chunk.max,
+              minInner: chunk.minInner,
+              maxInner: chunk.maxInner,
+              test: chunk.getVoxel(0, 0, 0),
+            })),
+          },
         });
       });
 

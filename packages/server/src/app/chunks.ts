@@ -13,14 +13,38 @@ class Chunks {
     return Array.from(this.map.values());
   };
 
-  request: (cx: number, cz: number) => void;
-
+  /**
+   * Get or start generating a chunk.
+   *
+   * @param cx x coordinate of chunk
+   * @param cz z coordinate of chunk
+   * @returns a chunk if chunk exists, otherwise null
+   */
   getChunk = (cx: number, cz: number) => {
-    return this.map.get(ChunkUtils.getChunkName([cx, cz]));
+    return this.getChunkByName(ChunkUtils.getChunkName([cx, cz]));
   };
 
   getChunkByName = (name: string) => {
-    return this.map.get(name);
+    const chunk = this.map.get(name);
+    if (chunk) return chunk;
+
+    // means already processing
+    if (this.world.pipeline.hasChunk(name)) {
+      return null;
+    }
+
+    const { chunkSize, maxHeight, padding } = this.world.params;
+    const [cx, cz] = ChunkUtils.parseChunkName(name);
+    const newChunk = new Chunk(cx, cz, {
+      padding,
+      maxHeight,
+      size: chunkSize,
+    });
+
+    this.world.pipeline.addChunk(newChunk, 0);
+    this.world.ecs.addEntity(newChunk);
+
+    return null;
   };
 
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
@@ -173,6 +197,14 @@ class Chunks {
 
     vy += 1;
     return [vx, vy, vz] as Coords3;
+  };
+
+  addChunk = (chunk: Chunk) => {
+    return this.map.set(chunk.name, chunk);
+  };
+
+  removeChunk = (chunk: Chunk) => {
+    return this.map.delete(chunk.name);
   };
 
   private neighbors = (cx: number, cz: number) => {

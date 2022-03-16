@@ -8,4 +8,4 @@ export type CurrentChunk = {
   };
 };
 
-export const CurrentChunkFlag = Component.register<CurrentChunk>();
+export const CurrentChunkComponent = Component.register<CurrentChunk>();

@@ -11,7 +11,7 @@ import {
   HeadingComponent,
   Position3DComponent,
   TargetComponent,
-  CurrentChunkFlag,
+  CurrentChunkComponent,
 } from "../comps";
 
 class BaseEntity extends Entity {
@@ -23,7 +23,6 @@ class BaseEntity extends Entity {
     this.id = uuidv4();
 
     this.add(new EntityFlag());
-
     this.add(new IDComponent(this.id));
     this.add(new Position3DComponent(new Vector3()));
     this.add(new HeadingComponent(new Vector3()));
@@ -31,7 +30,7 @@ class BaseEntity extends Entity {
     this.add(new MetadataComponent({}));
 
     this.add(
-      new CurrentChunkFlag({
+      new CurrentChunkComponent({
         changed: true,
         chunk: {
           x: 0,

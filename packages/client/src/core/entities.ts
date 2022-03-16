@@ -36,7 +36,6 @@ class BaseEntity extends Entity {
     super();
 
     this.add(new EntityFlag());
-
     this.add(new MeshComponent());
     this.add(new Position3DComponent(new Vector3()));
     this.add(new HeadingComponent(new Vector3()));
