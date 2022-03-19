@@ -20,6 +20,14 @@ class GenerateChunksSystem extends System {
     const currentChunk = CurrentChunkComponent.get(client).data;
     const settings = SettingsComponent.get(client).data;
 
+    // go through pending chunk requests, see if any's ready
+    requests.pending.forEach((name) => {
+      const chunk = this.chunks.getChunkByName(name);
+      if (!chunk) return;
+      requests.pending.delete(name);
+      requests.finished.add(name);
+    });
+
     // stop if client doesn't need new chunks, otherwise mark that client
     // doesn't need new chunks generated
     if (!currentChunk.changed) return;
@@ -29,14 +37,6 @@ class GenerateChunksSystem extends System {
     const {
       chunk: { x: cx, z: cz },
     } = currentChunk;
-
-    // go through pending chunk requests, see if any's ready
-    requests.pending.forEach((name) => {
-      const chunk = this.chunks.getChunkByName(name);
-      if (!chunk) return;
-      requests.pending.delete(name);
-      requests.finished.add(name);
-    });
 
     for (let x = -renderRadius; x <= renderRadius; x++) {
       for (let z = -renderRadius; z <= renderRadius; z++) {

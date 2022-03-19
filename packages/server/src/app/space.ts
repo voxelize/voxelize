@@ -6,7 +6,6 @@ import ndarray, { NdArray } from "ndarray";
 import { Chunks } from "./chunks";
 
 type SpaceParams = {
-  coords: Coords2;
   margin: number;
   chunkSize: number;
   maxHeight: number;
@@ -14,18 +13,21 @@ type SpaceParams = {
 
 type MappedNdArray = Map<string, NdArray<Uint32Array>>;
 
+type TransferableArrayMap = { [key: string]: Uint32Array };
+
 type SpaceTransferableData = {
   width: number;
   shape: Coords3;
   min: Coords3;
   voxelsShape: Coords3;
   heightMapShape: Coords3;
-  voxels: Map<string, Uint32Array>;
-  heightMaps: Map<string, Uint32Array>;
+  voxels: TransferableArrayMap;
+  heightMaps: TransferableArrayMap;
+  params: SpaceParams;
 };
 
 type SpaceTransferable = {
-  data: SpaceTransferableData;
+  output: SpaceTransferableData;
   buffers: ArrayBuffer[];
 };
 
@@ -40,10 +42,14 @@ class Space {
   public voxels: MappedNdArray = new Map();
   public heightMaps: MappedNdArray = new Map();
 
-  constructor(chunks?: Chunks, public params?: SpaceParams) {
-    if ((!chunks || !params) && !isMainThread) return;
+  constructor(
+    public coords?: Coords2,
+    chunks?: Chunks,
+    public params?: SpaceParams
+  ) {
+    if (!chunks || !params || !isMainThread) return;
 
-    const { margin, coords, chunkSize, maxHeight } = params;
+    const { margin, chunkSize, maxHeight } = params;
     const [cx, cz] = coords;
 
     if (margin <= 0) {
@@ -128,28 +134,28 @@ class Space {
   };
 
   /**
-   * Encodes a space into a worker-transferable data structure
+   * Exports a space into a worker-transferable data structure
    *
    * @memberof Space
    */
-  encode = () => {
+  export = () => {
     const buffers: ArrayBuffer[] = [];
 
-    const voxels = new Map<string, Uint32Array>();
-    const heightMaps = new Map<string, Uint32Array>();
+    const voxels: TransferableArrayMap = {};
+    const heightMaps: TransferableArrayMap = {};
 
     this.voxels.forEach((v, name) => {
-      voxels.set(name, v.data);
+      voxels[name] = v.data;
       buffers.push(v.data.buffer);
     });
 
     this.heightMaps.forEach((hm, name) => {
-      heightMaps.set(name, hm.data);
+      heightMaps[name] = hm.data;
       buffers.push(hm.data.buffer);
     });
 
     return {
-      data: {
+      output: {
         heightMaps,
         voxels,
         min: this.min,
@@ -157,17 +163,18 @@ class Space {
         width: this.width,
         voxelsShape: this.voxelsShape,
         heightMapShape: this.heightMapShape,
+        params: this.params,
       },
-      buffers,
+      buffers: buffers.filter(Boolean),
     } as SpaceTransferable;
   };
 
   /**
-   * Decodes a space from a worker-transferable data structure
+   * Import a space from a worker-transferable data structure
    *
    * @memberof Space
    */
-  decode = (raw: SpaceTransferableData) => {
+  static import = (raw: SpaceTransferableData) => {
     if (isMainThread) {
       throw new Error(
         "SpaceTransferable should be used in a worker environment."
@@ -182,6 +189,7 @@ class Space {
       heightMapShape,
       voxels,
       voxelsShape,
+      params,
     } = raw;
 
     const instance = new Space();
@@ -191,15 +199,18 @@ class Space {
     instance.min = min;
     instance.voxelsShape = voxelsShape;
     instance.heightMapShape = heightMapShape;
+    instance.params = params;
 
     instance.voxels = new Map();
     instance.heightMaps = new Map();
 
-    voxels.forEach((arr, name) => {
+    Object.keys(voxels).forEach((name) => {
+      const arr = voxels[name];
       instance.voxels.set(name, ndarray(arr, voxelsShape));
     });
 
-    heightMaps.forEach((arr, name) => {
+    Object.keys(heightMaps).forEach((name) => {
+      const arr = heightMaps[name];
       instance.heightMaps.set(name, ndarray(arr, heightMapShape));
     });
 

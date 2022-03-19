@@ -1,6 +1,6 @@
 import { ChunkUtils, Coords2, Coords3 } from "@voxelize/common";
 
-import { Chunk } from "./ents";
+import { Chunk } from "./chunk";
 import { LightColor } from "./lights";
 import { World } from "./world";
 
@@ -33,7 +33,7 @@ class Chunks {
       return null;
     }
 
-    const { chunkSize, maxHeight, padding } = this.world.params;
+    const { chunkSize, maxHeight, padding } = this.params;
     const [cx, cz] = ChunkUtils.parseChunkName(name);
     const newChunk = new Chunk(cx, cz, {
       padding,
@@ -42,7 +42,6 @@ class Chunks {
     });
 
     this.world.pipeline.addChunk(newChunk, 0);
-    this.world.ecs.addEntity(newChunk);
 
     return null;
   };
@@ -50,7 +49,7 @@ class Chunks {
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
       [vx, vy, vz],
-      this.world.params.chunkSize
+      this.params.chunkSize
     );
 
     return this.getChunk(...coords);
@@ -65,7 +64,7 @@ class Chunks {
   getVoxelByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldPosToVoxelPos(
       [wx, wy, wz],
-      this.world.params.dimension
+      this.params.dimension
     );
     return this.getVoxelByVoxel(...voxel);
   };
@@ -157,7 +156,7 @@ class Chunks {
   };
 
   getNeighborChunkCoords = (vx: number, vy: number, vz: number) => {
-    const { chunkSize } = this.world.params;
+    const { chunkSize } = this.params;
     const neighborChunks: Coords2[] = [];
 
     const [cx, cz] = ChunkUtils.mapVoxelPosToChunkPos([vx, vy, vz], chunkSize);
@@ -207,9 +206,13 @@ class Chunks {
     return this.map.delete(chunk.name);
   };
 
+  get params() {
+    return this.world.params;
+  }
+
   private neighbors = (cx: number, cz: number) => {
     const neighbors: Chunk[] = [];
-    const { maxLightLevel, chunkSize } = this.world.params;
+    const { maxLightLevel, chunkSize } = this.params;
     const r = Math.ceil(maxLightLevel / chunkSize);
 
     for (let x = -r; x <= r; x++) {

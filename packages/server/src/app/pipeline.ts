@@ -1,8 +1,9 @@
-import { Component, DirtyFlag } from "@voxelize/common";
+import { Pool, spawn } from "threads";
 
+import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
-import { Chunk } from "./ents";
 import { Registry } from "./registry";
+import { Test2Worker } from "./workers";
 import { World } from "./world";
 
 abstract class ChunkStage {
@@ -23,27 +24,69 @@ abstract class ChunkStage {
 }
 
 class TestStage extends ChunkStage {
+  private pool = Pool(() => spawn(Test2Worker, { timeout: 30000 }), {
+    concurrency: 2,
+    size: 16,
+  });
+
   process = async (chunk: Chunk) => {
-    const { voxels, minInner, maxInner } = chunk;
-    const [minX, , minZ] = minInner;
-    const [maxX, , maxZ] = maxInner;
+    // const { voxels, min, max } = chunk;
+    // const {
+    //   data: { buffer },
+    //   shape,
+    // } = voxels;
+    //Imports
 
-    const orange = this.registry.getBlockByName("Orange");
+    const result = await new Promise<number>((resolve) => {
+      this.pool.queue(async (worker) => {
+        console.log(await worker("Hello world!"));
+        resolve(1);
+      });
+    });
 
-    for (let x = minX; x < maxX; x++) {
-      for (let z = minZ; z < maxZ; z++) {
-        for (let y = 0; y < 3; y++) {
-          voxels.set(x, y, z, orange.id);
-        }
-      }
-    }
+    console.log(result);
+
+    // //Create a blob worker
+    // const worker = await spawn(BlobWorker.fromText(WorkerText));
+
+    // //Echo some text
+    // console.log(await worker("Hello World!")); //Worker received: Hello World!
+
+    // //Destroy the worker
+    // await Thread.terminate(worker);
+
+    // const registryObj = this.registry.export();
+
+    // const results = await new Promise<any>((resolve) =>
+    //   this.pool.addJob({
+    //     message: {
+    //       voxels: { buffer, shape, min, max },
+    //       registryObj,
+    //     },
+    //     resolve,
+    //     buffers: [buffer],
+    //   })
+    // );
+
+    // voxels.data = new Uint32Array(results.buffer);
 
     return chunk;
   };
 }
 
 class LightStage extends ChunkStage {
+  // private pool = new WorkerPool(LightsWorker);
+
   process = async (chunk: Chunk) => {
+    // const { chunkSize, maxHeight, maxLightLevel } = this.chunks.params;
+    // const space = new Space(chunk.coords, this.chunks, {
+    //   maxHeight,
+    //   chunkSize,
+    //   margin: maxLightLevel,
+    // });
+
+    // const { output, buffers } = space.export();
+
     return chunk;
   };
 }
@@ -54,34 +97,29 @@ const StagePresets = {
 };
 
 class Pipeline {
-  /**
-   * A map that keeps track of what stage each "dirty"
-   * chunk is at.
-   *
-   * @private
-   * @memberof Pipeline
-   */
-  private chunkStages = new Map<string, number>();
-
-  private flags = new Map<string, Component<any>>();
   private stages: ChunkStage[] = [];
+  private queue: [Chunk, number][] = [];
+
+  private coords = new Set<string>();
+
+  private processing = 0;
 
   constructor(public world: World) {
     this.addStage(TestStage);
+    this.addStage(LightStage);
   }
 
   hasChunk = (name: string) => {
-    // ? why check both
-    return !!this.flags.has(name) && !!this.chunkStages.has(name);
+    return this.coords.has(name);
   };
 
   addChunk = (chunk: Chunk, stage: number) => {
-    const flag = new DirtyFlag();
+    if (this.coords.has(chunk.name)) {
+      throw new Error("Adding a processing chunk");
+    }
 
-    chunk.add(flag);
-
-    this.flags.set(chunk.name, flag);
-    this.chunkStages.set(chunk.name, stage);
+    this.queue.push([chunk, stage]);
+    this.coords.add(chunk.name);
 
     return this;
   };
@@ -102,41 +140,40 @@ class Pipeline {
     return this;
   };
 
-  process = async (chunk: Chunk) => {
-    const stageId = this.chunkStages.get(chunk.name);
-    if (isNaN(stageId)) {
-      throw new Error(`Chunk ${chunk.name} doesn't have a stage.`);
-    }
+  update = () => {
+    if (this.queue.length === 0) return;
 
-    const stage = this.stages[stageId];
-    if (!stage) {
-      throw new Error(`Chunk ${chunk.name} is in an unknown stage!`);
+    const { maxChunksPerTick } = this.params;
+
+    // only continue if the processing count is less than max chunks per tick
+    for (; this.processing < maxChunksPerTick; this.processing++) {
+      const [chunk, stage] = this.queue.shift();
+
+      this.process(chunk, stage).then(() => {
+        this.processing--;
+      });
     }
+  };
+
+  process = async (chunk: Chunk, index: number) => {
+    const stage = this.stages[index];
 
     await stage.process(chunk);
 
-    const nextStage = stageId + 1;
-
-    // means chunk is at the end of the pipeline
-    if (nextStage >= this.stages.length) {
-      const flag = this.flags.get(chunk.name);
-      chunk.remove(flag);
-
-      // chunk is ready to be added back to chunks
+    // last stage
+    if (index < this.stages.length - 1) {
+      this.queue.push([chunk, index + 1]);
+    } else {
       this.world.chunks.addChunk(chunk);
-
-      // cleanup
-      this.flags.delete(chunk.name);
-      this.chunkStages.delete(chunk.name);
-
-      return;
+      this.coords.delete(chunk.name);
     }
-
-    // otherwise increment chunk's stage
-    this.chunkStages.set(chunk.name, nextStage);
 
     return chunk;
   };
+
+  get params() {
+    return this.world.params;
+  }
 }
 
 export { ChunkStage, StagePresets, Pipeline };

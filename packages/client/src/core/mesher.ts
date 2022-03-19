@@ -1,13 +1,13 @@
-import MeshWorker from "web-worker:./workers/mesh-worker";
+// import MeshWorker from "web-worker:./workers/mesh-worker";
 
 import { Client } from "..";
-import { WorkerPool } from "../libs";
+// import { WorkerPool } from "../libs";
 
 class Mesher {
-  private pool: WorkerPool;
+  // private pool: WorkerPool;
 
   constructor(public client: Client) {
-    this.pool = new WorkerPool(MeshWorker);
+    // this.pool = new WorkerPool(MeshWorker);
   }
 }
 

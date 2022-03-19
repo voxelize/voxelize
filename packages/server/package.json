@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/server",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -29,7 +29,7 @@
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-swc3": "^0.2.0",
     "rollup-plugin-terser": "^7.0.2",
-    "rollup-plugin-worker-threads": "^0.1.1"
+    "rollup-plugin-threads": "^1.2.0"
   },
   "peerDependencies": {
     "@voxelize/common": "*"
@@ -43,8 +43,9 @@
     "express": "^4.17.2",
     "ndarray": "^1.0.19",
     "peer": "^0.6.1",
+    "piscina": "^3.2.0",
     "socket.io": "^4.4.1",
-    "threads": "^1.0.0-beta-esm.2",
+    "threads": "^1.7.0",
     "tiny-worker": "^2.3.0",
     "typedarray-pool": "^1.2.0",
     "uuid": "^8.3.2",

@@ -9,7 +9,6 @@ import { Constructor } from "./shared";
 import {
   BroadcastEntitiesSystem,
   CurrentChunkSystem,
-  PipelineChunksSystem,
   GenerateChunksSystem,
 } from "./systems";
 
@@ -44,7 +43,6 @@ class World {
     this.ecs.addSystem(new BroadcastEntitiesSystem(this.entities));
     this.ecs.addSystem(new CurrentChunkSystem(chunkSize));
     this.ecs.addSystem(new GenerateChunksSystem(this.chunks));
-    this.ecs.addSystem(new PipelineChunksSystem(this.pipeline));
   }
 
   registerEntity = <T extends BaseEntity>(
@@ -84,7 +82,10 @@ class World {
   update = () => {
     this.ecs.update();
     this.entities.update();
+    this.pipeline.update();
   };
 }
+
+export type { WorldParams };
 
 export { World };

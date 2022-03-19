@@ -26,7 +26,7 @@ const defaultParams: ServerParams = {
   dimension: 1,
   maxHeight: 256,
   maxLightLevel: 16,
-  maxChunksPerTick: 4,
+  maxChunksPerTick: 1,
 };
 
 class Server {
