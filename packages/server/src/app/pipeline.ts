@@ -1,9 +1,9 @@
-import { Pool, spawn } from "threads";
+import { BlobWorker, Pool, spawn, Thread, Transfer } from "threads";
 
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Registry } from "./registry";
-import { Test2Worker } from "./workers";
+import { Runner, TestWorker } from "./workers";
 import { World } from "./world";
 
 abstract class ChunkStage {
@@ -24,59 +24,30 @@ abstract class ChunkStage {
 }
 
 class TestStage extends ChunkStage {
-  private pool = Pool(() => spawn(Test2Worker, { timeout: 30000 }), {
-    concurrency: 2,
-    size: 16,
-  });
+  private pool = Pool(() => spawn<Runner>(TestWorker()));
 
   process = async (chunk: Chunk) => {
-    // const { voxels, min, max } = chunk;
-    // const {
-    //   data: { buffer },
-    //   shape,
-    // } = voxels;
-    //Imports
+    const { voxels, min, max } = chunk;
+    const {
+      data: { buffer },
+    } = voxels;
 
-    const result = await new Promise<number>((resolve) => {
+    const registryObj = this.registry.export();
+
+    const { buffer: newBuffer } = await new Promise((resolve) => {
       this.pool.queue(async (worker) => {
-        console.log(await worker("Hello world!"));
-        resolve(1);
+        const b = buffer.slice(0);
+        resolve(await worker.run(Transfer(b, [b]), registryObj, min, max));
       });
     });
 
-    console.log(result);
-
-    // //Create a blob worker
-    // const worker = await spawn(BlobWorker.fromText(WorkerText));
-
-    // //Echo some text
-    // console.log(await worker("Hello World!")); //Worker received: Hello World!
-
-    // //Destroy the worker
-    // await Thread.terminate(worker);
-
-    // const registryObj = this.registry.export();
-
-    // const results = await new Promise<any>((resolve) =>
-    //   this.pool.addJob({
-    //     message: {
-    //       voxels: { buffer, shape, min, max },
-    //       registryObj,
-    //     },
-    //     resolve,
-    //     buffers: [buffer],
-    //   })
-    // );
-
-    // voxels.data = new Uint32Array(results.buffer);
+    voxels.data = new Uint32Array(newBuffer);
 
     return chunk;
   };
 }
 
 class LightStage extends ChunkStage {
-  // private pool = new WorkerPool(LightsWorker);
-
   process = async (chunk: Chunk) => {
     // const { chunkSize, maxHeight, maxLightLevel } = this.chunks.params;
     // const space = new Space(chunk.coords, this.chunks, {

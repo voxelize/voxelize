@@ -147,4 +147,6 @@ class Registry extends BaseRegistry {
   };
 }
 
+export type { RegistryTransferableData };
+
 export { Registry };
