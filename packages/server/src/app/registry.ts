@@ -3,6 +3,7 @@ import {
   defaultBlock,
   BaseRegistry,
   TextureRange,
+  BlockFace,
 } from "@voxelize/common";
 
 import { World } from "./world";
@@ -26,6 +27,8 @@ class Registry extends BaseRegistry {
     this.registerBlock("Air", {
       isSolid: false,
       isBlock: false,
+      isEmpty: true,
+      isTransparent: true,
     });
   }
 

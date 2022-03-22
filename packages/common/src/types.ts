@@ -2,17 +2,17 @@ export type DeepPartial<T> = {
   [P in keyof T]?: DeepPartial<T[P]>;
 };
 
-type AllFaces = {
+export type AllFaces = {
   all: string;
 };
 
-type ThreeFaces = {
+export type ThreeFaces = {
   top: string;
   side: string;
   bottom: string;
 };
 
-type SixFaces = {
+export type SixFaces = {
   px: string;
   py: string;
   pz: string;
@@ -21,7 +21,7 @@ type SixFaces = {
   nz: string;
 };
 
-type PlantFaces = {
+export type PlantFaces = {
   diagonal: string;
 };
 

@@ -7,6 +7,8 @@ import { World } from "./world";
 class Chunks {
   private map = new Map<string, Chunk>();
 
+  static SUPPOSED_NEIGHBORS = -1;
+
   constructor(public world: World) {}
 
   all = () => {
@@ -25,13 +27,13 @@ class Chunks {
   };
 
   getChunkByName = (name: string) => {
-    const chunk = this.map.get(name);
-    if (chunk) return chunk;
-
-    // means already processing
+    // means processing
     if (this.world.pipeline.hasChunk(name)) {
       return null;
     }
+
+    const chunk = this.map.get(name);
+    if (chunk) return chunk;
 
     const { chunkSize, maxHeight, padding } = this.params;
     const [cx, cz] = ChunkUtils.parseChunkName(name);
@@ -41,6 +43,7 @@ class Chunks {
       size: chunkSize,
     });
 
+    this.addChunk(newChunk);
     this.world.pipeline.addChunk(newChunk, 0);
 
     return null;
@@ -62,10 +65,7 @@ class Chunks {
   };
 
   getVoxelByWorld = (wx: number, wy: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos(
-      [wx, wy, wz],
-      this.params.dimension
-    );
+    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz], 1);
     return this.getVoxelByVoxel(...voxel);
   };
 
@@ -198,6 +198,10 @@ class Chunks {
     return [vx, vy, vz] as Coords3;
   };
 
+  raw = (name: string) => {
+    return this.map.get(name);
+  };
+
   addChunk = (chunk: Chunk) => {
     return this.map.set(chunk.name, chunk);
   };
@@ -206,14 +210,12 @@ class Chunks {
     return this.map.delete(chunk.name);
   };
 
-  get params() {
-    return this.world.params;
-  }
-
-  private neighbors = (cx: number, cz: number) => {
+  neighbors = (cx: number, cz: number) => {
     const neighbors: Chunk[] = [];
     const { maxLightLevel, chunkSize } = this.params;
     const r = Math.ceil(maxLightLevel / chunkSize);
+
+    Chunks.SUPPOSED_NEIGHBORS = 0;
 
     for (let x = -r; x <= r; x++) {
       for (let z = -r; z <= r; z++) {
@@ -221,16 +223,21 @@ class Chunks {
           continue;
         }
 
-        if (x ** 2 + z ** 2 >= r ** 2) {
+        if (x ** 2 + z ** 2 > r ** 2) {
           continue;
         }
 
-        neighbors.push(this.getChunk(cx + x, cz + z));
+        Chunks.SUPPOSED_NEIGHBORS++;
+        neighbors.push(this.raw(ChunkUtils.getChunkName([cx + x, cz + z])));
       }
     }
 
     return neighbors.filter(Boolean);
   };
+
+  get params() {
+    return this.world.params;
+  }
 }
 
 export { Chunks };

@@ -15,7 +15,6 @@ import {
 type WorldParams = {
   padding: number;
   chunkSize: number;
-  dimension: number;
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;

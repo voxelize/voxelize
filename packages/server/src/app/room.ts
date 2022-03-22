@@ -17,7 +17,6 @@ type RoomParams = {
 
   padding: number;
   chunkSize: number;
-  dimension: number;
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
@@ -38,7 +37,6 @@ class Room {
       name,
       padding,
       chunkSize,
-      dimension,
       maxHeight,
       maxLightLevel,
       maxChunksPerTick,
@@ -49,7 +47,6 @@ class Room {
     this.world = new World(this, {
       padding,
       chunkSize,
-      dimension,
       maxHeight,
       maxLightLevel,
       maxChunksPerTick,

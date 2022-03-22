@@ -20,6 +20,11 @@ enum LightColor {
   SUNLIGHT,
 }
 
+const contains = (lights: LightArray, x: number, y: number, z: number) => {
+  const [sx, sy, sz] = lights.shape;
+  return sx >= x || sy >= y || sz >= z;
+};
+
 class Lights {
   static extractSunlight = (light: number) => {
     return (light >> 12) & 0xf;
@@ -251,7 +256,7 @@ class Lights {
 
     const dims = [chunkSize + padding * 2, maxHeight, chunkSize + padding * 2];
     const chunkLights = ndarray<Uint32Array>(
-      new Uint32Array[dims[0] * dims[1] * dims[2]](),
+      new Uint32Array(dims[0] * dims[1] * dims[2]),
       dims
     );
 
@@ -270,99 +275,91 @@ class Lights {
     return chunkLights;
   };
 
-  private static getSunlight = (
+  static getSunlight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return 0;
-    return Lights.extractSunlight(val);
+    if (!contains(lights, x, y, z)) return 0;
+    return Lights.extractSunlight(lights.get(x, y, z));
   };
 
-  private static setSunlight = (
+  static setSunlight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number,
     level: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return;
-    lights.set(x, y, z, Lights.insertSunlight(val, level));
+    if (!contains(lights, x, y, z)) return;
+    lights.set(x, y, z, Lights.insertSunlight(lights.get(x, y, z), level));
   };
 
-  private static getRedLight = (
+  static getRedLight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return 0;
-    return Lights.extractRedLight(val);
+    if (!contains(lights, x, y, z)) return 0;
+    return Lights.extractRedLight(lights.get(x, y, z));
   };
 
-  private static setRedLight = (
+  static setRedLight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number,
     level: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return;
-    lights.set(x, y, z, Lights.insertRedLight(val, level));
+    if (!contains(lights, x, y, z)) return;
+    lights.set(x, y, z, Lights.insertRedLight(lights.get(x, y, z), level));
   };
 
-  private static getGreenLight = (
+  static getGreenLight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return 0;
-    return Lights.extractGreenLight(val);
+    if (!contains(lights, x, y, z)) return 0;
+    return Lights.extractGreenLight(lights.get(x, y, z));
   };
 
-  private static setGreenLight = (
+  static setGreenLight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number,
     level: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return;
-    lights.set(x, y, z, Lights.insertGreenLight(val, level));
+    if (!contains(lights, x, y, z)) return;
+    lights.set(x, y, z, Lights.insertGreenLight(lights.get(x, y, z), level));
   };
 
-  private static getBlueLight = (
+  static getBlueLight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return 0;
-    return Lights.extractBlueLight(val);
+    if (!contains(lights, x, y, z)) return 0;
+    return Lights.extractBlueLight(lights.get(x, y, z));
   };
 
-  private static setBlueLight = (
+  static setBlueLight = (
     lights: LightArray,
     x: number,
     y: number,
     z: number,
     level: number
   ) => {
-    const val = lights.get(x, y, z);
-    if (val === undefined) return;
-    lights.set(x, y, z, Lights.insertBlueLight(val, level));
+    if (!contains(lights, x, y, z)) return;
+    lights.set(x, y, z, Lights.insertBlueLight(lights.get(x, y, z), level));
   };
 
-  private static getTorchLight = (
+  static getTorchLight = (
     lights: LightArray,
     x: number,
     y: number,
@@ -381,7 +378,7 @@ class Lights {
     }
   };
 
-  private static setTorchLight = (
+  static setTorchLight = (
     lights: LightArray,
     x: number,
     y: number,

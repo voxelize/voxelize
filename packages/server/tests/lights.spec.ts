@@ -1,5 +1,7 @@
 import assert from "assert";
 
+import ndarray from "ndarray";
+
 import { Lights } from "../src";
 
 describe("Lights", () => {
@@ -35,6 +37,14 @@ describe("Lights", () => {
           assert.equal(Lights[extract](number), level);
         }
       });
+    });
+  });
+
+  describe("Worker functions", () => {
+    it("should work", () => {
+      const lights = ndarray<Uint32Array>(new Uint32Array(64), [4, 4, 4]);
+      Lights.setSunlight(lights, 0, 0, 0, 15);
+      assert.equal(Lights.getSunlight(lights, 0, 0, 0), 15);
     });
   });
 });

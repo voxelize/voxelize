@@ -10,11 +10,11 @@ describe("Blocks", () => {
       let voxel = 100230120;
       const id = 13;
 
-      voxel = Blocks.insertID(voxel, id);
+      voxel = Blocks.insertId(voxel, id);
       assert.equal(Blocks.extractID(voxel), id);
 
       // Exceeded maximum
-      voxel = Blocks.insertID(voxel, 65537);
+      voxel = Blocks.insertId(voxel, 65537);
       assert.equal(Blocks.extractID(voxel), 1);
     });
   });
@@ -24,7 +24,7 @@ describe("Blocks", () => {
       let voxel = 0;
       const id = 13;
 
-      voxel = Blocks.insertID(voxel, id);
+      voxel = Blocks.insertId(voxel, id);
       assert.equal(Blocks.extractRotation(voxel), BlockRotation.PY);
 
       voxel = Blocks.insertRotation(voxel, BlockRotation.NX);
@@ -60,7 +60,7 @@ describe("Blocks", () => {
       let voxel = 0;
       const id = 13;
 
-      voxel = Blocks.insertID(voxel, id);
+      voxel = Blocks.insertId(voxel, id);
 
       assert.equal(Blocks.extractStage(voxel), 0);
 

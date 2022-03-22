@@ -65,14 +65,14 @@ abstract class BaseRegistry {
   };
 
   getUVMap = (block: Block) => {
-    const uvMap = {};
+    const uvMap: { [key: string]: TextureRange } = {};
 
     block.faces.forEach((side) => {
       const sideName = this.makeSideName(block.name, side);
       const uv = this.ranges.get(sideName);
       if (!uv)
         throw new Error(`UV range not found: ${sideName} - ${block.name}`);
-      uvMap[sideName] = uv;
+      uvMap[side] = uv;
     });
 
     return uvMap;
@@ -101,18 +101,29 @@ abstract class BaseRegistry {
     return this.nameMap.has(id);
   };
 
-  static getTextureType = (texture: { [key: string]: string }) => {
-    const len = Object.keys(texture).length;
+  static getFacesMap = (faces: BlockFace[]) => {
+    const faceMap: { [key: string]: string } = {};
+    const sides = ["px", "pz", "nx", "nz"];
 
-    if (len === 1) {
-      return "mat1";
-    } else if (len === 3) {
-      return "mat3";
-    } else if (len === 6) {
-      return "mat6";
-    } else {
-      return "x";
-    }
+    sides.forEach((side) => {
+      if (faces.includes(side as BlockFace)) {
+        faceMap[side] = side;
+      } else if (faces.includes("side")) {
+        faceMap[side] = "side";
+      } else {
+        faceMap[side] = "all";
+      }
+    });
+
+    if (faces.includes("py")) faceMap.py = "py";
+    else if (faces.includes("top")) faceMap.py = "top";
+    else faceMap.py = "all";
+
+    if (faces.includes("ny")) faceMap.py = "ny";
+    else if (faces.includes("bottom")) faceMap.py = "bottom";
+    else faceMap.ny = "all";
+
+    return faceMap;
   };
 
   static fixTextureBleeding = (
@@ -139,7 +150,7 @@ abstract class BaseRegistry {
   };
 
   protected recordBlock = (block: Block) => {
-    const { name, id, faces } = block;
+    const { name, id, faces, isPlant } = block;
     const lowerName = name.toLowerCase();
 
     this.blocks.set(lowerName, block);
@@ -147,6 +158,12 @@ abstract class BaseRegistry {
     this.typeMap.set(lowerName, id);
 
     for (const side of faces) {
+      if (side === "diagonal" && !isPlant) {
+        throw new Error(
+          "Blocks that are not plants cannot have diagnoal textures."
+        );
+      }
+
       const sideName = this.makeSideName(name, side);
       this.textures.add(sideName);
     }

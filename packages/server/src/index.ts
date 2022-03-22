@@ -10,7 +10,6 @@ type ServerParams = {
   updateInterval: number;
   padding: number;
   chunkSize: number;
-  dimension: number;
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
@@ -23,10 +22,9 @@ const defaultParams: ServerParams = {
   updateInterval: 1000 / 60,
   padding: 1,
   chunkSize: 16,
-  dimension: 1,
   maxHeight: 256,
-  maxLightLevel: 16,
-  maxChunksPerTick: 1,
+  maxLightLevel: 15,
+  maxChunksPerTick: 16,
 };
 
 class Server {

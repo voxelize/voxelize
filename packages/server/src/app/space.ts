@@ -13,7 +13,7 @@ type SpaceParams = {
 
 type MappedNdArray = Map<string, NdArray<Uint32Array>>;
 
-type TransferableArrayMap = { [key: string]: Uint32Array };
+type TransferableArrayMap = { [key: string]: ArrayBuffer };
 
 type SpaceTransferableData = {
   width: number;
@@ -63,7 +63,7 @@ class Space {
     for (let x = -extended; x <= extended; x++) {
       for (let z = -extended; z <= extended; z++) {
         const name = ChunkUtils.getChunkName([cx + x, cz + z]);
-        const chunk = chunks.getChunkByName(name);
+        const chunk = chunks.raw(name);
 
         if (chunk) {
           const { voxels, heightMap } = chunk;
@@ -73,7 +73,7 @@ class Space {
           // ? a bit hacky
           if (!this.voxelsShape) {
             this.voxelsShape = voxels.shape as Coords3;
-            this.heightMapShape = this.heightMapShape as Coords3;
+            this.heightMapShape = heightMap.shape as Coords3;
           }
         }
       }
@@ -145,13 +145,13 @@ class Space {
     const heightMaps: TransferableArrayMap = {};
 
     this.voxels.forEach((v, name) => {
-      voxels[name] = v.data;
-      buffers.push(v.data.buffer);
+      voxels[name] = v.data.buffer;
+      buffers.push(v.data.buffer.slice(0));
     });
 
     this.heightMaps.forEach((hm, name) => {
-      heightMaps[name] = hm.data;
-      buffers.push(hm.data.buffer);
+      heightMaps[name] = hm.data.buffer;
+      buffers.push(hm.data.buffer.slice(0));
     });
 
     return {
@@ -175,12 +175,6 @@ class Space {
    * @memberof Space
    */
   static import = (raw: SpaceTransferableData) => {
-    if (isMainThread) {
-      throw new Error(
-        "SpaceTransferable should be used in a worker environment."
-      );
-    }
-
     const {
       width,
       shape,
@@ -206,16 +200,21 @@ class Space {
 
     Object.keys(voxels).forEach((name) => {
       const arr = voxels[name];
-      instance.voxels.set(name, ndarray(arr, voxelsShape));
+      instance.voxels.set(name, ndarray(new Uint32Array(arr), voxelsShape));
     });
 
     Object.keys(heightMaps).forEach((name) => {
       const arr = heightMaps[name];
-      instance.heightMaps.set(name, ndarray(arr, heightMapShape));
+      instance.heightMaps.set(
+        name,
+        ndarray(new Uint32Array(arr), heightMapShape)
+      );
     });
 
     return instance;
   };
 }
+
+export type { SpaceTransferable, SpaceTransferableData };
 
 export { Space };

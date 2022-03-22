@@ -178,7 +178,7 @@ class Blocks {
     return voxel & 0xffff;
   };
 
-  static insertID = (voxel: number, id: number) => {
+  static insertId = (voxel: number, id: number) => {
     return (voxel & 0xffff0000) | (id & 0xffff);
   };
 

@@ -16,7 +16,6 @@ type RoomsParams = {
   updateInterval: number;
   padding: number;
   chunkSize: number;
-  dimension: number;
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
@@ -74,7 +73,13 @@ class Rooms extends Map<string, Room> {
               max: chunk.max,
               minInner: chunk.minInner,
               maxInner: chunk.maxInner,
-              test: chunk.getVoxel(0, 0, 0),
+              test: chunk.getVoxel(chunk.min[0], 0, chunk.min[2] + 2),
+              height: chunk.getMaxHeight(chunk.min[0], chunk.min[2] + 2),
+              light: chunk.getSunlight(chunk.min[0], 10, chunk.min[2] + 2),
+              mesh: {
+                opaque: !!chunk.mesh.opaque,
+                transparent: !!chunk.mesh.transparent,
+              },
             })),
           },
         });

@@ -1,6 +1,27 @@
 syntax = "proto3";
 package protocol;
 
+message Geometry {
+  repeated float positions = 1 [ packed = true ];
+  repeated float uvs = 2 [ packed = true ];
+  repeated int32 aos = 3 [ packed = true ];
+  repeated int32 indices = 4 [ packed = true ];
+  repeated int32 lights = 5 [ packed = true ];
+}
+
+message Mesh {
+  Geometry opaque = 1;
+  Geometry transparent = 2;
+}
+
+message Chunk {
+  int32 x = 1;
+  int32 z = 2;
+  repeated Mesh meshes = 3;
+  repeated uint32 voxels = 4 [ packed = true ];
+  repeated uint32 lights = 5 [ packed = true ];
+}
+
 message Vector3 {
   float x = 1;
   float y = 2;
@@ -32,6 +53,7 @@ message Message {
     LEAVE = 4;
     PEER = 5;
     ENTITY = 6;
+    CHUNK = 7;
   }
 
   Type type = 1;

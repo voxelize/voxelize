@@ -5,11 +5,25 @@ import { v4 as uuidv4 } from "uuid";
 
 import { Blocks } from "./blocks";
 import { LightColor, Lights } from "./lights";
+import { MeshData } from "./mesher";
 
 type ChunkParams = {
   size: number;
   padding: number;
   maxHeight: number;
+};
+
+type ChunkTransferableData = {
+  voxels?: ArrayBuffer;
+  lights?: ArrayBuffer;
+  heightMap?: ArrayBuffer;
+  coords: Coords2;
+  params: ChunkParams;
+};
+
+type ChunkTransferable = {
+  output: ChunkTransferableData;
+  buffers: ArrayBuffer[];
 };
 
 class Chunk {
@@ -26,6 +40,11 @@ class Chunk {
   public heightMap: NdArray<Uint32Array>;
   public lights: NdArray<Uint32Array>;
 
+  public mesh: {
+    transparent?: MeshData;
+    opaque?: MeshData;
+  } = {};
+
   constructor(x: number, z: number, public params: ChunkParams) {
     this.id = uuidv4();
     this.name = ChunkUtils.getChunkName([x, z]);
@@ -40,7 +59,7 @@ class Chunk {
       [size + padding * 2, maxHeight, size + padding * 2]
     );
 
-    this.heightMap = ndarray(pool.malloc((size + padding * 2) ** 2), [
+    this.heightMap = ndarray(pool.mallocUint32((size + padding * 2) ** 2), [
       size + padding * 2,
       size + padding * 2,
     ]);
@@ -86,7 +105,7 @@ class Chunk {
   };
 
   setVoxel = (vx: number, vy: number, vz: number, id: number) => {
-    const value = Blocks.insertID(0, id);
+    const value = Blocks.insertId(0, id);
     this.setRawValue(vx, vy, vz, value);
     return id;
   };
@@ -224,6 +243,69 @@ class Chunk {
     return this.heightMap.set(lx, lz, height);
   };
 
+  export = (
+    {
+      voxels,
+      lights,
+      heightMap,
+    }: {
+      voxels?: boolean;
+      lights?: boolean;
+      heightMap?: boolean;
+    } = { voxels: false, lights: false, heightMap: false }
+  ) => {
+    const output: ChunkTransferableData = {
+      coords: this.coords,
+      params: this.params,
+    };
+
+    const buffers: ArrayBuffer[] = [];
+
+    if (voxels) {
+      output.voxels = this.voxels.data.buffer;
+      buffers.push(this.voxels.data.buffer.slice(0));
+    }
+
+    if (lights) {
+      output.lights = this.lights.data.buffer;
+      buffers.push(this.lights.data.buffer.slice(0));
+    }
+
+    if (heightMap) {
+      output.heightMap = this.heightMap.data.buffer;
+      buffers.push(this.heightMap.data.buffer.slice(0));
+    }
+
+    return {
+      output,
+      buffers,
+    } as ChunkTransferable;
+  };
+
+  import = (raw: ChunkTransferableData) => {
+    return Chunk.import(raw, this);
+  };
+
+  static import = (raw: ChunkTransferableData, instance?: Chunk) => {
+    const { coords, params, heightMap, lights, voxels } = raw;
+
+    instance = instance || new Chunk(...coords, params);
+
+    if (heightMap) {
+      instance.heightMap.data = new Uint32Array(heightMap);
+    }
+
+    if (lights) {
+      instance.lights.data = new Uint32Array(lights);
+    }
+
+    if (voxels) {
+      instance.voxels.data = new Uint32Array(voxels);
+    }
+
+    return instance;
+  };
+
   private getLocalRedLight = (lx: number, ly: number, lz: number) => {
     return Lights.extractRedLight(this.lights.get(lx, ly, lz));
   };
@@ -320,5 +402,7 @@ class Chunk {
     }
   };
 }
+
+export type { ChunkTransferable, ChunkTransferableData };
 
 export { Chunk, ChunkParams };

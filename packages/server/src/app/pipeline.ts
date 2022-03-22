@@ -1,9 +1,20 @@
-import { BlobWorker, Pool, spawn, Thread, Transfer } from "threads";
+import { timeThis } from "@voxelize/common";
+import { Pool, spawn, Transfer } from "threads";
 
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Registry } from "./registry";
-import { Runner, TestWorker } from "./workers";
+import { Space } from "./space";
+import {
+  LightWorker,
+  LighterType,
+  TesterType,
+  MesherType,
+  TestWorker,
+  HeightMapperType,
+  HeightMapWorker,
+  MeshWorker,
+} from "./workers";
 import { World } from "./world";
 
 abstract class ChunkStage {
@@ -12,51 +23,124 @@ abstract class ChunkStage {
   constructor(protected chunks: Chunks, protected registry: Registry) {}
 
   /**
+   * Gets run to see if a chunk should propagate to the next
+   * stage. True, then proceed, vice versa.
+   *
+   * @abstract
+   * @memberof ChunkStage
+   */
+  abstract check: (chunk?: Chunk) => boolean;
+
+  /**
    * Gets run every system tick, processes through chunk
    * queue to do whatever this stage does.
    *
    * @returns Asynchronously returns an array of chunks
    * that are ready to be pushed to the next stage.
    *
+   * @abstract
    * @memberof ChunkStage
    */
   abstract process: (chunk: Chunk) => Promise<Chunk>;
 }
 
 class TestStage extends ChunkStage {
-  private pool = Pool(() => spawn<Runner>(TestWorker()));
+  private pool = Pool(() => spawn<TesterType>(TestWorker()));
+
+  check = () => true;
 
   process = async (chunk: Chunk) => {
-    const { voxels, min, max } = chunk;
-    const {
-      data: { buffer },
-    } = voxels;
-
+    const { output, buffers } = chunk.export({ voxels: true });
     const registryObj = this.registry.export();
 
-    const { buffer: newBuffer } = await new Promise((resolve) => {
-      this.pool.queue(async (worker) => {
-        const b = buffer.slice(0);
-        resolve(await worker.run(Transfer(b, [b]), registryObj, min, max));
-      });
+    await this.pool.queue(async (worker) => {
+      const data = await worker.test(
+        Transfer(output, buffers) as any,
+        registryObj
+      );
+      chunk.import(data);
     });
 
-    voxels.data = new Uint32Array(newBuffer);
+    return chunk;
+  };
+}
+
+class HeightMapStage extends ChunkStage {
+  private pool = Pool(() => spawn<HeightMapperType>(HeightMapWorker()), {
+    concurrency: 2,
+  });
+
+  check = () => true;
+
+  process = async (chunk: Chunk) => {
+    const { output, buffers } = chunk.export({ voxels: true });
+    const registryObj = this.registry.export();
+
+    await this.pool.queue(async (worker) => {
+      const data = await worker.calculate(
+        Transfer(output, buffers) as any,
+        registryObj
+      );
+      chunk.import(data);
+    });
 
     return chunk;
   };
 }
 
 class LightStage extends ChunkStage {
-  process = async (chunk: Chunk) => {
-    // const { chunkSize, maxHeight, maxLightLevel } = this.chunks.params;
-    // const space = new Space(chunk.coords, this.chunks, {
-    //   maxHeight,
-    //   chunkSize,
-    //   margin: maxLightLevel,
-    // });
+  private pool = Pool(() => spawn<LighterType>(LightWorker()), {
+    concurrency: 4,
+  });
 
-    // const { output, buffers } = space.export();
+  check = (chunk: Chunk) => {
+    const neighbors = this.chunks.neighbors(...chunk.coords);
+    return !(neighbors.length - Chunks.SUPPOSED_NEIGHBORS);
+  };
+
+  process = async (chunk: Chunk) => {
+    const { chunkSize, maxHeight, maxLightLevel } = this.chunks.params;
+    const space = new Space(chunk.coords, this.chunks, {
+      maxHeight,
+      chunkSize,
+      margin: maxLightLevel,
+    });
+
+    const { output, buffers } = space.export();
+
+    const registryObj = this.registry.export();
+
+    await this.pool.queue(async (worker) => {
+      const newBuffer = await worker.propagate(
+        Transfer(output, buffers) as any,
+        registryObj,
+        this.chunks.params
+      );
+      chunk.lights.data = new Uint32Array(newBuffer);
+    });
+
+    return chunk;
+  };
+}
+
+class MeshStage extends ChunkStage {
+  private pool = Pool(() => spawn<MesherType>(MeshWorker()), {
+    concurrency: 4,
+  });
+
+  check = () => true;
+
+  process = async (chunk: Chunk) => {
+    const { output, buffers } = chunk.export({ voxels: true, lights: true });
+    const registryObj = this.registry.export();
+
+    await this.pool.queue(async (worker) => {
+      const data = await worker.mesh(
+        Transfer(output, buffers) as any,
+        registryObj
+      );
+      chunk.mesh = data;
+    });
 
     return chunk;
   };
@@ -64,7 +148,9 @@ class LightStage extends ChunkStage {
 
 const StagePresets = {
   TestStage,
+  HeightMapStage,
   LightStage,
+  MeshStage,
 };
 
 class Pipeline {
@@ -77,7 +163,9 @@ class Pipeline {
 
   constructor(public world: World) {
     this.addStage(TestStage);
+    this.addStage(HeightMapStage);
     this.addStage(LightStage);
+    this.addStage(MeshStage);
   }
 
   hasChunk = (name: string) => {
@@ -116,18 +204,29 @@ class Pipeline {
 
     const { maxChunksPerTick } = this.params;
 
+    const processes = [];
+
     // only continue if the processing count is less than max chunks per tick
     for (; this.processing < maxChunksPerTick; this.processing++) {
-      const [chunk, stage] = this.queue.shift();
+      const process = this.queue.shift();
+      if (!process) break;
 
-      this.process(chunk, stage).then(() => {
-        this.processing--;
-      });
+      const [chunk, stage] = process;
+      processes.push(this.process(chunk, stage));
     }
+
+    Promise.all(processes).then(() => {
+      this.processing = 0;
+    });
   };
 
   process = async (chunk: Chunk, index: number) => {
-    const stage = this.stages[index];
+    const stage = this.stages[Math.floor(index)];
+
+    if (!stage.check(chunk)) {
+      this.queue.push([chunk, index]);
+      return;
+    }
 
     await stage.process(chunk);
 
@@ -135,7 +234,6 @@ class Pipeline {
     if (index < this.stages.length - 1) {
       this.queue.push([chunk, index + 1]);
     } else {
-      this.world.chunks.addChunk(chunk);
       this.coords.delete(chunk.name);
     }
 
