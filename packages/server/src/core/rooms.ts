@@ -19,6 +19,7 @@ type RoomsParams = {
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
+  maxResponsePerTick: number;
 };
 
 class Rooms extends Map<string, Room> {

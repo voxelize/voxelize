@@ -53,7 +53,7 @@ message Message {
     LEAVE = 4;
     PEER = 5;
     ENTITY = 6;
-    CHUNK = 7;
+    REQUEST = 7;
   }
 
   Type type = 1;
@@ -63,4 +63,5 @@ message Message {
 
   repeated string peers = 5;
   repeated Entity entities = 6;
+  repeated Chunk chunks = 7;
 }

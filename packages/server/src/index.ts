@@ -13,6 +13,7 @@ type ServerParams = {
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
+  maxResponsePerTick: number;
 };
 
 const defaultParams: ServerParams = {
@@ -25,6 +26,7 @@ const defaultParams: ServerParams = {
   maxHeight: 256,
   maxLightLevel: 15,
   maxChunksPerTick: 16,
+  maxResponsePerTick: 4,
 };
 
 class Server {

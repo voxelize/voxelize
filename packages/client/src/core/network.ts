@@ -171,6 +171,10 @@ class Network {
         entities.forEach((entity: any) => {
           this.client.entities.onEvent(entity);
         });
+        break;
+      }
+      case "REQUEST": {
+        console.log(event);
       }
     }
   };

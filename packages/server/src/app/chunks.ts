@@ -1,11 +1,14 @@
 import { ChunkUtils, Coords2, Coords3 } from "@voxelize/common";
 
+import { Network } from "../core/network";
+
 import { Chunk } from "./chunk";
 import { LightColor } from "./lights";
 import { World } from "./world";
 
 class Chunks {
   private map = new Map<string, Chunk>();
+  private packets = new Map<string, Coords2[]>();
 
   static SUPPOSED_NEIGHBORS = -1;
 
@@ -210,6 +213,13 @@ class Chunks {
     return this.map.delete(chunk.name);
   };
 
+  sendChunk = (chunk: Chunk, to: string) => {
+    let packets = this.packets.get(to);
+    if (!packets) packets = [];
+    packets.push(chunk.coords);
+    this.packets.set(to, packets);
+  };
+
   neighbors = (cx: number, cz: number) => {
     const neighbors: Chunk[] = [];
     const { maxLightLevel, chunkSize } = this.params;
@@ -233,6 +243,37 @@ class Chunks {
     }
 
     return neighbors.filter(Boolean);
+  };
+
+  update = () => {
+    if (this.packets.size === 0) return;
+
+    for (const [to, packets] of this.packets) {
+      if (packets.length === 0) continue;
+
+      const client = this.world.room.findClient(to);
+      if (!client) return;
+
+      client.send(
+        Network.encode({
+          type: "REQUEST",
+          chunks: packets
+            .splice(0, this.params.maxResponsePerTick)
+            .map((coords) => {
+              const chunk = this.getChunk(...coords);
+              if (!chunk) return;
+
+              return {
+                x: coords[0],
+                z: coords[1],
+                meshes: [chunk.mesh],
+                voxels: chunk.voxels.data,
+                lights: chunk.lights.data,
+              };
+            }),
+        })
+      );
+    }
   };
 
   get params() {

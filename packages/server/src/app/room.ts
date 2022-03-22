@@ -20,6 +20,7 @@ type RoomParams = {
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
+  maxResponsePerTick: number;
 };
 
 class Room {
@@ -40,6 +41,7 @@ class Room {
       maxHeight,
       maxLightLevel,
       maxChunksPerTick,
+      maxResponsePerTick,
     } = params;
 
     this.name = name;
@@ -50,6 +52,7 @@ class Room {
       maxHeight,
       maxLightLevel,
       maxChunksPerTick,
+      maxResponsePerTick,
     });
   }
 
@@ -160,6 +163,10 @@ class Room {
         text: client.id,
       });
     }
+  };
+
+  findClient = (id: string) => {
+    return this.clients.get(id);
   };
 
   start = () => {

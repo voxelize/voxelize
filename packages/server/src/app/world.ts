@@ -18,6 +18,7 @@ type WorldParams = {
   maxHeight: number;
   maxLightLevel: number;
   maxChunksPerTick: number;
+  maxResponsePerTick: number;
 };
 
 class World {
@@ -82,6 +83,7 @@ class World {
     this.ecs.update();
     this.entities.update();
     this.pipeline.update();
+    this.chunks.update();
   };
 }
 

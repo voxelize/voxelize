@@ -36,7 +36,10 @@ class Client extends Entity {
 
     this.add(new SettingsComponent({ renderRadius: 4 }));
     this.add(
-      new ChunkRequestsComponent({ pending: new Set(), finished: new Set() })
+      new ChunkRequestsComponent({
+        pending: new Set(),
+        finished: new Set(),
+      })
     );
 
     this.add(

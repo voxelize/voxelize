@@ -1,4 +1,4 @@
-import { ChunkUtils, ClientFlag, System } from "@voxelize/common";
+import { ChunkUtils, ClientFlag, IDComponent, System } from "@voxelize/common";
 
 import { Chunks } from "../chunks";
 import { ChunkRequestsComponent, CurrentChunkComponent } from "../comps";
@@ -9,6 +9,7 @@ class GenerateChunksSystem extends System {
   constructor(private chunks: Chunks) {
     super([
       ClientFlag.type,
+      IDComponent.type,
       ChunkRequestsComponent.type,
       CurrentChunkComponent.type,
       SettingsComponent.type,
@@ -16,6 +17,7 @@ class GenerateChunksSystem extends System {
   }
 
   update(client: Client): void {
+    const id = IDComponent.get(client).data;
     const requests = ChunkRequestsComponent.get(client).data;
     const currentChunk = CurrentChunkComponent.get(client).data;
     const settings = SettingsComponent.get(client).data;
@@ -26,6 +28,8 @@ class GenerateChunksSystem extends System {
       if (!chunk) return;
       requests.pending.delete(name);
       requests.finished.add(name);
+
+      this.chunks.sendChunk(chunk, id);
     });
 
     // stop if client doesn't need new chunks, otherwise mark that client
@@ -50,13 +54,7 @@ class GenerateChunksSystem extends System {
           continue;
         }
 
-        const chunk = this.chunks.getChunk(mappedX, mappedZ);
-
-        if (chunk) {
-          requests.finished.add(chunk.name);
-        } else {
-          requests.pending.add(name);
-        }
+        requests.pending.add(name);
       }
     }
   }
