@@ -1,4 +1,5 @@
-import { Coords3 } from "@voxelize/common";
+import { Coords3, LightUtils } from "@voxelize/common";
+import type { LightColor } from "@voxelize/common";
 import ndarray, { NdArray } from "ndarray";
 
 import { CHUNK_HORIZONTAL_NEIGHBORS, VOXEL_NEIGHBORS } from "./constants";
@@ -13,51 +14,12 @@ type LightNode = {
 
 type LightArray = NdArray<Uint32Array>;
 
-enum LightColor {
-  RED,
-  GREEN,
-  BLUE,
-  SUNLIGHT,
-}
-
 const contains = (lights: LightArray, x: number, y: number, z: number) => {
   const [sx, sy, sz] = lights.shape;
   return sx >= x || sy >= y || sz >= z;
 };
 
 class Lights {
-  static extractSunlight = (light: number) => {
-    return (light >> 12) & 0xf;
-  };
-
-  static insertSunlight = (light: number, level: number) => {
-    return (light & 0xfff) | (level << 12);
-  };
-
-  static extractRedLight = (light: number) => {
-    return (light >> 8) & 0xf;
-  };
-
-  static insertRedLight = (light: number, level: number) => {
-    return (light & 0xf0ff) | (level << 8);
-  };
-
-  static extractGreenLight = (light: number) => {
-    return (light >> 4) & 0xf;
-  };
-
-  static insertGreenLight = (light: number, level: number) => {
-    return (light & 0xff0f) | (level << 4);
-  };
-
-  static extractBlueLight = (light: number) => {
-    return light & 0xf;
-  };
-
-  static insertBlueLight = (light: number, level: number) => {
-    return (light & 0xfff0) | level;
-  };
-
   static floodLight = (
     queue: LightNode[],
     isSunlight: boolean,
@@ -215,12 +177,10 @@ class Lights {
       }
     }
 
-    const { RED, GREEN, BLUE, SUNLIGHT } = LightColor;
-
     Lights.floodLight(
       redLightQueue,
       false,
-      RED,
+      "RED",
       space,
       lights,
       registry,
@@ -229,7 +189,7 @@ class Lights {
     Lights.floodLight(
       greenLightQueue,
       false,
-      GREEN,
+      "GREEN",
       space,
       lights,
       registry,
@@ -238,7 +198,7 @@ class Lights {
     Lights.floodLight(
       blueLightQueue,
       false,
-      BLUE,
+      "BLUE",
       space,
       lights,
       registry,
@@ -247,7 +207,7 @@ class Lights {
     Lights.floodLight(
       sunlightQueue,
       true,
-      SUNLIGHT,
+      "SUNLIGHT",
       space,
       lights,
       registry,
@@ -282,7 +242,7 @@ class Lights {
     z: number
   ) => {
     if (!contains(lights, x, y, z)) return 0;
-    return Lights.extractSunlight(lights.get(x, y, z));
+    return LightUtils.extractSunlight(lights.get(x, y, z));
   };
 
   static setSunlight = (
@@ -293,7 +253,7 @@ class Lights {
     level: number
   ) => {
     if (!contains(lights, x, y, z)) return;
-    lights.set(x, y, z, Lights.insertSunlight(lights.get(x, y, z), level));
+    lights.set(x, y, z, LightUtils.insertSunlight(lights.get(x, y, z), level));
   };
 
   static getRedLight = (
@@ -303,7 +263,7 @@ class Lights {
     z: number
   ) => {
     if (!contains(lights, x, y, z)) return 0;
-    return Lights.extractRedLight(lights.get(x, y, z));
+    return LightUtils.extractRedLight(lights.get(x, y, z));
   };
 
   static setRedLight = (
@@ -314,7 +274,7 @@ class Lights {
     level: number
   ) => {
     if (!contains(lights, x, y, z)) return;
-    lights.set(x, y, z, Lights.insertRedLight(lights.get(x, y, z), level));
+    lights.set(x, y, z, LightUtils.insertRedLight(lights.get(x, y, z), level));
   };
 
   static getGreenLight = (
@@ -324,7 +284,7 @@ class Lights {
     z: number
   ) => {
     if (!contains(lights, x, y, z)) return 0;
-    return Lights.extractGreenLight(lights.get(x, y, z));
+    return LightUtils.extractGreenLight(lights.get(x, y, z));
   };
 
   static setGreenLight = (
@@ -335,7 +295,12 @@ class Lights {
     level: number
   ) => {
     if (!contains(lights, x, y, z)) return;
-    lights.set(x, y, z, Lights.insertGreenLight(lights.get(x, y, z), level));
+    lights.set(
+      x,
+      y,
+      z,
+      LightUtils.insertGreenLight(lights.get(x, y, z), level)
+    );
   };
 
   static getBlueLight = (
@@ -345,7 +310,7 @@ class Lights {
     z: number
   ) => {
     if (!contains(lights, x, y, z)) return 0;
-    return Lights.extractBlueLight(lights.get(x, y, z));
+    return LightUtils.extractBlueLight(lights.get(x, y, z));
   };
 
   static setBlueLight = (
@@ -356,7 +321,7 @@ class Lights {
     level: number
   ) => {
     if (!contains(lights, x, y, z)) return;
-    lights.set(x, y, z, Lights.insertBlueLight(lights.get(x, y, z), level));
+    lights.set(x, y, z, LightUtils.insertBlueLight(lights.get(x, y, z), level));
   };
 
   static getTorchLight = (
@@ -367,11 +332,11 @@ class Lights {
     color: LightColor
   ) => {
     switch (color) {
-      case LightColor.RED:
+      case "RED":
         return Lights.getRedLight(lights, x, y, z);
-      case LightColor.GREEN:
+      case "GREEN":
         return Lights.getGreenLight(lights, x, y, z);
-      case LightColor.BLUE:
+      case "BLUE":
         return Lights.getBlueLight(lights, x, y, z);
       default:
         throw new Error("Getting light of unknown color!");
@@ -387,11 +352,11 @@ class Lights {
     color: LightColor
   ) => {
     switch (color) {
-      case LightColor.RED:
+      case "RED":
         return Lights.setRedLight(lights, x, y, z, level);
-      case LightColor.GREEN:
+      case "GREEN":
         return Lights.setGreenLight(lights, x, y, z, level);
-      case LightColor.BLUE:
+      case "BLUE":
         return Lights.setBlueLight(lights, x, y, z, level);
       default:
         throw new Error("Setting light of unknown color!");

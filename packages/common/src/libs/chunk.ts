@@ -1,3 +1,0 @@
-class Chunk {}
-
-export { Chunk };

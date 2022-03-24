@@ -9,5 +9,4 @@ export * from "./pipeline";
 export * from "./chunks";
 export * from "./lights";
 export * from "./space";
-export * from "./blocks";
 export * from "./constants";

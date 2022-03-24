@@ -2598,7 +2598,7 @@
     estree-walker "^1.0.1"
     picomatch "^2.2.2"
 
-"@rollup/pluginutils@^4.1.0", "@rollup/pluginutils@^4.1.1", "@rollup/pluginutils@^4.1.2":
+"@rollup/pluginutils@^4.1.1", "@rollup/pluginutils@^4.1.2":
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/@rollup/pluginutils/-/pluginutils-4.1.2.tgz#ed5821c15e5e05e32816f5fb9ec607cdf5a75751"
   integrity sha512-ROn4qvkxP9SyPeHaf7uQC/GPFY6L/OWy9+bd9AwcjOAWQwxRscoEyAUD8qCY5o5iL4jqQwoLk2kaTKJPb/HwzQ==
@@ -3329,6 +3329,11 @@
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@types/typedarray-pool/-/typedarray-pool-1.1.2.tgz#e8ec19c0b0cd35ed4ff228076b1f4f89dd9c5764"
   integrity sha512-8Dz5kuaAjOKsOPAq22XFIvsO2IZrit/ohj1kXKCiXP19SVP3+4vtahcdMRlSokjAr0j7t4ulCtRhfRGMReUx3Q==
+
+"@types/uuid@^8.3.4":
+  version "8.3.4"
+  resolved "https://registry.yarnpkg.com/@types/uuid/-/uuid-8.3.4.tgz#bd86a43617df0594787d38b735f55c805becf1bc"
+  integrity sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==
 
 "@types/ws@^7.2.3":
   version "7.4.7"
@@ -11439,13 +11444,6 @@ rollup-plugin-web-worker-loader@^1.6.1:
   version "1.6.1"
   resolved "https://registry.yarnpkg.com/rollup-plugin-web-worker-loader/-/rollup-plugin-web-worker-loader-1.6.1.tgz#9d7a27575b64b0780fe4e8b3bc87470d217e485f"
   integrity sha512-4QywQSz1NXFHKdyiou16mH3ijpcfLtLGOrAqvAqu1Gx+P8+zj+3gwC2BSL/VW1d+LW4nIHC8F7d7OXhs9UdR2A==
-
-rollup-plugin-worker-threads@^0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/rollup-plugin-worker-threads/-/rollup-plugin-worker-threads-0.1.1.tgz#20dfda895f69e890474007d0c4436037e6466d09"
-  integrity sha512-bFZX7Ryaf3TyoJevBxdLkMbeNV3FTGeI3Sak5IorTY9FwwCR7Hf1W4TrDbghNS/21v3XYUo05+LTYgclNmxoUw==
-  dependencies:
-    "@rollup/pluginutils" "^4.1.0"
 
 rollup@^2.43.1, rollup@^2.67.0:
   version "2.67.0"

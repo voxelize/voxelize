@@ -1,9 +1,7 @@
-import { Coords3 } from "@voxelize/common";
+import { Coords3, BlockRotation, LightUtils, MeshData } from "@voxelize/common";
 
-import { BlockRotation } from "./blocks";
 import { Chunk } from "./chunk";
 import { BLOCK_FACES } from "./constants";
-import { Lights } from "./lights";
 import { Registry } from "./registry";
 
 const vertexAO = (side1: boolean, side2: boolean, corner: boolean) => {
@@ -28,14 +26,6 @@ const avg = (arr: number[]) => {
   let s = 0;
   arr.forEach((n) => (s += n));
   return s / arr.length;
-};
-
-type MeshData = {
-  positions: Float32Array;
-  indices: Int32Array;
-  uvs: Float32Array;
-  aos: Int32Array;
-  lights: Int32Array;
 };
 
 class Mesher {
@@ -395,10 +385,10 @@ class Mesher {
       const b = blueLights[i];
 
       let light = 0;
-      light = Lights.insertSunlight(light, s);
-      light = Lights.insertRedLight(light, r);
-      light = Lights.insertGreenLight(light, g);
-      light = Lights.insertBlueLight(light, b);
+      light = LightUtils.insertSunlight(light, s);
+      light = LightUtils.insertRedLight(light, r);
+      light = LightUtils.insertGreenLight(light, g);
+      light = LightUtils.insertBlueLight(light, b);
 
       lights.push(light);
     }
@@ -422,7 +412,5 @@ class Mesher {
     return { data, buffers };
   };
 }
-
-export type { MeshData };
 
 export { Mesher };

@@ -80,3 +80,20 @@ export type TextureRange = {
 
 export type Coords2 = [number, number];
 export type Coords3 = [number, number, number];
+
+export type MeshData = {
+  positions: Float32Array;
+  indices: Int32Array;
+  uvs: Float32Array;
+  aos: Int32Array;
+  lights: Int32Array;
+};
+
+export type WorldParams = {
+  padding: number;
+  chunkSize: number;
+  maxHeight: number;
+  maxLightLevel: number;
+  maxChunksPerTick: number;
+  maxResponsePerTick: number;
+};

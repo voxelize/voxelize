@@ -16,12 +16,14 @@ export default {
     format: "cjs",
   },
   onwarn: (warning, next) => {
-    if (!(warning.importer || warning.id).includes("protobufjs")) {
+    if (!(warning.importer || warning.id || []).includes("protobufjs")) {
       next(warning);
     }
   },
   plugins: [
-    resolve(),
+    resolve({
+      preferBuiltins: true,
+    }),
     commonjs(),
     swc({
       jsc: {

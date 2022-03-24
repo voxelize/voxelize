@@ -8,7 +8,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -- -w\" \"types -- -w --preserveWatchOutput\"",
+    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "clean": "rimraf -rf ./dist",
     "compile": "rollup -c rollup.config.js",
@@ -21,13 +21,18 @@
   },
   "dependencies": {
     "gl-vec3": "^1.1.3",
-    "protobufjs": "^6.11.2"
+    "ndarray": "^1.0.19",
+    "protobufjs": "^6.11.2",
+    "typedarray-pool": "^1.2.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-node-resolve": "^13.1.3",
     "@swc/core": "^1.2.143",
     "@types/gl-vec3": "^1.1.1",
+    "@types/ndarray": "^1.0.11",
+    "@types/typedarray-pool": "^1.1.2",
+    "@types/uuid": "^8.3.4",
     "npm-run-all": "^4.1.5",
     "rimraf": "~3.0.2",
     "rollup": "^2.67.3",

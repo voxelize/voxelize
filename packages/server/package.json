@@ -8,7 +8,7 @@
   ],
   "license": "MIT",
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -- -w\" \"types -- -w --preserveWatchOutput\"",
+    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "build": "yarn run clean && yarn run compile",
     "clean": "rimraf -rf ./dist",
     "compile": "yarn run types && rollup -c rollup.config.js",

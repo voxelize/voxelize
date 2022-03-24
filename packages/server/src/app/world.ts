@@ -1,4 +1,4 @@
-import { ECS, System, Block } from "@voxelize/common";
+import { ECS, System, Block, WorldParams } from "@voxelize/common";
 
 import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
@@ -11,15 +11,6 @@ import {
   CurrentChunkSystem,
   GenerateChunksSystem,
 } from "./systems";
-
-type WorldParams = {
-  padding: number;
-  chunkSize: number;
-  maxHeight: number;
-  maxLightLevel: number;
-  maxChunksPerTick: number;
-  maxResponsePerTick: number;
-};
 
 class World {
   public chunks: Chunks;

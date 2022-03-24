@@ -3,7 +3,6 @@ import {
   defaultBlock,
   BaseRegistry,
   TextureRange,
-  BlockFace,
 } from "@voxelize/common";
 
 import { World } from "./world";
