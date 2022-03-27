@@ -87,9 +87,12 @@ class Rendering {
 
     this.composer = new EffectComposer(this.renderer, this.renderTarget);
 
-    client.on("initialized", () => {
+    client.on("ready", () => {
       // fog
-      const { renderRadius, chunkSize, dimension } = this.client.world.params;
+      const { world, settings } = this.client;
+      const { chunkSize, dimension } = world.params;
+      const { renderRadius } = settings;
+
       this.fogNearColor = new Color(fogNearColor);
       this.fogFarColor = new Color(fogColor);
       this.fogUniforms = {

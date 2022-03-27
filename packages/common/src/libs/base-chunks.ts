@@ -1,4 +1,4 @@
-import { Coords2, Coords3, WorldParams } from "../types";
+import { BaseWorldParams, Coords2, Coords3 } from "../types";
 import { ChunkUtils, LightColor } from "../utils";
 
 import { BaseChunk } from "./base-chunk";
@@ -6,8 +6,6 @@ import { BaseRegistry } from "./base-registry";
 
 abstract class BaseChunks<C extends BaseChunk> {
   protected map = new Map<string, C>();
-
-  static SUPPOSED_NEIGHBORS = -1;
 
   /**
    * Get or start generating a chunk.
@@ -22,7 +20,7 @@ abstract class BaseChunks<C extends BaseChunk> {
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
       [vx, vy, vz],
-      this.params.chunkSize
+      this.worldParams.chunkSize
     );
 
     return this.getChunk(...coords);
@@ -126,7 +124,7 @@ abstract class BaseChunks<C extends BaseChunk> {
   };
 
   getNeighborChunkCoords = (vx: number, vy: number, vz: number) => {
-    const { chunkSize } = this.params;
+    const { chunkSize } = this.worldParams;
     const neighborChunks: Coords2[] = [];
 
     const [cx, cz] = ChunkUtils.mapVoxelPosToChunkPos([vx, vy, vz], chunkSize);
@@ -184,12 +182,12 @@ abstract class BaseChunks<C extends BaseChunk> {
     return this.map.delete(chunk.name);
   };
 
-  neighbors = (cx: number, cz: number) => {
+  checkSurrounded = (cx: number, cz: number) => {
     const neighbors: C[] = [];
-    const { maxLightLevel, chunkSize } = this.params;
+    const { maxLightLevel, chunkSize } = this.worldParams;
     const r = Math.ceil(maxLightLevel / chunkSize);
 
-    BaseChunks.SUPPOSED_NEIGHBORS = 0;
+    let count = 0;
 
     for (let x = -r; x <= r; x++) {
       for (let z = -r; z <= r; z++) {
@@ -201,15 +199,15 @@ abstract class BaseChunks<C extends BaseChunk> {
           continue;
         }
 
-        BaseChunks.SUPPOSED_NEIGHBORS++;
+        count++;
         neighbors.push(this.raw(ChunkUtils.getChunkName([cx + x, cz + z])));
       }
     }
 
-    return neighbors.filter(Boolean);
+    return neighbors.filter(Boolean).length >= count;
   };
 
-  abstract get params(): WorldParams;
+  abstract get worldParams(): BaseWorldParams;
   abstract get registry(): BaseRegistry;
 }
 

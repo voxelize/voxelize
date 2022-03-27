@@ -9,8 +9,6 @@ import { World } from "./world";
 class Chunks extends BaseChunks<Chunk> {
   private packets = new Map<string, Coords2[]>();
 
-  static SUPPOSED_NEIGHBORS = -1;
-
   constructor(public world: World) {
     super();
   }
@@ -28,7 +26,7 @@ class Chunks extends BaseChunks<Chunk> {
     const chunk = this.map.get(name);
     if (chunk) return chunk;
 
-    const { chunkSize, maxHeight, padding } = this.params;
+    const { chunkSize, maxHeight, padding } = this.worldParams;
     const [cx, cz] = ChunkUtils.parseChunkName(name);
     const newChunk = new Chunk(uuidv4(), cx, cz, {
       padding,
@@ -42,11 +40,11 @@ class Chunks extends BaseChunks<Chunk> {
     return null;
   };
 
-  sendChunk = (chunk: Chunk, to: string) => {
-    let packets = this.packets.get(to);
+  sendChunk = (chunk: Chunk, clientId: string) => {
+    let packets = this.packets.get(clientId);
     if (!packets) packets = [];
     packets.push(chunk.coords);
-    this.packets.set(to, packets);
+    this.packets.set(clientId, packets);
   };
 
   update = () => {
@@ -62,7 +60,7 @@ class Chunks extends BaseChunks<Chunk> {
         Network.encode({
           type: "REQUEST",
           chunks: packets
-            .splice(0, this.params.maxResponsePerTick)
+            .splice(0, this.worldParams.maxResponsePerTick)
             .map((coords) => {
               const chunk = this.getChunk(...coords);
               if (!chunk) return;
@@ -70,7 +68,8 @@ class Chunks extends BaseChunks<Chunk> {
               return {
                 x: coords[0],
                 z: coords[1],
-                meshes: [chunk.mesh],
+                id: chunk.id,
+                mesh: chunk.mesh,
                 voxels: chunk.voxels.data,
                 lights: chunk.lights.data,
               };
@@ -80,7 +79,7 @@ class Chunks extends BaseChunks<Chunk> {
     }
   };
 
-  get params() {
+  get worldParams() {
     return this.world.params;
   }
 

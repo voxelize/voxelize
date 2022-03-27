@@ -8,10 +8,10 @@ import {
 import { v4 as uuidv4 } from "uuid";
 
 import {
+  CurrentChunkComponent,
   HeadingComponent,
   Position3DComponent,
   TargetComponent,
-  CurrentChunkComponent,
 } from "../comps";
 
 class BaseEntity extends Entity {

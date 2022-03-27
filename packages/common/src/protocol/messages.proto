@@ -17,9 +17,10 @@ message Mesh {
 message Chunk {
   int32 x = 1;
   int32 z = 2;
-  repeated Mesh meshes = 3;
-  repeated uint32 voxels = 4 [ packed = true ];
-  repeated uint32 lights = 5 [ packed = true ];
+  string id = 3;
+  Mesh mesh = 4;
+  repeated uint32 voxels = 5 [ packed = true ];
+  repeated uint32 lights = 6 [ packed = true ];
 }
 
 message Vector3 {
@@ -54,6 +55,7 @@ message Message {
     PEER = 5;
     ENTITY = 6;
     REQUEST = 7;
+    SETTINGS = 8;
   }
 
   Type type = 1;

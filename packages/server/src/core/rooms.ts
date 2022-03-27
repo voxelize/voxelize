@@ -59,29 +59,30 @@ class Rooms extends Map<string, Room> {
               print[f] = client[f];
             });
             const requests = ChunkRequestsComponent.get(client).data;
-            print["requests"] = {};
-            Object.keys(requests).forEach((key) => {
-              print["requests"][key] = Array.from(requests[key]);
-            });
+            print["requests"] = Array.from(requests);
             return print;
           }),
           world: {
-            chunks: room.world.chunks.all().map((chunk) => ({
-              id: chunk.id,
-              name: chunk.name,
-              coords: chunk.coords,
-              min: chunk.min,
-              max: chunk.max,
-              minInner: chunk.minInner,
-              maxInner: chunk.maxInner,
-              test: chunk.getVoxel(chunk.min[0], 0, chunk.min[2] + 2),
-              height: chunk.getMaxHeight(chunk.min[0], chunk.min[2] + 2),
-              light: chunk.getSunlight(chunk.min[0], 10, chunk.min[2] + 2),
-              mesh: {
-                opaque: !!chunk.mesh.opaque,
-                transparent: !!chunk.mesh.transparent,
-              },
-            })),
+            pipeline: room.world.pipeline.queue.map(([c, s]) => [c.name, s]),
+            chunks: {
+              size: room.world.chunks.all().length,
+              map: room.world.chunks.all().map((chunk) => ({
+                id: chunk.id,
+                name: chunk.name,
+                coords: chunk.coords,
+                min: chunk.min,
+                max: chunk.max,
+                minInner: chunk.minInner,
+                maxInner: chunk.maxInner,
+                test: chunk.getVoxel(chunk.min[0], 0, chunk.min[2] + 2),
+                height: chunk.getMaxHeight(chunk.min[0], chunk.min[2] + 2),
+                light: chunk.getSunlight(chunk.min[0], 10, chunk.min[2] + 2),
+                mesh: {
+                  opaque: !!chunk.mesh.opaque,
+                  transparent: !!chunk.mesh.transparent,
+                },
+              })),
+            },
           },
         });
       });

@@ -1,30 +1,43 @@
+import { BaseWorldParams } from "@voxelize/common";
+
 import { Client } from "..";
 
-type WorldParams = {
-  maxHeight: number;
-  chunkSize: number;
+type WorldParams = BaseWorldParams & {
   dimension: number;
-  renderRadius: number;
-};
-
-const defaultParams: WorldParams = {
-  maxHeight: 256,
-  chunkSize: 16,
-  dimension: 5,
-  renderRadius: 8,
 };
 
 class World {
   public params: WorldParams;
 
-  constructor(public client: Client, params: Partial<WorldParams> = {}) {
-    this.params = {
-      ...defaultParams,
-      ...params,
-    };
-  }
-}
+  constructor(public client: Client) {}
 
-export type { WorldParams };
+  /**
+   * Applies the server settings onto this world.
+   * Caution: do not call this after game started!
+   *
+   * @memberof World
+   */
+  setParams = (data: Omit<WorldParams, "dimension">) => {
+    if (this.params) {
+      throw new Error(
+        "Do not call world.setParams as it is only used internally!"
+      );
+    }
+
+    this.params = {
+      ...data,
+      dimension: 1,
+    };
+
+    this.client.emit("ready");
+    this.client.ready = true;
+  };
+
+  setDimension = (value: number) => {
+    this.params.dimension = value;
+
+    // TODO: scale the chunks
+  };
+}
 
 export { World };

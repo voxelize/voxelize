@@ -1,7 +1,7 @@
 import ndarray, { NdArray } from "ndarray";
 import pool from "typedarray-pool";
 
-import { Coords3, Coords2, MeshData } from "../types";
+import { Coords3, Coords2 } from "../types";
 import { ChunkUtils, LightUtils, BlockUtils } from "../utils";
 import type { LightColor } from "../utils";
 
@@ -23,11 +23,6 @@ abstract class BaseChunk {
   public voxels: NdArray<Uint32Array>;
   public heightMap: NdArray<Uint32Array>;
   public lights: NdArray<Uint32Array>;
-
-  public mesh: {
-    transparent?: MeshData;
-    opaque?: MeshData;
-  } = {};
 
   constructor(
     public id: string,
@@ -232,6 +227,15 @@ abstract class BaseChunk {
 
     const [lx, , lz] = this.toLocal(vx, 0, vz);
     return this.heightMap.set(lx, lz, height);
+  };
+
+  distTo = (vx: number, _: number, vz: number) => {
+    const [mx, , mz] = this.min;
+
+    return Math.sqrt(
+      (mx + this.params.size / 2 - vx) ** 2 +
+        (mz + this.params.size / 2 - vz) ** 2
+    );
   };
 
   private getLocalRedLight = (lx: number, ly: number, lz: number) => {

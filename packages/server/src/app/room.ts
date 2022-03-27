@@ -1,9 +1,10 @@
-import { protocol } from "@voxelize/common";
+import { BaseWorldParams, protocol } from "@voxelize/common";
 import WebSocket from "ws";
 
 import { Network } from "../core/network";
 import { ClientFilter, defaultFilter } from "../core/shared";
 
+import { ChunkRequestsComponent } from "./comps";
 import { Client } from "./ents/client";
 import { World } from "./world";
 
@@ -57,7 +58,14 @@ class Room {
   }
 
   onConnect = (socket: WebSocket) => {
-    const { maxClients, pingInterval } = this.params;
+    const {
+      maxClients,
+      pingInterval,
+      chunkSize,
+      maxHeight,
+      maxLightLevel,
+      padding,
+    } = this.params;
 
     if (this.clients.size === maxClients) {
       socket.send(
@@ -75,6 +83,9 @@ class Room {
     const client = new Client(socket);
     client.isAlive = true;
 
+    const peers = Array.from(this.clients.values()).map(({ id }) => id);
+    this.clients.set(client.id, client);
+
     client.send(
       Network.encode({
         type: "INIT",
@@ -82,8 +93,14 @@ class Room {
           id: client.id,
           blocks: registry.getBlockMap(),
           ranges: registry.getRanges(),
+          params: {
+            chunkSize,
+            maxHeight,
+            maxLightLevel,
+            padding,
+          } as BaseWorldParams,
         },
-        peers: Array.from(this.clients.values()).map(({ id }) => id),
+        peers,
       })
     );
 
@@ -101,7 +118,6 @@ class Room {
     }
 
     this.world.ecs.addEntity(client);
-    this.clients.set(client.id, client);
   };
 
   onMessage = (client: Client, data: WebSocket.Data) => {
@@ -143,6 +159,14 @@ class Room {
               },
             })
           );
+        }
+        break;
+      }
+      case "REQUEST": {
+        const { chunks } = request.json;
+
+        if (chunks) {
+          ChunkRequestsComponent.get(client).data.push(...chunks);
         }
         break;
       }

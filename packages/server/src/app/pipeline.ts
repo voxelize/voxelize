@@ -1,4 +1,3 @@
-import { timeThis } from "@voxelize/common";
 import { Pool, spawn, Transfer } from "threads";
 
 import { Chunk } from "./chunk";
@@ -19,6 +18,8 @@ import { World } from "./world";
 
 abstract class ChunkStage {
   id: number;
+
+  abstract name: string;
 
   constructor(protected chunks: Chunks, protected registry: Registry) {}
 
@@ -45,6 +46,8 @@ abstract class ChunkStage {
 }
 
 class TestStage extends ChunkStage {
+  name = "Test";
+
   private pool = Pool(() => spawn<TesterType>(TestWorker()));
 
   check = () => true;
@@ -66,6 +69,8 @@ class TestStage extends ChunkStage {
 }
 
 class HeightMapStage extends ChunkStage {
+  name = "HeightMap";
+
   private pool = Pool(() => spawn<HeightMapperType>(HeightMapWorker()), {
     concurrency: 2,
   });
@@ -89,17 +94,18 @@ class HeightMapStage extends ChunkStage {
 }
 
 class LightStage extends ChunkStage {
+  name: "Light";
+
   private pool = Pool(() => spawn<LighterType>(LightWorker()), {
     concurrency: 4,
   });
 
   check = (chunk: Chunk) => {
-    const neighbors = this.chunks.neighbors(...chunk.coords);
-    return !(neighbors.length - Chunks.SUPPOSED_NEIGHBORS);
+    return this.chunks.checkSurrounded(...chunk.coords);
   };
 
   process = async (chunk: Chunk) => {
-    const { chunkSize, maxHeight, maxLightLevel } = this.chunks.params;
+    const { chunkSize, maxHeight, maxLightLevel } = this.chunks.worldParams;
     const space = new Space(chunk.coords, this.chunks, {
       maxHeight,
       chunkSize,
@@ -114,7 +120,7 @@ class LightStage extends ChunkStage {
       const newBuffer = await worker.propagate(
         Transfer(output, buffers) as any,
         registryObj,
-        this.chunks.params
+        this.chunks.worldParams
       );
       chunk.lights.data = new Uint32Array(newBuffer);
     });
@@ -124,6 +130,8 @@ class LightStage extends ChunkStage {
 }
 
 class MeshStage extends ChunkStage {
+  name = "Mesh";
+
   private pool = Pool(() => spawn<MesherType>(MeshWorker()), {
     concurrency: 4,
   });
@@ -134,6 +142,8 @@ class MeshStage extends ChunkStage {
     const { output, buffers } = chunk.export({ voxels: true, lights: true });
     const registryObj = this.registry.export();
 
+    const time = performance.now();
+
     await this.pool.queue(async (worker) => {
       const data = await worker.mesh(
         Transfer(output, buffers) as any,
@@ -141,6 +151,8 @@ class MeshStage extends ChunkStage {
       );
       chunk.mesh = data;
     });
+
+    console.log(`meshed chunk ${chunk.name} in ${performance.now() - time}`);
 
     return chunk;
   };
@@ -155,7 +167,7 @@ const StagePresets = {
 
 class Pipeline {
   private stages: ChunkStage[] = [];
-  private queue: [Chunk, number][] = [];
+  queue: [Chunk, number][] = [];
 
   private coords = new Set<string>();
 
@@ -202,7 +214,7 @@ class Pipeline {
   update = () => {
     if (this.queue.length === 0) return;
 
-    const { maxChunksPerTick } = this.params;
+    const { maxChunksPerTick } = this.worldParams;
 
     const processes = [];
 
@@ -228,7 +240,10 @@ class Pipeline {
       return;
     }
 
+    console.time(`processed chunk ${chunk.name} in stage ${stage.name}`);
+    console.log(`processing chunk ${chunk.name} in stage ${stage.name}`);
     await stage.process(chunk);
+    console.timeEnd(`processed chunk ${chunk.name} in stage ${stage.name}`);
 
     // last stage
     if (index < this.stages.length - 1) {
@@ -240,7 +255,7 @@ class Pipeline {
     return chunk;
   };
 
-  get params() {
+  get worldParams() {
     return this.world.params;
   }
 }

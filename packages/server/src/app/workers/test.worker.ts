@@ -20,7 +20,7 @@ const test = (
 
   for (let x = minX; x < maxX; x++) {
     for (let z = minZ; z < maxZ; z++) {
-      for (let y = 0; y < 128; y++) {
+      for (let y = 0; y < 3; y++) {
         chunk.setVoxel(x, y, z, orange.id);
       }
     }

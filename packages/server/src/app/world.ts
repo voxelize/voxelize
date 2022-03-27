@@ -1,4 +1,4 @@
-import { ECS, System, Block, WorldParams } from "@voxelize/common";
+import { ECS, System, Block, BaseWorldParams } from "@voxelize/common";
 
 import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
@@ -11,6 +11,11 @@ import {
   CurrentChunkSystem,
   GenerateChunksSystem,
 } from "./systems";
+
+type WorldParams = BaseWorldParams & {
+  maxChunksPerTick: number;
+  maxResponsePerTick: number;
+};
 
 class World {
   public chunks: Chunks;

@@ -66,7 +66,7 @@ class Network {
     };
     ws.onopen = () => {
       this.connected = true;
-      this.client.entities.reset();
+      this.client.entities?.reset();
       this.client.emit("connected");
       clearTimeout(this.reconnection);
     };
@@ -83,6 +83,15 @@ class Network {
 
     this.ws = ws;
     this.room = room;
+  };
+
+  handshake = () => {
+    this.send({
+      type: "SETTINGS",
+      json: {
+        // renderRadius:
+      },
+    });
   };
 
   disconnect = () => {
@@ -125,11 +134,15 @@ class Network {
       case "INIT": {
         const {
           peers,
-          json: { blocks, ranges, id },
+          json: { blocks, ranges, id, params },
         } = event;
 
         if (id) {
           this.id = id;
+        }
+
+        if (params) {
+          this.client.world.setParams(params);
         }
 
         // if any other peers exist on load:
@@ -174,7 +187,13 @@ class Network {
         break;
       }
       case "REQUEST": {
-        console.log(event);
+        const { chunks } = event;
+
+        if (chunks) {
+          chunks.forEach((chunk) => {
+            this.client.chunks.handleServerChunk(chunk);
+          });
+        }
       }
     }
   };

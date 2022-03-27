@@ -1,4 +1,4 @@
-import { Coords2, BaseChunk } from "@voxelize/common";
+import { Coords2, BaseChunk, MeshData } from "@voxelize/common";
 
 type ChunkParams = {
   size: number;
@@ -21,6 +21,11 @@ type ChunkTransferable = {
 };
 
 class Chunk extends BaseChunk {
+  public mesh: {
+    transparent?: MeshData;
+    opaque?: MeshData;
+  } = {};
+
   export = (
     {
       voxels,

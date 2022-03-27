@@ -1,12 +1,11 @@
 import { EventEmitter } from "events";
 
-import { ECS, System } from "@voxelize/common";
+import { ChunkUtils, ECS, System } from "@voxelize/common";
 
 import {
   Container,
   ContainerParams,
   World,
-  WorldParams,
   Network,
   RenderingParams,
   Rendering,
@@ -25,12 +24,13 @@ import {
   Mesher,
   Registry,
   RegistryParams,
+  Settings,
 } from "./core";
+import { Chunks } from "./core/chunks";
 
 type ClientParams = {
   container?: Partial<ContainerParams>;
   rendering?: Partial<RenderingParams>;
-  world?: Partial<WorldParams>;
   camera?: Partial<CameraParams>;
   peers?: Partial<PeersParams>;
   entities?: Partial<EntitiesParams>;
@@ -57,7 +57,10 @@ class Client extends EventEmitter {
   public entities: Entities;
   public mesher: Mesher;
   public registry: Registry;
+  public settings: Settings;
+  public chunks: Chunks;
 
+  private _ready = false;
   private animationFrame: number;
 
   constructor(params: ClientParams = {}) {
@@ -66,7 +69,6 @@ class Client extends EventEmitter {
     const {
       container,
       rendering,
-      world,
       camera,
       peers,
       entities,
@@ -79,7 +81,7 @@ class Client extends EventEmitter {
     this.debug = new Debug(this);
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
-    this.world = new World(this, world);
+    this.world = new World(this);
     this.camera = new Camera(this, camera);
     this.peers = new Peers(this, peers);
     this.entities = new Entities(this, entities);
@@ -88,6 +90,8 @@ class Client extends EventEmitter {
     this.inputs = new Inputs(this);
     this.mesher = new Mesher(this);
     this.clock = new Clock(this);
+    this.settings = new Settings(this);
+    this.chunks = new Chunks(this);
 
     // all members has been initialized
     this.emit("initialized");
@@ -153,6 +157,28 @@ class Client extends EventEmitter {
     this.name = name || " ";
   };
 
+  get position() {
+    return this.controls.object.position;
+  }
+
+  get voxel() {
+    return ChunkUtils.mapWorldPosToVoxelPos(
+      this.position.toArray(),
+      this.world.params.dimension
+    );
+  }
+
+  get ready() {
+    return this._ready;
+  }
+
+  set ready(_: boolean) {
+    if (this._ready)
+      throw new Error("Do not change world.ready after starting the game.");
+
+    this._ready = true;
+  }
+
   private run = () => {
     const animate = () => {
       this.animationFrame = requestAnimationFrame(animate);
@@ -163,7 +189,7 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
-    if (!this.network.connected) {
+    if (!this.network.connected || !this.ready) {
       return;
     }
 
@@ -174,6 +200,7 @@ class Client extends EventEmitter {
     this.peers.update();
     this.controls.update();
     this.debug.update();
+    this.chunks.update();
 
     this.rendering.render();
   };

@@ -89,11 +89,9 @@ export type MeshData = {
   lights: Int32Array;
 };
 
-export type WorldParams = {
+export type BaseWorldParams = {
   padding: number;
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;
-  maxChunksPerTick: number;
-  maxResponsePerTick: number;
 };
