@@ -7,7 +7,6 @@ import type { LightColor } from "../utils";
 
 type BaseChunkParams = {
   size: number;
-  padding: number;
   maxHeight: number;
 };
 
@@ -17,8 +16,6 @@ abstract class BaseChunk {
 
   public min: Coords3;
   public max: Coords3;
-  public minInner: Coords3;
-  public maxInner: Coords3;
 
   public voxels: NdArray<Uint32Array>;
   public heightMap: NdArray<Uint32Array>;
@@ -33,35 +30,24 @@ abstract class BaseChunk {
     this.name = ChunkUtils.getChunkName([x, z]);
     this.coords = [x, z];
 
-    const { size, maxHeight, padding } = params;
+    const { size, maxHeight } = params;
 
-    this.voxels = ndarray(
-      pool.mallocUint32(
-        (size + padding * 2) * maxHeight * (size + padding * 2)
-      ),
-      [size + padding * 2, maxHeight, size + padding * 2]
-    );
-
-    this.heightMap = ndarray(pool.mallocUint32((size + padding * 2) ** 2), [
-      size + padding * 2,
-      size + padding * 2,
+    this.voxels = ndarray(pool.mallocUint32(size * maxHeight * size), [
+      size,
+      maxHeight,
+      size,
     ]);
 
-    this.lights = ndarray(
-      pool.mallocUint32(
-        (size + padding * 2) * maxHeight * (size + padding * 2)
-      ),
-      [size + padding * 2, maxHeight, size + padding * 2]
-    );
+    this.heightMap = ndarray(pool.mallocUint32(size ** 2), [size, size]);
 
-    this.minInner = [x * size, 0, z * size];
-    this.min = [this.minInner[0] - padding, 0, this.minInner[2] - padding];
-    this.maxInner = [(x + 1) * size, maxHeight, (z + 1) * size];
-    this.max = [
-      this.maxInner[0] + padding,
+    this.lights = ndarray(pool.mallocUint32(size * maxHeight * size), [
+      size,
       maxHeight,
-      this.maxInner[2] + padding,
-    ];
+      size,
+    ]);
+
+    this.min = [x * size, 0, z * size];
+    this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
   save: () => void;
@@ -316,16 +302,10 @@ abstract class BaseChunk {
   };
 
   private contains = (vx: number, vy: number, vz: number) => {
-    const { size, maxHeight, padding } = this.params;
+    const { size, maxHeight } = this.params;
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
 
-    return (
-      lx < size + padding * 2 &&
-      ly >= 0 &&
-      ly < maxHeight &&
-      lz >= 0 &&
-      lz < size + padding * 2
-    );
+    return lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size;
   };
 
   private assert = (vx: number, vy: number, vz: number) => {

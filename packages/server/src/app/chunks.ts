@@ -26,10 +26,9 @@ class Chunks extends BaseChunks<Chunk> {
     const chunk = this.map.get(name);
     if (chunk) return chunk;
 
-    const { chunkSize, maxHeight, padding } = this.worldParams;
+    const { chunkSize, maxHeight } = this.worldParams;
     const [cx, cz] = ChunkUtils.parseChunkName(name);
     const newChunk = new Chunk(uuidv4(), cx, cz, {
-      padding,
       maxHeight,
       size: chunkSize,
     });
@@ -72,6 +71,7 @@ class Chunks extends BaseChunks<Chunk> {
                 mesh: chunk.mesh,
                 voxels: chunk.voxels.data,
                 lights: chunk.lights.data,
+                heightMap: chunk.heightMap.data,
               };
             }),
         })

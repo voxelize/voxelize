@@ -62,7 +62,9 @@ class World {
     this.ecs.addSystem(system);
   };
 
-  addStage = (stage: new (c: Chunks, r: Registry) => ChunkStage) => {
+  addStage = (
+    stage: new (p: Pipeline, c: Chunks, r: Registry) => ChunkStage
+  ) => {
     this.pipeline.addStage(stage);
   };
 

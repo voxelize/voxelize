@@ -16,7 +16,6 @@ type RoomParams = {
   pingInterval: number;
   updateInterval: number;
 
-  padding: number;
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;
@@ -37,7 +36,6 @@ class Room {
   constructor(public params: RoomParams) {
     const {
       name,
-      padding,
       chunkSize,
       maxHeight,
       maxLightLevel,
@@ -48,7 +46,6 @@ class Room {
     this.name = name;
 
     this.world = new World(this, {
-      padding,
       chunkSize,
       maxHeight,
       maxLightLevel,
@@ -58,14 +55,8 @@ class Room {
   }
 
   onConnect = (socket: WebSocket) => {
-    const {
-      maxClients,
-      pingInterval,
-      chunkSize,
-      maxHeight,
-      maxLightLevel,
-      padding,
-    } = this.params;
+    const { maxClients, pingInterval, chunkSize, maxHeight, maxLightLevel } =
+      this.params;
 
     if (this.clients.size === maxClients) {
       socket.send(
@@ -97,7 +88,6 @@ class Room {
             chunkSize,
             maxHeight,
             maxLightLevel,
-            padding,
           } as BaseWorldParams,
         },
         peers,

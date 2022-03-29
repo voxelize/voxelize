@@ -1,8 +1,9 @@
 import { Coords2, BaseChunk, MeshData } from "@voxelize/common";
 
+import { ExportOptions } from "./shared";
+
 type ChunkParams = {
   size: number;
-  padding: number;
   maxHeight: number;
 };
 
@@ -27,15 +28,11 @@ class Chunk extends BaseChunk {
   } = {};
 
   export = (
-    {
-      voxels,
-      lights,
-      heightMap,
-    }: {
-      voxels?: boolean;
-      lights?: boolean;
-      heightMap?: boolean;
-    } = { voxels: false, lights: false, heightMap: false }
+    { needVoxels, needLights, needHeightMap }: ExportOptions = {
+      needVoxels: false,
+      needLights: false,
+      needHeightMap: false,
+    }
   ) => {
     const output: ChunkTransferableData = {
       id: this.id,
@@ -45,17 +42,17 @@ class Chunk extends BaseChunk {
 
     const buffers: ArrayBuffer[] = [];
 
-    if (voxels) {
+    if (needVoxels) {
       output.voxels = this.voxels.data.buffer;
       buffers.push(this.voxels.data.buffer.slice(0));
     }
 
-    if (lights) {
+    if (needLights) {
       output.lights = this.lights.data.buffer;
       buffers.push(this.lights.data.buffer.slice(0));
     }
 
-    if (heightMap) {
+    if (needHeightMap) {
       output.heightMap = this.heightMap.data.buffer;
       buffers.push(this.heightMap.data.buffer.slice(0));
     }

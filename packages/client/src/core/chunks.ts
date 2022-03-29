@@ -19,6 +19,7 @@ type ServerChunk = {
   id: string;
   lights: Uint32Array;
   voxels: Uint32Array;
+  heightMap: Uint32Array;
   mesh: Mesh;
 };
 
@@ -62,8 +63,8 @@ class Chunks extends BaseChunks<Chunk> {
   };
 
   handleServerChunk = (data: ServerChunk) => {
-    const { x, z, id, lights, mesh, voxels } = data;
-    const { chunkSize, maxHeight, padding } = this.worldParams;
+    const { x, z, id, lights, mesh, voxels, heightMap } = data;
+    const { chunkSize, maxHeight } = this.worldParams;
 
     let chunk = this.getChunk(x, z);
 
@@ -71,7 +72,6 @@ class Chunks extends BaseChunks<Chunk> {
       chunk = new Chunk(this.client, id, x, z, {
         size: chunkSize,
         maxHeight,
-        padding,
       });
 
       this.map.set(chunk.name, chunk);
@@ -79,6 +79,7 @@ class Chunks extends BaseChunks<Chunk> {
 
     if (lights.length) chunk.lights.data = lights;
     if (voxels.length) chunk.voxels.data = voxels;
+    if (heightMap.length) chunk.heightMap.data = heightMap;
 
     if (mesh) {
       chunk.build(mesh);

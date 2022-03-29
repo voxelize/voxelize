@@ -1,3 +1,4 @@
+import { ChunkUtils } from "@voxelize/common";
 import { Pool, spawn, Transfer } from "threads";
 
 import { Chunk } from "./chunk";
@@ -5,14 +6,12 @@ import { Chunks } from "./chunks";
 import { Registry } from "./registry";
 import { Space } from "./space";
 import {
-  LightWorker,
-  LighterType,
   TesterType,
-  MesherType,
   TestWorker,
   HeightMapperType,
   HeightMapWorker,
-  MeshWorker,
+  LightMesherType,
+  LightMeshWorker,
 } from "./workers";
 import { World } from "./world";
 
@@ -21,7 +20,11 @@ abstract class ChunkStage {
 
   abstract name: string;
 
-  constructor(protected chunks: Chunks, protected registry: Registry) {}
+  constructor(
+    protected pipeline: Pipeline,
+    protected chunks: Chunks,
+    protected registry: Registry
+  ) {}
 
   /**
    * Gets run to see if a chunk should propagate to the next
@@ -30,7 +33,7 @@ abstract class ChunkStage {
    * @abstract
    * @memberof ChunkStage
    */
-  abstract check: (chunk?: Chunk) => boolean;
+  abstract check: (chunk: Chunk) => boolean;
 
   /**
    * Gets run every system tick, processes through chunk
@@ -53,7 +56,7 @@ class TestStage extends ChunkStage {
   check = () => true;
 
   process = async (chunk: Chunk) => {
-    const { output, buffers } = chunk.export({ voxels: true });
+    const { output, buffers } = chunk.export({ needVoxels: true });
     const registryObj = this.registry.export();
 
     await this.pool.queue(async (worker) => {
@@ -71,14 +74,12 @@ class TestStage extends ChunkStage {
 class HeightMapStage extends ChunkStage {
   name = "HeightMap";
 
-  private pool = Pool(() => spawn<HeightMapperType>(HeightMapWorker()), {
-    concurrency: 2,
-  });
+  private pool = Pool(() => spawn<HeightMapperType>(HeightMapWorker()));
 
   check = () => true;
 
   process = async (chunk: Chunk) => {
-    const { output, buffers } = chunk.export({ voxels: true });
+    const { output, buffers } = chunk.export({ needVoxels: true });
     const registryObj = this.registry.export();
 
     await this.pool.queue(async (worker) => {
@@ -93,66 +94,76 @@ class HeightMapStage extends ChunkStage {
   };
 }
 
-class LightStage extends ChunkStage {
-  name: "Light";
+class LightMeshStage extends ChunkStage {
+  name = "LightMesh";
 
-  private pool = Pool(() => spawn<LighterType>(LightWorker()), {
-    concurrency: 4,
-  });
+  private pool = Pool(() => spawn<LightMesherType>(LightMeshWorker()));
 
   check = (chunk: Chunk) => {
-    return this.chunks.checkSurrounded(...chunk.coords);
+    const { chunkSize, maxLightLevel } = this.chunks.worldParams;
+    const r = Math.ceil(maxLightLevel / chunkSize);
+    const [cx, cz] = chunk.coords;
+
+    const ownStage = this.pipeline.getStage(chunk);
+
+    for (let x = -r; x <= r; x++) {
+      for (let z = -r; z <= r; z++) {
+        if (x === 0 && z === 0) continue;
+
+        const name = ChunkUtils.getChunkName([cx + x, cz + z]);
+        const neighbor = this.chunks.raw(name);
+
+        if (!neighbor) {
+          return false;
+        }
+
+        const stage = this.pipeline.getStage(neighbor);
+
+        // means chunk already finished
+        if (isNaN(stage)) continue;
+
+        if (stage < ownStage) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   };
 
   process = async (chunk: Chunk) => {
     const { chunkSize, maxHeight, maxLightLevel } = this.chunks.worldParams;
-    const space = new Space(chunk.coords, this.chunks, {
-      maxHeight,
-      chunkSize,
-      margin: maxLightLevel,
+    const { output: chunkOutput, buffers: chunkBuffers } = chunk.export({
+      needVoxels: true,
+      needLights: true,
+      needHeightMap: true,
     });
 
-    const { output, buffers } = space.export();
+    const space = new Space(
+      this.chunks,
+      chunk.coords,
+      { needVoxels: true, needHeightMap: true, needLights: true },
+      {
+        maxHeight,
+        chunkSize,
+        margin: maxLightLevel,
+      }
+    );
 
+    const { output: spaceOutput, buffers: spaceBuffers } = space.export();
     const registryObj = this.registry.export();
 
     await this.pool.queue(async (worker) => {
-      const newBuffer = await worker.propagate(
-        Transfer(output, buffers) as any,
+      const { chunk: doneChunk, mesh } = await worker.run(
+        Transfer(chunkOutput, chunkBuffers) as any,
+        Transfer(spaceOutput, spaceBuffers) as any,
         registryObj,
-        this.chunks.worldParams
+        this.chunks.worldParams,
+        { propagate: true }
       );
-      chunk.lights.data = new Uint32Array(newBuffer);
+      chunk.import(doneChunk);
+      chunk.mesh = mesh;
     });
-
-    return chunk;
-  };
-}
-
-class MeshStage extends ChunkStage {
-  name = "Mesh";
-
-  private pool = Pool(() => spawn<MesherType>(MeshWorker()), {
-    concurrency: 4,
-  });
-
-  check = () => true;
-
-  process = async (chunk: Chunk) => {
-    const { output, buffers } = chunk.export({ voxels: true, lights: true });
-    const registryObj = this.registry.export();
-
-    const time = performance.now();
-
-    await this.pool.queue(async (worker) => {
-      const data = await worker.mesh(
-        Transfer(output, buffers) as any,
-        registryObj
-      );
-      chunk.mesh = data;
-    });
-
-    console.log(`meshed chunk ${chunk.name} in ${performance.now() - time}`);
 
     return chunk;
   };
@@ -161,43 +172,42 @@ class MeshStage extends ChunkStage {
 const StagePresets = {
   TestStage,
   HeightMapStage,
-  LightStage,
-  MeshStage,
+  LightMeshStage,
 };
 
 class Pipeline {
+  public queue: [Chunk, number][] = [];
+
   private stages: ChunkStage[] = [];
-  queue: [Chunk, number][] = [];
-
-  private coords = new Set<string>();
-
+  private progress = new Map<string, number>();
   private processing = 0;
 
   constructor(public world: World) {
     this.addStage(TestStage);
     this.addStage(HeightMapStage);
-    this.addStage(LightStage);
-    this.addStage(MeshStage);
+    this.addStage(LightMeshStage);
   }
 
   hasChunk = (name: string) => {
-    return this.coords.has(name);
+    return this.progress.has(name);
   };
 
   addChunk = (chunk: Chunk, stage: number) => {
-    if (this.coords.has(chunk.name)) {
+    if (this.progress.has(chunk.name)) {
       throw new Error("Adding a processing chunk");
     }
 
     this.queue.push([chunk, stage]);
-    this.coords.add(chunk.name);
+    this.progress.set(chunk.name, stage);
 
     return this;
   };
 
-  addStage = (Stage: new (c: Chunks, r: Registry) => ChunkStage) => {
+  addStage = (
+    Stage: new (p: Pipeline, c: Chunks, r: Registry) => ChunkStage
+  ) => {
     const { chunks, registry } = this.world;
-    const stage = new Stage(chunks, registry);
+    const stage = new Stage(this, chunks, registry);
 
     if (!stage.process) {
       throw new Error("Chunk stage does nothing!");
@@ -211,12 +221,14 @@ class Pipeline {
     return this;
   };
 
+  getStage = (chunk: Chunk) => {
+    return this.progress.get(chunk.name);
+  };
+
   update = () => {
     if (this.queue.length === 0) return;
 
     const { maxChunksPerTick } = this.worldParams;
-
-    const processes = [];
 
     // only continue if the processing count is less than max chunks per tick
     for (; this.processing < maxChunksPerTick; this.processing++) {
@@ -224,16 +236,14 @@ class Pipeline {
       if (!process) break;
 
       const [chunk, stage] = process;
-      processes.push(this.process(chunk, stage));
+      this.process(chunk, stage).then(() => {
+        this.processing = Math.max(this.processing - 1, 0);
+      });
     }
-
-    Promise.all(processes).then(() => {
-      this.processing = 0;
-    });
   };
 
   process = async (chunk: Chunk, index: number) => {
-    const stage = this.stages[Math.floor(index)];
+    const stage = this.stages[index];
 
     if (!stage.check(chunk)) {
       this.queue.push([chunk, index]);
@@ -241,15 +251,15 @@ class Pipeline {
     }
 
     console.time(`processed chunk ${chunk.name} in stage ${stage.name}`);
-    console.log(`processing chunk ${chunk.name} in stage ${stage.name}`);
     await stage.process(chunk);
     console.timeEnd(`processed chunk ${chunk.name} in stage ${stage.name}`);
 
     // last stage
     if (index < this.stages.length - 1) {
+      this.progress.set(chunk.name, index + 1);
       this.queue.push([chunk, index + 1]);
     } else {
-      this.coords.delete(chunk.name);
+      this.progress.delete(chunk.name);
     }
 
     return chunk;

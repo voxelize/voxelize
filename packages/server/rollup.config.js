@@ -57,6 +57,9 @@ export default {
         format: "cjs",
         name: "WorkerThread",
       },
+      watch: {
+        include: "./src/**",
+      },
     }),
     ...commonPlugins,
     ...(process.env.ROLLUP_WATCH ? [] : [terser()]),

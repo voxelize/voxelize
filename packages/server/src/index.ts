@@ -8,7 +8,6 @@ type ServerParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
-  padding: number;
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;
@@ -21,7 +20,6 @@ const defaultParams: ServerParams = {
   maxClients: 100,
   pingInterval: 50000,
   updateInterval: 1000 / 60,
-  padding: 1,
   chunkSize: 16,
   maxHeight: 256,
   maxLightLevel: 15,

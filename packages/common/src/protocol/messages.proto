@@ -21,6 +21,7 @@ message Chunk {
   Mesh mesh = 4;
   repeated uint32 voxels = 5 [ packed = true ];
   repeated uint32 lights = 6 [ packed = true ];
+  repeated uint32 heightMap = 7 [ packed = true ];
 }
 
 message Vector3 {

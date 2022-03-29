@@ -182,29 +182,20 @@ abstract class BaseChunks<C extends BaseChunk> {
     return this.map.delete(chunk.name);
   };
 
-  checkSurrounded = (cx: number, cz: number) => {
-    const neighbors: C[] = [];
-    const { maxLightLevel, chunkSize } = this.worldParams;
-    const r = Math.ceil(maxLightLevel / chunkSize);
-
-    let count = 0;
-
+  checkSurrounded = (cx: number, cz: number, r: number) => {
     for (let x = -r; x <= r; x++) {
       for (let z = -r; z <= r; z++) {
         if (x === 0 && z === 0) {
           continue;
         }
 
-        if (x ** 2 + z ** 2 > r ** 2) {
-          continue;
+        if (!this.raw(ChunkUtils.getChunkName([cx + x, cz + z]))) {
+          return false;
         }
-
-        count++;
-        neighbors.push(this.raw(ChunkUtils.getChunkName([cx + x, cz + z])));
       }
     }
 
-    return neighbors.filter(Boolean).length >= count;
+    return true;
   };
 
   abstract get worldParams(): BaseWorldParams;

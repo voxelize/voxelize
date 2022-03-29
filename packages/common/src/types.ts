@@ -90,7 +90,6 @@ export type MeshData = {
 };
 
 export type BaseWorldParams = {
-  padding: number;
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;

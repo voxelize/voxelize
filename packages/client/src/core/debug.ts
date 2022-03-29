@@ -285,12 +285,9 @@ class Debug {
     this.registerDisplay("", this, "fps");
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
-
-    const axesHelper = new AxesHelper(16);
-    const gridHelper = new GridHelper(15, 15);
-
-    this.group.add(axesHelper, gridHelper);
-    this.client.rendering.scene.add(this.group);
+    this.registerDisplay("Position", this.client, "voxel");
+    this.registerDisplay("Max Height", this, "maxHeight");
+    this.registerDisplay("Light", this, "light");
   };
 
   private setupInputs = () => {
@@ -364,6 +361,16 @@ class Debug {
       return `${value} fps (${min}, ${max})`;
     };
   })();
+
+  get light() {
+    const { voxel } = this.client;
+    return this.client.chunks.getSunlightByVoxel(...voxel);
+  }
+
+  get maxHeight() {
+    const { voxel } = this.client;
+    return this.client.chunks.getMaxHeight(voxel[0], voxel[2]);
+  }
 }
 
 export { Debug };

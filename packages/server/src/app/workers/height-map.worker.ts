@@ -33,7 +33,7 @@ const calculate = (
     }
   }
 
-  const { output, buffers } = chunk.export({ heightMap: true });
+  const { output, buffers } = chunk.export({ needHeightMap: true });
 
   return Transfer(output, buffers);
 };

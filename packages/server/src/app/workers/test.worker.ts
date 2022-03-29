@@ -20,13 +20,14 @@ const test = (
 
   for (let x = minX; x < maxX; x++) {
     for (let z = minZ; z < maxZ; z++) {
-      for (let y = 0; y < 3; y++) {
+      const limit = (x * z) % 5 === 0 ? 10 : 5;
+      for (let y = 0; y < limit; y++) {
         chunk.setVoxel(x, y, z, orange.id);
       }
     }
   }
 
-  const { output, buffers } = chunk.export({ voxels: true });
+  const { output, buffers } = chunk.export({ needVoxels: true });
 
   return Transfer(output, buffers);
 };

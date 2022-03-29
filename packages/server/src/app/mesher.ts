@@ -1,25 +1,25 @@
 import { Coords3, BlockRotation, LightUtils, MeshData } from "@voxelize/common";
 
-import { Chunk } from "./chunk";
 import { BLOCK_FACES } from "./constants";
 import { Registry } from "./registry";
+import { Space } from "./space";
 
 const vertexAO = (side1: boolean, side2: boolean, corner: boolean) => {
-  const s1num = +side1;
-  const s2num = +side2;
-  const cnum = +corner;
+  const s1num = +!side1;
+  const s2num = +!side2;
+  const cnum = +!corner;
 
-  return s1num == 1 && s2num == 1 ? 0 : 3 - (s1num + s2num + cnum);
+  return s1num === 1 && s2num === 1 ? 0 : 3 - (s1num + s2num + cnum);
 };
 
 const getBlockByVoxel = (
   vx: number,
   vy: number,
   vz: number,
-  chunk: Chunk,
+  space: Space,
   registry: Registry
 ) => {
-  return registry.getBlockById(chunk.getVoxel(vx, vy, vz));
+  return registry.getBlockById(space.getVoxel(vx, vy, vz));
 };
 
 const avg = (arr: number[]) => {
@@ -29,34 +29,35 @@ const avg = (arr: number[]) => {
 };
 
 class Mesher {
-  static meshChunk = (
-    chunk: Chunk,
+  static meshSpace = (
+    min: Coords3,
+    max: Coords3,
+    space: Space,
     registry: Registry,
     transparent: boolean
   ) => {
-    const {
-      minInner,
-      maxInner,
-      params: { maxHeight },
-    } = chunk;
-
     const positions: number[] = [];
     const indices: number[] = [];
     const uvs: number[] = [];
     const aos: number[] = [];
+
     const redLights: number[] = [];
     const greenLights: number[] = [];
     const blueLights: number[] = [];
     const sunlights: number[] = [];
 
-    const [minX, , minZ] = minInner;
-    const [maxX, , maxZ] = maxInner;
+    const [minX, , minZ] = min;
+    const [maxX, , maxZ] = max;
 
+    // loop through each block
     for (let vx = minX; vx < maxX; vx++) {
       for (let vz = minZ; vz < maxZ; vz++) {
-        for (let vy = 0; vy < maxHeight; vy++) {
-          const voxelId = chunk.getVoxel(vx, vy, vz);
-          const rotation = chunk.getVoxelRotation(vx, vy, vz);
+        // only loop up to the highest block to save time
+        const height = space.getMaxHeight(vx, vz);
+
+        for (let vy = height; vy >= 0; vy--) {
+          const voxelId = space.getVoxel(vx, vy, vz);
+          const rotation = space.getVoxelRotation(vx, vy, vz);
           const block = registry.getBlockById(voxelId);
           const {
             rotatable,
@@ -71,9 +72,8 @@ class Mesher {
             (isSolid || isPlant) &&
             (transparent ? isTransparent : !isTransparent)
           ) {
-            const { faces } = block;
             const uvMap = registry.getUVMap(block);
-            const faceMap = Registry.getFacesMap(faces);
+            const faceMap = Registry.getFacesMap(block.faces);
 
             if (isBlock) {
               for (const { corners, dir, side } of BLOCK_FACES) {
@@ -85,13 +85,13 @@ class Mesher {
                 const nvy = vy + dir[1];
                 const nvz = vz + dir[2];
 
-                const neighborId = chunk.getVoxel(nvx, nvy, nvz);
+                const neighborId = space.getVoxel(nvx, nvy, nvz);
                 const nBlockType = registry.getBlockById(neighborId);
 
                 if (
                   ((nBlockType.isTransparent && !nBlockType.isFluid) ||
                     (nBlockType.isFluid && !isFluid)) &&
-                  (!isTransparent ||
+                  (!transparent ||
                     nBlockType.isEmpty ||
                     neighborId !== voxelId ||
                     (nBlockType.transparentStandalone &&
@@ -108,15 +108,13 @@ class Mesher {
                   const fourBlueLights: number[] = [];
 
                   for (const { pos, uv } of corners) {
-                    const position = [pos[0], pos[1], pos[2]] as Coords3;
-
                     if (rotatable) {
-                      BlockRotation.rotate(rotation, position, true);
+                      BlockRotation.rotate(rotation, pos, true);
                     }
 
-                    const posX = position[0] + vx;
-                    const posY = position[1] + vy;
-                    const posZ = position[2] + vz;
+                    const posX = pos[0] + vx;
+                    const posY = pos[1] + vy;
+                    const posZ = pos[2] + vz;
 
                     positions.push(posX, posY, posZ);
 
@@ -124,9 +122,9 @@ class Mesher {
                     uvs.push(uv[1] * (startV - endV) + endV);
 
                     // calculating the 8 voxels around this vertex
-                    const dx = Math.round(position[0]) === 0 ? -1 : 1;
-                    const dy = Math.round(position[1]) === 0 ? -1 : 1;
-                    const dz = Math.round(position[2]) === 0 ? -1 : 1;
+                    const dx = Math.round(pos[0]) === 0 ? -1 : 1;
+                    const dy = Math.round(pos[1]) === 0 ? -1 : 1;
+                    const dz = Math.round(pos[2]) === 0 ? -1 : 1;
 
                     const sumSunlights: number[] = [];
                     const sumRedLights: number[] = [];
@@ -137,56 +135,56 @@ class Mesher {
                       vx,
                       vy,
                       vz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b001 = getBlockByVoxel(
                       vx,
                       vy,
                       vz + dz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b010 = getBlockByVoxel(
                       vx,
                       vy + dy,
                       vz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b011 = getBlockByVoxel(
                       vx,
                       vy + dy,
                       vz + dz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b100 = getBlockByVoxel(
                       vx + dx,
                       vy,
                       vz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b101 = getBlockByVoxel(
                       vx + dx,
                       vy,
                       vz + dz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b110 = getBlockByVoxel(
                       vx + dx,
                       vy + dy,
                       vz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
                     const b111 = getBlockByVoxel(
                       vx + dx,
                       vy + dy,
                       vz + dz,
-                      chunk,
+                      space,
                       registry
                     ).isTransparent;
 
@@ -201,90 +199,90 @@ class Mesher {
                     // TODO: fix light leaking
 
                     if (b000) {
-                      sumSunlights.push(chunk.getSunlight(vx, vy, vz));
-                      sumRedLights.push(chunk.getRedLight(vx, vy, vz));
-                      sumGreenLights.push(chunk.getGreenLight(vx, vy, vz));
-                      sumBlueLights.push(chunk.getBlueLight(vx, vy, vz));
+                      sumSunlights.push(space.getSunlight(vx, vy, vz));
+                      sumRedLights.push(space.getRedLight(vx, vy, vz));
+                      sumGreenLights.push(space.getGreenLight(vx, vy, vz));
+                      sumBlueLights.push(space.getBlueLight(vx, vy, vz));
                     }
 
                     if (b001) {
-                      sumSunlights.push(chunk.getSunlight(vx, vy, vz + dz));
-                      sumRedLights.push(chunk.getRedLight(vx, vy, vz + dz));
-                      sumGreenLights.push(chunk.getGreenLight(vx, vy, vz + dz));
-                      sumBlueLights.push(chunk.getBlueLight(vx, vy, vz + dz));
+                      sumSunlights.push(space.getSunlight(vx, vy, vz + dz));
+                      sumRedLights.push(space.getRedLight(vx, vy, vz + dz));
+                      sumGreenLights.push(space.getGreenLight(vx, vy, vz + dz));
+                      sumBlueLights.push(space.getBlueLight(vx, vy, vz + dz));
                     }
 
                     if (b010) {
-                      sumSunlights.push(chunk.getSunlight(vx, vy + dy, vz));
-                      sumRedLights.push(chunk.getRedLight(vx, vy + dy, vz));
-                      sumGreenLights.push(chunk.getGreenLight(vx, vy + dy, vz));
-                      sumBlueLights.push(chunk.getBlueLight(vx, vy + dy, vz));
+                      sumSunlights.push(space.getSunlight(vx, vy + dy, vz));
+                      sumRedLights.push(space.getRedLight(vx, vy + dy, vz));
+                      sumGreenLights.push(space.getGreenLight(vx, vy + dy, vz));
+                      sumBlueLights.push(space.getBlueLight(vx, vy + dy, vz));
                     }
 
                     if (b011) {
                       sumSunlights.push(
-                        chunk.getSunlight(vx, vy + dy, vz + dz)
+                        space.getSunlight(vx, vy + dy, vz + dz)
                       );
                       sumRedLights.push(
-                        chunk.getRedLight(vx, vy + dy, vz + dz)
+                        space.getRedLight(vx, vy + dy, vz + dz)
                       );
                       sumGreenLights.push(
-                        chunk.getGreenLight(vx, vy + dy, vz + dz)
+                        space.getGreenLight(vx, vy + dy, vz + dz)
                       );
                       sumBlueLights.push(
-                        chunk.getBlueLight(vx, vy + dy, vz + dz)
+                        space.getBlueLight(vx, vy + dy, vz + dz)
                       );
                     }
 
                     if (b100) {
-                      sumSunlights.push(chunk.getSunlight(vx + dx, vy, vz));
-                      sumRedLights.push(chunk.getRedLight(vx + dx, vy, vz));
-                      sumGreenLights.push(chunk.getGreenLight(vx + dx, vy, vz));
-                      sumBlueLights.push(chunk.getBlueLight(vx + dx, vy, vz));
+                      sumSunlights.push(space.getSunlight(vx + dx, vy, vz));
+                      sumRedLights.push(space.getRedLight(vx + dx, vy, vz));
+                      sumGreenLights.push(space.getGreenLight(vx + dx, vy, vz));
+                      sumBlueLights.push(space.getBlueLight(vx + dx, vy, vz));
                     }
 
                     if (b101) {
                       sumSunlights.push(
-                        chunk.getSunlight(vx + dx, vy, vz + dz)
+                        space.getSunlight(vx + dx, vy, vz + dz)
                       );
                       sumRedLights.push(
-                        chunk.getRedLight(vx + dx, vy, vz + dz)
+                        space.getRedLight(vx + dx, vy, vz + dz)
                       );
                       sumGreenLights.push(
-                        chunk.getGreenLight(vx + dx, vy, vz + dz)
+                        space.getGreenLight(vx + dx, vy, vz + dz)
                       );
                       sumBlueLights.push(
-                        chunk.getBlueLight(vx + dx, vy, vz + dz)
+                        space.getBlueLight(vx + dx, vy, vz + dz)
                       );
                     }
 
                     if (b110) {
                       sumSunlights.push(
-                        chunk.getSunlight(vx + dx, vy + dy, vz)
+                        space.getSunlight(vx + dx, vy + dy, vz)
                       );
                       sumRedLights.push(
-                        chunk.getRedLight(vx + dx, vy + dy, vz)
+                        space.getRedLight(vx + dx, vy + dy, vz)
                       );
                       sumGreenLights.push(
-                        chunk.getGreenLight(vx + dx, vy + dy, vz)
+                        space.getGreenLight(vx + dx, vy + dy, vz)
                       );
                       sumBlueLights.push(
-                        chunk.getBlueLight(vx + dx, vy + dy, vz)
+                        space.getBlueLight(vx + dx, vy + dy, vz)
                       );
                     }
 
                     if (b111) {
                       sumSunlights.push(
-                        chunk.getSunlight(vx + dx, vy + dy, vz + dz)
+                        space.getSunlight(vx + dx, vy + dy, vz + dz)
                       );
                       sumRedLights.push(
-                        chunk.getRedLight(vx + dx, vy + dy, vz + dz)
+                        space.getRedLight(vx + dx, vy + dy, vz + dz)
                       );
                       sumGreenLights.push(
-                        chunk.getGreenLight(vx + dx, vy + dy, vz + dz)
+                        space.getGreenLight(vx + dx, vy + dy, vz + dz)
                       );
                       sumBlueLights.push(
-                        chunk.getBlueLight(vx + dx, vy + dy, vz + dz)
+                        space.getBlueLight(vx + dx, vy + dy, vz + dz)
                       );
                     }
 
@@ -294,15 +292,15 @@ class Mesher {
                     fourBlueLights.push(avg(sumBlueLights));
                   }
 
+                  /* -------------------------------------------------------------------------- */
+                  /*                     I KNOW THIS IS UGLY, BUT IT WORKS!                     */
+                  /* -------------------------------------------------------------------------- */
+
                   const [aRT, bRT, cRT, dRT] = fourRedLights;
                   const [aGT, bGT, cGT, dGT] = fourGreenLights;
                   const [aBT, bBT, cBT, dBT] = fourBlueLights;
 
                   const threshold = 0;
-
-                  /* -------------------------------------------------------------------------- */
-                  /*                     I KNOW THIS IS UGLY, BUT IT WORKS!                     */
-                  /* -------------------------------------------------------------------------- */
 
                   // at least one zero
                   const oneTr0 =
@@ -385,10 +383,10 @@ class Mesher {
       const b = blueLights[i];
 
       let light = 0;
-      light = LightUtils.insertSunlight(light, s);
       light = LightUtils.insertRedLight(light, r);
       light = LightUtils.insertGreenLight(light, g);
       light = LightUtils.insertBlueLight(light, b);
+      light = LightUtils.insertSunlight(light, s);
 
       lights.push(light);
     }

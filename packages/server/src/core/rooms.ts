@@ -14,7 +14,6 @@ type RoomsParams = {
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
-  padding: number;
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;
@@ -72,8 +71,6 @@ class Rooms extends Map<string, Room> {
                 coords: chunk.coords,
                 min: chunk.min,
                 max: chunk.max,
-                minInner: chunk.minInner,
-                maxInner: chunk.maxInner,
                 test: chunk.getVoxel(chunk.min[0], 0, chunk.min[2] + 2),
                 height: chunk.getMaxHeight(chunk.min[0], chunk.min[2] + 2),
                 light: chunk.getSunlight(chunk.min[0], 10, chunk.min[2] + 2),
