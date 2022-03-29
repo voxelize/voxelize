@@ -11,8 +11,8 @@ import {
 import { System, EntityFlag } from "@voxelize/common";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import OrangeImage from "../assets/grass.jpeg";
-import DirtImage from "../assets/dirt.jpeg";
+import OrangeImage from "../assets/test.jpeg";
+import LycheeImage from "../assets/lychee.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
@@ -144,7 +144,11 @@ export const App = () => {
           "all",
           OrangeImage
         );
-        client.current.registry.applyTextureByName("Orange", "side", DirtImage);
+        client.current.registry.applyTextureByName(
+          "Orange",
+          "side",
+          LycheeImage
+        );
 
         client.current.addSystem(new UpdateBoxSystem());
 
