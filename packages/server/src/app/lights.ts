@@ -1,7 +1,7 @@
 import { Coords3 } from "@voxelize/common";
 import type { LightColor } from "@voxelize/common";
 
-import { CHUNK_HORIZONTAL_NEIGHBORS, VOXEL_NEIGHBORS } from "./constants";
+import { HORIZONTAL_NEIGHBORS, VOXEL_NEIGHBORS } from "./constants";
 import { Registry } from "./registry";
 import { Space } from "./space";
 import { WorldParams } from "./world";
@@ -88,6 +88,7 @@ class Lights {
 
     const [startX, , startZ] = min;
 
+    console.time(`Propagating main ${space.coords}`);
     for (let z = 1; z < width - 1; z++) {
       for (let x = 1; x < width - 1; x++) {
         const h = space.getMaxHeight(x + startX, z + startZ);
@@ -105,7 +106,11 @@ class Lights {
           if (y > h && isTransparent) {
             space.setSunlight(startX + x, y, startZ + z, maxLightLevel);
 
-            for (const [ox, oz] of CHUNK_HORIZONTAL_NEIGHBORS) {
+            for (const [ox, oz] of HORIZONTAL_NEIGHBORS) {
+              if (space.getMaxHeight(x + ox + startX, z + oz + startZ) <= y) {
+                continue;
+              }
+
               const neighborId = space.getVoxel(
                 x + ox + startX,
                 y,
@@ -117,19 +122,17 @@ class Lights {
                 continue;
               }
 
-              if (space.getMaxHeight(x + ox + startX, z + oz + startZ) > y) {
-                // means sunlight should propagate here horizontally
-                if (
-                  !sunlightQueue.find(
-                    ({ voxel }) =>
-                      voxel[0] === x && voxel[1] === y && voxel[2] === z
-                  )
-                ) {
-                  sunlightQueue.push({
-                    level: maxLightLevel,
-                    voxel: [startX + x, y, startZ + z],
-                  } as LightNode);
-                }
+              // means sunlight should propagate here horizontally
+              if (
+                !sunlightQueue.find(
+                  ({ voxel }) =>
+                    voxel[0] === x && voxel[1] === y && voxel[2] === z
+                )
+              ) {
+                sunlightQueue.push({
+                  level: maxLightLevel,
+                  voxel: [startX + x, y, startZ + z],
+                } as LightNode);
               }
             }
           }
@@ -162,11 +165,30 @@ class Lights {
         }
       }
     }
+    console.timeEnd(`Propagating main ${space.coords}`);
 
-    Lights.floodLight(redLightQueue, false, "RED", space, registry, params);
-    Lights.floodLight(greenLightQueue, false, "GREEN", space, registry, params);
-    Lights.floodLight(blueLightQueue, false, "BLUE", space, registry, params);
-    Lights.floodLight(sunlightQueue, true, "SUNLIGHT", space, registry, params);
+    if (redLightQueue.length)
+      Lights.floodLight(redLightQueue, false, "RED", space, registry, params);
+    if (greenLightQueue.length)
+      Lights.floodLight(
+        greenLightQueue,
+        false,
+        "GREEN",
+        space,
+        registry,
+        params
+      );
+    if (blueLightQueue.length)
+      Lights.floodLight(blueLightQueue, false, "BLUE", space, registry, params);
+    if (sunlightQueue.length)
+      Lights.floodLight(
+        sunlightQueue,
+        true,
+        "SUNLIGHT",
+        space,
+        registry,
+        params
+      );
 
     return space.getLights(...space.coords);
   };

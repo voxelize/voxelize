@@ -40,6 +40,10 @@ class Entities extends Map<string, Entity> {
     this.packets.push(event);
   };
 
+  onDisconnect = () => {
+    // TODO
+  };
+
   update = () => {
     if (this.size === 0 || this.packets.length === 0) return;
 

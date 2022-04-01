@@ -61,8 +61,6 @@ class Registry extends BaseRegistry {
   };
 
   load = async (blocks: Block[], ranges: { [key: string]: TextureRange }) => {
-    this.client.emit("texture-loading");
-
     Object.values(blocks).forEach((block) => {
       this.recordBlock(block);
     });
@@ -194,6 +192,7 @@ vLight = unpackLight(light);
     }) as CustomShaderMaterial;
 
     material.map = this.atlasUniform.value;
+    material.needsUpdate = true;
 
     return material;
   };

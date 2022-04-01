@@ -250,14 +250,14 @@ class Pipeline {
       return;
     }
 
-    console.time(`processed chunk ${chunk.name} in stage ${stage.name}`);
+    // console.time(`processed chunk ${chunk.name} in stage ${stage.name}`);
     await stage.process(chunk);
-    console.timeEnd(`processed chunk ${chunk.name} in stage ${stage.name}`);
+    // console.timeEnd(`processed chunk ${chunk.name} in stage ${stage.name}`);
 
     // last stage
     if (index < this.stages.length - 1) {
       this.progress.set(chunk.name, index + 1);
-      this.queue.push([chunk, index + 1]);
+      this.queue.unshift([chunk, index + 1]);
     } else {
       this.progress.delete(chunk.name);
     }

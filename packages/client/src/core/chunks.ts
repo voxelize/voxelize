@@ -191,6 +191,9 @@ class Chunks extends BaseChunks<Chunk> {
 
       if (dist > deleteDistance) {
         chunk.removeFromScene();
+        chunk.mesh.opaque?.geometry.dispose();
+        chunk.mesh.transparent?.geometry.dispose();
+        this.map.delete(chunk.name);
       }
     }
   };

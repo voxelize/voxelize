@@ -16,13 +16,13 @@ const test = (
   const [minX, , minZ] = chunk.min;
   const [maxX, , maxZ] = chunk.max;
 
-  const orange = registry.getBlockByName("Orange");
+  const marble = registry.getBlockByName("Marble");
 
   for (let x = minX; x < maxX; x++) {
     for (let z = minZ; z < maxZ; z++) {
       const limit = (x * z) % 5 === 0 ? 10 : 5;
       for (let y = 0; y < limit; y++) {
-        chunk.setVoxel(x, y, z, orange.id);
+        chunk.setVoxel(x, y, z, marble.id);
       }
     }
   }

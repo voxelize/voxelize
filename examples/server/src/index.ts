@@ -34,10 +34,7 @@ test.world.addSystem(new UpdateBoxSystem());
 
 test.world.registerEntity("Box", Box);
 
-test.world.registerBlock("Orange", {
-  faces: ["all", "side"],
-});
-test.world.registerBlock("Grape", {
+test.world.registerBlock("Marble", {
   faces: ["all"],
 });
 

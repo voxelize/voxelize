@@ -24,10 +24,13 @@ const run = (
   const registry = Registry.import(registryObj);
 
   if (options.propagate) {
+    console.time(`Propagating chunk ${chunk.name}`);
     const lights = Lights.propagate(space, registry, params);
+    console.timeEnd(`Propagating chunk ${chunk.name}`);
     chunk.lights.data = lights.data;
   }
 
+  console.time(`Meshing chunk ${chunk.name}`);
   const opaque = Mesher.meshSpace(chunk.min, chunk.max, space, registry, false);
   const transparent = Mesher.meshSpace(
     chunk.min,
@@ -36,6 +39,7 @@ const run = (
     registry,
     true
   );
+  console.timeEnd(`Meshing chunk ${chunk.name}`);
 
   const { output, buffers } = chunk.export({
     needHeightMap: true,

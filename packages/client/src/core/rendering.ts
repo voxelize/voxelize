@@ -1,10 +1,8 @@
 import {
-  AxesHelper,
   Color,
   DepthFormat,
   DepthTexture,
   FloatType,
-  GridHelper,
   LinearFilter,
   RGBAFormat,
   Scene,
@@ -98,8 +96,8 @@ class Rendering {
       this.fogUniforms = {
         uFogColor: { value: this.fogNearColor },
         uFogNearColor: { value: this.fogFarColor },
-        uFogNear: { value: renderRadius * 0.5 * chunkSize * dimension },
-        uFogFar: { value: renderRadius * chunkSize * dimension },
+        uFogNear: { value: renderRadius * 0.4 * chunkSize * dimension },
+        uFogFar: { value: renderRadius * 0.8 * chunkSize * dimension },
       };
 
       this.composer.addPass(

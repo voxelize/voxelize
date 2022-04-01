@@ -11,7 +11,6 @@ import { World } from "./world";
 const { Message } = protocol;
 
 type RoomParams = {
-  name: string;
   maxClients: number;
   pingInterval: number;
   updateInterval: number;
@@ -21,10 +20,24 @@ type RoomParams = {
   maxLightLevel: number;
   maxChunksPerTick: number;
   maxResponsePerTick: number;
+  preloadRadius: number;
+};
+
+const defaultParams: RoomParams = {
+  maxClients: 100,
+  pingInterval: 50000,
+  updateInterval: 1000 / 60,
+  chunkSize: 16,
+  maxHeight: 256,
+  maxLightLevel: 15,
+  maxChunksPerTick: 16,
+  maxResponsePerTick: 4,
+  preloadRadius: 8,
 };
 
 class Room {
-  public name: string;
+  public params: RoomParams;
+
   public started = false;
 
   public world: World;
@@ -33,15 +46,19 @@ class Room {
   private updateInterval: NodeJS.Timeout = null;
   private pingInterval: NodeJS.Timeout = null;
 
-  constructor(public params: RoomParams) {
+  constructor(public name: string, params: Partial<RoomParams>) {
+    this.params = {
+      ...defaultParams,
+      ...params,
+    };
+
     const {
-      name,
       chunkSize,
       maxHeight,
       maxLightLevel,
       maxChunksPerTick,
       maxResponsePerTick,
-    } = params;
+    } = this.params;
 
     this.name = name;
 
@@ -170,7 +187,7 @@ class Room {
 
     // would return true if client exists
     if (this.clients.delete(id)) {
-      this.world.ecs.removeEntity(client);
+      this.world.onDisconnect(client);
 
       this.broadcast({
         type: "LEAVE",
@@ -181,6 +198,19 @@ class Room {
 
   findClient = (id: string) => {
     return this.clients.get(id);
+  };
+
+  // !!! DOESN'T WORK
+  // TODO: make this asynchronous to actually check for preload progress
+  // Issue here is that some chunks may not be preloaded as they are on the edge.
+  preload = () => {
+    const { preloadRadius } = this.params;
+
+    for (let x = -preloadRadius; x <= preloadRadius; x++) {
+      for (let z = -preloadRadius; z <= preloadRadius; z++) {
+        this.world.chunks.getChunk(x, z);
+      }
+    }
   };
 
   start = () => {
@@ -249,5 +279,7 @@ class Room {
     }
   };
 }
+
+export type { RoomParams };
 
 export { Room };

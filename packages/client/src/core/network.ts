@@ -85,15 +85,6 @@ class Network {
     this.room = room;
   };
 
-  handshake = () => {
-    this.send({
-      type: "SETTINGS",
-      json: {
-        // renderRadius:
-      },
-    });
-  };
-
   disconnect = () => {
     this.ws.onclose = null;
     this.ws.onmessage = null;

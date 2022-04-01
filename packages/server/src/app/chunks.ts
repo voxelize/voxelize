@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Network } from "../core/network";
 
 import { Chunk } from "./chunk";
+import { Client } from "./ents";
 import { World } from "./world";
 
 class Chunks extends BaseChunks<Chunk> {
@@ -44,6 +45,10 @@ class Chunks extends BaseChunks<Chunk> {
     if (!packets) packets = [];
     packets.push(chunk.coords);
     this.packets.set(clientId, packets);
+  };
+
+  onDisconnect = (client: Client) => {
+    this.packets.delete(client.id);
   };
 
   update = () => {

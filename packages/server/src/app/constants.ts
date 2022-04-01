@@ -9,7 +9,7 @@ export const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
-export const CHUNK_HORIZONTAL_NEIGHBORS = [
+export const HORIZONTAL_NEIGHBORS = [
   [-1, 0],
   [1, 0],
   [0, -1],

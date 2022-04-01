@@ -2,6 +2,7 @@ import { ECS, System, Block, BaseWorldParams } from "@voxelize/common";
 
 import { Chunks } from "./chunks";
 import { BaseEntity, Entities } from "./entities";
+import { Client } from "./ents";
 import { ChunkStage, Pipeline } from "./pipeline";
 import { Registry } from "./registry";
 import { Room } from "./room";
@@ -75,6 +76,11 @@ class World {
 
   stop = () => {
     this.ecs.timeScale = 0;
+  };
+
+  onDisconnect = (client: Client) => {
+    this.ecs.removeEntity(client);
+    this.chunks.onDisconnect(client);
   };
 
   update = () => {

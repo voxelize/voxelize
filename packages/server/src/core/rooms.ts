@@ -5,24 +5,13 @@ import WebSocket from "ws";
 import { Server } from "..";
 import { ChunkRequestsComponent } from "../app/comps";
 import { Client } from "../app/ents";
-import { Room } from "../app/room";
+import { Room, RoomParams } from "../app/room";
 
 import { Network } from "./network";
 import { ClientFilter, defaultFilter } from "./shared";
 
-type RoomsParams = {
-  maxClients: number;
-  pingInterval: number;
-  updateInterval: number;
-  chunkSize: number;
-  maxHeight: number;
-  maxLightLevel: number;
-  maxChunksPerTick: number;
-  maxResponsePerTick: number;
-};
-
 class Rooms extends Map<string, Room> {
-  constructor(public server: Server, public params: RoomsParams) {
+  constructor(public server: Server) {
     super();
 
     const { network } = this.server;
@@ -89,11 +78,8 @@ class Rooms extends Map<string, Room> {
     });
   }
 
-  createRoom = (name: string) => {
-    const room = new Room({
-      name,
-      ...this.params,
-    });
+  createRoom = (name: string, params: Partial<RoomParams>) => {
+    const room = new Room(name, params);
 
     this.set(name, room);
 
