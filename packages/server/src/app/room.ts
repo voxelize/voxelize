@@ -1,10 +1,11 @@
-import { BaseWorldParams, protocol } from "@voxelize/common";
+import { BaseWorldParams, ChunkUtils, protocol } from "@voxelize/common";
 import WebSocket from "ws";
 
 import { Network } from "../core/network";
 import { ClientFilter, defaultFilter } from "../core/shared";
 
 import { ChunkRequestsComponent } from "./comps";
+import { HORIZONTAL_NEIGHBORS } from "./constants";
 import { Client } from "./ents/client";
 import { World } from "./world";
 

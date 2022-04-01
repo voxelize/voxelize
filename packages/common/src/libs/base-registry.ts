@@ -3,17 +3,18 @@ import { Block, TextureRange, BlockFace } from "../types";
 abstract class BaseRegistry {
   public ranges: Map<string, TextureRange> = new Map();
 
-  protected blocks: Map<string, Block> = new Map();
+  protected blocksByName: Map<string, Block> = new Map();
+  protected blocksById: Map<number, Block> = new Map();
   protected textures: Set<string> = new Set();
   protected nameMap: Map<number, string> = new Map();
   protected typeMap: Map<string, number> = new Map();
 
   getBlockByName = (name: string) => {
-    return this.blocks.get(name.toLowerCase());
+    return this.blocksByName.get(name.toLowerCase());
   };
 
   getBlockById = (id: number) => {
-    return this.getBlockByName(this.nameMap.get(id));
+    return this.blocksById.get(id);
   };
 
   getTransparencyByName = (name: string) => {
@@ -91,7 +92,7 @@ abstract class BaseRegistry {
 
   getBlockMap = () => {
     const blockMap = {};
-    this.blocks.forEach((value, key) => {
+    this.blocksByName.forEach((value, key) => {
       blockMap[key] = value;
     });
     return blockMap;
@@ -153,7 +154,8 @@ abstract class BaseRegistry {
     const { name, id, faces, isPlant } = block;
     const lowerName = name.toLowerCase();
 
-    this.blocks.set(lowerName, block);
+    this.blocksByName.set(lowerName, block);
+    this.blocksById.set(id, block);
     this.nameMap.set(id, lowerName);
     this.typeMap.set(lowerName, id);
 

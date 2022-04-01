@@ -9,11 +9,22 @@ export const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
+export const ADJACENT_NEIGHBORS = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
 export const HORIZONTAL_NEIGHBORS = [
   [-1, 0],
   [1, 0],
   [0, -1],
   [0, 1],
+  [-1, -1],
+  [-1, 1],
+  [1, -1],
+  [1, 1],
 ];
 
 type CornerData = {

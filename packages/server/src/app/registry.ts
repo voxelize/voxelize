@@ -9,7 +9,8 @@ import { World } from "./world";
 
 type RegistryTransferableData = {
   ranges: { [key: string]: TextureRange };
-  blocks: { [key: string]: Block };
+  blocksByName: { [key: string]: Block };
+  blocksById: { [key: number]: Block };
   textures: string[];
   nameMap: { [key: number]: string };
   typeMap: { [key: string]: number };
@@ -35,8 +36,11 @@ class Registry extends BaseRegistry {
     const ranges: { [key: string]: TextureRange } = {};
     this.ranges.forEach((t, k) => (ranges[k] = t));
 
-    const blocks: { [key: string]: Block } = {};
-    this.blocks.forEach((b, k) => (blocks[k] = b));
+    const blocksByName: { [key: string]: Block } = {};
+    this.blocksByName.forEach((b, k) => (blocksByName[k] = b));
+
+    const blocksById: { [key: string]: Block } = {};
+    this.blocksById.forEach((b, k) => (blocksById[k] = b));
 
     const textures = Array.from(this.textures);
 
@@ -48,7 +52,8 @@ class Registry extends BaseRegistry {
 
     return {
       ranges,
-      blocks,
+      blocksById,
+      blocksByName,
       textures,
       nameMap,
       typeMap,
@@ -57,7 +62,8 @@ class Registry extends BaseRegistry {
 
   static import = ({
     ranges,
-    blocks,
+    blocksById,
+    blocksByName,
     textures,
     nameMap,
     typeMap,
@@ -67,8 +73,15 @@ class Registry extends BaseRegistry {
     registry.ranges = new Map();
     Object.keys(ranges).forEach((key) => registry.ranges.set(key, ranges[key]));
 
-    registry.blocks = new Map();
-    Object.keys(blocks).forEach((key) => registry.blocks.set(key, blocks[key]));
+    registry.blocksByName = new Map();
+    Object.keys(blocksByName).forEach((key) =>
+      registry.blocksByName.set(key, blocksByName[key])
+    );
+
+    registry.blocksById = new Map();
+    Object.keys(blocksById).forEach((key) =>
+      registry.blocksById.set(parseInt(key, 10), blocksById[key])
+    );
 
     registry.textures = new Set(textures);
 
@@ -131,7 +144,7 @@ class Registry extends BaseRegistry {
     const complete: Block = {
       ...defaultBlock,
       ...block,
-      id: this.blocks.size,
+      id: this.blocksByName.size,
       name,
     };
 
