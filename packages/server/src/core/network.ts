@@ -14,18 +14,34 @@ const corsConfig = {
   origin: "*",
 };
 
-type NetworkParams = {
-  test: string;
-};
-
+/**
+ * Network manager of the game, sets up `Express` and a websocket server.
+ *
+ * @param server - Server that the network resides in
+ * @param params - Parameters for this network
+ */
 class Network {
+  /**
+   * `Express` instance of the game.
+   */
   public app: Express;
+
+  /**
+   * HTTP server of the game.
+   */
   public http: http.Server;
+
+  /**
+   * Websocket server, receives most incoming messages.
+   */
   public wss: WebSocketServer;
 
+  /**
+   * Whether if the game is running.
+   */
   public listening = false;
 
-  constructor(public server: Server, public params: NetworkParams) {
+  constructor(public server: Server) {
     this.app = express();
     this.app.use(cors(corsConfig));
 
@@ -33,11 +49,23 @@ class Network {
     this.wss = new WebSocketServer({ server: this.http });
   }
 
+  /**
+   * Starts listening on a specified port.
+   *
+   * @param port - Port to listen on
+   */
   listen = (port: number) => {
     this.http.listen({ port });
     this.listening = true;
   };
 
+  /**
+   * Decodes a protocol buffer message to the voxelize schema.
+   *
+   * @static
+   * @param buffer - Protocol buffer
+   * @returns A decoded protobuf message
+   */
   static decode = (buffer: any) => {
     const message = Message.decode(buffer);
     // @ts-ignore
@@ -48,6 +76,12 @@ class Network {
     return message;
   };
 
+  /**
+   * Encodes a message to protocol buffers according to the voxelize schema.
+   *
+   * @param message - Message to encode
+   * @returns Encoded protocol buffers
+   */
   static encode = (message: any) => {
     // @ts-ignore
     message.type = Message.Type[message.type];

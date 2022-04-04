@@ -4,6 +4,12 @@ import { Chunks } from "../chunks";
 import { ChunkRequestsComponent } from "../comps";
 import { Client } from "../ents";
 
+/**
+ * An ECS system that goes through each client's requested chunks and
+ * attempt to either start generating them, or send them to the client.
+ *
+ * @extends {System}
+ */
 class GenerateChunksSystem extends System {
   constructor(private chunks: Chunks) {
     super([ClientFlag.type, IDComponent.type, ChunkRequestsComponent.type]);

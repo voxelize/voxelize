@@ -1,5 +1,8 @@
 import { Coords2, Coords3, SixFaces } from "@voxelize/common";
 
+/**
+ * All adjacent voxel neighbors, including the y-axis.
+ */
 export const VOXEL_NEIGHBORS = [
   [1, 0, 0],
   [-1, 0, 0],
@@ -9,6 +12,9 @@ export const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
+/**
+ * All horizontal neighbors.
+ */
 export const ADJACENT_NEIGHBORS = [
   [-1, 0],
   [1, 0],
@@ -16,6 +22,9 @@ export const ADJACENT_NEIGHBORS = [
   [0, 1],
 ];
 
+/**
+ * Horizontal neighbors, 3x3 - 1 = 8 in total.
+ */
 export const HORIZONTAL_NEIGHBORS = [
   [-1, 0],
   [1, 0],
@@ -32,6 +41,9 @@ type CornerData = {
   uv: Coords2;
 };
 
+/**
+ * Essential data for meshing a single block. Contains what UV's to use for each block face.
+ */
 export const BLOCK_FACES: {
   dir: Coords3;
   side: keyof SixFaces;

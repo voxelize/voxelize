@@ -1,5 +1,10 @@
 import { Component, System } from "@voxelize/common";
-import { Server, Position3DComponent, BaseEntity } from "@voxelize/server";
+import {
+  Server,
+  Position3DComponent,
+  BaseEntity,
+  TestVoxelStage,
+} from "@voxelize/server";
 
 const server = new Server({ port: 5000 });
 
@@ -37,6 +42,8 @@ test.world.registerEntity("Box", Box);
 test.world.registerBlock("Marble", {
   faces: ["all"],
 });
+
+test.world.addStage(new TestVoxelStage());
 
 const box = test.world.addEntity("Box");
 Position3DComponent.get(box).data.set(3, 3, 3);

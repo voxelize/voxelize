@@ -2,6 +2,11 @@ import { ChunkUtils, Coords3, Entity, System } from "@voxelize/common";
 
 import { CurrentChunkComponent, Position3DComponent } from "../comps";
 
+/**
+ * An ECS system that calculates what chunks each entity is located.
+ *
+ * @extends {System}
+ */
 class CurrentChunkSystem extends System {
   constructor(private chunkSize: number) {
     super([Position3DComponent.type, CurrentChunkComponent.type]);

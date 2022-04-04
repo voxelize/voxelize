@@ -7,6 +7,9 @@ import {
 
 import { World } from "./world";
 
+/**
+ * A worker-transferable struct for sending registry data.
+ */
 type RegistryTransferableData = {
   ranges: { [key: string]: TextureRange };
   blocksByName: { [key: string]: Block };
@@ -16,6 +19,13 @@ type RegistryTransferableData = {
   typeMap: { [key: string]: number };
 };
 
+/**
+ * A registry for @voxelize/server, used to store block information. By default, the "Air"
+ * block is registered with an index of 0.
+ *
+ * @param [world] - World that the registry exists in
+ * @extends {BaseRegistry}
+ */
 class Registry extends BaseRegistry {
   constructor(public world?: World) {
     super();
@@ -32,6 +42,11 @@ class Registry extends BaseRegistry {
     });
   }
 
+  /**
+   * Exports registry into a worker-transferable object.
+   *
+   * @returns An object containing transferable data of the registry
+   */
   export = () => {
     const ranges: { [key: string]: TextureRange } = {};
     this.ranges.forEach((t, k) => (ranges[k] = t));
@@ -60,6 +75,12 @@ class Registry extends BaseRegistry {
     } as RegistryTransferableData;
   };
 
+  /**
+   * Construct a new registry instance with the data provided.
+   *
+   * @param data - `RegistryTransferableData`, holding registry information
+   * @returns A registry instance
+   */
   static import = ({
     ranges,
     blocksById,
@@ -98,6 +119,10 @@ class Registry extends BaseRegistry {
     return registry;
   };
 
+  /**
+   * Generate a UV map for a texture atlas on the server side. All UVs
+   * lie between 0-1, and have a slight offset to account for texture bleeding.
+   */
   generate = () => {
     const countPerSide = this.perSide();
 
@@ -136,7 +161,30 @@ class Registry extends BaseRegistry {
     });
   };
 
-  registerBlock = (name: string, block: Partial<Block>) => {
+  /**
+   * Register for a new block type. Fields of a block are as described:
+   * - name: the name/type of the block
+   * - redLightLevel: 1-maxLightLevel, representing red light
+   * - greenLightLevel: 1-maxLightLevel, representing green light
+   * - blueLightLevel: 1-maxLightLevel, representing blue light
+   * - rotatable: indicates if the block can be rotated
+   * - yRotatable: indicates if the block can be rotated on the y-axis
+   * - isBlock: if the block is shaped a block, e.g. air wouldn't be a block
+   * - isEmpty: if the block is empty in space
+   * - isFluid: if the block is a fluid type
+   * - isLight: if the block has rgb lights
+   * - isPlant: if the block is a plant type
+   * - isPlantable: if the plants can be planted on this block
+   * - isSolid: if the block is a solid
+   * - isTransparent: if the block is see-through
+   * - transparentStandalone: used for meshing, if transparent faces should be meshed.
+   * - faces: Array of `BlockFace`s, indicating what textures to use for the six sides.
+   *
+   * @param name - Name/type of the new block
+   * @param block - Properties of the block
+   * @returns a new block
+   */
+  registerBlock = (name: string, block: Omit<Partial<Block>, "id">) => {
     if (this.world.room.started) {
       throw new Error("Error registering block after room started.");
     }
@@ -153,6 +201,11 @@ class Registry extends BaseRegistry {
     return complete;
   };
 
+  /**
+   * Get the UV ranges.
+   *
+   * @returns all UV ranges
+   */
   getRanges = () => {
     const ranges = {};
     this.ranges.forEach((value, key) => {

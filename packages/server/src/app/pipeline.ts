@@ -2,8 +2,6 @@ import { ChunkUtils } from "@voxelize/common";
 import { Pool, spawn, Transfer } from "threads";
 
 import { Chunk } from "./chunk";
-import { Chunks } from "./chunks";
-import { Registry } from "./registry";
 import { Space } from "./space";
 import {
   TesterType,
@@ -15,49 +13,45 @@ import {
 } from "./workers";
 import { World } from "./world";
 
+/**
+ * A stage in the chunk pipeline.
+ */
 abstract class ChunkStage {
-  id: number;
-
   abstract name: string;
-
-  constructor(
-    protected pipeline: Pipeline,
-    protected chunks: Chunks,
-    protected registry: Registry
-  ) {}
 
   /**
    * Gets run to see if a chunk should propagate to the next
    * stage. True, then proceed, vice versa.
    *
-   * @abstract
-   * @memberof ChunkStage
+   * @returns Whether or not if chunk can proceed to stage
    */
-  abstract check: (chunk: Chunk) => boolean;
+  abstract check: (chunk: Chunk, world: World) => boolean;
 
   /**
    * Gets run every system tick, processes through chunk
    * queue to do whatever this stage does.
    *
-   * @returns Asynchronously returns an array of chunks
-   * that are ready to be pushed to the next stage.
-   *
-   * @abstract
-   * @memberof ChunkStage
+   * @returns Asynchronously, an array of chunks that are
+   * ready to be pushed to the next stage.
    */
-  abstract process: (chunk: Chunk) => Promise<Chunk>;
+  abstract process: (chunk: Chunk, world: World, args: any) => Promise<Chunk>;
 }
 
-class TestStage extends ChunkStage {
-  name = "Test";
+/**
+ * A chunk pipeline stage for testing that sets voxels into holes on the ground randomly.
+ *
+ * @extends {ChunkStage}
+ */
+class TestVoxelStage extends ChunkStage {
+  name = "TestVoxel";
 
   private pool = Pool(() => spawn<TesterType>(TestWorker()));
 
   check = () => true;
 
-  process = async (chunk: Chunk) => {
+  process = async (chunk: Chunk, world: World) => {
     const { output, buffers } = chunk.export({ needVoxels: true });
-    const registryObj = this.registry.export();
+    const registryObj = world.registry.export();
 
     await this.pool.queue(async (worker) => {
       const data = await worker.test(
@@ -71,6 +65,11 @@ class TestStage extends ChunkStage {
   };
 }
 
+/**
+ * A chunk pipeline stage for propagating chunks with light and generating mesh.
+ *
+ * @extends {ChunkStage}
+ */
 class HeightMapStage extends ChunkStage {
   name = "HeightMap";
 
@@ -78,9 +77,9 @@ class HeightMapStage extends ChunkStage {
 
   check = () => true;
 
-  process = async (chunk: Chunk) => {
+  process = async (chunk: Chunk, world: World) => {
     const { output, buffers } = chunk.export({ needVoxels: true });
-    const registryObj = this.registry.export();
+    const registryObj = world.registry.export();
 
     await this.pool.queue(async (worker) => {
       const data = await worker.calculate(
@@ -94,30 +93,35 @@ class HeightMapStage extends ChunkStage {
   };
 }
 
+/**
+ * A chunk pipeline stage for calculating the height map of all chunks.
+ *
+ * @extends {ChunkStage}
+ */
 class LightMeshStage extends ChunkStage {
   name = "LightMesh";
 
   private pool = Pool(() => spawn<LightMesherType>(LightMeshWorker()));
 
-  check = (chunk: Chunk) => {
-    const { chunkSize, maxLightLevel } = this.chunks.worldParams;
+  check = (chunk: Chunk, world: World) => {
+    const { chunkSize, maxLightLevel } = world.chunks.worldParams;
     const r = Math.ceil(maxLightLevel / chunkSize);
     const [cx, cz] = chunk.coords;
 
-    const ownStage = this.pipeline.getStage(chunk);
+    const ownStage = world.pipeline.getStage(chunk);
 
     for (let x = -r; x <= r; x++) {
       for (let z = -r; z <= r; z++) {
         if (x === 0 && z === 0) continue;
 
         const name = ChunkUtils.getChunkName([cx + x, cz + z]);
-        const neighbor = this.chunks.raw(name);
+        const neighbor = world.chunks.raw(name);
 
         if (!neighbor) {
           return false;
         }
 
-        const stage = this.pipeline.getStage(neighbor);
+        const stage = world.pipeline.getStage(neighbor);
 
         // means chunk already finished
         if (isNaN(stage)) continue;
@@ -131,8 +135,12 @@ class LightMeshStage extends ChunkStage {
     return true;
   };
 
-  process = async (chunk: Chunk) => {
-    const { chunkSize, maxHeight, maxLightLevel } = this.chunks.worldParams;
+  process = async (
+    chunk: Chunk,
+    world: World,
+    args: { propagate: boolean } = { propagate: true }
+  ) => {
+    const { chunkSize, maxHeight, maxLightLevel } = world.params;
     const { output: chunkOutput, buffers: chunkBuffers } = chunk.export({
       needVoxels: true,
       needLights: true,
@@ -140,7 +148,7 @@ class LightMeshStage extends ChunkStage {
     });
 
     const space = new Space(
-      this.chunks,
+      world.chunks,
       chunk.coords,
       { needVoxels: true, needHeightMap: true, needLights: true },
       {
@@ -151,15 +159,15 @@ class LightMeshStage extends ChunkStage {
     );
 
     const { output: spaceOutput, buffers: spaceBuffers } = space.export();
-    const registryObj = this.registry.export();
+    const registryObj = world.registry.export();
 
     await this.pool.queue(async (worker) => {
       const { chunk: doneChunk, mesh } = await worker.run(
         Transfer(chunkOutput, chunkBuffers) as any,
         Transfer(spaceOutput, spaceBuffers) as any,
         registryObj,
-        this.chunks.worldParams,
-        { propagate: true }
+        world.chunks.worldParams,
+        args
       );
       chunk.import(doneChunk);
       chunk.mesh = mesh;
@@ -169,30 +177,47 @@ class LightMeshStage extends ChunkStage {
   };
 }
 
-const StagePresets = {
-  TestStage,
-  HeightMapStage,
-  LightMeshStage,
-};
-
+/**
+ * A customizable pipeline to populate chunks with data. The pipeline is
+ * separated into a list of `ChunkStage`s and has a queue of chunks to be
+ * "pipelined" through the stages. The last two stage of the pipeline is
+ * always going to be `HeightMapStage` and `LightMeshStage`.
+ *
+ * @param world - World that this pipeline exists in
+ */
 class Pipeline {
-  public queue: [Chunk, number][] = [];
+  /**
+   * A queue of chunks with the stages they're in.
+   */
+  public queue: [Chunk, number, ...any][] = [];
 
   private stages: ChunkStage[] = [];
   private progress = new Map<string, number>();
   private processing = 0;
 
   constructor(public world: World) {
-    this.addStage(TestStage);
-    this.addStage(HeightMapStage);
-    this.addStage(LightMeshStage);
+    this.stages.push(new HeightMapStage());
+    this.stages.push(new LightMeshStage());
   }
 
+  /**
+   * Checks whether if a chunk is being generated/populated.
+   *
+   * @param name - Name of the chunk to check
+   * @returns Whether if the chunk is in the pipeline
+   */
   hasChunk = (name: string) => {
     return this.progress.has(name);
   };
 
-  addChunk = (chunk: Chunk, stage: number) => {
+  /**
+   * Append a chunk to the end of the pipeline queue.
+   *
+   * @param chunk - Chunk instance to be processed
+   * @param stage - The stage to push the chunk into
+   * @returns Pipeline itself for function chaining
+   */
+  appendChunk = (chunk: Chunk, stage: number) => {
     if (this.progress.has(chunk.name)) {
       throw new Error("Adding a processing chunk");
     }
@@ -203,28 +228,60 @@ class Pipeline {
     return this;
   };
 
-  addStage = (
-    Stage: new (p: Pipeline, c: Chunks, r: Registry) => ChunkStage
-  ) => {
-    const { chunks, registry } = this.world;
-    const stage = new Stage(this, chunks, registry);
-
-    if (!stage.process) {
-      throw new Error("Chunk stage does nothing!");
+  /**
+   * Queues the chunk back into the last stage to generate a new mesh.
+   *
+   * @param chunk - Chunk to be remeshed
+   * @returns Pipeline itself for function chaining
+   */
+  remeshChunk = (chunk: Chunk) => {
+    if (this.progress.has(chunk.name)) {
+      console.warn("Remeshing a chunk that is already going to be remeshed.");
+      return;
     }
 
-    const id = this.stages.length - 1;
-    stage.id = id;
+    const meshStage = this.stages.length - 1;
 
-    this.stages.push(stage);
+    this.queue.push([chunk, meshStage, { propagate: false }]);
+    this.progress.set(chunk.name, meshStage);
 
     return this;
   };
 
+  /**
+   * Add a stage to the pipeline. Note that any stage added will be before these two stages:
+   * - `HeightMapStage`: for calculating max heights
+   * - `LightMeshStage`: for propagating light through and meshing chunks
+   *
+   * @param stage - `ChunkStage` instance to be added
+   * @returns Pipeline itself for function chaining
+   */
+  addStage = (stage: ChunkStage) => {
+    if (!stage.process) {
+      throw new Error("Chunk stage does nothing!");
+    }
+
+    this.stages.splice(this.stages.length - 2, 0, stage);
+
+    return this;
+  };
+
+  /**
+   * Check which stage the chunk is in.
+   *
+   * @param chunk - Chunk to be checked
+   * @returns Which stage the chunk is in, or undefined
+   */
   getStage = (chunk: Chunk) => {
     return this.progress.get(chunk.name);
   };
 
+  /**
+   * Updater of `Pipeline`, does the following:
+   * - Push `maxChunksPerTick` amount of chunks inside the queue into their corresponding stages.
+   *
+   * DO NOT CALL THIS DIRECTLY! THINGS MAY BREAK!
+   */
   update = () => {
     if (this.queue.length === 0) return;
 
@@ -235,23 +292,33 @@ class Pipeline {
       const process = this.queue.shift();
       if (!process) break;
 
-      const [chunk, stage] = process;
-      this.process(chunk, stage).then(() => {
+      const [chunk, stage, args] = process;
+      this.process(chunk, stage, args).then(() => {
         this.processing = Math.max(this.processing - 1, 0);
       });
     }
   };
 
-  process = async (chunk: Chunk, index: number) => {
+  /**
+   * Sends a chunk into a certain stage to be processed.
+   *
+   * DO NOT CALL THIS DIRECTLY! THINGS MAY BREAK!
+   *
+   * @param chunk - Chunk to be processed
+   * @param index - Index of the stage
+   * @param args - Any additional arguments
+   * @returns The chunk instance itself, processed
+   */
+  process = async (chunk: Chunk, index: number, args: any) => {
     const stage = this.stages[index];
 
-    if (!stage.check(chunk)) {
+    if (!stage.check(chunk, this.world)) {
       this.queue.push([chunk, index]);
       return;
     }
 
     // console.time(`processed chunk ${chunk.name} in stage ${stage.name}`);
-    await stage.process(chunk);
+    await stage.process(chunk, this.world, args);
     // console.timeEnd(`processed chunk ${chunk.name} in stage ${stage.name}`);
 
     // last stage
@@ -270,4 +337,4 @@ class Pipeline {
   }
 }
 
-export { ChunkStage, StagePresets, Pipeline };
+export { ChunkStage, TestVoxelStage, Pipeline };

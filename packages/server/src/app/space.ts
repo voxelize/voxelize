@@ -13,6 +13,9 @@ import ndarray, { NdArray } from "ndarray";
 import { Chunks } from "./chunks";
 import { ExportOptions } from "./shared";
 
+/**
+ * Space parameters.
+ */
 type SpaceParams = {
   margin: number;
   chunkSize: number;
@@ -23,6 +26,9 @@ type MappedNdArray = Map<string, NdArray<Uint32Array>>;
 
 type TransferableArrayMap = { [key: string]: ArrayBuffer };
 
+/**
+ * Information about the chunk to construct an identical space.
+ */
 type SpaceTransferableData = {
   coords: Coords2;
   width: number;
@@ -38,22 +44,81 @@ type SpaceTransferableData = {
   fields: ExportOptions;
 };
 
+/**
+ * Information containing the array buffers and other data ready to be used to
+ * create a space instance.
+ */
 type SpaceTransferable = {
   output: SpaceTransferableData;
   buffers: ArrayBuffer[];
 };
 
+/**
+ * A space in Voxelize is a data structure that allows developers to pass large amount of
+ * chunk data into other threads without losing the ability to query data easily. For instance,
+ * a space with a margin of 16 and a chunk size of 16 would have an additional 16/16=1 layer of
+ * chunk surrounding the target chunk, creating a 3*3 grid of chunks that one can easily access
+ * data within. Constructors have optional parameters because constructing a space from an export
+ * requires an empty space instance.
+ *
+ * Notes:
+ * - The margin on the space should be greater than 0.
+ * - An error will be thrown if space is constructed with non-existent chunks.
+ *
+ * DO NOT INSTANTIATE A SPACE WITHOUT PASSING IN PARAMETERS! UNLESS CALLING `Space.import`.
+ *
+ * @param chunks - `Chunks` manager of the world, used to access chunk data
+ * @param coords - Chunk coordinates of the center chunk
+ * @param fields - `ExportOptions` describing what data this space should store
+ * @param fields.needVoxels - For whether this export needs voxel data
+ * @param fields.needLights - For whether this export needs lighting data
+ * @param fields.needHeightMap - For whether this export needs max height data
+ * @param params - `SpaceParams`, parameters to construct a space
+ */
 class Space {
+  /**
+   * Width of the space.
+   */
   public width: number;
+
+  /**
+   * 3D shape of the space.
+   */
   public shape: Coords3;
+
+  /**
+   * Minimum voxel coordinate of the space.
+   */
   public min: Coords3;
 
+  /**
+   * Shape of the n-dimensional voxel data.
+   */
   public voxelsShape?: Coords3;
+
+  /**
+   * Shape of the n-dimensional lighting data.
+   */
   public lightsShape?: Coords3;
+
+  /**
+   * Shape of the n-dimensional height map data.
+   */
   public heightMapShape?: Coords3;
 
+  /**
+   * A map of n-dimensional arrays that store the actual voxel data.
+   */
   public voxels?: MappedNdArray = new Map();
+
+  /**
+   * A map of n-dimensional arrays that store the actual lighting data.
+   */
   public lights?: MappedNdArray = new Map();
+
+  /**
+   * A map of n-dimensional arrays that store the actual height map data.
+   */
   public heightMaps?: MappedNdArray = new Map();
 
   constructor(
@@ -107,12 +172,12 @@ class Space {
   }
 
   /**
-   * Access a voxel by voxel coordinates within the space
+   * Access a voxel by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Voxel type at vx,vy,vz
    */
   getVoxel = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needVoxels) {
@@ -135,12 +200,12 @@ class Space {
   };
 
   /**
-   * Access raw voxel by voxel coordinates within the space
+   * Access raw voxel by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Raw voxel value at vx,vy,vz
    */
   getRawVoxel = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needVoxels) {
@@ -163,12 +228,12 @@ class Space {
   };
 
   /**
-   * Access a voxel rotation by voxel coordinates within the space
+   * Access a voxel rotation by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Voxel rotation at vx,vy,vz
    */
   getVoxelRotation = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -191,12 +256,12 @@ class Space {
   };
 
   /**
-   * Access a voxel stage by voxel coordinates within the space
+   * Access a voxel stage by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Voxel stage at vx,vy,vz
    */
   getVoxelStage = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -219,12 +284,12 @@ class Space {
   };
 
   /**
-   * Access sunlight by voxel coordinates within the space
+   * Access sunlight by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Sunlight level at vx,vy,vz
    */
   getSunlight = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -247,12 +312,13 @@ class Space {
   };
 
   /**
-   * Set the sunlight by voxel coordinates within the space
+   * Set the sunlight by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @param level - Desired level of sunlight
+   * @returns Sunlight level at vx,vy,vz
    */
   setSunlight = (vx: number, vy: number, vz: number, level: number) => {
     if (!this.fields.needLights) {
@@ -276,16 +342,16 @@ class Space {
       );
     }
 
-    return 0;
+    return level;
   };
 
   /**
-   * Access red light by voxel coordinates within the space
+   * Access red light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Red light level at vx,vy,vz
    */
   getRedLight = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -308,12 +374,13 @@ class Space {
   };
 
   /**
-   * Set the red light by voxel coordinates within the space
+   * Set the red light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @param level - Desired level of red light
+   * @returns Red light level at vx,vy,vz
    */
   setRedLight = (vx: number, vy: number, vz: number, level: number) => {
     if (!this.fields.needLights) {
@@ -337,16 +404,16 @@ class Space {
       );
     }
 
-    return 0;
+    return level;
   };
 
   /**
-   * Access green light by voxel coordinates within the space
+   * Access green light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Green light level at vx,vy,vz
    */
   getGreenLight = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -369,12 +436,13 @@ class Space {
   };
 
   /**
-   * Set the green light by voxel coordinates within the space
+   * Set the green light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @param level - Desired level of green light
+   * @returns Green light level at vx,vy,vz
    */
   setGreenLight = (vx: number, vy: number, vz: number, level: number) => {
     if (!this.fields.needLights) {
@@ -402,12 +470,12 @@ class Space {
   };
 
   /**
-   * Access blue light by voxel coordinates within the space
+   * Access blue light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Blue light level at vx,vy,vz
    */
   getBlueLight = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -430,12 +498,13 @@ class Space {
   };
 
   /**
-   * Set the blue light by voxel coordinates within the space
+   * Set the blue light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @param level - Desired level of blue light
+   * @returns Blue light level at vx,vy,vz
    */
   setBlueLight = (vx: number, vy: number, vz: number, level: number) => {
     if (!this.fields.needLights) {
@@ -463,12 +532,13 @@ class Space {
   };
 
   /**
-   * Access torch light by voxel coordinates within the space
+   * Access torch light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @param color - Color of torch light
+   * @returns Torch light level at vx,vy,vz
    */
   getTorchLight = (vx: number, vy: number, vz: number, color: LightColor) => {
     switch (color) {
@@ -484,12 +554,14 @@ class Space {
   };
 
   /**
-   * Access torch light by voxel coordinates within the space
+   * Access torch light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @param level - Desired level of torch light
+   * @param color - Color of torch light
+   * @returns Torch light level at vx,vy,vz
    */
   setTorchLight = (
     vx: number,
@@ -511,12 +583,12 @@ class Space {
   };
 
   /**
-   * Access raw light by voxel coordinates within the space
+   * Access raw light by voxel coordinates within the space.
    *
-   * @param vx: Voxel x position
-   * @param vz: Voxel z position
-   *
-   * @memberof Space
+   * @param vx - Voxel x position
+   * @param vy - Voxel y position
+   * @param vz - Voxel z position
+   * @returns Raw light data at vx,vy,vz
    */
   getRawLight = (vx: number, vy: number, vz: number) => {
     if (!this.fields.needLights) {
@@ -539,12 +611,11 @@ class Space {
   };
 
   /**
-   * Access the max height by voxel column within the space
+   * Access the max height by voxel column within the space.
    *
    * @param vx - Voxel x position
    * @param vz - Voxel z position
-   *
-   * @memberof Space
+   * @returns Max height at vx,vz
    */
   getMaxHeight = (vx: number, vz: number) => {
     if (!this.fields.needHeightMap) {
@@ -566,36 +637,36 @@ class Space {
   };
 
   /**
-   * Get a reference to the voxels data array
+   * Get a reference to the voxels data array.
    *
-   * @memberof Space
+   * @returns N-dimensional voxel array at chunk coordinates
    */
   getVoxels = (cx: number, cz: number) => {
     return this.voxels?.get(ChunkUtils.getChunkName([cx, cz]));
   };
 
   /**
-   * Get a reference to the lights data array
+   * Get a reference to the lights data array.
    *
-   * @memberof Space
+   * @returns N-dimensional lighting array at chunk coordinates
    */
   getLights = (cx: number, cz: number) => {
     return this.lights?.get(ChunkUtils.getChunkName([cx, cz]));
   };
 
   /**
-   * Get a reference to the height map data array
+   * Get a reference to the height map data array.
    *
-   * @memberof Space
+   * @returns N-dimensional height-map array at chunk coordinates
    */
   getHeightMap = (cx: number, cz: number) => {
     return this.heightMaps?.get(ChunkUtils.getChunkName([cx, cz]));
   };
 
   /**
-   * Exports a space into a worker-transferable data structure
+   * Exports a space into a worker-transferable data structure.
    *
-   * @memberof Space
+   * @returns A worker-transferable object that represents the space
    */
   export = () => {
     const buffers: ArrayBuffer[] = [];
@@ -639,9 +710,11 @@ class Space {
   };
 
   /**
-   * Import a space from a worker-transferable data structure
+   * Import a space from a worker-transferable data structure.
    *
-   * @memberof Space
+   * @static
+   * @param raw - A space transferable data that describes a space
+   * @returns a new `Space` instance
    */
   static import = (raw: SpaceTransferableData) => {
     const {

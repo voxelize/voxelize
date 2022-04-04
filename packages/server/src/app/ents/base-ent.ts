@@ -14,6 +14,21 @@ import {
   TargetComponent,
 } from "../comps";
 
+/**
+ * A completely customizable base entity for all "living" entities.
+ * This includes animals, monsters, or even item drops.
+ *
+ * Contains the following components by default:
+ * - `EntityFlag`
+ * - `IDComponent`
+ * - `Position3DComponent`
+ * - `HeadingComponent`
+ * - `TargetComponent`
+ * - `MetadataComponent`
+ * - `CurrentChunkComponent`
+ *
+ * @extends {Entity}
+ */
 class BaseEntity extends Entity {
   public id: string;
 

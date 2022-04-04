@@ -4,6 +4,9 @@ import { BLOCK_FACES } from "./constants";
 import { Registry } from "./registry";
 import { Space } from "./space";
 
+/**
+ * Check out: https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
+ */
 const vertexAO = (side1: boolean, side2: boolean, corner: boolean) => {
   const s1num = +!side1;
   const s2num = +!side2;
@@ -28,7 +31,21 @@ const avg = (arr: number[]) => {
   return s / arr.length;
 };
 
+/**
+ * Utility class to mesh chunks/spaces
+ */
 class Mesher {
+  /**
+   * Generate the mesh data of the specified area in the world.
+   *
+   * @static
+   * @param min - Minimum coordinates to mesh
+   * @param max - Maximum coordinates to mesh
+   * @param space - Space to provide voxel information
+   * @param registry - Registry to provide block information
+   * @param transparent - Whether or not is this for transparent meshes
+   * @returns A worker-transferable mesh data of the area
+   */
   static meshSpace = (
     min: Coords3,
     max: Coords3,

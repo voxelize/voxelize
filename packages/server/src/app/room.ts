@@ -1,16 +1,18 @@
-import { BaseWorldParams, ChunkUtils, protocol } from "@voxelize/common";
+import { BaseWorldParams, protocol } from "@voxelize/common";
 import WebSocket from "ws";
 
 import { Network } from "../core/network";
 import { ClientFilter, defaultFilter } from "../core/shared";
 
 import { ChunkRequestsComponent } from "./comps";
-import { HORIZONTAL_NEIGHBORS } from "./constants";
 import { Client } from "./ents/client";
 import { World } from "./world";
 
 const { Message } = protocol;
 
+/**
+ * Room parameters
+ */
 type RoomParams = {
   maxClients: number;
   pingInterval: number;
@@ -36,12 +38,33 @@ const defaultParams: RoomParams = {
   preloadRadius: 8,
 };
 
+/**
+ * A room in the server. Rooms can hold clients, and have their
+ * own world to be populated in.
+ *
+ * @param name - Name of the room, used for connection
+ * @param params - `RoomParams`, data to construct a room/world
+ */
 class Room {
+  /**
+   * A reference of the room parameters.
+   */
   public params: RoomParams;
 
+  /**
+   * Flag that shows if the room has started.
+   */
   public started = false;
 
+  /**
+   * A world that all clients in this room play in. Contains all voxel information
+   * such as block types and lighting data.
+   */
   public world: World;
+
+  /**
+   * A map of clients in this room.
+   */
   public clients: Map<string, Client> = new Map();
 
   private updateInterval: NodeJS.Timeout = null;
@@ -72,6 +95,19 @@ class Room {
     });
   }
 
+  /**
+   * Handler for client connection. Does the following:
+   * - If the room is full, reject the client's web socket.
+   * - Otherwise, create a new client instance and send all
+   *  world/room information to the client.
+   * - Inform all other clients in the room about the new client.
+   * - Add client to world's ECS (Entity Component System)
+   * - Setup client's socket handlers
+   *
+   * DO NOT CALL THIS DIRECTLY! THINGS MAY BREAK!
+   *
+   * @param socket
+   */
   onConnect = (socket: WebSocket) => {
     const { maxClients, pingInterval, chunkSize, maxHeight, maxLightLevel } =
       this.params;
@@ -128,7 +164,94 @@ class Room {
     this.world.ecs.addEntity(client);
   };
 
-  onMessage = (client: Client, data: WebSocket.Data) => {
+  /**
+   * Finds the client by ID in this room.
+   *
+   * @param id - ID of the client
+   * @returns A client instance if exists, otherwise undefined
+   */
+  findClient = (id: string) => {
+    return this.clients.get(id);
+  };
+
+  /**
+   * Start the room, does the following:
+   * - Call `this.world.start()` to kickstart the world of the room.
+   * - Start the server-side game-tick interval for this room.
+   */
+  start = () => {
+    const { updateInterval } = this.params;
+    this.world.start();
+    this.updateInterval = setInterval(this.update, updateInterval);
+    this.started = true;
+  };
+
+  // TODO: maybe stop clients too?
+  /**
+   * Stops the room from running, does the following:
+   * - Clear the game-tick interval of the room.
+   * - Stop the world by calling `this.world.stop()`.
+   */
+  stop = () => {
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.world.stop();
+      this.updateInterval = null;
+    }
+  };
+
+  /**
+   * Broadcasts an event to all clients who are connected to this room
+   *
+   * @param event - Anything that follows the protocol buffers
+   * @param filter - Filter to include/exclude certain clients
+   */
+  broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
+    if (this.clients.size === 0) return;
+
+    const encoded = Network.encode(event);
+
+    this.filterClients(filter, (client) => {
+      client.send(encoded);
+    });
+  };
+
+  /**
+   * Updater of `Room`, does the following:
+   * - Update the room's world
+   *
+   * DO NOT CALL THIS DIRECTLY! THINGS MAY BREAK!
+   */
+  update = () => {
+    this.world.update();
+  };
+
+  private filterClients = (
+    { exclude, include }: ClientFilter,
+    func: (client: Client) => void
+  ) => {
+    include = include || [];
+    exclude = exclude || [];
+
+    if (exclude.length !== 0) {
+      Array.from(this.clients.keys()).forEach((id) => {
+        if (exclude.includes(id)) return;
+        const client = this.clients.get(id);
+        func(client);
+      });
+    } else if (include.length !== 0) {
+      include.forEach((id) => {
+        const client = this.clients.get(id);
+        func(client);
+      });
+    } else {
+      this.clients.forEach((client) => {
+        func(client);
+      });
+    }
+  };
+
+  private onMessage = (client: Client, data: WebSocket.Data) => {
     let request: protocol.Message;
     try {
       request = Network.decode(data);
@@ -138,7 +261,7 @@ class Room {
     this.onRequest(client, request);
   };
 
-  onRequest = (client: Client, request: any) => {
+  private onRequest = (client: Client, request: any) => {
     switch (request.type) {
       case "PEER": {
         const { peer } = request;
@@ -183,7 +306,7 @@ class Room {
     }
   };
 
-  onDisconnect = (client: Client) => {
+  private onDisconnect = (client: Client) => {
     const { id } = client;
 
     // would return true if client exists
@@ -197,40 +320,7 @@ class Room {
     }
   };
 
-  findClient = (id: string) => {
-    return this.clients.get(id);
-  };
-
-  // !!! DOESN'T WORK
-  // TODO: make this asynchronous to actually check for preload progress
-  // Issue here is that some chunks may not be preloaded as they are on the edge.
-  preload = () => {
-    const { preloadRadius } = this.params;
-
-    for (let x = -preloadRadius; x <= preloadRadius; x++) {
-      for (let z = -preloadRadius; z <= preloadRadius; z++) {
-        this.world.chunks.getChunk(x, z);
-      }
-    }
-  };
-
-  start = () => {
-    const { updateInterval } = this.params;
-    this.world.start();
-    this.updateInterval = setInterval(this.update, updateInterval);
-    this.started = true;
-  };
-
-  // TODO: maybe stop clients too?
-  stop = () => {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-      this.world.stop();
-      this.updateInterval = null;
-    }
-  };
-
-  ping = () => {
+  private ping = () => {
     this.clients.forEach((client) => {
       if (client.isAlive === false) {
         client.socket.terminate();
@@ -239,45 +329,6 @@ class Room {
       client.isAlive = false;
       client.socket.ping();
     });
-  };
-
-  broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
-    if (this.clients.size === 0) return;
-
-    const encoded = Network.encode(event);
-
-    this.filterClients(filter, (client) => {
-      client.send(encoded);
-    });
-  };
-
-  update = () => {
-    this.world.update();
-  };
-
-  private filterClients = (
-    { exclude, include }: ClientFilter,
-    func: (client: Client) => void
-  ) => {
-    include = include || [];
-    exclude = exclude || [];
-
-    if (exclude.length !== 0) {
-      Array.from(this.clients.keys()).forEach((id) => {
-        if (exclude.includes(id)) return;
-        const client = this.clients.get(id);
-        func(client);
-      });
-    } else if (include.length !== 0) {
-      include.forEach((id) => {
-        const client = this.clients.get(id);
-        func(client);
-      });
-    } else {
-      this.clients.forEach((client) => {
-        func(client);
-      });
-    }
   };
 }
 

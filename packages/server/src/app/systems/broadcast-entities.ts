@@ -13,6 +13,12 @@ import {
 } from "../comps";
 import { Entities } from "../entities";
 
+/**
+ * An ECS system that broadcasts entities' data to all clients
+ * in the same room.
+ *
+ * @extends {System}
+ */
 class BroadcastEntitiesSystem extends System {
   constructor(private entities: Entities) {
     super([

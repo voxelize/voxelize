@@ -3,6 +3,9 @@ import { DeepPartial } from "@voxelize/common";
 import { RoomParams } from "./app/room";
 import { Network, Rooms } from "./core";
 
+/**
+ * Server parameters
+ */
 type ServerParams = {
   port: number;
 };
@@ -11,6 +14,11 @@ const defaultParams: ServerParams = {
   port: 5000,
 };
 
+/**
+ * A voxelize server.
+ *
+ * @param options - Server parameters to run a server
+ */
 class Server {
   public params: ServerParams;
   public network: Network;
@@ -22,13 +30,15 @@ class Server {
       ...options,
     };
 
-    this.network = new Network(this, {
-      test: "test",
-    });
-
+    this.network = new Network(this);
     this.rooms = new Rooms(this);
   }
 
+  /**
+   * Start listening on the specified port.
+   *
+   * @returns A promise to the server listening
+   */
   listen = async () => {
     const { port } = this.params;
 
@@ -38,6 +48,13 @@ class Server {
     });
   };
 
+  /**
+   * Create a room to play in.
+   *
+   * @param name - Name of the room
+   * @param params - Parameters to create a room
+   * @returns A new room instance.
+   */
   createRoom = (name: string, params: Partial<RoomParams> = {}) => {
     const room = this.rooms.createRoom(name, params);
     console.log(`🚪  Room created: ${room.name}`);

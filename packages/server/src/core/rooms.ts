@@ -10,6 +10,13 @@ import { Room, RoomParams } from "../app/room";
 import { Network } from "./network";
 import { ClientFilter, defaultFilter } from "./shared";
 
+/**
+ * Manager of all rooms. Handles the following:
+ * - Client connection, directing traffic to corresponding rooms.
+ * - Sets up debugging route `/rooms` and `/has-room`.
+ *
+ * @param server - Server instance that the rooms exist in
+ */
 class Rooms extends Map<string, Room> {
   constructor(public server: Server) {
     super();
@@ -78,6 +85,13 @@ class Rooms extends Map<string, Room> {
     });
   }
 
+  /**
+   * Create a room to play in.
+   *
+   * @param name - Name of the room
+   * @param params - Parameters to create the room
+   * @returns A room instance
+   */
   createRoom = (name: string, params: Partial<RoomParams>) => {
     const room = new Room(name, params);
 
@@ -86,6 +100,12 @@ class Rooms extends Map<string, Room> {
     return room;
   };
 
+  /**
+   * Find a client through all rooms by ID.
+   *
+   * @param id - ID of the client
+   * @returns Client instance if exists, else null
+   */
   findClient = (id: string) => {
     for (const [, room] of Array.from(this)) {
       const client = room.clients.get(id);
@@ -94,6 +114,12 @@ class Rooms extends Map<string, Room> {
     return null;
   };
 
+  /**
+   * Broadcast to all clients in all rooms. Useful for cross-room announcements.
+   *
+   * @param event - Event to broadcast, obeying the protocol buffers
+   * @param filter - Filter to include/exclude clients
+   */
   broadcast = (event: any, filter: ClientFilter = defaultFilter) => {
     const encoded = Network.encode(event);
 
