@@ -151,7 +151,7 @@ class Controls extends EventDispatcher {
     this.addEventListener("lock", this.onLock);
     this.addEventListener("unlock", this.onUnlock);
 
-    this.setPosition(-8, 8, 8);
+    this.setPosition(-12, 12, 12);
     this.lookAt(0, 0, 0);
   };
 

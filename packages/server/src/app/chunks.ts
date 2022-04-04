@@ -1,4 +1,5 @@
 import { BaseChunks, ChunkUtils, Coords2 } from "@voxelize/common";
+import { Pool } from "threads";
 import { v4 as uuidv4 } from "uuid";
 
 import { Network } from "../core/network";
@@ -15,6 +16,7 @@ import { World } from "./world";
  */
 class Chunks extends BaseChunks<Chunk> {
   private packets = new Map<string, Coords2[]>();
+  private encoded = new Map<string, any[]>();
 
   constructor(public world: World) {
     super();
@@ -92,7 +94,7 @@ class Chunks extends BaseChunks<Chunk> {
 
   /**
    * Updater for `Chunks`. Does the following:
-   * - Actually send chunks to clients
+   * - Offload all chunks to be sent to `Sender` to encode and send
    *
    * DO NOT CALL THIS DIRECTLY! THINGS MAY BREAK!
    */
@@ -105,27 +107,40 @@ class Chunks extends BaseChunks<Chunk> {
       const client = this.world.room.findClient(to);
       if (!client) return;
 
-      client.send(
-        Network.encode({
-          type: "REQUEST",
-          chunks: packets
-            .splice(0, this.worldParams.maxResponsePerTick)
-            .map((coords) => {
-              const chunk = this.getChunk(...coords);
-              if (!chunk) return;
+      const buffers: ArrayBuffer[] = [];
 
-              return {
-                x: coords[0],
-                z: coords[1],
-                id: chunk.id,
-                mesh: chunk.mesh,
-                voxels: chunk.voxels.data,
-                lights: chunk.lights.data,
-                heightMap: chunk.heightMap.data,
-              };
-            }),
-        })
-      );
+      const event = {
+        type: "REQUEST",
+        chunks: packets
+          .splice(0, this.worldParams.maxResponsePerTick)
+          .map((coords) => {
+            const chunk = this.getChunk(...coords);
+            if (!chunk) return;
+
+            buffers.push(
+              chunk.voxels.data.buffer.slice(0),
+              chunk.lights.data.buffer.slice(0),
+              chunk.heightMap.data.buffer.slice(0),
+              chunk.mesh.opaque?.aos?.buffer.slice(0),
+              chunk.mesh.opaque?.indices?.buffer.slice(0),
+              chunk.mesh.opaque?.lights?.buffer.slice(0),
+              chunk.mesh.opaque?.positions?.buffer.slice(0),
+              chunk.mesh.opaque?.uvs?.buffer.slice(0)
+            );
+
+            return {
+              x: coords[0],
+              z: coords[1],
+              id: chunk.id,
+              mesh: chunk.mesh,
+              voxels: chunk.voxels.data,
+              lights: chunk.lights.data,
+              heightMap: chunk.heightMap.data,
+            };
+          }),
+      };
+
+      this.world.sender.addPacket(client.id, event, buffers);
     }
   };
 

@@ -46,10 +46,10 @@ test.world.registerBlock("Marble", {
 test.world.addStage(new TestVoxelStage());
 
 const box = test.world.addEntity("Box");
-Position3DComponent.get(box).data.set(3, 3, 3);
+Position3DComponent.get(box).data.set(3, 10, 3);
 
 const box2 = test.world.addEntity("Box");
-Position3DComponent.get(box2).data.set(-3, 3, -3);
+Position3DComponent.get(box2).data.set(-3, 10, -3);
 
 const test2 = server.createRoom("test2");
 

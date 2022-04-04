@@ -40,6 +40,7 @@
     // "unused-imports/no-unused-imports-ts": "warn",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/ban-ts-comment": "off",
+    "@typescript-eslint/no-explicit-any": "off",
     "no-constant-condition": "off",
     "no-prototype-builtins": "off",
     "prefer-const": "error",

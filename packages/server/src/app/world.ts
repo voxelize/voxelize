@@ -6,6 +6,7 @@ import { Client } from "./ents";
 import { ChunkStage, Pipeline } from "./pipeline";
 import { Registry } from "./registry";
 import { Room } from "./room";
+import { Sender } from "./sender";
 import { Constructor } from "./shared";
 import {
   BroadcastEntitiesSystem,
@@ -35,6 +36,7 @@ type WorldParams = BaseWorldParams & {
  */
 class World {
   public chunks: Chunks;
+  public sender: Sender;
   public entities: Entities;
   public registry: Registry;
   public pipeline: Pipeline;
@@ -45,6 +47,7 @@ class World {
     const { chunkSize } = params;
 
     this.chunks = new Chunks(this);
+    this.sender = new Sender(this);
     this.entities = new Entities(this);
     this.registry = new Registry(this);
     this.pipeline = new Pipeline(this);
@@ -156,6 +159,7 @@ class World {
     this.entities.update();
     this.pipeline.update();
     this.chunks.update();
+    this.sender.update();
   };
 }
 
