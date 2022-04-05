@@ -1,4 +1,4 @@
-<script lang="typescript">
+<script lang="ts">
   import { Client } from "@voxelize/client";
   import { onMount } from "svelte";
 

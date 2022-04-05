@@ -3,7 +3,7 @@ edition = "2021"
 exclude = [
   "client",
   "dist",
-  "examples/client",
+  "examples",
   "node_modules",
   "package.json",
   "tsconfig.*",
@@ -22,3 +22,4 @@ name = "demo"
 path = "examples/server/main.rs"
 
 [dependencies]
+actix-web = "4"
