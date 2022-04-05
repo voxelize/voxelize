@@ -1,4 +1,5 @@
 [package]
+description = "A fast multiplayer voxel engine."
 edition = "2021"
 exclude = [
   "client",
@@ -10,6 +11,7 @@ exclude = [
   "yarn.lock",
   "*.js",
 ]
+license = "MIT"
 name = "voxelize"
 version = "0.1.0"
 
