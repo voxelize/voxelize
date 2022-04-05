@@ -3,3 +3,7 @@ node_modules
 *.tsbuildinfo
 **/.swc
 .yarn
+/target
+
+client/protocol/index.*
+Cargo.lock

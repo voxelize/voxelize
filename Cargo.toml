@@ -1,0 +1,24 @@
+[package]
+edition = "2021"
+exclude = [
+  "client",
+  "dist",
+  "examples/client",
+  "node_modules",
+  "package.json",
+  "tsconfig.*",
+  "yarn.lock",
+  "*.js",
+]
+name = "voxelize"
+version = "0.1.0"
+
+[lib]
+name = "voxelize"
+path = "server/lib.rs"
+
+[[example]]
+name = "demo"
+path = "examples/server/main.rs"
+
+[dependencies]
