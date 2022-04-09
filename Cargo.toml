@@ -24,4 +24,15 @@ name = "demo"
 path = "examples/server/main.rs"
 
 [dependencies]
+actix = "0.13.0"
+actix-broker = "0.4.2"
 actix-web = "4"
+actix-web-actors = "4.1.0"
+ctrlc = "3.2.1"
+hashbrown = "0.12.0"
+
+chrono = "0.4.19"
+env_logger = "0.9"
+fern = {version = "0.6.0", features = ["colored"]}
+log = "0.4.16"
+rand = "0.8"

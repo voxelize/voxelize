@@ -11,7 +11,7 @@
     "dev:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w server -x \"build --release\"",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn && yarn demo",
-    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -x \"run --release --example demo\"",
+    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "clean": "rimraf -rf ./dist",
     "compile": "rollup -c rollup.config.js",
