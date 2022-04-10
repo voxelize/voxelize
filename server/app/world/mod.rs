@@ -11,17 +11,26 @@ mod config;
 
 pub use self::config::WorldConfig;
 
+/// A voxelize world.
 #[derive(Default)]
 pub struct World {
+    /// ID of the world, generated from `nanoid!()`.
     pub id: String,
+
+    /// Name of the world, used for connection.
     pub name: String,
 
+    /// World configurations, containing information of how the world operates, such as `chunk_size`.
     pub config: WorldConfig,
 
+    /// Entity component system world.
     ecs: ECSWorld,
+
+    /// A map of all clients within this world.
     clients: HashMap<String, Client>,
 }
 
+/// A filter for clients, used for specific broadcasting.
 pub enum ClientFilter {
     All,
     Include(Vec<String>),
@@ -29,6 +38,7 @@ pub enum ClientFilter {
 }
 
 impl World {
+    /// Create a new voxelize world.
     pub fn new(name: &str, config: WorldConfig) -> Self {
         let id = nanoid!();
 
@@ -45,20 +55,24 @@ impl World {
         }
     }
 
+    /// Check if the world has a specific client with id of `id`.
     pub fn has_client(&self, id: &str) -> bool {
         self.clients.contains_key(id)
     }
 
+    /// Add a client to the world, with ID generated with `nanoid!()`.
     pub fn add_client(&mut self, client: Client) -> String {
         let id = nanoid!();
         self.clients.insert(id.clone(), client);
         id
     }
 
+    /// Remove a client from the world by id.
     pub fn remove_client(&mut self, id: &str) -> Option<Client> {
         self.clients.remove(id)
     }
 
+    /// Handler for protobuf requests from clients.
     pub fn on_request(&mut self, id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
 
@@ -70,6 +84,8 @@ impl World {
         }
     }
 
+    /// Broadcast a protobuf message to a subset or all of the clients in the world. Simultaneously,
+    /// remove all the inactive clients that aren't receiving messages.
     pub fn broadcast(&mut self, data: Message, filter: ClientFilter) -> Vec<Client> {
         let mut resting_players = vec![];
 
@@ -105,11 +121,15 @@ impl World {
         inactives
     }
 
+    /// Tick of the world, run every 16ms.
     pub fn tick(&mut self) {}
 
+    /// Handler for `Peer` type messages.
     fn on_peer(&mut self, id: &str, data: Message) {}
 
+    /// Handler for `Signal` type messages.
     fn on_signal(&mut self, id: &str, data: Message) {}
 
+    /// Handler for `Chunk` type messages.
     fn on_chunk(&mut self, id: &str, data: Message) {}
 }

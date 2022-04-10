@@ -16,6 +16,7 @@ pub struct Server {
     /// If the voxelize server has started.
     pub started: bool,
 
+    /// Worlds that are added and waiting to be instantiated.
     pending_worlds: Vec<(String, WorldConfig)>,
 }
 

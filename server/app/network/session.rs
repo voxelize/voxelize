@@ -20,7 +20,6 @@ pub struct WsSession {
 impl WsSession {
     pub fn new(world: &str) -> Self {
         Self {
-            id: nanoid!(),
             world: world.to_owned(),
             ..Default::default()
         }
