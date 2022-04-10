@@ -177,7 +177,7 @@ class Network {
         });
         break;
       }
-      case "REQUEST": {
+      case "CHUNK": {
         const { chunks } = event;
 
         if (chunks) {

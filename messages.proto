@@ -55,7 +55,7 @@ message Message {
     LEAVE = 4;
     PEER = 5;
     ENTITY = 6;
-    REQUEST = 7;
+    CHUNK = 7;
     SETTINGS = 8;
   }
 

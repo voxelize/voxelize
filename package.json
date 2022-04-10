@@ -8,10 +8,10 @@
   "private": true,
   "scripts": {
     "dev": "npm-run-all --parallel \"dev:rs\" \"compile -w\" \"types -w --preserveWatchOutput\"",
-    "dev:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w server -x \"build --release\"",
+    "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn && yarn demo",
-    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
+    "demo:rs": "cross-env RUST_BACKTRACE=full cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "clean": "rimraf -rf ./dist",
     "compile": "rollup -c rollup.config.js",
@@ -19,7 +19,7 @@
     "prepublishOnly": "yarn run build",
     "lint": "eslint --fix --ext js,ts,tsx .",
     "proto:ts": "pbts -o client/protocol/index.d.ts client/protocol/index.js",
-    "proto:js": "pbjs -t static-module -w commonjs -o client/protocol/index.js protocol/messages.proto",
+    "proto:js": "pbjs -t static-module -w commonjs -o client/protocol/index.js messages.proto",
     "proto": "yarn run proto:js && yarn run proto:ts"
   },
   "devDependencies": {

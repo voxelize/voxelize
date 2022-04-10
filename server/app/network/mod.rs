@@ -1,7 +1,18 @@
+use actix::Recipient;
 use actix_web::{web, Error, HttpRequest, Responder};
 use actix_web_actors::ws;
 
-use super::session::WsSession;
+use session::WsSession;
+
+use self::models::Message;
+
+pub mod messages;
+pub mod models;
+pub mod room;
+pub mod server;
+pub mod session;
+
+pub type Client = Recipient<Message>;
 
 // Define HTTP actor
 pub struct Network;

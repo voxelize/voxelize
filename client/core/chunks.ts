@@ -348,7 +348,7 @@ class Chunks {
     toRequest.forEach((name) => this.requested.add(name));
 
     this.client.network.send({
-      type: "REQUEST",
+      type: "CHUNK",
       json: {
         chunks: toRequest,
       },
