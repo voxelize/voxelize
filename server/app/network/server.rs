@@ -1,10 +1,10 @@
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use hashbrown::HashMap;
+use log::info;
 
 use super::{
-    messages::{ClientMessage, JoinRoom, LeaveRoom},
-    models::MessageType,
+    messages::{ClientMessage, CreateRoom, JoinRoom, LeaveRoom},
     room::Room,
 };
 
@@ -28,6 +28,16 @@ impl Actor for WsServer {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<LeaveRoom>(ctx);
+    }
+}
+
+impl Handler<CreateRoom> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: CreateRoom, _ctx: &mut Self::Context) -> Self::Result {
+        let CreateRoom { room } = msg;
+        info!("🚪 Room created: {}", room.name);
+        self.rooms.insert(room.name.to_owned(), room);
     }
 }
 
