@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 use nanoid::nanoid;
-use specs::World as ECSWorld;
+use specs::{World as ECSWorld, WorldExt};
 
 use super::network::{
     models::{Message, MessageType},
@@ -32,11 +32,14 @@ impl World {
     pub fn new(name: &str, config: WorldConfig) -> Self {
         let id = nanoid!();
 
+        let ecs = ECSWorld::new();
+
         Self {
             id,
             name: name.to_owned(),
 
             config,
+            ecs,
 
             ..Default::default()
         }
