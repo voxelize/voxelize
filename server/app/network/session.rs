@@ -1,7 +1,6 @@
 use actix::{fut, prelude::*};
 use actix_web_actors::ws;
 use libflate::zlib::Encoder;
-use nanoid::nanoid;
 use std::io::Write;
 
 use super::{
@@ -10,14 +9,15 @@ use super::{
     server::WsServer,
 };
 
+/// A websocket session for Voxelize.
 #[derive(Default)]
 pub struct WsSession {
     id: String,
     world: String,
-    name: Option<String>,
 }
 
 impl WsSession {
+    /// Create a new WebSocket session connect to a certain world.
     pub fn new(world: &str) -> Self {
         Self {
             world: world.to_owned(),
@@ -25,6 +25,7 @@ impl WsSession {
         }
     }
 
+    /// Join a world.
     pub fn join_world(&mut self, world_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
         let world_name = world_name.to_owned();
 
@@ -48,6 +49,7 @@ impl WsSession {
             .wait(ctx);
     }
 
+    /// Handler to when client sends message to server, directs message to the server to be handled.
     fn on_request(&mut self, message: Message) {
         WsServer::from_registry().do_send(ClientMessage {
             world_name: self.world.to_owned(),
@@ -64,14 +66,15 @@ impl Actor for WsSession {
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         log::info!(
-            "WsChatSession closed for {}({}) in world {}",
-            self.name.clone().unwrap_or_else(|| "anon".to_string()),
+            "WsChatSession closed for ({}) in world {}",
             self.id,
             self.world
         );
     }
 }
 
+/// Handler for protocol buffer messages from server to client. If the message is too big, then zlib compresses it
+/// first before sending as binary data to the websocket client.
 impl Handler<Message> for WsSession {
     type Result = ();
 
@@ -89,6 +92,7 @@ impl Handler<Message> for WsSession {
     }
 }
 
+/// Stream handler for receiving websocket messages, usually in protocol buffers.
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {

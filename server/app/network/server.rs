@@ -9,23 +9,30 @@ use crate::app::world::World;
 
 use super::messages::{ClientMessage, CreateWorld, HasWorld, JoinWorld, LeaveWorld};
 
+/// A websocket server for Voxelize, holds all worlds data, and runs as a background
+/// system service.
 #[derive(Default)]
 pub struct WsServer {
-    worlds: HashMap<String, World>,
+    /// Whether or not if the socket server has started as a system service.
+    pub started: bool,
 
-    started: bool,
+    /// A map of all the worlds.
+    worlds: HashMap<String, World>,
 }
 
 impl WsServer {
+    /// Get a world reference by name.
     fn get_world(&self, world_name: &str) -> Option<&World> {
         self.worlds.get(world_name)
     }
 
+    /// Get a mutable world reference by name.
     fn get_world_mut(&mut self, world_name: &str) -> Option<&mut World> {
         self.worlds.get_mut(world_name)
     }
 }
 
+/// Subscribe to certain system events.
 impl Actor for WsServer {
     type Context = Context<Self>;
 
@@ -34,6 +41,8 @@ impl Actor for WsServer {
     }
 }
 
+/// Handler for world creation, creating from a name and a world config. Worlds that are added get immediately started
+/// by running an Actix interval through `run_interval`.
 impl Handler<CreateWorld> for WsServer {
     type Result = ();
 
@@ -55,6 +64,7 @@ impl Handler<CreateWorld> for WsServer {
     }
 }
 
+/// Handler for joining a world, adding a client into a specific world.
 impl Handler<JoinWorld> for WsServer {
     type Result = MessageResult<JoinWorld>;
 
@@ -73,6 +83,7 @@ impl Handler<JoinWorld> for WsServer {
     }
 }
 
+/// Handler for leaving the world, removing a client from a world.
 impl Handler<LeaveWorld> for WsServer {
     type Result = ();
 
@@ -88,6 +99,7 @@ impl Handler<LeaveWorld> for WsServer {
     }
 }
 
+/// Handler for client protocol buffer messages, sent from client to the server.
 impl Handler<ClientMessage> for WsServer {
     type Result = ();
 
@@ -104,6 +116,7 @@ impl Handler<ClientMessage> for WsServer {
     }
 }
 
+/// Handler to check if a world exists.
 impl Handler<HasWorld> for WsServer {
     type Result = MessageResult<HasWorld>;
 
@@ -114,9 +127,11 @@ impl Handler<HasWorld> for WsServer {
     }
 }
 
+/// Start the websocket server as a system service.
 impl SystemService for WsServer {
     fn service_started(&mut self, _ctx: &mut Context<Self>) {
         self.started = true;
     }
 }
+
 impl Supervised for WsServer {}
