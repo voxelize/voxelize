@@ -26,7 +26,7 @@ impl Server {
             return;
         }
 
-        self.pending_rooms.push(room);
+        self.pending_rooms.insert(0, room);
     }
 
     #[actix_web::main]

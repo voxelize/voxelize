@@ -15,8 +15,11 @@ fn main() {
 
     let mut server = Server::new(4000).build();
 
-    let room = Room::new("test").build();
-    server.add_room(room);
+    let room1 = Room::new("room1").build();
+    server.add_room(room1);
+
+    let room2 = Room::new("room2").build();
+    server.add_room(room2);
 
     server.start().expect("Couldn't start voxelize server.");
 }

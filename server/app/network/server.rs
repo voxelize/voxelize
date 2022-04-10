@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use hashbrown::HashMap;
@@ -11,6 +13,8 @@ use super::{
 #[derive(Default)]
 pub struct WsServer {
     rooms: HashMap<String, Room>,
+
+    started: bool,
 }
 
 impl WsServer {
@@ -34,10 +38,21 @@ impl Actor for WsServer {
 impl Handler<CreateRoom> for WsServer {
     type Result = ();
 
-    fn handle(&mut self, msg: CreateRoom, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: CreateRoom, ctx: &mut Self::Context) -> Self::Result {
         let CreateRoom { room } = msg;
+
         info!("🚪 Room created: {}", room.name);
+
+        let name = room.name.to_owned();
+        let interval = room.interval.to_owned();
+
         self.rooms.insert(room.name.to_owned(), room);
+
+        ctx.run_interval(Duration::from_millis(interval), move |act, ctx| {
+            if let Some(room) = act.get_room_mut(&name) {
+                room.tick();
+            }
+        });
     }
 }
 
@@ -90,5 +105,9 @@ impl Handler<ClientMessage> for WsServer {
     }
 }
 
-impl SystemService for WsServer {}
+impl SystemService for WsServer {
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {
+        self.started = true;
+    }
+}
 impl Supervised for WsServer {}

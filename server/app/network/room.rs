@@ -1,5 +1,5 @@
-use game_loop::game_loop;
 use hashbrown::HashMap;
+use log::info;
 use nanoid::nanoid;
 
 use super::{
@@ -12,7 +12,7 @@ pub struct Room {
     pub id: String,
     pub name: String,
     pub max_clients: usize,
-    pub interval: u32,
+    pub interval: u64,
     pub chunk_size: u32,
     pub max_height: u32,
     pub max_light_level: u32,
@@ -60,18 +60,7 @@ impl Room {
 
     pub fn broadcast() {}
 
-    pub fn start(&mut self) {
-        let k = game_loop(
-            self,
-            16,
-            0.1,
-            |g| {
-                print!("hi");
-            },
-            |g| {},
-        );
-        print!("hii")
-    }
+    pub fn tick(&mut self) {}
 
     fn on_peer(&mut self, id: &str, data: Message) {}
 
@@ -81,7 +70,7 @@ impl Room {
 }
 
 const DEFAULT_MAX_CLIENT: usize = 100;
-const DEFAULT_INTERVAL: u32 = 16;
+const DEFAULT_INTERVAL: u64 = 16;
 const DEFAULT_CHUNK_SIZE: u32 = 16;
 const DEFAULT_MAX_HEIGHT: u32 = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
@@ -95,7 +84,7 @@ pub struct RoomBuilder {
     pub name: String,
 
     pub max_clients: Option<usize>,
-    pub interval: Option<u32>,
+    pub interval: Option<u64>,
     pub chunk_size: Option<u32>,
     pub max_height: Option<u32>,
     pub max_light_level: Option<u32>,
@@ -118,7 +107,7 @@ impl RoomBuilder {
         self
     }
 
-    pub fn interval(mut self, interval: u32) -> Self {
+    pub fn interval(mut self, interval: u64) -> Self {
         self.interval = Some(interval);
         self
     }
