@@ -1,6 +1,6 @@
 use actix::prelude::*;
 
-use crate::app::world::World;
+use crate::app::world::WorldConfig;
 
 use super::models;
 
@@ -15,7 +15,8 @@ pub struct ClientMessage {
 #[derive(Clone, Message)]
 #[rtype(result = "()")]
 pub struct CreateWorld {
-    pub world: World,
+    pub name: String,
+    pub config: WorldConfig,
 }
 
 #[derive(Clone, Message)]

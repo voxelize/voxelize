@@ -1,6 +1,6 @@
 use std::process;
 
-use voxelize::{Server, World};
+use voxelize::{Server, WorldConfig};
 
 fn handle_ctrlc() {
     ctrlc::set_handler(move || {
@@ -15,11 +15,11 @@ fn main() {
 
     let mut server = Server::new(4000).build();
 
-    let world1 = World::new("world1").build();
-    server.add_world(world1);
+    let config1 = WorldConfig::new().build();
+    server.create_world("world1", &config1);
 
-    let world2 = World::new("world2").build();
-    server.add_world(world2);
+    let config2 = WorldConfig::new().build();
+    server.create_world("world2", &config2);
 
     server.start().expect("Couldn't start voxelize server.");
 }

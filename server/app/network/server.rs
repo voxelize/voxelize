@@ -38,12 +38,12 @@ impl Handler<CreateWorld> for WsServer {
     type Result = ();
 
     fn handle(&mut self, msg: CreateWorld, ctx: &mut Self::Context) -> Self::Result {
-        let CreateWorld { world } = msg;
+        let CreateWorld { name, config } = msg;
 
-        info!("🌎 World created: {}", world.name);
+        info!("🌎 World created: {}", name);
 
-        let name = world.name.to_owned();
-        let interval = world.config.interval.to_owned();
+        let interval = config.interval.to_owned();
+        let world = World::new(&name, config);
 
         self.worlds.insert(world.name.to_owned(), world);
 

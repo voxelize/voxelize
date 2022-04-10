@@ -6,13 +6,13 @@ use actix_web::{middleware::Logger, web, App, HttpServer};
 use app::network::{messages::CreateWorld, server::WsServer, Network};
 use fern::colors::{Color, ColoredLevelConfig};
 
-pub use app::world::World;
+pub use app::world::WorldConfig;
 
 pub struct Server {
     pub port: u16,
     pub started: bool,
 
-    pending_worlds: Vec<World>,
+    pending_worlds: Vec<(String, WorldConfig)>,
 }
 
 impl Server {
@@ -20,13 +20,15 @@ impl Server {
         ServerBuilder { port }
     }
 
-    pub fn add_world(&mut self, world: World) {
+    pub fn create_world(&mut self, name: &str, config: &WorldConfig) {
+        let packet = (name.to_owned(), config.to_owned());
+
         if self.started {
-            self.create_world(world);
+            self.send_world_to_create(packet);
             return;
         }
 
-        self.pending_worlds.insert(0, world);
+        self.pending_worlds.insert(0, packet);
     }
 
     #[actix_web::main]
@@ -75,14 +77,16 @@ impl Server {
     }
 
     fn prepare(&mut self) {
-        // Load in rooms
-        while let Some(room) = self.pending_worlds.pop() {
-            self.create_world(room);
+        while let Some(world) = self.pending_worlds.pop() {
+            self.send_world_to_create(world);
         }
     }
 
-    fn create_world(&self, world: World) {
-        self.ws_server().do_send(CreateWorld { world });
+    fn send_world_to_create(&self, packet: (String, WorldConfig)) {
+        self.ws_server().do_send(CreateWorld {
+            name: packet.0,
+            config: packet.1,
+        });
     }
 }
 
