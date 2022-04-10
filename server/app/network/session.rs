@@ -4,7 +4,7 @@ use libflate::zlib::Encoder;
 use std::io::Write;
 
 use super::{
-    messages::{ClientMessage, JoinRoom},
+    messages::{ClientMessage, JoinWorld},
     models::{decode_message, encode_message, Message},
     server::WsServer,
 };
@@ -17,12 +17,12 @@ pub struct WsSession {
 }
 
 impl WsSession {
-    pub fn join_room(&mut self, room_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
-        let room_name = room_name.to_owned();
+    pub fn join_room(&mut self, world_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
+        let world_name = world_name.to_owned();
 
         // Then send a join message for the new room
-        let join_msg = JoinRoom {
-            room_name: room_name.to_owned(),
+        let join_msg = JoinWorld {
+            world_name: world_name.to_owned(),
             recipient: ctx.address().recipient(),
         };
 
@@ -32,7 +32,7 @@ impl WsSession {
             .then(|id, act, _ctx| {
                 if let Ok(id) = id {
                     act.id = id;
-                    act.room = room_name;
+                    act.room = world_name;
                 }
 
                 fut::ready(())
@@ -42,7 +42,7 @@ impl WsSession {
 
     fn on_request(&mut self, message: Message) {
         WsServer::from_registry().do_send(ClientMessage {
-            room_name: self.room.to_owned(),
+            world_name: self.room.to_owned(),
             client_id: self.id.to_owned(),
             data: message,
         });

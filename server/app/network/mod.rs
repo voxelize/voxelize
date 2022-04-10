@@ -8,7 +8,6 @@ use self::models::Message;
 
 pub mod messages;
 pub mod models;
-pub mod room;
 pub mod server;
 pub mod session;
 

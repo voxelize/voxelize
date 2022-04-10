@@ -5,25 +5,24 @@ use actix_broker::BrokerSubscribe;
 use hashbrown::HashMap;
 use log::info;
 
-use super::{
-    messages::{ClientMessage, CreateRoom, JoinRoom, LeaveRoom},
-    room::Room,
-};
+use crate::app::world::World;
+
+use super::messages::{ClientMessage, CreateWorld, JoinWorld, LeaveWorld};
 
 #[derive(Default)]
 pub struct WsServer {
-    rooms: HashMap<String, Room>,
+    worlds: HashMap<String, World>,
 
     started: bool,
 }
 
 impl WsServer {
-    fn get_room(&self, room_name: &str) -> Option<&Room> {
-        self.rooms.get(room_name)
+    fn get_world(&self, world_name: &str) -> Option<&World> {
+        self.worlds.get(world_name)
     }
 
-    fn get_room_mut(&mut self, room_name: &str) -> Option<&mut Room> {
-        self.rooms.get_mut(room_name)
+    fn get_room_mut(&mut self, world_name: &str) -> Option<&mut World> {
+        self.worlds.get_mut(world_name)
     }
 }
 
@@ -31,41 +30,41 @@ impl Actor for WsServer {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<LeaveRoom>(ctx);
+        self.subscribe_system_async::<LeaveWorld>(ctx);
     }
 }
 
-impl Handler<CreateRoom> for WsServer {
+impl Handler<CreateWorld> for WsServer {
     type Result = ();
 
-    fn handle(&mut self, msg: CreateRoom, ctx: &mut Self::Context) -> Self::Result {
-        let CreateRoom { room } = msg;
+    fn handle(&mut self, msg: CreateWorld, ctx: &mut Self::Context) -> Self::Result {
+        let CreateWorld { world } = msg;
 
-        info!("🚪 Room created: {}", room.name);
+        info!("🌎 World created: {}", world.name);
 
-        let name = room.name.to_owned();
-        let interval = room.interval.to_owned();
+        let name = world.name.to_owned();
+        let interval = world.config.interval.to_owned();
 
-        self.rooms.insert(room.name.to_owned(), room);
+        self.worlds.insert(world.name.to_owned(), world);
 
         ctx.run_interval(Duration::from_millis(interval), move |act, ctx| {
-            if let Some(room) = act.get_room_mut(&name) {
-                room.tick();
+            if let Some(world) = act.get_room_mut(&name) {
+                world.tick();
             }
         });
     }
 }
 
-impl Handler<JoinRoom> for WsServer {
-    type Result = MessageResult<JoinRoom>;
+impl Handler<JoinWorld> for WsServer {
+    type Result = MessageResult<JoinWorld>;
 
-    fn handle(&mut self, msg: JoinRoom, _ctx: &mut Self::Context) -> Self::Result {
-        let JoinRoom {
-            room_name,
+    fn handle(&mut self, msg: JoinWorld, _ctx: &mut Self::Context) -> Self::Result {
+        let JoinWorld {
+            world_name,
             recipient,
         } = msg;
 
-        if let Some(room) = self.get_room_mut(&room_name) {
+        if let Some(room) = self.get_room_mut(&world_name) {
             let id = room.add_client(recipient);
             return MessageResult(id);
         }
@@ -74,16 +73,16 @@ impl Handler<JoinRoom> for WsServer {
     }
 }
 
-impl Handler<LeaveRoom> for WsServer {
+impl Handler<LeaveWorld> for WsServer {
     type Result = ();
 
-    fn handle(&mut self, msg: LeaveRoom, _ctx: &mut Self::Context) {
-        let LeaveRoom {
-            room_name,
+    fn handle(&mut self, msg: LeaveWorld, _ctx: &mut Self::Context) {
+        let LeaveWorld {
+            world_name,
             client_id,
         } = msg;
 
-        if let Some(room) = self.rooms.get_mut(&room_name) {
+        if let Some(room) = self.worlds.get_mut(&world_name) {
             room.remove_client(&client_id);
         }
     }
@@ -94,12 +93,12 @@ impl Handler<ClientMessage> for WsServer {
 
     fn handle(&mut self, msg: ClientMessage, _ctx: &mut Self::Context) {
         let ClientMessage {
-            room_name,
+            world_name,
             client_id,
             data,
         } = msg;
 
-        let room = self.rooms.get_mut(&room_name).unwrap();
+        let room = self.worlds.get_mut(&world_name).unwrap();
 
         room.on_request(&client_id, data);
     }

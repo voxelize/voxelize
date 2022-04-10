@@ -3,16 +3,16 @@ mod libs;
 
 use actix::{Addr, SystemService};
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use app::network::{messages::CreateRoom, server::WsServer, Network};
+use app::network::{messages::CreateWorld, server::WsServer, Network};
 use fern::colors::{Color, ColoredLevelConfig};
 
-pub use app::network::room::Room;
+pub use app::world::World;
 
 pub struct Server {
     pub port: u16,
     pub started: bool,
 
-    pending_rooms: Vec<Room>,
+    pending_worlds: Vec<World>,
 }
 
 impl Server {
@@ -20,13 +20,13 @@ impl Server {
         ServerBuilder { port }
     }
 
-    pub fn add_room(&mut self, room: Room) {
+    pub fn add_world(&mut self, world: World) {
         if self.started {
-            self.create_room(room);
+            self.create_world(world);
             return;
         }
 
-        self.pending_rooms.insert(0, room);
+        self.pending_worlds.insert(0, world);
     }
 
     #[actix_web::main]
@@ -76,13 +76,13 @@ impl Server {
 
     fn prepare(&mut self) {
         // Load in rooms
-        while let Some(room) = self.pending_rooms.pop() {
-            self.create_room(room);
+        while let Some(room) = self.pending_worlds.pop() {
+            self.create_world(room);
         }
     }
 
-    fn create_room(&self, room: Room) {
-        self.ws_server().do_send(CreateRoom { room });
+    fn create_world(&self, world: World) {
+        self.ws_server().do_send(CreateWorld { world });
     }
 }
 
@@ -102,7 +102,7 @@ impl ServerBuilder {
             port: self.port,
 
             started: false,
-            pending_rooms: vec![],
+            pending_worlds: vec![],
         }
     }
 }
