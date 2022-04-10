@@ -98,11 +98,11 @@ class Client extends EventEmitter {
   }
 
   connect = async ({
-    room,
+    world,
     serverURL,
     reconnectTimeout,
   }: {
-    room: string;
+    world: string;
     serverURL: string;
     reconnectTimeout?: number;
   }) => {
@@ -110,15 +110,15 @@ class Client extends EventEmitter {
 
     // re-instantiate networking instance
     const network = new Network(this, { reconnectTimeout, serverURL });
-    const hasRoom = await network.fetch("has-room", { room });
+    const hasWorld = await network.fetch("has-world", { world });
 
-    if (!hasRoom) {
+    if (!hasWorld) {
       console.error("Room not found.");
       return false;
     }
 
-    network.connect(room).then(() => {
-      console.log(`Joined room "${room}"`);
+    network.connect(world).then(() => {
+      console.log(`Joined world "${world}"`);
     });
 
     this.network = network;
@@ -133,7 +133,7 @@ class Client extends EventEmitter {
 
     if (this.network) {
       this.network.disconnect();
-      console.log(`Left room "${this.network.room}"`);
+      console.log(`Left world "${this.network.world}"`);
     }
 
     if (this.animationFrame) {

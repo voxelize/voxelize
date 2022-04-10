@@ -27,7 +27,7 @@ class Network {
 
   public id: string;
   public url: URL<QueryParams>;
-  public room: string;
+  public world: string;
   public socket: URL<QueryParams>;
   public connected = false;
 
@@ -37,7 +37,7 @@ class Network {
     this.url = new URL(this.params.serverURL);
   }
 
-  connect = async (room: string) => {
+  connect = async (world: string) => {
     // if websocket connection already exists, disconnect it
     if (this.ws) {
       this.ws.onclose = null;
@@ -50,10 +50,10 @@ class Network {
     }
 
     // set url query
-    this.url.query.room = room;
+    this.url.query.world = world;
 
     this.socket = new URL(this.url.toString());
-    this.socket.query.room = room;
+    this.socket.query.world = world;
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
 
@@ -77,12 +77,12 @@ class Network {
 
       // fire reconnection every "reconnectTimeout" ms
       this.reconnection = setTimeout(() => {
-        this.connect(room);
+        this.connect(world);
       }, this.params.reconnectTimeout);
     };
 
     this.ws = ws;
-    this.room = room;
+    this.world = world;
   };
 
   disconnect = () => {
@@ -203,7 +203,7 @@ class Network {
     const connection = new SimplePeer({
       initiator,
       trickle: false,
-      channelName: this.room,
+      channelName: this.world,
     }) as PeerInstance;
     this.client.peers.addPeer(id, connection);
   };

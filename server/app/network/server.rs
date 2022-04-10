@@ -7,7 +7,7 @@ use log::info;
 
 use crate::app::world::World;
 
-use super::messages::{ClientMessage, CreateWorld, JoinWorld, LeaveWorld};
+use super::messages::{ClientMessage, CreateWorld, HasWorld, JoinWorld, LeaveWorld};
 
 #[derive(Default)]
 pub struct WsServer {
@@ -21,7 +21,7 @@ impl WsServer {
         self.worlds.get(world_name)
     }
 
-    fn get_room_mut(&mut self, world_name: &str) -> Option<&mut World> {
+    fn get_world_mut(&mut self, world_name: &str) -> Option<&mut World> {
         self.worlds.get_mut(world_name)
     }
 }
@@ -48,7 +48,7 @@ impl Handler<CreateWorld> for WsServer {
         self.worlds.insert(world.name.to_owned(), world);
 
         ctx.run_interval(Duration::from_millis(interval), move |act, ctx| {
-            if let Some(world) = act.get_room_mut(&name) {
+            if let Some(world) = act.get_world_mut(&name) {
                 world.tick();
             }
         });
@@ -64,8 +64,8 @@ impl Handler<JoinWorld> for WsServer {
             recipient,
         } = msg;
 
-        if let Some(room) = self.get_room_mut(&world_name) {
-            let id = room.add_client(recipient);
+        if let Some(world) = self.get_world_mut(&world_name) {
+            let id = world.add_client(recipient);
             return MessageResult(id);
         }
 
@@ -82,8 +82,8 @@ impl Handler<LeaveWorld> for WsServer {
             client_id,
         } = msg;
 
-        if let Some(room) = self.worlds.get_mut(&world_name) {
-            room.remove_client(&client_id);
+        if let Some(world) = self.worlds.get_mut(&world_name) {
+            world.remove_client(&client_id);
         }
     }
 }
@@ -98,9 +98,19 @@ impl Handler<ClientMessage> for WsServer {
             data,
         } = msg;
 
-        let room = self.worlds.get_mut(&world_name).unwrap();
+        let world = self.worlds.get_mut(&world_name).unwrap();
 
-        room.on_request(&client_id, data);
+        world.on_request(&client_id, data);
+    }
+}
+
+impl Handler<HasWorld> for WsServer {
+    type Result = MessageResult<HasWorld>;
+
+    fn handle(&mut self, msg: HasWorld, _ctx: &mut Self::Context) -> Self::Result {
+        let HasWorld(name) = msg;
+
+        MessageResult(self.worlds.contains_key(&name))
     }
 }
 

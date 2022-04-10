@@ -1,6 +1,7 @@
 use actix::{fut, prelude::*};
 use actix_web_actors::ws;
 use libflate::zlib::Encoder;
+use nanoid::nanoid;
 use std::io::Write;
 
 use super::{
@@ -12,15 +13,23 @@ use super::{
 #[derive(Default)]
 pub struct WsSession {
     id: String,
-    room: String,
+    world: String,
     name: Option<String>,
 }
 
 impl WsSession {
-    pub fn join_room(&mut self, world_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
+    pub fn new(world: &str) -> Self {
+        Self {
+            id: nanoid!(),
+            world: world.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    pub fn join_world(&mut self, world_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
         let world_name = world_name.to_owned();
 
-        // Then send a join message for the new room
+        // Then send a join message for the new world
         let join_msg = JoinWorld {
             world_name: world_name.to_owned(),
             recipient: ctx.address().recipient(),
@@ -32,7 +41,7 @@ impl WsSession {
             .then(|id, act, _ctx| {
                 if let Ok(id) = id {
                     act.id = id;
-                    act.room = world_name;
+                    act.world = world_name;
                 }
 
                 fut::ready(())
@@ -42,7 +51,7 @@ impl WsSession {
 
     fn on_request(&mut self, message: Message) {
         WsServer::from_registry().do_send(ClientMessage {
-            world_name: self.room.to_owned(),
+            world_name: self.world.to_owned(),
             client_id: self.id.to_owned(),
             data: message,
         });
@@ -52,16 +61,14 @@ impl WsSession {
 impl Actor for WsSession {
     type Context = ws::WebsocketContext<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.join_room("Main", ctx);
-    }
+    // fn started(&mut self, ctx: &mut Self::Context) {}
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         log::info!(
-            "WsChatSession closed for {}({}) in room {}",
+            "WsChatSession closed for {}({}) in world {}",
             self.name.clone().unwrap_or_else(|| "anon".to_string()),
             self.id,
-            self.room
+            self.world
         );
     }
 }

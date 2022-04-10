@@ -32,3 +32,7 @@ pub struct LeaveWorld {
     pub world_name: String,
     pub client_id: String,
 }
+
+#[derive(Clone, Message)]
+#[rtype(result = "bool")]
+pub struct HasWorld(pub String);

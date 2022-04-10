@@ -3,7 +3,7 @@ mod libs;
 
 use actix::{Addr, SystemService};
 use actix_web::{middleware::Logger, web, App, HttpServer};
-use app::network::{messages::CreateWorld, server::WsServer, Network};
+use app::network::{has_world, messages::CreateWorld, server::WsServer, ws_route};
 use fern::colors::{Color, ColoredLevelConfig};
 
 pub use app::world::WorldConfig;
@@ -37,7 +37,8 @@ impl Server {
 
         let server = HttpServer::new(move || {
             App::new()
-                .service(web::resource("/ws").to(Network::ws_route))
+                .service(web::resource("/ws").to(ws_route))
+                .service(has_world)
                 .wrap(Logger::default())
         })
         .workers(2)
