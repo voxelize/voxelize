@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use actix::prelude::Message as ActixMessage;
-use prost::{DecodeError, Message as ProstMesssage};
+use prost::Message as ProstMesssage;
 
 use crate::libs::{ndarray::Ndarray, vec::Vec3};
 
@@ -18,29 +18,23 @@ impl ActixMessage for Message {
 
 pub type MessageType = messages::message::Type;
 
-pub struct Protocol {
-    data: Message,
+impl Message {
+    pub fn new() -> MessageBuilder {
+        MessageBuilder::default()
+    }
 }
 
-impl Protocol {
-    pub fn new() -> ProtocolBuilder {
-        ProtocolBuilder::default()
-    }
+/// Encode message into protobuf buffer
+pub fn encode_message(message: &Message) -> Vec<u8> {
+    let mut buf = Vec::new();
+    buf.reserve(message.encoded_len());
+    message.encode(&mut buf).unwrap();
+    buf
+}
 
-    pub fn encoded(&self) -> Vec<u8> {
-        Protocol::encode(&self.data)
-    }
-
-    pub fn encode(message: &Message) -> Vec<u8> {
-        let mut buf = Vec::new();
-        buf.reserve(message.encoded_len());
-        message.encode(&mut buf).unwrap();
-        buf
-    }
-
-    pub fn decode(buf: &[u8]) -> Result<Message, DecodeError> {
-        Message::decode(&mut Cursor::new(buf))
-    }
+/// Decode protobuf buffer into message
+pub fn decode_message(buf: &[u8]) -> Result<Message, prost::DecodeError> {
+    Message::decode(&mut Cursor::new(buf))
 }
 
 #[derive(Debug, Clone)]
@@ -89,7 +83,7 @@ pub struct Entity {
 }
 
 #[derive(Default)]
-pub struct ProtocolBuilder {
+pub struct MessageBuilder {
     pub r#type: MessageType,
 
     pub json: Option<String>,
@@ -113,7 +107,7 @@ fn vec3_to_vector3(vec3: &Option<Vec3<f32>>) -> Option<messages::Vector3> {
     }
 }
 
-impl ProtocolBuilder {
+impl MessageBuilder {
     pub fn r#type(mut self, r#type: MessageType) -> Self {
         self.r#type = r#type;
         self
@@ -149,7 +143,7 @@ impl ProtocolBuilder {
         self
     }
 
-    pub fn build(self) -> Protocol {
+    pub fn build(self) -> Message {
         let mut message = messages::Message {
             r#type: self.r#type as i32,
             ..Default::default()
@@ -226,6 +220,6 @@ impl ProtocolBuilder {
                 .collect();
         }
 
-        Protocol { data: message }
+        message
     }
 }

@@ -5,7 +5,7 @@ use std::io::Write;
 
 use super::{
     messages::{ClientMessage, JoinRoom},
-    models::{self, Message, Protocol},
+    models::{decode_message, encode_message, Message},
     server::WsServer,
 };
 
@@ -70,7 +70,7 @@ impl Handler<Message> for WsSession {
     type Result = ();
 
     fn handle(&mut self, msg: Message, ctx: &mut Self::Context) {
-        let encoded = Protocol::encode(&msg);
+        let encoded = encode_message(&msg);
 
         if encoded.len() > 1024 {
             let mut encoder = Encoder::new(Vec::<u8>::new()).unwrap();
@@ -95,7 +95,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
 
         match msg {
             ws::Message::Binary(bytes) => {
-                let message = models::Protocol::decode(&bytes.to_vec()).unwrap();
+                let message = decode_message(&bytes.to_vec()).unwrap();
                 self.on_request(message);
             }
             ws::Message::Close(reason) => {

@@ -23,6 +23,12 @@ pub struct Room {
     clients: HashMap<String, Client>,
 }
 
+pub enum ClientFilter {
+    All,
+    Include(Vec<String>),
+    Exclude(Vec<String>),
+}
+
 impl Room {
     pub fn new(name: &str) -> RoomBuilder {
         let id = nanoid!();
@@ -43,8 +49,8 @@ impl Room {
         id
     }
 
-    pub fn remove_client(&mut self, id: &str) {
-        self.clients.remove(id);
+    pub fn remove_client(&mut self, id: &str) -> Option<Client> {
+        self.clients.remove(id)
     }
 
     pub fn on_request(&mut self, id: &str, data: Message) {
@@ -58,7 +64,40 @@ impl Room {
         }
     }
 
-    pub fn broadcast() {}
+    pub fn broadcast(&mut self, data: Message, filter: ClientFilter) -> Vec<Client> {
+        let mut resting_players = vec![];
+
+        self.clients.iter().for_each(|(id, client)| {
+            match &filter {
+                ClientFilter::All => {}
+                ClientFilter::Include(ids) => {
+                    if !ids.iter().any(|i| *i == *id) {
+                        return;
+                    }
+                }
+                ClientFilter::Exclude(ids) => {
+                    if ids.iter().any(|i| *i == *id) {
+                        return;
+                    }
+                }
+            };
+
+            // TODO: check if is error
+            if client.try_send(data.to_owned()).is_err() {
+                resting_players.push(id.clone());
+            }
+        });
+
+        let mut inactives = vec![];
+
+        resting_players.iter().for_each(|id| {
+            if let Some(player) = self.remove_client(id) {
+                inactives.push(player);
+            }
+        });
+
+        inactives
+    }
 
     pub fn tick(&mut self) {}
 
