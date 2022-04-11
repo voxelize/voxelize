@@ -110,12 +110,12 @@ class Client extends EventEmitter {
 
     // re-instantiate networking instance
     const network = new Network(this, { reconnectTimeout, serverURL });
-    const hasWorld = await network.fetch("has-world", { world });
+    // const hasWorld = await network.fetch("has-world", { world });
 
-    if (!hasWorld) {
-      console.error("Room not found.");
-      return false;
-    }
+    // if (!hasWorld) {
+    //   console.error("Room not found.");
+    //   return false;
+    // }
 
     network.connect(world).then(() => {
       console.log(`Joined world "${world}"`);

@@ -1,14 +1,17 @@
 use hashbrown::HashMap;
+use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use specs::{World as ECSWorld, WorldExt};
 
-use super::network::{
-    models::{Message, MessageType},
-    Client,
+use super::{
+    common::ClientFilter,
+    network::models::{encode_message, Message, MessageType},
 };
 
+mod client;
 mod config;
 
+use self::client::Client;
 pub use self::config::WorldConfig;
 
 /// A voxelize world.
@@ -23,18 +26,14 @@ pub struct World {
     /// World configurations, containing information of how the world operates, such as `chunk_size`.
     pub config: WorldConfig,
 
+    /// Network handler passed down from the server.
+    pub handler: Option<NodeHandler<()>>,
+
     /// Entity component system world.
     ecs: ECSWorld,
 
-    /// A map of all clients within this world.
-    clients: HashMap<String, Client>,
-}
-
-/// A filter for clients, used for specific broadcasting.
-pub enum ClientFilter {
-    All,
-    Include(Vec<String>),
-    Exclude(Vec<String>),
+    /// A map of all clients within this world, endpoint <-> client.
+    clients: HashMap<Endpoint, Client>,
 }
 
 impl World {
@@ -55,81 +54,88 @@ impl World {
         }
     }
 
-    /// Check if the world has a specific client with id of `id`.
-    pub fn has_client(&self, id: &str) -> bool {
-        self.clients.contains_key(id)
+    /// Get a reference to the ECS world.
+    pub fn ecs(&self) -> &ECSWorld {
+        &self.ecs
+    }
+
+    /// Get a mutable reference to the ECS world
+    pub fn ecs_mut(&mut self) -> &mut ECSWorld {
+        &mut self.ecs
+    }
+
+    /// Check if the world has a specific client at endpoint
+    pub fn has_client(&self, endpoint: &Endpoint) -> bool {
+        self.clients.contains_key(endpoint)
     }
 
     /// Add a client to the world, with ID generated with `nanoid!()`.
-    pub fn add_client(&mut self, client: Client) -> String {
+    pub fn add_client(&mut self, endpoint: &Endpoint) -> String {
         let id = nanoid!();
-        self.clients.insert(id.clone(), client);
+        self.clients
+            .insert(endpoint.clone(), Client { id: id.to_owned() });
         id
     }
 
-    /// Remove a client from the world by id.
-    pub fn remove_client(&mut self, id: &str) -> Option<Client> {
-        self.clients.remove(id)
+    /// Remove a client from the world by endpoint.
+    pub fn remove_client(&mut self, endpoint: &Endpoint) -> Option<Client> {
+        self.clients.remove(endpoint)
     }
 
     /// Handler for protobuf requests from clients.
-    pub fn on_request(&mut self, id: &str, data: Message) {
+    pub fn on_request(&mut self, endpoint: &Endpoint, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
 
         match msg_type {
-            MessageType::Peer => self.on_peer(id, data),
-            MessageType::Chunk => self.on_chunk(id, data),
-            MessageType::Signal => self.on_signal(id, data),
+            MessageType::Peer => self.on_peer(endpoint, data),
+            MessageType::Chunk => self.on_chunk(endpoint, data),
+            MessageType::Signal => self.on_signal(endpoint, data),
             _ => {}
         }
     }
 
-    /// Broadcast a protobuf message to a subset or all of the clients in the world. Simultaneously,
-    /// remove all the inactive clients that aren't receiving messages.
-    pub fn broadcast(&mut self, data: Message, filter: ClientFilter) -> Vec<Client> {
-        let mut resting_players = vec![];
+    /// Broadcast a protobuf message to a subset or all of the clients in the world.
+    pub fn broadcast(&mut self, data: Message, filter: ClientFilter) {
+        let encoded = encode_message(&data);
 
-        self.clients.iter().for_each(|(id, client)| {
+        self.clients.iter().for_each(|(endpoint, client)| {
             match &filter {
                 ClientFilter::All => {}
                 ClientFilter::Include(ids) => {
-                    if !ids.iter().any(|i| *i == *id) {
+                    if !ids.iter().any(|i| *i == *client.id) {
                         return;
                     }
                 }
                 ClientFilter::Exclude(ids) => {
-                    if ids.iter().any(|i| *i == *id) {
+                    if ids.iter().any(|i| *i == *client.id) {
                         return;
                     }
                 }
             };
 
             // TODO: check if is error
-            if client.try_send(data.to_owned()).is_err() {
-                resting_players.push(id.clone());
-            }
+            self.handler().network().send(*endpoint, &encoded);
         });
-
-        let mut inactives = vec![];
-
-        resting_players.iter().for_each(|id| {
-            if let Some(player) = self.remove_client(id) {
-                inactives.push(player);
-            }
-        });
-
-        inactives
     }
 
     /// Tick of the world, run every 16ms.
     pub fn tick(&mut self) {}
 
+    /// Access the network handler, panic if it DNE.
+    pub fn handler(&self) -> &NodeHandler<()> {
+        if self.handler.is_none() {
+            panic!("Attempting to make network calls when handler isn't set.");
+        }
+
+        self.handler.as_ref().unwrap()
+    }
+
     /// Handler for `Peer` type messages.
-    fn on_peer(&mut self, id: &str, data: Message) {}
+    fn on_peer(&mut self, endpoint: &Endpoint, data: Message) {}
 
     /// Handler for `Signal` type messages.
-    fn on_signal(&mut self, id: &str, data: Message) {}
+    fn on_signal(&mut self, endpoint: &Endpoint, data: Message) {}
 
     /// Handler for `Chunk` type messages.
-    fn on_chunk(&mut self, id: &str, data: Message) {}
+    fn on_chunk(&mut self, endpoint: &Endpoint, data: Message) {}
 }

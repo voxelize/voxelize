@@ -6,7 +6,8 @@
 
   onMount(() => {
     const client = new Client();
-    console.log(client);
+
+    client.connect({ world: "world1", serverURL: "ws://0.0.0.0:4000" });
   });
 </script>
 

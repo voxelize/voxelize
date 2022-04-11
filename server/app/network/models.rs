@@ -1,6 +1,5 @@
 use std::io::Cursor;
 
-use actix::prelude::Message as ActixMessage;
 use prost::Message as ProstMesssage;
 
 use crate::libs::{ndarray::Ndarray, vec::Vec3};
@@ -11,11 +10,6 @@ pub mod messages {
 }
 
 pub use messages::Message;
-
-/// Turn the protocol buffer message into Actix-compatible message.
-impl ActixMessage for Message {
-    type Result = ();
-}
 
 pub type MessageType = messages::message::Type;
 
