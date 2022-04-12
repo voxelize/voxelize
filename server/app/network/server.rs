@@ -65,7 +65,7 @@ impl Server {
     pub fn create_world(&mut self, name: &str, config: &WorldConfig) {
         let world = World::new(name, config.to_owned());
 
-        if let Some(_) = self.worlds.insert(world.id.to_owned(), world) {
+        if let Some(_) = self.worlds.insert(name.to_owned(), world) {
             panic!("Cannot create a world with the same name: {}", name);
         };
 
@@ -89,6 +89,8 @@ impl Server {
             self.lost_endpoints.remove(&endpoint);
             self.connections
                 .insert(endpoint.to_owned(), data.text.to_owned());
+
+            info!("Client at {} joined world: {}", endpoint, data.text);
 
             return;
         }
@@ -154,6 +156,7 @@ impl Server {
                 ))
             })
             .level(log::LevelFilter::Debug)
+            .level_for("tungstenite", log::LevelFilter::Info)
             .chain(std::io::stdout())
             .apply()
             .expect("Fern did not run successfully");

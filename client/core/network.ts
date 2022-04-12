@@ -68,6 +68,12 @@ class Network {
       this.connected = true;
       this.client.entities?.reset();
       this.client.emit("connected");
+
+      this.send({
+        type: "CONNECT",
+        text: this.world,
+      });
+
       clearTimeout(this.reconnection);
     };
     ws.onerror = console.error;

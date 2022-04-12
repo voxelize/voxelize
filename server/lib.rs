@@ -1,7 +1,6 @@
 mod app;
 mod libs;
 
-use app::network::models::encode_message;
 use game_loop::game_loop;
 use log::{error, info};
 use message_io::network::{NetEvent, Transport};
@@ -18,6 +17,17 @@ use crate::app::network::models::{decode_message, Message};
 pub struct Voxelize;
 
 impl Voxelize {
+    /// Run a voxelize server instance. This blocks the main thread, as the game loop is essentially a while loop
+    /// running indefinitely. Keep in mind that the server instance passed in isn't a borrow, so `Voxelize::run`
+    /// takes ownership of the server.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// // Run a server without any worlds.
+    /// let server = Server::new().port(4000).build();
+    /// Voxelize::run(server);
+    /// ```
     pub fn run(mut server: Server) {
         let transport = Transport::Ws;
         let addr = (server.addr.to_owned(), server.port)
@@ -50,8 +60,6 @@ impl Voxelize {
                 }
                 NetEvent::Message(endpoint, input_data) => {
                     let data: Message = decode_message(input_data).unwrap();
-                    handler.network().send(endpoint, &encode_message(&data));
-                    println!("{:?}", data);
                     server.write().unwrap().on_request(endpoint, data);
                 }
                 NetEvent::Disconnected(endpoint) => {
