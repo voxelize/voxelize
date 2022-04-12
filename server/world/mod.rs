@@ -29,16 +29,13 @@ pub struct World {
     /// Name of the world, used for connection.
     pub name: String,
 
-    /// Network handler passed down from the server.
-    pub handler: Option<NodeHandler<()>>,
-
     /// Entity component system world.
     ecs: ECSWorld,
 
     dispatcher: Option<fn() -> Dispatcher<'static, 'static>>,
 }
 
-fn get_dispatcher() -> Dispatcher<'static, 'static> {
+fn get_default_dispatcher() -> Dispatcher<'static, 'static> {
     DispatcherBuilder::new().build()
 }
 
@@ -61,7 +58,7 @@ impl World {
 
             ecs,
 
-            dispatcher: Some(get_dispatcher),
+            dispatcher: Some(get_default_dispatcher),
 
             ..Default::default()
         }
@@ -89,24 +86,22 @@ impl World {
 
     /// Check if the world has a specific client at endpoint
     pub fn has_client(&self, endpoint: &Endpoint) -> bool {
-        let clients = self.read_resource::<Clients>();
-        clients.contains_key(endpoint)
+        self.clients().contains_key(endpoint)
     }
 
     /// Add a client to the world, with ID generated with `nanoid!()`.
     pub fn add_client(&mut self, endpoint: &Endpoint) -> String {
         let id = nanoid!();
 
-        let mut clients = self.write_resource::<Clients>();
-        clients.insert(endpoint.clone(), Client { id: id.to_owned() });
+        self.clients_mut()
+            .insert(endpoint.clone(), Client { id: id.to_owned() });
 
         id
     }
 
     /// Remove a client from the world by endpoint.
     pub fn remove_client(&mut self, endpoint: &Endpoint) -> Option<Client> {
-        let mut clients = self.write_resource::<Clients>();
-        clients.remove(endpoint)
+        self.clients_mut().remove(endpoint)
     }
 
     pub fn set_dispatcher(&mut self, dispatch: fn() -> Dispatcher<'static, 'static>) {
@@ -128,9 +123,8 @@ impl World {
     /// Broadcast a protobuf message to a subset or all of the clients in the world.
     pub fn broadcast(&mut self, data: Message, filter: ClientFilter) {
         let encoded = encode_message(&data);
-        let clients = self.read_resource::<Clients>();
 
-        clients.iter().for_each(|(endpoint, client)| {
+        self.clients().iter().for_each(|(endpoint, client)| {
             match &filter {
                 ClientFilter::All => {}
                 ClientFilter::Include(ids) => {
@@ -162,13 +156,34 @@ impl World {
         self.ecs.maintain();
     }
 
-    /// Access the network handler, panic if it DNE.
-    pub fn handler(&self) -> &NodeHandler<()> {
-        if self.handler.is_none() {
-            panic!("Attempting to make network calls when handler isn't set.");
-        }
+    /// Access to the network handler.
+    pub fn handler(&self) -> Fetch<NodeHandler<()>> {
+        self.read_resource::<NodeHandler<()>>()
+    }
 
-        self.handler.as_ref().unwrap()
+    /// Access to the world's config.
+    pub fn config(&self) -> Fetch<WorldConfig> {
+        self.read_resource::<WorldConfig>()
+    }
+
+    /// Access all clients in the ECS world.
+    pub fn clients(&self) -> Fetch<Clients> {
+        self.read_resource::<Clients>()
+    }
+
+    /// Access a mutable clients map in the ECS world.
+    pub fn clients_mut(&mut self) -> FetchMut<Clients> {
+        self.write_resource::<Clients>()
+    }
+
+    /// Access the registry in the ECS world.
+    pub fn registry(&self) -> Fetch<Registry> {
+        self.read_resource::<Registry>()
+    }
+
+    /// Access a mutable registry in the ECS world.
+    pub fn registry_mut(&mut self) -> FetchMut<Registry> {
+        self.write_resource::<Registry>()
     }
 
     /// Check if this world is empty

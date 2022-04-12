@@ -54,7 +54,7 @@ impl Server {
     /// Assign a network handler to this server
     pub fn set_handler(&mut self, handler: NodeHandler<()>) {
         self.worlds.values_mut().for_each(|world| {
-            world.handler = Some(handler.clone());
+            world.ecs_mut().insert(handler.clone());
         });
 
         self.handler = Some(handler);
