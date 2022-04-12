@@ -1,7 +1,8 @@
-mod block;
-mod client;
-mod config;
-mod registry;
+pub mod block;
+pub mod chunk;
+pub mod client;
+pub mod config;
+pub mod registry;
 
 use hashbrown::HashMap;
 use message_io::{network::Endpoint, node::NodeHandler};
