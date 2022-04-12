@@ -25,6 +25,7 @@ path = "examples/server/main.rs"
 
 [dependencies]
 ctrlc = "3.2.1"
+game-loop = "0.8.2"
 hashbrown = "0.12.0"
 libflate = "1.2.0"
 message-io = "0.14.5"

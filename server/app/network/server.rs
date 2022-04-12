@@ -1,7 +1,10 @@
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::{HashMap, HashSet};
 use log::{info, warn};
-use message_io::{network::Endpoint, node::NodeHandler};
+use message_io::{
+    network::Endpoint,
+    node::{self, NodeHandler, NodeListener},
+};
 
 use crate::{
     app::{network::models::MessageType, world::World},
@@ -12,10 +15,12 @@ use super::models::Message;
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.
-#[derive(Default)]
 pub struct Server {
     /// The port that this voxelize server is running on.
     pub port: u16,
+
+    /// The address that this voxelize server is running on.
+    pub addr: String,
 
     /// Whether or not if the socket server has started as a system service.
     pub started: bool,
@@ -34,10 +39,9 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(port: u16) -> ServerBuilder {
+    pub fn new() -> ServerBuilder {
         Server::setup_logger();
-
-        ServerBuilder { port }
+        ServerBuilder::default()
     }
 
     /// Assign a network handler to this server
@@ -119,6 +123,12 @@ impl Server {
         self.handler.as_ref().unwrap()
     }
 
+    pub fn tick(&mut self) {
+        for world in self.worlds.values_mut() {
+            world.tick();
+        }
+    }
+
     /// Get a world reference by name.
     fn get_world(&self, world_name: &str) -> Option<&World> {
         self.worlds.get(world_name)
@@ -150,27 +160,41 @@ impl Server {
     }
 }
 
+const DEFAULT_PORT: u16 = 4000;
+const DEFAULT_ADDR: &str = "0.0.0.0";
+
 /// Builder for a voxelize server.
 #[derive(Default)]
 pub struct ServerBuilder {
-    port: u16,
+    port: Option<u16>,
+    addr: Option<String>,
 }
 
 impl ServerBuilder {
     /// Configure the port to the voxelize server.
     pub fn port(mut self, port: u16) -> Self {
-        self.port = port;
+        self.port = Some(port);
+        self
+    }
+
+    /// Configure the address of the voxelize server.
+    pub fn addr(mut self, addr: &str) -> Self {
+        self.addr = Some(addr.to_owned());
         self
     }
 
     /// Instantiate a voxelize server instance.
     pub fn build(self) -> Server {
         Server {
-            port: self.port,
+            port: self.port.unwrap_or_else(|| DEFAULT_PORT),
+            addr: self.addr.unwrap_or_else(|| DEFAULT_ADDR.to_owned()),
 
             started: false,
+            handler: None,
 
-            ..Default::default()
+            connections: HashMap::default(),
+            lost_endpoints: HashSet::default(),
+            worlds: HashMap::default(),
         }
     }
 }

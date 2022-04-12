@@ -13,7 +13,7 @@ fn handle_ctrlc() {
 fn main() {
     handle_ctrlc();
 
-    let mut server = Server::new(4000).build();
+    let mut server = Server::new().port(4000).build();
 
     let config1 = WorldConfig::new().build();
     server.create_world("world1", &config1);
@@ -21,6 +21,5 @@ fn main() {
     let config2 = WorldConfig::new().build();
     server.create_world("world2", &config2);
 
-    // server.start().expect("Couldn't start voxelize server.");
     Voxelize::run(server);
 }

@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use log::info;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use specs::{World as ECSWorld, WorldExt};
