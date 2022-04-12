@@ -1,0 +1,333 @@
+use hashbrown::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
+
+use super::block::{Block, BlockFaces};
+
+/// Serializable struct representing a UV coordinate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UV {
+    /// Starting u-coordinate.
+    pub start_u: f32,
+
+    /// Ending u-coordinate.
+    pub end_u: f32,
+
+    /// Starting v-coordinate.
+    pub start_v: f32,
+
+    /// Ending v-coordinate.
+    pub end_v: f32,
+}
+
+/// A collection of blocks to use in an Voxelize world.
+#[derive(Default)]
+pub struct Registry {
+    /// A map of the UV's to the block faces on the texture atlas.
+    pub ranges: HashMap<String, UV>,
+
+    blocks_by_name: HashMap<String, Block>,
+
+    blocks_by_id: HashMap<u32, Block>,
+
+    textures: HashSet<String>,
+
+    name_map: HashMap<u32, String>,
+
+    type_map: HashMap<String, u32>,
+}
+
+impl Registry {
+    pub fn new() -> Self {
+        let air = Block::new("Air")
+            .is_solid(false)
+            .is_block(false)
+            .is_empty(true)
+            .is_transparent(true)
+            .build();
+
+        Self::default()
+    }
+
+    pub fn generate(&mut self) {
+        let count_per_side = self.per_side();
+
+        let mut row = 0;
+        let mut col = 0;
+
+        for texture in self.textures.iter() {
+            if col >= count_per_side {
+                col = 0;
+                row += 1;
+            }
+
+            let start_x = col as f32;
+            let start_y = row as f32;
+
+            let start_u = start_x / count_per_side as f32;
+            let end_u = (start_x + 1.0) / count_per_side as f32;
+            let start_v = 1.0 - start_y / count_per_side as f32;
+            let end_v = 1.0 - (start_y + 1.0) / count_per_side as f32;
+
+            let (start_u, start_v, end_u, end_v) =
+                Registry::fix_texture_bleeding((start_u, start_v, end_u, end_v));
+            self.ranges.insert(
+                texture.to_owned(),
+                UV {
+                    start_u,
+                    end_u,
+                    start_v,
+                    end_v,
+                },
+            );
+        }
+    }
+
+    pub fn register_block(&mut self, mut block: Block) -> Block {
+        block.id = self.blocks_by_name.len() as u32;
+        self.record_block(&block);
+        block
+    }
+
+    pub fn get_block_by_name(&self, name: &str) -> &Block {
+        self.blocks_by_name
+            .get(name)
+            .unwrap_or_else(|| panic!("Block name not found: {name}",))
+    }
+
+    pub fn get_block_by_id(&self, id: u32) -> &Block {
+        self.blocks_by_id
+            .get(&id)
+            .unwrap_or_else(|| panic!("Block id not found: {id}"))
+    }
+
+    pub fn get_id_by_name(&self, name: &str) -> u32 {
+        *self
+            .type_map
+            .get(name)
+            .unwrap_or_else(|| panic!("Block name not found: {name}"))
+    }
+
+    /// Get block transparency by id
+    pub fn get_transparency_by_id(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_transparent
+    }
+
+    /// Get block transparency by name
+    pub fn get_transparency_by_name(&self, name: &str) -> bool {
+        self.get_block_by_name(name).is_transparent
+    }
+
+    /// Get block fluidity by id
+    pub fn get_fluiditiy_by_id(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_fluid
+    }
+
+    /// Get block fluidity by name
+    pub fn get_fluiditiy_by_name(&self, name: &str) -> bool {
+        self.get_block_by_name(name).is_fluid
+    }
+
+    /// Get block solidity by id
+    pub fn get_solidity_by_id(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_solid
+    }
+
+    /// Get block solidity by name
+    pub fn get_solidity_by_name(&self, name: &str) -> bool {
+        self.get_block_by_name(name).is_solid
+    }
+
+    /// Get block emptiness by id
+    pub fn get_emptiness_by_id(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_empty
+    }
+
+    /// Get block emptiness by name
+    pub fn get_emptiness_by_name(&self, name: &str) -> bool {
+        self.get_block_by_name(name).is_empty
+    }
+
+    /// Get block faces by id
+    pub fn get_faces_by_id(&self, id: u32) -> &Vec<BlockFaces> {
+        &self.get_block_by_id(id).faces
+    }
+
+    /// Get block faces by name
+    pub fn get_faces_by_name(&self, name: &str) -> &Vec<BlockFaces> {
+        &self.get_block_by_name(name).faces
+    }
+
+    /// Get block UV by id
+    pub fn get_uv_by_id(&self, id: u32) -> HashMap<String, &UV> {
+        self.get_uv_map(self.get_block_by_id(id))
+    }
+
+    /// Get block UV by name
+    pub fn get_uv_by_name(&self, name: &str) -> HashMap<String, &UV> {
+        self.get_uv_map(self.get_block_by_name(name))
+    }
+
+    /// Check if block is air by id
+    pub fn is_air(&self, id: u32) -> bool {
+        self.get_block_by_id(id).name == "Air"
+    }
+
+    /// Check if block is fluid by id
+    pub fn is_fluid(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_fluid
+    }
+
+    /// Check if block is a plant by id
+    pub fn is_plant(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_plant
+    }
+
+    /// Check if block is plantable by id
+    pub fn is_plantable(&self, id: u32, above: u32) -> bool {
+        self.get_block_by_id(id).is_plantable && self.get_block_by_id(above).is_empty
+    }
+
+    /// Get UV map by block
+    pub fn get_uv_map(&self, block: &Block) -> HashMap<String, &UV> {
+        let mut uv_map = HashMap::new();
+
+        for source in block.faces.iter() {
+            let source_str = source.to_string();
+            let uv = self
+                .ranges
+                .get(&source_str)
+                .unwrap_or_else(|| panic!("UV range not found: {}", source));
+
+            uv_map.insert(source_str, uv);
+        }
+
+        uv_map
+    }
+
+    /// Get type map of all blocks
+    pub fn get_type_map(&self, blocks: Vec<&str>) -> HashMap<String, u32> {
+        let mut type_map = HashMap::new();
+
+        for block in blocks {
+            let &id = self
+                .type_map
+                .get(block)
+                .unwrap_or_else(|| panic!("Block name not found: {}", block));
+
+            type_map.insert(block.to_owned(), id);
+        }
+
+        type_map
+    }
+
+    /// Get solids that can be treated as empty's
+    pub fn get_passable_solids(&self) -> Vec<u32> {
+        self.blocks_by_id
+            .iter()
+            .filter(|&(_, b)| !b.is_solid && (b.is_block || b.is_plant))
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// Check if registry contains type
+    pub fn has_type(&self, id: u32) -> bool {
+        self.blocks_by_id.contains_key(&id)
+    }
+
+    pub fn per_side(&self) -> usize {
+        let mut i = 1.0;
+        let sqrt = (self.textures.len() as f32).sqrt().ceil();
+        while i < sqrt {
+            i = i * 2.0;
+        }
+        i as usize
+    }
+
+    pub fn record_block(&mut self, block: &Block) {
+        let Block {
+            id,
+            name,
+            faces,
+            is_plant,
+            ..
+        } = block;
+
+        let lower_name = name.to_lowercase();
+
+        self.blocks_by_name
+            .insert(lower_name.clone(), block.clone());
+        self.blocks_by_id.insert(*id, block.clone());
+        self.name_map.insert(*id, lower_name.clone());
+        self.type_map.insert(lower_name.clone(), *id);
+
+        for side in faces.iter() {
+            if *side == BlockFaces::Diagonal && !is_plant {
+                panic!("Non-plant blocks cannot have diagonal textures: {name}");
+            }
+
+            let side_name = Registry::make_side_name(name, side);
+            self.textures.insert(side_name);
+        }
+    }
+
+    pub fn get_faces_map(faces: &Vec<BlockFaces>) -> HashMap<BlockFaces, BlockFaces> {
+        let mut faces_map = HashMap::new();
+        let sides = vec![
+            BlockFaces::Px,
+            BlockFaces::Pz,
+            BlockFaces::Nx,
+            BlockFaces::Nz,
+        ];
+
+        sides.into_iter().for_each(|side| {
+            if faces.contains(&side) {
+                faces_map.insert(side.clone(), side);
+            } else if faces.contains(&BlockFaces::Side) {
+                faces_map.insert(side.clone(), BlockFaces::Side);
+            } else {
+                faces_map.insert(side.clone(), BlockFaces::All);
+            }
+        });
+
+        if faces.contains(&BlockFaces::Py) {
+            faces_map.insert(BlockFaces::Py, BlockFaces::Py);
+        } else if faces.contains(&BlockFaces::Top) {
+            faces_map.insert(BlockFaces::Py, BlockFaces::Top);
+        } else {
+            faces_map.insert(BlockFaces::Py, BlockFaces::All);
+        }
+
+        if faces.contains(&BlockFaces::Ny) {
+            faces_map.insert(BlockFaces::Ny, BlockFaces::Ny);
+        } else if faces.contains(&BlockFaces::Bottom) {
+            faces_map.insert(BlockFaces::Ny, BlockFaces::Bottom);
+        } else {
+            faces_map.insert(BlockFaces::Ny, BlockFaces::All);
+        }
+
+        faces_map
+    }
+
+    /// Fixing texture bleeding with the
+    /// [Half-texel edge correction method](http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/)
+    pub fn fix_texture_bleeding(
+        (start_u, start_v, end_u, end_v): (f32, f32, f32, f32),
+    ) -> (f32, f32, f32, f32) {
+        let offset = 0.1 / 128 as f32;
+        (
+            start_u + offset,
+            start_v - offset,
+            end_u - offset,
+            end_v + offset,
+        )
+    }
+
+    pub fn make_side_name(name: &str, side: &BlockFaces) -> String {
+        format!(
+            "{}__${}",
+            name.to_lowercase(),
+            side.to_string().to_lowercase()
+        )
+    }
+}
