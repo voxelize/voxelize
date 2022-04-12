@@ -1,6 +1,6 @@
 use std::process;
 
-use specs::{Dispatcher, DispatcherBuilder};
+use specs::DispatcherBuilder;
 use voxelize::{Server, Voxelize, World, WorldConfig};
 
 fn handle_ctrlc() {
@@ -11,8 +11,8 @@ fn handle_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
-fn get_dispatcher() -> Dispatcher<'static, 'static> {
-    DispatcherBuilder::new().build()
+fn get_dispatcher() -> DispatcherBuilder<'static, 'static> {
+    DispatcherBuilder::new()
 }
 
 fn main() {
@@ -24,10 +24,12 @@ fn main() {
 
     let mut world = World::new("world1", &config1);
     world.set_dispatcher(get_dispatcher);
-    server.add_world(world);
+    server.add_world(world).expect("Could not create world1.");
 
     let config2 = WorldConfig::new().build();
-    server.create_world("world2", &config2);
+    server
+        .create_world("world2", &config2)
+        .expect("Could not create world2.");
 
     Voxelize::run(server);
 }

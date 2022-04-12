@@ -32,11 +32,11 @@ pub struct World {
     /// Entity component system world.
     ecs: ECSWorld,
 
-    dispatcher: Option<fn() -> Dispatcher<'static, 'static>>,
+    dispatcher: Option<fn() -> DispatcherBuilder<'static, 'static>>,
 }
 
-fn get_default_dispatcher() -> Dispatcher<'static, 'static> {
-    DispatcherBuilder::new().build()
+fn get_default_dispatcher() -> DispatcherBuilder<'static, 'static> {
+    DispatcherBuilder::new()
 }
 
 impl World {
@@ -104,7 +104,7 @@ impl World {
         self.clients_mut().remove(endpoint)
     }
 
-    pub fn set_dispatcher(&mut self, dispatch: fn() -> Dispatcher<'static, 'static>) {
+    pub fn set_dispatcher(&mut self, dispatch: fn() -> DispatcherBuilder<'static, 'static>) {
         self.dispatcher = Some(dispatch);
     }
 
@@ -150,7 +150,8 @@ impl World {
             return;
         }
 
-        let mut dispatcher = self.dispatcher.unwrap()();
+        let dispatcher_builder = self.dispatcher.unwrap()();
+        let mut dispatcher = dispatcher_builder.build();
         dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
