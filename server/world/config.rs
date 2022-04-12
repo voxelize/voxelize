@@ -63,49 +63,49 @@ pub struct WorldConfigBuilder {
 }
 
 impl WorldConfigBuilder {
-    /// Configure the maximum clients allowed for this world.
+    /// Configure the maximum clients allowed for this world. Defaults is 100 clients.
     pub fn max_clients(mut self, max_clients: usize) -> Self {
         self.max_clients = Some(max_clients);
         self
     }
 
-    /// Configure the rate at which this world ticks.
+    /// Configure the rate at which this world ticks. Default is 16ms.
     pub fn interval(mut self, interval: u64) -> Self {
         self.interval = Some(interval);
         self
     }
 
-    /// Configure the horizontal dimension of chunks in this world.
+    /// Configure the horizontal dimension of chunks in this world. Default is 16 blocks wide.
     pub fn chunk_size(mut self, chunk_size: u32) -> Self {
         self.chunk_size = Some(chunk_size);
         self
     }
 
-    /// Configure the maximum height of the world.
+    /// Configure the maximum height of the world. Default is 256 blocks high.
     pub fn max_height(mut self, max_height: u32) -> Self {
         self.max_height = Some(max_height);
         self
     }
 
-    /// Configure the maximum light level that propagates the world.
+    /// Configure the maximum light level that propagates the world. Default is 15 blocks.
     pub fn max_light_level(mut self, max_light_level: u32) -> Self {
         self.max_light_level = Some(max_light_level);
         self
     }
 
-    /// Configure the maximum amount of chunks to be processed per tick.
+    /// Configure the maximum amount of chunks to be processed per tick. Default is 16 chunks.
     pub fn max_chunk_per_tick(mut self, max_chunk_per_tick: u32) -> Self {
         self.max_chunk_per_tick = Some(max_chunk_per_tick);
         self
     }
 
-    /// Configure the maximum amount of chunks to be sent to the client per tick.
+    /// Configure the maximum amount of chunks to be sent to the client per tick. Default is 4 chunks.
     pub fn max_response_per_tick(mut self, max_response_per_tick: u32) -> Self {
         self.max_response_per_tick = Some(max_response_per_tick);
         self
     }
 
-    /// Configure the radius around `0,0` for the world to preload chunks in.
+    /// Configure the radius around `0,0` for the world to preload chunks in. Default is 8 chunks.
     pub fn preload_radius(mut self, preload_radius: u32) -> Self {
         self.preload_radius = Some(preload_radius);
         self
