@@ -1,5 +1,7 @@
-mod app;
-mod libs;
+mod common;
+mod network;
+mod utils;
+mod world;
 
 use game_loop::game_loop;
 use log::{error, info};
@@ -9,10 +11,10 @@ use message_io::node;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
-pub use app::network::server::Server;
-pub use app::world::WorldConfig;
+pub use network::server::Server;
+pub use world::WorldConfig;
 
-use crate::app::network::models::{decode_message, Message};
+use crate::network::models::{decode_message, Message};
 
 pub struct Voxelize;
 
@@ -63,7 +65,6 @@ impl Voxelize {
                     server.write().unwrap().on_request(endpoint, data);
                 }
                 NetEvent::Disconnected(endpoint) => {
-                    // Only connection oriented protocols will generate this event
                     server.write().unwrap().on_leave(endpoint);
                 }
             }

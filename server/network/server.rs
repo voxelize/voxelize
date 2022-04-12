@@ -1,17 +1,11 @@
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::{HashMap, HashSet};
 use log::{info, warn};
-use message_io::{
-    network::Endpoint,
-    node::{self, NodeHandler, NodeListener},
-};
+use message_io::{network::Endpoint, node::NodeHandler};
 
-use crate::{
-    app::{network::models::MessageType, world::World},
-    WorldConfig,
-};
+use crate::{world::World, WorldConfig};
 
-use super::models::Message;
+use super::models::{Message, MessageType};
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.
@@ -39,6 +33,17 @@ pub struct Server {
 }
 
 impl Server {
+    /// Create a new Voxelize server instance used to host all the worlds.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// // Create a server of port 4000 on "0.0.0.0"
+    /// let server = Server::new().addr("0.0.0.0").port(4000).build();
+    ///
+    /// // Run the server on Voxelize
+    /// Voxelize::run(server);
+    /// ```
     pub fn new() -> ServerBuilder {
         Server::setup_logger();
         ServerBuilder::default()
@@ -76,6 +81,7 @@ impl Server {
         todo!()
     }
 
+    /// Handler for client's message.
     pub fn on_request(&mut self, endpoint: Endpoint, data: Message) {
         if data.r#type == MessageType::Connect as i32 {
             if !self.worlds.contains_key(&data.text) {
@@ -83,6 +89,11 @@ impl Server {
                     "Endpoint {} is attempting to connect to a non-existent world!",
                     endpoint
                 );
+                return;
+            }
+
+            if !self.lost_endpoints.contains(&endpoint) {
+                warn!("Client at {} is already in world: {}", endpoint, data.text);
                 return;
             }
 
@@ -107,6 +118,7 @@ impl Server {
         }
     }
 
+    /// Handler for client leaving.
     pub fn on_leave(&mut self, endpoint: Endpoint) {
         if let Some(world_name) = self.connections.remove(&endpoint) {
             if let Some(world) = self.get_world_mut(&world_name) {
@@ -114,9 +126,12 @@ impl Server {
             }
         }
 
+        info!("Client at {} left the server.", endpoint);
+
         self.lost_endpoints.remove(&endpoint);
     }
 
+    /// Obtain the network handler.
     pub fn handler(&self) -> &NodeHandler<()> {
         if self.handler.is_none() {
             panic!("Attempting to make network calls when handler isn't set.");
