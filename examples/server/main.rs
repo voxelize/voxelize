@@ -1,6 +1,7 @@
 use std::process;
 
-use voxelize::{Server, Voxelize, WorldConfig};
+use specs::{Dispatcher, DispatcherBuilder};
+use voxelize::{Server, Voxelize, World, WorldConfig};
 
 fn handle_ctrlc() {
     ctrlc::set_handler(move || {
@@ -10,13 +11,20 @@ fn handle_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
+fn get_dispatcher() -> Dispatcher<'static, 'static> {
+    DispatcherBuilder::new().build()
+}
+
 fn main() {
     handle_ctrlc();
 
     let mut server = Server::new().port(4000).build();
 
     let config1 = WorldConfig::new().build();
-    server.create_world("world1", &config1);
+
+    let mut world = World::new("world1", &config1);
+    world.set_dispatcher(get_dispatcher);
+    server.add_world(world);
 
     let config2 = WorldConfig::new().build();
     server.create_world("world2", &config2);

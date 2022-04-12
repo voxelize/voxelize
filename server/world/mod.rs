@@ -1,13 +1,11 @@
 use hashbrown::HashMap;
-use log::info;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
-use specs::{World as ECSWorld, WorldExt};
+use specs::{Dispatcher, DispatcherBuilder, World as ECSWorld, WorldExt};
 
-use super::{
-    common::ClientFilter,
-    network::models::{encode_message, Message, MessageType},
-};
+use crate::server::models::{encode_message, Message, MessageType};
+
+use super::common::ClientFilter;
 
 mod client;
 mod config;
@@ -35,11 +33,17 @@ pub struct World {
 
     /// A map of all clients within this world, endpoint <-> client.
     clients: HashMap<Endpoint, Client>,
+
+    dispatcher: Option<fn() -> Dispatcher<'static, 'static>>,
+}
+
+fn get_dispatcher() -> Dispatcher<'static, 'static> {
+    DispatcherBuilder::new().build()
 }
 
 impl World {
     /// Create a new voxelize world.
-    pub fn new(name: &str, config: WorldConfig) -> Self {
+    pub fn new(name: &str, config: &WorldConfig) -> Self {
         let id = nanoid!();
 
         let ecs = ECSWorld::new();
@@ -48,8 +52,10 @@ impl World {
             id,
             name: name.to_owned(),
 
-            config,
+            config: config.to_owned(),
             ecs,
+
+            dispatcher: Some(get_dispatcher),
 
             ..Default::default()
         }
@@ -81,6 +87,10 @@ impl World {
     /// Remove a client from the world by endpoint.
     pub fn remove_client(&mut self, endpoint: &Endpoint) -> Option<Client> {
         self.clients.remove(endpoint)
+    }
+
+    pub fn set_dispatcher(&mut self, dispatch: fn() -> Dispatcher<'static, 'static>) {
+        self.dispatcher = Some(dispatch);
     }
 
     /// Handler for protobuf requests from clients.
@@ -124,6 +134,11 @@ impl World {
         if self.clients.is_empty() {
             return;
         }
+
+        let mut dispatcher = self.dispatcher.unwrap()();
+        dispatcher.dispatch(&self.ecs);
+
+        self.ecs.maintain();
     }
 
     /// Access the network handler, panic if it DNE.

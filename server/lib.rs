@@ -1,5 +1,6 @@
 mod common;
-mod network;
+mod server;
+mod types;
 mod utils;
 mod world;
 
@@ -11,10 +12,10 @@ use message_io::node;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
-pub use network::server::Server;
-pub use world::WorldConfig;
+pub use server::Server;
+pub use world::{World, WorldConfig};
 
-use crate::network::models::{decode_message, Message};
+use crate::server::models::{decode_message, Message};
 
 pub struct Voxelize;
 

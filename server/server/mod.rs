@@ -1,3 +1,5 @@
+pub mod models;
+
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::{HashMap, HashSet};
 use log::{info, warn};
@@ -5,7 +7,7 @@ use message_io::{network::Endpoint, node::NodeHandler};
 
 use crate::{world::World, WorldConfig};
 
-use super::models::{Message, MessageType};
+use self::models::{Message, MessageType};
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.
@@ -64,21 +66,44 @@ impl Server {
         self.lost_endpoints.insert(endpoint);
     }
 
+    /// Add a world instance to the server. Different worlds have different configurations, and can hold
+    /// their own set of clients within. If the server has already started, the added world will be
+    /// started right away.
+    pub fn add_world(&mut self, world: World) {
+        let name = world.name.clone();
+
+        if let Some(_) = self.worlds.insert(name.to_owned(), world) {
+            panic!("Cannot create a world with the same name: {}", name);
+        };
+    }
+
     /// Create a world in the server. Different worlds have different configurations, and can hold
     /// their own set of clients within. If the server has already started, the added world will be
     /// started right away.
-    pub fn create_world(&mut self, name: &str, config: &WorldConfig) {
-        let world = World::new(name, config.to_owned());
+    pub fn create_world(&mut self, name: &str, config: &WorldConfig) -> &mut World {
+        let world = World::new(name, config);
 
         if let Some(_) = self.worlds.insert(name.to_owned(), world) {
             panic!("Cannot create a world with the same name: {}", name);
         };
 
         info!("🌎 World created: {}", name);
+
+        self.worlds.get_mut(name).unwrap()
+    }
+
+    /// Get a world reference by name.
+    pub fn get_world(&self, world_name: &str) -> Option<&World> {
+        self.worlds.get(world_name)
+    }
+
+    /// Get a mutable world reference by name.
+    pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut World> {
+        self.worlds.get_mut(world_name)
     }
 
     pub fn broadcast(&self, data: Message) {
-        todo!()
+        todo!();
     }
 
     /// Handler for client's message.
@@ -150,16 +175,6 @@ impl Server {
         for world in self.worlds.values_mut() {
             world.tick();
         }
-    }
-
-    /// Get a world reference by name.
-    fn get_world(&self, world_name: &str) -> Option<&World> {
-        self.worlds.get(world_name)
-    }
-
-    /// Get a mutable world reference by name.
-    fn get_world_mut(&mut self, world_name: &str) -> Option<&mut World> {
-        self.worlds.get_mut(world_name)
     }
 
     /// Setup Fern for debug logging.
