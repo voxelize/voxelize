@@ -5,7 +5,7 @@ use hashbrown::{HashMap, HashSet};
 use log::{info, warn};
 use message_io::{network::Endpoint, node::NodeHandler};
 
-use crate::{world::World, WorldConfig};
+use crate::{errors::AddWorldError, world::World, WorldConfig};
 
 use self::models::{Message, MessageType};
 
@@ -69,27 +69,28 @@ impl Server {
     /// Add a world instance to the server. Different worlds have different configurations, and can hold
     /// their own set of clients within. If the server has already started, the added world will be
     /// started right away.
-    pub fn add_world(&mut self, world: World) {
+    pub fn add_world(&mut self, world: World) -> Result<&mut World, AddWorldError> {
         let name = world.name.clone();
 
         if let Some(_) = self.worlds.insert(name.to_owned(), world) {
-            panic!("Cannot create a world with the same name: {}", name);
+            return Err(AddWorldError);
         };
+
+        info!("🌎 World created: {}", name);
+
+        Ok(self.worlds.get_mut(&name).unwrap())
     }
 
     /// Create a world in the server. Different worlds have different configurations, and can hold
     /// their own set of clients within. If the server has already started, the added world will be
     /// started right away.
-    pub fn create_world(&mut self, name: &str, config: &WorldConfig) -> &mut World {
+    pub fn create_world(
+        &mut self,
+        name: &str,
+        config: &WorldConfig,
+    ) -> Result<&mut World, AddWorldError> {
         let world = World::new(name, config);
-
-        if let Some(_) = self.worlds.insert(name.to_owned(), world) {
-            panic!("Cannot create a world with the same name: {}", name);
-        };
-
-        info!("🌎 World created: {}", name);
-
-        self.worlds.get_mut(name).unwrap()
+        self.add_world(world)
     }
 
     /// Get a world reference by name.
