@@ -71,7 +71,7 @@ impl Voxelize {
         });
 
         game_loop(
-            server_wrapped,
+            server_wrapped.clone(),
             60,
             0.1,
             |g| {

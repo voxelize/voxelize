@@ -120,7 +120,11 @@ impl World {
     }
 
     /// Tick of the world, run every 16ms.
-    pub fn tick(&mut self) {}
+    pub fn tick(&mut self) {
+        if self.clients.is_empty() {
+            return;
+        }
+    }
 
     /// Access the network handler, panic if it DNE.
     pub fn handler(&self) -> &NodeHandler<()> {

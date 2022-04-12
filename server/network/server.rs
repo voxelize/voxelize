@@ -84,24 +84,30 @@ impl Server {
     /// Handler for client's message.
     pub fn on_request(&mut self, endpoint: Endpoint, data: Message) {
         if data.r#type == MessageType::Connect as i32 {
-            if !self.worlds.contains_key(&data.text) {
-                warn!(
-                    "Endpoint {} is attempting to connect to a non-existent world!",
-                    endpoint
-                );
-                return;
-            }
-
             if !self.lost_endpoints.contains(&endpoint) {
                 warn!("Client at {} is already in world: {}", endpoint, data.text);
                 return;
             }
 
-            self.lost_endpoints.remove(&endpoint);
-            self.connections
-                .insert(endpoint.to_owned(), data.text.to_owned());
+            if let Some(world) = self.worlds.get_mut(&data.text) {
+                self.lost_endpoints.remove(&endpoint);
+                self.connections
+                    .insert(endpoint.to_owned(), data.text.to_owned());
 
-            info!("Client at {} joined world: {}", endpoint, data.text);
+                world.add_client(&endpoint);
+
+                info!(
+                    "Client at {} joined the server to world: {}",
+                    endpoint, data.text
+                );
+
+                return;
+            }
+
+            warn!(
+                "Endpoint {} is attempting to connect to a non-existent world!",
+                endpoint
+            );
 
             return;
         }
