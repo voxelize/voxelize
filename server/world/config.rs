@@ -8,7 +8,7 @@ pub struct WorldConfig {
     pub interval: u64,
 
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
-    pub chunk_size: u32,
+    pub chunk_size: usize,
 
     /// Max height of the world. Default is 256 blocks high.
     pub max_height: u32,
@@ -42,7 +42,7 @@ impl WorldConfig {
 
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_INTERVAL: u64 = 16;
-const DEFAULT_CHUNK_SIZE: u32 = 16;
+const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_MAX_HEIGHT: u32 = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: u32 = 16;
@@ -54,7 +54,7 @@ const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 pub struct WorldConfigBuilder {
     max_clients: Option<usize>,
     interval: Option<u64>,
-    chunk_size: Option<u32>,
+    chunk_size: Option<usize>,
     max_height: Option<u32>,
     max_light_level: Option<u32>,
     max_chunk_per_tick: Option<u32>,
@@ -76,7 +76,7 @@ impl WorldConfigBuilder {
     }
 
     /// Configure the horizontal dimension of chunks in this world. Default is 16 blocks wide.
-    pub fn chunk_size(mut self, chunk_size: u32) -> Self {
+    pub fn chunk_size(mut self, chunk_size: usize) -> Self {
         self.chunk_size = Some(chunk_size);
         self
     }

@@ -4,13 +4,14 @@ pub mod chunks;
 pub mod client;
 pub mod config;
 pub mod registry;
+pub mod space;
 
 use hashbrown::HashMap;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use specs::{
     shred::{Fetch, FetchMut, Resource},
-    Dispatcher, DispatcherBuilder, World as ECSWorld, WorldExt,
+    DispatcherBuilder, World as ECSWorld, WorldExt,
 };
 
 use crate::server::models::{encode_message, Message, MessageType};
@@ -18,7 +19,7 @@ use crate::server::models::{encode_message, Message, MessageType};
 use super::common::ClientFilter;
 
 pub use self::config::WorldConfig;
-use self::{client::Client, registry::Registry};
+use self::{chunks::Chunks, client::Client, registry::Registry};
 
 pub type Clients = HashMap<Endpoint, Client>;
 
@@ -51,6 +52,7 @@ impl World {
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
 
+        ecs.insert(Chunks::new());
         ecs.insert(Registry::new());
         ecs.insert(Clients::new());
 
@@ -187,6 +189,16 @@ impl World {
     /// Access a mutable registry in the ECS world.
     pub fn registry_mut(&mut self) -> FetchMut<Registry> {
         self.write_resource::<Registry>()
+    }
+
+    /// Access chunks management in the ECS world.
+    pub fn chunks(&self) -> Fetch<Chunks> {
+        self.read_resource::<Chunks>()
+    }
+
+    /// Access a mutable chunk manager in the ECS world.
+    pub fn chunks_mut(&mut self) -> FetchMut<Chunks> {
+        self.write_resource::<Chunks>()
     }
 
     /// Check if this world is empty

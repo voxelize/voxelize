@@ -11,7 +11,7 @@ use super::block::BlockRotation;
 #[derive(Default, Clone)]
 pub struct ChunkParams {
     pub size: usize,
-    pub max_height: u32,
+    pub max_height: usize,
 }
 
 #[derive(Default)]
@@ -34,8 +34,8 @@ impl Chunk {
     pub fn new(id: &str, cx: i32, cz: i32, params: &ChunkParams) -> Self {
         let ChunkParams { size, max_height } = *params;
 
-        let voxels = Ndarray::new(&[size, max_height as usize, size], 0);
-        let lights = Ndarray::new(&[size, max_height as usize, size], 0);
+        let voxels = Ndarray::new(&[size, max_height, size], 0);
+        let lights = Ndarray::new(&[size, max_height, size], 0);
         let height_map = Ndarray::new(&[size, size], 0);
 
         let min = Vec3(cx * size as i32, 0, cz * size as i32);
@@ -70,7 +70,7 @@ impl Chunk {
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.voxels[&[lx as usize, ly as usize, lz as usize]]
+        self.voxels[&[lx, ly, lz]]
     }
 
     /// Set the raw value of voxel.
@@ -80,7 +80,7 @@ impl Chunk {
         assert!(self.contains(vx, vy, vz));
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.voxels[&[lx as usize, ly as usize, lz as usize]] = val;
+        self.voxels[&[lx, ly, lz]] = val;
     }
 
     /// Get a voxel type within chunk by voxel coordinates.
@@ -322,19 +322,15 @@ impl Chunk {
     }
 
     /// Convert voxel coordinates to local chunk coordinates.
-    fn to_local(&self, vx: i32, vy: i32, vz: i32) -> Vec3<i32> {
+    fn to_local(&self, vx: i32, vy: i32, vz: i32) -> Vec3<usize> {
         let Vec3(mx, my, mz) = self.min;
-        Vec3(vx - mx, vy - my, vz - mz)
+        Vec3((vx - mx) as usize, (vy - my) as usize, (vz - mz) as usize)
     }
 
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         let ChunkParams { size, max_height } = self.params;
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
 
-        return lx < size as i32
-            && ly >= 0
-            && ly < max_height as i32
-            && lz >= 0
-            && lz < size as i32;
+        return lx < size && ly >= 0 && ly < max_height && lz >= 0 && lz < size;
     }
 }

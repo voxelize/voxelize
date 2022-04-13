@@ -52,10 +52,14 @@ impl ChunkUtils {
     }
 
     /// Map a voxel coordinate to a chunk local coordinate.
-    pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<i32> {
+    pub fn map_voxel_to_chunk_local(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec3<usize> {
         let Vec2(cx, cz) = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let cs = chunk_size as i32;
 
-        Vec3(vx - cx * cs, vy, vz - cz * cs)
+        Vec3(
+            (vx - cx * cs) as usize,
+            vy as usize,
+            (vz - cz * cs) as usize,
+        )
     }
 }
