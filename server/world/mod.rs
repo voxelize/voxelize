@@ -1,5 +1,6 @@
 pub mod block;
 pub mod chunk;
+pub mod chunks;
 pub mod client;
 pub mod config;
 pub mod registry;
