@@ -1,12 +1,3 @@
-use super::vec::Vec3;
-
-/// Node of a light propagation queue.
-#[derive(Debug)]
-pub struct LightNode {
-    pub voxel: Vec3<i32>,
-    pub level: u32,
-}
-
 /// Enum of light colors.
 pub enum LightColor {
     Sunlight,
