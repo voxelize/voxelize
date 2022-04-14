@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::{
-    utils::{light::LightColor, vec::Vec3},
+    utils::{light::LightColor, ndarray::Ndarray, vec::Vec3},
+    world::block::Block,
     WorldConfig,
 };
 
@@ -19,17 +20,20 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 /// Node of a light propagation queue.
 #[derive(Debug)]
 pub struct LightNode {
-    pub voxel: Vec3<i32>,
+    pub voxel: [i32; 3],
     pub level: u32,
 }
 
+/// A set of utility functions to simulate global illumination in a Voxelize world.
 pub struct Lights;
 
 impl Lights {
+    /// Propagate a specific queue of `LightNode`s in a depth-first-search fashion. If the propagation
+    /// is for sunlight, light value does not decrease going downwards to simulate sunshine.
     pub fn flood_light(
-        queue: &mut VecDeque<LightNode>,
+        mut queue: VecDeque<LightNode>,
         is_sunlight: bool,
-        color: LightColor,
+        color: &LightColor,
         space: &mut Space,
         registry: &Registry,
         config: &WorldConfig,
@@ -50,7 +54,7 @@ impl Lights {
 
         while !queue.is_empty() {
             let LightNode { voxel, level } = queue.pop_front().unwrap();
-            let Vec3(vx, vy, vz) = voxel;
+            let [vx, vy, vz] = voxel;
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
                 let nvy = vy + oy;
@@ -68,7 +72,7 @@ impl Lights {
 
                 let sun_down = is_sunlight && *oy == -1 && level == max_light_level;
                 let next_level = level - if sun_down { 0 } else { 1 };
-                let next_voxel = Vec3(nvx, nvy, nvz);
+                let next_voxel = [nvx, nvy, nvz];
                 let block_type =
                     registry.get_block_by_id(space.get_voxel(nvx + start_x, nvy, nvz + start_z));
 
@@ -78,8 +82,141 @@ impl Lights {
                     } else {
                         space.get_torch_light(nvx, nvy, nvz, &color)
                     } >= next_level)
-                {}
+                {
+                    continue;
+                }
+
+                if is_sunlight {
+                    space.set_sunlight(nvx, nvy, nvz, next_level);
+                } else {
+                    space.set_torch_light(nvx, nvy, nvz, next_level, &color);
+                }
+
+                queue.push_back(LightNode {
+                    voxel: next_voxel,
+                    level: next_level,
+                });
             }
         }
+    }
+
+    /// Propagate a space and return the light data of the center chunk.
+    pub fn propagate(space: &mut Space, registry: &Registry, config: &WorldConfig) -> Ndarray<u32> {
+        let Space { width, min, .. } = space;
+        let &WorldConfig {
+            max_height,
+            max_light_level,
+            ..
+        } = config;
+
+        let mut red_light_queue = VecDeque::<LightNode>::new();
+        let mut green_light_queue = VecDeque::<LightNode>::new();
+        let mut blue_light_queue = VecDeque::<LightNode>::new();
+        let mut sunlight_queue = VecDeque::<LightNode>::new();
+
+        const RED: LightColor = LightColor::Red;
+        const GREEN: LightColor = LightColor::Green;
+        const BLUE: LightColor = LightColor::Blue;
+        const SUNLIGHT: LightColor = LightColor::Sunlight;
+
+        let &mut Vec3(start_x, _, start_z) = min;
+
+        let width = *width as i32;
+
+        let mut mask = vec![];
+        for _ in 0..(width * width) {
+            mask.push(max_light_level);
+        }
+
+        for y in (0..max_height as i32).rev() {
+            for x in 0..width {
+                for z in 0..width {
+                    let index = (x + z * width) as usize;
+
+                    let id = space.get_voxel(x + start_x, y, z + start_z);
+                    let &Block {
+                        is_transparent,
+                        is_light,
+                        red_light_level,
+                        green_light_level,
+                        blue_light_level,
+                        ..
+                    } = registry.get_block_by_id(id);
+
+                    if is_transparent {
+                        space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
+
+                        if mask[index] == 0 {
+                            if (x > 0 && mask[(x - 1 + z * width) as usize] == max_light_level)
+                                || (x < width - 1
+                                    && mask[(x + 1 + z * width) as usize] == max_light_level)
+                                || (z > 0
+                                    && mask[(x + (z - 1) * width) as usize] == max_light_level)
+                                || (z < width - 1
+                                    && mask[(x + (z + 1) * width) as usize] == max_light_level)
+                            {
+                                space.set_sunlight(
+                                    x + start_x,
+                                    y,
+                                    z + start_z,
+                                    max_light_level - 1,
+                                );
+                                sunlight_queue.push_back(LightNode {
+                                    level: max_light_level - 1,
+                                    voxel: [start_x + x, y, start_z + z],
+                                });
+                            }
+                        }
+                    } else {
+                        mask[index] = 0;
+                    }
+
+                    if is_light {
+                        if red_light_level > 0 {
+                            space.set_red_light(x + start_x, y, z + start_z, red_light_level);
+                            red_light_queue.push_back(LightNode {
+                                voxel: [x + start_x, y, z + start_z],
+                                level: red_light_level,
+                            });
+                        }
+                        if green_light_level > 0 {
+                            space.set_green_light(x + start_x, y, z + start_z, green_light_level);
+                            green_light_queue.push_back(LightNode {
+                                voxel: [x + start_x, y, z + start_z],
+                                level: green_light_level,
+                            });
+                        }
+                        if blue_light_level > 0 {
+                            space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
+                            blue_light_queue.push_back(LightNode {
+                                voxel: [x + start_x, y, z + start_z],
+                                level: blue_light_level,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if !red_light_queue.is_empty() {
+            Lights::flood_light(red_light_queue, false, &RED, space, registry, config);
+        }
+
+        if !green_light_queue.is_empty() {
+            Lights::flood_light(green_light_queue, false, &GREEN, space, registry, config);
+        }
+
+        if !blue_light_queue.is_empty() {
+            Lights::flood_light(blue_light_queue, false, &BLUE, space, registry, config);
+        }
+
+        if !sunlight_queue.is_empty() {
+            Lights::flood_light(sunlight_queue, true, &SUNLIGHT, space, registry, config);
+        }
+
+        space
+            .get_lights(space.coords.0, space.coords.1)
+            .unwrap()
+            .to_owned()
     }
 }

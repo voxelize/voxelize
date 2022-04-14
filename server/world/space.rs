@@ -26,7 +26,7 @@ pub struct SpaceParams {
 /// A data structure used in Voxelize to access voxel data of multiple chunks at
 /// the same time. Centered with one chunk, a Space allows developers to know what's
 /// around a chunk.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Space {
     /// Chunk coordinate of the center chunk of the space.
     pub coords: Vec2<i32>,
@@ -249,6 +249,11 @@ impl Space {
         }
 
         0
+    }
+
+    /// Get a reference of lighting n-dimensional array.
+    pub fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
+        self.lights.get(&Vec2(cx, cz))
     }
 
     /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
