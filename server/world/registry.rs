@@ -173,12 +173,12 @@ impl Registry {
     }
 
     /// Get block UV by id.
-    pub fn get_uv_by_id(&self, id: u32) -> HashMap<String, &UV> {
+    pub fn get_uv_by_id(&self, id: u32) -> HashMap<BlockFaces, &UV> {
         self.get_uv_map(self.get_block_by_id(id))
     }
 
     /// Get block UV by name.
-    pub fn get_uv_by_name(&self, name: &str) -> HashMap<String, &UV> {
+    pub fn get_uv_by_name(&self, name: &str) -> HashMap<BlockFaces, &UV> {
         self.get_uv_map(self.get_block_by_name(name))
     }
 
@@ -200,23 +200,6 @@ impl Registry {
     /// Check if block is plantable by id.
     pub fn is_plantable(&self, id: u32, above: u32) -> bool {
         self.get_block_by_id(id).is_plantable && self.get_block_by_id(above).is_empty
-    }
-
-    /// Get UV map by block.
-    pub fn get_uv_map(&self, block: &Block) -> HashMap<String, &UV> {
-        let mut uv_map = HashMap::new();
-
-        for source in block.faces.iter() {
-            let source_str = source.to_string();
-            let uv = self
-                .ranges
-                .get(&source_str)
-                .unwrap_or_else(|| panic!("UV range not found: {}", source));
-
-            uv_map.insert(source_str, uv);
-        }
-
-        uv_map
     }
 
     /// Get type map of all blocks.
@@ -247,6 +230,22 @@ impl Registry {
     /// Check if registry contains type.
     pub fn has_type(&self, id: u32) -> bool {
         self.blocks_by_id.contains_key(&id)
+    }
+
+    /// Get UV map by block.
+    pub fn get_uv_map(&self, block: &Block) -> HashMap<BlockFaces, &UV> {
+        let mut uv_map = HashMap::new();
+
+        for source in block.faces.iter() {
+            let uv = self
+                .ranges
+                .get(&Registry::make_side_name(&block.name, source))
+                .unwrap_or_else(|| panic!("UV range not found: {}", source));
+
+            uv_map.insert(source.to_owned(), uv);
+        }
+
+        uv_map
     }
 
     /// Generate a faces map. A faces map is a six-property hash map that stores the keys px, py, pz, nx, ny, nz.

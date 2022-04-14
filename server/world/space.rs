@@ -65,12 +65,12 @@ impl Space {
     /// ```
     pub fn new<'a>(
         chunks: &'a Chunks,
-        coords: Vec2<i32>,
+        coords: &'a Vec2<i32>,
         params: &'a SpaceParams,
     ) -> SpaceBuilder<'a> {
         SpaceBuilder {
             chunks,
-            coords,
+            coords: coords.to_owned(),
             params: params.to_owned(),
             needs_voxels: false,
             needs_lights: false,

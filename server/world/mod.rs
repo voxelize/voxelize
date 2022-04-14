@@ -3,6 +3,8 @@ pub mod chunk;
 pub mod chunks;
 pub mod client;
 pub mod config;
+pub mod lights;
+pub mod mesher;
 pub mod registry;
 pub mod space;
 
