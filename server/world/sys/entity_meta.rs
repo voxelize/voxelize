@@ -2,10 +2,7 @@ use serde_json::json;
 use specs::{ReadStorage, System, WriteStorage};
 
 use crate::world::comps::{
-    flags::EntityFlag,
-    heading::HeadingComp,
-    metadata::{Metadata, MetadataComp},
-    position::PositionComp,
+    flags::EntityFlag, heading::HeadingComp, metadata::MetadataComp, position::PositionComp,
     target::TargetComp,
 };
 
@@ -28,18 +25,9 @@ impl<'a> System<'a> for EntityMetaSystem {
         for (position, target, heading, metadata, _) in
             (&positions, &targets, &headings, &mut metadatas, &flag).join()
         {
-            metadata.0.push(Metadata {
-                component: "position".to_owned(),
-                value: json!(position.0),
-            });
-            metadata.0.push(Metadata {
-                component: "target".to_owned(),
-                value: json!(target.0),
-            });
-            metadata.0.push(Metadata {
-                component: "heading".to_owned(),
-                value: json!(heading.0),
-            });
+            metadata.set("position", json!(position.0));
+            metadata.set("target", json!(target.0));
+            metadata.set("heading", json!(heading.0));
         }
     }
 }

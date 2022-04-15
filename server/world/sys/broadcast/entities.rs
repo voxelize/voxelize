@@ -30,10 +30,10 @@ impl<'a> System<'a> for BroadcastEntitiesSystem {
             entities.push(Entity {
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
-                metadata: Some(serde_json::to_string(&metadata.0).unwrap()),
+                metadata: Some(metadata.to_json()),
             });
 
-            metadata.0.clear();
+            metadata.reset();
         }
 
         queue.push((
