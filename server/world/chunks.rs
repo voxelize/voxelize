@@ -1,11 +1,8 @@
 use hashbrown::HashMap;
 
-use crate::{
-    utils::{chunk::ChunkUtils, light::LightColor, vec::Vec2},
-    WorldConfig,
-};
+use crate::utils::{chunk_utils::ChunkUtils, light_utils::LightColor, vec::Vec2};
 
-use super::{block::BlockRotation, chunk::Chunk};
+use super::{block::BlockRotation, chunk::Chunk, WorldConfig};
 
 /// A manager for all chunks in the Voxelize world.
 #[derive(Default)]

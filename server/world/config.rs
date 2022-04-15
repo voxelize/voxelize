@@ -11,7 +11,7 @@ pub struct WorldConfig {
     pub chunk_size: usize,
 
     /// Max height of the world. Default is 256 blocks high.
-    pub max_height: u32,
+    pub max_height: usize,
 
     /// Max light level that light can propagate. Default is 15 blocks.
     pub max_light_level: u32,
@@ -43,7 +43,7 @@ impl WorldConfig {
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_INTERVAL: u64 = 16;
 const DEFAULT_CHUNK_SIZE: usize = 16;
-const DEFAULT_MAX_HEIGHT: u32 = 256;
+const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: u32 = 16;
 const DEFAULT_MAX_RESPONSE_PER_TICK: u32 = 4;
@@ -55,7 +55,7 @@ pub struct WorldConfigBuilder {
     max_clients: Option<usize>,
     interval: Option<u64>,
     chunk_size: Option<usize>,
-    max_height: Option<u32>,
+    max_height: Option<usize>,
     max_light_level: Option<u32>,
     max_chunk_per_tick: Option<u32>,
     max_response_per_tick: Option<u32>,
@@ -82,7 +82,7 @@ impl WorldConfigBuilder {
     }
 
     /// Configure the maximum height of the world. Default is 256 blocks high.
-    pub fn max_height(mut self, max_height: u32) -> Self {
+    pub fn max_height(mut self, max_height: usize) -> Self {
         self.max_height = Some(max_height);
         self
     }

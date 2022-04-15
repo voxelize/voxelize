@@ -1,12 +1,11 @@
 use std::collections::VecDeque;
 
 use crate::{
-    utils::{light::LightColor, ndarray::Ndarray, vec::Vec3},
+    utils::{light_utils::LightColor, ndarray::Ndarray, vec::Vec3},
     world::block::Block,
-    WorldConfig,
 };
 
-use super::{registry::Registry, space::Space};
+use super::{registry::Registry, space::Space, WorldConfig};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],

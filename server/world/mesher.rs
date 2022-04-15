@@ -2,7 +2,7 @@ use itertools::izip;
 
 use crate::{
     server::models::Geometry,
-    utils::{light::LightUtils, vec::Vec3},
+    utils::{light_utils::LightUtils, vec::Vec3},
 };
 
 use super::{

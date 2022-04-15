@@ -3,7 +3,7 @@ mod errors;
 mod server;
 mod types;
 mod utils;
-mod world;
+pub mod world;
 
 use game_loop::game_loop;
 use log::{error, info};
@@ -14,7 +14,8 @@ use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
 pub use server::Server;
-pub use world::{World, WorldConfig};
+pub use utils::vec;
+pub use world::{chunk, chunks, pipeline};
 
 use crate::server::models::{decode_message, Message};
 

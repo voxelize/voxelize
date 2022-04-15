@@ -1,9 +1,9 @@
 use hashbrown::HashMap;
 
 use crate::utils::{
-    block::BlockUtils,
-    chunk::ChunkUtils,
-    light::{LightColor, LightUtils},
+    block_utils::BlockUtils,
+    chunk_utils::ChunkUtils,
+    light_utils::{LightColor, LightUtils},
     ndarray::Ndarray,
     vec::{Vec2, Vec3},
 };

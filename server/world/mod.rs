@@ -2,18 +2,22 @@ pub mod block;
 pub mod chunk;
 pub mod chunks;
 pub mod client;
+pub mod comps;
 pub mod config;
 pub mod lights;
 pub mod mesher;
+pub mod messages;
+pub mod pipeline;
 pub mod registry;
 pub mod space;
+pub mod sys;
 
 use hashbrown::HashMap;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use specs::{
     shred::{Fetch, FetchMut, Resource},
-    DispatcherBuilder, World as ECSWorld, WorldExt,
+    Builder, DispatcherBuilder, World as ECSWorld, WorldExt,
 };
 
 use crate::server::models::{encode_message, Message, MessageType};
@@ -21,7 +25,10 @@ use crate::server::models::{encode_message, Message, MessageType};
 use super::common::ClientFilter;
 
 pub use self::config::WorldConfig;
-use self::{chunks::Chunks, client::Client, registry::Registry};
+use self::{
+    chunks::Chunks, client::Client, comps::chunk_requests::ChunkRequests, pipeline::Pipeline,
+    registry::Registry,
+};
 
 pub type Clients = HashMap<Endpoint, Client>;
 
@@ -37,12 +44,10 @@ pub struct World {
     /// Entity component system world.
     ecs: ECSWorld,
 
-    dispatcher: Option<fn() -> DispatcherBuilder<'static, 'static>>,
+    dispatcher: Option<fn(&mut DispatcherBuilder)>,
 }
 
-fn get_default_dispatcher() -> DispatcherBuilder<'static, 'static> {
-    DispatcherBuilder::new()
-}
+fn get_default_dispatcher(_: &mut DispatcherBuilder) {}
 
 impl World {
     /// Create a new voxelize world.
@@ -51,10 +56,13 @@ impl World {
 
         let mut ecs = ECSWorld::new();
 
+        ecs.register::<ChunkRequests>();
+
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
 
         ecs.insert(Chunks::new());
+        ecs.insert(Pipeline::new());
         ecs.insert(Registry::new());
         ecs.insert(Clients::new());
 
@@ -99,18 +107,39 @@ impl World {
     pub fn add_client(&mut self, endpoint: &Endpoint) -> String {
         let id = nanoid!();
 
-        self.clients_mut()
-            .insert(endpoint.clone(), Client { id: id.to_owned() });
+        let ent = self
+            .ecs
+            .create_entity()
+            .with(ChunkRequests::default())
+            .build();
+
+        self.clients_mut().insert(
+            endpoint.clone(),
+            Client {
+                id: id.to_owned(),
+                ent_id: ent.id(),
+            },
+        );
 
         id
     }
 
     /// Remove a client from the world by endpoint.
-    pub fn remove_client(&mut self, endpoint: &Endpoint) -> Option<Client> {
-        self.clients_mut().remove(endpoint)
+    pub fn remove_client(&mut self, endpoint: &Endpoint) {
+        let removed = self.clients_mut().remove(endpoint);
+
+        if let Some(client) = removed {
+            let entities = self.ecs.entities();
+            let client_ent = entities.entity(client.ent_id);
+
+            entities.delete(client_ent).expect(&format!(
+                "Something went wrong with deleting this client: {}",
+                client.id,
+            ));
+        }
     }
 
-    pub fn set_dispatcher(&mut self, dispatch: fn() -> DispatcherBuilder<'static, 'static>) {
+    pub fn set_dispatcher(&mut self, dispatch: fn(&mut DispatcherBuilder)) {
         self.dispatcher = Some(dispatch);
     }
 
@@ -156,8 +185,9 @@ impl World {
             return;
         }
 
-        let dispatcher_builder = self.dispatcher.unwrap()();
-        let mut dispatcher = dispatcher_builder.build();
+        let mut builder = DispatcherBuilder::new();
+        self.dispatcher.unwrap()(&mut builder);
+        let mut dispatcher = builder.build();
         dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
@@ -201,6 +231,16 @@ impl World {
     /// Access a mutable chunk manager in the ECS world.
     pub fn chunks_mut(&mut self) -> FetchMut<Chunks> {
         self.write_resource::<Chunks>()
+    }
+
+    /// Access the chunking pipeline.
+    pub fn pipeline(&self) -> Fetch<Pipeline> {
+        self.read_resource::<Pipeline>()
+    }
+
+    /// Accessing a mutable reference to the chunking pipeline.
+    pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
+        self.write_resource::<Pipeline>()
     }
 
     /// Check if this world is empty

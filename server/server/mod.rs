@@ -5,7 +5,10 @@ use hashbrown::{HashMap, HashSet};
 use log::{info, warn};
 use message_io::{network::Endpoint, node::NodeHandler};
 
-use crate::{errors::AddWorldError, world::World, WorldConfig};
+use crate::{
+    errors::AddWorldError,
+    world::{World, WorldConfig},
+};
 
 use self::models::{Message, MessageType};
 
