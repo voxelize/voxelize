@@ -36,6 +36,10 @@ impl<'a> System<'a> for BroadcastEntitiesSystem {
             metadata.reset();
         }
 
+        if entities.is_empty() {
+            return;
+        }
+
         queue.push((
             Message::new(&MessageType::Entity)
                 .entities(&entities)

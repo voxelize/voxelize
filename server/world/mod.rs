@@ -10,6 +10,7 @@ pub mod messages;
 pub mod pipeline;
 pub mod registry;
 pub mod space;
+pub mod stats;
 pub mod sys;
 
 use hashbrown::HashMap;
@@ -39,13 +40,18 @@ use self::{
         chunk_requests::ChunkRequestsComp,
         direction::DirectionComp,
         endpoint::EndpointComp,
+        etype::ETypeComp,
         flags::{ClientFlag, EntityFlag},
+        heading::HeadingComp,
         id::IDComp,
+        metadata::MetadataComp,
         position::PositionComp,
+        target::TargetComp,
     },
     messages::MessageQueue,
     pipeline::Pipeline,
     registry::Registry,
+    stats::Stats,
     sys::{
         broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
         entity_meta::EntityMetaSystem,
@@ -53,7 +59,8 @@ use self::{
 };
 
 pub type Clients = HashMap<Endpoint, Client>;
-pub type ModifyDispatch = fn(&mut DispatcherBuilder);
+pub type ModifyDispatch =
+    fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;
 
 /// A voxelize world.
 #[derive(Default)]
@@ -70,7 +77,11 @@ pub struct World {
     dispatcher: Option<ModifyDispatch>,
 }
 
-fn get_default_dispatcher(_: &mut DispatcherBuilder) {}
+fn get_default_dispatcher(
+    builder: DispatcherBuilder<'static, 'static>,
+) -> DispatcherBuilder<'static, 'static> {
+    builder
+}
 
 #[derive(Serialize, Deserialize)]
 struct OnChunkRequest {
@@ -97,6 +108,10 @@ impl World {
         ecs.register::<DirectionComp>();
         ecs.register::<ClientFlag>();
         ecs.register::<EntityFlag>();
+        ecs.register::<ETypeComp>();
+        ecs.register::<HeadingComp>();
+        ecs.register::<MetadataComp>();
+        ecs.register::<TargetComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -106,6 +121,7 @@ impl World {
         ecs.insert(Registry::new());
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
+        ecs.insert(Stats::new());
 
         Self {
             id,
@@ -224,11 +240,11 @@ impl World {
             return;
         }
 
-        let mut builder = DispatcherBuilder::new()
+        let builder = DispatcherBuilder::new()
             .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
             .with(EntityMetaSystem, "entity-meta", &[]);
 
-        self.dispatcher.unwrap()(&mut builder);
+        let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder.with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
 

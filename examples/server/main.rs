@@ -1,12 +1,15 @@
-use std::process;
+use std::{process, time::Instant};
 
-use specs::DispatcherBuilder;
+use specs::{
+    Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
+    WriteStorage,
+};
 use voxelize::{
     chunk::Chunk,
     chunks::Chunks,
     pipeline::{ChunkStage, Pipeline},
     vec::Vec3,
-    world::{registry::Registry, World, WorldConfig},
+    world::{comps::position::PositionComp, registry::Registry, stats::Stats, World, WorldConfig},
     Server, Voxelize,
 };
 
@@ -17,8 +20,6 @@ fn handle_ctrlc() {
     })
     .expect("Error setting Ctrl-C handler");
 }
-
-fn get_dispatcher(_: &mut DispatcherBuilder) {}
 
 struct TestStage;
 
@@ -39,6 +40,43 @@ impl ChunkStage for TestStage {
     }
 }
 
+const BOX_SPEED: f32 = 0.001;
+
+#[derive(Default, Component)]
+#[storage(NullStorage)]
+struct BoxFlag;
+
+struct UpdateBoxSystem;
+
+impl<'a> System<'a> for UpdateBoxSystem {
+    type SystemData = (
+        ReadExpect<'a, Stats>,
+        ReadStorage<'a, BoxFlag>,
+        WriteStorage<'a, PositionComp>,
+    );
+
+    fn run(&mut self, data: Self::SystemData) {
+        use specs::Join;
+
+        let (stats, flag, mut positions) = data;
+
+        for (position, _) in (&mut positions, &flag).join() {
+            let inner = position.inner_mut();
+            let elapsed = stats.elapsed().as_millis() as f32;
+
+            inner.0 += (elapsed * BOX_SPEED).cos() * 0.005;
+            inner.1 += (elapsed * BOX_SPEED).sin() * 0.005;
+            inner.2 += (elapsed * BOX_SPEED).sin() * 0.005;
+        }
+    }
+}
+
+fn get_dispatcher(
+    builder: DispatcherBuilder<'static, 'static>,
+) -> DispatcherBuilder<'static, 'static> {
+    builder.with(UpdateBoxSystem, "update-box", &[])
+}
+
 fn main() {
     handle_ctrlc();
 
@@ -47,6 +85,8 @@ fn main() {
     let config1 = WorldConfig::new().build();
 
     let mut world = World::new("world1", &config1);
+
+    world.ecs_mut().register::<BoxFlag>();
 
     world.set_dispatcher(get_dispatcher);
     world.pipeline_mut().add_stage(TestStage {});
