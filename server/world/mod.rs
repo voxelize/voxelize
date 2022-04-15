@@ -169,7 +169,7 @@ impl World {
             endpoint.clone(),
             Client {
                 id: id.to_owned(),
-                ent_id: ent.id(),
+                entity: ent,
             },
         );
 
@@ -182,9 +182,8 @@ impl World {
 
         if let Some(client) = removed {
             let entities = self.ecs.entities();
-            let client_ent = entities.entity(client.ent_id);
 
-            entities.delete(client_ent).expect(&format!(
+            entities.delete(client.entity).expect(&format!(
                 "Something went wrong with deleting this client: {}",
                 client.id,
             ));
@@ -328,13 +327,11 @@ impl World {
 
     /// Handler for `Peer` type messages.
     fn on_peer(&mut self, endpoint: &Endpoint, data: Message) {
-        let ent_id = if let Some(client) = self.clients().get(endpoint) {
-            client.ent_id.to_owned()
+        let client_ent = if let Some(client) = self.clients().get(endpoint) {
+            client.entity.to_owned()
         } else {
             return;
         };
-
-        let client_ent = self.get_entity(ent_id);
 
         if let Some(Peer {
             direction,
@@ -387,8 +384,8 @@ impl World {
 
     /// Handler for `Chunk` type messages.
     fn on_chunk(&mut self, endpoint: &Endpoint, data: Message) {
-        let ent_id = if let Some(client) = self.clients().get(endpoint) {
-            client.ent_id.to_owned()
+        let client_ent = if let Some(client) = self.clients().get(endpoint) {
+            client.entity.to_owned()
         } else {
             return;
         };
@@ -397,8 +394,6 @@ impl World {
             .expect("`on_chunk` error. Could not read JSON string.");
 
         let mut chunks = json.chunks;
-        let client_ent = self.get_entity(ent_id);
-
         let mut storage = self.write_component::<ChunkRequestsComp>();
 
         if let Some(requests) = storage.get_mut(client_ent) {
