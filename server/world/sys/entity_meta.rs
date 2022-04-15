@@ -1,3 +1,4 @@
+use log::info;
 use serde_json::json;
 use specs::{ReadStorage, System, WriteStorage};
 

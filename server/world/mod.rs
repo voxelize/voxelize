@@ -17,7 +17,7 @@ use hashbrown::HashMap;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
     world::EntitiesRes,
@@ -179,6 +179,27 @@ impl World {
     pub fn add_client(&mut self, endpoint: &Endpoint) -> String {
         let id = nanoid!();
 
+        let config = self.config().get_init_config();
+        let mut json = HashMap::new();
+
+        json.insert("id".to_owned(), json!(id));
+        json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
+        json.insert("ranges".to_owned(), json!(self.registry().ranges));
+        json.insert("params".to_owned(), json!(config));
+
+        let mut peers = vec![];
+
+        self.clients()
+            .values()
+            .for_each(|client| peers.push(client.id.clone()));
+
+        let init_message = Message::new(&MessageType::Init)
+            .json(&serde_json::to_string(&json).unwrap())
+            .peers(&peers)
+            .build();
+
+        self.send(endpoint, &init_message);
+
         let ent = self
             .ecs
             .create_entity()
@@ -234,22 +255,28 @@ impl World {
         self.write_resource::<MessageQueue>().push((data, filter));
     }
 
+    /// Send a direct message to an endpoint
+    pub fn send(&self, endpoint: &Endpoint, data: &Message) {
+        let encoded = encode_message(data);
+        self.handler().network().send(endpoint.to_owned(), &encoded);
+    }
+
     /// Tick of the world, run every 16ms.
     pub fn tick(&mut self) {
         if self.is_empty() {
             return;
         }
 
-        let builder = DispatcherBuilder::new()
-            .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
-            .with(EntityMetaSystem, "entity-meta", &[]);
+        let builder = DispatcherBuilder::new().with(EntityMetaSystem, "entity-meta", &[]);
 
         let builder = self.dispatcher.unwrap()(builder);
 
-        let builder = builder.with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
+        let builder = builder
+            .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
+            .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
 
         let mut dispatcher = builder.build();
-        dispatcher.dispatch(&self.ecs);
+        dispatcher.dispatch(&mut self.ecs);
 
         self.ecs.maintain();
     }
@@ -345,14 +372,16 @@ impl World {
         {
             if let Some(position) = position {
                 let mut positions = self.write_component::<PositionComp>();
-                let p = positions.get_mut(client_ent).unwrap();
-                p.0.set(position.x, position.y, position.z);
+                if let Some(p) = positions.get_mut(client_ent) {
+                    p.0.set(position.x, position.y, position.z);
+                }
             }
 
             if let Some(direction) = direction {
                 let mut directions = self.write_component::<DirectionComp>();
-                let d = directions.get_mut(client_ent).unwrap();
-                d.0.set(direction.x, direction.y, direction.z);
+                if let Some(d) = directions.get_mut(client_ent) {
+                    d.0.set(direction.x, direction.y, direction.z);
+                }
             }
         }
     }

@@ -27,13 +27,13 @@ pub struct Registry {
     pub ranges: HashMap<String, UV>,
 
     /// Block records, name -> Block.
-    blocks_by_name: HashMap<String, Block>,
+    pub blocks_by_name: HashMap<String, Block>,
 
     /// Block records, id -> Block.
-    blocks_by_id: HashMap<u32, Block>,
+    pub blocks_by_id: HashMap<u32, Block>,
 
     /// List of textures that this registry has. Textures are then applied onto block sides.
-    textures: HashSet<String>,
+    pub textures: HashSet<String>,
 
     /// Map of ID -> name.
     name_map: HashMap<u32, String>,

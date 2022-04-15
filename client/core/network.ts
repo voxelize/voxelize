@@ -127,8 +127,6 @@ class Network {
   private onEvent = (event: any) => {
     const { type } = event;
 
-    console.log(event);
-
     switch (type) {
       case "INIT": {
         const {
@@ -181,7 +179,7 @@ class Network {
       case "ENTITY": {
         const { entities } = event;
         entities.forEach((entity: any) => {
-          this.client.entities.onEvent(entity);
+          // this.client.entities.onEvent(entity);
         });
         break;
       }
@@ -226,6 +224,11 @@ class Network {
     if (message.json) {
       message.json = JSON.parse(message.json);
     }
+    if (message.entities) {
+      message.entities.forEach(
+        (entity) => (entity.metadata = JSON.parse(entity.metadata))
+      );
+    }
     return message;
   };
 
@@ -234,6 +237,11 @@ class Network {
       message.json = JSON.stringify(message.json);
     }
     message.type = Message.Type[message.type];
+    if (message.entities) {
+      message.entities.forEach(
+        (entity) => (entity.metadata = JSON.stringify(entity.metadata))
+      );
+    }
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 }

@@ -1,7 +1,8 @@
 use std::{process, time::Instant};
 
+use nanoid::nanoid;
 use specs::{
-    Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
+    Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
     WriteStorage,
 };
 use voxelize::{
@@ -9,7 +10,15 @@ use voxelize::{
     chunks::Chunks,
     pipeline::{ChunkStage, Pipeline},
     vec::Vec3,
-    world::{comps::position::PositionComp, registry::Registry, stats::Stats, World, WorldConfig},
+    world::{
+        comps::{
+            etype::ETypeComp, flags::EntityFlag, heading::HeadingComp, id::IDComp,
+            metadata::MetadataComp, position::PositionComp, target::TargetComp,
+        },
+        registry::Registry,
+        stats::Stats,
+        World, WorldConfig,
+    },
     Server, Voxelize,
 };
 
@@ -90,6 +99,19 @@ fn main() {
 
     world.set_dispatcher(get_dispatcher);
     world.pipeline_mut().add_stage(TestStage {});
+
+    world
+        .ecs_mut()
+        .create_entity()
+        .with(EntityFlag::default())
+        .with(ETypeComp::new("Box"))
+        .with(IDComp::new(&nanoid!()))
+        .with(BoxFlag::default())
+        .with(PositionComp::new(3.0, 3.0, 3.0))
+        .with(TargetComp::new(0.0, 0.0, 0.0))
+        .with(HeadingComp::new(0.0, 0.0, 0.0))
+        .with(MetadataComp::new())
+        .build();
 
     server.add_world(world).expect("Could not create world1.");
 

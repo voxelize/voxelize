@@ -1,3 +1,18 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitConfig {
+    /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
+    pub chunk_size: usize,
+
+    /// Max height of the world. Default is 256 blocks high.
+    pub max_height: usize,
+
+    /// Max light level that light can propagate. Default is 15 blocks.
+    pub max_light_level: u32,
+}
+
 /// World configuration, storing information of how a world is constructed.
 #[derive(Clone, Default)]
 pub struct WorldConfig {
@@ -37,6 +52,15 @@ impl WorldConfig {
     /// ```
     pub fn new() -> WorldConfigBuilder {
         WorldConfigBuilder::default()
+    }
+
+    /// Get the INIT configurations
+    pub fn get_init_config(&self) -> InitConfig {
+        InitConfig {
+            chunk_size: self.chunk_size,
+            max_height: self.max_height,
+            max_light_level: self.max_light_level,
+        }
     }
 }
 

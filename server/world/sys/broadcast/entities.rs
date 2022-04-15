@@ -1,3 +1,4 @@
+use log::info;
 use specs::{ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -30,7 +31,7 @@ impl<'a> System<'a> for BroadcastEntitiesSystem {
             entities.push(Entity {
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
-                metadata: Some(metadata.to_json()),
+                metadata: Some(metadata.to_json_string()),
             });
 
             metadata.reset();

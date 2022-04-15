@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+
+    "paths": {
+      "@voxelize/*": ["../../dist"],
+      "@components/*": ["./src/components/*"],
+      "@containers/*": ["./src/containers/*"]
+    }
+  }
+}

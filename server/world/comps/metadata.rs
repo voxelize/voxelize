@@ -27,7 +27,7 @@ impl MetadataComp {
     }
 
     /// Convert metadata to JSON string
-    pub fn to_json(&self) -> String {
+    pub fn to_json_string(&self) -> String {
         serde_json::to_string(&self.0).unwrap()
     }
 
