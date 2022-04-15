@@ -350,7 +350,7 @@ class Chunks {
     this.client.network.send({
       type: "CHUNK",
       json: {
-        chunks: toRequest,
+        chunks: toRequest.map((name) => ChunkUtils.parseChunkName(name)),
       },
     });
   };

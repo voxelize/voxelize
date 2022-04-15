@@ -15,8 +15,11 @@ pub type MessageType = messages::message::Type;
 
 impl Message {
     /// Create a new protobuf message with the idiomatic Builder pattern.
-    pub fn new() -> MessageBuilder {
-        MessageBuilder::default()
+    pub fn new(r#type: &MessageType) -> MessageBuilder {
+        MessageBuilder {
+            r#type: r#type.to_owned(),
+            ..Default::default()
+        }
     }
 }
 
