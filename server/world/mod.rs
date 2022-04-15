@@ -36,8 +36,12 @@ use self::{
     chunks::Chunks,
     client::Client,
     comps::{
-        chunk_requests::ChunkRequestsComp, direction::DirectionComp, endpoint::EndpointComp,
-        id::IDComp, position::PositionComp,
+        chunk_requests::ChunkRequestsComp,
+        direction::DirectionComp,
+        endpoint::EndpointComp,
+        flags::{ClientFlag, EntityFlag},
+        id::IDComp,
+        position::PositionComp,
     },
     pipeline::Pipeline,
     registry::Registry,
@@ -85,6 +89,8 @@ impl World {
         ecs.register::<EndpointComp>();
         ecs.register::<PositionComp>();
         ecs.register::<DirectionComp>();
+        ecs.register::<ClientFlag>();
+        ecs.register::<EntityFlag>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -153,9 +159,10 @@ impl World {
         let ent = self
             .ecs
             .create_entity()
-            .with(ChunkRequestsComp::default())
+            .with(ClientFlag::default())
             .with(IDComp::new(&id))
             .with(EndpointComp::new(endpoint))
+            .with(ChunkRequestsComp::default())
             .build();
 
         self.clients_mut().insert(
