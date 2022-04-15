@@ -80,10 +80,7 @@ pub struct Peer {
 pub struct Entity {
     pub id: String,
     pub r#type: String,
-    pub data: String,
-    pub position: Option<Vec3<f32>>,
-    pub target: Option<Vec3<f32>>,
-    pub heading: Option<Vec3<f32>>,
+    pub metadata: Option<String>,
 }
 
 /// Builder for a protocol buffer message.
@@ -183,10 +180,7 @@ impl MessageBuilder {
                 .map(|entity| messages::Entity {
                     id: entity.id,
                     r#type: entity.r#type,
-                    data: entity.data,
-                    position: vec3_to_vector3(&entity.position),
-                    target: vec3_to_vector3(&entity.target),
-                    heading: vec3_to_vector3(&entity.heading),
+                    metadata: entity.metadata.unwrap_or_default(),
                 })
                 .collect();
         }

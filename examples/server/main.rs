@@ -18,7 +18,7 @@ fn handle_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
-fn get_dispatcher(builder: &mut DispatcherBuilder) {}
+fn get_dispatcher(_: &mut DispatcherBuilder) {}
 
 struct TestStage;
 

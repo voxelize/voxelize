@@ -40,10 +40,7 @@ message Peer {
 message Entity {
   string id = 1;
   string type = 2;
-  string data = 3;
-  Vector3 position = 4;
-  Vector3 target = 5;
-  Vector3 heading = 6;
+  string metadata = 6;
 }
 
 message Message {

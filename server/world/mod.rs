@@ -43,11 +43,17 @@ use self::{
         id::IDComp,
         position::PositionComp,
     },
+    messages::MessageQueue,
     pipeline::Pipeline,
     registry::Registry,
+    sys::{
+        broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
+        entity_meta::EntityMetaSystem,
+    },
 };
 
 pub type Clients = HashMap<Endpoint, Client>;
+pub type ModifyDispatch = fn(&mut DispatcherBuilder);
 
 /// A voxelize world.
 #[derive(Default)]
@@ -61,7 +67,7 @@ pub struct World {
     /// Entity component system world.
     ecs: ECSWorld,
 
-    dispatcher: Option<fn(&mut DispatcherBuilder)>,
+    dispatcher: Option<ModifyDispatch>,
 }
 
 fn get_default_dispatcher(_: &mut DispatcherBuilder) {}
@@ -99,6 +105,7 @@ impl World {
         ecs.insert(Pipeline::new());
         ecs.insert(Registry::new());
         ecs.insert(Clients::new());
+        ecs.insert(MessageQueue::new());
 
         Self {
             id,
@@ -190,7 +197,7 @@ impl World {
         }
     }
 
-    pub fn set_dispatcher(&mut self, dispatch: fn(&mut DispatcherBuilder)) {
+    pub fn set_dispatcher(&mut self, dispatch: ModifyDispatch) {
         self.dispatcher = Some(dispatch);
     }
 
@@ -207,33 +214,8 @@ impl World {
     }
 
     /// Broadcast a protobuf message to a subset or all of the clients in the world.
-    pub fn broadcast(&self, data: Message, filter: ClientFilter) {
-        let encoded = encode_message(&data);
-
-        self.clients().iter().for_each(|(endpoint, client)| {
-            match &filter {
-                ClientFilter::All => {}
-                ClientFilter::Include(ids) => {
-                    if !ids.iter().any(|i| *i == *client.id) {
-                        return;
-                    }
-                }
-                ClientFilter::Exclude(ids) => {
-                    if ids.iter().any(|i| *i == *client.id) {
-                        return;
-                    }
-                }
-            };
-
-            // TODO: check if is error
-            self.handler().network().send(*endpoint, &encoded);
-        });
-    }
-
-    /// Send a protobuf message directly to a client endpoint in the world.
-    pub fn send(&self, data: Message, endpoint: &Endpoint) {
-        let encoded = encode_message(&data);
-        self.handler().network().send(*endpoint, &encoded);
+    pub fn broadcast(&mut self, data: Message, filter: ClientFilter) {
+        self.write_resource::<MessageQueue>().push((data, filter));
     }
 
     /// Tick of the world, run every 16ms.
@@ -242,8 +224,14 @@ impl World {
             return;
         }
 
-        let mut builder = DispatcherBuilder::new();
+        let mut builder = DispatcherBuilder::new()
+            .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
+            .with(EntityMetaSystem, "entity-meta", &[]);
+
         self.dispatcher.unwrap()(&mut builder);
+
+        let builder = builder.with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
+
         let mut dispatcher = builder.build();
         dispatcher.dispatch(&self.ecs);
 
