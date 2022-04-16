@@ -127,8 +127,6 @@ class Network {
   private onEvent = (event: any) => {
     const { type } = event;
 
-    console.log(event);
-
     switch (type) {
       case "INIT": {
         const {
