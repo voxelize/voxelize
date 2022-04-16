@@ -100,18 +100,18 @@ fn main() {
     world.set_dispatcher(get_dispatcher);
     world.pipeline_mut().add_stage(TestStage {});
 
-    world
-        .ecs_mut()
-        .create_entity()
-        .with(EntityFlag::default())
-        .with(ETypeComp::new("Box"))
-        .with(IDComp::new(&nanoid!()))
-        .with(BoxFlag::default())
-        .with(PositionComp::new(3.0, 3.0, 3.0))
-        .with(TargetComp::new(0.0, 0.0, 0.0))
-        .with(HeadingComp::new(0.0, 0.0, 0.0))
-        .with(MetadataComp::new())
-        .build();
+    // world
+    //     .ecs_mut()
+    //     .create_entity()
+    //     .with(EntityFlag::default())
+    //     .with(ETypeComp::new("Box"))
+    //     .with(IDComp::new(&nanoid!()))
+    //     .with(BoxFlag::default())
+    //     .with(PositionComp::new(3.0, 3.0, 3.0))
+    //     .with(TargetComp::new(0.0, 0.0, 0.0))
+    //     .with(HeadingComp::new(0.0, 0.0, 0.0))
+    //     .with(MetadataComp::new())
+    //     .build();
 
     server.add_world(world).expect("Could not create world1.");
 

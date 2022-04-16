@@ -13,7 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import MarbleImage from "../assets/marble.jpg";
-import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
+import { BoxBufferGeometry, MeshNormalMaterial, Mesh, Color } from "three";
 
 const GameWrapper = styled.div`
   background: black;

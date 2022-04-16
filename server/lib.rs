@@ -5,19 +5,22 @@ mod types;
 mod utils;
 pub mod world;
 
-use game_loop::game_loop;
 use log::{error, info};
 use message_io::network::{NetEvent, Transport};
 use message_io::node;
 
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::{Duration, Instant};
 
 pub use server::Server;
 pub use utils::vec;
 pub use world::{chunk, chunks, pipeline};
 
 use crate::server::models::{decode_message, Message};
+
+const MS_PER_UPDATE: u128 = 16;
 
 pub struct Voxelize;
 
@@ -73,16 +76,21 @@ impl Voxelize {
             }
         });
 
-        game_loop(
-            server_wrapped.clone(),
-            60,
-            0.1,
-            |g| {
-                g.game.write().unwrap().tick();
-            },
-            |_g| {},
-        );
+        let mut previous = Instant::now();
+        loop {
+            let current = Instant::now();
 
-        drop(task);
+            // Run the tick.
+            server_wrapped.write().unwrap().tick();
+
+            let elapsed = current - previous;
+            previous = current;
+
+            if elapsed.as_millis() < MS_PER_UPDATE {
+                thread::sleep(Duration::from_millis(
+                    (MS_PER_UPDATE - elapsed.as_millis()) as u64,
+                ));
+            }
+        }
     }
 }

@@ -22,8 +22,12 @@ impl<'a> System<'a> for BroadcastSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (handler, clients, mut queue) = data;
 
-        for (message, filter) in queue.iter() {
-            let encoded = encode_message(message);
+        if queue.is_empty() {
+            return;
+        }
+
+        for (message, filter) in queue.drain(..) {
+            let encoded = encode_message(&message);
 
             clients.iter().for_each(|(endpoint, client)| {
                 match &filter {
@@ -43,7 +47,5 @@ impl<'a> System<'a> for BroadcastSystem {
                 handler.network().send(*endpoint, &encoded);
             })
         }
-
-        queue.clear();
     }
 }

@@ -1,4 +1,11 @@
-import { Group, Mesh, PlaneBufferGeometry } from "three";
+import {
+  Group,
+  Mesh,
+  PlaneBufferGeometry,
+  AxesHelper,
+  BoxBufferGeometry,
+  MeshBasicMaterial,
+} from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
@@ -63,6 +70,8 @@ class Debug {
       this.setupAll();
       this.setupInputs();
       this.mount();
+
+      client.rendering.scene.add(this.group);
     });
 
     // wait till texture to be loaded
@@ -282,6 +291,13 @@ class Debug {
     this.registerDisplay("Position", this.client, "voxel");
     this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
+
+    this.group.add(
+      new Mesh(
+        new BoxBufferGeometry(1, 1, 1),
+        new MeshBasicMaterial({ color: "White" })
+      )
+    );
   };
 
   private setupInputs = () => {

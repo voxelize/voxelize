@@ -19,12 +19,6 @@ class World {
    * @memberof World
    */
   setParams = (data: Omit<WorldParams, "dimension">) => {
-    if (this.params) {
-      throw new Error(
-        "Do not call world.setParams as it is only used internally!"
-      );
-    }
-
     this.params = {
       ...data,
       dimension: 1,

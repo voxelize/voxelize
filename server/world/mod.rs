@@ -14,6 +14,7 @@ pub mod stats;
 pub mod sys;
 
 use hashbrown::HashMap;
+use log::info;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -193,13 +194,6 @@ impl World {
             .values()
             .for_each(|client| peers.push(client.id.clone()));
 
-        let init_message = Message::new(&MessageType::Init)
-            .json(&serde_json::to_string(&json).unwrap())
-            .peers(&peers)
-            .build();
-
-        self.send(endpoint, &init_message);
-
         let ent = self
             .ecs
             .create_entity()
@@ -216,6 +210,16 @@ impl World {
                 entity: ent,
             },
         );
+
+        let init_message = Message::new(&MessageType::Init)
+            .json(&serde_json::to_string(&json).unwrap())
+            .peers(&peers)
+            .build();
+
+        self.send(endpoint, &init_message);
+
+        let join_message = Message::new(&MessageType::Join).text(&id).build();
+        self.broadcast(join_message, ClientFilter::All);
 
         id
     }
@@ -259,26 +263,6 @@ impl World {
     pub fn send(&self, endpoint: &Endpoint, data: &Message) {
         let encoded = encode_message(data);
         self.handler().network().send(endpoint.to_owned(), &encoded);
-    }
-
-    /// Tick of the world, run every 16ms.
-    pub fn tick(&mut self) {
-        if self.is_empty() {
-            return;
-        }
-
-        let builder = DispatcherBuilder::new().with(EntityMetaSystem, "entity-meta", &[]);
-
-        let builder = self.dispatcher.unwrap()(builder);
-
-        let builder = builder
-            .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
-            .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
-
-        let mut dispatcher = builder.build();
-        dispatcher.dispatch(&mut self.ecs);
-
-        self.ecs.maintain();
     }
 
     /// Access to the network handler.
@@ -354,6 +338,26 @@ impl World {
     pub fn is_empty(&self) -> bool {
         let clients = self.read_resource::<Clients>();
         clients.is_empty()
+    }
+
+    /// Tick of the world, run every 16ms.
+    pub fn tick(&mut self) {
+        if self.is_empty() {
+            return;
+        }
+
+        let builder = DispatcherBuilder::new().with(EntityMetaSystem, "entity-meta", &[]);
+
+        let builder = self.dispatcher.unwrap()(builder);
+
+        let builder = builder
+            .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
+            .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
+
+        let mut dispatcher = builder.build();
+        dispatcher.dispatch(&mut self.ecs);
+
+        self.ecs.maintain();
     }
 
     /// Handler for `Peer` type messages.
