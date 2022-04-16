@@ -41,6 +41,14 @@ class BaseEntity extends Entity {
     this.add(new MetadataComponent({}));
   }
 
+  set metadata(m: { [key: string]: any }) {
+    MetadataComponent.get(this).data = m;
+  }
+
+  get metadata() {
+    return MetadataComponent.get(this).data;
+  }
+
   set position(p: Vector3) {
     Position3DComponent.get(this).data.set(p.x, p.y, p.z);
   }
@@ -73,7 +81,6 @@ class BaseEntity extends Entity {
     return MeshComponent.get(this).data;
   }
 
-  onEvent?: (e: any) => void;
   onCreation?: (client: Client) => void;
   onDeletion?: (client: Client) => void;
 }
@@ -94,7 +101,7 @@ class Entities extends Map<string, BaseEntity> {
     BaseEntity.LERP_FACTOR = lerpFactor;
   }
 
-  onEvent = ({ id, type, position, target, heading, ...other }: any) => {
+  onEvent = ({ id, type, metadata }: any) => {
     const knownType = this.knownTypes.get(type.toLowerCase());
 
     if (!knownType) {
@@ -117,13 +124,7 @@ class Entities extends Map<string, BaseEntity> {
       return;
     }
 
-    entity.position = position;
-    entity.target = target;
-    entity.heading = heading;
-
-    if (entity.onEvent) {
-      entity.onEvent(other);
-    }
+    entity.metadata = metadata;
   };
 
   registerEntity = (type: string, protocol: NewEntity) => {

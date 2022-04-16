@@ -179,7 +179,7 @@ class Network {
       case "ENTITY": {
         const { entities } = event;
         entities.forEach((entity: any) => {
-          // this.client.entities.onEvent(entity);
+          this.client.entities.onEvent(entity);
         });
         break;
       }

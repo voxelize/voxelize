@@ -7,6 +7,7 @@ import {
   Position3DComponent,
   TargetComponent,
   HeadingComponent,
+  MetadataComponent,
   System,
   EntityFlag,
 } from "@voxelize/client";
@@ -110,13 +111,40 @@ class UpdateBoxSystem extends System {
       Position3DComponent.type,
       HeadingComponent.type,
       TargetComponent.type,
+      MetadataComponent.type,
     ]);
   }
 
   update(entity: BaseEntity) {
-    const { mesh, position, target } = entity;
-    mesh.position.lerp(position, BaseEntity.LERP_FACTOR);
-    mesh.lookAt(target);
+    const { mesh } = entity;
+    const metadata = MetadataComponent.get(entity).data;
+
+    if (metadata.position) {
+      entity.position.set(
+        metadata.position[0],
+        metadata.position[1],
+        metadata.position[2]
+      );
+    }
+
+    if (metadata.target) {
+      entity.target.set(
+        metadata.target[0],
+        metadata.target[1],
+        metadata.target[2]
+      );
+    }
+
+    if (metadata.heading) {
+      entity.target.set(
+        metadata.target[0],
+        metadata.target[1],
+        metadata.target[2]
+      );
+    }
+
+    mesh.position.lerp(entity.position, BaseEntity.LERP_FACTOR);
+    mesh.lookAt(entity.target);
   }
 }
 
