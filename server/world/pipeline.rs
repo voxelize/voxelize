@@ -132,8 +132,6 @@ pub struct Pipeline {
 
     pub queue: VecDeque<StageRecord>,
 
-    pub dirty: bool,
-
     chunks: HashSet<Vec2<i32>>,
 
     /// A list of stages that chunks need to go through to be instantiated.
@@ -145,7 +143,6 @@ impl Pipeline {
         let (sender, receiver) = unbounded();
 
         Self {
-            dirty: false,
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             queue: VecDeque::default(),
@@ -167,7 +164,6 @@ impl Pipeline {
 
     pub fn push(&mut self, record: StageRecord) {
         self.chunks.insert(record.0.to_owned());
-        self.dirty = true;
         self.queue.push_back(record);
     }
 
@@ -190,15 +186,15 @@ impl Pipeline {
             let chunks: Vec<Chunk> = processes
                 .into_iter()
                 .map(|(chunk, space, stage)| {
-                    let instant = Instant::now();
+                    // let instant = Instant::now();
                     let chunk = stage.process(chunk, &registry, &config, space);
-                    let elapsed = instant.elapsed().as_millis();
-                    info!(
-                        "Processing chunk {:?} in stage {:?} in {}ms",
-                        chunk.coords,
-                        stage.name(),
-                        elapsed
-                    );
+                    // let elapsed = instant.elapsed().as_millis();
+                    // info!(
+                    //     "Processing chunk {:?} in stage {:?} in {}ms",
+                    //     chunk.coords,
+                    //     stage.name(),
+                    //     elapsed
+                    // );
                     chunk
                 })
                 .collect();

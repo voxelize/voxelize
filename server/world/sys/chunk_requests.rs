@@ -75,6 +75,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         z: chunk.coords.1,
                         id: chunk.id.clone(),
                         mesh: chunk.mesh.to_owned(),
+                        // voxels: None,
+                        // lights: None,
+                        // height_map: None
                         voxels: Some(chunk.voxels.to_owned()),
                         lights: Some(chunk.lights.to_owned()),
                         height_map: Some(chunk.height_map.to_owned()),

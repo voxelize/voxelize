@@ -58,7 +58,7 @@ class Chunks {
   };
 
   handleServerChunk = (data: ServerChunk) => {
-    const { x, z, id, lights, mesh, voxels, heightMap } = data;
+    const { x, z, id, mesh, lights, voxels, heightMap } = data;
     const { chunkSize, maxHeight } = this.worldParams;
 
     let chunk = this.getChunk(x, z);

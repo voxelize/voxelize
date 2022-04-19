@@ -70,7 +70,7 @@ const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 16;
-const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
+const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 2;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 
 /// Builder for a world configuration.

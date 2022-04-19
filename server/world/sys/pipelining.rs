@@ -42,10 +42,6 @@ impl<'a> System<'a> for PipeliningSystem {
             })
         }
 
-        if !pipeline.dirty {
-            return;
-        }
-
         let mut processes = vec![];
 
         let mut processed = 0;
@@ -160,7 +156,5 @@ impl<'a> System<'a> for PipeliningSystem {
         if !processes.is_empty() {
             pipeline.process(processes, &registry, &config);
         }
-
-        pipeline.dirty = false;
     }
 }

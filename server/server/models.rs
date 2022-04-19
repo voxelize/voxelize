@@ -54,7 +54,7 @@ pub struct Mesh {
 }
 
 /// Protocol buffer compatible chunk data structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Chunk {
     pub x: i32,
     pub z: i32,
