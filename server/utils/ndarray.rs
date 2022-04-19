@@ -1,5 +1,6 @@
 use std::ops::{Index, IndexMut};
 
+use log::info;
 use num::Num;
 
 /// N-dimensional array stored in a 1D array.

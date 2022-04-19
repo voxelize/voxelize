@@ -279,7 +279,6 @@ class Debug {
   private setupAll = () => {
     const testFolder = this.gui.addFolder({ title: "Registry" });
     testFolder.addButton({ title: "atlas test" }).on("click", () => {
-      this.client.network.send({ type: "CHUNK" });
       if (!this.atlasTest) return;
       this.atlasTest.visible = !this.atlasTest.visible;
     });

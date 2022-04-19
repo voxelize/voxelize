@@ -21,7 +21,7 @@ pub struct UV {
 }
 
 /// A collection of blocks to use in an Voxelize world.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Registry {
     /// A map of the UV's to the block faces on the texture atlas.
     pub ranges: HashMap<String, UV>,
@@ -103,7 +103,7 @@ impl Registry {
     /// Get a block reference by block name.
     pub fn get_block_by_name(&self, name: &str) -> &Block {
         self.blocks_by_name
-            .get(name)
+            .get(&name.to_lowercase())
             .unwrap_or_else(|| panic!("Block name not found: {name}",))
     }
 
@@ -118,7 +118,7 @@ impl Registry {
     pub fn get_id_by_name(&self, name: &str) -> u32 {
         *self
             .type_map
-            .get(name)
+            .get(&name.to_lowercase())
             .unwrap_or_else(|| panic!("Block name not found: {name}"))
     }
 

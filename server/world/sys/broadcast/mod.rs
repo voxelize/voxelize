@@ -29,7 +29,15 @@ impl<'a> System<'a> for BroadcastSystem {
         for (message, filter) in queue.drain(..) {
             let encoded = encode_message(&message);
 
-            clients.iter().for_each(|(endpoint, client)| {
+            if let ClientFilter::Direct(id) = &filter {
+                if let Some(endpoint) = clients.id_to_endpoint(id) {
+                    handler.network().send(*endpoint, &encoded);
+                }
+
+                continue;
+            }
+
+            clients.list.iter().for_each(|(endpoint, client)| {
                 match &filter {
                     ClientFilter::All => {}
                     ClientFilter::Include(ids) => {
@@ -42,6 +50,7 @@ impl<'a> System<'a> for BroadcastSystem {
                             return;
                         }
                     }
+                    _ => {}
                 };
 
                 handler.network().send(*endpoint, &encoded);

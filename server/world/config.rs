@@ -31,11 +31,11 @@ pub struct WorldConfig {
     /// Max light level that light can propagate. Default is 15 blocks.
     pub max_light_level: u32,
 
-    /// Maximum chunks to be processed per tick. Default is 16 chunks.
-    pub max_chunk_per_tick: u32,
+    /// Maximum chunks to be processed per tick. Default is 2 chunks.
+    pub max_chunk_per_tick: usize,
 
     /// Maximum responses to send to client per tick to prevent bottle-necking. Default is 4 chunks.
-    pub max_response_per_tick: u32,
+    pub max_response_per_tick: usize,
 
     /// Radius of chunks around `0,0` to be preloaded. Default is 8 chunks.
     pub preload_radius: u32,
@@ -69,8 +69,8 @@ const DEFAULT_INTERVAL: u64 = 16;
 const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
-const DEFAULT_MAX_CHUNKS_PER_TICK: u32 = 16;
-const DEFAULT_MAX_RESPONSE_PER_TICK: u32 = 4;
+const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 16;
+const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 
 /// Builder for a world configuration.
@@ -81,8 +81,8 @@ pub struct WorldConfigBuilder {
     chunk_size: Option<usize>,
     max_height: Option<usize>,
     max_light_level: Option<u32>,
-    max_chunk_per_tick: Option<u32>,
-    max_response_per_tick: Option<u32>,
+    max_chunk_per_tick: Option<usize>,
+    max_response_per_tick: Option<usize>,
     preload_radius: Option<u32>,
 }
 
@@ -118,13 +118,13 @@ impl WorldConfigBuilder {
     }
 
     /// Configure the maximum amount of chunks to be processed per tick. Default is 16 chunks.
-    pub fn max_chunk_per_tick(mut self, max_chunk_per_tick: u32) -> Self {
+    pub fn max_chunk_per_tick(mut self, max_chunk_per_tick: usize) -> Self {
         self.max_chunk_per_tick = Some(max_chunk_per_tick);
         self
     }
 
     /// Configure the maximum amount of chunks to be sent to the client per tick. Default is 4 chunks.
-    pub fn max_response_per_tick(mut self, max_response_per_tick: u32) -> Self {
+    pub fn max_response_per_tick(mut self, max_response_per_tick: usize) -> Self {
         self.max_response_per_tick = Some(max_response_per_tick);
         self
     }

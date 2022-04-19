@@ -49,7 +49,6 @@ pub struct Geometry {
 /// Protocol buffer compatible mesh data structure.
 #[derive(Debug, Clone)]
 pub struct Mesh {
-    pub sub_chunk: i32,
     pub opaque: Option<Geometry>,
     pub transparent: Option<Geometry>,
 }

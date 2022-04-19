@@ -54,6 +54,13 @@ impl Server {
         ServerBuilder::default()
     }
 
+    /// Get ready to start the Voxelize server.
+    pub fn prepare(&mut self) {
+        self.worlds.values_mut().for_each(|world| {
+            world.prepare();
+        });
+    }
+
     /// Assign a network handler to this server
     pub fn set_handler(&mut self, handler: NodeHandler<()>) {
         self.worlds.values_mut().for_each(|world| {

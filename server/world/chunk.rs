@@ -1,9 +1,12 @@
-use crate::utils::{
-    block_utils::BlockUtils,
-    chunk_utils::ChunkUtils,
-    light_utils::{LightColor, LightUtils},
-    ndarray::Ndarray,
-    vec::{Vec2, Vec3},
+use crate::{
+    server::models::Mesh,
+    utils::{
+        block_utils::BlockUtils,
+        chunk_utils::ChunkUtils,
+        light_utils::{LightColor, LightUtils},
+        ndarray::Ndarray,
+        vec::{Vec2, Vec3},
+    },
 };
 
 use super::block::BlockRotation;
@@ -14,15 +17,18 @@ pub struct ChunkParams {
     pub max_height: usize,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Chunk {
     pub id: String,
     pub name: String,
     pub coords: Vec2<i32>,
+    pub stage: Option<usize>,
 
     pub voxels: Ndarray<u32>,
     pub lights: Ndarray<u32>,
     pub height_map: Ndarray<u32>,
+
+    pub mesh: Option<Mesh>,
 
     pub min: Vec3<i32>,
     pub max: Vec3<i32>,
@@ -49,6 +55,9 @@ impl Chunk {
             id: id.to_owned(),
             name: ChunkUtils::get_chunk_name(cx, cz),
             coords: Vec2(cx, cz),
+            stage: None,
+
+            mesh: None,
 
             voxels,
             lights,
@@ -331,6 +340,6 @@ impl Chunk {
         let ChunkParams { size, max_height } = self.params;
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
 
-        return lx < size && ly >= 0 && ly < max_height && lz >= 0 && lz < size;
+        return lx < size && ly < max_height && lz < size;
     }
 }

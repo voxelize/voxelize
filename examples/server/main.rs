@@ -1,5 +1,6 @@
-use std::{process, time::Instant};
+use std::process;
 
+use log::info;
 use nanoid::nanoid;
 use specs::{
     Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
@@ -7,15 +8,16 @@ use specs::{
 };
 use voxelize::{
     chunk::Chunk,
-    chunks::Chunks,
-    pipeline::{ChunkStage, Pipeline},
+    pipeline::ChunkStage,
     vec::Vec3,
     world::{
+        block::{Block, BlockFaces},
         comps::{
             etype::ETypeComp, flags::EntityFlag, heading::HeadingComp, id::IDComp,
             metadata::MetadataComp, position::PositionComp, target::TargetComp,
         },
         registry::Registry,
+        space::Space,
         stats::Stats,
         World, WorldConfig,
     },
@@ -33,19 +35,32 @@ fn handle_ctrlc() {
 struct TestStage;
 
 impl ChunkStage for TestStage {
-    fn neighbors(&self) -> usize {
-        15
+    fn name(&self) -> String {
+        "Test".to_owned()
     }
 
     fn process(
         &self,
-        chunk: &mut Chunk,
-        chunks: &Chunks,
+        mut chunk: Chunk,
         registry: &Registry,
-        pipeline: &Pipeline,
-    ) {
-        let Vec3(min_x, min_y, min_z) = chunk.min;
-        chunk.set_voxel(min_x, min_y, min_z, registry.get_id_by_name("1"));
+        _: &WorldConfig,
+        _: Option<Space>,
+    ) -> Chunk {
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        let marble = registry.get_block_by_name("Marble");
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                let limit = if (vx * vz) % 7 == 0 { 10 } else { 5 };
+                for vy in 0..limit {
+                    chunk.set_voxel(vx, vy, vz, marble.id);
+                }
+            }
+        }
+
+        chunk
     }
 }
 
@@ -98,7 +113,11 @@ fn main() {
     world.ecs_mut().register::<BoxFlag>();
 
     world.set_dispatcher(get_dispatcher);
-    world.pipeline_mut().add_stage(TestStage {});
+    world.pipeline_mut().add_stage(TestStage);
+
+    world
+        .registry_mut()
+        .register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
 
     world
         .ecs_mut()

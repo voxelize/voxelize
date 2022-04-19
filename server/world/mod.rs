@@ -1,7 +1,7 @@
 pub mod block;
 pub mod chunk;
 pub mod chunks;
-pub mod client;
+pub mod clients;
 pub mod comps;
 pub mod config;
 pub mod lights;
@@ -14,7 +14,6 @@ pub mod stats;
 pub mod sys;
 
 use hashbrown::HashMap;
-use log::info;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -36,7 +35,7 @@ use super::common::ClientFilter;
 pub use self::config::WorldConfig;
 use self::{
     chunks::Chunks,
-    client::Client,
+    clients::Clients,
     comps::{
         chunk_requests::ChunkRequestsComp,
         direction::DirectionComp,
@@ -55,11 +54,12 @@ use self::{
     stats::Stats,
     sys::{
         broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
+        chunk_requests::ChunkRequestsSystem,
         entity_meta::EntityMetaSystem,
+        pipelining::PipeliningSystem,
     },
 };
 
-pub type Clients = HashMap<Endpoint, Client>;
 pub type ModifyDispatch =
     fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;
 
@@ -117,7 +117,8 @@ impl World {
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
 
-        ecs.insert(Chunks::new());
+        ecs.insert(Chunks::new(config));
+
         ecs.insert(Pipeline::new());
         ecs.insert(Registry::new());
         ecs.insert(Clients::new());
@@ -134,6 +135,11 @@ impl World {
 
             ..Default::default()
         }
+    }
+
+    /// Get ready to start the server.
+    pub fn prepare(&mut self) {
+        self.registry_mut().generate();
     }
 
     /// Get a reference to the ECS world..
@@ -173,7 +179,7 @@ impl World {
 
     /// Check if the world has a specific client at endpoint.
     pub fn has_client(&self, endpoint: &Endpoint) -> bool {
-        self.clients().contains_key(endpoint)
+        self.clients().has(endpoint)
     }
 
     /// Add a client to the world, with ID generated with `nanoid!()`.
@@ -188,11 +194,7 @@ impl World {
         json.insert("ranges".to_owned(), json!(self.registry().ranges));
         json.insert("params".to_owned(), json!(config));
 
-        let mut peers = vec![];
-
-        self.clients()
-            .values()
-            .for_each(|client| peers.push(client.id.clone()));
+        let peers = self.clients().id_list();
 
         let ent = self
             .ecs
@@ -203,13 +205,7 @@ impl World {
             .with(ChunkRequestsComp::default())
             .build();
 
-        self.clients_mut().insert(
-            endpoint.clone(),
-            Client {
-                id: id.to_owned(),
-                entity: ent,
-            },
-        );
+        self.clients_mut().add(endpoint, &id, &ent);
 
         let init_message = Message::new(&MessageType::Init)
             .json(&serde_json::to_string(&json).unwrap())
@@ -262,7 +258,7 @@ impl World {
     /// Send a direct message to an endpoint
     pub fn send(&self, endpoint: &Endpoint, data: &Message) {
         let encoded = encode_message(data);
-        self.handler().network().send(endpoint.to_owned(), &encoded);
+        self.handler().network().send(*endpoint, &encoded);
     }
 
     /// Access to the network handler.
@@ -305,12 +301,12 @@ impl World {
         self.write_resource::<Chunks>()
     }
 
-    /// Access the chunking pipeline.
+    /// Access pipeline management in the ECS world.
     pub fn pipeline(&self) -> Fetch<Pipeline> {
         self.read_resource::<Pipeline>()
     }
 
-    /// Accessing a mutable reference to the chunking pipeline.
+    /// Access a mutable pipeline management in the ECS world.
     pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
         self.write_resource::<Pipeline>()
     }
@@ -325,15 +321,6 @@ impl World {
         self.ecs.entities_mut()
     }
 
-    /// Get a client's endpoint from ID
-    pub fn id_to_endpoint(&self, id: &str) -> Option<Endpoint> {
-        if let Some((endpoint, _)) = self.clients().iter().find(|(_, client)| client.id == id) {
-            return Some(endpoint.clone());
-        }
-
-        None
-    }
-
     /// Check if this world is empty
     pub fn is_empty(&self) -> bool {
         let clients = self.read_resource::<Clients>();
@@ -346,7 +333,10 @@ impl World {
             return;
         }
 
-        let builder = DispatcherBuilder::new().with(EntityMetaSystem, "entity-meta", &[]);
+        let builder = DispatcherBuilder::new()
+            .with(EntityMetaSystem, "entity-meta", &[])
+            .with(ChunkRequestsSystem, "chunk-requests", &[])
+            .with(PipeliningSystem, "pipelining", &["chunk-requests"]);
 
         let builder = self.dispatcher.unwrap()(builder);
 
@@ -404,7 +394,7 @@ impl World {
         let id = json.id;
         let signal = json.signal;
 
-        if let Some(endpoint) = self.id_to_endpoint(&id) {
+        if let Some(endpoint) = self.clients().id_to_endpoint(&id) {
             let json = OnSignalRequest {
                 id: client_id,
                 signal,
@@ -415,7 +405,7 @@ impl World {
                 )
                 .build();
             let encoded = encode_message(&message);
-            self.handler().network().send(endpoint, &encoded);
+            self.handler().network().send(endpoint.to_owned(), &encoded);
         }
     }
 

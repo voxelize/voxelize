@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use log::info;
 
 use crate::utils::{
     block_utils::BlockUtils,
@@ -9,6 +10,13 @@ use crate::utils::{
 };
 
 use super::{block::BlockRotation, chunks::Chunks};
+
+/// What kind of data does this space have/need?
+pub struct SpaceData {
+    pub needs_lights: bool,
+    pub needs_voxels: bool,
+    pub needs_height_maps: bool,
+}
 
 /// Parameters of constructing a Space data structure.
 #[derive(Default, Clone)]
@@ -26,6 +34,8 @@ pub struct SpaceParams {
 /// A data structure used in Voxelize to access voxel data of multiple chunks at
 /// the same time. Centered with one chunk, a Space allows developers to know what's
 /// around a chunk.
+///
+/// Construct a space by calling `chunks.make_space`.
 #[derive(Default, Clone)]
 pub struct Space {
     /// Chunk coordinate of the center chunk of the space.
@@ -54,30 +64,6 @@ pub struct Space {
 }
 
 impl Space {
-    /// Construct a space around `coords`, using the idiomatic Builder pattern to
-    /// determine what data is needed in this space.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // A space that takes all voxel, light, and height map data.
-    /// let space = Space::new(chunks, &Vec2(0, 0), params).needs_all().build()
-    /// ```
-    pub fn new<'a>(
-        chunks: &'a Chunks,
-        coords: &'a Vec2<i32>,
-        params: &'a SpaceParams,
-    ) -> SpaceBuilder<'a> {
-        SpaceBuilder {
-            chunks,
-            coords: coords.to_owned(),
-            params: params.to_owned(),
-            needs_voxels: false,
-            needs_lights: false,
-            needs_height_maps: false,
-        }
-    }
-
     /// Get the raw voxel data at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     #[inline]
@@ -89,6 +75,10 @@ impl Space {
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 
         if let Some(voxels) = self.voxels.get(&coords) {
+            if !voxels.contains(&[lx, ly, lz]) {
+                return 0;
+            }
+
             return voxels[&[lx, ly, lz]];
         }
 
@@ -124,6 +114,10 @@ impl Space {
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 
         if let Some(lights) = self.lights.get(&coords) {
+            if !lights.contains(&[lx, ly, lz]) {
+                return 0;
+            }
+
             return lights[&[lx, ly, lz]];
         }
 
@@ -269,36 +263,36 @@ impl Space {
 
 /// A data structure to build a space.
 pub struct SpaceBuilder<'a> {
-    chunks: &'a Chunks,
-    coords: Vec2<i32>,
-    params: SpaceParams,
+    pub chunks: &'a Chunks,
+    pub coords: Vec2<i32>,
+    pub params: SpaceParams,
 
-    needs_voxels: bool,
-    needs_lights: bool,
-    needs_height_maps: bool,
+    pub needs_voxels: bool,
+    pub needs_lights: bool,
+    pub needs_height_maps: bool,
 }
 
 impl SpaceBuilder<'_> {
     /// Set this space to load in voxel data.
-    pub fn needs_voxels(mut self) -> Self {
+    pub fn needs_voxels(&mut self) -> &mut Self {
         self.needs_voxels = true;
         self
     }
 
     /// Set this space to load in lighting data.
-    pub fn needs_lights(mut self) -> Self {
+    pub fn needs_lights(&mut self) -> &mut Self {
         self.needs_lights = true;
         self
     }
 
     /// Set this space to load in height map data.
-    pub fn needs_height_maps(mut self) -> Self {
+    pub fn needs_height_maps(&mut self) -> &mut Self {
         self.needs_height_maps = true;
         self
     }
 
     /// Set this space to load in all voxel, lighting, and height map data.
-    pub fn needs_all(mut self) -> Self {
+    pub fn needs_all(&mut self) -> &mut Self {
         self.needs_voxels = true;
         self.needs_lights = true;
         self.needs_height_maps = true;
@@ -312,13 +306,6 @@ impl SpaceBuilder<'_> {
             chunk_size,
             max_height,
         } = self.params;
-
-        let Self {
-            needs_voxels,
-            needs_lights,
-            needs_height_maps,
-            ..
-        } = self;
 
         let Vec2(cx, cz) = self.coords;
 
@@ -338,7 +325,7 @@ impl SpaceBuilder<'_> {
                 let n_coords = Vec2(cx + x, cz + z);
                 let chunk = self
                     .chunks
-                    .get_chunk(&n_coords)
+                    .raw(&n_coords)
                     .unwrap_or_else(|| panic!("Space incomplete!"));
 
                 if self.needs_voxels {

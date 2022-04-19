@@ -303,7 +303,7 @@ impl Mesher {
         space: &Space,
         registry: &Registry,
         transparent: bool,
-    ) -> Geometry {
+    ) -> Option<Geometry> {
         let mut positions = Vec::<f32>::new();
         let mut indices = Vec::<i32>::new();
         let mut uvs = Vec::<f32>::new();
@@ -756,12 +756,16 @@ impl Mesher {
             }
         }
 
-        Geometry {
+        if indices.is_empty() {
+            return None;
+        }
+
+        Some(Geometry {
             positions,
             indices,
             uvs,
             aos,
             lights,
-        }
+        })
     }
 }
