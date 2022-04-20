@@ -2,7 +2,7 @@ mod common;
 mod errors;
 mod server;
 mod types;
-mod utils;
+pub mod utils;
 pub mod world;
 
 use log::{error, info};

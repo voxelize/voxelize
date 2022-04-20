@@ -39,6 +39,9 @@ pub struct WorldConfig {
 
     /// Radius of chunks around `0,0` to be preloaded. Default is 8 chunks.
     pub preload_radius: u32,
+
+    /// Seed of the world. Default is "Voxelize".
+    pub seed: i32,
 }
 
 impl WorldConfig {
@@ -72,6 +75,7 @@ const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 16;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 2;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
+const DEFAULT_SEED: i32 = 123123123;
 
 /// Builder for a world configuration.
 #[derive(Default)]
@@ -84,6 +88,7 @@ pub struct WorldConfigBuilder {
     max_chunk_per_tick: Option<usize>,
     max_response_per_tick: Option<usize>,
     preload_radius: Option<u32>,
+    seed: Option<i32>,
 }
 
 impl WorldConfigBuilder {
@@ -135,6 +140,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the seed of the world. Default is "Voxelize".
+    pub fn seed(mut self, seed: i32) -> Self {
+        self.seed = Some(seed.to_owned());
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         WorldConfig {
@@ -154,6 +165,7 @@ impl WorldConfigBuilder {
             preload_radius: self
                 .preload_radius
                 .unwrap_or_else(|| DEFAULT_PRELOAD_RADIUS),
+            seed: self.seed.unwrap_or_else(|| DEFAULT_SEED.to_owned()),
         }
     }
 }

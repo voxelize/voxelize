@@ -3,6 +3,7 @@ use std::process;
 use log::info;
 use nanoid::nanoid;
 use noise::{NoiseFn, SuperSimplex};
+use simdnoise::NoiseBuilder;
 use specs::{
     Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
     WriteStorage,
@@ -10,6 +11,7 @@ use specs::{
 use voxelize::{
     chunk::Chunk,
     pipeline::ChunkStage,
+    utils::ndarray::ndarray,
     vec::Vec3,
     world::{
         block::{Block, BlockFaces},
@@ -46,27 +48,43 @@ impl ChunkStage for TestStage {
         &self,
         mut chunk: Chunk,
         registry: &Registry,
-        _: &WorldConfig,
+        config: &WorldConfig,
         _: Option<Space>,
     ) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
+        let &WorldConfig {
+            chunk_size,
+            max_height,
+            ..
+        } = config;
+
         let marble = registry.get_block_by_name("Marble");
         let stone = registry.get_block_by_name("Stone");
 
-        const SCALE: f64 = 0.01;
+        let mut noise = ndarray(&[chunk_size, max_height, chunk_size], 0.0);
+        noise.data = NoiseBuilder::gradient_3d_offset(
+            min_x as f32,
+            config.chunk_size,
+            0.0,
+            config.max_height,
+            min_z as f32,
+            config.chunk_size,
+        )
+        .with_seed(config.seed)
+        .generate_scaled(0.0, 1.0);
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                let limit =
-                    (5.0 * (vx as f32 / 10.0).sin() + 8.0 * (vz as f32 / 20.0).cos() + 30.0) as i32;
-                for vy in 0..limit {
-                    if self
-                        .noise
-                        .get([vx as f64 * SCALE, vy as f64 * SCALE, vz as f64 * SCALE])
-                        < 0.1
-                    {
+                // let limit =
+                //     (5.0 * (vx as f32 / 10.0).sin() + 8.0 * (vz as f32 / 20.0).cos() + 30.0) as i32;
+                for vy in 0..(max_height as i32) {
+                    let mut val =
+                        noise[&[(vx - min_x) as usize, vy as usize, (vz - min_z) as usize]];
+                    val += -0.75 * (vy - max_height as i32).max(0) as f32;
+
+                    if val > 0.5 {
                         if vx * vz % 7 == 0 {
                             chunk.set_voxel(vx, vy, vz, stone.id);
                         } else {

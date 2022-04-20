@@ -33,6 +33,7 @@ class Registry {
 
   public atlasUniform: { value: Texture | null };
   public aoUniform: { value: Vector4 };
+  public minLightUniform = { value: 0.05 };
 
   public materials: {
     opaque?: CustomShaderMaterial;
@@ -296,6 +297,7 @@ uniform vec3 uFogNearColor;
 uniform float uFogNear;
 uniform float uFogFar;
 uniform float uSunlightIntensity;
+uniform float uMinLight;
 varying float vAO;
 varying vec4 vLight; 
 `
@@ -304,7 +306,7 @@ varying vec4 vLight;
           "#include <envmap_fragment>",
           `
 #include <envmap_fragment>
-float s = vLight.a * uSunlightIntensity * 0.8 + 0.05;
+float s = vLight.a * uSunlightIntensity * 0.8 + uMinLight;
 float scale = 1.0;
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
 // outgoingLight.rgb *= vec3(s + scale / sqrt(vLight.r), s + scale / sqrt(vLight.g), s + scale / sqrt(vLight.b));
@@ -354,6 +356,7 @@ vLight = unpackLight(light);
         map: this.atlasUniform,
         uSunlightIntensity: { value: 1 },
         uAOTable: this.aoUniform,
+        uMinLight: this.minLightUniform,
         ...this.client.rendering.fogUniforms,
       },
     }) as CustomShaderMaterial;
