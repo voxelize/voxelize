@@ -5,7 +5,6 @@
   "types": "dist/index.d.ts",
   "umd": "dist/voxelize.min.js",
   "license": "MIT",
-  "private": true,
   "scripts": {
     "dev": "npm-run-all --parallel \"dev:rs\" \"compile -w\" \"types -w --preserveWatchOutput\"",
     "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
