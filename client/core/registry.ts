@@ -118,6 +118,7 @@ class Registry {
     }
 
     this.client.emit("texture-loaded");
+    this.client.loaded = true;
   };
 
   getBlockByName = (name: string) => {

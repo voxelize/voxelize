@@ -66,7 +66,7 @@ impl WorldConfig {
 
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_INTERVAL: u64 = 16;
-const DEFAULT_CHUNK_SIZE: usize = 16;
+const DEFAULT_CHUNK_SIZE: usize = 12;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 16;

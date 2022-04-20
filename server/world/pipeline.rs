@@ -186,15 +186,15 @@ impl Pipeline {
             let chunks: Vec<Chunk> = processes
                 .into_iter()
                 .map(|(chunk, space, stage)| {
-                    // let instant = Instant::now();
+                    let instant = Instant::now();
                     let chunk = stage.process(chunk, &registry, &config, space);
-                    // let elapsed = instant.elapsed().as_millis();
-                    // info!(
-                    //     "Processing chunk {:?} in stage {:?} in {}ms",
-                    //     chunk.coords,
-                    //     stage.name(),
-                    //     elapsed
-                    // );
+                    let elapsed = instant.elapsed().as_millis();
+                    info!(
+                        "Processing chunk {:?} in stage {:?} in {}ms",
+                        chunk.coords,
+                        stage.name(),
+                        elapsed
+                    );
                     chunk
                 })
                 .collect();

@@ -60,6 +60,7 @@ class Client extends EventEmitter {
   public settings: Settings;
   public chunks: Chunks;
 
+  private _loaded = false;
   private _ready = false;
   private animationFrame: number;
 
@@ -179,6 +180,17 @@ class Client extends EventEmitter {
     this._ready = true;
   }
 
+  get loaded() {
+    return this._loaded;
+  }
+
+  set loaded(_: boolean) {
+    if (this._loaded)
+      throw new Error("Do not change world.loaded after starting the game.");
+
+    this._loaded = true;
+  }
+
   private run = () => {
     const animate = () => {
       this.animationFrame = requestAnimationFrame(animate);
@@ -189,7 +201,7 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
-    if (!this.network.connected || !this.ready) {
+    if (!this.network.connected || !this.ready || !this.loaded) {
       return;
     }
 

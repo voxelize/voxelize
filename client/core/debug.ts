@@ -8,10 +8,11 @@ import {
 } from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
+import { Coords3 } from "types";
 
 import { Client } from "..";
 import { NameTag } from "../libs";
-import { DOMUtils, MathUtils } from "../utils";
+import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 
 type FormatterType = (input: any) => string;
 
@@ -288,6 +289,12 @@ class Debug {
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
     this.registerDisplay("Position", this.client, "voxel");
+    this.registerDisplay("Chunk", this.client, "voxel", (voxel: Coords3) =>
+      ChunkUtils.mapVoxelPosToChunkPos(
+        voxel,
+        this.client.world.params.chunkSize
+      ).toString()
+    );
     this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
 

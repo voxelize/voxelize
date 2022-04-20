@@ -14,6 +14,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import MarbleImage from "../assets/marble.jpg";
+import StoneImage from "../assets/stone.jpeg";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh, Color } from "three";
 
 const GameWrapper = styled.div`
@@ -172,6 +173,7 @@ export const App = () => {
           "all",
           MarbleImage
         );
+        client.current.registry.applyTextureByName("Stone", "all", StoneImage);
 
         client.current.addSystem(new UpdateBoxSystem());
 

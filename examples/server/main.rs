@@ -50,12 +50,17 @@ impl ChunkStage for TestStage {
         let Vec3(max_x, _, max_z) = chunk.max;
 
         let marble = registry.get_block_by_name("Marble");
+        let stone = registry.get_block_by_name("Stone");
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 let limit = if (vx * vz) % 7 == 0 { 10 } else { 5 };
                 for vy in 0..limit {
-                    chunk.set_voxel(vx, vy, vz, marble.id);
+                    if vx * vz % 7 == 0 {
+                        chunk.set_voxel(vx, vy, vz, stone.id);
+                    } else {
+                        chunk.set_voxel(vx, vy, vz, marble.id);
+                    }
                 }
             }
         }
@@ -88,9 +93,9 @@ impl<'a> System<'a> for UpdateBoxSystem {
             let inner = position.inner_mut();
             let elapsed = stats.elapsed().as_millis() as f32;
 
-            inner.0 += (elapsed * BOX_SPEED).cos() * 0.05;
-            inner.1 += (elapsed * BOX_SPEED).sin() * 0.05;
-            inner.2 += (elapsed * BOX_SPEED).sin() * 0.05;
+            inner.0 += (elapsed * BOX_SPEED).cos() * 0.005;
+            inner.1 += (elapsed * BOX_SPEED).sin() * 0.005;
+            inner.2 += (elapsed * BOX_SPEED).sin() * 0.005;
         }
     }
 }
@@ -118,6 +123,10 @@ fn main() {
     world
         .registry_mut()
         .register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
+
+    world
+        .registry_mut()
+        .register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
 
     world
         .ecs_mut()

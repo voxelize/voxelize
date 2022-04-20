@@ -81,6 +81,7 @@ impl Registry {
 
             let (start_u, start_v, end_u, end_v) =
                 Registry::fix_texture_bleeding((start_u, start_v, end_u, end_v));
+
             self.ranges.insert(
                 texture.to_owned(),
                 UV {
@@ -90,6 +91,8 @@ impl Registry {
                     end_v,
                 },
             );
+
+            col += 1;
         }
     }
 
