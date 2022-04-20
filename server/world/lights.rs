@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use log::info;
+
 use crate::{
     utils::{light_utils::LightColor, ndarray::Ndarray, vec::Vec3},
     world::block::Block,
@@ -37,11 +39,7 @@ impl Lights {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        let &WorldConfig {
-            max_height,
-            max_light_level,
-            ..
-        } = config;
+        let &WorldConfig { max_height, .. } = config;
 
         let Vec3(shape0, _, shape2) = space.shape;
         let Vec3(start_x, _, start_z) = space.min;
@@ -55,6 +53,10 @@ impl Lights {
             let LightNode { voxel, level } = queue.pop_front().unwrap();
             let [vx, vy, vz] = voxel;
 
+            if level == 0 {
+                break;
+            }
+
             for [ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
                 let nvy = vy + oy;
 
@@ -65,15 +67,17 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
 
-                if nvx < 0 || nvz < 0 || nvx >= shape0 || nvz >= shape2 {
+                if nvx < start_x
+                    || nvz < start_z
+                    || nvx >= start_x + shape0
+                    || nvz >= start_z + shape2
+                {
                     continue;
                 }
 
-                let sun_down = is_sunlight && *oy == -1 && level == max_light_level;
-                let next_level = level - if sun_down { 0 } else { 1 };
+                let next_level = level - 1;
                 let next_voxel = [nvx, nvy, nvz];
-                let block_type =
-                    registry.get_block_by_id(space.get_voxel(nvx + start_x, nvy, nvz + start_z));
+                let block_type = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
 
                 if !block_type.is_transparent
                     || (if is_sunlight {

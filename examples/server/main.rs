@@ -2,6 +2,7 @@ use std::process;
 
 use log::info;
 use nanoid::nanoid;
+use noise::{NoiseFn, SuperSimplex};
 use specs::{
     Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
     WriteStorage,
@@ -32,7 +33,9 @@ fn handle_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
-struct TestStage;
+struct TestStage {
+    noise: SuperSimplex,
+}
 
 impl ChunkStage for TestStage {
     fn name(&self) -> String {
@@ -52,14 +55,23 @@ impl ChunkStage for TestStage {
         let marble = registry.get_block_by_name("Marble");
         let stone = registry.get_block_by_name("Stone");
 
+        const SCALE: f64 = 0.01;
+
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                let limit = if (vx * vz) % 7 == 0 { 10 } else { 5 };
+                let limit =
+                    (5.0 * (vx as f32 / 10.0).sin() + 8.0 * (vz as f32 / 20.0).cos() + 30.0) as i32;
                 for vy in 0..limit {
-                    if vx * vz % 7 == 0 {
-                        chunk.set_voxel(vx, vy, vz, stone.id);
-                    } else {
-                        chunk.set_voxel(vx, vy, vz, marble.id);
+                    if self
+                        .noise
+                        .get([vx as f64 * SCALE, vy as f64 * SCALE, vz as f64 * SCALE])
+                        < 0.1
+                    {
+                        if vx * vz % 7 == 0 {
+                            chunk.set_voxel(vx, vy, vz, stone.id);
+                        } else {
+                            chunk.set_voxel(vx, vy, vz, marble.id);
+                        }
                     }
                 }
             }
@@ -118,7 +130,9 @@ fn main() {
     world.ecs_mut().register::<BoxFlag>();
 
     world.set_dispatcher(get_dispatcher);
-    world.pipeline_mut().add_stage(TestStage);
+    world.pipeline_mut().add_stage(TestStage {
+        noise: SuperSimplex::new(),
+    });
 
     world
         .registry_mut()

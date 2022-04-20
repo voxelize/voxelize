@@ -8,11 +8,11 @@ import {
 } from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
-import { Coords3 } from "types";
 
 import { Client } from "..";
 import { NameTag } from "../libs";
 import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
+import { Coords3 } from "../types";
 
 type FormatterType = (input: any) => string;
 
