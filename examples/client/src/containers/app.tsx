@@ -7,12 +7,15 @@ import {
   Position3DComponent,
   TargetComponent,
   HeadingComponent,
+  MetadataComponent,
+  System,
+  EntityFlag,
 } from "@voxelize/client";
-import { System, EntityFlag } from "@voxelize/common";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import MarbleImage from "../assets/marble.jpg";
-import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
+import StoneImage from "../assets/stone.jpeg";
+import { BoxBufferGeometry, MeshNormalMaterial, Mesh, Color } from "three";
 
 const GameWrapper = styled.div`
   background: black;
@@ -70,7 +73,7 @@ const ControlsWrapper = styled.div`
   }
 `;
 
-const BACKEND_SERVER = "http://localhost:5000/?room=";
+const BACKEND_SERVER = "http://localhost:4000/?world=";
 
 class Box extends BaseEntity {
   public geometry: BoxBufferGeometry;
@@ -109,18 +112,45 @@ class UpdateBoxSystem extends System {
       Position3DComponent.type,
       HeadingComponent.type,
       TargetComponent.type,
+      MetadataComponent.type,
     ]);
   }
 
   update(entity: BaseEntity) {
-    const { mesh, position, target } = entity;
-    mesh.position.lerp(position, BaseEntity.LERP_FACTOR);
-    mesh.lookAt(target);
+    const { mesh } = entity;
+    const metadata = MetadataComponent.get(entity).data;
+
+    if (metadata.position) {
+      entity.position.set(
+        metadata.position[0],
+        metadata.position[1],
+        metadata.position[2]
+      );
+    }
+
+    if (metadata.target) {
+      entity.target.set(
+        metadata.target[0],
+        metadata.target[1],
+        metadata.target[2]
+      );
+    }
+
+    if (metadata.heading) {
+      entity.target.set(
+        metadata.target[0],
+        metadata.target[1],
+        metadata.target[2]
+      );
+    }
+
+    mesh.position.lerp(entity.position, BaseEntity.LERP_FACTOR);
+    mesh.lookAt(entity.target);
   }
 }
 
 export const App = () => {
-  const [room, setRoom] = useState("test");
+  const [world, setWorld] = useState("world1");
   const [name, setName] = useState("");
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState("");
@@ -143,6 +173,7 @@ export const App = () => {
           "all",
           MarbleImage
         );
+        client.current.registry.applyTextureByName("Stone", "all", StoneImage);
 
         client.current.addSystem(new UpdateBoxSystem());
 
@@ -190,7 +221,7 @@ export const App = () => {
         ?.connect({
           serverURL: BACKEND_SERVER,
           reconnectTimeout: 5000,
-          room,
+          world,
         })
         .then((success) => {
           if (success) {
@@ -198,7 +229,7 @@ export const App = () => {
               client.current?.controls.lock();
             }
           } else {
-            setError("Room not found.");
+            setError("World not found.");
           }
         });
     });
@@ -222,10 +253,10 @@ export const App = () => {
             />
             <h3>Voxelize Demo!</h3>
             <Input
-              label="room"
-              value={room}
+              label="world"
+              value={world}
               onChange={(e) => {
-                setRoom(e.target.value);
+                setWorld(e.target.value);
                 setError("");
               }}
               disabled={connected}

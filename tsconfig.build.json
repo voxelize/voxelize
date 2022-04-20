@@ -10,7 +10,11 @@
     "esModuleInterop": true,
     "strictPropertyInitialization": false,
     "types": ["jest"],
-    "jsx": "react"
+    "jsx": "react",
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "rootDir": "./client"
   },
+  "include": ["client/**/*"],
   "exclude": ["node_modules", "dist"]
 }

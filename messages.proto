@@ -1,0 +1,68 @@
+syntax = "proto3";
+package protocol;
+
+message Geometry {
+  repeated float positions = 1 [ packed = true ];
+  repeated float uvs = 2 [ packed = true ];
+  repeated int32 aos = 3 [ packed = true ];
+  repeated int32 indices = 4 [ packed = true ];
+  repeated int32 lights = 5 [ packed = true ];
+}
+
+message Mesh {
+  Geometry opaque = 1;
+  Geometry transparent = 2;
+}
+
+message Chunk {
+  int32 x = 1;
+  int32 z = 2;
+  string id = 3;
+  Mesh mesh = 4;
+  repeated uint32 voxels = 5 [ packed = true ];
+  repeated uint32 lights = 6 [ packed = true ];
+  repeated uint32 heightMap = 7 [ packed = true ];
+}
+
+message Vector3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message Peer {
+  string id = 1;
+  string name = 2;
+  Vector3 position = 3;
+  Vector3 direction = 4;
+}
+
+message Entity {
+  string id = 1;
+  string type = 2;
+  string metadata = 6;
+}
+
+message Message {
+  enum Type {
+    CONNECT = 0;
+    INIT = 1;
+    JOIN = 2;
+    SIGNAL = 3;
+    ERROR = 4;
+    LEAVE = 5;
+    PEER = 6;
+    ENTITY = 7;
+    CHUNK = 8;
+    SETTINGS = 9;
+  }
+
+  Type type = 1;
+  string json = 2;
+  string text = 3;
+  Peer peer = 4;
+
+  repeated string peers = 5;
+  repeated Entity entities = 6;
+  repeated Chunk chunks = 7;
+}

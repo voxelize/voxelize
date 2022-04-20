@@ -2,11 +2,15 @@ const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
 const ForkTSCheckerWebpackPlugin = require("fork-ts-checker-webpack-plugin");
 const { pathsToModuleNameMapper } = require("ts-jest");
 const { compilerOptions } = require("./tsconfig.paths.json");
+const path = require("path");
 
 module.exports = {
   eslint: { enable: false },
   webpack: {
     writeToDisk: true,
+    alias: {
+      "@voxelize/client": path.resolve("../../dist"),
+    },
     stats: "errors-only",
     configure: (config) => {
       // Remove ModuleScopePlugin which throws when we try to import something

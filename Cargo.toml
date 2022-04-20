@@ -1,0 +1,50 @@
+[package]
+description = "A fast multiplayer voxel engine."
+edition = "2021"
+exclude = [
+  "client",
+  "dist",
+  "examples",
+  "node_modules",
+  "package.json",
+  "tsconfig.*",
+  "yarn.lock",
+  "*.js",
+]
+license = "MIT"
+name = "voxelize"
+version = "0.2.0"
+
+[lib]
+name = "voxelize"
+path = "server/lib.rs"
+
+[[example]]
+name = "demo"
+path = "examples/server/main.rs"
+
+[dependencies]
+crossbeam-channel = "0.5.4"
+ctrlc = "3.2.1"
+game-loop = "0.9.0"
+hashbrown = {version = "0.12.0", features = ["serde"]}
+itertools = "0.10.3"
+libflate = "1.2.0"
+message-io = "0.14.5"
+nanoid = "0.4.0"
+noise = "0.7.0"
+num = "0.4.0"
+prost = "0.10.0"
+rayon = "1.5.2"
+serde = {version = "1.0.136", features = ["derive"]}
+serde_json = "1.0.79"
+specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
+
+chrono = "0.4.19"
+env_logger = "0.9"
+fern = {version = "0.6.0", features = ["colored"]}
+log = "0.4.16"
+rand = "0.8"
+
+[build-dependencies]
+prost-build = "0.10.0"
