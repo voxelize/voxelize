@@ -1,1 +1,4 @@
 src
+target
+node_modules
+examples
