@@ -283,6 +283,11 @@ class Debug {
       if (!this.atlasTest) return;
       this.atlasTest.visible = !this.atlasTest.visible;
     });
+    testFolder.addButton({ title: "bruh" }).on("click", () => {
+      const chunk = this.client.chunks.getChunk(0, -1);
+      this.client.rendering.scene.add(chunk.mesh.opaque);
+      console.log(chunk);
+    });
     testFolder.addInput(this.client.registry.minLightUniform, "value", {
       min: 0.02,
       max: 1,

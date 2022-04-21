@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Vector3, MathUtils } from "three";
+import { PerspectiveCamera, Vector3, MathUtils, Frustum, Matrix4 } from "three";
 
 import { Client } from "..";
 
@@ -43,6 +43,14 @@ class Camera {
    */
   public threeCamera: PerspectiveCamera;
 
+  /**
+   * A frustum viewing from the camera.
+   *
+   * @type {Frustum}
+   * @memberof Camera
+   */
+  public frustum: Frustum;
+
   private newZoom: number;
   private newFOV: number;
 
@@ -62,6 +70,8 @@ class Camera {
       near,
       far
     );
+
+    this.frustum = new Frustum();
 
     // initialize camera position
     this.threeCamera.lookAt(new Vector3(0, 0, 0));
@@ -102,6 +112,15 @@ class Camera {
       );
       this.threeCamera.updateProjectionMatrix();
     }
+
+    this.threeCamera.updateMatrix();
+    this.threeCamera.updateMatrixWorld();
+    this.frustum.setFromProjectionMatrix(
+      new Matrix4().multiplyMatrices(
+        this.threeCamera.projectionMatrix,
+        this.threeCamera.matrixWorldInverse
+      )
+    );
   };
 
   /**

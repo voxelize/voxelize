@@ -70,9 +70,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     .iter()
                     .for_each(|[ox, oz]| {
                         let new_coords = Vec2(coords.0 + ox, coords.1 + oz);
-                        if !pipeline.has(&new_coords) {
-                            pipeline.push((new_coords, 0));
-                        }
+                        pipeline.push(&new_coords, 0);
                     });
                 });
 

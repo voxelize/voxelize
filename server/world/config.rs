@@ -68,12 +68,12 @@ impl WorldConfig {
 }
 
 const DEFAULT_MAX_CLIENT: usize = 100;
-const DEFAULT_INTERVAL: u64 = 16;
+const DEFAULT_INTERVAL: u64 = 8;
 const DEFAULT_CHUNK_SIZE: usize = 12;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
-const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 16;
-const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 2;
+const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;
+const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 3;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 const DEFAULT_SEED: i32 = 123123123;
 

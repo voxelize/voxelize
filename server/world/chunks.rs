@@ -28,6 +28,17 @@ impl Chunks {
         }
     }
 
+    /// Update a chunk, removing the old chunk instance and updating with a new one.
+    pub fn renew(&mut self, chunk: Chunk) {
+        self.map.remove(&chunk.coords);
+        self.map.insert(chunk.coords.to_owned(), chunk);
+    }
+
+    /// Add a new chunk, synonym for `chunks.renew`
+    pub fn add(&mut self, chunk: Chunk) {
+        self.renew(chunk);
+    }
+
     /// Get raw chunk data.
     pub fn raw(&self, coords: &Vec2<i32>) -> Option<&Chunk> {
         self.map.get(coords)

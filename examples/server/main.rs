@@ -12,7 +12,7 @@ use voxelize::{
     chunk::Chunk,
     pipeline::ChunkStage,
     utils::ndarray::ndarray,
-    vec::Vec3,
+    vec::{Vec2, Vec3},
     world::{
         block::{Block, BlockFaces},
         comps::{
@@ -39,6 +39,41 @@ struct TestStage {
     noise: SuperSimplex,
 }
 
+impl TestStage {
+    fn octave_simplex3(
+        &self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        scale: f64,
+        octaves: usize,
+        persistance: f64,
+        lacunarity: f64,
+        amplifier: f64,
+        height_offset: f64,
+    ) -> f64 {
+        let mut total = 0.0;
+        let mut frequency = 1.0;
+        let mut amplitude = 1.0;
+        let mut max_val = 0.0;
+
+        for i in 0..octaves {
+            total += self.noise.get([
+                vx as f64 * frequency * scale,
+                vy as f64 * frequency * scale,
+                vz as f64 * frequency * scale,
+            ]) * amplitude;
+
+            max_val += amplitude;
+
+            amplitude *= persistance;
+            frequency *= lacunarity;
+        }
+
+        (total / max_val) * amplifier + height_offset
+    }
+}
+
 impl ChunkStage for TestStage {
     fn name(&self) -> String {
         "Test".to_owned()
@@ -63,36 +98,35 @@ impl ChunkStage for TestStage {
         let chunk_size = chunk_size as i32;
         let max_height = max_height as i32;
 
-        let marble = registry.get_block_by_name("Marble");
         let stone = registry.get_block_by_name("Stone");
 
-        let noise = NoiseBuilder::gradient_3d_offset(
-            min_x as f32,
-            config.chunk_size,
-            0.0,
-            config.max_height,
-            min_z as f32,
-            config.chunk_size,
-        )
-        .with_seed(config.seed)
-        .generate_scaled(0.0, 1.0);
+        // let (noise, min, max) = NoiseBuilder::gradient_3d_offset(
+        //     min_x as f32,
+        //     config.chunk_size,
+        //     0.0,
+        //     config.max_height,
+        //     min_z as f32,
+        //     config.chunk_size,
+        // )
+        // .with_seed(config.seed)
+        // .generate();
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 // let limit =
                 //     (5.0 * (vx as f32 / 10.0).sin() + 8.0 * (vz as f32 / 20.0).cos() + 30.0) as i32;
-                for vy in 0..(max_height as i32) {
-                    let val = noise[((vz - min_z) * chunk_size * max_height
-                        + vy * chunk_size
-                        + (vx - min_x)) as usize];
-                    // val += -0.75 * (vy - max_height as i32).max(0) as f32;
+                for vy in 0..max_height {
+                    // let density = noise[((vz - min_z) * chunk_size * max_height
+                    //     + vy * chunk_size
+                    //     + (vx - min_x)) as usize]
+                    //     - 0.75 * (vy - max_height / 2).max(0) as f32;
+                    // self.noise.
+                    let new_vy = vy - 50;
+                    let density = self.octave_simplex3(vx, new_vy, vz, 0.01, 5, 0.8, 1.2, 2.0, 0.0)
+                        - 4.0 * new_vy as f64 * 0.01;
 
-                    if val > 0.5 {
-                        if vx * vz % 7 == 0 {
-                            chunk.set_voxel(vx, vy, vz, stone.id);
-                        } else {
-                            chunk.set_voxel(vx, vy, vz, marble.id);
-                        }
+                    if density > 0.0 {
+                        chunk.set_voxel(vx, vy, vz, stone.id);
                     }
                 }
             }
@@ -155,9 +189,13 @@ fn main() {
         noise: SuperSimplex::new(),
     });
 
-    world
-        .registry_mut()
-        .register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
+    let mut registry = world.registry_mut();
+
+    registry.register_block(Block::new("Dirt").faces(&[BlockFaces::All]).build());
+    registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
+    registry.register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
+
+    drop(registry);
 
     world
         .registry_mut()

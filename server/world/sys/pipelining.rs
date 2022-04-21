@@ -28,17 +28,8 @@ impl<'a> System<'a> for PipeliningSystem {
 
         if let Ok(list) = pipeline.results() {
             list.into_iter().for_each(|mut chunk| {
-                let curr_stage = chunk.stage.unwrap();
-
-                chunk.stage = if curr_stage < pipeline.len() - 1 {
-                    pipeline.push((chunk.coords.to_owned(), curr_stage + 1));
-                    Some(curr_stage + 1)
-                } else {
-                    None
-                };
-
-                chunks.map.remove(&chunk.coords);
-                chunks.map.insert(chunk.coords.to_owned(), chunk);
+                pipeline.advance(&mut chunk);
+                chunks.renew(chunk);
             })
         }
 
@@ -76,8 +67,8 @@ impl<'a> System<'a> for PipeliningSystem {
                 new_chunk.stage = Some(index);
 
                 // Add this chunk to the pipeline with stage 0.
-                pipeline.push((new_chunk.coords.to_owned(), index));
-                chunks.map.insert(Vec2(cx, cz), new_chunk);
+                pipeline.postpone(&new_chunk.coords, index);
+                chunks.add(new_chunk);
 
                 continue;
             }
@@ -89,7 +80,7 @@ impl<'a> System<'a> for PipeliningSystem {
                 continue;
             }
 
-            // I don't even know why this happens.
+            // I don't even know why this would happen.
             if chunk.stage.unwrap() > index {
                 continue;
             }
@@ -125,7 +116,7 @@ impl<'a> System<'a> for PipeliningSystem {
 
             // if this chunk cannot be processed yet, add it back to queue.
             if !ready {
-                pipeline.push((chunk.coords.to_owned(), index));
+                pipeline.postpone(&chunk.coords, index);
                 continue;
             }
 
@@ -147,9 +138,9 @@ impl<'a> System<'a> for PipeliningSystem {
 
                 let space = space.build();
 
-                processes.push((chunk, Some(space), stage.clone()));
+                processes.push((chunk, Some(space), index));
             } else {
-                processes.push((chunk, None, stage.clone()))
+                processes.push((chunk, None, index))
             }
         }
 

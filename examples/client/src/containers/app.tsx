@@ -13,8 +13,8 @@ import {
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import MarbleImage from "../assets/marble.jpg";
-import StoneImage from "../assets/stone.jpeg";
+import StoneImage from "../assets/blocks/stone.png";
+import DirtImage from "../assets/blocks/dirt.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh, Color } from "three";
 
 const GameWrapper = styled.div`
@@ -168,11 +168,7 @@ export const App = () => {
         });
 
         client.current.registerEntity("Box", Box);
-        client.current.registry.applyTextureByName(
-          "Marble",
-          "all",
-          MarbleImage
-        );
+        client.current.registry.applyTextureByName("Dirt", "all", DirtImage);
         client.current.registry.applyTextureByName("Stone", "all", StoneImage);
 
         client.current.addSystem(new UpdateBoxSystem());

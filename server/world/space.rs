@@ -12,6 +12,7 @@ use crate::utils::{
 use super::{block::BlockRotation, chunks::Chunks};
 
 /// What kind of data does this space have/need?
+#[derive(Default)]
 pub struct SpaceData {
     pub needs_lights: bool,
     pub needs_voxels: bool,
@@ -323,10 +324,15 @@ impl SpaceBuilder<'_> {
         for x in -extended..=extended {
             for z in -extended..=extended {
                 let n_coords = Vec2(cx + x, cz + z);
-                let chunk = self
-                    .chunks
-                    .raw(&n_coords)
-                    .unwrap_or_else(|| panic!("Space incomplete!"));
+                let chunk = self.chunks.raw(&n_coords).unwrap_or_else(|| {
+                    panic!(
+                        "Space incomplete! Chunk {} {} did not have {} {} as a neighbor!",
+                        cx,
+                        cz,
+                        cx + x,
+                        cz + z
+                    )
+                });
 
                 if self.needs_voxels {
                     voxels.insert(n_coords.to_owned(), chunk.voxels.clone());

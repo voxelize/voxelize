@@ -205,12 +205,12 @@ class Client extends EventEmitter {
       return;
     }
 
+    this.camera.update();
+    this.controls.update();
     this.ecs.update();
     this.clock.update();
-    this.camera.update();
     this.entities.update();
     this.peers.update();
-    this.controls.update();
     this.debug.update();
     this.chunks.update();
 

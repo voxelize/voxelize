@@ -21,7 +21,7 @@ type ControlsParams = {
 
 const defaultParams: ControlsParams = {
   sensitivity: 100,
-  acceleration: 0.6,
+  acceleration: 1.6,
   flyingInertia: 5,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,

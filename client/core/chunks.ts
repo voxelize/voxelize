@@ -1,4 +1,4 @@
-import { Group } from "three";
+import { Box3, Group, Vector3 } from "three";
 
 import { Client } from "..";
 import { Coords2, Coords3, MeshData } from "../types";
@@ -305,10 +305,30 @@ class Chunks {
   private surroundChunks = () => {
     const [cx, cz] = this.currentChunk;
     const { renderRadius } = this.client.settings;
+    const { chunkSize, maxHeight } = this.worldParams;
+    const [_, vy, __] = this.client.voxel;
 
     for (let x = -renderRadius; x <= renderRadius; x++) {
       for (let z = -renderRadius; z <= renderRadius; z++) {
         if (x ** 2 + z ** 2 >= renderRadius ** 2) continue;
+
+        const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
+          [cx + x, cz + z],
+          chunkSize
+        );
+
+        const maxX = minX + chunkSize;
+        const maxY = minY + maxHeight;
+        const maxZ = minZ + chunkSize;
+
+        const chunkBox = new Box3(
+          new Vector3(minX, minY - 100, minZ),
+          new Vector3(maxX, maxY + 100, maxZ)
+        );
+
+        if (!this.client.camera.frustum.intersectsBox(chunkBox)) {
+          continue;
+        }
 
         const name = ChunkUtils.getChunkName([cx + x, cz + z]);
 

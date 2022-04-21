@@ -74,12 +74,12 @@ class ChunkUtils {
    * Get the voxel position of a chunk position.
    *
    * @static
-   * @param {Coords3} chunkPos
+   * @param {Coords2} chunkPos
    * @param {number} chunkSize
    * @memberof Helper
    */
   public static mapChunkPosToVoxelPos = (
-    chunkPos: Coords3,
+    chunkPos: Coords2,
     chunkSize: number
   ): Coords3 => {
     const result = <Coords3>[0, 0, 0];
