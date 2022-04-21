@@ -306,7 +306,7 @@ varying vec4 vLight;
           "#include <envmap_fragment>",
           `
 #include <envmap_fragment>
-float s = vLight.a * uSunlightIntensity * 0.8 + uMinLight;
+float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinLight, 1.0);
 float scale = 1.0;
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
 // outgoingLight.rgb *= vec3(s + scale / sqrt(vLight.r), s + scale / sqrt(vLight.g), s + scale / sqrt(vLight.b));

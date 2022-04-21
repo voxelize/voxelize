@@ -283,6 +283,10 @@ class Debug {
       if (!this.atlasTest) return;
       this.atlasTest.visible = !this.atlasTest.visible;
     });
+    testFolder.addInput(this.client.registry.minLightUniform, "value", {
+      min: 0.02,
+      max: 1,
+    });
 
     this.displayTitle(`Voxelize ${"__buildVersion__"}`);
     this.registerDisplay("", this, "fps");
@@ -298,12 +302,12 @@ class Debug {
     this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
 
-    this.group.add(
-      new Mesh(
-        new BoxBufferGeometry(1, 1, 1),
-        new MeshBasicMaterial({ color: "White" })
-      )
-    );
+    // this.group.add(
+    //   new Mesh(
+    //     new BoxBufferGeometry(1, 1, 1),
+    //     new MeshBasicMaterial({ color: "White" })
+    //   )
+    // );
   };
 
   private setupInputs = () => {

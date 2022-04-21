@@ -60,11 +60,13 @@ impl ChunkStage for TestStage {
             ..
         } = config;
 
+        let chunk_size = chunk_size as i32;
+        let max_height = max_height as i32;
+
         let marble = registry.get_block_by_name("Marble");
         let stone = registry.get_block_by_name("Stone");
 
-        let mut noise = ndarray(&[chunk_size, max_height, chunk_size], 0.0);
-        noise.data = NoiseBuilder::gradient_3d_offset(
+        let noise = NoiseBuilder::gradient_3d_offset(
             min_x as f32,
             config.chunk_size,
             0.0,
@@ -80,9 +82,10 @@ impl ChunkStage for TestStage {
                 // let limit =
                 //     (5.0 * (vx as f32 / 10.0).sin() + 8.0 * (vz as f32 / 20.0).cos() + 30.0) as i32;
                 for vy in 0..(max_height as i32) {
-                    let mut val =
-                        noise[&[(vx - min_x) as usize, vy as usize, (vz - min_z) as usize]];
-                    val += -0.75 * (vy - max_height as i32).max(0) as f32;
+                    let val = noise[((vz - min_z) * chunk_size * max_height
+                        + vy * chunk_size
+                        + (vx - min_x)) as usize];
+                    // val += -0.75 * (vy - max_height as i32).max(0) as f32;
 
                     if val > 0.5 {
                         if vx * vz % 7 == 0 {
