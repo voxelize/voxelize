@@ -9,7 +9,10 @@ use crate::utils::{
     vec::{Vec2, Vec3},
 };
 
-use super::{block::BlockRotation, chunks::Chunks};
+use super::{
+    block::{BlockRotation, PY_ROTATION, Y_000_ROTATION},
+    chunks::Chunks,
+};
 
 /// What kind of data does this space have/need?
 #[derive(Default)]
@@ -30,6 +33,9 @@ pub struct SpaceParams {
 
     /// Maximum height of the chunk/space.
     pub max_height: usize,
+
+    /// Maximum light of the voxelize world.
+    pub max_light_level: u32,
 }
 
 /// A data structure used in Voxelize to access voxel data of multiple chunks at
@@ -89,18 +95,30 @@ impl Space {
     /// Get the voxel type at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     pub fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
+
         BlockUtils::extract_id(self.get_raw_voxel(vx, vy, vz))
     }
 
     /// Get the voxel rotation at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     pub fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
+        if !self.contains(vx, vy, vz) {
+            return BlockRotation::encode(PY_ROTATION, Y_000_ROTATION);
+        }
+
         BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
     }
 
     /// Get the voxel stage at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
     pub fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
+
         BlockUtils::extract_stage(self.get_raw_voxel(vx, vy, vz))
     }
 
@@ -126,11 +144,14 @@ impl Space {
     }
 
     /// Set the raw light level at the voxel position. Does nothing if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     #[inline]
     pub fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
         if self.lights.is_empty() {
-            panic!("Space does not contain voxel data.");
+            panic!("Space does not contain light data.");
+        }
+
+        if !self.contains(vx, vy, vz) {
+            return;
         }
 
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
@@ -141,13 +162,19 @@ impl Space {
     }
 
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return if vy < 0 {
+                0
+            } else {
+                self.params.max_light_level
+            };
+        }
+
         LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
     }
 
     /// Set the sunlight level at the voxel position. Does nothing if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
         self.set_raw_light(
             vx,
@@ -158,13 +185,11 @@ impl Space {
     }
 
     /// Get the red light level at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn get_red_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         LightUtils::extract_red_light(self.get_raw_light(vx, vy, vz))
     }
 
     /// Set the red light level at the voxel position. Does nothing if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
         self.set_raw_light(
             vx,
@@ -175,13 +200,11 @@ impl Space {
     }
 
     /// Get the green light level at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn get_green_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         LightUtils::extract_green_light(self.get_raw_light(vx, vy, vz))
     }
 
     /// Set the green light level at the voxel position. Does nothing if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
         self.set_raw_light(
             vx,
@@ -192,13 +215,11 @@ impl Space {
     }
 
     /// Get the blue light level at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn get_blue_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         LightUtils::extract_blue_light(self.get_raw_light(vx, vy, vz))
     }
 
     /// Set the blue light level at the voxel position. Does nothing if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
         self.set_raw_light(
             vx,
@@ -209,7 +230,6 @@ impl Space {
     }
 
     /// Get the torch light level of a color at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: &LightColor) -> u32 {
         match color {
             LightColor::Red => self.get_red_light(vx, vy, vz),
@@ -220,7 +240,6 @@ impl Space {
     }
 
     /// Set the torch light level of a color at the voxel position. Does nothing if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
     pub fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
         match color {
             LightColor::Red => self.set_red_light(vx, vy, vz, level),
@@ -231,10 +250,13 @@ impl Space {
     }
 
     /// Get the max height at the voxel column. Zero is returned if column doesn't exist.
-    /// Panics if height map data does not exist.
     pub fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
         if self.height_maps.is_empty() {
             panic!("Space does not contain height map data.");
+        }
+
+        if !self.contains(vx, 0, vz) {
+            return 0;
         }
 
         let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
@@ -249,6 +271,17 @@ impl Space {
     /// Get a reference of lighting n-dimensional array.
     pub fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
         self.lights.get(&Vec2(cx, cz))
+    }
+
+    /// Check if space contains this coordinate
+    pub fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        let (coords, _) = self.to_local(vx, vy, vz);
+
+        vy >= 0
+            && vy < self.params.max_height as i32
+            && (self.lights.contains_key(&coords)
+                || self.voxels.contains_key(&coords)
+                || self.height_maps.contains_key(&coords))
     }
 
     /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
@@ -306,6 +339,7 @@ impl SpaceBuilder<'_> {
             margin,
             chunk_size,
             max_height,
+            ..
         } = self.params;
 
         let Vec2(cx, cz) = self.coords;
@@ -324,26 +358,18 @@ impl SpaceBuilder<'_> {
         for x in -extended..=extended {
             for z in -extended..=extended {
                 let n_coords = Vec2(cx + x, cz + z);
-                let chunk = self.chunks.raw(&n_coords).unwrap_or_else(|| {
-                    panic!(
-                        "Space incomplete! Chunk {} {} did not have {} {} as a neighbor!",
-                        cx,
-                        cz,
-                        cx + x,
-                        cz + z
-                    )
-                });
+                if let Some(chunk) = self.chunks.raw(&n_coords) {
+                    if self.needs_voxels {
+                        voxels.insert(n_coords.to_owned(), chunk.voxels.clone());
+                    }
 
-                if self.needs_voxels {
-                    voxels.insert(n_coords.to_owned(), chunk.voxels.clone());
-                }
+                    if self.needs_lights {
+                        lights.insert(n_coords.to_owned(), chunk.lights.clone());
+                    }
 
-                if self.needs_lights {
-                    lights.insert(n_coords.to_owned(), chunk.lights.clone());
-                }
-
-                if self.needs_height_maps {
-                    height_maps.insert(n_coords.to_owned(), chunk.height_map.clone());
+                    if self.needs_height_maps {
+                        height_maps.insert(n_coords.to_owned(), chunk.height_map.clone());
+                    }
                 }
             }
         }

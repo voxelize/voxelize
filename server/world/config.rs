@@ -11,6 +11,12 @@ pub struct InitConfig {
 
     /// Max light level that light can propagate. Default is 15 blocks.
     pub max_light_level: u32,
+
+    /// The minimum inclusive chunk on this world. Default is [i32::MIN, i32::MIN].
+    pub min_chunk: [i32; 2],
+
+    /// The maximum inclusive chunk on this world. Default is [i32::MAX, i32::MAX].
+    pub max_chunk: [i32; 2],
 }
 
 /// World configuration, storing information of how a world is constructed.
@@ -24,6 +30,12 @@ pub struct WorldConfig {
 
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
     pub chunk_size: usize,
+
+    /// The minimum inclusive chunk on this world. Default is [i32::MIN, i32::MIN].
+    pub min_chunk: [i32; 2],
+
+    /// The maximum inclusive chunk on this world. Default is [i32::MAX, i32::MAX].
+    pub max_chunk: [i32; 2],
 
     /// Max height of the world. Default is 256 blocks high.
     pub max_height: usize,
@@ -63,6 +75,8 @@ impl WorldConfig {
             chunk_size: self.chunk_size,
             max_height: self.max_height,
             max_light_level: self.max_light_level,
+            min_chunk: self.min_chunk,
+            max_chunk: self.max_chunk,
         }
     }
 }
@@ -70,6 +84,8 @@ impl WorldConfig {
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_INTERVAL: u64 = 8;
 const DEFAULT_CHUNK_SIZE: usize = 12;
+const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN, i32::MIN];
+const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX, i32::MAX];
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;
@@ -83,6 +99,8 @@ pub struct WorldConfigBuilder {
     max_clients: Option<usize>,
     interval: Option<u64>,
     chunk_size: Option<usize>,
+    min_chunk: Option<[i32; 2]>,
+    max_chunk: Option<[i32; 2]>,
     max_height: Option<usize>,
     max_light_level: Option<u32>,
     max_chunk_per_tick: Option<usize>,
@@ -107,6 +125,18 @@ impl WorldConfigBuilder {
     /// Configure the horizontal dimension of chunks in this world. Default is 16 blocks wide.
     pub fn chunk_size(mut self, chunk_size: usize) -> Self {
         self.chunk_size = Some(chunk_size);
+        self
+    }
+
+    /// Configure the minimum inclusive chunk of the world. Default is [i32::MIN, i32::MIN].
+    pub fn min_chunk(mut self, min_chunk: [i32; 2]) -> Self {
+        self.min_chunk = Some(min_chunk);
+        self
+    }
+
+    /// Configure the maximum inclusive chunk of the world. Default is [i32::MAX, i32::MAX].
+    pub fn max_chunk(mut self, max_chunk: [i32; 2]) -> Self {
+        self.max_chunk = Some(max_chunk);
         self
     }
 
@@ -148,6 +178,14 @@ impl WorldConfigBuilder {
 
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
+        let min_chunk = self.min_chunk.unwrap_or_else(|| DEFAULT_MIN_CHUNK);
+        let max_chunk = self.max_chunk.unwrap_or_else(|| DEFAULT_MAX_CHUNK);
+
+        // Make sure there are still chunks in the world.
+        if max_chunk[0] < min_chunk[0] || max_chunk[1] < min_chunk[1] {
+            panic!("Min/max chunk parameters do not make sense.");
+        }
+
         WorldConfig {
             max_clients: self.max_clients.unwrap_or_else(|| DEFAULT_MAX_CLIENT),
             interval: self.interval.unwrap_or_else(|| DEFAULT_INTERVAL),
@@ -166,6 +204,8 @@ impl WorldConfigBuilder {
                 .preload_radius
                 .unwrap_or_else(|| DEFAULT_PRELOAD_RADIUS),
             seed: self.seed.unwrap_or_else(|| DEFAULT_SEED.to_owned()),
+            min_chunk,
+            max_chunk,
         }
     }
 }

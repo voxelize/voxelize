@@ -53,6 +53,10 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         return;
                     }
 
+                    if !chunks.is_within_world(&coords) {
+                        return;
+                    }
+
                     // Otherwise, add to pipeline.
                     leftover.push(coords.to_owned());
 
@@ -70,6 +74,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     .iter()
                     .for_each(|[ox, oz]| {
                         let new_coords = Vec2(coords.0 + ox, coords.1 + oz);
+
+                        if !chunks.is_within_world(&new_coords) {
+                            return;
+                        }
+
                         pipeline.push(&new_coords, 0);
                     });
                 });

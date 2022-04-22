@@ -55,7 +55,7 @@ impl<'a> System<'a> for PipeliningSystem {
 
             // Chunk DNE, make one.
             if chunk.is_none() {
-                let mut new_chunk = Chunk::new(
+                let new_chunk = Chunk::new(
                     &nanoid!(),
                     cx,
                     cz,
@@ -64,10 +64,9 @@ impl<'a> System<'a> for PipeliningSystem {
                         size: config.chunk_size,
                     },
                 );
-                new_chunk.stage = Some(index);
 
                 // Add this chunk to the pipeline with stage 0.
-                pipeline.postpone(&new_chunk.coords, index);
+                pipeline.postpone(&new_chunk.coords, 0);
                 chunks.add(new_chunk);
 
                 continue;
@@ -97,7 +96,14 @@ impl<'a> System<'a> for PipeliningSystem {
                     // OK cases are:
                     // - chunk's neighbor exist
                     // - neighbor's stage >= chunk's stage
-                    if let Some(neighbor) = chunks.raw(&Vec2(cx + x, cz + z)) {
+                    let coords = Vec2(cx + x, cz + z);
+
+                    // If chunk isn't within world borders, then it's fine to be absent.
+                    if !chunks.is_within_world(&coords) {
+                        continue;
+                    }
+
+                    if let Some(neighbor) = chunks.raw(&coords) {
                         if neighbor.stage.is_none()
                             || neighbor.stage.unwrap() >= chunk.stage.unwrap()
                         {

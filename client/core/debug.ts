@@ -306,6 +306,16 @@ class Debug {
     );
     this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
+    this.registerDisplay(
+      "Chunk to request",
+      this.client.chunks.toRequest,
+      "length"
+    );
+    this.registerDisplay(
+      "Chunk requested",
+      this.client.chunks.requested,
+      "size"
+    );
 
     // this.group.add(
     //   new Mesh(

@@ -31,12 +31,12 @@ class Chunks {
 
   public mesh = new Group();
 
-  private map = new Map<string, Chunk>();
-
-  private requested = new Set<string>();
-  private toRequest: string[] = [];
+  public requested = new Set<string>();
+  public toRequest: string[] = [];
 
   public currentChunk: Coords2;
+
+  private map = new Map<string, Chunk>();
 
   constructor(public client: Client, params: Partial<ChunksParams> = {}) {
     this.params = {
@@ -306,11 +306,14 @@ class Chunks {
     const [cx, cz] = this.currentChunk;
     const { renderRadius } = this.client.settings;
     const { chunkSize, maxHeight } = this.worldParams;
-    const [_, vy, __] = this.client.voxel;
 
     for (let x = -renderRadius; x <= renderRadius; x++) {
       for (let z = -renderRadius; z <= renderRadius; z++) {
         if (x ** 2 + z ** 2 >= renderRadius ** 2) continue;
+
+        if (!this.withinWorld(cx + x, cz + z)) {
+          continue;
+        }
 
         const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
           [cx + x, cz + z],
@@ -392,6 +395,13 @@ class Chunks {
         this.map.delete(chunk.name);
       }
     }
+  };
+
+  private withinWorld = (cx: number, cz: number) => {
+    const [minX, minZ] = this.client.world.params.minChunk;
+    const [maxX, maxZ] = this.client.world.params.maxChunk;
+
+    return cx >= minX && cz >= minZ && cx <= maxX && cz <= maxZ;
   };
 }
 

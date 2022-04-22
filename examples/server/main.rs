@@ -98,7 +98,7 @@ impl ChunkStage for TestStage {
         let chunk_size = chunk_size as i32;
         let max_height = max_height as i32;
 
-        let stone = registry.get_block_by_name("Stone");
+        let marble = registry.get_block_by_name("Marble");
 
         // let (noise, min, max) = NoiseBuilder::gradient_3d_offset(
         //     min_x as f32,
@@ -123,10 +123,10 @@ impl ChunkStage for TestStage {
                     // self.noise.
                     let new_vy = vy - 50;
                     let density = self.octave_simplex3(vx, new_vy, vz, 0.01, 5, 0.8, 1.2, 2.0, 0.0)
-                        - 4.0 * new_vy as f64 * 0.01;
+                        - 2.0 * new_vy as f64 * 0.01;
 
                     if density > 0.0 {
-                        chunk.set_voxel(vx, vy, vz, stone.id);
+                        chunk.set_voxel(vx, vy, vz, marble.id);
                     }
                 }
             }
@@ -178,7 +178,10 @@ fn main() {
 
     let mut server = Server::new().port(4000).build();
 
-    let config1 = WorldConfig::new().build();
+    let config1 = WorldConfig::new()
+        .min_chunk([0, 0])
+        .max_chunk([0, 0])
+        .build();
 
     let mut world = World::new("world1", &config1);
 

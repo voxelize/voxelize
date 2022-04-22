@@ -361,16 +361,18 @@ impl Mesher {
                                 let nvy = vy + dir[1];
                                 let nvz = vz + dir[2];
 
+                                let is_void = !space.contains(nvx, nvy, nvz);
                                 let neighbor_id = space.get_voxel(nvx, nvy, nvz);
                                 let n_block_type = registry.get_block_by_id(neighbor_id);
 
-                                if ((n_block_type.is_transparent && !n_block_type.is_fluid)
-                                    || (n_block_type.is_fluid && !is_fluid))
-                                    && (!transparent
-                                        || n_block_type.is_empty
-                                        || neighbor_id != voxel_id
-                                        || (n_block_type.transparent_standalone
-                                            && (dir[0] + dir[1] + dir[2]) as i32 >= 1))
+                                if is_void
+                                    || ((n_block_type.is_transparent && !n_block_type.is_fluid)
+                                        || (n_block_type.is_fluid && !is_fluid))
+                                        && (!transparent
+                                            || n_block_type.is_empty
+                                            || neighbor_id != voxel_id
+                                            || (n_block_type.transparent_standalone
+                                                && (dir[0] + dir[1] + dir[2]) as i32 >= 1))
                                 {
                                     let UV {
                                         start_u,

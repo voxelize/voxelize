@@ -5,6 +5,8 @@ type WorldParams = {
   maxHeight: number;
   maxLightLevel: number;
   dimension: number;
+  minChunk: [number, number];
+  maxChunk: [number, number];
 };
 
 class World {

@@ -55,7 +55,7 @@ impl Chunk {
             id: id.to_owned(),
             name: ChunkUtils::get_chunk_name(cx, cz),
             coords: Vec2(cx, cz),
-            stage: None,
+            stage: Some(0),
 
             mesh: None,
 

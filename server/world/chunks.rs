@@ -52,6 +52,10 @@ impl Chunks {
     /// Get a chunk at a chunk coordinate. If chunk is still in the pipeline (being instantiated),
     /// then None is returned.
     pub fn get_chunk(&self, coords: &Vec2<i32>) -> Option<&Chunk> {
+        if !self.is_within_world(coords) {
+            return None;
+        }
+
         if let Some(chunk) = self.map.get(coords) {
             if chunk.stage.is_some() {
                 return None;
@@ -63,6 +67,10 @@ impl Chunks {
 
     // Get a mutable chunk at a chunk coordinate.
     pub fn get_chunk_mut(&mut self, coords: &Vec2<i32>) -> Option<&mut Chunk> {
+        if !self.is_within_world(coords) {
+            return None;
+        }
+
         if let Some(chunk) = self.map.get(coords) {
             if chunk.stage.is_some() {
                 return None;
@@ -137,7 +145,11 @@ impl Chunks {
         if let Some(chunk) = self.get_chunk_by_voxel(vx, vy, vz) {
             chunk.get_sunlight(vx, vy, vz)
         } else {
-            0
+            return if vy < 0 {
+                0
+            } else {
+                self.config.max_light_level
+            };
         }
     }
 
@@ -196,10 +208,18 @@ impl Chunks {
                 margin,
                 chunk_size: self.config.chunk_size,
                 max_height: self.config.max_height,
+                max_light_level: self.config.max_light_level,
             },
             needs_voxels: false,
             needs_lights: false,
             needs_height_maps: false,
         }
+    }
+
+    pub fn is_within_world(&self, coords: &Vec2<i32>) -> bool {
+        coords.0 >= self.config.min_chunk[0]
+            && coords.0 <= self.config.max_chunk[0]
+            && coords.1 >= self.config.min_chunk[1]
+            && coords.1 <= self.config.max_chunk[1]
     }
 }
