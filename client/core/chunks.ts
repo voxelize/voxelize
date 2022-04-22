@@ -80,6 +80,8 @@ class Chunks {
       chunk.build(mesh);
     }
 
+    // TEMP
+    // TODO: REMOVE THIS, TOO HACKY
     if (x === 0 && z === 0) {
       const maxHeight = this.getMaxHeight(0, 0);
       this.client.controls.setPosition(0, maxHeight + 2, 0);

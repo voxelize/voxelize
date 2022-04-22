@@ -96,8 +96,10 @@ class Rendering {
       this.fogUniforms = {
         uFogColor: { value: this.fogNearColor },
         uFogNearColor: { value: this.fogFarColor },
-        uFogNear: { value: renderRadius * 0.4 * chunkSize * dimension },
-        uFogFar: { value: renderRadius * 0.8 * chunkSize * dimension },
+        // uFogNear: { value: renderRadius * 0.4 * chunkSize * dimension },
+        // uFogFar: { value: renderRadius * 0.8 * chunkSize * dimension },
+        uFogNear: { value: Infinity },
+        uFogFar: { value: Infinity },
       };
 
       this.composer.addPass(

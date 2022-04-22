@@ -346,7 +346,7 @@ impl Registry {
     fn fix_texture_bleeding(
         (start_u, start_v, end_u, end_v): (f32, f32, f32, f32),
     ) -> (f32, f32, f32, f32) {
-        let offset = 0.1 / 128 as f32;
+        let offset = 1.0 / 128.0;
         (
             start_u + offset,
             start_v - offset,
