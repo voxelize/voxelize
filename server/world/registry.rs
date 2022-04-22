@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use super::block::{Block, BlockFaces};
 
+const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 32.0;
+
 /// Serializable struct representing a UV coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -346,12 +348,11 @@ impl Registry {
     fn fix_texture_bleeding(
         (start_u, start_v, end_u, end_v): (f32, f32, f32, f32),
     ) -> (f32, f32, f32, f32) {
-        let offset = 1.0 / 128.0;
         (
-            start_u + offset,
-            start_v - offset,
-            end_u - offset,
-            end_v + offset,
+            start_u + TEXTURE_BLEEDING_OFFSET,
+            start_v - TEXTURE_BLEEDING_OFFSET,
+            end_u - TEXTURE_BLEEDING_OFFSET,
+            end_v + TEXTURE_BLEEDING_OFFSET,
         )
     }
 

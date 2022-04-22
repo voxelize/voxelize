@@ -98,8 +98,8 @@ impl ChunkStage for TestStage {
         let octaves = 5;
         let persistance = 0.8;
         let lacunarity = 1.2;
-        let amplifier = 2.0;
-        let height_bias = 0.0;
+        let amplifier = 5.0;
+        let height_bias = 3.0;
         let height_offset = 50.0;
 
         for vx in min_x..max_x {
