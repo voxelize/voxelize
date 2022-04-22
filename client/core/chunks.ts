@@ -80,6 +80,11 @@ class Chunks {
       chunk.build(mesh);
     }
 
+    if (x === 0 && z === 0) {
+      const maxHeight = this.getMaxHeight(0, 0);
+      this.client.controls.setPosition(0, maxHeight + 2, 0);
+    }
+
     this.requested.delete(chunk.name);
   };
 

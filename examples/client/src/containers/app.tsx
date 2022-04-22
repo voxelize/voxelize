@@ -16,6 +16,9 @@ import styled from "styled-components";
 import StoneImage from "../assets/blocks/stone.png";
 import DirtImage from "../assets/blocks/dirt.png";
 import MarbleImage from "../assets/marble.jpg";
+import LycheeImage from "../assets/lychee.jpeg";
+import GrassTopImage from "../assets/blocks/grass_top.png";
+import GrassSideImage from "../assets/blocks/grass_side.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
@@ -170,11 +173,31 @@ export const App = () => {
 
         client.current.registerEntity("Box", Box);
         client.current.registry.applyTextureByName("Dirt", "all", DirtImage);
+        client.current.registry.applyTextureByName(
+          "Grass",
+          "top",
+          GrassTopImage
+        );
+        client.current.registry.applyTextureByName(
+          "Grass",
+          "side",
+          GrassSideImage
+        );
+        client.current.registry.applyTextureByName(
+          "Grass",
+          "bottom",
+          DirtImage
+        );
         client.current.registry.applyTextureByName("Stone", "all", StoneImage);
         client.current.registry.applyTextureByName(
           "Marble",
           "all",
           MarbleImage
+        );
+        client.current.registry.applyTextureByName(
+          "Lychee",
+          "all",
+          LycheeImage
         );
 
         client.current.addSystem(new UpdateBoxSystem());
