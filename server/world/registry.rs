@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::block::{Block, BlockFaces};
 
-const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 32.0;
+const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 128.0;
 
 /// Serializable struct representing a UV coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
