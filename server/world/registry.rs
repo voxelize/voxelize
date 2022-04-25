@@ -81,8 +81,11 @@ impl Registry {
             let start_v = 1.0 - start_y / count_per_side as f32;
             let end_v = 1.0 - (start_y + 1.0) / count_per_side as f32;
 
-            let (start_u, start_v, end_u, end_v) =
-                Registry::fix_texture_bleeding((start_u, start_v, end_u, end_v));
+            let start_u = start_u + TEXTURE_BLEEDING_OFFSET;
+            let end_u = end_u - TEXTURE_BLEEDING_OFFSET;
+
+            let start_v = start_v - TEXTURE_BLEEDING_OFFSET;
+            let end_v = end_v + TEXTURE_BLEEDING_OFFSET;
 
             self.ranges.insert(
                 texture.to_owned(),
@@ -341,19 +344,6 @@ impl Registry {
             let side_name = Registry::make_side_name(name, side);
             self.textures.insert(side_name);
         }
-    }
-
-    /// Fixing texture bleeding with the
-    /// [Half-texel edge correction method](http://drilian.com/2008/11/25/understanding-half-pixel-and-half-texel-offsets/)
-    fn fix_texture_bleeding(
-        (start_u, start_v, end_u, end_v): (f32, f32, f32, f32),
-    ) -> (f32, f32, f32, f32) {
-        (
-            start_u + TEXTURE_BLEEDING_OFFSET,
-            start_v - TEXTURE_BLEEDING_OFFSET,
-            end_u - TEXTURE_BLEEDING_OFFSET,
-            end_v + TEXTURE_BLEEDING_OFFSET,
-        )
     }
 
     /// Create a name for the side texture.

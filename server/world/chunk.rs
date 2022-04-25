@@ -1,5 +1,5 @@
 use crate::{
-    server::models::Mesh,
+    server::models::{Chunk as ChunkModel, Mesh},
     utils::{
         block_utils::BlockUtils,
         chunk_utils::ChunkUtils,
@@ -33,6 +33,8 @@ pub struct Chunk {
     pub min: Vec3<i32>,
     pub max: Vec3<i32>,
 
+    pub initialized: bool,
+
     pub params: ChunkParams,
 }
 
@@ -65,6 +67,8 @@ impl Chunk {
 
             min,
             max,
+
+            initialized: false,
 
             params: params.to_owned(),
         }
@@ -323,6 +327,19 @@ impl Chunk {
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
 
         lx < size && ly < max_height && lz < size
+    }
+
+    /// Convert chunk to protocol model.
+    pub fn to_model(&self) -> ChunkModel {
+        ChunkModel {
+            x: self.coords.0,
+            z: self.coords.1,
+            id: self.id.clone(),
+            mesh: self.mesh.to_owned(),
+            voxels: Some(self.voxels.to_owned()),
+            lights: Some(self.lights.to_owned()),
+            height_map: Some(self.height_map.to_owned()),
+        }
     }
 
     /// Get the red light value locally.

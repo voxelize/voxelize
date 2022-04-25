@@ -28,7 +28,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut pipeline, mut queue, mut ids, mut requests) = data;
+        let (chunks, config, mut pipeline, mut queue, ids, mut requests) = data;
 
         let mut to_send: HashMap<String, Vec<Vec2<i32>>> = HashMap::new();
 
@@ -99,20 +99,12 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 .into_iter()
                 .map(|coords| {
                     let chunk = chunks.get_chunk(&coords).unwrap();
-                    ChunkModel {
-                        x: chunk.coords.0,
-                        z: chunk.coords.1,
-                        id: chunk.id.clone(),
-                        mesh: chunk.mesh.to_owned(),
-                        voxels: Some(chunk.voxels.to_owned()),
-                        lights: Some(chunk.lights.to_owned()),
-                        height_map: Some(chunk.height_map.to_owned()),
-                    }
+                    chunk.to_model()
                 })
                 .collect();
 
             let message = Message::new(&MessageType::Load).chunks(&chunks).build();
             queue.push((message, ClientFilter::Direct(id)));
-        })
+        });
     }
 }

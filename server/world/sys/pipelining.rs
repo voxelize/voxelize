@@ -1,15 +1,19 @@
 use log::info;
 use nanoid::nanoid;
-use specs::{ReadExpect, System, WriteExpect};
+use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
     chunk::{Chunk, ChunkParams},
     chunks::Chunks,
-    common::BlockChange,
+    common::{BlockChange, UpdatedChunks},
     pipeline::Pipeline,
+    server::models::{Message, MessageType},
     utils::chunk_utils::ChunkUtils,
     vec::{Vec2, Vec3},
-    world::{registry::Registry, WorldConfig},
+    world::{
+        comps::chunk_requests::ChunkRequestsComp, messages::MessageQueue, registry::Registry,
+        WorldConfig,
+    },
 };
 
 pub struct PipeliningSystem;
@@ -20,10 +24,11 @@ impl<'a> System<'a> for PipeliningSystem {
         ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Chunks>,
+        WriteExpect<'a, UpdatedChunks>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, mut pipeline, mut chunks) = data;
+        let (registry, config, mut pipeline, mut chunks, mut updated) = data;
 
         let max_per_tick = config.max_chunk_per_tick;
         let chunk_size = config.chunk_size;
@@ -52,6 +57,17 @@ impl<'a> System<'a> for PipeliningSystem {
 
                         chunk.calculate_max_height(&registry);
                     }
+                }
+
+                if chunk.stage.is_none() {
+                    // This means the chunk was pushed back into the pipeline for remeshing.
+                    // Should send to users that has requested for these chunks for update.
+                    // TODO: could use some optimization
+                    if chunk.initialized {
+                        updated.insert(chunk.coords.to_owned());
+                    }
+
+                    chunk.initialized = true;
                 }
 
                 chunks.renew(chunk);
