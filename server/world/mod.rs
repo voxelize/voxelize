@@ -453,8 +453,8 @@ impl World {
             return;
         };
 
-        let json: OnUnloadRequest =
-            serde_json::from_str(&data.json).expect("`on_load` error. Could not read JSON string.");
+        let json: OnUnloadRequest = serde_json::from_str(&data.json)
+            .expect("`on_unload` error. Could not read JSON string.");
 
         let chunks = json.chunks;
         if chunks.is_empty() {

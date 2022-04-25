@@ -232,7 +232,7 @@ fn main() {
 
     let config1 = WorldConfig::new()
         .min_chunk([-5, -5])
-        .max_chunk([5, 5])
+        // .max_chunk([5, 5])
         .build();
 
     let mut world = World::new("world1", &config1);

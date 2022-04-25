@@ -391,7 +391,7 @@ class Chunks {
     const { renderRadius } = this.client.settings;
 
     const deleteDistance = renderRadius * chunkSize * 1.414;
-    const deleted: string[] = [];
+    const deleted: Coords2[] = [];
 
     for (const chunk of this.map.values()) {
       const dist = chunk.distTo(...this.client.voxel);
@@ -401,7 +401,7 @@ class Chunks {
         chunk.mesh.opaque?.geometry.dispose();
         chunk.mesh.transparent?.geometry.dispose();
         this.map.delete(chunk.name);
-        deleted.push(chunk.name);
+        deleted.push(chunk.coords);
       }
     }
 
