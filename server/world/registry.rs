@@ -81,9 +81,9 @@ impl Registry {
             let start_v = 1.0 - start_y / count_per_side as f32;
             let end_v = 1.0 - (start_y + 1.0) / count_per_side as f32;
 
+            // Texture bleeding fix.
             let start_u = start_u + TEXTURE_BLEEDING_OFFSET;
             let end_u = end_u - TEXTURE_BLEEDING_OFFSET;
-
             let start_v = start_v - TEXTURE_BLEEDING_OFFSET;
             let end_v = end_v + TEXTURE_BLEEDING_OFFSET;
 
