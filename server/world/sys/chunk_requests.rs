@@ -39,7 +39,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             while !request.pending.is_empty() && count < config.max_chunk_per_tick {
                 count += 1;
 
-                let coords = request.pending.pop_back().unwrap();
+                let coords = request.pending.pop_front().unwrap();
 
                 // Send the chunk to client if it's done.
                 if let Some(chunk) = chunks.get_chunk(&coords) {
