@@ -53,8 +53,9 @@ message Message {
     LEAVE = 5;
     PEER = 6;
     ENTITY = 7;
-    CHUNK = 8;
-    SETTINGS = 9;
+    LOAD = 8;
+    UNLOAD = 9;
+    SETTINGS = 10;
   }
 
   Type type = 1;

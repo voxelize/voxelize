@@ -291,7 +291,7 @@ impl Space {
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let local = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
 
-        return (coords, local);
+        (coords, local)
     }
 }
 

@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use super::block::BlockRotation;
+use super::{block::BlockRotation, registry::Registry};
 
 #[derive(Default, Clone)]
 pub struct ChunkParams {
@@ -86,7 +86,9 @@ impl Chunk {
     ///
     /// Panics if the coordinates are outside of chunk.
     pub fn set_raw_value(&mut self, vx: i32, vy: i32, vz: i32, val: u32) {
-        assert!(self.contains(vx, vy, vz));
+        if !self.contains(vx, vy, vz) {
+            return;
+        }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.voxels[&[lx, ly, lz]] = val;
@@ -113,7 +115,9 @@ impl Chunk {
     ///
     /// Panics if it's outside of chunk.
     pub fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
-        assert!(self.contains(vx, vy, vz,));
+        if !self.contains(vx, vy, vz) {
+            return BlockRotation::PX(0);
+        }
 
         BlockUtils::extract_rotation(self.get_raw_value(vx, vy, vz))
     }
@@ -130,7 +134,9 @@ impl Chunk {
     ///
     /// Panics if it's outside of chunk.
     pub fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        assert!(self.contains(vx, vy, vz));
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
 
         BlockUtils::extract_stage(self.get_raw_value(vx, vy, vz))
     }
@@ -159,7 +165,9 @@ impl Chunk {
     ///
     /// Panics if it's outside of the chunk.
     pub fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        assert!(self.contains(vx, vy, vz,));
+        if !self.contains(vx, vy, vz) {
+            return;
+        }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_red_light(lx as usize, ly as usize, lz as usize, level);
@@ -181,7 +189,9 @@ impl Chunk {
     ///
     /// Panics if it's outside of the chunk.
     pub fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        assert!(self.contains(vx, vy, vz,));
+        if !self.contains(vx, vy, vz) {
+            return;
+        }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_green_light(lx as usize, ly as usize, lz as usize, level);
@@ -203,7 +213,9 @@ impl Chunk {
     ///
     /// Panics if it's outside of the chunk.
     pub fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        assert!(self.contains(vx, vy, vz,));
+        if !self.contains(vx, vy, vz) {
+            return;
+        }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_blue_light(lx as usize, ly as usize, lz as usize, level);
@@ -251,7 +263,9 @@ impl Chunk {
     ///
     /// Panics if it's outside of the chunk.
     pub fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        assert!(self.contains(vx, vy, vz,));
+        if !self.contains(vx, vy, vz) {
+            return;
+        }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_sunlight(lx as usize, ly as usize, lz as usize, level)
@@ -273,10 +287,42 @@ impl Chunk {
     ///
     /// Panics if it's not within the chunk.
     pub fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) {
-        assert!(self.contains(vx, 0, vz,));
+        if !self.contains(vx, 0, vz) {
+            return;
+        }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
         self.height_map[&[lx as usize, lz as usize]] = height;
+    }
+
+    /// Calculate the height map of this chunk.
+    pub fn calculate_max_height(&mut self, registry: &Registry) {
+        let Vec3(min_x, _, min_z) = self.min;
+        let Vec3(max_x, _, max_z) = self.max;
+
+        let max_height = self.params.max_height as i32;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                for vy in (0..max_height).rev() {
+                    let id = self.get_voxel(vx, vy, vz);
+                    let block = registry.get_block_by_id(id);
+
+                    if vy == 0 || (id != 0 && !block.is_plant && !block.is_fluid) {
+                        self.set_max_height(vx, vz, vy as u32);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check if chunk contains this voxel coordinate.
+    pub fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        let ChunkParams { size, max_height } = self.params;
+        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
+
+        lx < size && ly < max_height && lz < size
     }
 
     /// Get the red light value locally.
@@ -334,12 +380,5 @@ impl Chunk {
     fn to_local(&self, vx: i32, vy: i32, vz: i32) -> Vec3<usize> {
         let Vec3(mx, my, mz) = self.min;
         Vec3((vx - mx) as usize, (vy - my) as usize, (vz - mz) as usize)
-    }
-
-    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        let ChunkParams { size, max_height } = self.params;
-        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-
-        return lx < size && ly < max_height && lz < size;
     }
 }

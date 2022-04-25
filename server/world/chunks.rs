@@ -1,6 +1,9 @@
 use hashbrown::HashMap;
 
-use crate::utils::{chunk_utils::ChunkUtils, light_utils::LightColor, vec::Vec2};
+use crate::{
+    common::BlockChange,
+    utils::{chunk_utils::ChunkUtils, light_utils::LightColor, vec::Vec2},
+};
 
 use super::{
     block::BlockRotation,
@@ -14,6 +17,10 @@ use super::{
 pub struct Chunks {
     /// A map of all the chunks, coords -> Chunk.
     pub map: HashMap<Vec2<i32>, Chunk>,
+
+    /// A map of block changes accumulated during the chunk stages. These changes are applied onto the
+    /// chunks before the final two stages.
+    pub changes: HashMap<Vec2<i32>, Vec<BlockChange>>,
 
     /// A copy of the world's config.
     config: WorldConfig,

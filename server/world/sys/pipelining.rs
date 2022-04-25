@@ -5,8 +5,10 @@ use specs::{ReadExpect, System, WriteExpect};
 use crate::{
     chunk::{Chunk, ChunkParams},
     chunks::Chunks,
+    common::BlockChange,
     pipeline::Pipeline,
-    vec::Vec2,
+    utils::chunk_utils::ChunkUtils,
+    vec::{Vec2, Vec3},
     world::{registry::Registry, WorldConfig},
 };
 
@@ -26,11 +28,34 @@ impl<'a> System<'a> for PipeliningSystem {
         let max_per_tick = config.max_chunk_per_tick;
         let chunk_size = config.chunk_size;
 
-        if let Ok(list) = pipeline.results() {
+        if let Ok((list, changes)) = pipeline.results() {
+            changes.into_iter().for_each(|(voxel, id)| {
+                let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
+
+                let mut already = chunks.changes.remove(&coords).unwrap_or_else(|| vec![]);
+                already.push((voxel, id));
+                chunks.changes.insert(coords, already);
+            });
+
             list.into_iter().for_each(|mut chunk| {
                 pipeline.advance(&mut chunk);
+
+                if let Some(index) = chunk.stage {
+                    if index == pipeline.len() - 1 {
+                        if let Some(final_changes) = chunks.changes.remove(&chunk.coords) {
+                            final_changes
+                                .into_iter()
+                                .for_each(|(Vec3(vx, vy, vz), id)| {
+                                    chunk.set_voxel(vx, vy, vz, id);
+                                });
+                        }
+
+                        chunk.calculate_max_height(&registry);
+                    }
+                }
+
                 chunks.renew(chunk);
-            })
+            });
         }
 
         let mut processes = vec![];
@@ -45,6 +70,8 @@ impl<'a> System<'a> for PipeliningSystem {
             }
 
             let (Vec2(cx, cz), index) = pipeline.pop().unwrap();
+
+            let len = pipeline.len();
             let stage = pipeline.get_stage(index);
 
             // Calculate the radius that this stage requires to be loaded.
@@ -72,7 +99,7 @@ impl<'a> System<'a> for PipeliningSystem {
                 continue;
             }
 
-            let chunk = chunk.unwrap().clone();
+            let mut chunk = chunk.unwrap().clone();
 
             // Means chunk is already done.
             if chunk.stage.is_none() {
@@ -125,6 +152,8 @@ impl<'a> System<'a> for PipeliningSystem {
                 pipeline.postpone(&chunk.coords, index);
                 continue;
             }
+
+            // TODO: check if there are still block changes done on this chunk. If there are, remesh them in later ticks.
 
             // Create space that this stage requires.
             if let Some(data) = stage.needs_space() {

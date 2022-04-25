@@ -183,7 +183,7 @@ class Network {
         });
         break;
       }
-      case "CHUNK": {
+      case "LOAD": {
         const { chunks } = event;
 
         if (chunks) {

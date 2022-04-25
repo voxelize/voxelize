@@ -34,56 +34,63 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         for (id, request) in (&ids, &mut requests).join() {
             let mut leftover = vec![];
+            let mut count = 0;
 
-            request
-                .0
-                .drain(..config.max_response_per_tick.min(request.0.len()))
-                .for_each(|coords| {
-                    // Send the chunk to client if it's done.
-                    if let Some(chunk) = chunks.get_chunk(&coords) {
-                        if !to_send.contains_key(&id.0) {
-                            to_send.insert(id.0.to_owned(), vec![]);
-                        }
+            while !request.pending.is_empty() && count < config.max_chunk_per_tick {
+                count += 1;
 
-                        to_send
-                            .get_mut(&id.0)
-                            .unwrap()
-                            .push(chunk.coords.to_owned());
+                let coords = request.pending.pop_back().unwrap();
 
+                // Send the chunk to client if it's done.
+                if let Some(chunk) = chunks.get_chunk(&coords) {
+                    if !to_send.contains_key(&id.0) {
+                        to_send.insert(id.0.to_owned(), vec![]);
+                    }
+
+                    // Add coordinate to the "finished" pile.
+                    request.mark_finish(&coords);
+
+                    to_send
+                        .get_mut(&id.0)
+                        .unwrap()
+                        .push(chunk.coords.to_owned());
+
+                    continue;
+                }
+
+                if !chunks.is_within_world(&coords) {
+                    continue;
+                }
+
+                // Otherwise, add to pipeline.
+                leftover.push(coords.to_owned());
+
+                [
+                    [-1, -1],
+                    [-1, 0],
+                    [-1, 1],
+                    [0, -1],
+                    [0, 0],
+                    [0, 1],
+                    [1, -1],
+                    [1, 0],
+                    [1, 1],
+                ]
+                .iter()
+                .for_each(|[ox, oz]| {
+                    let new_coords = Vec2(coords.0 + ox, coords.1 + oz);
+
+                    if !chunks.is_within_world(&new_coords) {
                         return;
                     }
 
-                    if !chunks.is_within_world(&coords) {
-                        return;
-                    }
-
-                    // Otherwise, add to pipeline.
-                    leftover.push(coords.to_owned());
-
-                    [
-                        [-1, -1],
-                        [-1, 0],
-                        [-1, 1],
-                        [0, -1],
-                        [0, 0],
-                        [0, 1],
-                        [1, -1],
-                        [1, 0],
-                        [1, 1],
-                    ]
-                    .iter()
-                    .for_each(|[ox, oz]| {
-                        let new_coords = Vec2(coords.0 + ox, coords.1 + oz);
-
-                        if !chunks.is_within_world(&new_coords) {
-                            return;
-                        }
-
-                        pipeline.push(&new_coords, 0);
-                    });
+                    pipeline.push(&new_coords, 0);
                 });
+            }
 
-            request.0.append(&mut leftover);
+            leftover.into_iter().for_each(|coords| {
+                request.add(&coords);
+            });
         }
 
         // Add the chunk sending to message queue.
@@ -104,7 +111,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 })
                 .collect();
 
-            let message = Message::new(&MessageType::Chunk).chunks(&chunks).build();
+            let message = Message::new(&MessageType::Load).chunks(&chunks).build();
             queue.push((message, ClientFilter::Direct(id)));
         })
     }

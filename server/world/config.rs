@@ -84,8 +84,8 @@ impl WorldConfig {
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_INTERVAL: u64 = 8;
 const DEFAULT_CHUNK_SIZE: usize = 12;
-const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN, i32::MIN];
-const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX, i32::MAX];
+const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
+const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;

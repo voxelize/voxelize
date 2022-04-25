@@ -1,4 +1,4 @@
-mod common;
+pub mod common;
 mod errors;
 mod server;
 mod types;

@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import StoneImage from "../assets/blocks/stone.png";
 import DirtImage from "../assets/blocks/dirt.png";
-import MarbleImage from "../assets/marble.jpg";
+import MarbleImage from "../assets/green.webp";
 import LycheeImage from "../assets/lychee.jpeg";
 import GrassTopImage from "../assets/blocks/grass_top.png";
 import GrassSideImage from "../assets/blocks/grass_side.png";

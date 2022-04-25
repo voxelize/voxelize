@@ -2,7 +2,7 @@ use std::process;
 
 use log::info;
 use nanoid::nanoid;
-use noise::{NoiseFn, SuperSimplex};
+use noise::{MultiFractal, NoiseFn, SuperSimplex, Worley};
 use simdnoise::NoiseBuilder;
 use specs::{
     Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
@@ -10,7 +10,8 @@ use specs::{
 };
 use voxelize::{
     chunk::Chunk,
-    pipeline::ChunkStage,
+    common::BlockChange,
+    pipeline::{ChunkStage, HeightMapStage},
     utils::ndarray::ndarray,
     vec::{Vec2, Vec3},
     world::{
@@ -86,7 +87,7 @@ impl ChunkStage for TestStage {
         registry: &Registry,
         config: &WorldConfig,
         _: Option<Space>,
-    ) -> Chunk {
+    ) -> (Chunk, Option<Vec<BlockChange>>) {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
@@ -94,11 +95,11 @@ impl ChunkStage for TestStage {
 
         let marble = registry.get_block_by_name("Marble");
 
-        let scale = 0.05;
-        let octaves = 5;
-        let persistance = 0.8;
+        let scale = 0.01;
+        let octaves = 10;
+        let persistance = 0.9;
         let lacunarity = 1.2;
-        let amplifier = 5.0;
+        let amplifier = 3.0;
         let height_bias = 3.0;
         let height_offset = 50.0;
 
@@ -125,7 +126,65 @@ impl ChunkStage for TestStage {
             }
         }
 
-        chunk
+        (chunk, None)
+    }
+}
+
+struct TreeTestStage {
+    noise: Worley,
+}
+
+impl ChunkStage for TreeTestStage {
+    fn name(&self) -> String {
+        "TreeTest".to_owned()
+    }
+
+    fn neighbors(&self, _: &WorldConfig) -> usize {
+        1
+    }
+
+    fn process(
+        &self,
+        mut chunk: Chunk,
+        registry: &Registry,
+        config: &WorldConfig,
+        space: Option<Space>,
+    ) -> (Chunk, Option<Vec<BlockChange>>) {
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        let lychee = registry.get_block_by_name("Lychee");
+        let dirt = registry.get_block_by_name("Dirt");
+
+        let scale = 1.0;
+
+        let mut changes = vec![];
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                let height = chunk.get_max_height(vx, vz) as i32;
+                if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.999 {
+                    for i in 0..5 {
+                        chunk.set_voxel(vx, height + i, vz, lychee.id);
+                    }
+
+                    for i in -1..=1 {
+                        for j in -1..=1 {
+                            let vox = Vec3(vx + i, height + 4, vz + j);
+
+                            if !chunk.contains(vox.0, vox.1, vox.2) {
+                                changes.push((vox, dirt.id));
+                                continue;
+                            }
+
+                            chunk.set_voxel(vox.0, vox.1, vox.2, dirt.id);
+                        }
+                    }
+                }
+            }
+        }
+
+        (chunk, Some(changes))
     }
 }
 
@@ -172,8 +231,8 @@ fn main() {
     let mut server = Server::new().port(4000).build();
 
     let config1 = WorldConfig::new()
-        .min_chunk([-5, 0])
-        .max_chunk([5, 0])
+        .min_chunk([-5, -5])
+        .max_chunk([5, 5])
         .build();
 
     let mut world = World::new("world1", &config1);
@@ -181,9 +240,18 @@ fn main() {
     world.ecs_mut().register::<BoxFlag>();
 
     world.set_dispatcher(get_dispatcher);
-    world.pipeline_mut().add_stage(TestStage {
-        noise: SuperSimplex::new(),
-    });
+
+    {
+        let mut pipeline = world.pipeline_mut();
+
+        pipeline.add_stage(TestStage {
+            noise: SuperSimplex::new(),
+        });
+        pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(TreeTestStage {
+            noise: Worley::new(),
+        });
+    }
 
     {
         let mut registry = world.registry_mut();

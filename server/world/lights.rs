@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use log::info;
 
 use crate::{
-    utils::{light_utils::LightColor, ndarray::Ndarray, vec::Vec3},
+    utils::{chunk_utils::ChunkUtils, light_utils::LightColor, ndarray::Ndarray, vec::Vec3},
+    vec::Vec2,
     world::block::Block,
 };
 
@@ -39,10 +40,21 @@ impl Lights {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        let &WorldConfig { max_height, .. } = config;
+        let &WorldConfig {
+            max_height,
+            chunk_size,
+            min_chunk,
+            max_chunk,
+            ..
+        } = config;
 
         let Vec3(shape0, _, shape2) = space.shape;
         let Vec3(start_x, _, start_z) = space.min;
+
+        let [start_cx, start_cz] = min_chunk;
+        let [end_cx, end_cz] = max_chunk;
+
+        let chunk_size = chunk_size as i32;
 
         let shape0 = shape0 as i32;
         let shape2 = shape2 as i32;
@@ -67,7 +79,14 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
 
-                if nvx < start_x
+                let Vec2(ncx, ncz) =
+                    ChunkUtils::map_voxel_to_chunk(nvx, nvy, nvz, config.chunk_size);
+
+                if ncx < start_cx
+                    || ncz < start_cz
+                    || ncx > end_cx
+                    || ncz > end_cz
+                    || nvx < start_x
                     || nvz < start_z
                     || nvx >= start_x + shape0
                     || nvz >= start_z + shape2

@@ -14,6 +14,7 @@ pub mod stats;
 pub mod sys;
 
 use hashbrown::HashMap;
+use log::info;
 use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
@@ -85,7 +86,12 @@ fn get_default_dispatcher(
 }
 
 #[derive(Serialize, Deserialize)]
-struct OnChunkRequest {
+struct OnLoadRequest {
+    chunks: Vec<Vec2<i32>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct OnUnloadRequest {
     chunks: Vec<Vec2<i32>>,
 }
 
@@ -244,9 +250,12 @@ impl World {
 
         match msg_type {
             MessageType::Peer => self.on_peer(endpoint, data),
-            MessageType::Chunk => self.on_chunk(endpoint, data),
+            MessageType::Load => self.on_load(endpoint, data),
             MessageType::Signal => self.on_signal(endpoint, data),
-            _ => {}
+            MessageType::Unload => self.on_unload(endpoint, data),
+            _ => {
+                info!("Received message of unknown type: {:?}", msg_type);
+            }
         }
     }
 
@@ -409,22 +418,53 @@ impl World {
         }
     }
 
-    /// Handler for `Chunk` type messages.
-    fn on_chunk(&mut self, endpoint: &Endpoint, data: Message) {
+    /// Handler for `Load` type messages.
+    fn on_load(&mut self, endpoint: &Endpoint, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(endpoint) {
             client.entity.to_owned()
         } else {
             return;
         };
 
-        let json: OnChunkRequest = serde_json::from_str(&data.json)
-            .expect("`on_chunk` error. Could not read JSON string.");
+        let json: OnLoadRequest =
+            serde_json::from_str(&data.json).expect("`on_load` error. Could not read JSON string.");
 
-        let mut chunks = json.chunks;
+        let chunks = json.chunks;
+        if chunks.is_empty() {
+            return;
+        }
+
         let mut storage = self.write_component::<ChunkRequestsComp>();
 
         if let Some(requests) = storage.get_mut(client_ent) {
-            requests.0.append(&mut chunks);
+            chunks.into_iter().for_each(|coords| {
+                requests.add(&coords);
+            });
+        }
+    }
+
+    /// Handler for `Unload` type messages.
+    fn on_unload(&mut self, endpoint: &Endpoint, data: Message) {
+        let client_ent = if let Some(client) = self.clients().get(endpoint) {
+            client.entity.to_owned()
+        } else {
+            return;
+        };
+
+        let json: OnUnloadRequest =
+            serde_json::from_str(&data.json).expect("`on_load` error. Could not read JSON string.");
+
+        let chunks = json.chunks;
+        if chunks.is_empty() {
+            return;
+        }
+
+        let mut storage = self.write_component::<ChunkRequestsComp>();
+
+        if let Some(requests) = storage.get_mut(client_ent) {
+            chunks.into_iter().for_each(|coords| {
+                requests.unload(&coords);
+            });
         }
     }
 }

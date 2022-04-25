@@ -378,7 +378,7 @@ class Chunks {
     toRequest.forEach((name) => this.requested.add(name));
 
     this.client.network.send({
-      type: "CHUNK",
+      type: "LOAD",
       json: {
         chunks: toRequest.map((name) => ChunkUtils.parseChunkName(name)),
       },
@@ -391,6 +391,7 @@ class Chunks {
     const { renderRadius } = this.client.settings;
 
     const deleteDistance = renderRadius * chunkSize * 1.414;
+    const deleted: string[] = [];
 
     for (const chunk of this.map.values()) {
       const dist = chunk.distTo(...this.client.voxel);
@@ -400,7 +401,17 @@ class Chunks {
         chunk.mesh.opaque?.geometry.dispose();
         chunk.mesh.transparent?.geometry.dispose();
         this.map.delete(chunk.name);
+        deleted.push(chunk.name);
       }
+    }
+
+    if (deleted.length) {
+      this.client.network.send({
+        type: "UNLOAD",
+        json: {
+          chunks: deleted,
+        },
+      });
     }
   };
 

@@ -2,11 +2,12 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashSet;
-use log::info;
+use log::warn;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     chunk::Chunk,
+    common::BlockChange,
     server::models::Mesh,
     vec::{Vec2, Vec3},
 };
@@ -61,17 +62,21 @@ pub trait ChunkStage {
         None
     }
 
-    /// The core of this chunk stage, in other words what is done on the chunk.
+    /// The core of this chunk stage, in other words what is done on the chunk. Returns the chunk instance
+    /// along with additional block changes to be applied onto the world. For instance, if a tree is placed on the border
+    /// of a chunk, the leaves would exceed the chunk border, so add those blocks to this `Vec`. Use "chunk.contains" or
+    /// "space.contains" to see if voxel coordinate is within the chunk stage's control. Return None for the second field
+    /// if no additional changes are required.
     fn process(
         &self,
         chunk: Chunk,
         registry: &Registry,
         config: &WorldConfig,
         space: Option<Space>,
-    ) -> Chunk;
+    ) -> (Chunk, Option<Vec<BlockChange>>);
 }
 
-/// A stage where height map is calculated in a chunk.
+/// A preset chunk stage to calculate the chunk's height map.
 pub struct HeightMapStage;
 
 impl ChunkStage for HeightMapStage {
@@ -85,27 +90,9 @@ impl ChunkStage for HeightMapStage {
         registry: &Registry,
         _: &WorldConfig,
         _: Option<Space>,
-    ) -> Chunk {
-        let Vec3(min_x, _, min_z) = chunk.min;
-        let Vec3(max_x, _, max_z) = chunk.max;
-
-        let max_height = chunk.params.max_height as i32;
-
-        for vx in min_x..max_x {
-            for vz in min_z..max_z {
-                for vy in (0..max_height).rev() {
-                    let id = chunk.get_voxel(vx, vy, vz);
-                    let block = registry.get_block_by_id(id);
-
-                    if vy == 0 || (id != 0 && !block.is_plant && !block.is_fluid) {
-                        chunk.set_max_height(vx, vz, vy as u32);
-                        break;
-                    }
-                }
-            }
-        }
-
-        chunk
+    ) -> (Chunk, Option<Vec<BlockChange>>) {
+        chunk.calculate_max_height(registry);
+        (chunk, None)
     }
 }
 
@@ -134,7 +121,7 @@ impl ChunkStage for LightMeshStage {
         registry: &Registry,
         config: &WorldConfig,
         space: Option<Space>,
-    ) -> Chunk {
+    ) -> (Chunk, Option<Vec<BlockChange>>) {
         // Propagate light if chunk hasn't been propagated.
         let mut space = space.unwrap();
 
@@ -150,7 +137,7 @@ impl ChunkStage for LightMeshStage {
             transparent,
         });
 
-        chunk
+        (chunk, None)
     }
 }
 
@@ -160,10 +147,10 @@ pub struct Pipeline {
     pub chunks: HashSet<Vec2<i32>>,
 
     /// Sender of processed chunks from other threads to main thread.
-    sender: Arc<Sender<Vec<Chunk>>>,
+    sender: Arc<Sender<(Vec<Chunk>, Vec<BlockChange>)>>,
 
     /// Receiver to receive processed chunks from other threads to main thread.
-    receiver: Arc<Receiver<Vec<Chunk>>>,
+    receiver: Arc<Receiver<(Vec<Chunk>, Vec<BlockChange>)>>,
 
     /// Pipeline's thread pool to process chunks.
     pool: ThreadPool,
@@ -189,7 +176,7 @@ impl Pipeline {
                 .build()
                 .unwrap(),
             queue: VecDeque::default(),
-            stages: vec![Arc::new(HeightMapStage), Arc::new(LightMeshStage)],
+            stages: vec![Arc::new(LightMeshStage)],
         }
     }
 
@@ -197,6 +184,11 @@ impl Pipeline {
     /// by calling `pipeline.push`.
     pub fn has(&self, coords: &Vec2<i32>) -> bool {
         self.chunks.contains(coords)
+    }
+
+    /// Get the length of this pipeline, in other words how many stages there are.
+    pub fn len(&self) -> usize {
+        self.stages.len()
     }
 
     /// Push a chunk job into the pipeline's queue. Does nothing if chunk is in the
@@ -233,14 +225,14 @@ impl Pipeline {
     }
 
     /// Add a stage to the chunking pipeline. Keep in mind that the pipeline by default
-    /// comes with two stages: `HeightMapStage` and `LightMeshStage`, and stages added
-    /// afterwards are appended before these two stage presets.
+    /// comes with a preset stage: `LightMeshStage`, and stages added afterwards are
+    /// appended before this stage preset.
     pub fn add_stage<T>(&mut self, stage: T)
     where
         T: 'static + ChunkStage + Send + Sync,
     {
-        // Insert the stage before `HeightMapStage`
-        self.stages.insert(self.stages.len() - 2, Arc::new(stage));
+        // Insert the stage before `LightMeshStage`
+        self.stages.insert(self.stages.len() - 1, Arc::new(stage));
     }
 
     pub fn get_stage(&mut self, index: usize) -> &Arc<dyn ChunkStage + Send + Sync> {
@@ -269,19 +261,25 @@ impl Pipeline {
         let config = config.to_owned();
 
         self.pool.spawn(move || {
+            let mut changes = vec![];
+
             let chunks: Vec<Chunk> = processes
                 .into_iter()
                 .map(|(chunk, space, stage)| {
-                    let chunk = stage.process(chunk, &registry, &config, space);
+                    let (chunk, leftovers) = stage.process(chunk, &registry, &config, space);
+                    if let Some(mut blocks) = leftovers {
+                        changes.append(&mut blocks);
+                    }
                     chunk
                 })
                 .collect();
-            sender.send(chunks).unwrap();
-        })
+
+            sender.send((chunks, changes)).unwrap();
+        });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&self) -> Result<Vec<Chunk>, TryRecvError> {
+    pub fn results(&self) -> Result<(Vec<Chunk>, Vec<BlockChange>), TryRecvError> {
         self.receiver.try_recv()
     }
 
@@ -326,5 +324,20 @@ impl Pipeline {
     /// Is this pipeline vacant?
     pub fn is_empty(&self) -> bool {
         self.chunks.is_empty() || self.queue.is_empty()
+    }
+
+    /// Get the stage name from index.
+    pub fn get_stage_name(&self, index: Option<usize>) -> Option<String> {
+        if index.is_none() {
+            return None;
+        }
+
+        let index = index.unwrap();
+
+        if let Some(stage) = self.stages.get(index) {
+            return Some(stage.name());
+        }
+
+        None
     }
 }
