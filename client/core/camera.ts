@@ -14,7 +14,7 @@ type CameraParams = {
 const defaultParams: CameraParams = {
   fov: 90,
   near: 0.1,
-  far: 8000,
+  far: 800,
   lerpFactor: 0.7,
   minPolarAngle: 0,
   maxPolarAngle: Math.PI,

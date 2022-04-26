@@ -70,6 +70,7 @@
     "mousetrap": "^1.6.5",
     "ndarray": "^1.0.19",
     "pako": "^2.0.4",
+    "postprocessing": "^6.26.3",
     "simple-peer": "^9.11.0",
     "socket.io-client": "^4.4.1",
     "three-spritetext": "^1.6.5",

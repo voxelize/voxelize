@@ -84,7 +84,7 @@ class ChunkUtils {
   ): Coords3 => {
     const result = <Coords3>[0, 0, 0];
 
-    vec3.copy(result, chunkPos);
+    vec3.copy(result, [chunkPos[0], 0, chunkPos[1]]);
     vec3.scale(result, result, chunkSize);
 
     return result;

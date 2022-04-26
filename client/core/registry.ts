@@ -21,7 +21,7 @@ type RegistryParams = {
 };
 
 const defaultParams: RegistryParams = {
-  dimension: 16,
+  dimension: 4,
 };
 
 const TRANSPARENT_SIDES = [FrontSide, BackSide];
@@ -292,10 +292,6 @@ class Registry {
           "#include <common>",
           `
 #include <common>
-uniform vec3 uFogColor;
-uniform vec3 uFogNearColor;
-uniform float uFogNear;
-uniform float uFogFar;
 uniform float uSunlightIntensity;
 uniform float uMinLight;
 varying float vAO;
@@ -309,16 +305,7 @@ varying vec4 vLight;
 float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinLight, 1.0);
 float scale = 1.0;
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
-// outgoingLight.rgb *= vec3(s + scale / sqrt(vLight.r), s + scale / sqrt(vLight.g), s + scale / sqrt(vLight.b));
 outgoingLight *= 0.88 * vAO;
-`
-        )
-        .replace(
-          "#include <fog_fragment>",
-          `
-float depth = gl_FragCoord.z / gl_FragCoord.w;
-float fogFactor = smoothstep(uFogNear, uFogFar, depth);
-gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(uFogNearColor, uFogColor, fogFactor), fogFactor);
 `
         ),
       vertexShader: ShaderLib.basic.vertexShader
@@ -357,12 +344,10 @@ vLight = unpackLight(light);
         uSunlightIntensity: { value: 1 },
         uAOTable: this.aoUniform,
         uMinLight: this.minLightUniform,
-        ...this.client.rendering.fogUniforms,
       },
     }) as CustomShaderMaterial;
 
     material.map = this.atlasUniform.value;
-    material.needsUpdate = true;
 
     return material;
   };

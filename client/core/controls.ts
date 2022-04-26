@@ -81,6 +81,8 @@ class Controls extends EventDispatcher {
     client.rendering.scene.add(this.object);
 
     client.on("initialized", this.connect);
+
+    this.setPosition(0, 128, 0);
   }
 
   /**

@@ -86,6 +86,18 @@ class Chunk {
           type === "opaque" ? opaque : transparent
         );
         mesh.name = `${this.name}-${type}`;
+
+        // const { size, maxHeight } = this.params;
+        // const chunkHighlight = new Mesh(
+        //   new BoxGeometry(size, maxHeight, size),
+        //   new MeshBasicMaterial({ wireframe: true, side: DoubleSide })
+        // );
+        // chunkHighlight.position.set(
+        //   this.coords[0] * size,
+        //   maxHeight / 2,
+        //   this.coords[1] * size
+        // );
+        // mesh.add(chunkHighlight);
       }
 
       const geometry = mesh.geometry;
@@ -98,6 +110,7 @@ class Chunk {
       geometry.setAttribute("ao", new Int32BufferAttribute(aos, 1));
       geometry.setAttribute("light", new Int32BufferAttribute(lights, 1));
       geometry.setIndex(Array.from(indices));
+      geometry.computeBoundingBox();
 
       this.mesh[type] = mesh;
     });
@@ -106,23 +119,21 @@ class Chunk {
   addToScene = () => {
     if (this.added) return;
 
-    const { mesh } = this.client.chunks;
+    const { scene } = this.client.rendering;
     const { opaque, transparent } = this.mesh;
 
-    if (opaque) mesh.add(opaque);
-    if (transparent) mesh.add(transparent);
+    if (opaque) scene.add(opaque);
+    if (transparent) scene.add(transparent);
 
     this.added = true;
   };
 
   removeFromScene = () => {
-    if (!this.added) return;
-
-    const { mesh } = this.client.chunks;
+    const { scene } = this.client.rendering;
     const { opaque, transparent } = this.mesh;
 
-    if (opaque) mesh.remove(opaque);
-    if (transparent) mesh.remove(transparent);
+    if (opaque) scene.remove(opaque);
+    if (transparent) scene.remove(transparent);
 
     this.added = false;
   };

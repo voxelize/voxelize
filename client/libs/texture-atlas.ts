@@ -50,7 +50,7 @@ class TextureAtlas {
     atlas.canvas.height = canvasHeight;
 
     ranges.forEach((range, textureName) => {
-      const { startU, startV, endU, endV } = range;
+      const { startU, startV } = range;
       const texture = textureMap.get(textureName);
 
       if (texture instanceof CompressedTexture) {
@@ -78,20 +78,20 @@ class TextureAtlas {
           dimension
         );
       }
-    });
 
-    atlas.makeCanvasPowerOfTwo(atlas.canvas);
-    atlas.texture = new CanvasTexture(atlas.canvas);
-    atlas.texture.wrapS = ClampToEdgeWrapping;
-    atlas.texture.wrapT = ClampToEdgeWrapping;
-    atlas.texture.minFilter = NearestFilter;
-    atlas.texture.magFilter = NearestFilter;
-    atlas.texture.generateMipmaps = false;
-    atlas.texture.needsUpdate = true;
+      atlas.makeCanvasPowerOfTwo(atlas.canvas);
+      atlas.texture = new CanvasTexture(atlas.canvas);
+      atlas.texture.wrapS = ClampToEdgeWrapping;
+      atlas.texture.wrapT = ClampToEdgeWrapping;
+      atlas.texture.minFilter = NearestFilter;
+      atlas.texture.magFilter = NearestFilter;
+      atlas.texture.generateMipmaps = false;
+      atlas.texture.needsUpdate = true;
 
-    atlas.material = new MeshBasicMaterial({
-      map: atlas.texture,
-      side: DoubleSide,
+      atlas.material = new MeshBasicMaterial({
+        map: atlas.texture,
+        side: DoubleSide,
+      });
     });
 
     return atlas;

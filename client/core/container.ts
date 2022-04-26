@@ -72,10 +72,8 @@ class Container {
       margin: "0",
       outline: "none",
       padding: "0",
-      top: "0px",
-      left: "0px",
-      bottom: "0px",
-      right: "0px",
+      width: "100%",
+      height: "100%",
     });
 
     const styles = document.createElement("style");
@@ -162,6 +160,8 @@ class Container {
    * @memberof Container
    */
   fitCanvas = () => {
+    this.canvas.width = this.domElement.offsetWidth;
+    this.canvas.height = this.domElement.offsetHeight;
     DOMUtils.applyStyles(this.canvas, {
       width: `${this.domElement.offsetWidth}px`,
       height: `${this.domElement.offsetHeight}px`,

@@ -311,6 +311,31 @@ class Debug {
       this.client.chunks.requested,
       "size"
     );
+    this.registerDisplay(
+      "Scene Objects",
+      this.client.rendering.scene.children,
+      "length"
+    );
+    this.registerDisplay(
+      "Scene Polycount",
+      this.client.rendering.renderer.info.render,
+      "triangles"
+    );
+    this.registerDisplay(
+      "Active Drawcalls",
+      this.client.rendering.renderer.info.render,
+      "calls"
+    );
+    this.registerDisplay(
+      "Textures in Memory",
+      this.client.rendering.renderer.info.memory,
+      "textures"
+    );
+    this.registerDisplay(
+      "Geometries in Memory",
+      this.client.rendering.renderer.info.memory,
+      "geometries"
+    );
 
     // this.group.add(
     //   new Mesh(

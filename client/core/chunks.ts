@@ -1,4 +1,4 @@
-import { Box3, Group, Vector3 } from "three";
+import { Box3, Vector3 } from "three";
 
 import { Client } from "..";
 import { Coords2, Coords3, MeshData } from "../types";
@@ -20,19 +20,22 @@ type ServerChunk = {
 
 type ChunksParams = {
   maxRequestsPerTick: number;
+  maxProcessesPerTick: number;
 };
 
 const defaultParams: ChunksParams = {
   maxRequestsPerTick: 4,
+  maxProcessesPerTick: 1,
 };
 
 class Chunks {
   public params: ChunksParams;
 
-  public mesh = new Group();
+  // public mesh = new Group();
 
   public requested = new Set<string>();
   public toRequest: string[] = [];
+  public toProcess: ServerChunk[] = [];
 
   public currentChunk: Coords2;
 
@@ -45,7 +48,7 @@ class Chunks {
     };
 
     client.on("ready", () => {
-      client.rendering.scene.add(this.mesh);
+      // client.rendering.scene.add(this.mesh);
     });
   }
 
@@ -58,36 +61,7 @@ class Chunks {
   };
 
   handleServerChunk = (data: ServerChunk) => {
-    const { x, z, id, mesh, lights, voxels, heightMap } = data;
-    const { chunkSize, maxHeight } = this.worldParams;
-
-    let chunk = this.getChunk(x, z);
-
-    if (!chunk) {
-      chunk = new Chunk(this.client, id, x, z, {
-        size: chunkSize,
-        maxHeight,
-      });
-
-      this.map.set(chunk.name, chunk);
-    }
-
-    if (lights.length) chunk.lights.data = lights;
-    if (voxels.length) chunk.voxels.data = voxels;
-    if (heightMap.length) chunk.heightMap.data = heightMap;
-
-    if (mesh) {
-      chunk.build(mesh);
-    }
-
-    // TEMP
-    // TODO: REMOVE THIS, TOO HACKY
-    if (x === 0 && z === 0) {
-      const maxHeight = this.getMaxHeight(0, 0);
-      this.client.controls.setPosition(0, maxHeight + 2, 0);
-    }
-
-    this.requested.delete(chunk.name);
+    this.toProcess.push(data);
   };
 
   update = () => {
@@ -117,6 +91,7 @@ class Chunks {
       this.requestChunks();
     }
 
+    this.meshChunks();
     this.maintainChunks();
   };
 
@@ -322,24 +297,6 @@ class Chunks {
           continue;
         }
 
-        const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
-          [cx + x, cz + z],
-          chunkSize
-        );
-
-        const maxX = minX + chunkSize;
-        const maxY = minY + maxHeight;
-        const maxZ = minZ + chunkSize;
-
-        const chunkBox = new Box3(
-          new Vector3(minX, minY - 100, minZ),
-          new Vector3(maxX, maxY + 100, maxZ)
-        );
-
-        if (!this.client.camera.frustum.intersectsBox(chunkBox)) {
-          continue;
-        }
-
         const name = ChunkUtils.getChunkName([cx + x, cz + z]);
 
         if (this.requested.has(name)) {
@@ -350,6 +307,24 @@ class Chunks {
 
         if (!chunk) {
           if (!this.toRequest.includes(name)) {
+            const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
+              [cx + x, cz + z],
+              chunkSize
+            );
+
+            const maxX = minX + chunkSize;
+            const maxY = minY + maxHeight;
+            const maxZ = minZ + chunkSize;
+
+            const chunkBox = new Box3(
+              new Vector3(minX, minY - 100, minZ),
+              new Vector3(maxX, maxY + 100, maxZ)
+            );
+
+            if (!this.client.camera.frustum.intersectsBox(chunkBox)) {
+              continue;
+            }
+
             this.toRequest.push(name);
           }
 
@@ -382,6 +357,37 @@ class Chunks {
       json: {
         chunks: toRequest.map((name) => ChunkUtils.parseChunkName(name)),
       },
+    });
+  };
+
+  private meshChunks = () => {
+    const { maxProcessesPerTick } = this.params;
+    const toProcess = this.toProcess.splice(0, maxProcessesPerTick);
+
+    toProcess.forEach((data) => {
+      const { x, z, id, mesh, lights, voxels, heightMap } = data;
+      const { chunkSize, maxHeight } = this.worldParams;
+
+      let chunk = this.getChunk(x, z);
+
+      if (!chunk) {
+        chunk = new Chunk(this.client, id, x, z, {
+          size: chunkSize,
+          maxHeight,
+        });
+
+        this.map.set(chunk.name, chunk);
+      }
+
+      if (lights.length) chunk.lights.data = lights;
+      if (voxels.length) chunk.voxels.data = voxels;
+      if (heightMap.length) chunk.heightMap.data = heightMap;
+
+      if (mesh) {
+        chunk.build(mesh);
+      }
+
+      this.requested.delete(chunk.name);
     });
   };
 
