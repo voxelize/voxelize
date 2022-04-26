@@ -21,7 +21,7 @@ type RegistryParams = {
 };
 
 const defaultParams: RegistryParams = {
-  dimension: 4,
+  dimension: 8,
 };
 
 const TRANSPARENT_SIDES = [FrontSide, BackSide];
