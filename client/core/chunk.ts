@@ -1,10 +1,10 @@
+import ndarray, { NdArray } from "ndarray";
 import {
   BufferGeometry,
   Float32BufferAttribute,
   Int32BufferAttribute,
   Mesh,
 } from "three";
-import ndarray, { NdArray } from "ndarray";
 import pool from "typedarray-pool";
 
 import { Client } from "..";

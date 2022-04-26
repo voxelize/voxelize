@@ -1,4 +1,3 @@
-import { protocol } from "../protocol";
 import URL from "domurl";
 import Pako from "pako";
 import { Instance as PeerInstance } from "simple-peer";
@@ -6,6 +5,7 @@ import { Instance as PeerInstance } from "simple-peer";
 import SimplePeer from "simple-peer/simplepeer.min";
 
 import { Client } from "..";
+import { protocol } from "../protocol";
 
 const { Message } = protocol;
 

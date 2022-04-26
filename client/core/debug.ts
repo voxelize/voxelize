@@ -11,8 +11,8 @@ import { Pane } from "tweakpane";
 
 import { Client } from "..";
 import { NameTag } from "../libs";
-import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 import { Coords3 } from "../types";
+import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 
 type FormatterType = (input: any) => string;
 

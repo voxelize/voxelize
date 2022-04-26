@@ -8,6 +8,7 @@ import {
   MeshBasicMaterial,
   DoubleSide,
 } from "three";
+
 import { TextureRange } from "../types";
 
 type TextureAtlasParams = {

@@ -40,6 +40,8 @@
     "@types/simple-peer": "^9.11.4",
     "@types/three": "^0.137.0",
     "@types/typedarray-pool": "^1.1.2",
+    "@typescript-eslint/eslint-plugin": "^5.21.0",
+    "@typescript-eslint/parser": "^5.21.0",
     "cross-env": "^7.0.3",
     "eslint": "^8.8.0",
     "eslint-config-prettier": "^8.3.0",
