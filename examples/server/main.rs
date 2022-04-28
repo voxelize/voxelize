@@ -15,6 +15,7 @@ use voxelize::{
     utils::ndarray::ndarray,
     vec::{Vec2, Vec3},
     world::{
+        access::VoxelAccess,
         block::{Block, BlockFaces},
         comps::{
             etype::ETypeComp, flags::EntityFlag, heading::HeadingComp, id::IDComp,
@@ -168,8 +169,8 @@ impl ChunkStage for TreeTestStage {
                         chunk.set_voxel(vx, height + i, vz, lychee.id);
                     }
 
-                    for i in -1..=1 {
-                        for j in -1..=1 {
+                    for i in -3..=3 {
+                        for j in -3..=3 {
                             let vox = Vec3(vx + i, height + 4, vz + j);
 
                             if !chunk.contains(vox.0, vox.1, vox.2) {

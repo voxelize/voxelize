@@ -10,6 +10,7 @@ use crate::utils::{
 };
 
 use super::{
+    access::VoxelAccess,
     block::{BlockRotation, PY_ROTATION, Y_000_ROTATION},
     chunks::Chunks,
 };
@@ -71,208 +72,6 @@ pub struct Space {
 }
 
 impl Space {
-    /// Get the raw voxel data at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain voxel data.
-    #[inline]
-    pub fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if self.voxels.is_empty() {
-            panic!("Space does not contain voxel data.");
-        }
-
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
-        if let Some(voxels) = self.voxels.get(&coords) {
-            if !voxels.contains(&[lx, ly, lz]) {
-                return 0;
-            }
-
-            return voxels[&[lx, ly, lz]];
-        }
-
-        0
-    }
-
-    /// Get the voxel type at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain voxel data.
-    pub fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
-        BlockUtils::extract_id(self.get_raw_voxel(vx, vy, vz))
-    }
-
-    /// Get the voxel rotation at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain voxel data.
-    pub fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
-        if !self.contains(vx, vy, vz) {
-            return BlockRotation::encode(PY_ROTATION, Y_000_ROTATION);
-        }
-
-        BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
-    }
-
-    /// Get the voxel stage at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain voxel data.
-    pub fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return 0;
-        }
-
-        BlockUtils::extract_stage(self.get_raw_voxel(vx, vy, vz))
-    }
-
-    /// Get the raw light level at the voxel position. Zero is returned if chunk doesn't exist.
-    /// Panics if space does not contain lighting data.
-    #[inline]
-    pub fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if self.lights.is_empty() {
-            panic!("Space does not contain voxel data.");
-        }
-
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
-        if let Some(lights) = self.lights.get(&coords) {
-            if !lights.contains(&[lx, ly, lz]) {
-                return 0;
-            }
-
-            return lights[&[lx, ly, lz]];
-        }
-
-        0
-    }
-
-    /// Set the raw light level at the voxel position. Does nothing if chunk doesn't exist.
-    #[inline]
-    pub fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        if self.lights.is_empty() {
-            panic!("Space does not contain light data.");
-        }
-
-        if !self.contains(vx, vy, vz) {
-            return;
-        }
-
-        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
-
-        if let Some(lights) = self.lights.get_mut(&coords) {
-            lights[&[lx, ly, lz]] = level;
-        }
-    }
-
-    /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
-    pub fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        if !self.contains(vx, vy, vz) {
-            return if vy < 0 {
-                0
-            } else {
-                self.params.max_light_level
-            };
-        }
-
-        LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the sunlight level at the voxel position. Does nothing if chunk doesn't exist.
-    pub fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_sunlight(self.get_raw_light(vx, vy, vz), level),
-        );
-    }
-
-    /// Get the red light level at the voxel position. Zero is returned if chunk doesn't exist.
-    pub fn get_red_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        LightUtils::extract_red_light(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the red light level at the voxel position. Does nothing if chunk doesn't exist.
-    pub fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_red_light(self.get_raw_light(vx, vy, vz), level),
-        );
-    }
-
-    /// Get the green light level at the voxel position. Zero is returned if chunk doesn't exist.
-    pub fn get_green_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        LightUtils::extract_green_light(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the green light level at the voxel position. Does nothing if chunk doesn't exist.
-    pub fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_green_light(self.get_raw_light(vx, vy, vz), level),
-        );
-    }
-
-    /// Get the blue light level at the voxel position. Zero is returned if chunk doesn't exist.
-    pub fn get_blue_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        LightUtils::extract_blue_light(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the blue light level at the voxel position. Does nothing if chunk doesn't exist.
-    pub fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_blue_light(self.get_raw_light(vx, vy, vz), level),
-        );
-    }
-
-    /// Get the torch light level of a color at the voxel position. Zero is returned if chunk doesn't exist.
-    pub fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: &LightColor) -> u32 {
-        match color {
-            LightColor::Red => self.get_red_light(vx, vy, vz),
-            LightColor::Green => self.get_green_light(vx, vy, vz),
-            LightColor::Blue => self.get_blue_light(vx, vy, vz),
-            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
-        }
-    }
-
-    /// Set the torch light level of a color at the voxel position. Does nothing if chunk doesn't exist.
-    pub fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
-        match color {
-            LightColor::Red => self.set_red_light(vx, vy, vz, level),
-            LightColor::Green => self.set_green_light(vx, vy, vz, level),
-            LightColor::Blue => self.set_blue_light(vx, vy, vz, level),
-            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
-        };
-    }
-
-    /// Get the max height at the voxel column. Zero is returned if column doesn't exist.
-    pub fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
-        if self.height_maps.is_empty() {
-            panic!("Space does not contain height map data.");
-        }
-
-        if !self.contains(vx, 0, vz) {
-            return 0;
-        }
-
-        let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
-
-        if let Some(height_map) = self.height_maps.get(&coords) {
-            return height_map[&[lx, lz]];
-        }
-
-        0
-    }
-
-    /// Get a reference of lighting n-dimensional array.
-    pub fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
-        self.lights.get(&Vec2(cx, cz))
-    }
-
     /// Check if space contains this coordinate
     pub fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         let (coords, _) = self.to_local(vx, vy, vz);
@@ -394,5 +193,209 @@ impl SpaceBuilder<'_> {
             lights,
             height_maps,
         }
+    }
+}
+
+impl VoxelAccess for Space {
+    /// Get the raw voxel data at the voxel position. Zero is returned if chunk doesn't exist.
+    /// Panics if space does not contain voxel data.
+    #[inline]
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if self.voxels.is_empty() {
+            panic!("Space does not contain voxel data.");
+        }
+
+        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
+
+        if let Some(voxels) = self.voxels.get(&coords) {
+            if !voxels.contains(&[lx, ly, lz]) {
+                return 0;
+            }
+
+            return voxels[&[lx, ly, lz]];
+        }
+
+        0
+    }
+
+    /// Get the voxel type at the voxel position. Zero is returned if chunk doesn't exist.
+    /// Panics if space does not contain voxel data.
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
+
+        BlockUtils::extract_id(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    /// Get the voxel rotation at the voxel position. Zero is returned if chunk doesn't exist.
+    /// Panics if space does not contain voxel data.
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
+        if !self.contains(vx, vy, vz) {
+            return BlockRotation::encode(PY_ROTATION, Y_000_ROTATION);
+        }
+
+        BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    /// Get the voxel stage at the voxel position. Zero is returned if chunk doesn't exist.
+    /// Panics if space does not contain voxel data.
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
+
+        BlockUtils::extract_stage(self.get_raw_voxel(vx, vy, vz))
+    }
+
+    /// Get the raw light level at the voxel position. Zero is returned if chunk doesn't exist.
+    /// Panics if space does not contain lighting data.
+    #[inline]
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if self.lights.is_empty() {
+            panic!("Space does not contain voxel data.");
+        }
+
+        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
+
+        if let Some(lights) = self.lights.get(&coords) {
+            if !lights.contains(&[lx, ly, lz]) {
+                return 0;
+            }
+
+            return lights[&[lx, ly, lz]];
+        }
+
+        0
+    }
+
+    /// Set the raw light level at the voxel position. Does nothing if chunk doesn't exist.
+    #[inline]
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+        if self.lights.is_empty() {
+            panic!("Space does not contain light data.");
+        }
+
+        if !self.contains(vx, vy, vz) {
+            return;
+        }
+
+        let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
+
+        if let Some(lights) = self.lights.get_mut(&coords) {
+            lights[&[lx, ly, lz]] = level;
+        }
+    }
+
+    /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
+    fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return if vy < 0 {
+                0
+            } else {
+                self.params.max_light_level
+            };
+        }
+
+        LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
+    }
+
+    /// Set the sunlight level at the voxel position. Does nothing if chunk doesn't exist.
+    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+        self.set_raw_light(
+            vx,
+            vy,
+            vz,
+            LightUtils::insert_sunlight(self.get_raw_light(vx, vy, vz), level),
+        );
+    }
+
+    /// Get the red light level at the voxel position. Zero is returned if chunk doesn't exist.
+    fn get_red_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        LightUtils::extract_red_light(self.get_raw_light(vx, vy, vz))
+    }
+
+    /// Set the red light level at the voxel position. Does nothing if chunk doesn't exist.
+    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+        self.set_raw_light(
+            vx,
+            vy,
+            vz,
+            LightUtils::insert_red_light(self.get_raw_light(vx, vy, vz), level),
+        );
+    }
+
+    /// Get the green light level at the voxel position. Zero is returned if chunk doesn't exist.
+    fn get_green_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        LightUtils::extract_green_light(self.get_raw_light(vx, vy, vz))
+    }
+
+    /// Set the green light level at the voxel position. Does nothing if chunk doesn't exist.
+    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+        self.set_raw_light(
+            vx,
+            vy,
+            vz,
+            LightUtils::insert_green_light(self.get_raw_light(vx, vy, vz), level),
+        );
+    }
+
+    /// Get the blue light level at the voxel position. Zero is returned if chunk doesn't exist.
+    fn get_blue_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        LightUtils::extract_blue_light(self.get_raw_light(vx, vy, vz))
+    }
+
+    /// Set the blue light level at the voxel position. Does nothing if chunk doesn't exist.
+    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+        self.set_raw_light(
+            vx,
+            vy,
+            vz,
+            LightUtils::insert_blue_light(self.get_raw_light(vx, vy, vz), level),
+        );
+    }
+
+    /// Get the torch light level of a color at the voxel position. Zero is returned if chunk doesn't exist.
+    fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: &LightColor) -> u32 {
+        match color {
+            LightColor::Red => self.get_red_light(vx, vy, vz),
+            LightColor::Green => self.get_green_light(vx, vy, vz),
+            LightColor::Blue => self.get_blue_light(vx, vy, vz),
+            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
+        }
+    }
+
+    /// Set the torch light level of a color at the voxel position. Does nothing if chunk doesn't exist.
+    fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
+        match color {
+            LightColor::Red => self.set_red_light(vx, vy, vz, level),
+            LightColor::Green => self.set_green_light(vx, vy, vz, level),
+            LightColor::Blue => self.set_blue_light(vx, vy, vz, level),
+            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
+        };
+    }
+
+    /// Get the max height at the voxel column. Zero is returned if column doesn't exist.
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        if self.height_maps.is_empty() {
+            panic!("Space does not contain height map data.");
+        }
+
+        if !self.contains(vx, 0, vz) {
+            return 0;
+        }
+
+        let (coords, Vec3(lx, _, lz)) = self.to_local(vx, 0, vz);
+
+        if let Some(height_map) = self.height_maps.get(&coords) {
+            return height_map[&[lx, lz]];
+        }
+
+        0
+    }
+
+    /// Get a reference of lighting n-dimensional array.
+    fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
+        self.lights.get(&Vec2(cx, cz))
     }
 }

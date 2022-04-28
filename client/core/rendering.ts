@@ -48,7 +48,7 @@ class Rendering {
     this.renderer.setClearColor(new Color(clearColor));
 
     // composer
-    this.composer = new EffectComposer(this.renderer);
+    this.composer = new EffectComposer(this.renderer, { stencilBuffer: false });
 
     client.on("ready", () => {
       const camera = client.camera.threeCamera;

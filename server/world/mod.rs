@@ -1,3 +1,4 @@
+pub mod access;
 pub mod block;
 pub mod chunk;
 pub mod chunks;
@@ -20,14 +21,14 @@ use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
-    shred::{Fetch, FetchMut, Resource, ResourceId},
+    shred::{Fetch, FetchMut, Resource},
     world::EntitiesRes,
     Builder, Component, DispatcherBuilder, Entity, Read, ReadStorage, World as ECSWorld, WorldExt,
     WriteStorage,
 };
 
 use crate::{
-    common::UpdatedChunks,
+    common::{BlockChanges, UpdatedChunks},
     server::models::{encode_message, messages::Peer, Message, MessageType},
     vec::Vec2,
 };
@@ -131,6 +132,7 @@ impl World {
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
         ecs.insert(UpdatedChunks::new());
+        ecs.insert(BlockChanges::new());
         ecs.insert(Stats::new());
 
         Self {

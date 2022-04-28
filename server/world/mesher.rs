@@ -6,6 +6,7 @@ use crate::{
 };
 
 use super::{
+    access::VoxelAccess,
     block::{Block, BlockFaces},
     registry::{Registry, UV},
     space::Space,

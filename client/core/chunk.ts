@@ -86,18 +86,7 @@ class Chunk {
           type === "opaque" ? opaque : transparent
         );
         mesh.name = `${this.name}-${type}`;
-
-        // const { size, maxHeight } = this.params;
-        // const chunkHighlight = new Mesh(
-        //   new BoxGeometry(size, maxHeight, size),
-        //   new MeshBasicMaterial({ wireframe: true, side: DoubleSide })
-        // );
-        // chunkHighlight.position.set(
-        //   this.coords[0] * size,
-        //   maxHeight / 2,
-        //   this.coords[1] * size
-        // );
-        // mesh.add(chunkHighlight);
+        mesh.matrixAutoUpdate = false;
       }
 
       const geometry = mesh.geometry;

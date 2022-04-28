@@ -2,15 +2,9 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashSet;
-use log::warn;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
-use crate::{
-    chunk::Chunk,
-    common::BlockChange,
-    server::models::Mesh,
-    vec::{Vec2, Vec3},
-};
+use crate::{chunk::Chunk, common::BlockChange, server::models::Mesh, vec::Vec2};
 
 use super::{
     lights::Lights,
@@ -126,7 +120,11 @@ impl ChunkStage for LightMeshStage {
         let mut space = space.unwrap();
 
         if chunk.mesh.is_none() {
-            chunk.lights = Lights::propagate(&mut space, registry, config);
+            let min = space.min.to_owned();
+            let coords = space.coords.to_owned();
+            let shape = space.shape.to_owned();
+
+            chunk.lights = Lights::propagate(&mut space, &min, &coords, &shape, registry, config);
         }
 
         let opaque = Mesher::mesh_space(&chunk.min, &chunk.max, &space, registry, false);
