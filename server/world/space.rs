@@ -107,25 +107,25 @@ pub struct SpaceBuilder<'a> {
 
 impl SpaceBuilder<'_> {
     /// Set this space to load in voxel data.
-    pub fn needs_voxels(&mut self) -> &mut Self {
+    pub fn needs_voxels(mut self) -> Self {
         self.needs_voxels = true;
         self
     }
 
     /// Set this space to load in lighting data.
-    pub fn needs_lights(&mut self) -> &mut Self {
+    pub fn needs_lights(mut self) -> Self {
         self.needs_lights = true;
         self
     }
 
     /// Set this space to load in height map data.
-    pub fn needs_height_maps(&mut self) -> &mut Self {
+    pub fn needs_height_maps(mut self) -> Self {
         self.needs_height_maps = true;
         self
     }
 
     /// Set this space to load in all voxel, lighting, and height map data.
-    pub fn needs_all(&mut self) -> &mut Self {
+    pub fn needs_all(mut self) -> Self {
         self.needs_voxels = true;
         self.needs_lights = true;
         self.needs_height_maps = true;

@@ -41,8 +41,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                 let coords = request.pending.pop_front().unwrap();
 
-                // Send the chunk to client if it's done.
-                if let Some(chunk) = chunks.get_chunk(&coords) {
+                if let Some(chunk) = chunks.get(&coords) {
                     if !to_send.contains_key(&id.0) {
                         to_send.insert(id.0.to_owned(), vec![]);
                     }
@@ -84,6 +83,14 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         return;
                     }
 
+                    // Make sure the chunk isn't stuck in the meshing stage.
+                    // In the meshing stage, the chunk's stage would be None, but mesh would also be None.
+                    if let Some(chunk) = chunks.raw(&new_coords) {
+                        if chunk.stage.is_none() {
+                            return;
+                        }
+                    }
+
                     pipeline.push(&new_coords, 0);
                 });
             }
@@ -98,7 +105,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             let chunks: Vec<ChunkModel> = coords
                 .into_iter()
                 .map(|coords| {
-                    let chunk = chunks.get_chunk(&coords).unwrap();
+                    let chunk = chunks.get(&coords).unwrap();
                     chunk.to_model()
                 })
                 .collect();

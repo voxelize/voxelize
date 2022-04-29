@@ -1,15 +1,22 @@
+use std::sync::Arc;
+
+use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use itertools::izip;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    server::models::Geometry,
+    chunk::Chunk,
+    server::models::{Geometry, Mesh},
     utils::{light_utils::LightUtils, vec::Vec3},
 };
 
 use super::{
     access::VoxelAccess,
     block::{Block, BlockFaces},
+    lights::Lights,
     registry::{Registry, UV},
     space::Space,
+    WorldConfig,
 };
 
 struct CornerData {
@@ -293,9 +300,74 @@ fn get_block_by_voxel<'a>(
 }
 
 /// A meshing helper to mesh chunks.
-pub struct Mesher;
+pub struct Mesher {
+    sender: Arc<Sender<Vec<Chunk>>>,
+    receiver: Arc<Receiver<Vec<Chunk>>>,
+    pool: ThreadPool,
+}
 
 impl Mesher {
+    /// Create a new chunk meshing system.
+    pub fn new() -> Self {
+        let (sender, receiver) = unbounded();
+
+        Self {
+            sender: Arc::new(sender),
+            receiver: Arc::new(receiver),
+            pool: ThreadPoolBuilder::new()
+                .thread_name(|index| format!("chunk-meshing-{index}"))
+                .build()
+                .unwrap(),
+        }
+    }
+
+    pub fn process(
+        &mut self,
+        processes: Vec<(Chunk, Space)>,
+        registry: &Registry,
+        config: &WorldConfig,
+    ) {
+        let sender = Arc::clone(&self.sender);
+
+        let registry = registry.to_owned();
+        let config = config.to_owned();
+
+        self.pool.spawn(move || {
+            let chunks: Vec<Chunk> = processes
+                .into_iter()
+                .map(|(mut chunk, mut space)| {
+                    if chunk.mesh.is_none() {
+                        let min = space.min.to_owned();
+                        let coords = space.coords.to_owned();
+                        let shape = space.shape.to_owned();
+
+                        chunk.lights = Lights::propagate(
+                            &mut space, &min, &coords, &shape, &registry, &config,
+                        );
+                    }
+
+                    let opaque = Self::mesh_space(&chunk.min, &chunk.max, &space, &registry, false);
+                    let transparent =
+                        Self::mesh_space(&chunk.min, &chunk.max, &space, &registry, true);
+
+                    chunk.mesh = Some(Mesh {
+                        opaque,
+                        transparent,
+                    });
+
+                    chunk
+                })
+                .collect();
+
+            sender.send(chunks).unwrap();
+        })
+    }
+
+    /// Attempt to retrieve the results from `pipeline.process`
+    pub fn results(&self) -> Result<Vec<Chunk>, TryRecvError> {
+        self.receiver.try_recv()
+    }
+
     /// Mesh a Space struct from specified voxel coordinates, generating the 3D data needed
     /// to render a chunk/space.
     pub fn mesh_space(
@@ -402,9 +474,9 @@ impl Mesher {
                                         let pos_y = position[1] + vy as f32;
                                         let pos_z = position[2] + vz as f32;
 
-                                        positions.push(pos_x);
+                                        positions.push(pos_x - min_x as f32);
                                         positions.push(pos_y);
-                                        positions.push(pos_z);
+                                        positions.push(pos_z - min_z as f32);
 
                                         uvs.push(uv[0] as f32 * (end_u - start_u) + start_u);
                                         uvs.push(uv[1] as f32 * (start_v - end_v) + end_v);

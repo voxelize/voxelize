@@ -174,7 +174,7 @@ impl Pipeline {
                 .build()
                 .unwrap(),
             queue: VecDeque::default(),
-            stages: vec![Arc::new(LightMeshStage)],
+            stages: vec![],
         }
     }
 
@@ -222,17 +222,16 @@ impl Pipeline {
         self.push(coords, index);
     }
 
-    /// Add a stage to the chunking pipeline. Keep in mind that the pipeline by default
-    /// comes with a preset stage: `LightMeshStage`, and stages added afterwards are
-    /// appended before this stage preset.
+    /// Add a stage to the chunking pipeline.
     pub fn add_stage<T>(&mut self, stage: T)
     where
         T: 'static + ChunkStage + Send + Sync,
     {
-        // Insert the stage before `LightMeshStage`
-        self.stages.insert(self.stages.len() - 1, Arc::new(stage));
+        // Insert the stage to the last.
+        self.stages.push(Arc::new(stage));
     }
 
+    /// Get the stage instance at index.
     pub fn get_stage(&mut self, index: usize) -> &Arc<dyn ChunkStage + Send + Sync> {
         &self.stages[index]
     }
@@ -313,10 +312,6 @@ impl Pipeline {
 
         // Add the chunk with the new index to the queue.
         self.queue.push_back((chunk.coords.to_owned(), index + 1));
-    }
-
-    pub fn remesh(&mut self, coords: &Vec2<i32>) {
-        self.push(coords, self.stages.len() - 1);
     }
 
     /// Is this pipeline vacant?

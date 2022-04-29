@@ -1,32 +1,30 @@
-use hashbrown::HashSet;
 use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     chunk::{Chunk, ChunkParams},
     chunks::Chunks,
-    common::{BlockChanges, UpdatedChunks},
+    common::BlockChanges,
     pipeline::Pipeline,
     utils::chunk_utils::ChunkUtils,
-    vec::{Vec2, Vec3},
-    world::{access::VoxelAccess, registry::Registry, WorldConfig},
+    vec::Vec2,
+    world::{registry::Registry, WorldConfig},
 };
 
 /// An ECS system to pipeline chunks through different phases of generation.
-pub struct PipeliningSystem;
+pub struct ChunkPipeliningSystem;
 
-impl<'a> System<'a> for PipeliningSystem {
+impl<'a> System<'a> for ChunkPipeliningSystem {
     type SystemData = (
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, BlockChanges>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Chunks>,
-        WriteExpect<'a, UpdatedChunks>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, mut changes, mut pipeline, mut chunks, mut updated) = data;
+        let (registry, config, mut changes, mut pipeline, mut chunks) = data;
 
         let max_per_tick = config.max_chunk_per_tick;
         let chunk_size = config.chunk_size;
@@ -46,29 +44,12 @@ impl<'a> System<'a> for PipeliningSystem {
             list.into_iter().for_each(|mut chunk| {
                 pipeline.advance(&mut chunk);
 
-                if let Some(index) = chunk.stage {
-                    if index == pipeline.len() - 1 {
-                        if let Some(final_changes) = changes.remove(&chunk.coords) {
-                            final_changes
-                                .into_iter()
-                                .for_each(|(Vec3(vx, vy, vz), id)| {
-                                    chunk.set_voxel(vx, vy, vz, id);
-                                });
-                        }
-
-                        // Calculate the height map of the chunk.
-                        chunk.calculate_max_height(&registry);
-                    }
-                }
-
+                // Means chunk has gone through the pipeline, ready to be lit and meshed.
                 if chunk.stage.is_none() {
                     // This means the chunk was pushed back into the pipeline for remeshing.
                     // Should send to users that has requested for these chunks for update.
-                    if chunk.initialized {
-                        updated.insert(chunk.coords.to_owned());
-                    }
-
-                    chunk.initialized = true;
+                    chunk.calculate_max_height(&registry);
+                    chunks.to_remesh.insert(chunk.coords.to_owned());
                 }
 
                 chunks.renew(chunk);
@@ -132,8 +113,8 @@ impl<'a> System<'a> for PipeliningSystem {
 
             for x in -r..=r {
                 for z in -r..=r {
-                    if x == 0 && z == 0 {
-                        break;
+                    if (x == 0 && z == 0) || (x * x + z * z > r * r) {
+                        continue;
                     }
 
                     // OK cases are:
@@ -173,67 +154,30 @@ impl<'a> System<'a> for PipeliningSystem {
 
             // Create space that this stage requires.
             if let Some(data) = stage.needs_space() {
-                let mut space = chunks.make_space(cx, cz, margin);
+                let mut space = chunks.make_space(&chunk.coords, margin);
 
                 if data.needs_voxels {
-                    space.needs_voxels();
+                    space = space.needs_voxels();
                 }
 
                 if data.needs_lights {
-                    space.needs_lights();
+                    space = space.needs_lights();
                 }
 
                 if data.needs_height_maps {
-                    space.needs_height_maps();
+                    space = space.needs_height_maps();
                 }
 
                 let space = space.build();
 
                 processes.push((chunk, Some(space), index));
             } else {
-                processes.push((chunk, None, index))
+                processes.push((chunk, None, index));
             }
         }
 
         // This part goes through all block changes (chunk coords -> list of changes) and see
         // if there are any leftover changes that are supposed to be applied to the chunks.
-        let mut to_remove = HashSet::new();
-        let mut to_remesh = HashSet::new();
-
-        changes.iter_mut().for_each(|(coords, blocks)| {
-            // If `get_chunk` results in a chunk, that means that chunk has already been through the pipeline.
-            if chunks.get_chunk(coords).is_some() {
-                if blocks.is_empty() {
-                    to_remove.insert(coords.to_owned());
-                    return;
-                }
-
-                blocks.drain(..).for_each(|(voxel, id)| {
-                    let Vec3(vx, vy, vz) = voxel;
-
-                    chunks.set_voxel(vx, vy, vz, id);
-
-                    chunks
-                        .get_voxel_affected_chunks(vx, vy, vz)
-                        .into_iter()
-                        .for_each(|coords| {
-                            to_remesh.insert(coords);
-                        });
-                });
-            }
-        });
-
-        if !to_remove.is_empty() {
-            to_remove.into_iter().for_each(|coords| {
-                changes.remove(&coords);
-            });
-        }
-
-        if !to_remesh.is_empty() {
-            to_remesh.into_iter().for_each(|coords| {
-                pipeline.remesh(&coords);
-            });
-        }
 
         if !processes.is_empty() {
             pipeline.process(processes, &registry, &config);

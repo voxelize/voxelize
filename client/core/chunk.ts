@@ -87,6 +87,8 @@ class Chunk {
         );
         mesh.name = `${this.name}-${type}`;
         mesh.matrixAutoUpdate = false;
+        mesh.position.set(...this.min);
+        mesh.updateMatrix();
       }
 
       const geometry = mesh.geometry;

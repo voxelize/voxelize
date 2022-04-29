@@ -33,8 +33,6 @@ pub struct Chunk {
     pub min: Vec3<i32>,
     pub max: Vec3<i32>,
 
-    pub initialized: bool,
-
     pub params: ChunkParams,
 }
 
@@ -67,8 +65,6 @@ impl Chunk {
 
             min,
             max,
-
-            initialized: false,
 
             params: params.to_owned(),
         }

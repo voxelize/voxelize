@@ -28,7 +28,7 @@ use specs::{
 };
 
 use crate::{
-    common::{BlockChanges, UpdatedChunks},
+    common::BlockChanges,
     server::models::{encode_message, messages::Peer, Message, MessageType},
     vec::Vec2,
 };
@@ -51,15 +51,18 @@ use self::{
         position::PositionComp,
         target::TargetComp,
     },
+    mesher::Mesher,
     messages::MessageQueue,
     pipeline::Pipeline,
     registry::Registry,
     stats::Stats,
     sys::{
         broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
-        chunk_requests::ChunkRequestsSystem,
+        chunk::{
+            meshing::ChunkMeshingSystem, pipelining::ChunkPipeliningSystem,
+            requests::ChunkRequestsSystem, sending::ChunkSendingSystem,
+        },
         entity_meta::EntityMetaSystem,
-        pipelining::PipeliningSystem,
     },
 };
 
@@ -127,11 +130,11 @@ impl World {
 
         ecs.insert(Chunks::new(config));
 
+        ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Registry::new());
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
-        ecs.insert(UpdatedChunks::new());
         ecs.insert(BlockChanges::new());
         ecs.insert(Stats::new());
 
@@ -349,7 +352,13 @@ impl World {
         let builder = DispatcherBuilder::new()
             .with(EntityMetaSystem, "entity-meta", &[])
             .with(ChunkRequestsSystem, "chunk-requests", &[])
-            .with(PipeliningSystem, "pipelining", &["chunk-requests"]);
+            .with(
+                ChunkPipeliningSystem,
+                "chunk-pipelining",
+                &["chunk-requests"],
+            )
+            .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
+            .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"]);
 
         let builder = self.dispatcher.unwrap()(builder);
 
