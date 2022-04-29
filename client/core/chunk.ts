@@ -87,6 +87,7 @@ class Chunk {
         );
         mesh.name = `${this.name}-${type}`;
         mesh.matrixAutoUpdate = false;
+        mesh.renderOrder = type === "opaque" ? 100 : 100000;
         mesh.position.set(...this.min);
         mesh.updateMatrix();
       }

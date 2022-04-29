@@ -94,7 +94,7 @@ impl ChunkStage for TestStage {
 
         let max_height = config.max_height as i32;
 
-        let marble = registry.get_block_by_name("Marble");
+        let map = registry.get_type_map(&["Stone", "Dirt", "Grass"]);
 
         let scale = 0.01;
         let octaves = 10;
@@ -121,7 +121,7 @@ impl ChunkStage for TestStage {
                     );
 
                     if density > 0.0 {
-                        chunk.set_voxel(vx, vy, vz, marble.id);
+                        chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
                     }
                 }
             }
@@ -154,7 +154,9 @@ impl ChunkStage for TreeTestStage {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
-        let lychee = registry.get_block_by_name("Lychee");
+        let wood = registry.get_block_by_name("Wood");
+        let leaves = registry.get_block_by_name("Leaves");
+        let grass = registry.get_block_by_name("Grass");
         let dirt = registry.get_block_by_name("Dirt");
 
         let scale = 1.0;
@@ -164,22 +166,35 @@ impl ChunkStage for TreeTestStage {
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 let height = chunk.get_max_height(vx, vz) as i32;
-                if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.999 {
-                    for i in 0..5 {
-                        chunk.set_voxel(vx, height + i, vz, lychee.id);
+
+                chunk.set_voxel(vx, height, vz, grass.id);
+
+                for k in -2..0 {
+                    chunk.set_voxel(vx, height + k, vz, dirt.id);
+                }
+
+                if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
+                    && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
+                {
+                    for k in 0..5 {
+                        let r = if k % 2 == 0 { 1 } else { 2 };
+
+                        for i in -r..=r {
+                            for j in -r..=r {
+                                let vox = Vec3(vx + i, height + 2 + k, vz + j);
+
+                                if !chunk.contains(vox.0, vox.1, vox.2) {
+                                    changes.push((vox, leaves.id));
+                                    continue;
+                                }
+
+                                chunk.set_voxel(vox.0, vox.1, vox.2, leaves.id);
+                            }
+                        }
                     }
 
-                    for i in -3..=3 {
-                        for j in -3..=3 {
-                            let vox = Vec3(vx + i, height + 4, vz + j);
-
-                            if !chunk.contains(vox.0, vox.1, vox.2) {
-                                changes.push((vox, dirt.id));
-                                continue;
-                            }
-
-                            chunk.set_voxel(vox.0, vox.1, vox.2, dirt.id);
-                        }
+                    for i in 0..5 {
+                        chunk.set_voxel(vx, height + i, vz, wood.id);
                     }
                 }
             }
@@ -259,8 +274,18 @@ fn main() {
 
         registry.register_block(Block::new("Dirt").faces(&[BlockFaces::All]).build());
         registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
-        registry.register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
-        registry.register_block(Block::new("Lychee").faces(&[BlockFaces::All]).build());
+        registry.register_block(
+            Block::new("Wood")
+                .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
+                .build(),
+        );
+        registry.register_block(
+            Block::new("Leaves")
+                .faces(&[BlockFaces::All])
+                .is_transparent(true)
+                .transparent_standalone(true)
+                .build(),
+        );
         registry.register_block(
             Block::new("Grass")
                 .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])

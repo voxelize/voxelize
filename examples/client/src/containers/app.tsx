@@ -15,10 +15,11 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import StoneImage from "../assets/blocks/stone.png";
 import DirtImage from "../assets/blocks/dirt.png";
-import MarbleImage from "../assets/green.png";
-import LycheeImage from "../assets/lychee.jpeg";
+import LeavesImage from "../assets/blocks/leaves_oak.png";
 import GrassTopImage from "../assets/blocks/grass_top.png";
 import GrassSideImage from "../assets/blocks/grass_side.png";
+import WoodTopImage from "../assets/blocks/log_oak_top.png";
+import WoodSideImage from "../assets/blocks/log_oak_side.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
@@ -190,14 +191,20 @@ export const App = () => {
         );
         client.current.registry.applyTextureByName("Stone", "all", StoneImage);
         client.current.registry.applyTextureByName(
-          "Marble",
+          "Leaves",
           "all",
-          MarbleImage
+          LeavesImage
+        );
+        client.current.registry.applyTextureByName("Wood", "top", WoodTopImage);
+        client.current.registry.applyTextureByName(
+          "Wood",
+          "side",
+          WoodSideImage
         );
         client.current.registry.applyTextureByName(
-          "Lychee",
-          "all",
-          LycheeImage
+          "Wood",
+          "bottom",
+          WoodTopImage
         );
 
         client.current.addSystem(new UpdateBoxSystem());

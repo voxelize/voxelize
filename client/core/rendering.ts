@@ -41,11 +41,12 @@ class Rendering {
       powerPreference: "high-performance",
       antialias: false,
       stencil: false,
-      depth: true,
+      depth: false,
       context: context || undefined,
       canvas,
     });
     this.renderer.setClearColor(new Color(clearColor));
+    this.renderer.sortObjects = true;
 
     // composer
     this.composer = new EffectComposer(this.renderer, { stencilBuffer: false });

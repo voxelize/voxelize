@@ -211,16 +211,16 @@ impl Registry {
     }
 
     /// Get type map of all blocks.
-    pub fn get_type_map(&self, blocks: Vec<&str>) -> HashMap<String, u32> {
+    pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
         let mut type_map = HashMap::new();
 
         for block in blocks {
             let &id = self
                 .type_map
-                .get(block)
+                .get(&block.to_lowercase())
                 .unwrap_or_else(|| panic!("Block name not found: {}", block));
 
-            type_map.insert(block.to_owned(), id);
+            type_map.insert((*block).to_owned(), id);
         }
 
         type_map

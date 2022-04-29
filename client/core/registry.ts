@@ -1,8 +1,14 @@
 import {
+  AdditiveBlending,
   BackSide,
+  DoubleSide,
   FrontSide,
+  GreaterEqualDepth,
+  MultiplyBlending,
+  NoBlending,
   ShaderLib,
   ShaderMaterial,
+  SubtractiveBlending,
   Texture,
   UniformsUtils,
   Vector4,
@@ -24,8 +30,6 @@ const defaultParams: RegistryParams = {
   dimension: 8,
 };
 
-const TRANSPARENT_SIDES = [FrontSide, BackSide];
-
 class Registry {
   public params: RegistryParams;
   public atlas: TextureAtlas;
@@ -37,7 +41,7 @@ class Registry {
 
   public materials: {
     opaque?: CustomShaderMaterial;
-    transparent?: CustomShaderMaterial[];
+    transparent?: CustomShaderMaterial;
   } = {};
 
   private blocksByName: Map<string, Block> = new Map();
@@ -105,17 +109,13 @@ class Registry {
     }
 
     if (this.materials.transparent) {
-      this.materials.transparent.forEach((m) => {
-        m.map = this.atlas.texture;
-      });
+      this.materials.transparent.map = this.atlas.texture;
     } else {
-      this.materials.transparent = TRANSPARENT_SIDES.map((side) => {
-        const material = this.makeShaderMaterial();
-        material.side = side;
-        material.transparent = true;
-        material.alphaTest = 0.3;
-        return material;
-      });
+      const mat = this.makeShaderMaterial();
+      mat.side = DoubleSide;
+      mat.transparent = true;
+      mat.alphaTest = 0.3;
+      this.materials.transparent = mat;
     }
 
     this.client.emit("texture-loaded");
