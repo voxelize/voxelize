@@ -2,6 +2,7 @@ import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
 import replace from "@rollup/plugin-replace";
+import glslify from "rollup-plugin-glslify";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
 import swc from "rollup-plugin-swc3";
 import { terser } from "rollup-plugin-terser";
@@ -70,6 +71,7 @@ export default {
       sourceMaps: true,
       tsconfig: "./tsconfig.build.json",
     }),
+    glslify(),
     ...(process.env.ROLLUP_WATCH ? [] : [terser()]),
   ],
   external: Object.keys(globals),
