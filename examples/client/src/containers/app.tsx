@@ -20,6 +20,8 @@ import GrassTopImage from "../assets/blocks/grass_top.png";
 import GrassSideImage from "../assets/blocks/grass_side.png";
 import WoodTopImage from "../assets/blocks/log_oak_top.png";
 import WoodSideImage from "../assets/blocks/log_oak_side.png";
+import MarbleImage from "../assets/marble.jpg";
+import YellowImage from "../assets/blocks/ice.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
@@ -174,6 +176,16 @@ export const App = () => {
 
         client.current.registerEntity("Box", Box);
         client.current.registry.applyTextureByName("Dirt", "all", DirtImage);
+        client.current.registry.applyTextureByName(
+          "Marble",
+          "all",
+          MarbleImage
+        );
+        client.current.registry.applyTextureByName(
+          "Yellow",
+          "all",
+          YellowImage
+        );
         client.current.registry.applyTextureByName(
           "Grass",
           "top",

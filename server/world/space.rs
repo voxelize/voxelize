@@ -103,6 +103,8 @@ pub struct SpaceBuilder<'a> {
     pub needs_voxels: bool,
     pub needs_lights: bool,
     pub needs_height_maps: bool,
+
+    pub strict: bool,
 }
 
 impl SpaceBuilder<'_> {
@@ -129,6 +131,12 @@ impl SpaceBuilder<'_> {
         self.needs_voxels = true;
         self.needs_lights = true;
         self.needs_height_maps = true;
+        self
+    }
+
+    /// Sets if this space is strict. If strict, space panics if one of the chunks DNE.
+    pub fn strict(mut self) -> Self {
+        self.strict = true;
         self
     }
 
@@ -169,6 +177,8 @@ impl SpaceBuilder<'_> {
                     if self.needs_height_maps {
                         height_maps.insert(n_coords.to_owned(), chunk.height_map.clone());
                     }
+                } else if self.chunks.is_within_world(&n_coords) && self.strict {
+                    panic!("Space incomplete in strict mode: {:?}", n_coords);
                 }
             }
         }

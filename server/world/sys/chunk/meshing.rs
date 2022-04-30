@@ -44,8 +44,10 @@ impl<'a> System<'a> for ChunkMeshingSystem {
             if let Some(coords) = chunks.to_remesh.pop_front() {
                 let mut ready = true;
 
-                for x in -1..=1 {
-                    for z in -1..=1 {
+                let r = (config.max_light_level as f32 / config.chunk_size as f32).ceil() as i32;
+
+                for x in -r..=r {
+                    for z in -r..=r {
                         if x == 0 && z == 0 {
                             continue;
                         }
@@ -109,6 +111,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                 let space = chunks
                     .make_space(&coords, max_light_level)
                     .needs_all()
+                    .strict()
                     .build();
 
                 processes.push((chunk, space));

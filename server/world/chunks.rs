@@ -159,6 +159,7 @@ impl Chunks {
             needs_voxels: false,
             needs_lights: false,
             needs_height_maps: false,
+            strict: false,
         }
     }
 

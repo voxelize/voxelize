@@ -94,7 +94,7 @@ impl ChunkStage for TestStage {
 
         let max_height = config.max_height as i32;
 
-        let map = registry.get_type_map(&["Stone", "Dirt", "Grass"]);
+        let map = registry.get_type_map(&["Stone"]);
 
         let scale = 0.01;
         let octaves = 10;
@@ -156,8 +156,10 @@ impl ChunkStage for TreeTestStage {
 
         let wood = registry.get_block_by_name("Wood");
         let leaves = registry.get_block_by_name("Leaves");
-        let grass = registry.get_block_by_name("Grass");
+        let marble = registry.get_block_by_name("Marble");
         let dirt = registry.get_block_by_name("Dirt");
+
+        let yellow = registry.get_block_by_name("Yellow");
 
         let scale = 1.0;
 
@@ -167,7 +169,7 @@ impl ChunkStage for TreeTestStage {
             for vz in min_z..max_z {
                 let height = chunk.get_max_height(vx, vz) as i32;
 
-                chunk.set_voxel(vx, height, vz, grass.id);
+                chunk.set_voxel(vx, height, vz, marble.id);
 
                 for k in -2..0 {
                     chunk.set_voxel(vx, height + k, vz, dirt.id);
@@ -176,26 +178,28 @@ impl ChunkStage for TreeTestStage {
                 if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
                     && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
                 {
-                    for k in 0..5 {
-                        let r = if k % 2 == 0 { 1 } else { 2 };
+                    // for k in 0..5 {
+                    //     let r = if k % 2 == 0 { 1 } else { 2 };
 
-                        for i in -r..=r {
-                            for j in -r..=r {
-                                let vox = Vec3(vx + i, height + 2 + k, vz + j);
+                    //     for i in -r..=r {
+                    //         for j in -r..=r {
+                    //             let vox = Vec3(vx + i, height + 2 + k, vz + j);
 
-                                if !chunk.contains(vox.0, vox.1, vox.2) {
-                                    changes.push((vox, leaves.id));
-                                    continue;
-                                }
+                    //             if !chunk.contains(vox.0, vox.1, vox.2) {
+                    //                 changes.push((vox, leaves.id));
+                    //                 continue;
+                    //             }
 
-                                chunk.set_voxel(vox.0, vox.1, vox.2, leaves.id);
-                            }
-                        }
-                    }
+                    //             chunk.set_voxel(vox.0, vox.1, vox.2, leaves.id);
+                    //         }
+                    //     }
+                    // }
 
-                    for i in 0..5 {
-                        chunk.set_voxel(vx, height + i, vz, wood.id);
-                    }
+                    // for i in 0..5 {
+                    //     chunk.set_voxel(vx, height + i, vz, wood.id);
+                    // }
+
+                    chunk.set_voxel(vx, height, vz, yellow.id);
                 }
             }
         }
@@ -274,6 +278,7 @@ fn main() {
 
         registry.register_block(Block::new("Dirt").faces(&[BlockFaces::All]).build());
         registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
+        registry.register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
         registry.register_block(
             Block::new("Wood")
                 .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
@@ -289,6 +294,14 @@ fn main() {
         registry.register_block(
             Block::new("Grass")
                 .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
+                .build(),
+        );
+        registry.register_block(
+            Block::new("Yellow")
+                .faces(&[BlockFaces::All])
+                .is_light(true)
+                .red_light_level(10)
+                .green_light_level(10)
                 .build(),
         );
     }
