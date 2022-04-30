@@ -201,6 +201,10 @@ impl Pipeline {
     /// pipeline already. Chunks that are pushed into the pipeline will only be freed
     /// from the pipeline if they reach the end of the pipeline.
     pub fn push(&mut self, coords: &Vec2<i32>, index: usize) {
+        if self.stages.is_empty() {
+            return;
+        }
+
         assert!(index < self.stages.len());
 
         if self.has(coords) {

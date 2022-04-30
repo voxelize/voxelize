@@ -46,10 +46,6 @@ class Chunks {
       ...defaultParams,
       ...params,
     };
-
-    client.on("ready", () => {
-      // client.rendering.scene.add(this.mesh);
-    });
   }
 
   getChunk = (cx: number, cz: number) => {
@@ -274,6 +270,19 @@ class Chunks {
     }
 
     return true;
+  };
+
+  reset = () => {
+    this.map.forEach((chunk) => {
+      chunk.removeFromScene();
+      chunk.dispose();
+    });
+    this.map.clear();
+
+    this.requested.clear();
+    this.toRequest.length = 0;
+    this.toProcess.length = 0;
+    this.currentChunk = [0, 0];
   };
 
   get worldParams() {

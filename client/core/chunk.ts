@@ -301,6 +301,12 @@ class Chunk {
     );
   };
 
+  dispose = () => {
+    this.removeFromScene();
+    this.mesh.opaque?.geometry.dispose();
+    this.mesh.transparent?.geometry.dispose();
+  };
+
   private getLocalRedLight = (lx: number, ly: number, lz: number) => {
     return LightUtils.extractRedLight(this.lights.get(lx, ly, lz));
   };

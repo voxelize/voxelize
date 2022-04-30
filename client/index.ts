@@ -60,8 +60,9 @@ class Client extends EventEmitter {
   public settings: Settings;
   public chunks: Chunks;
 
-  private _loaded = false;
-  private _ready = false;
+  public loaded = false;
+  public ready = false;
+
   private animationFrame: number;
 
   constructor(params: ClientParams = {}) {
@@ -124,6 +125,7 @@ class Client extends EventEmitter {
 
     this.network = network;
 
+    this.reset();
     this.run();
 
     return true;
@@ -158,6 +160,11 @@ class Client extends EventEmitter {
     this.name = name || " ";
   };
 
+  reset = () => {
+    this.entities.reset();
+    this.chunks.reset();
+  };
+
   get position() {
     return this.controls.object.position;
   }
@@ -167,28 +174,6 @@ class Client extends EventEmitter {
       this.position.toArray(),
       this.world.params.dimension
     );
-  }
-
-  get ready() {
-    return this._ready;
-  }
-
-  set ready(_: boolean) {
-    if (this._ready)
-      throw new Error("Do not change world.ready after starting the game.");
-
-    this._ready = true;
-  }
-
-  get loaded() {
-    return this._loaded;
-  }
-
-  set loaded(_: boolean) {
-    if (this._loaded)
-      throw new Error("Do not change world.loaded after starting the game.");
-
-    this._loaded = true;
   }
 
   private run = () => {
