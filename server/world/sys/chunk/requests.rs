@@ -33,7 +33,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let mut to_send: HashMap<String, Vec<Vec2<i32>>> = HashMap::new();
 
         for (id, request) in (&ids, &mut requests).join() {
-            let mut leftover = vec![];
             let mut count = 0;
 
             while !request.pending.is_empty() && count < config.max_chunk_per_tick {
@@ -41,13 +40,14 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                 let coords = request.pending.pop_front().unwrap();
 
+                if !chunks.is_within_world(&coords) {
+                    continue;
+                }
+
                 if let Some(chunk) = chunks.get(&coords) {
                     if !to_send.contains_key(&id.0) {
                         to_send.insert(id.0.to_owned(), vec![]);
                     }
-
-                    // Add coordinate to the "finished" pile.
-                    request.mark_finish(&coords);
 
                     to_send
                         .get_mut(&id.0)
@@ -57,12 +57,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     continue;
                 }
 
-                if !chunks.is_within_world(&coords) {
-                    continue;
-                }
-
-                // Otherwise, add to pipeline.
-                leftover.push(coords.to_owned());
+                // Add coordinate to the "finished" pile.
+                request.mark_finish(&coords);
 
                 [
                     [-1, -1],
@@ -94,10 +90,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     pipeline.push(&new_coords, 0);
                 });
             }
-
-            leftover.into_iter().for_each(|coords| {
-                request.add(&coords);
-            });
         }
 
         // Add the chunk sending to message queue.

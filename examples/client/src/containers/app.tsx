@@ -21,7 +21,7 @@ import GrassSideImage from "../assets/blocks/grass_side.png";
 import WoodTopImage from "../assets/blocks/log_oak_top.png";
 import WoodSideImage from "../assets/blocks/log_oak_side.png";
 import MarbleImage from "../assets/marble.jpg";
-import YellowImage from "../assets/blocks/ice.png";
+import ColorImage from "../assets/blocks/ice.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
 
 const GameWrapper = styled.div`
@@ -181,11 +181,7 @@ export const App = () => {
           "all",
           MarbleImage
         );
-        client.current.registry.applyTextureByName(
-          "Yellow",
-          "all",
-          YellowImage
-        );
+        client.current.registry.applyTextureByName("Color", "all", ColorImage);
         client.current.registry.applyTextureByName(
           "Grass",
           "top",

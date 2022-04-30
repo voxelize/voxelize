@@ -4,9 +4,15 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashSet;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
-use crate::{chunk::Chunk, common::BlockChange, server::models::Mesh, vec::Vec2};
+use crate::{
+    chunk::Chunk,
+    common::BlockChange,
+    server::models::Mesh,
+    vec::{Vec2, Vec3},
+};
 
 use super::{
+    access::VoxelAccess,
     lights::Lights,
     mesher::Mesher,
     registry::Registry,
@@ -90,55 +96,57 @@ impl ChunkStage for HeightMapStage {
     }
 }
 
-pub struct LightMeshStage;
+/// A preset chunk stage to set a flat land.
+pub struct FlatlandStage {
+    height: i32,
+    top: u32,
+    middle: u32,
+    bottom: u32,
+}
 
-impl ChunkStage for LightMeshStage {
+impl FlatlandStage {
+    pub fn new(height: i32, top: u32, middle: u32, bottom: u32) -> Self {
+        Self {
+            height,
+            top,
+            middle,
+            bottom,
+        }
+    }
+}
+
+impl ChunkStage for FlatlandStage {
     fn name(&self) -> String {
-        "LightMesh".to_owned()
-    }
-
-    fn neighbors(&self, config: &WorldConfig) -> usize {
-        config.max_light_level as usize
-    }
-
-    fn needs_space(&self) -> Option<SpaceData> {
-        Some(SpaceData {
-            needs_voxels: true,
-            needs_lights: true,
-            needs_height_maps: true,
-        })
+        "Flatland".to_owned()
     }
 
     fn process(
         &self,
         mut chunk: Chunk,
-        registry: &Registry,
-        config: &WorldConfig,
-        space: Option<Space>,
+        _: &Registry,
+        _: &WorldConfig,
+        _: Option<Space>,
     ) -> (Chunk, Option<Vec<BlockChange>>) {
-        // Propagate light if chunk hasn't been propagated.
-        let mut space = space.unwrap();
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
 
-        if chunk.mesh.is_none() {
-            let min = space.min.to_owned();
-            let coords = space.coords.to_owned();
-            let shape = space.shape.to_owned();
-
-            chunk.lights = Lights::propagate(&mut space, &min, &coords, &shape, registry, config);
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                for vy in 0..self.height {
+                    if vy == 0 {
+                        chunk.set_voxel(vx, vy, vz, self.bottom);
+                    } else if vy == self.height - 1 {
+                        chunk.set_voxel(vx, vy, vz, self.top);
+                    } else {
+                        chunk.set_voxel(vx, vy, vz, self.middle);
+                    }
+                }
+            }
         }
-
-        let opaque = Mesher::mesh_space(&chunk.min, &chunk.max, &space, registry, false);
-        let transparent = Mesher::mesh_space(&chunk.min, &chunk.max, &space, registry, true);
-
-        chunk.mesh = Some(Mesh {
-            opaque,
-            transparent,
-        });
 
         (chunk, None)
     }
 }
-
 /// A pipeline where chunks are initialized and generated.
 pub struct Pipeline {
     /// A HashSet that keeps track of what chunks are in the pipeline.

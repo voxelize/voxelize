@@ -1,26 +1,19 @@
 use std::process;
 
-use log::info;
-use nanoid::nanoid;
-use noise::{MultiFractal, NoiseFn, SuperSimplex, Worley};
-use simdnoise::NoiseBuilder;
+use noise::{NoiseFn, SuperSimplex, Worley};
 use specs::{
-    Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
+    Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
     WriteStorage,
 };
 use voxelize::{
     chunk::Chunk,
     common::BlockChange,
     pipeline::{ChunkStage, HeightMapStage},
-    utils::ndarray::ndarray,
-    vec::{Vec2, Vec3},
+    vec::Vec3,
     world::{
         access::VoxelAccess,
         block::{Block, BlockFaces},
-        comps::{
-            etype::ETypeComp, flags::EntityFlag, heading::HeadingComp, id::IDComp,
-            metadata::MetadataComp, position::PositionComp, target::TargetComp,
-        },
+        comps::position::PositionComp,
         registry::Registry,
         space::Space,
         stats::Stats,
@@ -148,22 +141,18 @@ impl ChunkStage for TreeTestStage {
         &self,
         mut chunk: Chunk,
         registry: &Registry,
-        config: &WorldConfig,
-        space: Option<Space>,
+        _: &WorldConfig,
+        _: Option<Space>,
     ) -> (Chunk, Option<Vec<BlockChange>>) {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
-        let wood = registry.get_block_by_name("Wood");
-        let leaves = registry.get_block_by_name("Leaves");
         let marble = registry.get_block_by_name("Marble");
         let dirt = registry.get_block_by_name("Dirt");
 
-        let yellow = registry.get_block_by_name("Yellow");
+        let color = registry.get_block_by_name("Color");
 
         let scale = 1.0;
-
-        let mut changes = vec![];
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
@@ -178,33 +167,12 @@ impl ChunkStage for TreeTestStage {
                 if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
                     && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
                 {
-                    // for k in 0..5 {
-                    //     let r = if k % 2 == 0 { 1 } else { 2 };
-
-                    //     for i in -r..=r {
-                    //         for j in -r..=r {
-                    //             let vox = Vec3(vx + i, height + 2 + k, vz + j);
-
-                    //             if !chunk.contains(vox.0, vox.1, vox.2) {
-                    //                 changes.push((vox, leaves.id));
-                    //                 continue;
-                    //             }
-
-                    //             chunk.set_voxel(vox.0, vox.1, vox.2, leaves.id);
-                    //         }
-                    //     }
-                    // }
-
-                    // for i in 0..5 {
-                    //     chunk.set_voxel(vx, height + i, vz, wood.id);
-                    // }
-
-                    chunk.set_voxel(vx, height, vz, yellow.id);
+                    chunk.set_voxel(vx, height, vz, color.id);
                 }
             }
         }
 
-        (chunk, Some(changes))
+        (chunk, None)
     }
 }
 
@@ -297,10 +265,10 @@ fn main() {
                 .build(),
         );
         registry.register_block(
-            Block::new("Yellow")
+            Block::new("Color")
                 .faces(&[BlockFaces::All])
                 .is_light(true)
-                .red_light_level(10)
+                .blue_light_level(10)
                 .green_light_level(10)
                 .build(),
         );
