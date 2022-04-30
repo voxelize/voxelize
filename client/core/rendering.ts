@@ -1,4 +1,10 @@
-import { EffectComposer, RenderPass } from "postprocessing";
+import {
+  BloomEffect,
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
 import { Color, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";
@@ -53,7 +59,13 @@ class Rendering {
 
     client.on("ready", () => {
       const camera = client.camera.threeCamera;
+
       this.composer.addPass(new RenderPass(this.scene, camera));
+
+      const smaaEffect = new SMAAEffect({});
+      smaaEffect.edgeDetectionMaterial.edgeDetectionThreshold = 0.05;
+
+      this.composer.addPass(new EffectPass(camera, smaaEffect));
 
       this.adjustRenderer();
     });

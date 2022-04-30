@@ -152,13 +152,13 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the maximum amount of chunks to be processed per tick. Default is 16 chunks.
+    /// Configure the maximum amount of chunks to be processed per tick. Default is 24 chunks.
     pub fn max_chunk_per_tick(mut self, max_chunk_per_tick: usize) -> Self {
         self.max_chunk_per_tick = Some(max_chunk_per_tick);
         self
     }
 
-    /// Configure the maximum amount of chunks to be sent to the client per tick. Default is 4 chunks.
+    /// Configure the maximum amount of chunks to be sent to the client per tick. Default is 3 chunks.
     pub fn max_response_per_tick(mut self, max_response_per_tick: usize) -> Self {
         self.max_response_per_tick = Some(max_response_per_tick);
         self
