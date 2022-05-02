@@ -108,6 +108,12 @@ struct OnSignalRequest {
     signal: Value,
 }
 
+#[derive(Serialize, Deserialize)]
+struct OnDebugRequest {
+    method: String,
+    data: Value,
+}
+
 impl World {
     /// Create a new voxelize world.
     pub fn new(name: &str, config: &WorldConfig) -> Self {
@@ -266,6 +272,7 @@ impl World {
             MessageType::Load => self.on_load(endpoint, data),
             MessageType::Signal => self.on_signal(endpoint, data),
             MessageType::Unload => self.on_unload(endpoint, data),
+            MessageType::Debug => self.on_debug(endpoint, data),
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
             }
@@ -485,6 +492,23 @@ impl World {
             chunks.into_iter().for_each(|coords| {
                 requests.unload(&coords);
             });
+        }
+    }
+
+    /// Handler for `Debug` type messages.
+    fn on_debug(&mut self, _: &Endpoint, data: Message) {
+        let json: OnDebugRequest = serde_json::from_str(&data.json)
+            .expect("`on_debug` error. Could not read JSON string.");
+
+        let mut chunks = self.chunks_mut();
+
+        if json.method.to_lowercase() == "remesh" {
+            let x = json.data["cx"].as_i64().unwrap() as i32;
+            let z = json.data["cz"].as_i64().unwrap() as i32;
+
+            chunks.to_remesh.insert(Vec2(x, z));
+        } else {
+            info!("Received unknown debug method of {}", json.method);
         }
     }
 }

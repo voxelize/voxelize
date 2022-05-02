@@ -89,11 +89,11 @@ class Chunk {
         mesh.matrixAutoUpdate = false;
         mesh.renderOrder = type === "opaque" ? 100 : 100000;
         mesh.position.set(...this.min);
-        mesh.updateMatrix();
       }
 
       const geometry = mesh.geometry;
 
+      geometry.dispose();
       geometry.setAttribute(
         "position",
         new Float32BufferAttribute(positions, 3)
@@ -103,6 +103,8 @@ class Chunk {
       geometry.setAttribute("light", new Int32BufferAttribute(lights, 1));
       geometry.setIndex(Array.from(indices));
       geometry.computeBoundingBox();
+
+      mesh.updateMatrix();
 
       this.mesh[type] = mesh;
     });

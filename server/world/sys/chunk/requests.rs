@@ -52,42 +52,40 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         .get_mut(&id.0)
                         .unwrap()
                         .push(chunk.coords.to_owned());
+                } else {
+                    [
+                        [-1, -1],
+                        [-1, 0],
+                        [-1, 1],
+                        [0, -1],
+                        [0, 0],
+                        [0, 1],
+                        [1, -1],
+                        [1, 0],
+                        [1, 1],
+                    ]
+                    .iter()
+                    .for_each(|[ox, oz]| {
+                        let new_coords = Vec2(coords.0 + ox, coords.1 + oz);
 
-                    continue;
+                        if !chunks.is_within_world(&new_coords) {
+                            return;
+                        }
+
+                        // Make sure the chunk isn't stuck in the meshing stage.
+                        // In the meshing stage, the chunk's stage would be None, but mesh would also be None.
+                        if let Some(chunk) = chunks.raw(&new_coords) {
+                            if chunk.stage.is_none() {
+                                return;
+                            }
+                        }
+
+                        pipeline.push(&new_coords, 0);
+                    });
                 }
 
                 // Add coordinate to the "finished" pile.
                 request.mark_finish(&coords);
-
-                [
-                    [-1, -1],
-                    [-1, 0],
-                    [-1, 1],
-                    [0, -1],
-                    [0, 0],
-                    [0, 1],
-                    [1, -1],
-                    [1, 0],
-                    [1, 1],
-                ]
-                .iter()
-                .for_each(|[ox, oz]| {
-                    let new_coords = Vec2(coords.0 + ox, coords.1 + oz);
-
-                    if !chunks.is_within_world(&new_coords) {
-                        return;
-                    }
-
-                    // Make sure the chunk isn't stuck in the meshing stage.
-                    // In the meshing stage, the chunk's stage would be None, but mesh would also be None.
-                    if let Some(chunk) = chunks.raw(&new_coords) {
-                        if chunk.stage.is_none() {
-                            return;
-                        }
-                    }
-
-                    pipeline.push(&new_coords, 0);
-                });
             }
         }
 

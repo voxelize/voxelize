@@ -82,7 +82,7 @@ class Controls extends EventDispatcher {
 
     client.on("initialized", this.connect);
 
-    this.setPosition(0, 128, 0);
+    this.setPosition(0, 15, 0);
   }
 
   /**

@@ -8,7 +8,7 @@ use specs::{
 use voxelize::{
     chunk::Chunk,
     common::BlockChange,
-    pipeline::{ChunkStage, HeightMapStage},
+    pipeline::{ChunkStage, FlatlandStage, HeightMapStage},
     vec::Vec3,
     world::{
         access::VoxelAccess,
@@ -232,9 +232,7 @@ fn main() {
     {
         let mut pipeline = world.pipeline_mut();
 
-        pipeline.add_stage(TestStage {
-            noise: SuperSimplex::new(),
-        });
+        pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeTestStage {
             noise: Worley::new(),

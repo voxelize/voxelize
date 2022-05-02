@@ -165,6 +165,11 @@ impl SpaceBuilder<'_> {
         for x in -extended..=extended {
             for z in -extended..=extended {
                 let n_coords = Vec2(cx + x, cz + z);
+
+                if !self.chunks.is_within_world(&n_coords) {
+                    continue;
+                }
+
                 if let Some(chunk) = self.chunks.raw(&n_coords) {
                     if self.needs_voxels {
                         voxels.insert(n_coords.to_owned(), chunk.voxels.clone());
@@ -177,7 +182,7 @@ impl SpaceBuilder<'_> {
                     if self.needs_height_maps {
                         height_maps.insert(n_coords.to_owned(), chunk.height_map.clone());
                     }
-                } else if self.chunks.is_within_world(&n_coords) && self.strict {
+                } else if self.strict {
                     panic!("Space incomplete in strict mode: {:?}", n_coords);
                 }
             }

@@ -283,6 +283,22 @@ class Debug {
       if (!this.atlasTest) return;
       this.atlasTest.visible = !this.atlasTest.visible;
     });
+    testFolder.addButton({ title: "remesh chunk" }).on("click", () => {
+      const currChunk = ChunkUtils.mapVoxelPosToChunkPos(
+        this.client.voxel,
+        this.client.world.params.chunkSize
+      );
+      this.client.network.send({
+        type: "DEBUG",
+        json: {
+          method: "remesh",
+          data: {
+            cx: currChunk[0],
+            cz: currChunk[1],
+          },
+        },
+      });
+    });
     testFolder.addInput(this.client.registry.minLightUniform, "value", {
       min: 0.02,
       max: 1,

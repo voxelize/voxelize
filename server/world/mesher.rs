@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use itertools::izip;
+use log::info;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     chunk::Chunk,
     server::models::{Geometry, Mesh},
     utils::{light_utils::LightUtils, vec::Vec3},
+    vec::Vec2,
 };
 
 use super::{

@@ -4,6 +4,7 @@ use specs::{ReadExpect, System, WriteExpect};
 use crate::{
     chunks::Chunks,
     common::BlockChanges,
+    pipeline::Pipeline,
     vec::{Vec2, Vec3},
     world::{access::VoxelAccess, mesher::Mesher, registry::Registry, WorldConfig},
 };
@@ -14,13 +15,14 @@ impl<'a> System<'a> for ChunkMeshingSystem {
     type SystemData = (
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, BlockChanges>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, mut mesher, mut chunks, mut changes) = data;
+        let (registry, config, pipeline, mut mesher, mut chunks, mut changes) = data;
 
         if let Ok(list) = mesher.results() {
             list.into_iter().for_each(|chunk| {
@@ -34,6 +36,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
         }
 
         let max_light_level = config.max_light_level as usize;
+        let r = (config.max_light_level as f32 / config.chunk_size as f32).ceil() as i32;
 
         let mut processes = vec![];
         let mut count = 0;
@@ -44,8 +47,6 @@ impl<'a> System<'a> for ChunkMeshingSystem {
             if let Some(coords) = chunks.to_remesh.pop_front() {
                 let mut ready = true;
 
-                let r = (config.max_light_level as f32 / config.chunk_size as f32).ceil() as i32;
-
                 for x in -r..=r {
                     for z in -r..=r {
                         if x == 0 && z == 0 {
@@ -54,14 +55,8 @@ impl<'a> System<'a> for ChunkMeshingSystem {
 
                         let n_coords = Vec2(coords.0 + x, coords.1 + z);
 
-                        if !chunks.is_within_world(&n_coords) {
+                        if !chunks.is_within_world(&n_coords) || !pipeline.has(&n_coords) {
                             continue;
-                        }
-
-                        if let Some(neighbor) = chunks.raw_mut(&n_coords) {
-                            if neighbor.stage.is_none() {
-                                continue;
-                            }
                         }
 
                         ready = false;
@@ -101,10 +96,6 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                             chunks.set_max_height(vx, vz, vy as u32);
                         }
                     });
-
-                    chunks.to_remesh.insert(coords);
-
-                    continue;
                 }
 
                 let chunk = chunks.raw(&coords).unwrap().to_owned();
