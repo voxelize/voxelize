@@ -1,4 +1,5 @@
 pub mod chunk_requests;
+pub mod current_chunk;
 pub mod direction;
 pub mod endpoint;
 pub mod etype;

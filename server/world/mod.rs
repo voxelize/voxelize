@@ -41,6 +41,7 @@ use self::{
     clients::Clients,
     comps::{
         chunk_requests::ChunkRequestsComp,
+        current_chunk::CurrentChunkComp,
         direction::DirectionComp,
         endpoint::EndpointComp,
         etype::ETypeComp,
@@ -59,8 +60,9 @@ use self::{
     sys::{
         broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
         chunk::{
-            meshing::ChunkMeshingSystem, pipelining::ChunkPipeliningSystem,
-            requests::ChunkRequestsSystem, sending::ChunkSendingSystem,
+            current::CurrentChunkSystem, meshing::ChunkMeshingSystem,
+            pipelining::ChunkPipeliningSystem, requests::ChunkRequestsSystem,
+            sending::ChunkSendingSystem,
         },
         entity_meta::EntityMetaSystem,
     },
@@ -114,6 +116,7 @@ impl World {
         let mut ecs = ECSWorld::new();
 
         ecs.register::<ChunkRequestsComp>();
+        ecs.register::<CurrentChunkComp>();
         ecs.register::<IDComp>();
         ecs.register::<EndpointComp>();
         ecs.register::<PositionComp>();
@@ -216,6 +219,9 @@ impl World {
             .with(IDComp::new(&id))
             .with(EndpointComp::new(endpoint))
             .with(ChunkRequestsComp::default())
+            .with(CurrentChunkComp::default())
+            .with(PositionComp::default())
+            .with(DirectionComp::default())
             .build();
 
         self.clients_mut().add(endpoint, &id, &ent);
@@ -351,7 +357,8 @@ impl World {
 
         let builder = DispatcherBuilder::new()
             .with(EntityMetaSystem, "entity-meta", &[])
-            .with(ChunkRequestsSystem, "chunk-requests", &[])
+            .with(CurrentChunkSystem, "current-chunking", &[])
+            .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
             .with(
                 ChunkPipeliningSystem,
                 "chunk-pipelining",

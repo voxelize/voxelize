@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -9,7 +8,7 @@ use crate::{
     server::models::{Chunk as ChunkModel, Message, MessageType},
     vec::Vec2,
     world::{
-        comps::{chunk_requests::ChunkRequestsComp, id::IDComp},
+        comps::{chunk_requests::ChunkRequestsComp, current_chunk::CurrentChunkComp, id::IDComp},
         messages::MessageQueue,
         WorldConfig,
     },
