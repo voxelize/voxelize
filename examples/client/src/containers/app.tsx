@@ -23,6 +23,7 @@ import WoodSideImage from "../assets/blocks/log_oak_side.png";
 import MarbleImage from "../assets/marble.jpg";
 import ColorImage from "../assets/blocks/ice.png";
 import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
+import LolImage from "../assets/lol.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -176,6 +177,7 @@ export const App = () => {
 
         client.current.registerEntity("Box", Box);
         client.current.registry.applyTextureByName("Dirt", "all", DirtImage);
+        client.current.registry.applyTextureByName("Lol", "all", LolImage);
         client.current.registry.applyTextureByName(
           "Marble",
           "all",

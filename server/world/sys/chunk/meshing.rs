@@ -36,7 +36,6 @@ impl<'a> System<'a> for ChunkMeshingSystem {
         }
 
         let max_light_level = config.max_light_level as usize;
-        let r = (config.max_light_level as f32 / config.chunk_size as f32).ceil() as i32;
 
         let mut processes = vec![];
         let mut count = 0;
@@ -47,25 +46,19 @@ impl<'a> System<'a> for ChunkMeshingSystem {
             if let Some(coords) = chunks.to_remesh.pop_front() {
                 let mut ready = true;
 
-                for x in -r..=r {
-                    for z in -r..=r {
-                        if x == 0 && z == 0 {
-                            continue;
-                        }
-
-                        let n_coords = Vec2(coords.0 + x, coords.1 + z);
-
-                        if !chunks.is_within_world(&n_coords) || !pipeline.has(&n_coords) {
-                            continue;
-                        }
-
-                        ready = false;
-                        break;
+                for n_coords in chunks.light_traversed_chunks(&coords).into_iter() {
+                    if n_coords.0 == 0 && n_coords.1 == 0 {
+                        continue;
                     }
 
-                    if !ready {
-                        break;
+                    if !chunks.is_within_world(&n_coords)
+                        || (!pipeline.has(&n_coords) && chunks.map.contains_key(&n_coords))
+                    {
+                        continue;
                     }
+
+                    ready = false;
+                    break;
                 }
 
                 if !ready {
@@ -96,12 +89,16 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                             chunks.set_max_height(vx, vz, vy as u32);
                         }
                     });
+
+                    chunks.to_remesh.insert(coords.to_owned());
+                    continue;
                 }
 
                 let chunk = chunks.raw(&coords).unwrap().to_owned();
                 let space = chunks
                     .make_space(&coords, max_light_level)
-                    .needs_all()
+                    .needs_height_maps()
+                    .needs_voxels()
                     .strict()
                     .build();
 

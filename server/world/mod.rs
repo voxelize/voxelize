@@ -14,6 +14,8 @@ pub mod space;
 pub mod stats;
 pub mod sys;
 
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use log::info;
 use message_io::{network::Endpoint, node::NodeHandler};
@@ -65,11 +67,14 @@ use self::{
             sending::ChunkSendingSystem,
         },
         entity_meta::EntityMetaSystem,
+        stats::update::UpdateStatsSystem,
     },
 };
 
 pub type ModifyDispatch =
     fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;
+
+pub type IntervalFunctions = Vec<(dyn FnMut(&mut World), u64)>;
 
 /// A voxelize world.
 #[derive(Default)]
@@ -146,6 +151,7 @@ impl World {
         ecs.insert(MessageQueue::new());
         ecs.insert(BlockChanges::new());
         ecs.insert(Stats::new());
+        // ecs.insert(IntervalFunctions::new());
 
         Self {
             id,
@@ -350,6 +356,12 @@ impl World {
         self.ecs.entities_mut()
     }
 
+    /// Set an interval to do something every X ticks.
+    pub fn set_interval(&mut self, func: &(dyn FnOnce(&mut World) + Sync + Send), interval: usize) {
+        // self.write_resource::<IntervalFunctions>()
+        //     .push((Arc::new(func.to_owned()), interval));
+    }
+
     /// Check if this world is empty
     pub fn is_empty(&self) -> bool {
         let clients = self.read_resource::<Clients>();
@@ -363,6 +375,7 @@ impl World {
         }
 
         let builder = DispatcherBuilder::new()
+            .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityMetaSystem, "entity-meta", &[])
             .with(CurrentChunkSystem, "current-chunking", &[])
             .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])

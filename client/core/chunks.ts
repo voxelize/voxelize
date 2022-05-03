@@ -25,7 +25,7 @@ type ChunksParams = {
 
 const defaultParams: ChunksParams = {
   maxRequestsPerTick: 4,
-  maxProcessesPerTick: 1,
+  maxProcessesPerTick: 2,
 };
 
 class Chunks {

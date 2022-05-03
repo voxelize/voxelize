@@ -4,6 +4,9 @@ use std::time::{Duration, Instant};
 pub struct Stats {
     /// The time this server started.
     pub start_time: Instant,
+
+    /// Tick of the game
+    pub tick: u64,
 }
 
 impl Stats {
@@ -11,6 +14,7 @@ impl Stats {
     pub fn new() -> Self {
         Self {
             start_time: Instant::now(),
+            tick: 0,
         }
     }
 

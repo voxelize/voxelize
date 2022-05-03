@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
 use linked_hash_set::LinkedHashSet;
+use log::info;
 
 use crate::{
     utils::{chunk_utils::ChunkUtils, light_utils::LightColor, vec::Vec2},
@@ -134,6 +135,21 @@ impl Chunks {
         }
 
         neighbors
+    }
+
+    /// Get a list of chunks that light could traverse within.
+    pub fn light_traversed_chunks(&self, coords: &Vec2<i32>) -> Vec<Vec2<i32>> {
+        let mut list = vec![];
+        let extended =
+            (self.config.max_light_level as f32 / self.config.chunk_size as f32).ceil() as i32;
+
+        for x in -extended..=extended {
+            for z in -extended..=extended {
+                list.push(Vec2(coords.0 + x, coords.1 + z));
+            }
+        }
+
+        list
     }
 
     /// Create a voxel querying space around a chunk coordinate.

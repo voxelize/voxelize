@@ -45,14 +45,13 @@ class Rendering {
 
     this.renderer = new WebGLRenderer({
       powerPreference: "high-performance",
-      antialias: false,
+      antialias: true,
       stencil: false,
       depth: false,
       context: context || undefined,
       canvas,
     });
     this.renderer.setClearColor(new Color(clearColor));
-    this.renderer.sortObjects = true;
 
     // composer
     this.composer = new EffectComposer(this.renderer, { stencilBuffer: false });

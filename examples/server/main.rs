@@ -87,7 +87,7 @@ impl ChunkStage for TestStage {
 
         let max_height = config.max_height as i32;
 
-        let map = registry.get_type_map(&["Stone"]);
+        let map = registry.get_type_map(&["Stone", "Lol"]);
 
         let scale = 0.01;
         let octaves = 10;
@@ -133,10 +133,6 @@ impl ChunkStage for TreeTestStage {
         "TreeTest".to_owned()
     }
 
-    fn neighbors(&self, _: &WorldConfig) -> usize {
-        1
-    }
-
     fn process(
         &self,
         mut chunk: Chunk,
@@ -149,7 +145,6 @@ impl ChunkStage for TreeTestStage {
 
         let marble = registry.get_block_by_name("Marble");
         let dirt = registry.get_block_by_name("Dirt");
-
         let color = registry.get_block_by_name("Color");
 
         let scale = 1.0;
@@ -221,6 +216,7 @@ fn main() {
     let config1 = WorldConfig::new()
         .min_chunk([-5, -5])
         .max_chunk([5, 5])
+        .seed(246246)
         .build();
 
     let mut world = World::new("world1", &config1);
@@ -232,7 +228,10 @@ fn main() {
     {
         let mut pipeline = world.pipeline_mut();
 
-        pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
+        // pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
+        pipeline.add_stage(TestStage {
+            noise: SuperSimplex::new(),
+        });
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeTestStage {
             noise: Worley::new(),
@@ -245,6 +244,7 @@ fn main() {
         registry.register_block(Block::new("Dirt").faces(&[BlockFaces::All]).build());
         registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
         registry.register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
+        registry.register_block(Block::new("Lol").faces(&[BlockFaces::All]).build());
         registry.register_block(
             Block::new("Wood")
                 .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
@@ -266,8 +266,9 @@ fn main() {
             Block::new("Color")
                 .faces(&[BlockFaces::All])
                 .is_light(true)
-                .blue_light_level(10)
-                .green_light_level(10)
+                // .blue_light_level(10)
+                // .green_light_level(10)
+                .red_light_level(10)
                 .build(),
         );
     }

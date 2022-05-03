@@ -5,7 +5,7 @@ use crate::utils::{
     block_utils::BlockUtils,
     chunk_utils::ChunkUtils,
     light_utils::{LightColor, LightUtils},
-    ndarray::Ndarray,
+    ndarray::{ndarray, Ndarray},
     vec::{Vec2, Vec3},
 };
 
@@ -155,19 +155,18 @@ impl SpaceBuilder<'_> {
             panic!("Margin of 0 on Space is wasteful.");
         }
 
-        let extended = (margin as f32 / chunk_size as f32).ceil() as i32;
         let width = chunk_size + margin * 2;
 
         let mut voxels = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
         let mut lights = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
         let mut height_maps = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
 
-        for x in -extended..=extended {
-            for z in -extended..=extended {
-                let n_coords = Vec2(cx + x, cz + z);
-
+        self.chunks
+            .light_traversed_chunks(&self.coords)
+            .into_iter()
+            .for_each(|n_coords| {
                 if !self.chunks.is_within_world(&n_coords) {
-                    continue;
+                    return;
                 }
 
                 if let Some(chunk) = self.chunks.raw(&n_coords) {
@@ -177,6 +176,8 @@ impl SpaceBuilder<'_> {
 
                     if self.needs_lights {
                         lights.insert(n_coords.to_owned(), chunk.lights.clone());
+                    } else {
+                        lights.insert(n_coords.to_owned(), ndarray(&chunk.lights.shape, 0));
                     }
 
                     if self.needs_height_maps {
@@ -185,8 +186,7 @@ impl SpaceBuilder<'_> {
                 } else if self.strict {
                     panic!("Space incomplete in strict mode: {:?}", n_coords);
                 }
-            }
-        }
+            });
 
         let min = Vec3(
             cx * chunk_size as i32 - margin as i32,

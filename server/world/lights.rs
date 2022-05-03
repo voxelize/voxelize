@@ -8,7 +8,7 @@ use crate::{
     world::block::Block,
 };
 
-use super::{access::VoxelAccess, registry::Registry, space::Space, WorldConfig};
+use super::{access::VoxelAccess, registry::Registry, WorldConfig};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],
@@ -43,7 +43,6 @@ impl Lights {
     ) {
         let &WorldConfig {
             max_height,
-            chunk_size,
             min_chunk,
             max_chunk,
             ..
@@ -51,8 +50,6 @@ impl Lights {
 
         let [start_cx, start_cz] = min_chunk;
         let [end_cx, end_cz] = max_chunk;
-
-        let chunk_size = chunk_size as i32;
 
         let max_height = max_height as i32;
         let is_sunlight = *color == LightColor::Sunlight;
