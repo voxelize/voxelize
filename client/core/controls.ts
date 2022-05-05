@@ -1,4 +1,4 @@
-import { Euler, EventDispatcher, Vector3, Group } from "three";
+import { Euler, EventDispatcher, Vector3, Group, Mesh } from "three";
 
 import { Client } from "..";
 

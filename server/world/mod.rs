@@ -518,7 +518,11 @@ impl World {
             let x = json.data["cx"].as_i64().unwrap() as i32;
             let z = json.data["cz"].as_i64().unwrap() as i32;
 
-            chunks.to_remesh.insert(Vec2(x, z));
+            let coords = Vec2(x, z);
+
+            if chunks.is_within_world(&coords) {
+                chunks.to_remesh.insert(coords);
+            }
         } else {
             info!("Received unknown debug method of {}", json.method);
         }

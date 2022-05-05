@@ -94,12 +94,17 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                 }
 
                 let chunk = chunks.raw(&coords).unwrap().to_owned();
-                let space = chunks
+
+                let mut space = chunks
                     .make_space(&coords, max_light_level)
                     .needs_height_maps()
-                    .needs_voxels()
-                    .strict()
-                    .build();
+                    .needs_voxels();
+
+                if chunk.mesh.is_some() {
+                    space = space.needs_lights()
+                }
+
+                let space = space.strict().build();
 
                 processes.push((chunk, space));
             } else {

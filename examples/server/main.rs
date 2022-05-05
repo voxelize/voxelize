@@ -286,9 +286,19 @@ fn main() {
     server.add_world(world).expect("Could not create world1.");
 
     let config2 = WorldConfig::new().build();
-    server
+    let world = server
         .create_world("world2", &config2)
         .expect("Could not create world2.");
+
+    {
+        let mut registry = world.registry_mut();
+        registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
+    }
+
+    {
+        let mut pipeline = world.pipeline_mut();
+        pipeline.add_stage(FlatlandStage::new(10, 1, 1, 1));
+    }
 
     Voxelize::run(server);
 }
