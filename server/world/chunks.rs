@@ -202,6 +202,25 @@ impl Chunks {
 }
 
 impl VoxelAccess for Chunks {
+    /// Get the raw voxel value at a voxel coordinate. If chunk not found, 0 is returned.
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
+            chunk.get_raw_voxel(vx, vy, vz)
+        } else {
+            0
+        }
+    }
+
+    /// Set the raw voxel value at a voxel coordinate. Returns false couldn't set.
+    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
+        if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
+            chunk.set_raw_voxel(vx, vy, vz, id);
+            return true;
+        }
+
+        false
+    }
+
     /// Get the voxel ID at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
