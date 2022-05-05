@@ -4,6 +4,12 @@ A well-optimized web-based voxel engine.
 
 ## Development
 
+Before starting, make sure to install the following:
+
+- [rust](https://www.rust-lang.org/tools/install)
+- [node.js](https://nodejs.org/en/download/)
+- [cargo-watch](https://crates.io/crates/cargo-watch)
+
 ```bash
 # clone the repository
 git clone https://github.com/shaoruu/voxelize.git
