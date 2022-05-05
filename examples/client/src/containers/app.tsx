@@ -158,9 +158,9 @@ class UpdateBoxSystem extends System {
 }
 
 export const App = () => {
-  const [world, setWorld] = useState("world1");
+  const [world, setWorld] = useState("world2");
   const [name, setName] = useState("");
-  const [connected, setConnected] = useState(false);
+  const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
   const [showControls, setShowControls] = useState(true);
   const client = useRef<Client | null>(null);
@@ -219,6 +219,11 @@ export const App = () => {
 
         client.current.addSystem(new UpdateBoxSystem());
 
+        client.current?.connect({
+          serverURL: BACKEND_SERVER,
+          reconnectTimeout: 5000,
+        });
+
         client.current.on("unlock", () => {
           setShowControls(true);
         });
@@ -227,18 +232,18 @@ export const App = () => {
           setShowControls(false);
         });
 
-        client.current.on("connected", () => {
-          setConnected(true);
+        client.current.on("join", () => {
+          setJoined(true);
         });
 
-        client.current.on("disconnected", () => {
-          setConnected(false);
+        client.current.on("leave", () => {
+          setJoined(false);
         });
 
         setName(client.current.name);
       }
 
-      connectOrResume(false);
+      joinOrResume(false);
     }
   }, []);
 
@@ -248,39 +253,40 @@ export const App = () => {
     }
   }, [name]);
 
-  const connectOrResume = (lock = true) => {
+  const joinOrResume = (lock = true) => {
     if (!client.current) return;
 
-    if (connected) {
+    if (joined) {
       if (lock) {
         client.current.controls.lock();
       }
       return;
     }
 
-    client.current.disconnect().then(() => {
-      client.current
-        ?.connect({
-          serverURL: BACKEND_SERVER,
-          reconnectTimeout: 5000,
-          world,
-        })
-        .then((success) => {
-          if (success) {
-            if (lock) {
-              client.current?.controls.lock();
-            }
-          } else {
-            setError("World not found.");
-          }
-        });
-    });
+    const joinWorld = (success: boolean) => {
+      client.current?.join(world);
+
+      if (success) {
+        if (lock) {
+          client.current?.controls.lock();
+        }
+      } else {
+        setError("World not found.");
+      }
+    };
+
+    if (!client.current.connectionPromise) {
+      joinWorld(true);
+    } else {
+      client.current.connectionPromise.then((success) => {
+        joinWorld(success);
+      });
+    }
   };
 
-  const disconnect = () => {
+  const leave = () => {
     if (!client.current) return;
-
-    client.current.disconnect();
+    client.current.leave();
   };
 
   return (
@@ -301,9 +307,9 @@ export const App = () => {
                 setWorld(e.target.value);
                 setError("");
               }}
-              disabled={connected}
+              disabled={joined}
             />
-            {connected && (
+            {joined && (
               <Input
                 label="name"
                 onChange={(e) => setName(e.target.value)}
@@ -311,10 +317,10 @@ export const App = () => {
                 value={name}
               />
             )}
-            <Button onClick={() => connectOrResume()}>
-              {connected ? "resume" : "connect"}
+            <Button onClick={() => joinOrResume()}>
+              {joined ? "resume" : "join"}
             </Button>
-            {connected && <Button onClick={disconnect}>disconnect</Button>}
+            {joined && <Button onClick={leave}>leave</Button>}
             <span className="error">{error}</span>
           </div>
         </ControlsWrapper>

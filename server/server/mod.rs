@@ -117,7 +117,7 @@ impl Server {
 
     /// Handler for client's message.
     pub fn on_request(&mut self, endpoint: Endpoint, data: Message) {
-        if data.r#type == MessageType::Connect as i32 {
+        if data.r#type == MessageType::Join as i32 {
             if !self.lost_endpoints.contains(&endpoint) {
                 warn!("Client at {} is already in world: {}", endpoint, data.text);
                 return;
@@ -144,6 +144,20 @@ impl Server {
             );
 
             return;
+        } else if data.r#type == MessageType::Leave as i32 {
+            if let Some(world) = self.worlds.get_mut(&data.text) {
+                self.connections.remove(&endpoint);
+                self.lost_endpoints.insert(endpoint.clone());
+
+                world.remove_client(&endpoint);
+
+                info!(
+                    "Client at {} joined the server to world: {}",
+                    endpoint, data.text
+                );
+
+                return;
+            }
         }
 
         let world_name = self.connections.get(&endpoint);

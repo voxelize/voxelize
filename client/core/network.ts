@@ -37,7 +37,7 @@ class Network {
     this.url = new URL(this.params.serverURL);
   }
 
-  connect = async (world: string) => {
+  connect = async () => {
     // if websocket connection already exists, disconnect it
     if (this.ws) {
       this.ws.onclose = null;
@@ -49,46 +49,39 @@ class Network {
       }
     }
 
-    // set url query
-    this.url.query.world = world;
+    return new Promise<void>((resolve) => {
+      this.socket = new URL(this.url.toString());
+      this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
+      this.socket.hash = "";
 
-    this.socket = new URL(this.url.toString());
-    this.socket.query.world = world;
-    this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
-    this.socket.hash = "";
+      // initialize a websocket connection to socket
+      const ws = new WebSocket(this.socket.toString()) as CustomWebSocket;
+      ws.binaryType = "arraybuffer";
+      // custom Protobuf event sending
+      ws.sendEvent = (event: any) => {
+        ws.send(Network.encode(event));
+      };
+      ws.onopen = () => {
+        this.connected = true;
+        this.client.emit("connected");
 
-    // initialize a websocket connection to socket
-    const ws = new WebSocket(this.socket.toString()) as CustomWebSocket;
-    ws.binaryType = "arraybuffer";
-    // custom Protobuf event sending
-    ws.sendEvent = (event: any) => {
-      ws.send(Network.encode(event));
-    };
-    ws.onopen = () => {
-      this.connected = true;
-      this.client.entities?.reset();
-      this.client.emit("connected");
+        clearTimeout(this.reconnection);
 
-      this.send({
-        type: "CONNECT",
-        text: this.world,
-      });
+        resolve();
+      };
+      ws.onerror = console.error;
+      ws.onmessage = this.onMessage;
+      ws.onclose = () => {
+        this.connected = false;
 
-      clearTimeout(this.reconnection);
-    };
-    ws.onerror = console.error;
-    ws.onmessage = this.onMessage;
-    ws.onclose = () => {
-      this.connected = false;
+        // fire reconnection every "reconnectTimeout" ms
+        this.reconnection = setTimeout(() => {
+          this.connect();
+        }, this.params.reconnectTimeout);
+      };
 
-      // fire reconnection every "reconnectTimeout" ms
-      this.reconnection = setTimeout(() => {
-        this.connect(world);
-      }, this.params.reconnectTimeout);
-    };
-
-    this.ws = ws;
-    this.world = world;
+      this.ws = ws;
+    });
   };
 
   disconnect = () => {
@@ -97,7 +90,6 @@ class Network {
     this.ws.close();
 
     this.client.emit("disconnected");
-    this.client.entities.reset();
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);

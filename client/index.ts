@@ -60,8 +60,11 @@ class Client extends EventEmitter {
   public settings: Settings;
   public chunks: Chunks;
 
+  public joined = false;
   public loaded = false;
   public ready = false;
+
+  public connectionPromise: Promise<boolean> | null = null;
 
   private animationFrame: number;
 
@@ -100,35 +103,29 @@ class Client extends EventEmitter {
   }
 
   connect = async ({
-    world,
     serverURL,
     reconnectTimeout,
   }: {
-    world: string;
     serverURL: string;
     reconnectTimeout?: number;
   }) => {
     reconnectTimeout = reconnectTimeout || 5000;
 
-    // re-instantiate networking instance
     const network = new Network(this, { reconnectTimeout, serverURL });
-    // const hasWorld = await network.fetch("has-world", { world });
-
-    // if (!hasWorld) {
-    //   console.error("Room not found.");
-    //   return false;
-    // }
-
-    network.connect(world).then(() => {
-      console.log(`Joined world "${world}"`);
-    });
-
     this.network = network;
 
-    this.reset();
-    this.run();
+    this.connectionPromise = new Promise<boolean>((resolve) => {
+      network
+        .connect()
+        .then(() => {
+          resolve(true);
+        })
+        .catch(() => {
+          resolve(false);
+        });
+    });
 
-    return true;
+    return this.connectionPromise;
   };
 
   disconnect = async () => {
@@ -136,7 +133,6 @@ class Client extends EventEmitter {
 
     if (this.network) {
       this.network.disconnect();
-      console.log(`Left world "${this.network.world}"`);
     }
 
     if (this.animationFrame) {
@@ -145,7 +141,44 @@ class Client extends EventEmitter {
       cancelAnimationFrame(this.animationFrame);
     }
 
+    this.joined = false;
     this.network = undefined;
+  };
+
+  join = (world: string) => {
+    if (this.joined) {
+      this.leave();
+    }
+
+    this.joined = true;
+    this.network.world = world;
+
+    this.network.send({
+      type: "JOIN",
+      text: world,
+    });
+
+    this.reset();
+    this.run();
+
+    this.emit("join");
+  };
+
+  leave = () => {
+    if (!this.joined) {
+      return;
+    }
+
+    this.joined = false;
+
+    this.network.send({
+      type: "LEAVE",
+      text: this.network?.world,
+    });
+
+    this.stop();
+
+    this.emit("leave");
   };
 
   registerEntity = (type: string, protocol: NewEntity) => {
@@ -163,6 +196,7 @@ class Client extends EventEmitter {
   reset = () => {
     this.entities.reset();
     this.chunks.reset();
+    this.controls.reset();
   };
 
   get position() {
@@ -185,8 +219,17 @@ class Client extends EventEmitter {
     animate();
   };
 
+  private stop = () => {
+    cancelAnimationFrame(this.animationFrame);
+  };
+
   private animate = () => {
-    if (!this.network.connected || !this.ready || !this.loaded) {
+    if (
+      !this.network.connected ||
+      !this.joined ||
+      !this.ready ||
+      !this.loaded
+    ) {
       return;
     }
 

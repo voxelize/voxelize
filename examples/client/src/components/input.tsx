@@ -6,6 +6,7 @@ const Wrapper = styled.div`
   align-items: center;
   border-radius: 4px;
   overflow: hidden;
+  width: 200px;
 
   & * {
     flex: 1;
@@ -16,7 +17,6 @@ const Wrapper = styled.div`
   & input {
     border-radius: 0;
     border: none;
-    width: 100px;
     outline: none;
     padding: 4px;
   }

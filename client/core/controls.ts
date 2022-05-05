@@ -1,4 +1,5 @@
 import { Euler, EventDispatcher, Vector3, Group, Mesh } from "three";
+import { Coords3 } from "types";
 
 import { Client } from "..";
 
@@ -17,6 +18,7 @@ type ControlsParams = {
   flyingInertia: number;
   minPolarAngle: number;
   maxPolarAngle: number;
+  initialPosition: Coords3;
 };
 
 const defaultParams: ControlsParams = {
@@ -25,6 +27,7 @@ const defaultParams: ControlsParams = {
   flyingInertia: 5,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
+  initialPosition: [0, 20, 0],
 };
 
 /**
@@ -82,7 +85,7 @@ class Controls extends EventDispatcher {
 
     client.on("initialized", this.connect);
 
-    this.setPosition(0, 15, 0);
+    this.setPosition(...this.params.initialPosition);
   }
 
   /**
@@ -253,6 +256,11 @@ class Controls extends EventDispatcher {
       .clone()
       .add(this.object.position.clone().sub(new Vector3(x, y, z)));
     this.object.lookAt(vec);
+  };
+
+  reset = () => {
+    this.setPosition(...this.params.initialPosition);
+    this.object.rotation.set(0, 0, 0);
   };
 
   private onKeyDown = ({ code }: KeyboardEvent) => {

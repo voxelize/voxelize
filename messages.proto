@@ -48,9 +48,9 @@ message Message {
     CONNECT = 0;
     INIT = 1;
     JOIN = 2;
-    SIGNAL = 3;
-    ERROR = 4;
-    LEAVE = 5;
+    LEAVE = 3;
+    SIGNAL = 4;
+    ERROR = 5;
     PEER = 6;
     ENTITY = 7;
     LOAD = 8;
