@@ -282,7 +282,10 @@ fn main() {
 
     server.add_world(world).expect("Could not create world1.");
 
-    let config2 = WorldConfig::new().build();
+    let config2 = WorldConfig::new()
+        .min_chunk([-5, -5])
+        .max_chunk([5, 5])
+        .build();
     let world = server
         .create_world("world2", &config2)
         .expect("Could not create world2.");

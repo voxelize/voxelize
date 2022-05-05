@@ -232,7 +232,8 @@ impl ServerBuilder {
         self
     }
 
-    /// Configure the block registry of the server.
+    /// Configure the block registry of the server. Once a registry is configured, mutating it wouldn't
+    /// change the server's block list.
     pub fn registry(mut self, registry: &Registry) -> Self {
         self.registry = Some(registry.to_owned());
         self

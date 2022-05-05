@@ -22,7 +22,8 @@ pub struct UV {
     pub end_v: f32,
 }
 
-/// A collection of blocks to use in an Voxelize world.
+/// A collection of blocks to use in a Voxelize server. One server has one registry and one
+/// registry only. Once a registry is added to a server, it cannot be changed.
 #[derive(Default, Clone)]
 pub struct Registry {
     /// A map of the UV's to the block faces on the texture atlas.
