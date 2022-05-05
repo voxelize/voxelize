@@ -8,7 +8,7 @@ use crate::{
     server::models::{Chunk as ChunkModel, Message, MessageType},
     vec::Vec2,
     world::{
-        comps::{chunk_requests::ChunkRequestsComp, current_chunk::CurrentChunkComp, id::IDComp},
+        comps::{chunk_requests::ChunkRequestsComp, id::IDComp},
         messages::MessageQueue,
         WorldConfig,
     },

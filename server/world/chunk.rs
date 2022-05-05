@@ -1,4 +1,5 @@
 use crate::{
+    common::BlockChange,
     server::models::{Chunk as ChunkModel, Mesh},
     utils::{
         block_utils::BlockUtils,
@@ -34,6 +35,8 @@ pub struct Chunk {
     pub max: Vec3<i32>,
 
     pub params: ChunkParams,
+
+    pub exceeded_changes: Vec<BlockChange>,
 }
 
 impl Chunk {
@@ -67,6 +70,8 @@ impl Chunk {
             max,
 
             params: params.to_owned(),
+
+            exceeded_changes: vec![],
         }
     }
 
@@ -188,6 +193,7 @@ impl VoxelAccess for Chunk {
     /// Panics if the coordinates are outside of chunk.
     fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
         if !self.contains(vx, vy, vz) {
+            self.exceeded_changes.push((Vec3(vx, vy, vz), val));
             return false;
         }
 

@@ -81,7 +81,7 @@ impl ChunkStage for TestStage {
         registry: &Registry,
         config: &WorldConfig,
         _: Option<Space>,
-    ) -> (Chunk, Option<Vec<BlockChange>>) {
+    ) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
@@ -120,7 +120,7 @@ impl ChunkStage for TestStage {
             }
         }
 
-        (chunk, None)
+        chunk
     }
 }
 
@@ -139,7 +139,7 @@ impl ChunkStage for TreeTestStage {
         registry: &Registry,
         _: &WorldConfig,
         _: Option<Space>,
-    ) -> (Chunk, Option<Vec<BlockChange>>) {
+    ) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
@@ -162,12 +162,22 @@ impl ChunkStage for TreeTestStage {
                 if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
                     && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
                 {
-                    chunk.set_voxel(vx, height, vz, color.id);
+                    for i in 0..5 {
+                        chunk.set_voxel(vx, height + i, vz, marble.id);
+                    }
+
+                    let r = 2;
+
+                    for i in -r..=r {
+                        for j in -r..=r {
+                            chunk.set_voxel(vx + i, height + 4, vz + j, marble.id);
+                        }
+                    }
                 }
             }
         }
 
-        (chunk, None)
+        chunk
     }
 }
 

@@ -47,13 +47,40 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                 let mut ready = true;
 
                 for n_coords in chunks.light_traversed_chunks(&coords).into_iter() {
-                    if n_coords.0 == 0 && n_coords.1 == 0 {
-                        continue;
-                    }
-
                     if !chunks.is_within_world(&n_coords)
                         || (!pipeline.has(&n_coords) && chunks.map.contains_key(&n_coords))
                     {
+                        // Apply the additional changes whenever available.
+                        if let Some(blocks) = changes.remove(&n_coords) {
+                            blocks.into_iter().for_each(|(voxel, id)| {
+                                let Vec3(vx, vy, vz) = voxel;
+
+                                chunks.set_voxel(vx, vy, vz, id);
+
+                                let height = chunks.get_max_height(vx, vz);
+
+                                if registry.is_air(id) {
+                                    if voxel.1 == height as i32 {
+                                        // on max height, should set max height to lower
+                                        for y in (0..vy).rev() {
+                                            if y == 0
+                                                || registry
+                                                    .check_height(chunks.get_voxel(vx, y, vz))
+                                            {
+                                                chunks.set_max_height(vx, vz, y as u32);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                } else if height < vy as u32 {
+                                    chunks.set_max_height(vx, vz, vy as u32);
+                                }
+                            });
+
+                            chunks.to_remesh.insert(coords.to_owned());
+                            continue;
+                        }
+
                         continue;
                     }
 
@@ -63,34 +90,6 @@ impl<'a> System<'a> for ChunkMeshingSystem {
 
                 if !ready {
                     chunks.to_remesh.insert(coords);
-                    continue;
-                }
-
-                if let Some(blocks) = changes.remove(&coords) {
-                    blocks.into_iter().for_each(|(voxel, id)| {
-                        let Vec3(vx, vy, vz) = voxel;
-
-                        chunks.set_voxel(vx, vy, vz, id);
-
-                        let height = chunks.get_max_height(vx, vz);
-
-                        if registry.is_air(id) {
-                            if voxel.1 == height as i32 {
-                                // on max height, should set max height to lower
-                                for y in (0..vy).rev() {
-                                    if y == 0 || registry.check_height(chunks.get_voxel(vx, y, vz))
-                                    {
-                                        chunks.set_max_height(vx, vz, y as u32);
-                                        break;
-                                    }
-                                }
-                            }
-                        } else if height < vy as u32 {
-                            chunks.set_max_height(vx, vz, vy as u32);
-                        }
-                    });
-
-                    chunks.to_remesh.insert(coords.to_owned());
                     continue;
                 }
 

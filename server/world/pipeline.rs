@@ -62,19 +62,17 @@ pub trait ChunkStage {
         None
     }
 
-    /// The core of this chunk stage, in other words what is done on the chunk. Returns the chunk instance
-    /// along with additional block changes to be applied onto the world. For instance, if a tree is placed on the border
-    /// of a chunk, the leaves would exceed the chunk border, so add those blocks to this `Vec`. Use "chunk.contains" or
-    /// "space.contains" to see if voxel coordinate is within the chunk stage's control, or you could check if `set_voxel`
-    /// or similar functions return false, meaning couldn't set the voxel data. Return None for the second field
-    /// if no additional changes are required.
+    /// The core of this chunk stage, in other words what is done on the chunk. Returns the chunk instance, and additional
+    /// block changes to the world would be automatically added into `chunk.exceeded_changes`. For instance, if a tree is
+    /// placed on the border of a chunk, the leaves would exceed the chunk border, thus appended to `exceeded_changes`.
+    /// After each stage, the `exceeded_changes` list of block changes would be emptied and applied to the world.
     fn process(
         &self,
         chunk: Chunk,
         registry: &Registry,
         config: &WorldConfig,
         space: Option<Space>,
-    ) -> (Chunk, Option<Vec<BlockChange>>);
+    ) -> Chunk;
 }
 
 /// A preset chunk stage to calculate the chunk's height map.
@@ -91,9 +89,9 @@ impl ChunkStage for HeightMapStage {
         registry: &Registry,
         _: &WorldConfig,
         _: Option<Space>,
-    ) -> (Chunk, Option<Vec<BlockChange>>) {
+    ) -> Chunk {
         chunk.calculate_max_height(registry);
-        (chunk, None)
+        chunk
     }
 }
 
@@ -121,13 +119,7 @@ impl ChunkStage for FlatlandStage {
         "Flatland".to_owned()
     }
 
-    fn process(
-        &self,
-        mut chunk: Chunk,
-        _: &Registry,
-        _: &WorldConfig,
-        _: Option<Space>,
-    ) -> (Chunk, Option<Vec<BlockChange>>) {
+    fn process(&self, mut chunk: Chunk, _: &Registry, _: &WorldConfig, _: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
@@ -145,7 +137,7 @@ impl ChunkStage for FlatlandStage {
             }
         }
 
-        (chunk, None)
+        chunk
     }
 }
 /// A pipeline where chunks are initialized and generated.
@@ -276,10 +268,12 @@ impl Pipeline {
             let chunks: Vec<Chunk> = processes
                 .into_iter()
                 .map(|(chunk, space, stage)| {
-                    let (chunk, leftovers) = stage.process(chunk, &registry, &config, space);
-                    if let Some(mut blocks) = leftovers {
-                        changes.append(&mut blocks);
+                    let mut chunk = stage.process(chunk, &registry, &config, space);
+
+                    if !chunk.exceeded_changes.is_empty() {
+                        changes.append(&mut chunk.exceeded_changes.drain(..).collect());
                     }
+
                     chunk
                 })
                 .collect();

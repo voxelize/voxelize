@@ -5,6 +5,7 @@ pub mod chunks;
 pub mod clients;
 pub mod comps;
 pub mod config;
+pub mod decoration;
 pub mod lights;
 pub mod mesher;
 pub mod messages;
@@ -13,8 +14,6 @@ pub mod registry;
 pub mod space;
 pub mod stats;
 pub mod sys;
-
-use std::sync::Arc;
 
 use hashbrown::HashMap;
 use log::info;
