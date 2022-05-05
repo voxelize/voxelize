@@ -186,13 +186,15 @@ impl VoxelAccess for Chunk {
     /// Set the raw value of voxel.
     ///
     /// Panics if the coordinates are outside of chunk.
-    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) {
+    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            return;
+            return false;
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.voxels[&[lx, ly, lz]] = val;
+
+        return true;
     }
 
     /// Get a voxel type within chunk by voxel coordinates.
@@ -207,9 +209,9 @@ impl VoxelAccess for Chunk {
     /// Note: This clears the rotation and stage.
     ///
     /// Panics if the coordinates are outside of chunk.
-    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) {
+    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
         let value = BlockUtils::insert_id(0, id);
-        self.set_raw_voxel(vx, vy, vz, value);
+        self.set_raw_voxel(vx, vy, vz, value)
     }
 
     /// Get a voxel rotation within chunk by voxel coordinates.
@@ -226,9 +228,9 @@ impl VoxelAccess for Chunk {
     /// Set a voxel to rotation within chunk by voxel coordinates.
     ///
     /// Panics if the coordinates are outside of chunk.
-    fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) {
+    fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) -> bool {
         let value = BlockUtils::insert_rotation(self.get_raw_voxel(vx, vy, vz), rotation);
-        self.set_raw_voxel(vx, vy, vz, value);
+        self.set_raw_voxel(vx, vy, vz, value)
     }
 
     /// Get a voxel stage within chunk by voxel coordinates.
@@ -245,9 +247,9 @@ impl VoxelAccess for Chunk {
     /// Set a voxel stage within chunk by voxel coordinates.
     ///
     /// Panics if it's outside of chunk.
-    fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) {
+    fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) -> bool {
         let value = BlockUtils::insert_stage(self.get_raw_voxel(vx, vy, vz), stage);
-        self.set_raw_voxel(vx, vy, vz, value);
+        self.set_raw_voxel(vx, vy, vz, value)
     }
 
     /// Get the red light value for voxel by voxel coordinates.
@@ -264,14 +266,16 @@ impl VoxelAccess for Chunk {
 
     /// Set the red light value for voxel by voxel coordinates.
     ///
-    /// Panics if it's outside of the chunk.
-    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Returns false if coordinates are outside of the chunk.
+    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            return;
+            return false;
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_red_light(lx as usize, ly as usize, lz as usize, level);
+
+        true
     }
 
     /// Get the green light value for voxel by voxel coordinates.
@@ -288,14 +292,16 @@ impl VoxelAccess for Chunk {
 
     /// Set the green light value for voxel by voxel coordinates.
     ///
-    /// Panics if it's outside of the chunk.
-    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Returns false if coordinates are outside of the chunk.
+    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            return;
+            return false;
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_green_light(lx as usize, ly as usize, lz as usize, level);
+
+        true
     }
 
     /// Get the blue light value for voxel by voxel coordinates.
@@ -312,14 +318,16 @@ impl VoxelAccess for Chunk {
 
     /// Set the blue light value for voxel by voxel coordinates.
     ///
-    /// Panics if it's outside of the chunk.
-    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Returns false if coordinates are outside of the chunk.
+    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            return;
+            return false;
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.set_local_blue_light(lx as usize, ly as usize, lz as usize, level);
+
+        true
     }
 
     /// Get the torch light value for voxel by voxel coordinates by color.
@@ -337,9 +345,16 @@ impl VoxelAccess for Chunk {
 
     /// Set the torch light value for voxel by voxel coordinates by color>
     ///
-    /// Panics if it's outside of the chunk.
+    /// Returns false if coordinates are outside of the chunk.
     #[inline]
-    fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
+    fn set_torch_light(
+        &mut self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        level: u32,
+        color: &LightColor,
+    ) -> bool {
         match color {
             LightColor::Red => self.set_red_light(vx, vy, vz, level),
             LightColor::Green => self.set_green_light(vx, vy, vz, level),
@@ -362,14 +377,16 @@ impl VoxelAccess for Chunk {
 
     /// Set the sunlight value for voxel by voxel coordinates.
     ///
-    /// Panics if it's outside of the chunk.
-    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Returns false if coordinates are outside of the chunk.
+    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            return;
+            return false;
         }
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.set_local_sunlight(lx as usize, ly as usize, lz as usize, level)
+        self.set_local_sunlight(lx as usize, ly as usize, lz as usize, level);
+
+        true
     }
 
     /// Get the max height of a voxel column.
@@ -387,12 +404,14 @@ impl VoxelAccess for Chunk {
     /// Set the max height of a voxel column.
     ///
     /// Panics if it's not within the chunk.
-    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) {
+    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
         if !self.contains(vx, 0, vz) {
-            return;
+            return false;
         }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
         self.height_map[&[lx as usize, lz as usize]] = height;
+
+        true
     }
 }

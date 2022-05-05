@@ -211,11 +211,14 @@ impl VoxelAccess for Chunks {
         }
     }
 
-    /// Set the voxel type at a voxel coordinate. Does nothing if chunk does not exit.
-    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) {
+    /// Set the voxel type at a voxel coordinate. Returns false couldn't set.
+    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
             chunk.set_voxel(vx, vy, vz, id);
+            return true;
         }
+
+        false
     }
 
     /// Get the voxel rotation at a voxel coordinate. Panics if chunk isn't found.
@@ -228,10 +231,13 @@ impl VoxelAccess for Chunks {
     }
 
     /// Set the voxel rotation at a voxel coordinate. Does nothing if chunk isn't found.
-    fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) {
+    fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
             chunk.set_voxel_rotation(vx, vy, vz, rotation);
+            return true;
         }
+
+        false
     }
 
     /// Get the voxel stage at a voxel coordinate. Panics if chunk isn't found.
@@ -244,10 +250,13 @@ impl VoxelAccess for Chunks {
     }
 
     /// Set the voxel stage at a voxel coordinate. Does nothing if chunk isn't found.
-    fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) {
+    fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
             chunk.set_voxel_stage(vx, vy, vz, stage);
+            return true;
         }
+
+        false
     }
 
     /// Get the sunlight level at a voxel position. Returns 0 if chunk does not exist.
@@ -263,11 +272,14 @@ impl VoxelAccess for Chunks {
         }
     }
 
-    /// Set the sunlight level at a voxel coordinate. Does nothing if chunk doesn't exist.
-    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the sunlight level at a voxel coordinate. Returns false if chunk doesn't exist.
+    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
             chunk.set_sunlight(vx, vy, vz, level);
+            return true;
         }
+
+        false
     }
 
     /// Get the torch light level by color at a voxel coordinate. Returns 0 if chunk does not exist.
@@ -279,11 +291,21 @@ impl VoxelAccess for Chunks {
         }
     }
 
-    /// Set the torch light level by color at a voxel coordinate. Does nothing if chunk doesn't exist.
-    fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
+    /// Set the torch light level by color at a voxel coordinate. Returns false if chunk doesn't exist.
+    fn set_torch_light(
+        &mut self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        level: u32,
+        color: &LightColor,
+    ) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, vy, vz) {
-            chunk.set_torch_light(vx, vy, vz, level, color)
+            chunk.set_torch_light(vx, vy, vz, level, color);
+            return true;
         }
+
+        false
     }
 
     /// Get the max height at a voxel column. Returns 0 if column does not exist.
@@ -296,9 +318,12 @@ impl VoxelAccess for Chunks {
     }
 
     /// Set the max height at a voxel column. Does nothing if column does not exist.
-    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) {
+    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
         if let Some(chunk) = self.raw_chunk_by_voxel_mut(vx, 0, vz) {
             chunk.set_max_height(vx, vz, height);
+            return true;
         }
+
+        false
     }
 }

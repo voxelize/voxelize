@@ -284,22 +284,25 @@ impl VoxelAccess for Space {
         0
     }
 
-    /// Set the raw light level at the voxel position. Does nothing if chunk doesn't exist.
+    /// Set the raw light level at the voxel position. Returns false if chunk doesn't exist.
     #[inline]
-    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         if self.lights.is_empty() {
             panic!("Space does not contain light data.");
         }
 
         if !self.contains(vx, vy, vz) {
-            return;
+            return false;
         }
 
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 
         if let Some(lights) = self.lights.get_mut(&coords) {
             lights[&[lx, ly, lz]] = level;
+            return true;
         }
+
+        false
     }
 
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
@@ -315,14 +318,14 @@ impl VoxelAccess for Space {
         LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
     }
 
-    /// Set the sunlight level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the sunlight level at the voxel position. Returns false if chunk doesn't exist.
+    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         self.set_raw_light(
             vx,
             vy,
             vz,
             LightUtils::insert_sunlight(self.get_raw_light(vx, vy, vz), level),
-        );
+        )
     }
 
     /// Get the red light level at the voxel position. Zero is returned if chunk doesn't exist.
@@ -330,14 +333,14 @@ impl VoxelAccess for Space {
         LightUtils::extract_red_light(self.get_raw_light(vx, vy, vz))
     }
 
-    /// Set the red light level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the red light level at the voxel position. Returns false if chunk doesn't exist.
+    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         self.set_raw_light(
             vx,
             vy,
             vz,
             LightUtils::insert_red_light(self.get_raw_light(vx, vy, vz), level),
-        );
+        )
     }
 
     /// Get the green light level at the voxel position. Zero is returned if chunk doesn't exist.
@@ -345,14 +348,14 @@ impl VoxelAccess for Space {
         LightUtils::extract_green_light(self.get_raw_light(vx, vy, vz))
     }
 
-    /// Set the green light level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the green light level at the voxel position. Returns false if chunk doesn't exist.
+    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         self.set_raw_light(
             vx,
             vy,
             vz,
             LightUtils::insert_green_light(self.get_raw_light(vx, vy, vz), level),
-        );
+        )
     }
 
     /// Get the blue light level at the voxel position. Zero is returned if chunk doesn't exist.
@@ -360,14 +363,14 @@ impl VoxelAccess for Space {
         LightUtils::extract_blue_light(self.get_raw_light(vx, vy, vz))
     }
 
-    /// Set the blue light level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the blue light level at the voxel position. Returns false if chunk doesn't exist.
+    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         self.set_raw_light(
             vx,
             vy,
             vz,
             LightUtils::insert_blue_light(self.get_raw_light(vx, vy, vz), level),
-        );
+        )
     }
 
     /// Get the torch light level of a color at the voxel position. Zero is returned if chunk doesn't exist.
@@ -380,14 +383,21 @@ impl VoxelAccess for Space {
         }
     }
 
-    /// Set the torch light level of a color at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
+    /// Set the torch light level of a color at the voxel position. Returns false if chunk doesn't exist.
+    fn set_torch_light(
+        &mut self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        level: u32,
+        color: &LightColor,
+    ) -> bool {
         match color {
             LightColor::Red => self.set_red_light(vx, vy, vz, level),
             LightColor::Green => self.set_green_light(vx, vy, vz, level),
             LightColor::Blue => self.set_blue_light(vx, vy, vz, level),
             LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
-        };
+        }
     }
 
     /// Get the max height at the voxel column. Zero is returned if column doesn't exist.

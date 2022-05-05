@@ -1,7 +1,4 @@
-use crate::{
-    utils::{light_utils::LightColor, ndarray::Ndarray},
-    vec::Vec3,
-};
+use crate::utils::{light_utils::LightColor, ndarray::Ndarray};
 
 use super::block::BlockRotation;
 
@@ -11,8 +8,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_raw_voxel` is not implemented.");
     }
 
-    /// Set the raw voxel data at the voxel coordinate. Does nothing if chunk DNE.
-    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, voxel: u32) {
+    /// Set the raw voxel data at the voxel coordinate. Returns false couldn't set.
+    fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, voxel: u32) -> bool {
         todo!("Voxel access `set_raw_voxel` is not implemented.");
     }
 
@@ -21,8 +18,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_raw_light` is not implemented.");
     }
 
-    /// Set the raw light data at the voxel coordinate. Does nothing if chunk DNE.
-    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the raw light data at the voxel coordinate. Returns false couldn't set.
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         todo!("Voxel access `set_raw_voxel` is not implemented.");
     }
 
@@ -31,8 +28,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_voxel` is not implemented.");
     }
 
-    /// Set the voxel type at a voxel coordinate. Does nothing if chunk does not exit.
-    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) {
+    /// Set the voxel type at a voxel coordinate. Returns false couldn't set.
+    fn set_voxel(&mut self, vx: i32, vy: i32, vz: i32, id: u32) -> bool {
         todo!("Voxel access `set_voxel` is not implemented.");
     }
 
@@ -42,7 +39,7 @@ pub trait VoxelAccess {
     }
 
     /// Set the voxel rotation at a voxel coordinate. Does nothing if chunk isn't found.
-    fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) {
+    fn set_voxel_rotation(&mut self, vx: i32, vy: i32, vz: i32, rotation: &BlockRotation) -> bool {
         todo!("Voxel access `set_voxel_rotation` is not implemented.");
     }
 
@@ -52,7 +49,7 @@ pub trait VoxelAccess {
     }
 
     /// Set the voxel stage at a voxel coordinate. Does nothing if chunk isn't found.
-    fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) {
+    fn set_voxel_stage(&mut self, vx: i32, vy: i32, vz: i32, stage: u32) -> bool {
         todo!("Voxel access `set_voxel_stage` is not implemented.");
     }
 
@@ -61,8 +58,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_sunlight` is not implemented.");
     }
 
-    /// Set the sunlight level at a voxel coordinate. Does nothing if chunk doesn't exist.
-    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the sunlight level at a voxel coordinate. Returns false if could not set.
+    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         todo!("Voxel access `set_sunlight` is not implemented.");
     }
 
@@ -71,8 +68,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_red_light` is not implemented.");
     }
 
-    /// Set the red light level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the red light level at the voxel position. Returns false if could not set.
+    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         todo!("Voxel access `set_red_light` is not implemented.");
     }
 
@@ -81,8 +78,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_green_light` is not implemented.");
     }
 
-    /// Set the green light level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the green light level at the voxel position. Returns false if could not set.
+    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         todo!("Voxel access `set_green_light` is not implemented.");
     }
 
@@ -91,8 +88,8 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_blue_light` is not implemented.");
     }
 
-    /// Set the blue light level at the voxel position. Does nothing if chunk doesn't exist.
-    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) {
+    /// Set the blue light level at the voxel position. Returns false if could not set.
+    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
         todo!("Voxel access `set_blue_light` is not implemented.");
     }
 
@@ -101,8 +98,15 @@ pub trait VoxelAccess {
         todo!("Voxel access `get_torch_light` is not implemented.");
     }
 
-    /// Set the torch light level by color at a voxel coordinate. Does nothing if chunk doesn't exist.
-    fn set_torch_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32, color: &LightColor) {
+    /// Set the torch light level by color at a voxel coordinate. Returns false if could not set.
+    fn set_torch_light(
+        &mut self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        level: u32,
+        color: &LightColor,
+    ) -> bool {
         todo!("Voxel access `set_torch_light` is not implemented.");
     }
 
@@ -112,17 +116,17 @@ pub trait VoxelAccess {
     }
 
     /// Set the max height at a voxel column. Does nothing if column does not exist.
-    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) {
+    fn set_max_height(&mut self, vx: i32, vz: i32, height: u32) -> bool {
         todo!("Voxel access `set_max_height` is not implemented.");
     }
 
     /// Get a reference of voxel n-dimensional array.
     fn get_voxels(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
-        todo!("Voxel assess `get_voxels` is not implemented.")
+        todo!("Voxel assess `get_voxels` is not implemented.");
     }
 
     /// Get a reference of lighting n-dimensional array.
     fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
-        todo!("Voxel assess `get_lights` is not implemented.")
+        todo!("Voxel assess `get_lights` is not implemented.");
     }
 }

@@ -65,7 +65,8 @@ pub trait ChunkStage {
     /// The core of this chunk stage, in other words what is done on the chunk. Returns the chunk instance
     /// along with additional block changes to be applied onto the world. For instance, if a tree is placed on the border
     /// of a chunk, the leaves would exceed the chunk border, so add those blocks to this `Vec`. Use "chunk.contains" or
-    /// "space.contains" to see if voxel coordinate is within the chunk stage's control. Return None for the second field
+    /// "space.contains" to see if voxel coordinate is within the chunk stage's control, or you could check if `set_voxel`
+    /// or similar functions return false, meaning couldn't set the voxel data. Return None for the second field
     /// if no additional changes are required.
     fn process(
         &self,
