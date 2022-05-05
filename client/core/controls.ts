@@ -1,7 +1,7 @@
-import { Euler, EventDispatcher, Vector3, Group, Mesh } from "three";
-import { Coords3 } from "types";
+import { Euler, EventDispatcher, Vector3, Group } from "three";
 
 import { Client } from "..";
+import { Coords3 } from "../types";
 
 const _euler = new Euler(0, 0, 0, "YXZ");
 const _vector = new Vector3();

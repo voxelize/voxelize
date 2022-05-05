@@ -45,18 +45,16 @@ message Entity {
 
 message Message {
   enum Type {
-    CONNECT = 0;
-    INIT = 1;
-    JOIN = 2;
-    LEAVE = 3;
-    SIGNAL = 4;
-    ERROR = 5;
-    PEER = 6;
-    ENTITY = 7;
-    LOAD = 8;
-    UNLOAD = 9;
-    SETTINGS = 10;
-    DEBUG = 11;
+    INIT = 0;
+    JOIN = 1;
+    LEAVE = 2;
+    SIGNAL = 3;
+    ERROR = 4;
+    PEER = 5;
+    ENTITY = 6;
+    LOAD = 7;
+    UNLOAD = 8;
+    DEBUG = 9;
   }
 
   Type type = 1;
