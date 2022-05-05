@@ -132,6 +132,10 @@ class Client extends EventEmitter {
     this.peers.dispose();
 
     if (this.network) {
+      if (this.joined) {
+        this.leave();
+      }
+
       this.network.disconnect();
     }
 
