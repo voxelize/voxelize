@@ -145,7 +145,6 @@ impl World {
 
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
-        ecs.insert(Registry::new());
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
         ecs.insert(BlockChanges::new());
@@ -162,11 +161,6 @@ impl World {
 
             ..Default::default()
         }
-    }
-
-    /// Get ready to start the server.
-    pub fn prepare(&mut self) {
-        self.registry_mut().generate();
     }
 
     /// Get a reference to the ECS world..
@@ -318,11 +312,6 @@ impl World {
     /// Access the registry in the ECS world.
     pub fn registry(&self) -> Fetch<Registry> {
         self.read_resource::<Registry>()
-    }
-
-    /// Access a mutable registry in the ECS world.
-    pub fn registry_mut(&mut self) -> FetchMut<Registry> {
-        self.write_resource::<Registry>()
     }
 
     /// Access chunks management in the ECS world.

@@ -7,7 +7,7 @@ use message_io::{network::Endpoint, node::NodeHandler};
 
 use crate::{
     errors::AddWorldError,
-    world::{World, WorldConfig},
+    world::{registry::Registry, World, WorldConfig},
 };
 
 use self::models::{Message, MessageType};
@@ -29,6 +29,9 @@ pub struct Server {
 
     /// A map of all the worlds.
     worlds: HashMap<String, World>,
+
+    /// Registry of the server.
+    registry: Registry,
 
     /// Endpoints who haven't connected to a world.
     lost_endpoints: HashSet<Endpoint>,
@@ -54,13 +57,6 @@ impl Server {
         ServerBuilder::default()
     }
 
-    /// Get ready to start the Voxelize server.
-    pub fn prepare(&mut self) {
-        self.worlds.values_mut().for_each(|world| {
-            world.prepare();
-        });
-    }
-
     /// Assign a network handler to this server
     pub fn set_handler(&mut self, handler: NodeHandler<()>) {
         self.worlds.values_mut().for_each(|world| {
@@ -79,8 +75,9 @@ impl Server {
     /// Add a world instance to the server. Different worlds have different configurations, and can hold
     /// their own set of clients within. If the server has already started, the added world will be
     /// started right away.
-    pub fn add_world(&mut self, world: World) -> Result<&mut World, AddWorldError> {
+    pub fn add_world(&mut self, mut world: World) -> Result<&mut World, AddWorldError> {
         let name = world.name.clone();
+        world.ecs_mut().insert(self.registry.clone());
 
         if let Some(_) = self.worlds.insert(name.to_owned(), world) {
             return Err(AddWorldError);
@@ -99,7 +96,8 @@ impl Server {
         name: &str,
         config: &WorldConfig,
     ) -> Result<&mut World, AddWorldError> {
-        let world = World::new(name, config);
+        let mut world = World::new(name, config);
+        world.ecs_mut().insert(self.registry.clone());
         self.add_world(world)
     }
 
@@ -218,6 +216,7 @@ const DEFAULT_ADDR: &str = "0.0.0.0";
 pub struct ServerBuilder {
     port: Option<u16>,
     addr: Option<String>,
+    registry: Option<Registry>,
 }
 
 impl ServerBuilder {
@@ -233,11 +232,22 @@ impl ServerBuilder {
         self
     }
 
+    /// Configure the block registry of the server.
+    pub fn registry(mut self, registry: &Registry) -> Self {
+        self.registry = Some(registry.to_owned());
+        self
+    }
+
     /// Instantiate a voxelize server instance.
     pub fn build(self) -> Server {
+        let mut registry = self.registry.unwrap_or_else(|| Registry::default());
+        registry.generate();
+
         Server {
             port: self.port.unwrap_or_else(|| DEFAULT_PORT),
             addr: self.addr.unwrap_or_else(|| DEFAULT_ADDR.to_owned()),
+
+            registry,
 
             started: false,
             handler: None,

@@ -221,7 +221,39 @@ fn get_dispatcher(
 fn main() {
     handle_ctrlc();
 
-    let mut server = Server::new().port(4000).build();
+    let mut registry = Registry::new();
+    registry.register_block(Block::new("Dirt").faces(&[BlockFaces::All]).build());
+    registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
+    registry.register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
+    registry.register_block(Block::new("Lol").faces(&[BlockFaces::All]).build());
+    registry.register_block(
+        Block::new("Wood")
+            .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
+            .build(),
+    );
+    registry.register_block(
+        Block::new("Leaves")
+            .faces(&[BlockFaces::All])
+            .is_transparent(true)
+            .transparent_standalone(true)
+            .build(),
+    );
+    registry.register_block(
+        Block::new("Grass")
+            .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
+            .build(),
+    );
+    registry.register_block(
+        Block::new("Color")
+            .faces(&[BlockFaces::All])
+            .is_light(true)
+            // .blue_light_level(10)
+            // .green_light_level(10)
+            .red_light_level(10)
+            .build(),
+    );
+
+    let mut server = Server::new().port(4000).registry(&registry).build();
 
     let config1 = WorldConfig::new()
         .min_chunk([-5, -5])
@@ -248,52 +280,12 @@ fn main() {
         });
     }
 
-    {
-        let mut registry = world.registry_mut();
-
-        registry.register_block(Block::new("Dirt").faces(&[BlockFaces::All]).build());
-        registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
-        registry.register_block(Block::new("Marble").faces(&[BlockFaces::All]).build());
-        registry.register_block(Block::new("Lol").faces(&[BlockFaces::All]).build());
-        registry.register_block(
-            Block::new("Wood")
-                .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
-                .build(),
-        );
-        registry.register_block(
-            Block::new("Leaves")
-                .faces(&[BlockFaces::All])
-                .is_transparent(true)
-                .transparent_standalone(true)
-                .build(),
-        );
-        registry.register_block(
-            Block::new("Grass")
-                .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
-                .build(),
-        );
-        registry.register_block(
-            Block::new("Color")
-                .faces(&[BlockFaces::All])
-                .is_light(true)
-                // .blue_light_level(10)
-                // .green_light_level(10)
-                .red_light_level(10)
-                .build(),
-        );
-    }
-
     server.add_world(world).expect("Could not create world1.");
 
     let config2 = WorldConfig::new().build();
     let world = server
         .create_world("world2", &config2)
         .expect("Could not create world2.");
-
-    {
-        let mut registry = world.registry_mut();
-        registry.register_block(Block::new("Stone").faces(&[BlockFaces::All]).build());
-    }
 
     {
         let mut pipeline = world.pipeline_mut();

@@ -52,7 +52,6 @@ impl Voxelize {
         }
 
         server.set_handler(handler.clone());
-        server.prepare();
         server.started = true;
 
         let server_wrapped = Arc::new(RwLock::new(server));
