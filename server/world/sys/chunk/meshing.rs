@@ -55,7 +55,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                             blocks.into_iter().for_each(|(voxel, id)| {
                                 let Vec3(vx, vy, vz) = voxel;
 
-                                chunks.set_voxel(vx, vy, vz, id);
+                                chunks.set_raw_voxel(vx, vy, vz, id);
 
                                 let height = chunks.get_max_height(vx, vz);
 
