@@ -1,4 +1,5 @@
 import { Client } from "..";
+import { Sky } from "../libs";
 
 type WorldParams = {
   chunkSize: number;
@@ -9,10 +10,26 @@ type WorldParams = {
   maxChunk: [number, number];
 };
 
+type WorldInitParams = {
+  skyDimension: number;
+};
+
+const defaultParams: WorldInitParams = {
+  skyDimension: 1000,
+};
+
 class World {
   public params: WorldParams;
 
-  constructor(public client: Client) {}
+  public sky: Sky;
+
+  constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
+    const { skyDimension } = { ...defaultParams, ...params };
+
+    this.sky = new Sky(skyDimension);
+
+    this.client.rendering.scene.add(this.sky.mesh);
+  }
 
   /**
    * Applies the server settings onto this world.
@@ -35,6 +52,13 @@ class World {
 
     // TODO: scale the chunks
   };
+
+  update = () => {
+    const [px, , pz] = this.client.position;
+    this.sky.mesh.position.set(px, 0, pz);
+  };
 }
+
+export type { WorldInitParams };
 
 export { World };

@@ -65,10 +65,7 @@ class Chunks {
     const { dimension, chunkSize } = this.worldParams;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
-      ChunkUtils.mapWorldPosToVoxelPos(
-        position.toArray() as Coords3,
-        dimension
-      ),
+      ChunkUtils.mapWorldPosToVoxelPos(position as Coords3, dimension),
       chunkSize
     );
 

@@ -15,7 +15,7 @@
     "baseUrl": ".",
     "rootDir": "./client"
   },
-  // "files": ["./client/types.d.ts"],
+  "files": ["./client/types.d.ts"],
   "include": ["client/**/*"],
   "exclude": ["node_modules", "dist"]
 }

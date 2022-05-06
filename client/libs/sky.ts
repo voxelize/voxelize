@@ -1,4 +1,15 @@
-import { Color, Group } from "three";
+import {
+  BackSide,
+  Color,
+  Group,
+  Mesh,
+  ShaderMaterial,
+  SphereGeometry,
+} from "three";
+
+import { CanvasBox } from "./canvas-box";
+import SkyFragmentShader from "./shaders/sky/fragment.glsl";
+import SkyVertexShader from "./shaders/sky/vertex.glsl";
 
 export const hi = "hi";
 
@@ -72,6 +83,8 @@ const SKY_CONFIGS = {
 };
 
 class Sky {
+  public skyBox: CanvasBox;
+
   public mesh = new Group();
 
   private topColor: Color;
@@ -80,6 +93,42 @@ class Sky {
   private newTopColor: Color;
   private newMiddleColor: Color;
   private newBottomColor: Color;
+
+  constructor(public dimension: number) {
+    this.createSkyShading();
+  }
+
+  createSkyShading = () => {
+    const {
+      color: { top, middle, bottom },
+      skyOffset,
+      voidOffset,
+    } = SKY_CONFIGS.hours[700];
+
+    this.topColor = new Color(top);
+    this.middleColor = new Color(middle);
+    this.bottomColor = new Color(bottom);
+
+    const shadingGeometry = new SphereGeometry(this.dimension);
+    const shadingMaterial = new ShaderMaterial({
+      uniforms: {
+        topColor: { value: this.topColor },
+        middleColor: { value: this.middleColor },
+        bottomColor: { value: this.bottomColor },
+        skyOffset: { value: skyOffset },
+        voidOffset: { value: voidOffset },
+        exponent: { value: 0.6 },
+        exponent2: { value: 1.2 },
+      },
+      vertexShader: SkyVertexShader,
+      fragmentShader: SkyFragmentShader,
+      depthWrite: false,
+      side: BackSide,
+    });
+    const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
+
+    this.mesh.add(shadingMesh);
+  };
 }
 
 export { Sky };

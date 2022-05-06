@@ -23,9 +23,11 @@ import {
   Registry,
   RegistryParams,
   Settings,
+  WorldInitParams,
 } from "./core";
 import { Chunks } from "./core/chunks";
 import { ECS, System } from "./libs";
+import { Coords3 } from "./types";
 import { ChunkUtils } from "./utils";
 
 type ClientParams = {
@@ -36,6 +38,7 @@ type ClientParams = {
   entities?: Partial<EntitiesParams>;
   controls?: Partial<ControlsParams>;
   registry?: Partial<RegistryParams>;
+  world?: Partial<WorldInitParams>;
 };
 
 class Client extends EventEmitter {
@@ -79,6 +82,7 @@ class Client extends EventEmitter {
       entities,
       controls,
       registry,
+      world,
     } = params;
 
     this.ecs = new ECS();
@@ -86,7 +90,7 @@ class Client extends EventEmitter {
     this.debug = new Debug(this);
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
-    this.world = new World(this);
+    this.world = new World(this, world);
     this.camera = new Camera(this, camera);
     this.peers = new Peers(this, peers);
     this.entities = new Entities(this, entities);
@@ -204,12 +208,12 @@ class Client extends EventEmitter {
   };
 
   get position() {
-    return this.controls.object.position;
+    return this.controls.object.position.toArray() as Coords3;
   }
 
   get voxel() {
     return ChunkUtils.mapWorldPosToVoxelPos(
-      this.position.toArray(),
+      this.position,
       this.world.params.dimension
     );
   }
@@ -239,6 +243,7 @@ class Client extends EventEmitter {
 
     this.camera.update();
     this.controls.update();
+    this.world.update();
     this.ecs.update();
     this.clock.update();
     this.entities.update();
