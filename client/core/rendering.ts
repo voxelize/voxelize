@@ -61,11 +61,6 @@ class Rendering {
 
       this.composer.addPass(new RenderPass(this.scene, camera));
 
-      const smaaEffect = new SMAAEffect({});
-      smaaEffect.edgeDetectionMaterial.edgeDetectionThreshold = 0.05;
-
-      this.composer.addPass(new EffectPass(camera, smaaEffect));
-
       this.adjustRenderer();
     });
   }
