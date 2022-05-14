@@ -2,14 +2,14 @@ use hashbrown::HashMap;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    chunks::Chunks,
     common::ClientFilter,
-    pipeline::Pipeline,
     server::models::{Chunk as ChunkModel, Message, MessageType},
     vec::Vec2,
     world::{
-        comps::{chunk_requests::ChunkRequestsComp, id::IDComp},
+        components::{chunk_requests::ChunkRequestsComp, id::IDComp},
+        generators::pipeline::Pipeline,
         messages::MessageQueue,
+        voxels::chunks::Chunks,
         WorldConfig,
     },
 };

@@ -1,16 +1,16 @@
 use crate::{
     common::BlockChange,
-    server::models::{Chunk as ChunkModel, Mesh},
-    utils::{
-        block_utils::BlockUtils,
-        chunk_utils::ChunkUtils,
-        light_utils::{LightColor, LightUtils},
+    libs::{
         ndarray::Ndarray,
-        vec::{Vec2, Vec3},
+        types::LightColor,
+        utils::{block::BlockUtils, chunk::ChunkUtils, light::LightUtils},
     },
+    server::models::{Chunk as ChunkModel, Mesh},
+    vec::{Vec2, Vec3},
+    world::registry::Registry,
 };
 
-use super::{access::VoxelAccess, block::BlockRotation, registry::Registry};
+use super::{access::VoxelAccess, block::BlockRotation};
 
 #[derive(Default, Clone)]
 pub struct ChunkParams {

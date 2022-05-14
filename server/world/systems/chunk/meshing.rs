@@ -2,11 +2,14 @@ use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    chunks::Chunks,
     common::BlockChanges,
-    pipeline::Pipeline,
-    vec::{Vec2, Vec3},
-    world::{access::VoxelAccess, mesher::Mesher, registry::Registry, WorldConfig},
+    vec::Vec3,
+    world::{
+        generators::{mesher::Mesher, pipeline::Pipeline},
+        registry::Registry,
+        voxels::{access::VoxelAccess, chunks::Chunks},
+        WorldConfig,
+    },
 };
 
 pub struct ChunkMeshingSystem;

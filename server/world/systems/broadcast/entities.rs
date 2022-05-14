@@ -5,7 +5,7 @@ use crate::{
     common::ClientFilter,
     server::models::{Entity, Message, MessageType},
     world::{
-        comps::{etype::ETypeComp, flags::EntityFlag, id::IDComp, metadata::MetadataComp},
+        components::{etype::ETypeComp, flags::EntityFlag, id::IDComp, metadata::MetadataComp},
         messages::MessageQueue,
     },
 };

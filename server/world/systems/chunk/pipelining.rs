@@ -2,13 +2,18 @@ use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    chunk::{Chunk, ChunkParams},
-    chunks::Chunks,
     common::BlockChanges,
-    pipeline::Pipeline,
-    utils::chunk_utils::ChunkUtils,
+    libs::utils::chunk::ChunkUtils,
     vec::Vec2,
-    world::{registry::Registry, WorldConfig},
+    world::{
+        generators::pipeline::Pipeline,
+        registry::Registry,
+        voxels::{
+            chunk::{Chunk, ChunkParams},
+            chunks::Chunks,
+        },
+        WorldConfig,
+    },
 };
 
 /// An ECS system to pipeline chunks through different phases of generation.

@@ -1,19 +1,12 @@
-pub mod access;
-pub mod block;
-pub mod chunk;
-pub mod chunks;
 pub mod clients;
-pub mod comps;
+pub mod components;
 pub mod config;
-pub mod decoration;
-pub mod lights;
-pub mod mesher;
+pub mod generators;
 pub mod messages;
-pub mod pipeline;
 pub mod registry;
-pub mod space;
 pub mod stats;
-pub mod sys;
+pub mod systems;
+pub mod voxels;
 
 use hashbrown::HashMap;
 use log::info;
@@ -38,9 +31,8 @@ use super::common::ClientFilter;
 
 pub use self::config::WorldConfig;
 use self::{
-    chunks::Chunks,
     clients::Clients,
-    comps::{
+    components::{
         chunk_requests::ChunkRequestsComp,
         current_chunk::CurrentChunkComp,
         direction::DirectionComp,
@@ -53,12 +45,11 @@ use self::{
         position::PositionComp,
         target::TargetComp,
     },
-    mesher::Mesher,
+    generators::{mesher::Mesher, pipeline::Pipeline},
     messages::MessageQueue,
-    pipeline::Pipeline,
     registry::Registry,
     stats::Stats,
-    sys::{
+    systems::{
         broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
         chunk::{
             current::CurrentChunkSystem, meshing::ChunkMeshingSystem,
@@ -68,6 +59,7 @@ use self::{
         entity_meta::EntityMetaSystem,
         stats::update::UpdateStatsSystem,
     },
+    voxels::chunks::Chunks,
 };
 
 pub type ModifyDispatch =
@@ -149,7 +141,6 @@ impl World {
         ecs.insert(MessageQueue::new());
         ecs.insert(BlockChanges::new());
         ecs.insert(Stats::new());
-        // ecs.insert(IntervalFunctions::new());
 
         Self {
             id,

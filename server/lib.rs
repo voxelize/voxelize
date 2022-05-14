@@ -1,8 +1,8 @@
 pub mod common;
 mod errors;
+pub mod libs;
 mod server;
 mod types;
-pub mod utils;
 pub mod world;
 
 use log::{error, info};
@@ -14,9 +14,12 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub use libs::vec;
 pub use server::Server;
-pub use utils::vec;
-pub use world::{chunk, chunks, pipeline};
+pub use world::{
+    generators::pipeline,
+    voxels::{chunk, chunks},
+};
 
 use crate::server::models::{decode_message, Message};
 

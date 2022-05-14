@@ -5,19 +5,17 @@ use hashbrown::HashSet;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    chunk::Chunk,
     common::BlockChange,
-    server::models::Mesh,
     vec::{Vec2, Vec3},
-};
-
-use super::{
-    access::VoxelAccess,
-    lights::Lights,
-    mesher::Mesher,
-    registry::Registry,
-    space::{Space, SpaceData},
-    WorldConfig,
+    world::{
+        registry::Registry,
+        voxels::{
+            access::VoxelAccess,
+            chunk::Chunk,
+            space::{Space, SpaceData},
+        },
+        WorldConfig,
+    },
 };
 
 /// A stage in the pipeline where a chunk gets populated.

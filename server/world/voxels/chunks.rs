@@ -3,8 +3,9 @@ use linked_hash_set::LinkedHashSet;
 use log::info;
 
 use crate::{
-    utils::{chunk_utils::ChunkUtils, light_utils::LightColor, vec::Vec2},
-    vec::Vec3,
+    libs::{types::LightColor, utils::chunk::ChunkUtils},
+    vec::{Vec2, Vec3},
+    world::WorldConfig,
 };
 
 use super::{
@@ -12,7 +13,6 @@ use super::{
     block::BlockRotation,
     chunk::Chunk,
     space::{SpaceBuilder, SpaceParams},
-    WorldConfig,
 };
 
 /// A manager for all chunks in the Voxelize world.

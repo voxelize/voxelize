@@ -1,7 +1,7 @@
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
-use super::block::{Block, BlockFaces};
+use super::voxels::block::{Block, BlockFaces};
 
 const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 128.0;
 

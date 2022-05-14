@@ -6,20 +6,22 @@ use log::info;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    chunk::Chunk,
+    libs::utils::light::LightUtils,
     server::models::{Geometry, Mesh},
-    utils::{light_utils::LightUtils, vec::Vec3},
-    vec::Vec2,
+    vec::Vec3,
+    world::{
+        registry::{Registry, UV},
+        voxels::{
+            access::VoxelAccess,
+            block::{Block, BlockFaces},
+            chunk::Chunk,
+            space::Space,
+        },
+        WorldConfig,
+    },
 };
 
-use super::{
-    access::VoxelAccess,
-    block::{Block, BlockFaces},
-    lights::Lights,
-    registry::{Registry, UV},
-    space::Space,
-    WorldConfig,
-};
+use super::lights::Lights;
 
 struct CornerData {
     pub pos: [i32; 3],

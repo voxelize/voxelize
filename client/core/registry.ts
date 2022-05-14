@@ -114,7 +114,6 @@ class Registry {
 
     this.client.emit("texture-loaded");
     this.client.loaded = true;
-    console.log(this.blocksByName);
   };
 
   getBlockByName = (name: string) => {

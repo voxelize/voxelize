@@ -1,12 +1,3 @@
-/// Enum of light colors.
-#[derive(PartialEq, Eq)]
-pub enum LightColor {
-    Sunlight,
-    Red,
-    Green,
-    Blue,
-}
-
 /// A set of utility functions for light operations.
 pub struct LightUtils;
 

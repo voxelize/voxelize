@@ -1,11 +1,12 @@
 use hashbrown::HashMap;
 use log::info;
 
-use crate::utils::{
-    block_utils::BlockUtils,
-    chunk_utils::ChunkUtils,
-    light_utils::{LightColor, LightUtils},
-    ndarray::{ndarray, Ndarray},
+use crate::{
+    libs::{
+        ndarray::{ndarray, Ndarray},
+        types::LightColor,
+        utils::{block::BlockUtils, chunk::ChunkUtils, light::LightUtils},
+    },
     vec::{Vec2, Vec3},
 };
 

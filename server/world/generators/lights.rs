@@ -3,12 +3,14 @@ use std::collections::VecDeque;
 use log::info;
 
 use crate::{
-    utils::{chunk_utils::ChunkUtils, light_utils::LightColor, ndarray::Ndarray, vec::Vec3},
-    vec::Vec2,
-    world::block::Block,
+    libs::{ndarray::Ndarray, types::LightColor, utils::chunk::ChunkUtils},
+    vec::{Vec2, Vec3},
+    world::{
+        registry::Registry,
+        voxels::{access::VoxelAccess, block::Block},
+        WorldConfig,
+    },
 };
-
-use super::{access::VoxelAccess, registry::Registry, WorldConfig};
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [1, 0, 0],

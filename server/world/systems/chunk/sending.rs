@@ -2,13 +2,12 @@ use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    chunks::Chunks,
     common::ClientFilter,
     server::models::{Message, MessageType},
-    vec::Vec2,
     world::{
-        comps::{chunk_requests::ChunkRequestsComp, id::IDComp},
+        components::{chunk_requests::ChunkRequestsComp, id::IDComp},
         messages::MessageQueue,
+        voxels::chunks::Chunks,
         WorldConfig,
     },
 };

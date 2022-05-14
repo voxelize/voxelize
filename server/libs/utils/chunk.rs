@@ -1,4 +1,4 @@
-use super::vec::{Vec2, Vec3};
+use crate::vec::{Vec2, Vec3};
 
 const CONCAT: &str = "|";
 

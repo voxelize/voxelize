@@ -2,7 +2,7 @@ use log::info;
 use serde_json::json;
 use specs::{ReadStorage, System, WriteStorage};
 
-use crate::world::comps::{
+use crate::world::components::{
     flags::EntityFlag, heading::HeadingComp, metadata::MetadataComp, position::PositionComp,
     target::TargetComp,
 };

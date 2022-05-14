@@ -7,16 +7,17 @@ use specs::{
 };
 use voxelize::{
     chunk::Chunk,
-    common::BlockChange,
     pipeline::{ChunkStage, FlatlandStage, HeightMapStage},
     vec::Vec3,
     world::{
-        access::VoxelAccess,
-        block::{Block, BlockFaces},
-        comps::position::PositionComp,
+        components::position::PositionComp,
         registry::Registry,
-        space::Space,
         stats::Stats,
+        voxels::{
+            access::VoxelAccess,
+            block::{Block, BlockFaces},
+            space::Space,
+        },
         World, WorldConfig,
     },
     Server, Voxelize,
