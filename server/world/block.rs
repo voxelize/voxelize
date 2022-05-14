@@ -2,6 +2,8 @@ use std::{f32, fmt};
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::aabb::AABB;
+
 /// Base class to extract voxel data from a single u32
 ///
 /// Bit lineup as such (from right to left):
@@ -293,6 +295,9 @@ pub struct Block {
     /// Three faces: `Top`, `Side`, `Bottom`
     /// All faces: `All`
     pub faces: Vec<BlockFaces>,
+
+    /// Bounding boxes of this block.
+    pub aabbs: Vec<AABB>,
 }
 
 impl Block {
@@ -324,6 +329,7 @@ pub struct BlockBuilder {
     is_plantable: Option<bool>,
     transparent_standalone: Option<bool>,
     faces: Option<Vec<BlockFaces>>,
+    aabbs: Option<Vec<AABB>>,
 }
 
 impl BlockBuilder {
@@ -417,6 +423,12 @@ impl BlockBuilder {
         self
     }
 
+    /// Configure the bounding boxes that the block has. Default is `vec![]`.
+    pub fn aabbs(mut self, aabbs: &[AABB]) -> Self {
+        self.aabbs = Some(aabbs.to_vec());
+        self
+    }
+
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         Block {
@@ -437,6 +449,9 @@ impl BlockBuilder {
             is_plantable: self.is_plantable.unwrap_or_else(|| false),
             transparent_standalone: self.transparent_standalone.unwrap_or_else(|| false),
             faces: self.faces.unwrap_or_else(|| vec![BlockFaces::All]),
+            aabbs: self
+                .aabbs
+                .unwrap_or_else(|| vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)]),
         }
     }
 }

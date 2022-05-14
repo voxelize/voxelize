@@ -1,10 +1,4 @@
-import {
-  BloomEffect,
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
+import { EffectComposer, RenderPass } from "postprocessing";
 import { Color, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";

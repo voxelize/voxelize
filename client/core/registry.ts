@@ -1,3 +1,4 @@
+import { AABB } from "@voxelize/voxel-physics-engine";
 import {
   DoubleSide,
   ShaderLib,
@@ -113,6 +114,7 @@ class Registry {
 
     this.client.emit("texture-loaded");
     this.client.loaded = true;
+    console.log(this.blocksByName);
   };
 
   getBlockByName = (name: string) => {
@@ -257,8 +259,13 @@ class Registry {
   };
 
   private recordBlock = (block: Block) => {
-    const { name, id, faces, isPlant } = block;
+    const { name, id, faces, isPlant, aabbs } = block;
+
     const lowerName = name.toLowerCase();
+    block.aabbs = aabbs.map(
+      ({ minX, minY, minZ, maxX, maxY, maxZ }) =>
+        new AABB(minX, minY, minZ, maxX, maxY, maxZ)
+    );
 
     this.blocksByName.set(lowerName, block);
     this.blocksById.set(id, block);

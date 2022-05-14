@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 
 use crate::vec::{Vec2, Vec3};
 

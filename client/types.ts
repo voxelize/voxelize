@@ -1,3 +1,5 @@
+import { AABB } from "@voxelize/voxel-physics-engine";
+
 export type DeepPartial<T> = {
   [P in keyof T]?: DeepPartial<T[P]>;
 };
@@ -49,6 +51,7 @@ export type Block = {
   isTransparent: boolean;
   transparentStandalone: boolean;
   faces: BlockFace[];
+  aabbs: AABB[];
 };
 
 export const defaultBlock: Block = {
@@ -69,6 +72,7 @@ export const defaultBlock: Block = {
   blueLightLevel: 0,
   transparentStandalone: false,
   faces: [],
+  aabbs: [],
 };
 
 export type TextureRange = {
