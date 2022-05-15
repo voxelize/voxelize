@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Axis-aligned Bounding Box.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AABB {
     /// Minimum x-coordinate of this AABB.
