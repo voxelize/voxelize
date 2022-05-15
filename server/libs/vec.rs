@@ -1,6 +1,6 @@
 use num::{cast, Float, Num};
 
-use std::ops::{self, Index, IndexMut};
+use std::ops::{self, Deref, Index, IndexMut};
 
 use serde::{Deserialize, Serialize};
 
@@ -19,10 +19,27 @@ impl<T: Copy + 'static> Vec2<T> {
 #[derive(Debug, Eq, PartialEq, Clone, Default, Hash, Serialize, Deserialize)]
 pub struct Vec3<T>(pub T, pub T, pub T);
 
-impl<T: Copy + 'static> Vec3<T> {
-    /// Create a new `Vec3` instance in a designated type.
-    pub fn from<U: cast::AsPrimitive<T>>(other: &[U; 3]) -> Vec3<T> {
+impl<T: Copy> Vec3<T> {
+    pub fn to_arr(&self) -> [T; 3] {
+        [self.0, self.1, self.2]
+    }
+}
+
+impl<T: Copy + 'static, U: cast::AsPrimitive<T>> From<&Vec3<U>> for Vec3<T> {
+    fn from(other: &Vec3<U>) -> Self {
+        Vec3(other.0.as_(), other.1.as_(), other.2.as_())
+    }
+}
+
+impl<T: Copy + 'static, U: cast::AsPrimitive<T>> From<&[U; 3]> for Vec3<T> {
+    fn from(other: &[U; 3]) -> Self {
         Vec3(other[0].as_(), other[1].as_(), other[2].as_())
+    }
+}
+
+impl<T: Copy + 'static, U: cast::AsPrimitive<T>> Into<[T; 3]> for Vec3<U> {
+    fn into(self) -> [T; 3] {
+        [self.0.as_(), self.1.as_(), self.2.as_()]
     }
 }
 
@@ -119,14 +136,6 @@ impl<T: Num + Copy + Default + ops::DivAssign> ops::DivAssign<T> for Vec3<T> {
         self.0 /= rhs;
         self.1 /= rhs;
         self.2 /= rhs;
-    }
-}
-
-impl<T: Num + Copy + Default> ops::Deref for Vec3<T> {
-    type Target = [T; 3];
-
-    fn deref(&self) -> &Self::Target {
-        &[self.0, self.1, self.2]
     }
 }
 

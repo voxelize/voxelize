@@ -44,10 +44,12 @@ use self::{
         id::IDComp,
         metadata::MetadataComp,
         position::PositionComp,
+        rigidbody::RigidBodyComp,
         target::TargetComp,
     },
     generators::{mesher::Mesher, pipeline::Pipeline},
     messages::MessageQueue,
+    physics::rigidbody::RigidBody,
     registry::Registry,
     stats::Stats,
     systems::{
@@ -58,6 +60,7 @@ use self::{
             sending::ChunkSendingSystem,
         },
         entity_meta::EntityMetaSystem,
+        physics::PhysicsSystem,
         stats::update::UpdateStatsSystem,
     },
     voxels::chunks::Chunks,
@@ -130,6 +133,7 @@ impl World {
         ecs.register::<HeadingComp>();
         ecs.register::<MetadataComp>();
         ecs.register::<TargetComp>();
+        ecs.register::<RigidBodyComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -370,6 +374,7 @@ impl World {
         let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder
+            .with(PhysicsSystem, "physics", &[])
             .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
             .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
 

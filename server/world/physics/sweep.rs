@@ -1,11 +1,12 @@
 use crate::{
     libs::math::{approx_equals, between},
+    vec::Vec3,
     world::registry::Registry,
 };
 
 use super::{aabb::AABB, GetVoxelFunc};
 
-fn line_to_plane(unit: &[f32; 3], vector: &[f32; 3], normal: &[f32; 3]) -> f32 {
+fn line_to_plane(unit: &Vec3<f32>, vector: &[f32; 3], normal: &[f32; 3]) -> f32 {
     let n_dot_u = normal[0] * unit[0] + normal[1] * normal[1] + normal[2] * normal[2];
     if approx_equals(n_dot_u, 0.0) {
         return f32::INFINITY;
@@ -21,7 +22,7 @@ struct SweepResults {
     nz: f32,
 }
 
-fn sweep_aabb(target: &AABB, other: &AABB, vector: &[f32; 3]) -> SweepResults {
+fn sweep_aabb(target: &AABB, other: &AABB, vector: &Vec3<f32>) -> SweepResults {
     let mx = other.min_x - target.max_x;
     let my = other.min_y - target.max_y;
     let mz = other.min_z - target.max_z;
@@ -29,7 +30,7 @@ fn sweep_aabb(target: &AABB, other: &AABB, vector: &[f32; 3]) -> SweepResults {
     let mhy = target.height() + other.height();
     let mhz = target.depth() + other.depth();
 
-    let &[dx, dy, dz] = vector;
+    let &Vec3(dx, dy, dz) = vector;
 
     let mut h = 1.0;
     let mut nx = 0.0;
@@ -127,7 +128,7 @@ pub fn sweep(
     get_voxel: GetVoxelFunc,
     registry: &Registry,
     target: &mut AABB,
-    velocity: &[f32; 3],
+    velocity: &Vec3<f32>,
     callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3]) -> bool,
     translate: bool,
     max_iterations: usize,
@@ -136,7 +137,7 @@ pub fn sweep(
         return;
     }
 
-    let &[vx, vy, vz] = velocity;
+    let &Vec3(vx, vy, vz) = velocity;
     let mag = (vx * vx + vy * vy + vz * vz).sqrt();
 
     // Calculate the broadphase of the target
@@ -247,11 +248,11 @@ pub fn sweep(
     let b_dot_b = closest.nx * closest.nx + closest.ny * closest.ny + closest.nz * closest.nz;
     if !approx_equals(b_dot_b, 0.0) {
         let a_dot_b = (1.0 - closest.h) * (vx * closest.nx + vy * closest.ny + vz * closest.nz);
-        let new_velocity = [
+        let new_velocity = Vec3(
             (1.0 - closest.h) * vx - (a_dot_b / b_dot_b) * closest.nx,
             (1.0 - closest.h) * vy - (a_dot_b / b_dot_b) * closest.ny,
             (1.0 - closest.h) * vz - (a_dot_b / b_dot_b) * closest.nz,
-        ];
+        );
 
         // Continue to handle collisions
         sweep(

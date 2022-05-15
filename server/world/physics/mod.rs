@@ -131,7 +131,7 @@ impl Physics {
             // body's restitution depending on what terrain it hit
             // event argument is impulse J = m * dv
             impacts = impacts.scale(body.mass);
-            body.collision = Some(*impacts.clone());
+            body.collision = Some(impacts.clone().to_arr());
 
             // bounce depending on restitution and min_bounce_impulse
             if body.restitution > 0.0 && mag > config.min_bounce_impulse {
@@ -386,11 +386,11 @@ impl Physics {
         // and check there's still collision
         let g_mult = 0.5 * dt * dt * body.gravity_multiplier;
 
-        let sleep_vec = [
+        let sleep_vec = Vec3(
             config.gravity[0] * g_mult,
             config.gravity[1] * g_mult,
             config.gravity[2] * g_mult,
-        ];
+        );
 
         let mut is_resting = false;
 
