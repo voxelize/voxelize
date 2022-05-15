@@ -21,15 +21,15 @@ pub struct Vec3<T>(pub T, pub T, pub T);
 
 impl<T: Copy + 'static> Vec3<T> {
     /// Create a new `Vec3` instance in a designated type.
-    pub fn from<U: cast::AsPrimitive<T>>(other: &Vec3<U>) -> Vec3<T> {
-        Vec3(other.0.as_(), other.1.as_(), other.2.as_())
+    pub fn from<U: cast::AsPrimitive<T>>(other: &[U; 3]) -> Vec3<T> {
+        Vec3(other[0].as_(), other[1].as_(), other[2].as_())
     }
 }
 
-impl<T: Num + Copy + Default> ops::Add<Vec3<T>> for Vec3<T> {
+impl<T: Num + Copy + Default> ops::Add<&Vec3<T>> for &Vec3<T> {
     type Output = Vec3<T>;
 
-    fn add(self, rhs: Vec3<T>) -> Self::Output {
+    fn add(self, rhs: &Vec3<T>) -> Self::Output {
         let mut result = Vec3::default();
         result.0 = self.0 + rhs.0;
         result.1 = self.1 + rhs.1;
@@ -38,10 +38,10 @@ impl<T: Num + Copy + Default> ops::Add<Vec3<T>> for Vec3<T> {
     }
 }
 
-impl<T: Num + Copy + Default> ops::Sub<Vec3<T>> for Vec3<T> {
+impl<T: Num + Copy + Default> ops::Sub<&Vec3<T>> for &Vec3<T> {
     type Output = Vec3<T>;
 
-    fn sub(self, rhs: Vec3<T>) -> Self::Output {
+    fn sub(self, rhs: &Vec3<T>) -> Self::Output {
         let mut result = Vec3::default();
         result.0 = self.0 - rhs.0;
         result.1 = self.1 - rhs.1;
@@ -50,14 +50,26 @@ impl<T: Num + Copy + Default> ops::Sub<Vec3<T>> for Vec3<T> {
     }
 }
 
-impl<T: Num + Copy + Default> ops::Mul<Vec3<T>> for Vec3<T> {
+impl<T: Num + Copy + Default> ops::Mul<&Vec3<T>> for &Vec3<T> {
     type Output = Vec3<T>;
 
-    fn mul(self, rhs: Vec3<T>) -> Self::Output {
+    fn mul(self, rhs: &Vec3<T>) -> Self::Output {
         let mut result = Vec3::default();
         result.0 = self.0 * rhs.0;
         result.1 = self.1 * rhs.1;
         result.2 = self.2 * rhs.2;
+        result
+    }
+}
+
+impl<T: Num + Copy + Default> ops::Mul<T> for &Vec3<T> {
+    type Output = Vec3<T>;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let mut result = Vec3::default();
+        result.0 = self.0 * rhs;
+        result.1 = self.1 * rhs;
+        result.2 = self.2 * rhs;
         result
     }
 }
@@ -67,6 +79,14 @@ impl<T: Num + Copy + Default + ops::AddAssign> ops::AddAssign<Vec3<T>> for Vec3<
         self.0 += rhs.0;
         self.1 += rhs.1;
         self.2 += rhs.2;
+    }
+}
+
+impl<T: Num + Copy + Default + ops::AddAssign> ops::AddAssign<[T; 3]> for Vec3<T> {
+    fn add_assign(&mut self, rhs: [T; 3]) {
+        self.0 += rhs[0];
+        self.1 += rhs[1];
+        self.2 += rhs[2];
     }
 }
 
@@ -99,6 +119,14 @@ impl<T: Num + Copy + Default + ops::DivAssign> ops::DivAssign<T> for Vec3<T> {
         self.0 /= rhs;
         self.1 /= rhs;
         self.2 /= rhs;
+    }
+}
+
+impl<T: Num + Copy + Default> ops::Deref for Vec3<T> {
+    type Target = [T; 3];
+
+    fn deref(&self) -> &Self::Target {
+        &[self.0, self.1, self.2]
     }
 }
 

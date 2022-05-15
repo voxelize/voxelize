@@ -3,6 +3,7 @@ pub mod components;
 pub mod config;
 pub mod generators;
 pub mod messages;
+pub mod physics;
 pub mod registry;
 pub mod stats;
 pub mod systems;

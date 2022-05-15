@@ -8,4 +8,5 @@ pub mod heading;
 pub mod id;
 pub mod metadata;
 pub mod position;
+pub mod rigidbody;
 pub mod target;

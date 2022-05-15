@@ -57,7 +57,7 @@ impl AABB {
     }
 
     /// Translate this AABB by a vector.
-    pub fn translate(&mut self, &[dx, dy, dz]: &[f32; 3]) {
+    pub fn translate(&mut self, dx: f32, dy: f32, dz: f32) {
         self.min_x += dx;
         self.min_y += dy;
         self.min_z += dz;
@@ -67,12 +67,22 @@ impl AABB {
     }
 
     /// Set this AABB's position (minimum coordinates) without changing its dimensions.
-    pub fn set_position(&mut self, &[px, py, pz]: &[f32; 3]) {
+    pub fn set_position(&mut self, px: f32, py: f32, pz: f32) {
         self.max_x = px + self.width();
         self.max_y = py + self.height();
         self.max_z = pz + self.depth();
         self.min_x = px;
         self.min_y = py;
         self.min_z = pz;
+    }
+
+    /// Copy the contents of another AABB to self.
+    pub fn copy(&mut self, other: &AABB) {
+        self.min_x = other.min_x;
+        self.min_y = other.min_y;
+        self.min_z = other.min_z;
+        self.max_x = other.max_x;
+        self.max_y = other.max_y;
+        self.max_z = other.max_z;
     }
 }
