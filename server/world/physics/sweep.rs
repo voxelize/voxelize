@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{
     libs::math::{approx_equals, between},
     vec::Vec3,
@@ -130,7 +132,6 @@ pub fn sweep(
     target: &mut AABB,
     velocity: &Vec3<f32>,
     callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3]) -> bool,
-    translate: bool,
     max_iterations: usize,
 ) {
     if max_iterations == 0 {
@@ -229,40 +230,19 @@ pub fn sweep(
         return;
     }
 
-    if translate {
-        target.translate(dx, dy, dz);
-    } else {
-        return;
-    }
+    target.translate(dx, dy, dz);
 
     // No collision
     if approx_equals(closest.h, 1.0) {
         return;
     }
 
-    // Wall Sliding
-    // c = a - (a.b)/(b.b) b
-    // c - slide vector (rejection of a over b)
-    // b - normal to the block
-    // a - remaining speed (= (1-h)*speed)
-    let b_dot_b = closest.nx * closest.nx + closest.ny * closest.ny + closest.nz * closest.nz;
-    if !approx_equals(b_dot_b, 0.0) {
-        let a_dot_b = (1.0 - closest.h) * (vx * closest.nx + vy * closest.ny + vz * closest.nz);
-        let new_velocity = Vec3(
-            (1.0 - closest.h) * vx - (a_dot_b / b_dot_b) * closest.nx,
-            (1.0 - closest.h) * vy - (a_dot_b / b_dot_b) * closest.ny,
-            (1.0 - closest.h) * vz - (a_dot_b / b_dot_b) * closest.nz,
-        );
-
-        // Continue to handle collisions
-        sweep(
-            get_voxel,
-            registry,
-            target,
-            &new_velocity,
-            callback,
-            translate,
-            max_iterations - 1,
-        );
-    }
+    sweep(
+        get_voxel,
+        registry,
+        target,
+        &Vec3::from(&leftover),
+        callback,
+        max_iterations - 1,
+    );
 }

@@ -53,6 +53,7 @@ impl Registry {
             .is_block(false)
             .is_empty(true)
             .is_transparent(true)
+            .aabbs(&[])
             .build();
 
         let mut instance = Self::default();

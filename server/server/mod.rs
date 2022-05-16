@@ -194,6 +194,14 @@ impl Server {
         self.handler.as_ref().unwrap()
     }
 
+    /// Prepare all worlds on the server to start.
+    pub fn prepare(&mut self) {
+        for world in self.worlds.values_mut() {
+            world.prepare();
+        }
+    }
+
+    /// Tick every world on this server.
     pub fn tick(&mut self) {
         for world in self.worlds.values_mut() {
             world.tick();

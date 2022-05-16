@@ -186,7 +186,7 @@ impl Chunks {
     }
 
     /// Guard to getting a chunk, only allowing chunks to be accessed when they're ready.
-    fn is_chunk_ready(&self, coords: &Vec2<i32>) -> bool {
+    pub fn is_chunk_ready(&self, coords: &Vec2<i32>) -> bool {
         if let Some(chunk) = self.map.get(coords) {
             if chunk.stage.is_some() {
                 return false;

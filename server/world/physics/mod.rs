@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{libs::math::approx_equals, vec::Vec3};
 
 use self::{aabb::AABB, rigidbody::RigidBody, sweep::sweep};
@@ -112,7 +114,7 @@ impl Physics {
 
         let mut impacts: Vec3<f32> = Vec3::default();
 
-        // collision impacts. b.resting shows which axes had collisions
+        // collision impacts. body.resting shows which axes had collisions
         for i in 0..3 {
             impacts[i] = 0.0;
             if body.resting[i] != 0 {
@@ -255,8 +257,7 @@ impl Physics {
                 vec[axis] = 0.0;
                 false
             },
-            true,
-            100,
+            10,
         );
     }
 
@@ -306,8 +307,7 @@ impl Physics {
                 }
                 true
             },
-            false,
-            100,
+            10,
         );
 
         let y = body.aabb.min_y;
@@ -325,8 +325,7 @@ impl Physics {
                 collided = true;
                 true
             },
-            true,
-            100,
+            10,
         );
 
         if collided {
@@ -403,8 +402,7 @@ impl Physics {
                 is_resting = true;
                 true
             },
-            true,
-            100,
+            10,
         );
 
         is_resting

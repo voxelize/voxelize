@@ -6,3 +6,10 @@ use crate::world::physics::rigidbody::RigidBody;
 #[derive(Default, Component)]
 #[storage(VecStorage)]
 pub struct RigidBodyComp(pub RigidBody);
+
+impl RigidBodyComp {
+    /// Create a new rigid body component.
+    pub fn new(body: &RigidBody) -> Self {
+        Self(body.to_owned())
+    }
+}

@@ -1,7 +1,7 @@
 use crate::{vec::Vec3, world::physics::aabb::AABB};
 
 /// A physical body in the Voxelize world.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RigidBody {
     /// If `body.collision` is true that tick, means there's a collision detected.
     pub collision: Option<[f32; 3]>,
@@ -30,7 +30,7 @@ pub struct RigidBody {
     pub impulses: Vec3<f32>,
 
     /// Counts how many frames this rigid body is static.
-    pub sleep_frame_count: u32,
+    pub sleep_frame_count: i32,
 
     /// AABB of this rigid body, describing its collision box.
     pub aabb: AABB,
@@ -136,6 +136,7 @@ impl RigidBodyBuilder {
 
             mass: 1.0,
             friction: 1.0,
+            gravity_multiplier: 1.0,
 
             ..Default::default()
         }
@@ -182,7 +183,7 @@ impl RigidBodyBuilder {
             ratio_in_fluid: 0.0,
             forces: Vec3::default(),
             impulses: Vec3::default(),
-            sleep_frame_count: 10,
+            sleep_frame_count: 10 | 0,
 
             aabb: self.aabb,
             mass: self.mass,

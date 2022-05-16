@@ -1,8 +1,10 @@
 use std::process;
 
+use log::info;
+use nanoid::nanoid;
 use noise::{NoiseFn, SuperSimplex, Worley};
 use specs::{
-    Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
+    Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
     WriteStorage,
 };
 use voxelize::{
@@ -10,7 +12,12 @@ use voxelize::{
     pipeline::{ChunkStage, FlatlandStage, HeightMapStage},
     vec::Vec3,
     world::{
-        components::position::PositionComp,
+        components::{
+            current_chunk::CurrentChunkComp, etype::ETypeComp, flags::EntityFlag,
+            heading::HeadingComp, id::IDComp, metadata::MetadataComp, position::PositionComp,
+            rigidbody::RigidBodyComp, target::TargetComp,
+        },
+        physics::{aabb::AABB, rigidbody::RigidBody},
         registry::Registry,
         stats::Stats,
         voxels::{
@@ -194,21 +201,18 @@ impl<'a> System<'a> for UpdateBoxSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         ReadStorage<'a, BoxFlag>,
-        WriteStorage<'a, PositionComp>,
+        WriteStorage<'a, RigidBodyComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (stats, flag, mut positions) = data;
+        let (stats, flag, mut bodies) = data;
 
-        for (position, _) in (&mut positions, &flag).join() {
-            let inner = position.inner_mut();
-            let elapsed = stats.elapsed().as_millis() as f32;
-
-            inner.0 += (elapsed * BOX_SPEED).cos() * 0.005;
-            inner.1 += (elapsed * BOX_SPEED).sin() * 0.005;
-            inner.2 += (elapsed * BOX_SPEED).sin() * 0.005;
+        for (body, _) in (&mut bodies, &flag).join() {
+            // if stats.tick % 500 == 0 {
+            //     body.0.apply_impulse(0.0, 10.0, 2.0);
+            // }
         }
     }
 }
@@ -271,15 +275,32 @@ fn main() {
     {
         let mut pipeline = world.pipeline_mut();
 
-        // pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
-        pipeline.add_stage(TestStage {
-            noise: SuperSimplex::new(),
-        });
+        pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
+        // pipeline.add_stage(TestStage {
+        //     noise: SuperSimplex::new(),
+        // });
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeTestStage {
             noise: Worley::new(),
         });
     }
+
+    let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();
+
+    world
+        .ecs_mut()
+        .create_entity()
+        .with(EntityFlag::default())
+        .with(ETypeComp::new("Box"))
+        .with(IDComp::new(&nanoid!()))
+        .with(PositionComp::new(3.0, 30.0, 3.0))
+        .with(TargetComp::new(0.0, 0.0, 0.0))
+        .with(HeadingComp::new(0.0, 0.0, 0.0))
+        .with(MetadataComp::new())
+        .with(RigidBodyComp::new(&test_body))
+        .with(CurrentChunkComp::default())
+        .with(BoxFlag)
+        .build();
 
     server.add_world(world).expect("Could not create world1.");
 

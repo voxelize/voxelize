@@ -49,7 +49,6 @@ use self::{
     },
     generators::{mesher::Mesher, pipeline::Pipeline},
     messages::MessageQueue,
-    physics::rigidbody::RigidBody,
     registry::Registry,
     stats::Stats,
     systems::{
@@ -346,10 +345,24 @@ impl World {
         //     .push((Arc::new(func.to_owned()), interval));
     }
 
-    /// Check if this world is empty
+    /// Check if this world is empty.
     pub fn is_empty(&self) -> bool {
         let clients = self.read_resource::<Clients>();
         clients.is_empty()
+    }
+
+    /// Prepare to start.
+    pub fn prepare(&mut self) {
+        use specs::Join;
+        for (position, body) in (
+            &self.ecs.read_storage::<PositionComp>(),
+            &mut self.ecs.write_storage::<RigidBodyComp>(),
+        )
+            .join()
+        {
+            body.0
+                .set_position(position.0 .0, position.0 .1, position.0 .2);
+        }
     }
 
     /// Tick of the world, run every 16ms.
