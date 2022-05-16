@@ -22,7 +22,7 @@ import WoodTopImage from "../assets/blocks/log_oak_top.png";
 import WoodSideImage from "../assets/blocks/log_oak_side.png";
 import MarbleImage from "../assets/marble.jpg";
 import ColorImage from "../assets/blocks/ice.png";
-import { BoxBufferGeometry, MeshNormalMaterial, Mesh } from "three";
+import { BoxBufferGeometry, MeshNormalMaterial, Mesh, Vector3 } from "three";
 import LolImage from "../assets/lol.png";
 
 const GameWrapper = styled.div`
@@ -152,8 +152,10 @@ class UpdateBoxSystem extends System {
       );
     }
 
-    mesh.position.lerp(entity.position, BaseEntity.LERP_FACTOR);
-    mesh.lookAt(entity.target);
+    mesh.position.lerp(
+      entity.position.clone().add(new Vector3(0, 0.25, 0)),
+      BaseEntity.LERP_FACTOR
+    );
   }
 }
 

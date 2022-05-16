@@ -302,130 +302,166 @@ pub struct Block {
 
 impl Block {
     pub fn new(name: &str) -> BlockBuilder {
-        BlockBuilder {
-            id: 0,
-            name: name.to_owned(),
-            ..Default::default()
-        }
+        BlockBuilder::new(name)
     }
 }
 
-#[derive(Default)]
 pub struct BlockBuilder {
     id: u32,
     name: String,
-    rotatable: Option<bool>,
-    y_rotatable: Option<bool>,
-    is_block: Option<bool>,
-    is_empty: Option<bool>,
-    is_fluid: Option<bool>,
-    is_light: Option<bool>,
-    is_plant: Option<bool>,
-    is_solid: Option<bool>,
-    is_transparent: Option<bool>,
-    red_light_level: Option<u32>,
-    green_light_level: Option<u32>,
-    blue_light_level: Option<u32>,
-    is_plantable: Option<bool>,
-    transparent_standalone: Option<bool>,
-    faces: Option<Vec<BlockFaces>>,
-    aabbs: Option<Vec<AABB>>,
+    rotatable: bool,
+    y_rotatable: bool,
+    is_block: bool,
+    is_empty: bool,
+    is_fluid: bool,
+    is_light: bool,
+    is_plant: bool,
+    is_solid: bool,
+    is_transparent: bool,
+    red_light_level: u32,
+    green_light_level: u32,
+    blue_light_level: u32,
+    is_plantable: bool,
+    transparent_standalone: bool,
+    faces: Vec<BlockFaces>,
+    aabbs: Vec<AABB>,
 }
 
 impl BlockBuilder {
+    /// Create a block builder with default values.
+    pub fn new(name: &str) -> Self {
+        Self {
+            id: 0,
+            name: name.to_owned(),
+            rotatable: false,
+            y_rotatable: false,
+            is_block: true,
+            is_empty: false,
+            is_fluid: false,
+            is_light: false,
+            is_plant: false,
+            is_solid: true,
+            is_transparent: false,
+            red_light_level: 0,
+            green_light_level: 0,
+            blue_light_level: 0,
+            is_plantable: false,
+            transparent_standalone: false,
+            faces: vec![BlockFaces::All],
+            aabbs: vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)],
+        }
+    }
+
     /// Configure whether or not this block is rotatable. Default is false.
     pub fn rotatable(mut self, rotatable: bool) -> Self {
-        self.rotatable = Some(rotatable);
+        self.rotatable = rotatable;
         self
     }
 
     /// Configure whether or not this block is rotatable on the y-axis. Default is false.
     pub fn y_rotatable(mut self, y_rotatable: bool) -> Self {
-        self.y_rotatable = Some(y_rotatable);
+        self.y_rotatable = y_rotatable;
         self
     }
 
     /// Configure whether or not this is a block. Default is true.
     pub fn is_block(mut self, is_block: bool) -> Self {
-        self.is_block = Some(is_block);
+        self.is_block = is_block;
         self
     }
 
     /// Configure whether or not this is empty. Default is false.
     pub fn is_empty(mut self, is_empty: bool) -> Self {
-        self.is_empty = Some(is_empty);
+        self.is_empty = is_empty;
         self
     }
 
     /// Configure whether or not this is a fluid. Default is false.
     pub fn is_fluid(mut self, is_fluid: bool) -> Self {
-        self.is_fluid = Some(is_fluid);
+        self.is_fluid = is_fluid;
         self
     }
 
     /// Configure whether or not this block emits light. Default is false.
     pub fn is_light(mut self, is_light: bool) -> Self {
-        self.is_light = Some(is_light);
+        self.is_light = is_light;
         self
     }
 
     /// Configure whether or not this block is a plant. Default is false.
     pub fn is_plant(mut self, is_plant: bool) -> Self {
-        self.is_plant = Some(is_plant);
+        self.is_plant = is_plant;
         self
     }
 
     /// Configure whether or not this block is a solid. Default is true.
     pub fn is_solid(mut self, is_solid: bool) -> Self {
-        self.is_solid = Some(is_solid);
+        self.is_solid = is_solid;
         self
     }
 
     /// Configure whether or not this block is transparent. Default is false.
     pub fn is_transparent(mut self, is_transparent: bool) -> Self {
-        self.is_transparent = Some(is_transparent);
+        self.is_transparent = is_transparent;
         self
     }
 
     /// Configure the red light level of this block. Default is 0.
     pub fn red_light_level(mut self, red_light_level: u32) -> Self {
-        self.red_light_level = Some(red_light_level);
+        self.red_light_level = red_light_level;
         self
     }
 
     /// Configure the green light level of this block. Default is 0.
     pub fn green_light_level(mut self, green_light_level: u32) -> Self {
-        self.green_light_level = Some(green_light_level);
+        self.green_light_level = green_light_level;
         self
     }
 
     /// Configure the blue light level of this block. Default is 0.
     pub fn blue_light_level(mut self, blue_light_level: u32) -> Self {
-        self.blue_light_level = Some(blue_light_level);
+        self.blue_light_level = blue_light_level;
         self
     }
 
     /// Configure whether or can plants grow on this block. Default is false.
     pub fn is_plantable(mut self, is_plantable: bool) -> Self {
-        self.is_plantable = Some(is_plantable);
+        self.is_plantable = is_plantable;
         self
     }
 
     /// Configure whether or not should transparent faces be rendered individually. Default is false.
     pub fn transparent_standalone(mut self, transparent_standalone: bool) -> Self {
-        self.transparent_standalone = Some(transparent_standalone);
+        self.transparent_standalone = transparent_standalone;
         self
     }
 
     /// Configure the faces that the block has. Default is `vec![]`.
     pub fn faces(mut self, faces: &[BlockFaces]) -> Self {
-        self.faces = Some(faces.to_vec());
+        self.faces = faces.to_vec();
         self
     }
 
     /// Configure the bounding boxes that the block has. Default is `vec![]`.
     pub fn aabbs(mut self, aabbs: &[AABB]) -> Self {
-        self.aabbs = Some(aabbs.to_vec());
+        aabbs.iter().for_each(|aabb| {
+            if aabb.min_x < 0.0
+                || aabb.min_x > 1.0
+                || aabb.min_y < 0.0
+                || aabb.min_y > 1.0
+                || aabb.min_z < 0.0
+                || aabb.min_z > 1.0
+                || aabb.max_x < 0.0
+                || aabb.max_x > 1.0
+                || aabb.max_y < 0.0
+                || aabb.max_y > 1.0
+                || aabb.max_z < 0.0
+                || aabb.max_z > 1.0
+            {
+                panic!("Please keep AABB coordinates between 0,0,0 and 1,1,1.");
+            }
+        });
+        self.aabbs = aabbs.to_vec();
         self
     }
 
@@ -434,24 +470,22 @@ impl BlockBuilder {
         Block {
             id: self.id,
             name: self.name,
-            rotatable: self.rotatable.unwrap_or_else(|| false),
-            y_rotatable: self.y_rotatable.unwrap_or_else(|| false),
-            is_block: self.is_block.unwrap_or_else(|| true),
-            is_empty: self.is_empty.unwrap_or_else(|| false),
-            is_fluid: self.is_fluid.unwrap_or_else(|| false),
-            is_light: self.is_light.unwrap_or_else(|| false),
-            is_plant: self.is_plant.unwrap_or_else(|| false),
-            is_solid: self.is_solid.unwrap_or_else(|| true),
-            is_transparent: self.is_transparent.unwrap_or_else(|| false),
-            red_light_level: self.red_light_level.unwrap_or_else(|| 0),
-            green_light_level: self.green_light_level.unwrap_or_else(|| 0),
-            blue_light_level: self.blue_light_level.unwrap_or_else(|| 0),
-            is_plantable: self.is_plantable.unwrap_or_else(|| false),
-            transparent_standalone: self.transparent_standalone.unwrap_or_else(|| false),
-            faces: self.faces.unwrap_or_else(|| vec![BlockFaces::All]),
-            aabbs: self
-                .aabbs
-                .unwrap_or_else(|| vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)]),
+            rotatable: self.rotatable,
+            y_rotatable: self.y_rotatable,
+            is_block: self.is_block,
+            is_empty: self.is_empty,
+            is_fluid: self.is_fluid,
+            is_light: self.is_light,
+            is_plant: self.is_plant,
+            is_solid: self.is_solid,
+            is_transparent: self.is_transparent,
+            red_light_level: self.red_light_level,
+            green_light_level: self.green_light_level,
+            blue_light_level: self.blue_light_level,
+            is_plantable: self.is_plantable,
+            transparent_standalone: self.transparent_standalone,
+            faces: self.faces,
+            aabbs: self.aabbs,
         }
     }
 }

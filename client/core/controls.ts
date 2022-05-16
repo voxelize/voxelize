@@ -27,7 +27,7 @@ const defaultParams: ControlsParams = {
   flyingInertia: 5,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
-  initialPosition: [0, 20, 0],
+  initialPosition: [0, 20, 10],
 };
 
 /**

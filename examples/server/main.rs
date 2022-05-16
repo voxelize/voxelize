@@ -151,9 +151,10 @@ impl ChunkStage for TreeTestStage {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
-        let marble = registry.get_block_by_name("Marble");
+        let wood = registry.get_block_by_name("Wood");
+        let leaves = registry.get_block_by_name("Leaves");
         let dirt = registry.get_block_by_name("Dirt");
-        let color = registry.get_block_by_name("Color");
+        let grass = registry.get_block_by_name("Grass");
 
         let scale = 1.0;
 
@@ -161,7 +162,7 @@ impl ChunkStage for TreeTestStage {
             for vz in min_z..max_z {
                 let height = chunk.get_max_height(vx, vz) as i32;
 
-                chunk.set_voxel(vx, height, vz, marble.id);
+                chunk.set_voxel(vx, height, vz, grass.id);
 
                 for k in -2..0 {
                     chunk.set_voxel(vx, height + k, vz, dirt.id);
@@ -171,14 +172,14 @@ impl ChunkStage for TreeTestStage {
                     && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
                 {
                     for i in 0..5 {
-                        chunk.set_voxel(vx, height + i, vz, marble.id);
+                        chunk.set_voxel(vx, height + i, vz, wood.id);
                     }
 
                     let r = 2;
 
                     for i in -r..=r {
                         for j in -r..=r {
-                            chunk.set_voxel(vx + i, height + 4, vz + j, marble.id);
+                            chunk.set_voxel(vx + i, height + 4, vz + j, leaves.id);
                         }
                     }
                 }
@@ -275,17 +276,19 @@ fn main() {
     {
         let mut pipeline = world.pipeline_mut();
 
-        pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
+        pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
         // pipeline.add_stage(TestStage {
         //     noise: SuperSimplex::new(),
         // });
-        pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(TreeTestStage {
-            noise: Worley::new(),
-        });
+        // pipeline.add_stage(HeightMapStage);
+        // pipeline.add_stage(TreeTestStage {
+        //     noise: Worley::new(),
+        // });
     }
 
-    let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();
+    let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5))
+        .friction(4.0)
+        .build();
 
     world
         .ecs_mut()

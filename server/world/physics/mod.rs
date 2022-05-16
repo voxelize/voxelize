@@ -19,9 +19,13 @@ impl Physics {
         body: &mut RigidBody,
         dt: f32,
         get_voxel: GetVoxelFunc,
-        config: &WorldConfig,
         registry: &Registry,
+        config: &WorldConfig,
     ) {
+        if approx_equals(dt, 0.0) {
+            return;
+        }
+
         let gravity_mag_sq =
             config.gravity[0].powf(2.0) + config.gravity[1].powf(2.0) + config.gravity[2].powf(2.0);
         let no_gravity = approx_equals(0.0, gravity_mag_sq);
@@ -29,8 +33,6 @@ impl Physics {
         // Reset the flags.
         body.collision = None;
         body.stepped = false;
-
-        let old_resting = body.resting.clone();
 
         // treat bodies with <= 0 mass as static
         if body.mass <= 0.0 {
@@ -42,10 +44,14 @@ impl Physics {
 
         // skip bodies if static or no velocity/forces/impulses
         let local_no_grav = no_gravity || approx_equals(body.gravity_multiplier, 0.0);
-        if Physics::is_body_asleep(get_voxel, registry, config, body, dt, local_no_grav) {
+        let is_body_asleep =
+            Physics::is_body_asleep(get_voxel, registry, config, body, dt, local_no_grav);
+        if is_body_asleep {
             return;
         }
         body.sleep_frame_count -= 1;
+
+        let old_resting = body.resting.clone();
 
         // Check if under water, if so apply buoyancy and drag forces
         Physics::apply_fluid_forces(get_voxel, registry, config, body);
@@ -257,6 +263,7 @@ impl Physics {
                 vec[axis] = 0.0;
                 false
             },
+            true,
             10,
         );
     }
@@ -307,6 +314,7 @@ impl Physics {
                 }
                 true
             },
+            true,
             10,
         );
 
@@ -325,6 +333,7 @@ impl Physics {
                 collided = true;
                 true
             },
+            true,
             10,
         );
 
@@ -402,6 +411,7 @@ impl Physics {
                 is_resting = true;
                 true
             },
+            false,
             10,
         );
 

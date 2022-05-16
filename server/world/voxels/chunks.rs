@@ -195,9 +195,11 @@ impl Chunks {
             if chunk.mesh.is_none() {
                 return false;
             }
+
+            return true;
         }
 
-        true
+        false
     }
 }
 

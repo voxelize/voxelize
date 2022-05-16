@@ -1,3 +1,5 @@
+use log::info;
+
 use crate::{vec::Vec3, world::physics::aabb::AABB};
 
 /// A physical body in the Voxelize world.
@@ -137,6 +139,7 @@ impl RigidBodyBuilder {
             mass: 1.0,
             friction: 1.0,
             gravity_multiplier: 1.0,
+            auto_step: false,
 
             ..Default::default()
         }

@@ -9,7 +9,7 @@ use crate::{
 use super::{aabb::AABB, GetVoxelFunc};
 
 fn line_to_plane(unit: &Vec3<f32>, vector: &[f32; 3], normal: &[f32; 3]) -> f32 {
-    let n_dot_u = normal[0] * unit[0] + normal[1] * normal[1] + normal[2] * normal[2];
+    let n_dot_u = normal[0] * unit[0] + normal[1] * unit[1] + normal[2] * unit[2];
     if approx_equals(n_dot_u, 0.0) {
         return f32::INFINITY;
     }
@@ -17,6 +17,7 @@ fn line_to_plane(unit: &Vec3<f32>, vector: &[f32; 3], normal: &[f32; 3]) -> f32 
     (normal[0] * vector[0] + normal[1] * vector[1] + normal[2] * vector[2]) / n_dot_u
 }
 
+#[derive(Debug)]
 struct SweepResults {
     h: f32,
     nx: f32,
@@ -132,6 +133,7 @@ pub fn sweep(
     target: &mut AABB,
     velocity: &Vec3<f32>,
     callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3]) -> bool,
+    translate: bool,
     max_iterations: usize,
 ) {
     if max_iterations == 0 {
@@ -192,6 +194,10 @@ pub fn sweep(
                 let id = get_voxel(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
 
+                if !block.is_solid {
+                    continue;
+                }
+
                 block.aabbs.iter().for_each(|aabb| {
                     let mut block_aabb = aabb.clone();
                     block_aabb.translate(vx as f32, vy as f32, vz as f32);
@@ -212,6 +218,15 @@ pub fn sweep(
     let dy = closest.h * vy + epsilon * closest.ny;
     let dz = closest.h * vz + epsilon * closest.nz;
 
+    if translate {
+        target.translate(dx, dy, dz);
+    }
+
+    // No collision
+    if approx_equals(closest.h, 1.0) {
+        return;
+    }
+
     let axis = if closest.nx != 0.0 {
         0
     } else if closest.ny != 0.0 {
@@ -226,23 +241,23 @@ pub fn sweep(
         (1.0 - closest.h) * vz,
     ];
 
-    if callback(mag * closest.h, axis, dir, &mut leftover) {
+    if dir != 0 && callback(mag * closest.h, axis, dir, &mut leftover) {
         return;
     }
 
-    target.translate(dx, dy, dz);
-
-    // No collision
-    if approx_equals(closest.h, 1.0) {
-        return;
+    // More to go
+    if !approx_equals(
+        leftover[0] * leftover[0] + leftover[1] * leftover[1] + leftover[2] * leftover[2],
+        0.0,
+    ) {
+        sweep(
+            get_voxel,
+            registry,
+            target,
+            &Vec3::from(&leftover),
+            callback,
+            translate,
+            max_iterations - 1,
+        );
     }
-
-    sweep(
-        get_voxel,
-        registry,
-        target,
-        &Vec3::from(&leftover),
-        callback,
-        max_iterations - 1,
-    );
 }

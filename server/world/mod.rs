@@ -387,7 +387,7 @@ impl World {
         let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder
-            .with(PhysicsSystem, "physics", &[])
+            .with(PhysicsSystem, "physics", &["update-stats"])
             .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
             .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
 

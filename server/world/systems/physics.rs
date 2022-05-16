@@ -39,7 +39,7 @@ impl<'a> System<'a> for PhysicsSystem {
                 continue;
             }
 
-            Physics::iterate_body(&mut body.0, stats.delta, &get_voxel, &config, &registry);
+            Physics::iterate_body(&mut body.0, stats.delta, &get_voxel, &registry, &config);
             position.0.copy(&body.0.get_position());
         }
     }

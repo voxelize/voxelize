@@ -21,7 +21,7 @@ type RegistryParams = {
 };
 
 const defaultParams: RegistryParams = {
-  dimension: 8,
+  dimension: 16,
 };
 
 class Registry {

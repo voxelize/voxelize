@@ -19,7 +19,8 @@ impl<'a> System<'a> for UpdateStatsSystem {
             .expect("Clock may have gone backwards.")
             .as_millis() as f32
             / 1000.0)
-            .min(0.020);
+            .min(0.020)
+            .max(0.014);
         stats.prev_time = now;
 
         stats.tick += 1;
