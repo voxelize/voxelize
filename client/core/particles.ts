@@ -4,14 +4,12 @@ import {
   Float32BufferAttribute,
   Points,
   ShaderMaterial,
-  Vector3,
-  Object3D,
   Vector2,
 } from "three";
 import Tweezer from "tweezer.js";
-import { Coords3 } from "types";
 
 import { Client } from "..";
+import { Coords3 } from "../types";
 
 import ParticlesFragmentShader from "./shaders/particles/fragment.glsl";
 import ParticlesVertexShader from "./shaders/particles/vertex.glsl";
