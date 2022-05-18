@@ -1046,6 +1046,11 @@
   resolved "https://registry.yarnpkg.com/@types/three/-/three-0.137.0.tgz#6047e0658262b4de7c464a40288f9071ddd9a6d5"
   integrity sha512-Xc5EAlfYmgrCLI/VlSVqiRJAtzhWF0Rw2jSq48nqJy+Hcb5sfDOXyfZn1+RNcHyi9l8CeCAXCZygO8IyeOJVEA==
 
+"@types/tweezer.js@^1.4.3":
+  version "1.4.3"
+  resolved "https://registry.yarnpkg.com/@types/tweezer.js/-/tweezer.js-1.4.3.tgz#629555189dc48c3f562fce7fe0b796de107d4a3f"
+  integrity sha512-sHTeSsrel+zISBDUU7spzsPC/r3btUcbOqUkEq9jQxSK617RYNAbBJXvvcB/TIWOPaFZdJKpM4RXVH/+UdcIjA==
+
 "@types/typedarray-pool@^1.1.2":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@types/typedarray-pool/-/typedarray-pool-1.1.2.tgz#e8ec19c0b0cd35ed4ff228076b1f4f89dd9c5764"
@@ -1150,10 +1155,10 @@
     "@typescript-eslint/types" "5.21.0"
     eslint-visitor-keys "^3.0.0"
 
-"@voxelize/voxel-physics-engine@^1.0.9":
-  version "1.0.9"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.0.9.tgz#fc3c4c06d2b2ce6fddee5835ee291207faf7e442"
-  integrity sha512-NcbhsTh2HBHCP43kzVtty42PV8o8vw5PK/Rhjm9IzSkR3eEOB3V4OiwJwHjqQdBnuo/675uYMT5djhR1o6mgtQ==
+"@voxelize/voxel-physics-engine@^1.0.10":
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.0.10.tgz#88bdfeb5994547c9fd354ccb0d586590663c9005"
+  integrity sha512-3fbt+bePo552AV0XfP/DMXyRyK5v3wNpcwpEhcK4DSlxEVKg2w2MzGEi3BH0+GhH7VVzBATNifXe2iqm8BGhDw==
   dependencies:
     tsup "^5.12.7"
     typescript "^4.6.4"
@@ -5458,6 +5463,11 @@ tweakpane@^3.0.7:
   version "3.0.7"
   resolved "https://registry.yarnpkg.com/tweakpane/-/tweakpane-3.0.7.tgz#a514a08aa4fafb542923d83e4be6915887dac7e5"
   integrity sha512-rgxqoo6T10atYoKHVif6aYlAMIAlHJ84hi5LXqi6ZgVEPcmnzPI34C88y6HquarBY0ZKE/ZCXVaZm8NibhQRtA==
+
+tweezer.js@^1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/tweezer.js/-/tweezer.js-1.5.0.tgz#ca50ac5215022203fd3be4d28617e8e2305f5c0c"
+  integrity sha512-aSiJz7rGWNAQq7hjMK9ZYDuEawXupcCWgl3woQQSoDP2Oh8O4srWb/uO1PzzHIsrPEOqrjJ2sUb9FERfzuBabQ==
 
 type-check@^0.4.0, type-check@~0.4.0:
   version "0.4.0"

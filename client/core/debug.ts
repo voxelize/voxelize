@@ -349,6 +349,11 @@ class Debug {
       this.client.rendering.renderer.info.memory,
       "geometries"
     );
+    this.registerDisplay(
+      "Rigid Body Count",
+      this.client.physics.core.bodies,
+      "length"
+    );
 
     // this.group.add(
     //   new Mesh(

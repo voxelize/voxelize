@@ -2122,10 +2122,10 @@
     "@typescript-eslint/types" "5.19.0"
     eslint-visitor-keys "^3.0.0"
 
-"@voxelize/voxel-physics-engine@^1.0.9":
-  version "1.0.9"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.0.9.tgz#fc3c4c06d2b2ce6fddee5835ee291207faf7e442"
-  integrity sha512-NcbhsTh2HBHCP43kzVtty42PV8o8vw5PK/Rhjm9IzSkR3eEOB3V4OiwJwHjqQdBnuo/675uYMT5djhR1o6mgtQ==
+"@voxelize/voxel-physics-engine@^1.0.10":
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.0.10.tgz#88bdfeb5994547c9fd354ccb0d586590663c9005"
+  integrity sha512-3fbt+bePo552AV0XfP/DMXyRyK5v3wNpcwpEhcK4DSlxEVKg2w2MzGEi3BH0+GhH7VVzBATNifXe2iqm8BGhDw==
   dependencies:
     tsup "^5.12.7"
     typescript "^4.6.4"

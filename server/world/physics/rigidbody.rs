@@ -58,18 +58,19 @@ impl RigidBody {
 
     /// Setter for rigid body's position, which is the bottom center of the rigid body.
     pub fn set_position(&mut self, px: f32, py: f32, pz: f32) {
-        let [offset_w, offset_d] = self.aabb_offset();
+        let [offset_w, offset_h, offset_d] = self.aabb_offset();
 
-        self.aabb.set_position(px - offset_w, py, pz - offset_d);
+        self.aabb
+            .set_position(px - offset_w, py - offset_h, pz - offset_d);
         self.mark_active()
     }
 
     /// Get the position of the rigid body, which is the bottom center of the rigid body.
     pub fn get_position(&self) -> Vec3<f32> {
-        let [offset_w, offset_d] = self.aabb_offset();
+        let [offset_w, offset_h, offset_d] = self.aabb_offset();
         Vec3(
             self.aabb.min_x + offset_w,
-            self.aabb.min_y,
+            self.aabb.min_y + offset_h,
             self.aabb.min_z + offset_d,
         )
     }
@@ -114,8 +115,12 @@ impl RigidBody {
     }
 
     /// Compute the offset from the minimum coordinates to the bottom center.
-    fn aabb_offset(&self) -> [f32; 2] {
-        [self.aabb.width() / 2.0, self.aabb.depth() / 2.0]
+    fn aabb_offset(&self) -> [f32; 3] {
+        [
+            self.aabb.width() / 2.0,
+            self.aabb.height() / 2.0,
+            self.aabb.depth() / 2.0,
+        ]
     }
 }
 

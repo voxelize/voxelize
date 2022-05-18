@@ -23,6 +23,8 @@ class World {
 
   public sky: Sky;
 
+  public uSunlightIntensity = { value: 1 };
+
   constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
     const { skyDimension } = { ...defaultParams, ...params };
 

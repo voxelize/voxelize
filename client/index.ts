@@ -26,6 +26,7 @@ import {
   WorldInitParams,
   PhysicsParams,
   Physics,
+  Particles,
 } from "./core";
 import { Chunks, ChunksParams } from "./core/chunks";
 import { ECS, System } from "./libs";
@@ -65,6 +66,7 @@ class Client extends EventEmitter {
   public settings: Settings;
   public chunks: Chunks;
   public physics: Physics;
+  public particles: Particles;
 
   public joined = false;
   public loaded = false;
@@ -107,6 +109,7 @@ class Client extends EventEmitter {
     this.settings = new Settings(this);
     this.chunks = new Chunks(this, chunks);
     this.physics = new Physics(this, physics);
+    this.particles = new Particles(this);
 
     // all members has been initialized
     this.emit("initialized");
@@ -237,6 +240,7 @@ class Client extends EventEmitter {
     this.peers.update();
     this.debug.update();
     this.chunks.update();
+    this.particles.update();
     this.physics.update();
 
     this.rendering.render();

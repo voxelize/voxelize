@@ -96,7 +96,7 @@ class Registry {
     });
 
     this.atlas = await TextureAtlas.create(this.sources, this.ranges, {
-      countPerSide: this.perSide(),
+      countPerSide: this.perSide,
       dimension,
     });
 
@@ -194,6 +194,138 @@ class Registry {
     return uvMap;
   };
 
+  getUV = (id: number): { [key: string]: [any[][], number] } => {
+    const getUVInner = (range: TextureRange, uv: number[]): number[] => {
+      const { startU, endU, startV, endV } = range;
+      return [uv[0] * (endU - startU) + startU, uv[1] * (startV - endV) + endV];
+    };
+
+    const { isBlock, isPlant } = this.getBlockById(id);
+    const textures = this.getUVById(id);
+
+    if (isBlock) {
+      // ny
+      const bottomUVs = [
+        [1, 0],
+        [0, 0],
+        [1, 1],
+        [0, 1],
+      ].map((uv) =>
+        getUVInner(
+          textures["all"]
+            ? textures["all"]
+            : textures["bottom"]
+            ? textures["bottom"]
+            : textures["ny"],
+          uv
+        )
+      );
+
+      // py
+      const topUVs = [
+        [1, 1],
+        [0, 1],
+        [1, 0],
+        [0, 0],
+      ].map((uv) =>
+        getUVInner(
+          textures["all"]
+            ? textures["all"]
+            : textures["top"]
+            ? textures["top"]
+            : textures["py"],
+          uv
+        )
+      );
+
+      // nx
+      const side1UVs = [
+        [0, 1],
+        [0, 0],
+        [1, 1],
+        [1, 0],
+      ].map((uv) =>
+        getUVInner(
+          textures["all"]
+            ? textures["all"]
+            : textures["side"]
+            ? textures["side"]
+            : textures["nx"],
+          uv
+        )
+      );
+
+      // px
+      const side2UVs = [
+        [0, 1],
+        [0, 0],
+        [1, 1],
+        [1, 0],
+      ].map((uv) =>
+        getUVInner(
+          textures["all"]
+            ? textures["all"]
+            : textures["side"]
+            ? textures["side"]
+            : textures["px"],
+          uv
+        )
+      );
+
+      // nz
+      const side3UVs = [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ].map((uv) =>
+        getUVInner(
+          textures["all"]
+            ? textures["all"]
+            : textures["side"]
+            ? textures["side"]
+            : textures["nz"],
+          uv
+        )
+      );
+
+      // pz
+      const side4UVs = [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ].map((uv) =>
+        getUVInner(
+          textures["all"]
+            ? textures["all"]
+            : textures["side"]
+            ? textures["side"]
+            : textures["pz"],
+          uv
+        )
+      );
+
+      return {
+        px: [side2UVs, 1],
+        py: [topUVs, 3],
+        pz: [side4UVs, 0],
+        nx: [side1UVs, 1],
+        ny: [bottomUVs, 1],
+        nz: [side3UVs, 0],
+      };
+    } else if (isPlant) {
+      const oneUVs = [
+        [0, 1],
+        [0, 0],
+        [1, 1],
+        [1, 0],
+      ].map((uv) => getUVInner(textures["one"], uv));
+      return { one: [oneUVs, 1] };
+    }
+    return {};
+  };
+
   getTypeMap = (blocks: string[]) => {
     const typeMap = {};
 
@@ -216,6 +348,15 @@ class Registry {
   hasType = (id: number) => {
     return this.nameMap.has(id);
   };
+
+  get perSide() {
+    let i = 1;
+    const sqrt = Math.ceil(Math.sqrt(this.textures.size));
+    while (i < sqrt) {
+      i *= 2;
+    }
+    return i;
+  }
 
   static getFacesMap = (faces: BlockFace[]) => {
     const faceMap: { [key: string]: string } = {};
@@ -252,17 +393,8 @@ class Registry {
     return [startU + offset, startV - offset, endU - offset, endV + offset];
   };
 
-  private perSide = () => {
-    let i = 1;
-    const sqrt = Math.ceil(Math.sqrt(this.textures.size));
-    while (i < sqrt) {
-      i *= 2;
-    }
-    return i;
-  };
-
   private makeSideName = (name: string, side: BlockFace) => {
-    return `${name.toLowerCase()}__${side}`;
+    return `${name.toLowerCase()}__${side.toLowerCase()}`;
   };
 
   private recordBlock = (block: Block) => {
@@ -348,7 +480,7 @@ vLight = unpackLight(light);
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         map: this.atlasUniform,
-        uSunlightIntensity: { value: 1 },
+        uSunlightIntensity: this.client.world.uSunlightIntensity,
         uAOTable: this.aoUniform,
         uMinLight: this.minLightUniform,
       },

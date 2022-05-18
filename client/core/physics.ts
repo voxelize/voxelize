@@ -1,4 +1,4 @@
-import { AABB, Engine as PhysicsEngine } from "@voxelize/voxel-physics-engine";
+import { Engine as PhysicsEngine } from "@voxelize/voxel-physics-engine";
 
 import { Client } from "..";
 

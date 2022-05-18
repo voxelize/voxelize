@@ -190,6 +190,16 @@ class Network {
         const { updates } = event;
 
         if (updates) {
+          this.client.particles.addBreakParticles(
+            updates
+              .filter(({ type }) => type === 0)
+              .map(({ vx, vy, vz }) => ({
+                voxel: [vx, vy, vz],
+                type: this.client.chunks.getVoxelByVoxel(vx, vy, vz),
+              })),
+            { count: updates.length > 3 ? 1 : 6 }
+          );
+
           updates.forEach((update) => {
             const { vx, vy, vz, type } = update;
             const chunk = this.client.chunks.getChunkByVoxel(vx, vy, vz);

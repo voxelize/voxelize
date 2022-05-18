@@ -368,7 +368,7 @@ class Controls extends EventDispatcher {
 
   setPosition = (x: number, y: number, z: number) => {
     const { eyeHeight, bodyHeight } = this.params;
-    this.object.position.set(x, y + bodyHeight * eyeHeight, z);
+    this.object.position.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
     this.body.setPosition([x, y, z]);
   };
 
@@ -386,11 +386,12 @@ class Controls extends EventDispatcher {
 
   toggleGhostMode = () => {
     const { aabb } = this.body;
-    const [px, , pz] = this.position;
+    const [px, py, pz] = this.position;
     const { bodyWidth, bodyHeight, bodyDepth } = this.params;
 
     if (this.ghostMode) {
       aabb.minX = px - bodyWidth / 2;
+      aabb.minY = py - bodyHeight / 2;
       aabb.minZ = pz - bodyDepth / 2;
       aabb.maxX = aabb.minX + bodyWidth;
       aabb.maxY = aabb.minY + bodyHeight;
@@ -398,10 +399,12 @@ class Controls extends EventDispatcher {
       this.body.gravityMultiplier = 1;
     } else {
       const avgX = (aabb.minX + aabb.maxX) / 2;
+      const avgY = (aabb.minY + aabb.maxY) / 2;
       const avgZ = (aabb.minZ + aabb.maxZ) / 2;
       aabb.minX = avgX + 1;
       aabb.maxX = avgX - 1;
-      aabb.maxY = aabb.minY;
+      aabb.minY = avgY + 1;
+      aabb.maxY = avgY - 1;
       aabb.minZ = avgZ + 1;
       aabb.maxZ = avgZ - 1;
       this.body.gravityMultiplier = 0;
@@ -866,7 +869,7 @@ class Controls extends EventDispatcher {
 
     const [x, y, z] = this.body.getPosition();
     const { eyeHeight, bodyHeight } = this.params;
-    this.object.position.set(x, y + bodyHeight * eyeHeight, z);
+    this.object.position.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
   };
 
   private onKeyDown = ({ code }: KeyboardEvent) => {
