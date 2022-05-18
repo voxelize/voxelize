@@ -43,6 +43,15 @@ message Entity {
   string metadata = 6;
 }
 
+message Update {
+  int32 vx = 1;
+  int32 vy = 2;
+  int32 vz = 3;
+  uint32 type = 4;
+  uint32 rotation = 5;
+  uint32 yRotation = 6;
+}
+
 message Message {
   enum Type {
     INIT = 0;
@@ -54,7 +63,8 @@ message Message {
     ENTITY = 6;
     LOAD = 7;
     UNLOAD = 8;
-    DEBUG = 9;
+    UPDATE = 9;
+    DEBUG = 10;
   }
 
   Type type = 1;
@@ -65,4 +75,5 @@ message Message {
   repeated string peers = 5;
   repeated Entity entities = 6;
   repeated Chunk chunks = 7;
+  repeated Update updates = 8;
 }

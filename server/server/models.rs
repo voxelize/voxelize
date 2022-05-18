@@ -74,6 +74,17 @@ pub struct Peer {
     pub direction: Option<Vec3<f32>>,
 }
 
+/// Protobuf buffer compatible update data structure.
+#[derive(Debug, Clone)]
+pub struct Update {
+    pub vx: i32,
+    pub vy: i32,
+    pub vz: i32,
+    pub r#type: u32,
+    pub rotation: u32,
+    pub y_rotation: u32,
+}
+
 /// Protocol buffer compatible entity data structure.
 #[derive(Debug, Clone)]
 pub struct Entity {
@@ -94,6 +105,7 @@ pub struct MessageBuilder {
     peers: Option<Vec<String>>,
     entities: Option<Vec<Entity>>,
     chunks: Option<Vec<Chunk>>,
+    updates: Option<Vec<Update>>,
 }
 
 /// Convert a `Vec3` to protocol buffer `Vector3`.
@@ -143,6 +155,12 @@ impl MessageBuilder {
     /// Configure the chunks data of the protocol.
     pub fn chunks(mut self, chunks: &[Chunk]) -> Self {
         self.chunks = Some(chunks.to_vec());
+        self
+    }
+
+    /// Configure the voxel update data of the protocol.
+    pub fn updates(mut self, updates: &[Update]) -> Self {
+        self.updates = Some(updates.to_vec());
         self
     }
 
@@ -219,6 +237,20 @@ impl MessageBuilder {
                     z: chunk.z,
                 })
                 .collect();
+        }
+
+        if let Some(updates) = self.updates {
+            message.updates = updates
+                .into_iter()
+                .map(|update| messages::Update {
+                    r#type: update.r#type,
+                    vx: update.vx,
+                    vy: update.vy,
+                    vz: update.vz,
+                    rotation: update.rotation,
+                    y_rotation: update.y_rotation,
+                })
+                .collect()
         }
 
         message

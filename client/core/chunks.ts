@@ -61,7 +61,7 @@ class Chunks {
   };
 
   update = () => {
-    const { position } = this.client;
+    const { position } = this.client.controls;
     const { dimension, chunkSize } = this.worldParams;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
@@ -108,7 +108,18 @@ class Chunks {
     return this.getVoxelByVoxel(...voxel);
   };
 
-  setVoxelByVoxel: (vx: number, vy: number, vz: number, id: number) => number;
+  setVoxelByVoxel = (vx: number, vy: number, vz: number, type: number) => {
+    this.setVoxelsByVoxel([{ vx, vy, vz, type }]);
+  };
+
+  setVoxelsByVoxel = (
+    updates: { vx: number; vy: number; vz: number; type: number }[]
+  ) => {
+    this.client.network.send({
+      type: "UPDATE",
+      updates,
+    });
+  };
 
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
@@ -406,7 +417,7 @@ class Chunks {
     const deleted: Coords2[] = [];
 
     for (const chunk of this.map.values()) {
-      const dist = chunk.distTo(...this.client.voxel);
+      const dist = chunk.distTo(...this.client.controls.voxel);
 
       if (dist > deleteDistance) {
         chunk.removeFromScene();

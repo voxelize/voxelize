@@ -54,7 +54,7 @@ class World {
   };
 
   update = () => {
-    const [px, , pz] = this.client.position;
+    const [px, , pz] = this.client.controls.position;
     this.sky.mesh.position.set(px, 0, pz);
   };
 }

@@ -3,10 +3,12 @@ use std::collections::VecDeque;
 use log::info;
 
 use crate::{
-    libs::{ndarray::Ndarray, types::LightColor, utils::chunk::ChunkUtils},
+    libs::ndarray::Ndarray,
     vec::{Vec2, Vec3},
     world::{
         registry::Registry,
+        types::LightColor,
+        utils::chunk::ChunkUtils,
         voxels::{access::VoxelAccess, block::Block},
         WorldConfig,
     },

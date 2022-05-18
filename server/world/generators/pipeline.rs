@@ -1,14 +1,14 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use hashbrown::HashSet;
+use hashbrown::{HashMap, HashSet};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    common::BlockChange,
     vec::{Vec2, Vec3},
     world::{
         registry::Registry,
+        types::BlockChange,
         voxels::{
             access::VoxelAccess,
             chunk::Chunk,
@@ -143,6 +143,9 @@ pub struct Pipeline {
     /// A HashSet that keeps track of what chunks are in the pipeline.
     pub chunks: HashSet<Vec2<i32>>,
 
+    /// Leftover changes to chunks.
+    pub leftovers: HashMap<Vec2<i32>, Vec<BlockChange>>,
+
     /// Sender of processed chunks from other threads to main thread.
     sender: Arc<Sender<(Vec<Chunk>, Vec<BlockChange>)>>,
 
@@ -166,6 +169,7 @@ impl Pipeline {
 
         Self {
             chunks: HashSet::default(),
+            leftovers: HashMap::default(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()

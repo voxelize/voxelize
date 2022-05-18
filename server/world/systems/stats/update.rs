@@ -16,7 +16,7 @@ impl<'a> System<'a> for UpdateStatsSystem {
 
         stats.delta = (now
             .duration_since(stats.prev_time)
-            .expect("Clock may have gone backwards.")
+            .unwrap_or_default()
             .as_millis() as f32
             / 1000.0)
             .min(0.020)

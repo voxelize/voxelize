@@ -207,17 +207,6 @@ class Client extends EventEmitter {
     this.controls.reset();
   };
 
-  get position() {
-    return this.controls.object.position.toArray() as Coords3;
-  }
-
-  get voxel() {
-    return ChunkUtils.mapWorldPosToVoxelPos(
-      this.position,
-      this.world.params.dimension
-    );
-  }
-
   private run = () => {
     const animate = () => {
       this.animationFrame = requestAnimationFrame(animate);

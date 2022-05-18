@@ -1,13 +1,12 @@
 use crate::{
-    common::BlockChange,
-    libs::{
-        ndarray::Ndarray,
-        types::LightColor,
-        utils::{block::BlockUtils, chunk::ChunkUtils, light::LightUtils},
-    },
+    libs::ndarray::Ndarray,
     server::models::{Chunk as ChunkModel, Mesh},
     vec::{Vec2, Vec3},
-    world::registry::Registry,
+    world::{
+        registry::Registry,
+        types::{BlockChange, LightColor},
+        utils::{block::BlockUtils, chunk::ChunkUtils, light::LightUtils},
+    },
 };
 
 use super::{access::VoxelAccess, block::BlockRotation};
@@ -105,15 +104,27 @@ impl Chunk {
     }
 
     /// Convert chunk to protocol model.
-    pub fn to_model(&self) -> ChunkModel {
+    pub fn to_model(&self, mesh_only: bool) -> ChunkModel {
         ChunkModel {
             x: self.coords.0,
             z: self.coords.1,
             id: self.id.clone(),
             mesh: self.mesh.to_owned(),
-            voxels: Some(self.voxels.to_owned()),
-            lights: Some(self.lights.to_owned()),
-            height_map: Some(self.height_map.to_owned()),
+            voxels: if mesh_only {
+                None
+            } else {
+                Some(self.voxels.to_owned())
+            },
+            lights: if mesh_only {
+                None
+            } else {
+                Some(self.lights.to_owned())
+            },
+            height_map: if mesh_only {
+                None
+            } else {
+                Some(self.height_map.to_owned())
+            },
         }
     }
 

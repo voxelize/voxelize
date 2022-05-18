@@ -38,7 +38,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
             if let Some(coords) = chunks.to_send.pop_front() {
                 if let Some(chunk) = chunks.get(&coords) {
                     let message = Message::new(&MessageType::Load)
-                        .chunks(&[chunk.to_model()])
+                        .chunks(&[chunk.to_model(true)])
                         .build();
 
                     // See if each request is interested in this chunk update.

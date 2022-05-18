@@ -1,7 +1,18 @@
-import { Euler, EventDispatcher, Vector3, Group } from "three";
+import {
+  Euler,
+  EventDispatcher,
+  Vector3,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Color,
+  BoxBufferGeometry,
+} from "three";
 
 import { Client } from "..";
+import { raycast } from "../libs";
 import { Coords3 } from "../types";
+import { ChunkUtils } from "../utils";
 
 const _euler = new Euler(0, 0, 0, "YXZ");
 const _vector = new Vector3();
@@ -12,12 +23,23 @@ const _unlockEvent = { type: "unlock" };
 
 const _PI_2 = Math.PI / 2;
 
+const PY_ROTATION = 0;
+const NY_ROTATION = 1;
+const PX_ROTATION = 2;
+const NX_ROTATION = 3;
+const PZ_ROTATION = 4;
+const NZ_ROTATION = 5;
+
 type ControlsParams = {
   sensitivity: number;
   acceleration: number;
   flyingInertia: number;
   minPolarAngle: number;
   maxPolarAngle: number;
+  lookBlockScale: number;
+  lookBlockColor: string;
+  lookBlockLerp: number;
+  reachDistance: number;
   initialPosition: Coords3;
 };
 
@@ -27,6 +49,10 @@ const defaultParams: ControlsParams = {
   flyingInertia: 5,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
+  lookBlockScale: 1.002,
+  lookBlockLerp: 1,
+  lookBlockColor: "black",
+  reachDistance: 32,
   initialPosition: [0, 60, 10],
 };
 
@@ -60,6 +86,19 @@ class Controls extends EventDispatcher {
    */
   public isLocked = false;
 
+  public lookBlock: Coords3 | null = [0, 0, 0];
+  public targetBlock: {
+    voxel: Coords3;
+    rotation: number;
+    yRotation: number;
+  } | null = {
+    voxel: [0, 0, 0],
+    rotation: PY_ROTATION,
+    yRotation: 0,
+  };
+
+  private lookBlockMesh: Group;
+
   private acc = new Vector3();
   private vel = new Vector3();
   private movements = {
@@ -83,7 +122,10 @@ class Controls extends EventDispatcher {
     this.object.add(client.camera.threeCamera);
     client.rendering.scene.add(this.object);
 
-    client.on("initialized", this.connect);
+    client.on("initialized", () => {
+      this.setupLookBlock();
+      this.setupListeners();
+    });
 
     this.setPosition(...this.params.initialPosition);
   }
@@ -122,6 +164,8 @@ class Controls extends EventDispatcher {
     this.moveForward(-this.vel.z);
 
     this.object.position.y += this.vel.y;
+
+    this.updateLookBlock();
   };
 
   /**
@@ -261,6 +305,190 @@ class Controls extends EventDispatcher {
   reset = () => {
     this.setPosition(...this.params.initialPosition);
     this.object.rotation.set(0, 0, 0);
+  };
+
+  get position() {
+    return this.object.position.toArray() as Coords3;
+  }
+
+  get voxel() {
+    return ChunkUtils.mapWorldPosToVoxelPos(
+      this.position,
+      this.client.world.params.dimension
+    );
+  }
+
+  private setupLookBlock = () => {
+    const { lookBlockScale, lookBlockColor } = this.params;
+    const { rendering } = this.client;
+
+    this.lookBlockMesh = new Group();
+
+    const mat = new MeshBasicMaterial({
+      color: new Color(lookBlockColor),
+      opacity: 0.3,
+      transparent: true,
+    });
+
+    const w = 0.01;
+    const dim = lookBlockScale;
+    const side = new Mesh(new BoxBufferGeometry(dim, w, w), mat);
+
+    for (let i = -1; i <= 1; i += 2) {
+      for (let j = -1; j <= 1; j += 2) {
+        const temp = side.clone();
+
+        temp.position.y = ((dim - w) / 2) * i;
+        temp.position.z = ((dim - w) / 2) * j;
+
+        this.lookBlockMesh.add(temp);
+      }
+    }
+
+    for (let i = -1; i <= 1; i += 2) {
+      for (let j = -1; j <= 1; j += 2) {
+        const temp = side.clone();
+
+        temp.position.x = ((dim - w) / 2) * i;
+        temp.position.y = ((dim - w) / 2) * j;
+        temp.rotation.y = Math.PI / 2;
+
+        this.lookBlockMesh.add(temp);
+      }
+    }
+
+    for (let i = -1; i <= 1; i += 2) {
+      for (let j = -1; j <= 1; j += 2) {
+        const temp = side.clone();
+
+        temp.position.z = ((dim - w) / 2) * i;
+        temp.position.x = ((dim - w) / 2) * j;
+        temp.rotation.z = Math.PI / 2;
+
+        this.lookBlockMesh.add(temp);
+      }
+    }
+
+    this.lookBlockMesh.frustumCulled = false;
+    this.lookBlockMesh.renderOrder = 1000000;
+
+    rendering.scene.add(this.lookBlockMesh);
+  };
+
+  private setupListeners = () => {
+    const { inputs, chunks } = this.client;
+
+    this.connect();
+
+    inputs.click(
+      "left",
+      () => {
+        if (!this.lookBlock) return;
+        const [vx, vy, vz] = this.lookBlock;
+        chunks.setVoxelByVoxel(vx, vy, vz, 0);
+      },
+      "in-game"
+    );
+
+    inputs.click(
+      "right",
+      () => {
+        if (!this.targetBlock) return;
+        const [vx, vy, vz] = this.targetBlock.voxel;
+        chunks.setVoxelByVoxel(
+          vx,
+          vy,
+          vz,
+          this.client.registry.getBlockByName("Color").id
+        );
+      },
+      "in-game"
+    );
+  };
+
+  private updateLookBlock = () => {
+    const { world, camera, chunks } = this.client;
+    const { dimension, maxHeight } = world.params;
+    const { reachDistance, lookBlockLerp } = this.params;
+
+    const camDir = new Vector3();
+    const camPos = this.object.position;
+    camera.threeCamera.getWorldDirection(camDir);
+    camDir.normalize();
+
+    const point: Coords3 = [0, 0, 0];
+    const normal: Coords3 = [0, 0, 0];
+
+    const result = raycast(
+      (x, y, z) => {
+        const vCoords = ChunkUtils.mapWorldPosToVoxelPos([x, y, z], dimension);
+        const type = chunks.getVoxelByVoxel(...vCoords);
+
+        return y < maxHeight * dimension && type !== 0;
+      },
+      [camPos.x, camPos.y, camPos.z],
+      [camDir.x, camDir.y, camDir.z],
+      reachDistance * dimension,
+      point,
+      normal
+    );
+
+    if (!result) {
+      // no target
+      this.lookBlockMesh.visible = false;
+      this.lookBlock = null;
+      this.targetBlock = null;
+      return;
+    }
+
+    this.lookBlockMesh.visible = true;
+    const flooredPoint = point.map(
+      (n, i) => Math.floor(parseFloat(n.toFixed(3))) - Number(normal[i] > 0)
+    );
+
+    const [nx, ny, nz] = normal;
+    const newLookBlock = ChunkUtils.mapWorldPosToVoxelPos(
+      <Coords3>flooredPoint,
+      world.params.dimension
+    );
+
+    const [lbx, lby, lbz] = newLookBlock;
+    this.lookBlockMesh.position.lerp(
+      new Vector3(
+        lbx * dimension + 0.5 * dimension,
+        lby * dimension + 0.5 * dimension,
+        lbz * dimension + 0.5 * dimension
+      ),
+      lookBlockLerp
+    );
+
+    this.lookBlock = newLookBlock;
+
+    // target block is look block summed with the normal
+    const rotation =
+      nx !== 0
+        ? nx > 0
+          ? PX_ROTATION
+          : NX_ROTATION
+        : ny !== 0
+        ? ny > 0
+          ? PY_ROTATION
+          : NY_ROTATION
+        : nz !== 0
+        ? nz > 0
+          ? PZ_ROTATION
+          : NZ_ROTATION
+        : 0;
+
+    this.targetBlock = {
+      voxel: [
+        this.lookBlock[0] + nx,
+        this.lookBlock[1] + ny,
+        this.lookBlock[2] + nz,
+      ],
+      rotation,
+      yRotation: 0,
+    };
   };
 
   private onKeyDown = ({ code }: KeyboardEvent) => {

@@ -2,13 +2,13 @@ use linked_hash_set::LinkedHashSet;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
 
 use crate::{
-    libs::utils::chunk::ChunkUtils,
     vec::{Vec2, Vec3},
     world::{
         components::{
             chunk_requests::ChunkRequestsComp, current_chunk::CurrentChunkComp,
             position::PositionComp,
         },
+        utils::chunk::ChunkUtils,
         WorldConfig,
     },
 };

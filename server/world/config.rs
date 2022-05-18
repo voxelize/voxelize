@@ -43,8 +43,11 @@ pub struct WorldConfig {
     /// Max light level that light can propagate. Default is 15 blocks.
     pub max_light_level: u32,
 
-    /// Maximum chunks to be processed per tick. Default is 2 chunks.
+    /// Maximum chunks to be processed per tick. Default is 24 chunks.
     pub max_chunk_per_tick: usize,
+
+    /// Maximum voxel updates to be processed per tick. Default is 500 voxels.
+    pub max_updates_per_tick: usize,
 
     /// Maximum responses to send to client per tick to prevent bottle-necking. Default is 4 chunks.
     pub max_response_per_tick: usize,
@@ -105,6 +108,7 @@ const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;
+const DEFAULT_MAX_UPDATES_PER_TICK: usize = 500;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 3;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 const DEFAULT_SEED: i32 = 123123123;
@@ -124,6 +128,7 @@ pub struct WorldConfigBuilder {
     max_height: usize,
     max_light_level: u32,
     max_chunk_per_tick: usize,
+    max_updates_per_tick: usize,
     max_response_per_tick: usize,
     preload_radius: u32,
     seed: i32,
@@ -146,6 +151,7 @@ impl WorldConfigBuilder {
             max_height: DEFAULT_MAX_HEIGHT,
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
             max_chunk_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
+            max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
             seed: DEFAULT_SEED,
@@ -205,6 +211,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the maximum amount of voxel updates to be processed per tick. Default is 500 voxel updates.
+    pub fn max_updates_per_tick(mut self, max_updates_per_tick: usize) -> Self {
+        self.max_updates_per_tick = max_updates_per_tick;
+        self
+    }
+
     /// Configure the maximum amount of chunks to be sent to the client per tick. Default is 3 chunks.
     pub fn max_response_per_tick(mut self, max_response_per_tick: usize) -> Self {
         self.max_response_per_tick = max_response_per_tick;
@@ -237,6 +249,7 @@ impl WorldConfigBuilder {
             max_height: self.max_height,
             max_light_level: self.max_light_level,
             max_chunk_per_tick: self.max_chunk_per_tick,
+            max_updates_per_tick: self.max_updates_per_tick,
             max_response_per_tick: self.max_response_per_tick,
             preload_radius: self.preload_radius,
             seed: self.seed,

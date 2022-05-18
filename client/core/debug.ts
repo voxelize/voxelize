@@ -278,7 +278,7 @@ class Debug {
     });
     testFolder.addButton({ title: "remesh chunk" }).on("click", () => {
       const currChunk = ChunkUtils.mapVoxelPosToChunkPos(
-        this.client.voxel,
+        this.client.controls.voxel,
         this.client.world.params.chunkSize
       );
       this.client.network.send({
@@ -301,12 +301,16 @@ class Debug {
     this.registerDisplay("", this, "fps");
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
-    this.registerDisplay("Position", this.client, "voxel");
-    this.registerDisplay("Chunk", this.client, "voxel", (voxel: Coords3) =>
-      ChunkUtils.mapVoxelPosToChunkPos(
-        voxel,
-        this.client.world.params.chunkSize
-      ).toString()
+    this.registerDisplay("Position", this.client.controls, "voxel");
+    this.registerDisplay(
+      "Chunk",
+      this.client.controls,
+      "voxel",
+      (voxel: Coords3) =>
+        ChunkUtils.mapVoxelPosToChunkPos(
+          voxel,
+          this.client.world.params.chunkSize
+        ).toString()
     );
     this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
@@ -355,7 +359,7 @@ class Debug {
   };
 
   private setupInputs = () => {
-    const { inputs, camera, chunks } = this.client;
+    const { inputs, camera, chunks, registry, controls } = this.client;
 
     inputs.bind(
       "l",
@@ -385,6 +389,55 @@ class Debug {
       {
         occasion: "keyup",
       }
+    );
+
+    inputs.bind(
+      "x",
+      () => {
+        if (!controls.lookBlock) return;
+
+        const radius = 3;
+
+        const changes = [];
+        const [vx, vy, vz] = controls.lookBlock;
+
+        for (let x = -radius; x <= radius; x++) {
+          for (let z = -radius; z <= radius; z++) {
+            for (let y = -radius; y <= radius; y++) {
+              if (x ** 2 + y ** 2 + z ** 2 > radius ** 2) continue;
+              changes.push({ vx: vx + x, vy: vy + y, vz: vz + z, type: 0 });
+            }
+          }
+        }
+
+        chunks.setVoxelsByVoxel(changes);
+      },
+      "in-game"
+    );
+
+    inputs.bind(
+      "z",
+      () => {
+        if (!controls.lookBlock) return;
+
+        const radius = 3;
+
+        const id = registry.getBlockByName("Lol").id;
+        const [vx, vy, vz] = controls.lookBlock;
+        const changes = [];
+
+        for (let x = -radius; x <= radius; x++) {
+          for (let z = -radius; z <= radius; z++) {
+            for (let y = -radius; y <= radius; y++) {
+              if (x ** 2 + y ** 2 + z ** 2 > radius ** 2) continue;
+              changes.push({ vx: vx + x, vy: vy + y, vz: vz + z, type: id });
+            }
+          }
+        }
+
+        chunks.setVoxelsByVoxel(changes);
+      },
+      "in-game"
     );
   };
 
@@ -435,12 +488,12 @@ class Debug {
   })();
 
   get light() {
-    const { voxel } = this.client;
+    const { voxel } = this.client.controls;
     return this.client.chunks.getSunlightByVoxel(...voxel);
   }
 
   get maxHeight() {
-    const { voxel } = this.client;
+    const { voxel } = this.client.controls;
     return this.client.chunks.getMaxHeight(voxel[0], voxel[2]);
   }
 }

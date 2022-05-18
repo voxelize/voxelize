@@ -6,11 +6,11 @@ use log::info;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    libs::utils::light::LightUtils,
     server::models::{Geometry, Mesh},
     vec::Vec3,
     world::{
         registry::{Registry, UV},
+        utils::light::LightUtils,
         voxels::{
             access::VoxelAccess,
             block::{Block, BlockFaces},

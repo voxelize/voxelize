@@ -2,12 +2,11 @@ use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    common::BlockChanges,
-    libs::utils::chunk::ChunkUtils,
     vec::Vec2,
     world::{
         generators::pipeline::Pipeline,
         registry::Registry,
+        utils::chunk::ChunkUtils,
         voxels::{
             chunk::{Chunk, ChunkParams},
             chunks::Chunks,
@@ -23,13 +22,12 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
     type SystemData = (
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
-        WriteExpect<'a, BlockChanges>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Chunks>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, mut changes, mut pipeline, mut chunks) = data;
+        let (registry, config, mut pipeline, mut chunks) = data;
 
         let max_per_tick = config.max_chunk_per_tick;
         let chunk_size = config.chunk_size;
@@ -39,9 +37,9 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             new_changes.into_iter().for_each(|(voxel, id)| {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
 
-                let mut already = changes.remove(&coords).unwrap_or_else(|| vec![]);
+                let mut already = pipeline.leftovers.remove(&coords).unwrap_or_else(|| vec![]);
                 already.push((voxel, id));
-                changes.insert(coords, already);
+                pipeline.leftovers.insert(coords, already);
             });
 
             // Advance each chunk's stage to the next stage. If the chunk is about to be meshed, then apply the changes
@@ -54,7 +52,10 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
                     // This means the chunk was pushed back into the pipeline for remeshing.
                     // Should send to users that has requested for these chunks for update.
                     chunk.calculate_max_height(&registry);
-                    chunks.to_remesh.insert(chunk.coords.to_owned());
+
+                    if !chunks.to_remesh.contains(&chunk.coords) {
+                        chunks.to_remesh.push_back(chunk.coords.to_owned());
+                    }
                 }
 
                 chunks.renew(chunk);

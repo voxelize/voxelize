@@ -1,11 +1,16 @@
-use hashbrown::HashMap;
+use std::collections::VecDeque;
+
+use hashbrown::{HashMap, HashSet};
 use linked_hash_set::LinkedHashSet;
 use log::info;
 
 use crate::{
-    libs::{types::LightColor, utils::chunk::ChunkUtils},
     vec::{Vec2, Vec3},
-    world::WorldConfig,
+    world::{
+        types::{BlockChange, LightColor},
+        utils::chunk::ChunkUtils,
+        WorldConfig,
+    },
 };
 
 use super::{
@@ -21,11 +26,17 @@ pub struct Chunks {
     /// A map of all the chunks, coords -> Chunk.
     pub map: HashMap<Vec2<i32>, Chunk>,
 
+    /// Voxel updates waiting to be processed.
+    pub to_update: VecDeque<BlockChange>,
+
     /// A list of chunks that are to be remeshed (light + mesh).
-    pub to_remesh: LinkedHashSet<Vec2<i32>>,
+    pub to_remesh: VecDeque<Vec2<i32>>,
 
     /// A list of chunks that are done meshing and ready to be sent.
-    pub to_send: LinkedHashSet<Vec2<i32>>,
+    pub to_send: VecDeque<Vec2<i32>>,
+
+    /// A cache of what chunks has been borrowed mutable.
+    pub cache: HashSet<Vec2<i32>>,
 
     /// A copy of the world's config.
     config: WorldConfig,
@@ -53,11 +64,20 @@ impl Chunks {
 
     /// Get raw chunk data.
     pub fn raw(&self, coords: &Vec2<i32>) -> Option<&Chunk> {
+        if !self.is_within_world(coords) {
+            return None;
+        }
+
         self.map.get(coords)
     }
 
     /// Get raw mutable chunk data.
     pub fn raw_mut(&mut self, coords: &Vec2<i32>) -> Option<&mut Chunk> {
+        if !self.is_within_world(coords) {
+            return None;
+        }
+
+        self.cache.insert(coords.to_owned());
         self.map.get_mut(coords)
     }
 
@@ -78,6 +98,7 @@ impl Chunks {
             return None;
         }
 
+        self.cache.insert(coords.to_owned());
         self.map.get_mut(coords)
     }
 
@@ -117,7 +138,7 @@ impl Chunks {
         if c {
             neighbors.push(Vec2(cx + 1, cz));
         }
-        if c {
+        if d {
             neighbors.push(Vec2(cx, cz + 1));
         }
 
@@ -135,6 +156,9 @@ impl Chunks {
         }
 
         neighbors
+            .into_iter()
+            .filter(|coords| self.is_within_world(coords))
+            .collect()
     }
 
     /// Get a list of chunks that light could traverse within.
@@ -200,6 +224,11 @@ impl Chunks {
         }
 
         false
+    }
+
+    /// Clear the mutable chunk borrowing list.
+    pub fn clear_cache(&mut self) {
+        self.cache.clear();
     }
 }
 

@@ -52,6 +52,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         .get_mut(&id.0)
                         .unwrap()
                         .push(chunk.coords.to_owned());
+
+                    // Add coordinate to the "finished" pile.
+                    request.mark_finish(&coords);
                 } else {
                     chunks
                         .light_traversed_chunks(&coords)
@@ -71,10 +74,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                             pipeline.push(&n_coords, 0);
                         });
-                }
 
-                // Add coordinate to the "finished" pile.
-                request.mark_finish(&coords);
+                    request.pending.insert(coords);
+                }
             }
         }
 
@@ -84,7 +86,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 .into_iter()
                 .map(|coords| {
                     let chunk = chunks.get(&coords).unwrap();
-                    chunk.to_model()
+                    chunk.to_model(false)
                 })
                 .collect();
 

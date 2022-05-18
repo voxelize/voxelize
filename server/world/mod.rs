@@ -7,6 +7,8 @@ pub mod physics;
 pub mod registry;
 pub mod stats;
 pub mod systems;
+pub mod types;
+pub mod utils;
 pub mod voxels;
 
 use hashbrown::HashMap;
@@ -23,9 +25,8 @@ use specs::{
 };
 
 use crate::{
-    common::BlockChanges,
     server::models::{encode_message, messages::Peer, Message, MessageType},
-    vec::Vec2,
+    vec::{Vec2, Vec3},
 };
 
 use super::common::ClientFilter;
@@ -56,13 +57,14 @@ use self::{
         chunk::{
             current::CurrentChunkSystem, meshing::ChunkMeshingSystem,
             pipelining::ChunkPipeliningSystem, requests::ChunkRequestsSystem,
-            sending::ChunkSendingSystem,
+            sending::ChunkSendingSystem, updating::ChunkUpdatingSystem,
         },
         entity_meta::EntityMetaSystem,
         physics::PhysicsSystem,
         stats::update::UpdateStatsSystem,
     },
-    voxels::chunks::Chunks,
+    utils::{block::BlockUtils, chunk::ChunkUtils},
+    voxels::{access::VoxelAccess, block::BlockRotation, chunks::Chunks},
 };
 
 pub type ModifyDispatch =
@@ -143,7 +145,6 @@ impl World {
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
-        ecs.insert(BlockChanges::new());
         ecs.insert(Stats::new());
 
         Self {
@@ -267,6 +268,7 @@ impl World {
             MessageType::Signal => self.on_signal(endpoint, data),
             MessageType::Unload => self.on_unload(endpoint, data),
             MessageType::Debug => self.on_debug(endpoint, data),
+            MessageType::Update => self.on_update(endpoint, data),
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
             }
@@ -375,6 +377,7 @@ impl World {
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityMetaSystem, "entity-meta", &[])
             .with(CurrentChunkSystem, "current-chunking", &[])
+            .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
             .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
             .with(
                 ChunkPipeliningSystem,
@@ -506,6 +509,36 @@ impl World {
         }
     }
 
+    /// Handler for `Update` type messages.
+    fn on_update(&mut self, _: &Endpoint, data: Message) {
+        let registry = (*self.registry()).clone();
+        let mut chunks = self.chunks_mut();
+
+        data.updates.into_iter().for_each(|update| {
+            let mut raw = 0;
+            raw = BlockUtils::insert_id(raw, update.r#type);
+
+            let block = registry.get_block_by_id(update.r#type);
+            if block.rotatable {
+                raw = BlockUtils::insert_rotation(
+                    raw,
+                    &BlockRotation::encode(
+                        update.rotation,
+                        if block.y_rotatable {
+                            update.y_rotation
+                        } else {
+                            0
+                        },
+                    ),
+                );
+            }
+
+            chunks
+                .to_update
+                .push_back((Vec3(update.vx, update.vy, update.vz), raw));
+        });
+    }
+
     /// Handler for `Debug` type messages.
     fn on_debug(&mut self, _: &Endpoint, data: Message) {
         let json: OnDebugRequest = serde_json::from_str(&data.json)
@@ -520,7 +553,9 @@ impl World {
             let coords = Vec2(x, z);
 
             if chunks.is_within_world(&coords) {
-                chunks.to_remesh.insert(coords);
+                if !chunks.to_remesh.contains(&coords) {
+                    chunks.to_remesh.push_front(coords);
+                }
             }
         } else {
             info!("Received unknown debug method of {}", json.method);

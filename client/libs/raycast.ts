@@ -1,13 +1,6 @@
 import { Coords3 } from "../types";
 
-type GetVoxel = (
-  vx: number,
-  vy: number,
-  vz: number,
-  wx?: number,
-  wy?: number,
-  wz?: number
-) => boolean;
+type GetVoxel = (vx: number, vy: number, vz: number) => boolean;
 
 function traceRay(
   getVoxel: GetVoxel,
@@ -54,7 +47,7 @@ function traceRay(
     const hz = pz + t * dz;
 
     // exit check
-    const b = getVoxel(ix, iy, iz, hx, hy, hz);
+    const b = getVoxel(ix, iy, iz);
     if (b) {
       if (hitPos) {
         hitPos[0] = hx;

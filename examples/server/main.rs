@@ -253,8 +253,8 @@ fn main() {
         Block::new("Color")
             .faces(&[BlockFaces::All])
             .is_light(true)
-            // .blue_light_level(10)
-            // .green_light_level(10)
+            .blue_light_level(10)
+            .green_light_level(10)
             .red_light_level(10)
             .build(),
     );

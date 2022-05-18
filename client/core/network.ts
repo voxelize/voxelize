@@ -183,6 +183,24 @@ class Network {
             this.client.chunks.handleServerChunk(chunk);
           });
         }
+
+        break;
+      }
+      case "UPDATE": {
+        const { updates } = event;
+
+        if (updates) {
+          updates.forEach((update) => {
+            const { vx, vy, vz, type } = update;
+            const chunk = this.client.chunks.getChunkByVoxel(vx, vy, vz);
+
+            if (chunk) {
+              chunk.setVoxel(vx, vy, vz, type || 0);
+            }
+          });
+        }
+
+        break;
       }
     }
   };

@@ -41,7 +41,7 @@ const Crosshair = styled.div`
   transform: translate(-50%, -50%);
   width: 10px;
   height: 10px;
-  border: 2px solid #eee1;
+  border: 2px solid #eee9;
   border-radius: 50%;
 `;
 

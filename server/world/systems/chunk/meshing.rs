@@ -2,7 +2,6 @@ use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    common::BlockChanges,
     vec::Vec3,
     world::{
         generators::{mesher::Mesher, pipeline::Pipeline},
@@ -18,18 +17,19 @@ impl<'a> System<'a> for ChunkMeshingSystem {
     type SystemData = (
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
-        ReadExpect<'a, Pipeline>,
+        WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
         WriteExpect<'a, Chunks>,
-        WriteExpect<'a, BlockChanges>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, pipeline, mut mesher, mut chunks, mut changes) = data;
+        let (registry, config, mut pipeline, mut mesher, mut chunks) = data;
 
         if let Ok(list) = mesher.results() {
             list.into_iter().for_each(|chunk| {
-                chunks.to_send.insert(chunk.coords.to_owned());
+                if !chunks.to_send.contains(&chunk.coords) {
+                    chunks.to_send.push_back(chunk.coords.to_owned());
+                }
                 chunks.renew(chunk);
             });
         }
@@ -54,7 +54,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                         || (!pipeline.has(&n_coords) && chunks.map.contains_key(&n_coords))
                     {
                         // Apply the additional changes whenever available.
-                        if let Some(blocks) = changes.remove(&n_coords) {
+                        if let Some(blocks) = pipeline.leftovers.remove(&n_coords) {
                             blocks.into_iter().for_each(|(voxel, id)| {
                                 let Vec3(vx, vy, vz) = voxel;
 
@@ -80,7 +80,9 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                                 }
                             });
 
-                            chunks.to_remesh.insert(coords.to_owned());
+                            if !chunks.to_remesh.contains(&coords) {
+                                chunks.to_remesh.push_back(coords.to_owned());
+                            }
                             continue;
                         }
 
@@ -92,7 +94,9 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                 }
 
                 if !ready {
-                    chunks.to_remesh.insert(coords);
+                    if !chunks.to_remesh.contains(&coords) {
+                        chunks.to_remesh.push_back(coords);
+                    }
                     continue;
                 }
 
