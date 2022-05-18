@@ -512,9 +512,17 @@ impl World {
     /// Handler for `Update` type messages.
     fn on_update(&mut self, _: &Endpoint, data: Message) {
         let registry = (*self.registry()).clone();
+        let chunk_size = self.config().chunk_size;
         let mut chunks = self.chunks_mut();
 
         data.updates.into_iter().for_each(|update| {
+            let coords =
+                ChunkUtils::map_voxel_to_chunk(update.vx, update.vy, update.vz, chunk_size);
+
+            if !chunks.is_within_world(&coords) {
+                return;
+            }
+
             let mut raw = 0;
             raw = BlockUtils::insert_id(raw, update.r#type);
 
@@ -535,7 +543,7 @@ impl World {
 
             chunks
                 .to_update
-                .push_back((Vec3(update.vx, update.vy, update.vz), raw));
+                .push_front((Vec3(update.vx, update.vy, update.vz), raw));
         });
     }
 
