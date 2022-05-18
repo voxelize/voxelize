@@ -195,8 +195,6 @@ class Controls extends EventDispatcher {
 
   private lookBlockMesh: Group;
 
-  private acc = new Vector3();
-  private vel = new Vector3();
   private movements = {
     up: false,
     down: false,
@@ -386,6 +384,34 @@ class Controls extends EventDispatcher {
     this.object.rotation.set(0, 0, 0);
   };
 
+  toggleGhostMode = () => {
+    const { aabb } = this.body;
+    const [px, , pz] = this.position;
+    const { bodyWidth, bodyHeight, bodyDepth } = this.params;
+
+    if (this.ghostMode) {
+      aabb.minX = px - bodyWidth / 2;
+      aabb.minZ = pz - bodyDepth / 2;
+      aabb.maxX = aabb.minX + bodyWidth;
+      aabb.maxY = aabb.minY + bodyHeight;
+      aabb.maxZ = aabb.minZ + bodyDepth;
+      this.body.gravityMultiplier = 1;
+    } else {
+      const avgX = (aabb.minX + aabb.maxX) / 2;
+      const avgZ = (aabb.minZ + aabb.maxZ) / 2;
+      aabb.minX = avgX + 1;
+      aabb.maxX = avgX - 1;
+      aabb.maxY = aabb.minY;
+      aabb.minZ = avgZ + 1;
+      aabb.maxZ = avgZ - 1;
+      this.body.gravityMultiplier = 0;
+    }
+  };
+
+  get ghostMode() {
+    return this.body.aabb.width <= 0;
+  }
+
   get position() {
     return this.body.getPosition() as Coords3;
   }
@@ -483,9 +509,47 @@ class Controls extends EventDispatcher {
       },
       "in-game"
     );
+
+    inputs.bind(
+      "g",
+      () => {
+        this.toggleGhostMode();
+      },
+      "in-game"
+    );
+
+    let lastSpace = -1;
+    inputs.bind(
+      "space",
+      () => {
+        let now = performance.now();
+        if (now - lastSpace < 250) {
+          if (!this.ghostMode) {
+            const isFlying = this.body.gravityMultiplier === 0;
+            this.body.gravityMultiplier = isFlying ? 1 : 0;
+          }
+
+          now = 0;
+        }
+        lastSpace = now;
+      },
+      "in-game",
+      { occasion: "keyup" }
+    );
   };
 
   private updateLookBlock = () => {
+    const disableLookBlock = () => {
+      this.lookBlockMesh.visible = false;
+      this.lookBlock = null;
+      this.targetBlock = null;
+    };
+
+    if (this.ghostMode) {
+      disableLookBlock();
+      return;
+    }
+
     const { world, camera, chunks } = this.client;
     const { dimension, maxHeight } = world.params;
     const { reachDistance, lookBlockLerp } = this.params;
@@ -514,9 +578,7 @@ class Controls extends EventDispatcher {
 
     if (!result) {
       // no target
-      this.lookBlockMesh.visible = false;
-      this.lookBlock = null;
-      this.targetBlock = null;
+      disableLookBlock();
       return;
     }
 
@@ -618,8 +680,18 @@ class Controls extends EventDispatcher {
     // set jump as true, and brain will handle the jumping
     state.jumping = up ? (down ? false : true) : down ? false : false;
 
+    // crouch to true, so far used for flying
+    state.crouching = down;
+
     // apply sprint state change
     state.sprinting = sprint;
+
+    // means landed, no more fly
+    if (!this.ghostMode) {
+      if (this.body.gravityMultiplier === 0 && this.body.atRestY === -1) {
+        this.body.gravityMultiplier = 1;
+      }
+    }
   };
 
   private updateRigidBody = () => {

@@ -28,10 +28,6 @@ class Physics {
 
     this.core = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
-        // if (vy <= 0) {
-        //   return [new AABB(0, 0, 0, 1, 1, 1)];
-        // }
-
         const id = client.chunks.getVoxelByVoxel(vx, vy, vz);
         const { aabbs } = client.registry.getBlockById(id);
         return aabbs;
