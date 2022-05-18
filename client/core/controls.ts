@@ -579,13 +579,12 @@ class Controls extends EventDispatcher {
       normal
     );
 
+    // No target.
     if (!result) {
-      // no target
       disableLookBlock();
       return;
     }
 
-    this.lookBlockMesh.visible = true;
     const flooredPoint = point.map(
       (n, i) => Math.floor(parseFloat(n.toFixed(3))) - Number(normal[i] > 0)
     );
@@ -595,6 +594,14 @@ class Controls extends EventDispatcher {
       <Coords3>flooredPoint,
       world.params.dimension
     );
+
+    // Pointing at air.
+    if (this.client.chunks.getVoxelByVoxel(...newLookBlock) === 0) {
+      disableLookBlock();
+      return;
+    }
+
+    this.lookBlockMesh.visible = true;
 
     const [lbx, lby, lbz] = newLookBlock;
     this.lookBlockMesh.position.lerp(
