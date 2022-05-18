@@ -446,4 +446,6 @@ class Chunks {
   };
 }
 
+export type { ChunksParams };
+
 export { Chunks };

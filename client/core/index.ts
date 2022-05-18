@@ -13,3 +13,4 @@ export * from "./mesher";
 export * from "./registry";
 export * from "./comps";
 export * from "./settings";
+export * from "./physics";

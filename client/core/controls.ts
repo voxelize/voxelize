@@ -1,3 +1,4 @@
+import { AABB, RigidBody } from "@voxelize/voxel-physics-engine";
 import {
   Euler,
   EventDispatcher,
@@ -30,6 +31,51 @@ const NX_ROTATION = 3;
 const PZ_ROTATION = 4;
 const NZ_ROTATION = 5;
 
+function rotateY(a: number[], b: number[], c: number) {
+  const bx = b[0];
+  const bz = b[2];
+
+  // translate point to the origin
+  const px = a[0] - bx;
+  const pz = a[2] - bz;
+
+  const sc = Math.sin(c);
+  const cc = Math.cos(c);
+
+  // perform rotation and translate to correct position
+  const out = [0, 0, 0];
+  out[0] = bx + pz * sc + px * cc;
+  out[1] = a[1];
+  out[2] = bz + pz * cc - px * sc;
+
+  return out;
+}
+
+type BrainStateType = {
+  heading: number; // radians, heading location
+  running: boolean;
+  jumping: boolean;
+  sprinting: boolean;
+  crouching: boolean;
+
+  // internal state
+  jumpCount: number;
+  isJumping: boolean;
+  currentJumpTime: number;
+};
+
+const defaultBrainState: BrainStateType = {
+  heading: 0,
+  running: false,
+  jumping: false,
+  sprinting: false,
+  crouching: false,
+
+  jumpCount: 0,
+  isJumping: false,
+  currentJumpTime: 0,
+};
+
 type ControlsParams = {
   sensitivity: number;
   acceleration: number;
@@ -41,6 +87,29 @@ type ControlsParams = {
   lookBlockLerp: number;
   reachDistance: number;
   initialPosition: Coords3;
+
+  bodyWidth: number;
+  bodyHeight: number;
+  bodyDepth: number;
+  eyeHeight: number;
+
+  maxSpeed: number;
+  moveForce: number;
+  responsiveness: number;
+  runningFriction: number;
+  standingFriction: number;
+
+  flySpeed: number;
+  flyForce: number;
+  flyImpulse: number;
+  flyInertia: number;
+
+  sprintFactor: number;
+  airMoveMult: number;
+  jumpImpulse: number;
+  jumpForce: number;
+  jumpTime: number; // ms
+  airJumps: number;
 };
 
 const defaultParams: ControlsParams = {
@@ -53,7 +122,30 @@ const defaultParams: ControlsParams = {
   lookBlockLerp: 1,
   lookBlockColor: "black",
   reachDistance: 32,
-  initialPosition: [0, 60, 10],
+  initialPosition: [0, 80, 10],
+
+  bodyWidth: 0.8,
+  bodyHeight: 1.8,
+  bodyDepth: 0.8,
+  eyeHeight: 0.8,
+
+  maxSpeed: 6,
+  moveForce: 30,
+  responsiveness: 240,
+  runningFriction: 0.1,
+  standingFriction: 4,
+
+  flySpeed: 20,
+  flyForce: 60,
+  flyImpulse: 0.8,
+  flyInertia: 3,
+
+  sprintFactor: 1.4,
+  airMoveMult: 0.7,
+  jumpImpulse: 8,
+  jumpForce: 1,
+  jumpTime: 50,
+  airJumps: Infinity,
 };
 
 /**
@@ -79,12 +171,16 @@ class Controls extends EventDispatcher {
    */
   public object = new Group();
 
+  public state: BrainStateType = defaultBrainState;
+
   /**
    * Flag indicating whether pointerlock controls have control over mouse
    *
    * @memberof Controls
    */
   public isLocked = false;
+
+  public body: RigidBody;
 
   public lookBlock: Coords3 | null = [0, 0, 0];
   public targetBlock: {
@@ -117,7 +213,10 @@ class Controls extends EventDispatcher {
   constructor(public client: Client, options: Partial<ControlsParams> = {}) {
     super();
 
-    this.params = { ...defaultParams, ...options };
+    const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
+      ...defaultParams,
+      ...options,
+    });
 
     this.object.add(client.camera.threeCamera);
     client.rendering.scene.add(this.object);
@@ -125,9 +224,13 @@ class Controls extends EventDispatcher {
     client.on("initialized", () => {
       this.setupLookBlock();
       this.setupListeners();
-    });
 
-    this.setPosition(...this.params.initialPosition);
+      this.body = client.physics.core.addBody({
+        aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
+      });
+
+      this.setPosition(...this.params.initialPosition);
+    });
   }
 
   /**
@@ -137,34 +240,8 @@ class Controls extends EventDispatcher {
    * @memberof Controls
    */
   update = () => {
-    const { delta } = this.client.clock;
-
-    const { right, left, up, down, front, back } = this.movements;
-    const { acceleration, flyingInertia } = this.params;
-
-    const movementVec = new Vector3();
-    movementVec.x = Number(right) - Number(left);
-    movementVec.z = Number(front) - Number(back);
-    movementVec.normalize();
-
-    const yMovement = Number(up) - Number(down);
-
-    this.acc.x = -movementVec.x * acceleration;
-    this.acc.y = yMovement * acceleration;
-    this.acc.z = -movementVec.z * acceleration;
-
-    this.vel.x -= this.vel.x * flyingInertia * delta;
-    this.vel.y -= this.vel.y * flyingInertia * delta;
-    this.vel.z -= this.vel.z * flyingInertia * delta;
-
-    this.vel.add(this.acc.multiplyScalar(delta));
-    this.acc.set(0, 0, 0);
-
-    this.moveRight(-this.vel.x);
-    this.moveForward(-this.vel.z);
-
-    this.object.position.y += this.vel.y;
-
+    this.moveRigidBody();
+    this.updateRigidBody();
     this.updateLookBlock();
   };
 
@@ -292,7 +369,9 @@ class Controls extends EventDispatcher {
   };
 
   setPosition = (x: number, y: number, z: number) => {
-    this.object.position.set(x, y, z);
+    const { eyeHeight, bodyHeight } = this.params;
+    this.object.position.set(x, y + bodyHeight * eyeHeight, z);
+    this.body.setPosition([x, y, z]);
   };
 
   lookAt = (x: number, y: number, z: number) => {
@@ -308,7 +387,7 @@ class Controls extends EventDispatcher {
   };
 
   get position() {
-    return this.object.position.toArray() as Coords3;
+    return this.body.getPosition() as Coords3;
   }
 
   get voxel() {
@@ -489,6 +568,233 @@ class Controls extends EventDispatcher {
       rotation,
       yRotation: 0,
     };
+  };
+
+  private moveRigidBody = () => {
+    const { object, state } = this;
+
+    const { sprint, right, left, up, down, front, back } = this.movements;
+
+    const fb = front ? (back ? 0 : 1) : back ? -1 : 0;
+    const rl = left ? (right ? 0 : 1) : right ? -1 : 0;
+
+    const vec = new Vector3();
+
+    // get the frontwards-backwards direction vectors
+    vec.setFromMatrixColumn(object.matrix, 0);
+    vec.crossVectors(object.up, vec);
+    const { x: forwardX, z: forwardZ } = vec;
+
+    // get the side-ways vectors
+    vec.setFromMatrixColumn(object.matrix, 0);
+    const { x: sideX, z: sideZ } = vec;
+
+    const totalX = forwardX + sideX;
+    const totalZ = forwardZ + sideZ;
+
+    let angle = Math.atan2(totalX, totalZ);
+
+    if ((fb | rl) === 0) {
+      state.running = false;
+
+      if (state.sprinting) {
+        this.movements.sprint = false;
+        state.sprinting = false;
+      }
+    } else {
+      state.running = true;
+      if (fb) {
+        if (fb === -1) angle += Math.PI;
+        if (rl) {
+          angle += (Math.PI / 4) * fb * rl;
+        }
+      } else {
+        angle += (rl * Math.PI) / 2;
+      }
+      // not sure why add Math.PI / 4, but it was always off by that.
+      state.heading = angle + Math.PI / 4;
+    }
+
+    // set jump as true, and brain will handle the jumping
+    state.jumping = up ? (down ? false : true) : down ? false : false;
+
+    // apply sprint state change
+    state.sprinting = sprint;
+  };
+
+  private updateRigidBody = () => {
+    const {
+      airJumps,
+      jumpForce,
+      jumpTime,
+      jumpImpulse,
+      maxSpeed,
+      sprintFactor,
+      moveForce,
+      airMoveMult,
+      responsiveness,
+      runningFriction,
+      standingFriction,
+      flyInertia,
+      flyImpulse,
+      flyForce,
+      flySpeed,
+    } = this.params;
+
+    const { delta: dt } = this.client.clock;
+
+    if (this.body.gravityMultiplier) {
+      // jumping
+      const onGround = this.body.atRestY < 0;
+      const canjump = onGround || this.state.jumpCount < airJumps;
+      if (onGround) {
+        this.state.isJumping = false;
+        this.state.jumpCount = 0;
+      }
+
+      // process jump input
+      if (this.state.jumping) {
+        if (this.state.isJumping) {
+          // continue previous jump
+          if (this.state.currentJumpTime > 0) {
+            let jf = jumpForce;
+            if (this.state.currentJumpTime < dt)
+              jf *= this.state.currentJumpTime / dt;
+            this.body.applyForce([0, jf, 0]);
+            this.state.currentJumpTime -= dt;
+          }
+        } else if (canjump) {
+          // start new jump
+          this.state.isJumping = true;
+          if (!onGround) this.state.jumpCount++;
+          this.state.currentJumpTime = jumpTime;
+          this.body.applyImpulse([0, jumpImpulse, 0]);
+          // clear downward velocity on airjump
+          if (!onGround && this.body.velocity[1] < 0) this.body.velocity[1] = 0;
+        }
+      } else {
+        this.state.isJumping = false;
+      }
+
+      // apply movement forces if entity is moving, otherwise just friction
+      let m = [0, 0, 0];
+      let push = [0, 0, 0];
+      if (this.state.running) {
+        let speed = maxSpeed;
+        // todo: add crouch/sprint modifiers if needed
+        if (this.state.sprinting) speed *= sprintFactor;
+        // if (state.crouch) speed *= state.crouchMoveMult
+        m[2] = speed;
+
+        // rotate move vector to entity's heading
+
+        m = rotateY(m, [0, 0, 0], this.state.heading);
+
+        // push vector to achieve desired speed & dir
+        // following code to adjust 2D velocity to desired amount is patterned on Quake:
+        // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
+        push = [
+          m[0] - this.body.velocity[0],
+          m[1] - this.body.velocity[1],
+          m[2] - this.body.velocity[2],
+        ];
+        push[1] = 0;
+        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
+
+        push[0] /= pushLen;
+        push[1] /= pushLen;
+        push[2] /= pushLen;
+
+        if (pushLen > 0) {
+          // pushing force vector
+          let canPush = moveForce;
+          if (!onGround) canPush *= airMoveMult;
+
+          // apply final force
+          const pushAmt = responsiveness * pushLen;
+          if (canPush > pushAmt) canPush = pushAmt;
+
+          push[0] *= canPush;
+          push[1] *= canPush;
+          push[2] *= canPush;
+
+          this.body.applyForce(push);
+        }
+
+        // different friction when not moving
+        // idea from Sonic: http://info.sonicretro.org/SPG:Running
+        this.body.friction = runningFriction;
+      } else {
+        this.body.friction = standingFriction;
+      }
+    } else {
+      this.body.velocity[0] -= this.body.velocity[0] * flyInertia * dt;
+      this.body.velocity[1] -= this.body.velocity[1] * flyInertia * dt;
+      this.body.velocity[2] -= this.body.velocity[2] * flyInertia * dt;
+
+      if (this.state.jumping) {
+        this.body.applyImpulse([0, flyImpulse, 0]);
+      }
+
+      if (this.state.crouching) {
+        this.body.applyImpulse([0, -flyImpulse, 0]);
+      }
+
+      // apply movement forces if entity is moving, otherwise just friction
+      let m = [0, 0, 0];
+      let push = [0, 0, 0];
+      if (this.state.running) {
+        let speed = flySpeed;
+        // todo: add crouch/sprint modifiers if needed
+        if (this.state.sprinting) speed *= sprintFactor;
+        // if (state.crouch) speed *= state.crouchMoveMult
+        m[2] = speed;
+
+        // rotate move vector to entity's heading
+        m = rotateY(m, [0, 0, 0], this.state.heading);
+
+        // push vector to achieve desired speed & dir
+        // following code to adjust 2D velocity to desired amount is patterned on Quake:
+        // https://github.com/id-Software/Quake-III-Arena/blob/master/code/game/bg_pmove.c#L275
+        push = [
+          m[0] - this.body.velocity[0],
+          m[1] - this.body.velocity[1],
+          m[2] - this.body.velocity[2],
+        ];
+
+        push[1] = 0;
+        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
+
+        push[0] /= pushLen;
+        push[1] /= pushLen;
+        push[2] /= pushLen;
+
+        if (pushLen > 0) {
+          // pushing force vector
+          let canPush = flyForce;
+
+          // apply final force
+          const pushAmt = responsiveness * pushLen;
+          if (canPush > pushAmt) canPush = pushAmt;
+
+          push[0] *= canPush;
+          push[1] *= canPush;
+          push[2] *= canPush;
+
+          this.body.applyForce(push);
+        }
+
+        // different friction when not moving
+        // idea from Sonic: http://info.sonicretro.org/SPG:Running
+        this.body.friction = runningFriction;
+      } else {
+        this.body.friction = standingFriction;
+      }
+    }
+
+    const [x, y, z] = this.body.getPosition();
+    const { eyeHeight, bodyHeight } = this.params;
+    this.object.position.set(x, y + bodyHeight * eyeHeight, z);
   };
 
   private onKeyDown = ({ code }: KeyboardEvent) => {

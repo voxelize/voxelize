@@ -24,11 +24,11 @@ import {
   RegistryParams,
   Settings,
   WorldInitParams,
+  PhysicsParams,
+  Physics,
 } from "./core";
-import { Chunks } from "./core/chunks";
+import { Chunks, ChunksParams } from "./core/chunks";
 import { ECS, System } from "./libs";
-import { Coords3 } from "./types";
-import { ChunkUtils } from "./utils";
 
 type ClientParams = {
   container?: Partial<ContainerParams>;
@@ -39,6 +39,8 @@ type ClientParams = {
   controls?: Partial<ControlsParams>;
   registry?: Partial<RegistryParams>;
   world?: Partial<WorldInitParams>;
+  physics?: Partial<PhysicsParams>;
+  chunks?: Partial<ChunksParams>;
 };
 
 class Client extends EventEmitter {
@@ -62,6 +64,7 @@ class Client extends EventEmitter {
   public registry: Registry;
   public settings: Settings;
   public chunks: Chunks;
+  public physics: Physics;
 
   public joined = false;
   public loaded = false;
@@ -83,6 +86,8 @@ class Client extends EventEmitter {
       controls,
       registry,
       world,
+      physics,
+      chunks,
     } = params;
 
     this.ecs = new ECS();
@@ -100,7 +105,8 @@ class Client extends EventEmitter {
     this.mesher = new Mesher(this);
     this.clock = new Clock(this);
     this.settings = new Settings(this);
-    this.chunks = new Chunks(this);
+    this.chunks = new Chunks(this, chunks);
+    this.physics = new Physics(this, physics);
 
     // all members has been initialized
     this.emit("initialized");
@@ -239,6 +245,7 @@ class Client extends EventEmitter {
     this.peers.update();
     this.debug.update();
     this.chunks.update();
+    this.physics.update();
 
     this.rendering.render();
   };
