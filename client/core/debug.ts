@@ -1,11 +1,4 @@
-import {
-  Group,
-  Mesh,
-  PlaneBufferGeometry,
-  AxesHelper,
-  BoxBufferGeometry,
-  MeshBasicMaterial,
-} from "three";
+import { Group, Mesh, PlaneBufferGeometry } from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
@@ -362,7 +355,15 @@ class Debug {
   };
 
   private setupInputs = () => {
-    const { inputs, camera } = this.client;
+    const { inputs, camera, chunks } = this.client;
+
+    inputs.bind(
+      "l",
+      () => {
+        chunks.reset();
+      },
+      "in-game"
+    );
 
     inputs.bind(
       "v",

@@ -240,8 +240,8 @@ fn main() {
     registry.register_block(
         Block::new("Leaves")
             .faces(&[BlockFaces::All])
-            .is_transparent(true)
-            .transparent_standalone(true)
+            // .is_transparent(true)
+            // .transparent_standalone(true)
             .build(),
     );
     registry.register_block(
@@ -262,8 +262,9 @@ fn main() {
     let mut server = Server::new().port(4000).registry(&registry).build();
 
     let config1 = WorldConfig::new()
-        .min_chunk([-5, -5])
-        .max_chunk([5, 5])
+        .min_chunk([-1, -1])
+        .max_chunk([1, 1])
+        .chunk_size(16)
         .seed(246246)
         .build();
 
@@ -276,34 +277,32 @@ fn main() {
     {
         let mut pipeline = world.pipeline_mut();
 
-        pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
-        // pipeline.add_stage(TestStage {
-        //     noise: SuperSimplex::new(),
-        // });
-        // pipeline.add_stage(HeightMapStage);
-        // pipeline.add_stage(TreeTestStage {
-        //     noise: Worley::new(),
-        // });
+        // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
+        pipeline.add_stage(TestStage {
+            noise: SuperSimplex::new(),
+        });
+        pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(TreeTestStage {
+            noise: Worley::new(),
+        });
     }
 
-    let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5))
-        .friction(4.0)
-        .build();
+    // let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();
 
-    world
-        .ecs_mut()
-        .create_entity()
-        .with(EntityFlag::default())
-        .with(ETypeComp::new("Box"))
-        .with(IDComp::new(&nanoid!()))
-        .with(PositionComp::new(3.0, 30.0, 3.0))
-        .with(TargetComp::new(0.0, 0.0, 0.0))
-        .with(HeadingComp::new(0.0, 0.0, 0.0))
-        .with(MetadataComp::new())
-        .with(RigidBodyComp::new(&test_body))
-        .with(CurrentChunkComp::default())
-        .with(BoxFlag)
-        .build();
+    // world
+    //     .ecs_mut()
+    //     .create_entity()
+    //     .with(EntityFlag::default())
+    //     .with(ETypeComp::new("Box"))
+    //     .with(IDComp::new(&nanoid!()))
+    //     .with(PositionComp::new(3.0, 30.0, 3.0))
+    //     .with(TargetComp::new(0.0, 0.0, 0.0))
+    //     .with(HeadingComp::new(0.0, 0.0, 0.0))
+    //     .with(MetadataComp::new())
+    //     .with(RigidBodyComp::new(&test_body))
+    //     .with(CurrentChunkComp::default())
+    //     .with(BoxFlag)
+    //     .build();
 
     server.add_world(world).expect("Could not create world1.");
 
