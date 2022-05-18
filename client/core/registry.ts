@@ -54,6 +54,14 @@ class Registry {
     };
   }
 
+  applyTexturesByNames = (
+    textures: { name: string; side: BlockFace; path: string }[]
+  ) => {
+    textures.forEach(({ name, side, path }) => {
+      this.applyTextureByName(name, side, path);
+    });
+  };
+
   applyTextureByName = (name: string, side: BlockFace, path: string) => {
     this.sources.set(this.makeSideName(name, side), path);
   };

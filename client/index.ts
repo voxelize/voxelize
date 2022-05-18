@@ -195,14 +195,6 @@ class Client extends EventEmitter {
     this.emit("leave");
   };
 
-  registerEntity = (type: string, protocol: NewEntity) => {
-    this.entities.registerEntity(type, protocol);
-  };
-
-  addSystem = (system: System) => {
-    this.ecs.addSystem(system);
-  };
-
   setName = (name: string) => {
     this.name = name || " ";
   };

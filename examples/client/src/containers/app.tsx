@@ -177,49 +177,24 @@ export const App = () => {
           },
         });
 
-        client.current.registerEntity("Box", Box);
-        client.current.registry.applyTextureByName("Dirt", "all", DirtImage);
-        client.current.registry.applyTextureByName("Lol", "all", LolImage);
-        client.current.registry.applyTextureByName(
-          "Marble",
-          "all",
-          MarbleImage
-        );
-        client.current.registry.applyTextureByName("Color", "all", ColorImage);
-        client.current.registry.applyTextureByName(
-          "Grass",
-          "top",
-          GrassTopImage
-        );
-        client.current.registry.applyTextureByName(
-          "Grass",
-          "side",
-          GrassSideImage
-        );
-        client.current.registry.applyTextureByName(
-          "Grass",
-          "bottom",
-          DirtImage
-        );
-        client.current.registry.applyTextureByName("Stone", "all", StoneImage);
-        client.current.registry.applyTextureByName(
-          "Leaves",
-          "all",
-          LeavesImage
-        );
-        client.current.registry.applyTextureByName("Wood", "top", WoodTopImage);
-        client.current.registry.applyTextureByName(
-          "Wood",
-          "side",
-          WoodSideImage
-        );
-        client.current.registry.applyTextureByName(
-          "Wood",
-          "bottom",
-          WoodTopImage
-        );
+        client.current.entities.registerEntity("Box", Box);
 
-        client.current.addSystem(new UpdateBoxSystem());
+        client.current.registry.applyTexturesByNames([
+          { name: "Dirt", side: "all", path: DirtImage },
+          { name: "Lol", side: "all", path: LolImage },
+          { name: "Marble", side: "all", path: MarbleImage },
+          { name: "Color", side: "all", path: ColorImage },
+          { name: "Grass", side: "top", path: GrassTopImage },
+          { name: "Grass", side: "side", path: GrassSideImage },
+          { name: "Grass", side: "bottom", path: DirtImage },
+          { name: "Stone", side: "all", path: StoneImage },
+          { name: "Leaves", side: "all", path: LeavesImage },
+          { name: "Wood", side: "top", path: WoodTopImage },
+          { name: "Wood", side: "side", path: WoodSideImage },
+          { name: "Wood", side: "bottom", path: WoodTopImage },
+        ]);
+
+        client.current.ecs.addSystem(new UpdateBoxSystem());
 
         client.current?.connect({
           serverURL: BACKEND_SERVER,

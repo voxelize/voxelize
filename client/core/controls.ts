@@ -511,7 +511,7 @@ class Controls extends EventDispatcher {
     );
 
     inputs.bind(
-      "g",
+      "f",
       () => {
         this.toggleGhostMode();
       },
