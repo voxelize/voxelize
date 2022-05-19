@@ -18,10 +18,13 @@ cd voxelize
 # download dependencies
 yarn
 
+# generate protocol buffers
+yarn run proto
+
 # start development
 yarn run dev
 
-# start both frontend/backend demo
+# in a separate terminal, start both frontend/backend demo
 yarn run demo
 
 ```
