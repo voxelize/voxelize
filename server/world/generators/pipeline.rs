@@ -18,6 +18,22 @@ use crate::{
     },
 };
 
+use super::noise::SeededNoise;
+
+#[derive(Default)]
+pub struct ResourceRequirements {
+    pub needs_registry: bool,
+    pub needs_config: bool,
+    pub needs_noise: bool,
+}
+
+#[derive(Default)]
+pub struct ResourceResults<'a> {
+    pub registry: Option<&'a Registry>,
+    pub config: Option<&'a WorldConfig>,
+    pub noise: Option<&'a SeededNoise>,
+}
+
 /// A stage in the pipeline where a chunk gets populated.
 pub trait ChunkStage {
     /// The name of the stage, e.g. "Soiling"
@@ -60,17 +76,20 @@ pub trait ChunkStage {
         None
     }
 
+    /// Define what resources of the ECS world is needed for this stage so the pipeline can prepare in advance.
+    /// Defaults to needing only the registry.
+    fn needs_resources(&self) -> ResourceRequirements {
+        ResourceRequirements {
+            needs_registry: true,
+            ..Default::default()
+        }
+    }
+
     /// The core of this chunk stage, in other words what is done on the chunk. Returns the chunk instance, and additional
     /// block changes to the world would be automatically added into `chunk.exceeded_changes`. For instance, if a tree is
     /// placed on the border of a chunk, the leaves would exceed the chunk border, thus appended to `exceeded_changes`.
     /// After each stage, the `exceeded_changes` list of block changes would be emptied and applied to the world.
-    fn process(
-        &self,
-        chunk: Chunk,
-        registry: &Registry,
-        config: &WorldConfig,
-        space: Option<Space>,
-    ) -> Chunk;
+    fn process(&self, chunk: Chunk, resources: ResourceResults, space: Option<Space>) -> Chunk;
 }
 
 /// A preset chunk stage to calculate the chunk's height map.
@@ -81,14 +100,8 @@ impl ChunkStage for HeightMapStage {
         "HeightMap".to_owned()
     }
 
-    fn process(
-        &self,
-        mut chunk: Chunk,
-        registry: &Registry,
-        _: &WorldConfig,
-        _: Option<Space>,
-    ) -> Chunk {
-        chunk.calculate_max_height(registry);
+    fn process(&self, mut chunk: Chunk, resources: ResourceResults, _: Option<Space>) -> Chunk {
+        chunk.calculate_max_height(resources.registry.unwrap());
         chunk
     }
 }
@@ -117,7 +130,7 @@ impl ChunkStage for FlatlandStage {
         "Flatland".to_owned()
     }
 
-    fn process(&self, mut chunk: Chunk, _: &Registry, _: &WorldConfig, _: Option<Space>) -> Chunk {
+    fn process(&self, mut chunk: Chunk, _: ResourceResults, _: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
 
@@ -249,6 +262,7 @@ impl Pipeline {
         processes: Vec<(Chunk, Option<Space>, usize)>,
         registry: &Registry,
         config: &WorldConfig,
+        noise: &SeededNoise,
     ) {
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
@@ -263,6 +277,7 @@ impl Pipeline {
 
         let registry = registry.to_owned();
         let config = config.to_owned();
+        let noise = noise.to_owned();
 
         self.pool.spawn(move || {
             let mut changes = vec![];
@@ -270,7 +285,27 @@ impl Pipeline {
             let chunks: Vec<Chunk> = processes
                 .into_iter()
                 .map(|(chunk, space, stage)| {
-                    let mut chunk = stage.process(chunk, &registry, &config, space);
+                    let resources = stage.needs_resources();
+                    let mut chunk = stage.process(
+                        chunk,
+                        {
+                            let ResourceRequirements {
+                                needs_registry,
+                                needs_config,
+                                needs_noise,
+                            } = resources;
+                            ResourceResults {
+                                registry: if needs_registry {
+                                    Some(&registry)
+                                } else {
+                                    None
+                                },
+                                config: if needs_config { Some(&config) } else { None },
+                                noise: if needs_noise { Some(&noise) } else { None },
+                            }
+                        },
+                        space,
+                    );
 
                     if !chunk.exceeded_changes.is_empty() {
                         changes.append(&mut chunk.exceeded_changes.drain(..).collect());

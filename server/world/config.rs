@@ -72,7 +72,7 @@ pub struct WorldConfig {
     pub fluid_density: f32,
 
     /// Seed of the world. Default is "Voxelize".
-    pub seed: i32,
+    pub seed: u32,
 }
 
 impl WorldConfig {
@@ -111,7 +111,7 @@ const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 500;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 3;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
-const DEFAULT_SEED: i32 = 123123123;
+const DEFAULT_SEED: u32 = 123123123;
 const DEFAULT_GRAVITY: [f32; 3] = [0.0, -9.8, 0.0];
 const DEFAULT_MIN_BOUNCE_IMPULSE: f32 = 0.1;
 const DEFAULT_AIR_DRAG: f32 = 0.1;
@@ -131,7 +131,7 @@ pub struct WorldConfigBuilder {
     max_updates_per_tick: usize,
     max_response_per_tick: usize,
     preload_radius: u32,
-    seed: i32,
+    seed: u32,
     gravity: [f32; 3],
     min_bounce_impulse: f32,
     air_drag: f32,
@@ -230,7 +230,7 @@ impl WorldConfigBuilder {
     }
 
     /// Configure the seed of the world. Default is "Voxelize".
-    pub fn seed(mut self, seed: i32) -> Self {
+    pub fn seed(mut self, seed: u32) -> Self {
         self.seed = seed;
         self
     }

@@ -48,7 +48,11 @@ use self::{
         rigidbody::RigidBodyComp,
         target::TargetComp,
     },
-    generators::{mesher::Mesher, pipeline::Pipeline},
+    generators::{
+        mesher::Mesher,
+        noise::{SeededNoise, SeededSimplex},
+        pipeline::Pipeline,
+    },
     messages::MessageQueue,
     registry::Registry,
     stats::Stats,
@@ -140,6 +144,7 @@ impl World {
         ecs.insert(config.clone());
 
         ecs.insert(Chunks::new(config));
+        ecs.insert(SeededNoise::new(config.seed));
 
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());

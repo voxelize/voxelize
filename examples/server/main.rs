@@ -9,7 +9,7 @@ use specs::{
 };
 use voxelize::{
     chunk::Chunk,
-    pipeline::{ChunkStage, FlatlandStage, HeightMapStage},
+    pipeline::{ChunkStage, FlatlandStage, HeightMapStage, ResourceRequirements, ResourceResults},
     vec::Vec3,
     world::{
         components::{
@@ -17,6 +17,7 @@ use voxelize::{
             heading::HeadingComp, id::IDComp, metadata::MetadataComp, position::PositionComp,
             rigidbody::RigidBodyComp, target::TargetComp,
         },
+        generators::noise::{NoiseQuery, SeededNoise, SeededSimplex},
         physics::{aabb::AABB, rigidbody::RigidBody},
         registry::Registry,
         stats::Stats,
@@ -38,88 +39,49 @@ fn handle_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
-struct TestStage {
-    noise: SuperSimplex,
-}
-
-impl TestStage {
-    fn octave_simplex3(
-        &self,
-        vx: i32,
-        vy: i32,
-        vz: i32,
-        scale: f64,
-        octaves: usize,
-        persistance: f64,
-        lacunarity: f64,
-        amplifier: f64,
-        height_bias: f64,
-        height_offset: f64,
-    ) -> f64 {
-        let mut total = 0.0;
-        let mut frequency = 1.0;
-        let mut amplitude = 1.0;
-        let mut max_val = 0.0;
-
-        for _ in 0..octaves {
-            total += self.noise.get([
-                vx as f64 * frequency * scale,
-                vy as f64 * frequency * scale,
-                vz as f64 * frequency * scale,
-            ]) * amplitude;
-
-            max_val += amplitude;
-
-            amplitude *= persistance;
-            frequency *= lacunarity;
-        }
-
-        (total / max_val) * amplifier - height_bias * (vy as f64 - height_offset) * scale
-    }
-}
+struct TestStage;
 
 impl ChunkStage for TestStage {
     fn name(&self) -> String {
         "Test".to_owned()
     }
 
-    fn process(
-        &self,
-        mut chunk: Chunk,
-        registry: &Registry,
-        config: &WorldConfig,
-        _: Option<Space>,
-    ) -> Chunk {
+    fn needs_resources(&self) -> ResourceRequirements {
+        ResourceRequirements {
+            needs_registry: true,
+            needs_config: true,
+            needs_noise: true,
+        }
+    }
+
+    fn process(&self, mut chunk: Chunk, resources: ResourceResults, _: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
+
+        let config = resources.config.unwrap();
+        let registry = resources.registry.unwrap();
+        let noise = resources.noise.unwrap();
 
         let max_height = config.max_height as i32;
 
         let map = registry.get_type_map(&["Stone", "Lol"]);
 
-        let scale = 0.01;
-        let octaves = 10;
-        let persistance = 0.9;
-        let lacunarity = 1.2;
-        let amplifier = 3.0;
-        let height_bias = 3.0;
-        let height_offset = 50.0;
+        let mut query = NoiseQuery::new()
+            .scale(0.01)
+            .octaves(10)
+            .persistance(0.9)
+            .lacunarity(1.2)
+            .amplifier(3.0)
+            .height_bias(3.0)
+            .height_offset(50.0)
+            .build();
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 for vy in 0..max_height {
-                    let density = self.octave_simplex3(
-                        vx,
-                        vy,
-                        vz,
-                        scale,
-                        octaves,
-                        persistance,
-                        lacunarity,
-                        amplifier,
-                        height_bias,
-                        height_offset,
-                    );
+                    query.voxel(vx, vy, vz);
+
+                    let density = noise.simplex.get(&query);
 
                     if density > 0.0 {
                         chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
@@ -141,15 +103,11 @@ impl ChunkStage for TreeTestStage {
         "TreeTest".to_owned()
     }
 
-    fn process(
-        &self,
-        mut chunk: Chunk,
-        registry: &Registry,
-        _: &WorldConfig,
-        _: Option<Space>,
-    ) -> Chunk {
+    fn process(&self, mut chunk: Chunk, resource: ResourceResults, _: Option<Space>) -> Chunk {
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;
+
+        let registry = resource.registry.unwrap();
 
         let wood = registry.get_block_by_name("Wood");
         let leaves = registry.get_block_by_name("Leaves");
@@ -240,7 +198,7 @@ fn main() {
     registry.register_block(
         Block::new("Leaves")
             .faces(&[BlockFaces::All])
-            .is_transparent(true)
+            // .is_transparent(true)
             // .transparent_standalone(true)
             .build(),
     );
@@ -278,9 +236,7 @@ fn main() {
         let mut pipeline = world.pipeline_mut();
 
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
-        pipeline.add_stage(TestStage {
-            noise: SuperSimplex::new(),
-        });
+        pipeline.add_stage(TestStage);
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeTestStage {
             noise: Worley::new(),

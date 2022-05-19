@@ -4,7 +4,7 @@ use specs::{ReadExpect, System, WriteExpect};
 use crate::{
     vec::Vec2,
     world::{
-        generators::pipeline::Pipeline,
+        generators::{noise::SeededNoise, pipeline::Pipeline},
         registry::Registry,
         utils::chunk::ChunkUtils,
         voxels::{
@@ -22,12 +22,13 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
     type SystemData = (
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, SeededNoise>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Chunks>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, mut pipeline, mut chunks) = data;
+        let (registry, config, noise, mut pipeline, mut chunks) = data;
 
         let max_per_tick = config.max_chunk_per_tick;
         let chunk_size = config.chunk_size;
@@ -186,7 +187,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
         // if there are any leftover changes that are supposed to be applied to the chunks.
 
         if !processes.is_empty() {
-            pipeline.process(processes, &registry, &config);
+            pipeline.process(processes, &registry, &config, &noise);
         }
     }
 }
