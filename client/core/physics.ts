@@ -42,6 +42,13 @@ class Physics {
   }
 
   update = () => {
+    const [vx, vy, vz] = this.client.controls.voxel;
+    const chunk = this.client.chunks.getChunkByVoxel(vx, vy, vz);
+
+    if (!chunk) {
+      return;
+    }
+
     const dt = this.client.clock.delta;
     this.core.update(dt);
   };
