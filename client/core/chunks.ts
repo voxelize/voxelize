@@ -1,8 +1,8 @@
-import { Box3, Vector3 } from "three";
+import { Box3, Vector2, Vector3 } from "three";
 
 import { Client } from "..";
 import { Coords2, Coords3, ServerMesh } from "../types";
-import { ChunkUtils, LightColor } from "../utils";
+import { ChunkUtils, LightColor, MathUtils } from "../utils";
 
 import { Chunk } from "./chunk";
 
@@ -324,27 +324,19 @@ class Chunks {
       return this.cache.get(name);
     }
 
-    const { chunkSize, maxHeight } = this.client.world.params;
     const [pcx, pcz] = this.client.controls.chunk;
 
     if ((pcx - cx) ** 2 + (pcz - cz) ** 2 <= this.params.inViewRadius ** 2) {
       return true;
     }
 
-    const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
-      [cx, cz],
-      chunkSize
-    );
-    const maxX = minX + chunkSize;
-    const maxY = minY + maxHeight;
-    const maxZ = minZ + chunkSize;
+    const { x, z } = this.client.controls.getDirection();
 
-    const chunkBox = new Box3(
-      new Vector3(minX, minY - 100, minZ),
-      new Vector3(maxX, maxY + 100, maxZ)
-    );
+    const vec1 = new Vector3(cz - pcz, cx - pcx, 0);
+    const vec2 = new Vector3(z, x, 0);
+    const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
 
-    const result = this.client.camera.frustum.intersectsBox(chunkBox);
+    const result = Math.abs(angle) < (Math.PI * 2) / 5;
 
     this.cache.set(name, result);
 

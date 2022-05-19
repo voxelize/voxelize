@@ -1,3 +1,5 @@
+const TWO_PI = Math.PI * 2;
+
 /**
  * A helper class for basic math operations
  *
@@ -15,6 +17,10 @@ class MathUtils {
    */
   static round = (n: number, digits: number) => {
     return Math.round(n * 10 ** digits) / 10 ** digits;
+  };
+
+  static normalizeAngle = (angle: number) => {
+    return angle - TWO_PI * Math.floor((angle + Math.PI) / TWO_PI);
   };
 }
 
