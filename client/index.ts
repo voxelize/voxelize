@@ -142,7 +142,7 @@ class Client extends EventEmitter {
   };
 
   disconnect = async () => {
-    this.peers.dispose();
+    this.peers.reset();
 
     if (this.network) {
       if (this.joined) {
@@ -206,6 +206,7 @@ class Client extends EventEmitter {
     this.entities.reset();
     this.chunks.reset();
     this.controls.reset();
+    this.peers.reset();
   };
 
   private run = () => {

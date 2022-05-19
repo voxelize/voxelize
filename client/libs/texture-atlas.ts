@@ -7,6 +7,7 @@ import {
   TextureLoader,
   MeshBasicMaterial,
   DoubleSide,
+  Color,
 } from "three";
 
 import { TextureRange } from "../types";
@@ -24,7 +25,7 @@ class TextureAtlas {
   public canvas = document.createElement("canvas");
 
   static create = async (
-    textureSources: Map<string, string>,
+    textureSources: Map<string, string | Color>,
     ranges: Map<string, TextureRange>,
     params: TextureAtlasParams
   ) => {
@@ -34,9 +35,14 @@ class TextureAtlas {
     const { countPerSide, dimension } = params;
 
     const loader = new TextureLoader();
-    const textureMap: Map<string, Texture> = new Map();
+    const textureMap: Map<string, Texture | Color> = new Map();
 
     for (const [key, source] of textureSources) {
+      if (source instanceof Color) {
+        textureMap.set(key, source);
+        continue;
+      }
+
       try {
         if (!source) throw new Error();
         textureMap.set(key, await loader.loadAsync(source));
@@ -50,9 +56,22 @@ class TextureAtlas {
     atlas.canvas.width = canvasWidth;
     atlas.canvas.height = canvasHeight;
 
+    const context = atlas.canvas.getContext("2d");
+
     ranges.forEach((range, textureName) => {
       const { startU, startV } = range;
       const texture = textureMap.get(textureName);
+
+      if (texture instanceof Color) {
+        context.fillStyle = `#${texture.getHexString()}`;
+        context.fillRect(
+          (startU - 1 / 128) * canvasWidth,
+          (1 - (startV + 1 / 128)) * canvasHeight,
+          dimension,
+          dimension
+        );
+        return;
+      }
 
       if (texture instanceof CompressedTexture) {
         throw new Error("CompressedTextures are not supported.");
@@ -69,7 +88,6 @@ class TextureAtlas {
         atlas.dataURLs.set(textureName, texture.image.toDataURL());
       }
 
-      const context = atlas.canvas.getContext("2d");
       if (context) {
         context.drawImage(
           texture.image,
@@ -79,20 +97,20 @@ class TextureAtlas {
           dimension
         );
       }
+    });
 
-      atlas.makeCanvasPowerOfTwo(atlas.canvas);
-      atlas.texture = new CanvasTexture(atlas.canvas);
-      atlas.texture.wrapS = ClampToEdgeWrapping;
-      atlas.texture.wrapT = ClampToEdgeWrapping;
-      atlas.texture.minFilter = NearestFilter;
-      atlas.texture.magFilter = NearestFilter;
-      atlas.texture.generateMipmaps = false;
-      atlas.texture.needsUpdate = true;
+    atlas.makeCanvasPowerOfTwo(atlas.canvas);
+    atlas.texture = new CanvasTexture(atlas.canvas);
+    atlas.texture.wrapS = ClampToEdgeWrapping;
+    atlas.texture.wrapT = ClampToEdgeWrapping;
+    atlas.texture.minFilter = NearestFilter;
+    atlas.texture.magFilter = NearestFilter;
+    atlas.texture.generateMipmaps = false;
+    atlas.texture.needsUpdate = true;
 
-      atlas.material = new MeshBasicMaterial({
-        map: atlas.texture,
-        side: DoubleSide,
-      });
+    atlas.material = new MeshBasicMaterial({
+      map: atlas.texture,
+      side: DoubleSide,
     });
 
     return atlas;

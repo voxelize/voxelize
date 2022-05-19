@@ -1,5 +1,6 @@
 import { AABB } from "@voxelize/voxel-physics-engine";
 import {
+  Color,
   DoubleSide,
   ShaderLib,
   ShaderMaterial,
@@ -21,7 +22,7 @@ type RegistryParams = {
 };
 
 const defaultParams: RegistryParams = {
-  dimension: 16,
+  dimension: 2,
 };
 
 class Registry {
@@ -43,7 +44,7 @@ class Registry {
   private textures: Set<string> = new Set();
   private nameMap: Map<number, string> = new Map();
   private typeMap: Map<string, number> = new Map();
-  private sources: Map<string, string> = new Map();
+  private sources: Map<string, string | Color> = new Map();
 
   constructor(public client: Client, params: Partial<RegistryParams>) {
     this.aoUniform = { value: new Vector4(100.0, 170.0, 210.0, 255.0) };
@@ -55,15 +56,19 @@ class Registry {
   }
 
   applyTexturesByNames = (
-    textures: { name: string; side: BlockFace; path: string }[]
+    textures: { name: string; side: BlockFace; data: string | Color }[]
   ) => {
-    textures.forEach(({ name, side, path }) => {
-      this.applyTextureByName(name, side, path);
+    textures.forEach(({ name, side, data }) => {
+      this.applyTextureByName(name, side, data);
     });
   };
 
-  applyTextureByName = (name: string, side: BlockFace, path: string) => {
-    this.sources.set(this.makeSideName(name, side), path);
+  applyTextureByName = (
+    name: string,
+    side: BlockFace,
+    data: string | Color
+  ) => {
+    this.sources.set(this.makeSideName(name, side), data);
   };
 
   applyTextureById = (id: number, side: BlockFace, path: string) => {

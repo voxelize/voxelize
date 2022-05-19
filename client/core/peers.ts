@@ -73,7 +73,7 @@ class Peers extends Map<string, Peer> {
     this.set(id, peer);
   };
 
-  dispose = () => {
+  reset = () => {
     this.forEach((peer) => {
       this.removePeer(peer);
     });

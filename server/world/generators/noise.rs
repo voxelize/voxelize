@@ -20,8 +20,7 @@ pub struct SeededSimplex {
 
 impl SeededSimplex {
     pub fn new(seed: u32) -> Self {
-        let noise = SuperSimplex::new();
-        noise.set_seed(seed);
+        let noise = SuperSimplex::new().set_seed(seed);
 
         Self { noise }
     }

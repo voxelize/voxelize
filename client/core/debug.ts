@@ -161,16 +161,6 @@ class Debug {
   };
 
   /**
-   * FPS of the game
-   *
-   * @readonly
-   * @memberof Debug
-   */
-  get fps() {
-    return this.calculateFPS();
-  }
-
-  /**
    * Memory usage of current page
    *
    * @readonly
@@ -298,7 +288,6 @@ class Debug {
     });
 
     this.displayTitle(`Voxelize ${"__buildVersion__"}`);
-    this.registerDisplay("", this, "fps");
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
     this.registerDisplay("Position", this.client.controls, "voxel");
@@ -329,16 +318,16 @@ class Debug {
       this.client.rendering.scene.children,
       "length"
     );
-    // this.registerDisplay(
-    //   "Scene Polycount",
-    //   this.client.rendering.renderer.info.render,
-    //   "triangles"
-    // );
-    // this.registerDisplay(
-    //   "Active Drawcalls",
-    //   this.client.rendering.renderer.info.render,
-    //   "calls"
-    // );
+    this.registerDisplay(
+      "Scene Polycount",
+      this.client.rendering.renderer.info.render,
+      "triangles"
+    );
+    this.registerDisplay(
+      "Active Drawcalls",
+      this.client.rendering.renderer.info.render,
+      "calls"
+    );
     this.registerDisplay(
       "Textures in Memory",
       this.client.rendering.renderer.info.memory,
@@ -354,13 +343,6 @@ class Debug {
       this.client.physics.core.bodies,
       "length"
     );
-
-    // this.group.add(
-    //   new Mesh(
-    //     new BoxBufferGeometry(1, 1, 1),
-    //     new MeshBasicMaterial({ color: "White" })
-    //   )
-    // );
   };
 
   private setupInputs = () => {
@@ -445,52 +427,6 @@ class Debug {
       "in-game"
     );
   };
-
-  private calculateFPS = (function () {
-    const sampleSize = 60;
-    let value = 0;
-    const sample: any[] = [];
-    let index = 0;
-    let lastTick = 0;
-    let min: number;
-    let max: number;
-
-    return function () {
-      // if is first tick, just set tick timestamp and return
-      if (!lastTick) {
-        lastTick = performance.now();
-        return 0;
-      }
-
-      // calculate necessary values to obtain current tick FPS
-      const now = performance.now();
-      const delta = (now - lastTick) / 1000;
-      const fps = 1 / delta;
-      // add to fps samples, current tick fps value
-      sample[index] = Math.round(fps);
-
-      // iterate samples to obtain the average
-      let average = 0;
-      for (let i = 0; i < sample.length; i++) average += sample[i];
-
-      average = Math.round(average / sample.length);
-
-      // set new FPS
-      value = average;
-      // store current timestamp
-      lastTick = now;
-      // increase sample index counter, and reset it
-      // to 0 if exceded maximum sampleSize limit
-      index++;
-
-      if (index === sampleSize) index = 0;
-
-      if (!min || min > value) min = value;
-      if (!max || max < value) max = value;
-
-      return `${value} fps (${min}, ${max})`;
-    };
-  })();
 
   get light() {
     const { voxel } = this.client.controls;

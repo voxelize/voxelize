@@ -13,17 +13,13 @@ import {
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import StoneImage from "../assets/blocks/stone.png";
-import DirtImage from "../assets/blocks/dirt.png";
-import LeavesImage from "../assets/blocks/leaves_oak.png";
-import GrassTopImage from "../assets/blocks/grass_top.png";
-import GrassSideImage from "../assets/blocks/grass_side.png";
-import WoodTopImage from "../assets/blocks/log_oak_top.png";
-import WoodSideImage from "../assets/blocks/log_oak_side.png";
-import MarbleImage from "../assets/marble.jpg";
-import ColorImage from "../assets/blocks/ice.png";
-import { BoxBufferGeometry, MeshNormalMaterial, Mesh, Vector3 } from "three";
-import LolImage from "../assets/lol.png";
+import {
+  BoxBufferGeometry,
+  MeshNormalMaterial,
+  Mesh,
+  Vector3,
+  Color,
+} from "three";
 
 const GameWrapper = styled.div`
   background: black;
@@ -180,18 +176,18 @@ export const App = () => {
         client.current.entities.registerEntity("Box", Box);
 
         client.current.registry.applyTexturesByNames([
-          { name: "Dirt", side: "all", path: DirtImage },
-          { name: "Lol", side: "all", path: LolImage },
-          { name: "Marble", side: "all", path: MarbleImage },
-          { name: "Color", side: "all", path: ColorImage },
-          { name: "Grass", side: "top", path: GrassTopImage },
-          { name: "Grass", side: "side", path: GrassSideImage },
-          { name: "Grass", side: "bottom", path: DirtImage },
-          { name: "Stone", side: "all", path: StoneImage },
-          { name: "Leaves", side: "all", path: LeavesImage },
-          { name: "Wood", side: "top", path: WoodTopImage },
-          { name: "Wood", side: "side", path: WoodSideImage },
-          { name: "Wood", side: "bottom", path: WoodTopImage },
+          { name: "Dirt", side: "all", data: new Color("#876445") },
+          { name: "Lol", side: "all", data: new Color("#8479E1") },
+          { name: "Marble", side: "all", data: new Color("#E9E5D6") },
+          { name: "Color", side: "all", data: new Color("#ffffff") },
+          { name: "Grass", side: "top", data: new Color("#4E944F") },
+          { name: "Grass", side: "side", data: new Color("#876445") },
+          { name: "Grass", side: "bottom", data: new Color("#876445") },
+          { name: "Stone", side: "all", data: new Color("#DAD0C2") },
+          { name: "Leaves", side: "all", data: new Color("#9FC088") },
+          { name: "Wood", side: "top", data: new Color("#E3CAA5") },
+          { name: "Wood", side: "side", data: new Color("#865439") },
+          { name: "Wood", side: "bottom", data: new Color("#E3CAA5") },
         ]);
 
         client.current.ecs.addSystem(new UpdateBoxSystem());

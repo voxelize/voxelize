@@ -220,10 +220,10 @@ fn main() {
     let mut server = Server::new().port(4000).registry(&registry).build();
 
     let config1 = WorldConfig::new()
-        .min_chunk([-1, -1])
-        .max_chunk([1, 1])
+        .min_chunk([-3, -3])
+        .max_chunk([3, 3])
         .chunk_size(16)
-        .seed(246246)
+        .seed(1213123)
         .build();
 
     let mut world = World::new("world1", &config1);

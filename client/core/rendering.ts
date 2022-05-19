@@ -40,7 +40,6 @@ class Rendering {
     this.renderer = new WebGLRenderer({
       powerPreference: "high-performance",
       antialias: true,
-      stencil: false,
       depth: false,
       context: context || undefined,
       canvas,
@@ -48,7 +47,7 @@ class Rendering {
     this.renderer.setClearColor(new Color(clearColor));
 
     // composer
-    this.composer = new EffectComposer(this.renderer, { stencilBuffer: false });
+    this.composer = new EffectComposer(this.renderer);
 
     client.on("ready", () => {
       const camera = client.camera.threeCamera;
