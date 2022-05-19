@@ -8,7 +8,10 @@ class Settings {
   [key: string]: any;
 
   constructor(public client: Client) {
-    this.add("renderRadius", Math.max(navigator.hardwareConcurrency || 0, 20));
+    this.add(
+      "renderRadius",
+      Math.min(Math.max(navigator.hardwareConcurrency || 0, 4), 8)
+    );
   }
 
   add = (property: string, value: SettingsField) => {

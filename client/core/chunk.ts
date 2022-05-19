@@ -1,15 +1,17 @@
 import ndarray, { NdArray } from "ndarray";
 import {
+  BufferAttribute,
   BufferGeometry,
   Float32BufferAttribute,
   Int32BufferAttribute,
   Mesh,
 } from "three";
-import pool from "typedarray-pool";
 
 import { Client } from "..";
-import { Coords2, Coords3, MeshData } from "../types";
+import { Coords2, Coords3, MeshData, ServerMesh } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
+
+import { ServerChunk } from "./chunks";
 
 type ChunkParams = {
   size: number;
@@ -33,6 +35,7 @@ class Chunk {
   public lights: NdArray<Uint32Array>;
 
   private added = false;
+  private serverChunk: ServerChunk | null = null;
 
   constructor(
     public client: Client,
@@ -46,15 +49,15 @@ class Chunk {
 
     const { size, maxHeight } = params;
 
-    this.voxels = ndarray(pool.mallocUint32(size * maxHeight * size), [
+    this.voxels = ndarray(new Uint32Array(size * maxHeight * size), [
       size,
       maxHeight,
       size,
     ]);
 
-    this.heightMap = ndarray(pool.mallocUint32(size ** 2), [size, size]);
+    this.heightMap = ndarray(new Uint32Array(size ** 2), [size, size]);
 
-    this.lights = ndarray(pool.mallocUint32(size * maxHeight * size), [
+    this.lights = ndarray(new Uint32Array(size * maxHeight * size), [
       size,
       maxHeight,
       size,
@@ -64,13 +67,25 @@ class Chunk {
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
-  build = (data: { opaque?: MeshData; transparent?: MeshData }) => {
+  setServerChunk = (data: ServerChunk) => {
+    this.serverChunk = data;
+  };
+
+  build = () => {
+    if (!this.serverChunk) return;
+
+    const { mesh: meshData, lights, voxels, heightMap } = this.serverChunk;
+
+    if (lights.length) this.lights.data = lights;
+    if (voxels.length) this.voxels.data = voxels;
+    if (heightMap.length) this.heightMap.data = heightMap;
+
     ["opaque", "transparent"].forEach((type) => {
-      const meshData = data[type];
+      const data = meshData[type];
 
-      if (!meshData) return;
+      if (!data) return;
 
-      const { positions, indices, uvs, aos, lights } = meshData;
+      const { positions, indices, uvs, lights } = data;
 
       if (positions.length === 0 || indices.length === 0) {
         return;
@@ -87,30 +102,40 @@ class Chunk {
         );
         mesh.name = `${this.name}-${type}`;
         mesh.matrixAutoUpdate = false;
-        // mesh.renderOrder = type === "opaque" ? 100 : 100000;
+        mesh.renderOrder = type === "opaque" ? 100 : 100000;
         mesh.position.set(...this.min);
       }
 
       const geometry = mesh.geometry;
 
-      geometry.dispose();
       geometry.setAttribute(
         "position",
-        new Float32BufferAttribute(positions, 3)
+        new BufferAttribute(new Float32Array(positions), 3)
       );
-      geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-      geometry.setAttribute("ao", new Int32BufferAttribute(aos, 1));
-      geometry.setAttribute("light", new Int32BufferAttribute(lights, 1));
-      geometry.setIndex(Array.from(indices));
+      geometry.setAttribute(
+        "uv",
+        new BufferAttribute(new Float32Array(uvs), 2)
+      );
+      geometry.setAttribute(
+        "light",
+        new BufferAttribute(new Int32Array(lights), 1)
+      );
+      geometry.setIndex(indices);
 
       mesh.updateMatrix();
 
       this.mesh[type] = mesh;
     });
+
+    this.serverChunk = null;
   };
 
   addToScene = () => {
     if (this.added) return;
+
+    if (this.serverChunk) {
+      this.build();
+    }
 
     const { scene } = this.client.rendering;
     const { opaque, transparent } = this.mesh;

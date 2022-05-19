@@ -426,6 +426,13 @@ class Controls extends EventDispatcher {
     );
   }
 
+  get chunk() {
+    return ChunkUtils.mapVoxelPosToChunkPos(
+      this.voxel,
+      this.client.world.params.chunkSize
+    );
+  }
+
   private setupLookBlock = () => {
     const { lookBlockScale, lookBlockColor } = this.params;
     const { rendering } = this.client;

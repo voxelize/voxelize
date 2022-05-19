@@ -4,7 +4,6 @@ package protocol;
 message Geometry {
   repeated float positions = 1 [ packed = true ];
   repeated float uvs = 2 [ packed = true ];
-  repeated int32 aos = 3 [ packed = true ];
   repeated int32 indices = 4 [ packed = true ];
   repeated int32 lights = 5 [ packed = true ];
 }

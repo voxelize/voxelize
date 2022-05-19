@@ -6,7 +6,9 @@ use crate::{
     server::models::{Chunk as ChunkModel, Message, MessageType},
     vec::Vec2,
     world::{
-        components::{chunk_requests::ChunkRequestsComp, id::IDComp},
+        components::{
+            chunk_requests::ChunkRequestsComp, current_chunk::CurrentChunkComp, id::IDComp,
+        },
         generators::pipeline::Pipeline,
         messages::MessageQueue,
         voxels::chunks::Chunks,
@@ -23,16 +25,21 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, IDComp>,
+        ReadStorage<'a, CurrentChunkComp>,
         WriteStorage<'a, ChunkRequestsComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut pipeline, mut queue, ids, mut requests) = data;
+        let (chunks, config, mut pipeline, mut queue, ids, curr_chunks, mut requests) = data;
 
         let mut to_send: HashMap<String, Vec<Vec2<i32>>> = HashMap::new();
 
-        for (id, request) in (&ids, &mut requests).join() {
+        for (id, curr_chunk, request) in (&ids, &curr_chunks, &mut requests).join() {
             let mut count = 0;
+
+            if !request.pending.is_empty() {
+                request.sort_pending(&curr_chunk.coords);
+            }
 
             while !request.pending.is_empty() && count < config.max_chunk_per_tick {
                 count += 1;

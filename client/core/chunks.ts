@@ -1,12 +1,10 @@
 import { Box3, Vector3 } from "three";
 
 import { Client } from "..";
-import { Coords2, Coords3, MeshData } from "../types";
+import { Coords2, Coords3, ServerMesh } from "../types";
 import { ChunkUtils, LightColor } from "../utils";
 
 import { Chunk } from "./chunk";
-
-type Mesh = { opaque?: MeshData; transparent?: MeshData };
 
 type ServerChunk = {
   x: number;
@@ -15,17 +13,19 @@ type ServerChunk = {
   lights: Uint32Array;
   voxels: Uint32Array;
   heightMap: Uint32Array;
-  mesh: Mesh;
+  mesh: ServerMesh;
 };
 
 type ChunksParams = {
+  inViewRadius: number;
   maxRequestsPerTick: number;
   maxProcessesPerTick: number;
 };
 
 const defaultParams: ChunksParams = {
+  inViewRadius: 1,
   maxRequestsPerTick: 4,
-  maxProcessesPerTick: 2,
+  maxProcessesPerTick: 1,
 };
 
 class Chunks {
@@ -39,7 +39,9 @@ class Chunks {
 
   public currentChunk: Coords2;
 
+  private timeExceeded = false;
   private map = new Map<string, Chunk>();
+  private cache = new Map<string, any>();
 
   constructor(public client: Client, params: Partial<ChunksParams> = {}) {
     this.params = {
@@ -60,33 +62,45 @@ class Chunks {
     this.toProcess.push(data);
   };
 
-  update = () => {
-    const { position } = this.client.controls;
-    const { dimension, chunkSize } = this.worldParams;
+  update = (() => {
+    let count = 0;
 
-    const coords = ChunkUtils.mapVoxelPosToChunkPos(
-      ChunkUtils.mapWorldPosToVoxelPos(position as Coords3, dimension),
-      chunkSize
-    );
+    return () => {
+      count++;
+      if (count % 5 !== 0) return;
 
-    // check if player chunk changed.
-    if (
-      !this.currentChunk ||
-      this.currentChunk[0] !== coords[0] ||
-      this.currentChunk[1] !== coords[1]
-    ) {
-      this.currentChunk = coords;
-    }
+      const { position } = this.client.controls;
+      const { dimension, chunkSize } = this.worldParams;
 
-    this.surroundChunks();
+      const coords = ChunkUtils.mapVoxelPosToChunkPos(
+        ChunkUtils.mapWorldPosToVoxelPos(position as Coords3, dimension),
+        chunkSize
+      );
 
-    if (this.toRequest.length) {
-      this.requestChunks();
-    }
+      this.cache.clear();
+      this.timeExceeded = false;
 
-    this.meshChunks();
-    this.maintainChunks();
-  };
+      // check if player chunk changed.
+      if (
+        !this.currentChunk ||
+        this.currentChunk[0] !== coords[0] ||
+        this.currentChunk[1] !== coords[1]
+      ) {
+        this.currentChunk = coords;
+        this.maintainChunks();
+      }
+
+      this.surroundChunks();
+
+      if (this.toRequest.length) {
+        this.requestChunks();
+      }
+
+      if (this.toProcess.length) {
+        this.meshChunks();
+      }
+    };
+  })();
 
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
@@ -304,6 +318,39 @@ class Chunks {
     );
   };
 
+  isChunkInView = (cx: number, cz: number) => {
+    const name = ChunkUtils.getChunkName([cx, cz]);
+    if (this.cache.get(name) !== undefined) {
+      return this.cache.get(name);
+    }
+
+    const { chunkSize, maxHeight } = this.client.world.params;
+    const [pcx, pcz] = this.client.controls.chunk;
+
+    if ((pcx - cx) ** 2 + (pcz - cz) ** 2 <= this.params.inViewRadius ** 2) {
+      return true;
+    }
+
+    const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
+      [cx, cz],
+      chunkSize
+    );
+    const maxX = minX + chunkSize;
+    const maxY = minY + maxHeight;
+    const maxZ = minZ + chunkSize;
+
+    const chunkBox = new Box3(
+      new Vector3(minX, minY - 100, minZ),
+      new Vector3(maxX, maxY + 100, maxZ)
+    );
+
+    const result = this.client.camera.frustum.intersectsBox(chunkBox);
+
+    this.cache.set(name, result);
+
+    return result;
+  };
+
   get worldParams() {
     return this.client.world.params;
   }
@@ -315,54 +362,47 @@ class Chunks {
   private surroundChunks = () => {
     const [cx, cz] = this.currentChunk;
     const { renderRadius } = this.client.settings;
-    const { chunkSize, maxHeight } = this.worldParams;
 
-    for (let x = -renderRadius; x <= renderRadius; x++) {
-      for (let z = -renderRadius; z <= renderRadius; z++) {
-        if (x ** 2 + z ** 2 >= renderRadius ** 2) continue;
-
-        if (!this.withinWorld(cx + x, cz + z)) {
-          continue;
-        }
-
-        const name = ChunkUtils.getChunkName([cx + x, cz + z]);
-
-        if (this.requested.has(name)) {
-          continue;
-        }
-
-        const chunk = this.getChunkByName(name);
-
-        if (!chunk) {
-          if (!this.toRequest.includes(name)) {
-            const [minX, minY, minZ] = ChunkUtils.mapChunkPosToVoxelPos(
-              [cx + x, cz + z],
-              chunkSize
-            );
-
-            const maxX = minX + chunkSize;
-            const maxY = minY + maxHeight;
-            const maxZ = minZ + chunkSize;
-
-            const chunkBox = new Box3(
-              new Vector3(minX, minY - 100, minZ),
-              new Vector3(maxX, maxY + 100, maxZ)
-            );
-
-            if (!this.client.camera.frustum.intersectsBox(chunkBox)) {
-              continue;
-            }
-
-            this.toRequest.push(name);
+    (() => {
+      const now = performance.now();
+      for (let x = -renderRadius; x <= renderRadius; x++) {
+        for (let z = -renderRadius; z <= renderRadius; z++) {
+          // Stop process if it's taking too long.
+          if (performance.now() - now >= 1.5) {
+            this.timeExceeded = true;
+            return;
           }
 
-          continue;
-        }
+          if (x ** 2 + z ** 2 >= renderRadius ** 2) continue;
 
-        // add to scene
-        chunk.addToScene();
+          if (!this.isWithinWorld(cx + x, cz + z)) {
+            continue;
+          }
+
+          const name = ChunkUtils.getChunkName([cx + x, cz + z]);
+
+          if (this.requested.has(name)) {
+            continue;
+          }
+
+          if (!this.isChunkInView(cx + x, cz + z)) {
+            continue;
+          }
+
+          const chunk = this.getChunkByName(name);
+
+          if (!chunk) {
+            if (!this.toRequest.includes(name)) {
+              this.toRequest.push(name);
+            }
+
+            continue;
+          }
+
+          chunk.addToScene();
+        }
       }
-    }
+    })();
 
     this.toRequest.sort((a, b) => {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
@@ -389,14 +429,17 @@ class Chunks {
   };
 
   private meshChunks = () => {
+    if (this.timeExceeded) return;
+
     const { maxProcessesPerTick } = this.params;
     const toProcess = this.toProcess.splice(0, maxProcessesPerTick);
 
     toProcess.forEach((data) => {
-      const { x, z, id, mesh, lights, voxels, heightMap } = data;
-      const { chunkSize, maxHeight } = this.worldParams;
+      const { x, z, id } = data;
 
       let chunk = this.getChunk(x, z);
+
+      const { chunkSize, maxHeight } = this.worldParams;
 
       if (!chunk) {
         chunk = new Chunk(this.client, id, x, z, {
@@ -405,14 +448,15 @@ class Chunks {
         });
 
         this.map.set(chunk.name, chunk);
-      }
 
-      if (lights.length) chunk.lights.data = lights;
-      if (voxels.length) chunk.voxels.data = voxels;
-      if (heightMap.length) chunk.heightMap.data = heightMap;
+        chunk.setServerChunk(data);
 
-      if (mesh) {
-        chunk.build(mesh);
+        if (this.isChunkInView(x, z)) {
+          chunk.build();
+        }
+      } else {
+        chunk.setServerChunk(data);
+        chunk.build();
       }
 
       this.requested.delete(chunk.name);
@@ -448,15 +492,8 @@ class Chunks {
       });
     }
   };
-
-  private withinWorld = (cx: number, cz: number) => {
-    const [minX, minZ] = this.client.world.params.minChunk;
-    const [maxX, maxZ] = this.client.world.params.maxChunk;
-
-    return cx >= minX && cz >= minZ && cx <= maxX && cz <= maxZ;
-  };
 }
 
-export type { ChunksParams };
+export type { ServerChunk, ChunksParams };
 
 export { Chunks };

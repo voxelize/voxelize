@@ -18,7 +18,6 @@ import {
   Debug,
   Entities,
   EntitiesParams,
-  NewEntity,
   Mesher,
   Registry,
   RegistryParams,
@@ -29,7 +28,7 @@ import {
   Particles,
 } from "./core";
 import { Chunks, ChunksParams } from "./core/chunks";
-import { ECS, System } from "./libs";
+import { ECS } from "./libs";
 
 type ClientParams = {
   container?: Partial<ContainerParams>;
@@ -240,6 +239,7 @@ class Client extends EventEmitter {
     this.entities.update();
     this.peers.update();
     this.debug.update();
+    this.chunks.update();
     this.chunks.update();
     this.particles.update();
     this.physics.update();

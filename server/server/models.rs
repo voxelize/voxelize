@@ -42,7 +42,6 @@ pub struct Geometry {
     pub positions: Vec<f32>,
     pub indices: Vec<i32>,
     pub uvs: Vec<f32>,
-    pub aos: Vec<i32>,
     pub lights: Vec<i32>,
 }
 
@@ -213,14 +212,12 @@ impl MessageBuilder {
 
                         Some(messages::Mesh {
                             opaque: opaque.map(|opaque| messages::Geometry {
-                                aos: opaque.aos.to_owned(),
                                 indices: opaque.indices.to_owned(),
                                 positions: opaque.positions.to_owned(),
                                 lights: opaque.lights.to_owned(),
                                 uvs: opaque.uvs.to_owned(),
                             }),
                             transparent: transparent.map(|transparent| messages::Geometry {
-                                aos: transparent.aos.to_owned(),
                                 indices: transparent.indices.to_owned(),
                                 positions: transparent.positions.to_owned(),
                                 lights: transparent.lights.to_owned(),

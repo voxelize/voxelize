@@ -201,6 +201,7 @@ impl WorldConfigBuilder {
 
     /// Configure the maximum light level that propagates the world. Default is 15 blocks.
     pub fn max_light_level(mut self, max_light_level: u32) -> Self {
+        assert!(max_light_level < 16, "Max light level cannot be >= 16.");
         self.max_light_level = max_light_level;
         self
     }

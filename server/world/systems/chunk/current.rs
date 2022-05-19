@@ -46,20 +46,7 @@ impl<'a> System<'a> for CurrentChunkSystem {
 
         for (curr_chunk, request) in (&mut curr_chunks, &mut requests).join() {
             if curr_chunk.changed {
-                let Vec2(cx, cz) = curr_chunk.coords;
-
-                let mut pendings: Vec<Vec2<i32>> =
-                    request.pending.clone().into_iter().map(|c| c).collect();
-
-                pendings.sort_by(|c1, c2| {
-                    let dist1 = (c1.0 - cx).pow(2) + (c1.1 - cz).pow(2);
-                    let dist2 = (c2.0 - cx).pow(2) + (c2.1 - cz).pow(2);
-                    dist2.cmp(&dist1)
-                });
-
-                let list = LinkedHashSet::from_iter(pendings.into_iter());
-
-                request.pending = list;
+                request.sort_pending(&curr_chunk.coords);
             }
         }
     }

@@ -34,6 +34,23 @@ impl ChunkRequestsComp {
         self.loaded.remove(coords);
     }
 
+    /// Sort pending chunks.
+    pub fn sort_pending(&mut self, center: &Vec2<i32>) {
+        let Vec2(cx, cz) = center;
+
+        let mut pendings: Vec<Vec2<i32>> = self.pending.clone().into_iter().map(|c| c).collect();
+
+        pendings.sort_by(|c1, c2| {
+            let dist1 = (c1.0 - cx).pow(2) + (c1.1 - cz).pow(2);
+            let dist2 = (c2.0 - cx).pow(2) + (c2.1 - cz).pow(2);
+            dist1.cmp(&dist2)
+        });
+
+        let list = LinkedHashSet::from_iter(pendings.into_iter());
+
+        self.pending = list;
+    }
+
     /// Check to see if this client has requested or loaded a chunk.
     pub fn has(&self, coords: &Vec2<i32>) -> bool {
         self.pending.contains(coords) || self.loaded.contains(coords)

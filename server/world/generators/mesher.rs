@@ -384,7 +384,6 @@ impl Mesher {
         let mut positions = Vec::<f32>::new();
         let mut indices = Vec::<i32>::new();
         let mut uvs = Vec::<f32>::new();
-        let mut aos = Vec::<i32>::new();
         let mut lights = Vec::<i32>::new();
 
         let &Vec3(min_x, _, min_z) = min;
@@ -812,8 +811,7 @@ impl Mesher {
                                         indices.push(ndx + 3);
                                     }
 
-                                    aos.append(&mut face_aos);
-
+                                    let mut ao_i = 0;
                                     for (s, r, g, b) in izip!(
                                         &four_sunlights,
                                         &four_red_lights,
@@ -825,7 +823,8 @@ impl Mesher {
                                         light = LightUtils::insert_green_light(light, *g as u32);
                                         light = LightUtils::insert_blue_light(light, *b as u32);
                                         light = LightUtils::insert_sunlight(light, *s as u32);
-                                        lights.push(light as i32);
+                                        lights.push(light as i32 | face_aos[ao_i] << 16);
+                                        ao_i += 1;
                                     }
                                 }
                             }
@@ -843,7 +842,6 @@ impl Mesher {
             positions,
             indices,
             uvs,
-            aos,
             lights,
         })
     }

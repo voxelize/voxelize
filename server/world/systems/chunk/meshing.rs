@@ -80,8 +80,8 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                                 }
                             });
 
-                            if !chunks.to_remesh.contains(&coords) {
-                                chunks.to_remesh.push_back(coords.to_owned());
+                            if !chunks.to_remesh.contains(&n_coords) {
+                                chunks.to_remesh.push_back(n_coords.to_owned());
                             }
                             continue;
                         }

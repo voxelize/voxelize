@@ -457,7 +457,6 @@ outgoingLight *= 0.88 * vAO;
         .replace(
           "#include <common>",
           `
-attribute int ao;
 attribute int light;
 varying float vAO;
 varying vec4 vLight;
@@ -476,10 +475,11 @@ vec4 unpackLight(int l) {
           "#include <color_vertex>",
           `
 #include <color_vertex>
+int ao = light >> 16;
 vAO = ((ao == 0) ? uAOTable.x :
     (ao == 1) ? uAOTable.y :
     (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
-vLight = unpackLight(light);
+vLight = unpackLight(light & ((1 << 16) - 1));
 `
         ),
 

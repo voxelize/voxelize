@@ -44,9 +44,8 @@ fn get_dispatcher(
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
-        .min_chunk([-3, -3])
-        .max_chunk([3, 3])
-        .chunk_size(16)
+        // .min_chunk([-3, -3])
+        // .max_chunk([3, 3])
         .seed(1213123)
         .build();
 
