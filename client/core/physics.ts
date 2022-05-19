@@ -1,6 +1,7 @@
 import { Engine as PhysicsEngine } from "@voxelize/voxel-physics-engine";
 
 import { Client } from "..";
+import { ChunkUtils } from "../utils";
 
 type PhysicsParams = {
   gravity: number[];
@@ -42,10 +43,18 @@ class Physics {
   }
 
   update = () => {
-    const [vx, vy, vz] = this.client.controls.voxel;
-    const chunk = this.client.chunks.getChunkByVoxel(vx, vy, vz);
+    const { controls, chunks, world } = this.client;
 
-    if (!chunk) {
+    const coords = ChunkUtils.mapVoxelPosToChunkPos(
+      controls.voxel,
+      world.params.chunkSize
+    );
+
+    if (!chunks.isWithinWorld(...coords)) {
+      return;
+    }
+
+    if (!chunks.getChunkByVoxel(...controls.voxel)) {
       return;
     }
 

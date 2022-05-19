@@ -240,7 +240,7 @@ fn main() {
     registry.register_block(
         Block::new("Leaves")
             .faces(&[BlockFaces::All])
-            // .is_transparent(true)
+            .is_transparent(true)
             // .transparent_standalone(true)
             .build(),
     );

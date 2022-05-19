@@ -293,6 +293,17 @@ class Chunks {
     this.currentChunk = [0, 0];
   };
 
+  isWithinWorld = (cx: number, cz: number) => {
+    const { minChunk, maxChunk } = this.client.world.params;
+
+    return (
+      cx >= minChunk[0] &&
+      cx <= maxChunk[0] &&
+      cz >= minChunk[1] &&
+      cz <= maxChunk[1]
+    );
+  };
+
   get worldParams() {
     return this.client.world.params;
   }
