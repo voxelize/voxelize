@@ -50,11 +50,10 @@ class Physics {
       world.params.chunkSize
     );
 
-    if (!chunks.isWithinWorld(...coords)) {
-      return;
-    }
-
-    if (!chunks.getChunkByVoxel(...controls.voxel)) {
+    if (
+      !chunks.getChunkByVoxel(...controls.voxel) &&
+      chunks.isWithinWorld(...coords)
+    ) {
       return;
     }
 
