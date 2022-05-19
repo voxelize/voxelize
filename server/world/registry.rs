@@ -103,6 +103,13 @@ impl Registry {
         }
     }
 
+    /// Register multiple blocks into this world. The block ID's are assigned to the length of the blocks at registration.
+    pub fn register_blocks(&mut self, blocks: Vec<Block>) {
+        blocks.into_iter().for_each(|block| {
+            self.register_block(block);
+        });
+    }
+
     /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
     pub fn register_block(&mut self, mut block: Block) -> Block {
         block.id = self.blocks_by_name.len() as u32;
