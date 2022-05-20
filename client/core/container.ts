@@ -111,8 +111,6 @@ class Container {
       () => window.removeEventListener("blur", onBlur),
       () => window.removeEventListener("focus", onFocus)
     );
-
-    this.fitCanvas();
   }
 
   /**
@@ -152,20 +150,6 @@ class Container {
         doc.msExitFullscreen();
       }
     }
-  };
-
-  /**
-   * Fit `container.canvas` inside `container.domElement`
-   *
-   * @memberof Container
-   */
-  fitCanvas = () => {
-    this.canvas.width = this.domElement.offsetWidth;
-    this.canvas.height = this.domElement.offsetHeight;
-    DOMUtils.applyStyles(this.canvas, {
-      width: `${this.domElement.offsetWidth}px`,
-      height: `${this.domElement.offsetHeight}px`,
-    });
   };
 
   /**

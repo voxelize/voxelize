@@ -1,14 +1,8 @@
 import ndarray, { NdArray } from "ndarray";
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Float32BufferAttribute,
-  Int32BufferAttribute,
-  Mesh,
-} from "three";
+import { BufferAttribute, BufferGeometry, Mesh } from "three";
 
 import { Client } from "..";
-import { Coords2, Coords3, MeshData, ServerMesh } from "../types";
+import { Coords2, Coords3 } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
 
 import { ServerChunk } from "./chunks";
@@ -49,19 +43,9 @@ class Chunk {
 
     const { size, maxHeight } = params;
 
-    this.voxels = ndarray(new Uint32Array(size * maxHeight * size), [
-      size,
-      maxHeight,
-      size,
-    ]);
-
-    this.heightMap = ndarray(new Uint32Array(size ** 2), [size, size]);
-
-    this.lights = ndarray(new Uint32Array(size * maxHeight * size), [
-      size,
-      maxHeight,
-      size,
-    ]);
+    this.voxels = ndarray([] as any, [size, maxHeight, size]);
+    this.heightMap = ndarray([] as any, [size, size]);
+    this.lights = ndarray([] as any, [size, maxHeight, size]);
 
     this.min = [x * size, 0, z * size];
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
@@ -76,9 +60,11 @@ class Chunk {
 
     const { mesh: meshData, lights, voxels, heightMap } = this.serverChunk;
 
-    if (lights.length) this.lights.data = lights;
-    if (voxels.length) this.voxels.data = voxels;
-    if (heightMap.length) this.heightMap.data = heightMap;
+    if (this.lights.data.length === 0) {
+      if (lights) this.lights.data = new Uint32Array(lights);
+      if (voxels) this.voxels.data = new Uint32Array(voxels);
+      if (heightMap) this.heightMap.data = new Uint32Array(heightMap);
+    }
 
     ["opaque", "transparent"].forEach((type) => {
       const data = meshData[type];
@@ -120,7 +106,7 @@ class Chunk {
         "light",
         new BufferAttribute(new Int32Array(lights), 1)
       );
-      geometry.setIndex(indices);
+      geometry.setIndex(Array.from(new Uint32Array(indices)));
 
       mesh.updateMatrix();
 

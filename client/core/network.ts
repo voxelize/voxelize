@@ -3,6 +3,7 @@ import Pako from "pako";
 import { Instance as PeerInstance } from "simple-peer";
 // @ts-ignore
 import SimplePeer from "simple-peer/simplepeer.min";
+import DecodeWorker from "web-worker:./workers/decode-worker";
 
 import { Client } from "..";
 import { protocol } from "../protocol";
@@ -16,6 +17,7 @@ type CustomWebSocket = WebSocket & {
 type NetworkParams = {
   serverURL: string;
   reconnectTimeout: number;
+  maxPacketsPerTick: number;
 };
 
 type QueryParams = {
@@ -32,6 +34,8 @@ class Network {
   public connected = false;
 
   private reconnection: any;
+  private receivedPackets: any[] = [];
+  private processedPackets: any[] = [];
 
   constructor(public client: Client, public params: NetworkParams) {
     this.url = new URL(this.params.serverURL);
@@ -70,7 +74,7 @@ class Network {
         resolve();
       };
       ws.onerror = console.error;
-      ws.onmessage = this.onMessage;
+      ws.onmessage = ({ data }) => this.receivedPackets.push(data);
       ws.onclose = () => {
         this.connected = false;
 
@@ -115,6 +119,39 @@ class Network {
   send = (event: any) => {
     this.ws.sendEvent(event);
   };
+
+  update = (() => {
+    let count = 0;
+
+    return () => {
+      count++;
+
+      const { maxPacketsPerTick } = this.params;
+
+      if (count % 2 === 0) {
+        const toProcess = this.receivedPackets.splice(0, maxPacketsPerTick);
+        toProcess.forEach((packet) => {
+          // decode multi-threaded-ly
+          const bytes = new Uint8Array(packet);
+          const worker = new DecodeWorker();
+          worker.addEventListener(
+            "message",
+            (result) => {
+              this.processedPackets.push(result.data);
+              worker.terminate();
+            },
+            false
+          );
+          worker.postMessage(bytes, [bytes.buffer.slice(0)]);
+        });
+      } else {
+        const processed = this.processedPackets.splice(0, maxPacketsPerTick);
+        processed.forEach((packet) => {
+          this.onEvent(packet);
+        });
+      }
+    };
+  })();
 
   private onEvent = (event: any) => {
     const { type } = event;
@@ -187,7 +224,13 @@ class Network {
         break;
       }
       case "UPDATE": {
-        const { updates } = event;
+        const { updates, chunks } = event;
+
+        if (chunks) {
+          chunks.forEach((chunk) => {
+            this.client.chunks.handleServerChunk(chunk, true);
+          });
+        }
 
         if (updates) {
           this.client.particles.addBreakParticles(
@@ -213,16 +256,6 @@ class Network {
         break;
       }
     }
-  };
-
-  private onMessage = ({ data }: MessageEvent) => {
-    let event: any;
-    try {
-      event = Network.decode(new Uint8Array(data));
-    } catch (e) {
-      return;
-    }
-    this.onEvent(event);
   };
 
   private connectToPeer = (id: string, initiator = false) => {

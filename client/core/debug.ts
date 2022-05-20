@@ -83,7 +83,7 @@ class Debug {
     // loop through all data entries, and get their latest updated values
     for (const { ele, title, attribute, obj, formatter } of this.dataEntries) {
       const newValue = obj && attribute ? obj[attribute] : "";
-      ele.innerHTML = `${title ? `${title}: ` : ""}${formatter(newValue)}`;
+      ele.textContent = `${title ? `${title}: ` : ""}${formatter(newValue)}`;
     }
 
     // fps update
@@ -146,7 +146,7 @@ class Debug {
    */
   displayTitle = (title: string) => {
     const newline = this.makeDataEntry(true);
-    newline.innerHTML = title;
+    newline.textContent = title;
     this.dataWrapper.insertBefore(newline, this.dataWrapper.firstChild);
   };
 

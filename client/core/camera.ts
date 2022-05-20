@@ -69,7 +69,6 @@ class Camera {
     // listen to resize, and adjust accordingly
     // ? should move to it's own logic for all event listeners?
     window.addEventListener("resize", () => {
-      client.container.fitCanvas();
       client.rendering.adjustRenderer();
 
       this.threeCamera.aspect = client.rendering.aspectRatio;

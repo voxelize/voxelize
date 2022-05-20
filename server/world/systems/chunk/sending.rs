@@ -35,9 +35,9 @@ impl<'a> System<'a> for ChunkSendingSystem {
         while count < config.max_response_per_tick {
             count += 1;
 
-            if let Some(coords) = chunks.to_send.pop_front() {
+            if let Some((coords, r#type)) = chunks.to_send.pop_front() {
                 if let Some(chunk) = chunks.get(&coords) {
-                    let message = Message::new(&MessageType::Load)
+                    let message = Message::new(&r#type)
                         .chunks(&[chunk.to_model(true)])
                         .build();
 

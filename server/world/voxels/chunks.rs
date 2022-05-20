@@ -5,6 +5,7 @@ use linked_hash_set::LinkedHashSet;
 use log::info;
 
 use crate::{
+    server::models::MessageType,
     vec::{Vec2, Vec3},
     world::{
         types::{BlockChange, LightColor},
@@ -33,7 +34,7 @@ pub struct Chunks {
     pub to_remesh: VecDeque<Vec2<i32>>,
 
     /// A list of chunks that are done meshing and ready to be sent.
-    pub to_send: VecDeque<Vec2<i32>>,
+    pub to_send: VecDeque<(Vec2<i32>, MessageType)>,
 
     /// A cache of what chunks has been borrowed mutable.
     pub cache: HashSet<Vec2<i32>>,

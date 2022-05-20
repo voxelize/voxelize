@@ -123,7 +123,11 @@ class Client extends EventEmitter {
   }) => {
     reconnectTimeout = reconnectTimeout || 5000;
 
-    const network = new Network(this, { reconnectTimeout, serverURL });
+    const network = new Network(this, {
+      reconnectTimeout,
+      serverURL,
+      maxPacketsPerTick: 4,
+    });
     this.network = network;
 
     this.connectionPromise = new Promise<boolean>((resolve) => {
@@ -222,6 +226,9 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
+    // process network events no matter what.
+    this.network.update();
+
     if (
       !this.network.connected ||
       !this.joined ||

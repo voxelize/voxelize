@@ -20,12 +20,14 @@ type ChunksParams = {
   inViewRadius: number;
   maxRequestsPerTick: number;
   maxProcessesPerTick: number;
+  maxAddsPerTick: number;
 };
 
 const defaultParams: ChunksParams = {
   inViewRadius: 1,
   maxRequestsPerTick: 4,
   maxProcessesPerTick: 1,
+  maxAddsPerTick: 2,
 };
 
 class Chunks {
@@ -36,12 +38,11 @@ class Chunks {
   public requested = new Set<string>();
   public toRequest: string[] = [];
   public toProcess: ServerChunk[] = [];
+  public toAdd: string[] = [];
 
   public currentChunk: Coords2;
 
-  private timeExceeded = false;
   private map = new Map<string, Chunk>();
-  private cache = new Map<string, any>();
 
   constructor(public client: Client, params: Partial<ChunksParams> = {}) {
     this.params = {
@@ -58,8 +59,12 @@ class Chunks {
     return this.map.get(name);
   };
 
-  handleServerChunk = (data: ServerChunk) => {
-    this.toProcess.push(data);
+  handleServerChunk = (data: ServerChunk, urgent = false) => {
+    if (urgent) {
+      this.meshChunk(data);
+    } else {
+      this.toProcess.push(data);
+    }
   };
 
   update = (() => {
@@ -67,7 +72,6 @@ class Chunks {
 
     return () => {
       count++;
-      if (count % 5 !== 0) return;
 
       const { position } = this.client.controls;
       const { dimension, chunkSize } = this.worldParams;
@@ -77,10 +81,8 @@ class Chunks {
         chunkSize
       );
 
-      this.cache.clear();
-      this.timeExceeded = false;
-
       // check if player chunk changed.
+      const now = performance.now();
       if (
         !this.currentChunk ||
         this.currentChunk[0] !== coords[0] ||
@@ -89,16 +91,20 @@ class Chunks {
         this.currentChunk = coords;
         this.maintainChunks();
       }
-
-      this.surroundChunks();
-
-      if (this.toRequest.length) {
-        this.requestChunks();
+      const elapsed = performance.now() - now;
+      if (elapsed > 0.8) {
+        console.log(elapsed);
       }
 
-      if (this.toProcess.length) {
+      if (count % 3 === 0) {
+        this.surroundChunks();
+      } else if (count % 5 === 0) {
         this.meshChunks();
+        count = 0;
       }
+
+      this.addChunks();
+      this.requestChunks();
     };
   })();
 
@@ -270,14 +276,6 @@ class Chunks {
     return this.map.get(name);
   };
 
-  addChunk = (chunk: Chunk) => {
-    return this.map.set(chunk.name, chunk);
-  };
-
-  removeChunk = (chunk: Chunk) => {
-    return this.map.delete(chunk.name);
-  };
-
   checkSurrounded = (cx: number, cz: number, r: number) => {
     for (let x = -r; x <= r; x++) {
       for (let z = -r; z <= r; z++) {
@@ -319,11 +317,6 @@ class Chunks {
   };
 
   isChunkInView = (cx: number, cz: number) => {
-    const name = ChunkUtils.getChunkName([cx, cz]);
-    if (this.cache.get(name) !== undefined) {
-      return this.cache.get(name);
-    }
-
     const [pcx, pcz] = this.client.controls.chunk;
 
     if ((pcx - cx) ** 2 + (pcz - cz) ** 2 <= this.params.inViewRadius ** 2) {
@@ -336,11 +329,7 @@ class Chunks {
     const vec2 = new Vector3(z, x, 0);
     const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
 
-    const result = Math.abs(angle) < (Math.PI * 2) / 5;
-
-    this.cache.set(name, result);
-
-    return result;
+    return Math.abs(angle) < (Math.PI * 2) / 5;
   };
 
   get worldParams() {
@@ -361,7 +350,6 @@ class Chunks {
         for (let z = -renderRadius; z <= renderRadius; z++) {
           // Stop process if it's taking too long.
           if (performance.now() - now >= 1.5) {
-            this.timeExceeded = true;
             return;
           }
 
@@ -391,7 +379,9 @@ class Chunks {
             continue;
           }
 
-          chunk.addToScene();
+          if (!this.toAdd.includes(chunk.name)) {
+            this.toAdd.push(chunk.name);
+          }
         }
       }
     })();
@@ -399,6 +389,15 @@ class Chunks {
     this.toRequest.sort((a, b) => {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
       const [cx2, cz2] = ChunkUtils.parseChunkName(b);
+
+      return (
+        (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
+      );
+    });
+
+    this.toProcess.sort((a, b) => {
+      const { x: cx1, z: cz1 } = a;
+      const { x: cx2, z: cz2 } = b;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -421,37 +420,50 @@ class Chunks {
   };
 
   private meshChunks = () => {
-    if (this.timeExceeded) return;
-
     const { maxProcessesPerTick } = this.params;
     const toProcess = this.toProcess.splice(0, maxProcessesPerTick);
 
     toProcess.forEach((data) => {
-      const { x, z, id } = data;
+      this.meshChunk(data);
+    });
+  };
 
-      let chunk = this.getChunk(x, z);
+  private meshChunk = (data: ServerChunk) => {
+    const { x, z, id } = data;
 
-      const { chunkSize, maxHeight } = this.worldParams;
+    let chunk = this.getChunk(x, z);
 
-      if (!chunk) {
-        chunk = new Chunk(this.client, id, x, z, {
-          size: chunkSize,
-          maxHeight,
-        });
+    const { chunkSize, maxHeight } = this.worldParams;
 
-        this.map.set(chunk.name, chunk);
+    if (!chunk) {
+      chunk = new Chunk(this.client, id, x, z, {
+        size: chunkSize,
+        maxHeight,
+      });
 
-        chunk.setServerChunk(data);
+      this.map.set(chunk.name, chunk);
 
-        if (this.isChunkInView(x, z)) {
-          chunk.build();
-        }
-      } else {
-        chunk.setServerChunk(data);
+      chunk.setServerChunk(data);
+
+      if (this.isChunkInView(x, z)) {
         chunk.build();
       }
+    } else {
+      chunk.setServerChunk(data);
+      chunk.build();
+    }
 
-      this.requested.delete(chunk.name);
+    this.requested.delete(chunk.name);
+  };
+
+  private addChunks = () => {
+    const toAdd = this.toAdd.splice(0, this.params.maxAddsPerTick);
+
+    toAdd.forEach((name) => {
+      const chunk = this.map.get(name);
+      if (chunk) {
+        chunk.addToScene();
+      }
     });
   };
 
@@ -467,9 +479,7 @@ class Chunks {
       const dist = chunk.distTo(...this.client.controls.voxel);
 
       if (dist > deleteDistance) {
-        chunk.removeFromScene();
-        chunk.mesh.opaque?.geometry.dispose();
-        chunk.mesh.transparent?.geometry.dispose();
+        chunk.dispose();
         this.map.delete(chunk.name);
         deleted.push(chunk.coords);
       }

@@ -75,7 +75,7 @@ class Rendering {
   };
 
   get renderSize() {
-    const { offsetWidth, offsetHeight } = this.client.container.canvas;
+    const { offsetWidth, offsetHeight } = this.client.container.domElement;
     return { width: offsetWidth, height: offsetHeight };
   }
 
