@@ -20,6 +20,7 @@ import {
   Vector3,
   Color,
 } from "three";
+import DirtImage from "../assets/blocks/dirt.png";
 
 const GameWrapper = styled.div`
   background: black;

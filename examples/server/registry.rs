@@ -6,7 +6,7 @@ use voxelize::world::{
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
 
-    registry.register_blocks(vec![
+    registry.register_blocks(&[
         Block::new("Dirt").build(),
         Block::new("Stone").build(),
         Block::new("Marble").build(),

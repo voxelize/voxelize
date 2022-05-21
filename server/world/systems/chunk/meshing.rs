@@ -51,9 +51,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                 let mut ready = true;
 
                 for n_coords in chunks.light_traversed_chunks(&coords).into_iter() {
-                    if !chunks.is_within_world(&n_coords)
-                        || (!pipeline.has(&n_coords) && chunks.map.contains_key(&n_coords))
-                    {
+                    if !pipeline.has(&n_coords) && chunks.map.contains_key(&n_coords) {
                         // Apply the additional changes whenever available.
                         if let Some(blocks) = pipeline.leftovers.remove(&n_coords) {
                             blocks.into_iter().for_each(|(voxel, id)| {
@@ -64,9 +62,9 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                                 let height = chunks.get_max_height(vx, vz);
 
                                 if registry.is_air(id) {
-                                    if voxel.1 == height as i32 {
+                                    if vy == height as i32 {
                                         // on max height, should set max height to lower
-                                        for y in (0..vy).rev() {
+                                        for y in (0..vy - 1).rev() {
                                             if y == 0
                                                 || registry
                                                     .check_height(chunks.get_voxel(vx, y, vz))

@@ -409,7 +409,7 @@ class Debug {
 
         const radius = 3;
 
-        const id = registry.getBlockByName("Color").id;
+        const id = registry.getBlockByName("Dirt").id;
         const [vx, vy, vz] = controls.lookBlock;
         const changes = [];
 

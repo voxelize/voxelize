@@ -3,7 +3,10 @@ use voxelize::{
     pipeline::{ChunkStage, ResourceRequirements, ResourceResults},
     vec::Vec3,
     world::{
-        generators::noise::NoiseQuery,
+        generators::{
+            noise::NoiseParams,
+            terrain::{SeededTerrain, TerrainLayer},
+        },
         voxels::{access::VoxelAccess, space::Space},
     },
 };
@@ -35,22 +38,35 @@ impl ChunkStage for TestStage {
 
         let map = registry.get_type_map(&["Stone", "Lol"]);
 
-        let mut query = NoiseQuery::new()
+        let params = NoiseParams::new()
             .scale(0.01)
-            .octaves(10)
+            .octaves(3)
             .persistance(0.9)
             .lacunarity(1.2)
-            .amplifier(3.0)
-            .height_bias(3.0)
-            .height_offset(50.0)
             .build();
+
+        let mut terrain = SeededTerrain::new(config.seed, &params);
+
+        let layer1 = TerrainLayer::new(
+            &NoiseParams::new()
+                .scale(0.005)
+                .octaves(4)
+                .persistance(0.5)
+                .lacunarity(2.0)
+                .normalize(true)
+                .build(),
+        )
+        .add_bias_points(vec![[-0.2, 3.0], [0.4, 2.5]])
+        .add_offset_points(vec![[-0.2, 120.0], [0.1, 70.0]]);
+        // .add_bias_points(vec![[-0.3, 2.4], [0.0, 1.8], [0.4, 1.3], [0.9, 1.4]])
+        // .add_offset_points(vec![[-0.2, 120.0], [-0.1, 70.0], [0.3, 70.0], [0.7, 60.0]]);
+
+        terrain.add_layer(&layer1);
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 for vy in 0..max_height {
-                    query.voxel(vx, vy, vz);
-
-                    let density = noise.simplex.get(&query);
+                    let density = terrain.density_at(vx, vy, vz);
 
                     if density > 0.0 {
                         chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());

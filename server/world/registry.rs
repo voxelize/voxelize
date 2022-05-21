@@ -1,7 +1,10 @@
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
-use super::voxels::block::{Block, BlockFaces};
+use super::{
+    utils::block,
+    voxels::block::{Block, BlockFaces},
+};
 
 const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 128.0;
 
@@ -57,7 +60,7 @@ impl Registry {
             .build();
 
         let mut instance = Self::default();
-        instance.register_block(air);
+        instance.register_block(&air);
 
         instance
     }
@@ -104,17 +107,17 @@ impl Registry {
     }
 
     /// Register multiple blocks into this world. The block ID's are assigned to the length of the blocks at registration.
-    pub fn register_blocks(&mut self, blocks: Vec<Block>) {
+    pub fn register_blocks(&mut self, blocks: &[Block]) {
         blocks.into_iter().for_each(|block| {
             self.register_block(block);
         });
     }
 
     /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
-    pub fn register_block(&mut self, mut block: Block) -> Block {
+    pub fn register_block(&mut self, block: &Block) {
+        let mut block = block.to_owned();
         block.id = self.blocks_by_name.len() as u32;
         self.record_block(&block);
-        block
     }
 
     /// Get a block reference by block name.

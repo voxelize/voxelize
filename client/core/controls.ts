@@ -520,13 +520,13 @@ class Controls extends EventDispatcher {
       "in-game"
     );
 
-    inputs.bind(
-      "f",
-      () => {
-        this.toggleGhostMode();
-      },
-      "in-game"
-    );
+    const toggleFly = () => {
+      if (!this.ghostMode) {
+        const isFlying = this.body.gravityMultiplier === 0;
+        this.body.gravityMultiplier = isFlying ? 1 : 0;
+      }
+    };
+    inputs.bind("f", toggleFly, "in-game");
 
     let lastSpace = -1;
     inputs.bind(
@@ -534,11 +534,7 @@ class Controls extends EventDispatcher {
       () => {
         let now = performance.now();
         if (now - lastSpace < 250) {
-          if (!this.ghostMode) {
-            const isFlying = this.body.gravityMultiplier === 0;
-            this.body.gravityMultiplier = isFlying ? 1 : 0;
-          }
-
+          toggleFly();
           now = 0;
         }
         lastSpace = now;
@@ -546,6 +542,8 @@ class Controls extends EventDispatcher {
       "in-game",
       { occasion: "keyup" }
     );
+
+    inputs.bind("g", this.toggleGhostMode, "in-game");
   };
 
   private updateLookBlock = () => {

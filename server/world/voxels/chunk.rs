@@ -204,7 +204,10 @@ impl VoxelAccess for Chunk {
     /// Panics if the coordinates are outside of chunk.
     fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            self.exceeded_changes.push((Vec3(vx, vy, vz), val));
+            if vy >= 0 && vy < self.params.max_height as i32 {
+                self.exceeded_changes.push((Vec3(vx, vy, vz), val));
+            }
+
             return false;
         }
 

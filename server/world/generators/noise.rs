@@ -25,19 +25,51 @@ impl SeededSimplex {
         Self { noise }
     }
 
-    pub fn get(&self, query: &NoiseQuery) -> f64 {
-        let &NoiseQuery {
+    pub fn get2d(&self, vx: i32, vz: i32, params: &NoiseParams) -> f64 {
+        let &NoiseParams {
             octaves,
-            amplifier,
             scale,
-            height_bias,
-            height_offset,
             lacunarity,
             persistance,
-            vx,
-            vy,
-            vz,
-        } = query;
+            normalize,
+        } = params;
+
+        let mut total = 0.0;
+        let mut frequency = 1.0;
+        let mut amplitude = 1.0;
+        let mut max_val = 0.0;
+
+        for _ in 0..octaves {
+            total += self
+                .noise
+                .get([vx as f64 * frequency * scale, vz as f64 * frequency * scale])
+                * amplitude;
+
+            max_val += amplitude;
+
+            amplitude *= persistance;
+            frequency *= lacunarity;
+        }
+
+        (total / max_val) / if normalize { 2.0_f64.sqrt() / 2.0 } else { 1.0 }
+    }
+
+    pub fn get3d(
+        &self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        params: &NoiseParams,
+        height_bias: f64,
+        height_offset: f64,
+    ) -> f64 {
+        let &NoiseParams {
+            octaves,
+            scale,
+            lacunarity,
+            persistance,
+            normalize,
+        } = params;
 
         let mut total = 0.0;
         let mut frequency = 1.0;
@@ -57,50 +89,36 @@ impl SeededSimplex {
             frequency *= lacunarity;
         }
 
-        (total / max_val) * amplifier - height_bias * (vy as f64 - height_offset) * scale
+        (total / max_val) / if normalize { 3.0_f64.sqrt() / 2.0 } else { 1.0 }
+            - (height_bias * vy as f64 - height_offset) / height_offset
     }
 }
 
-pub struct NoiseQuery {
-    pub vx: i32,
-    pub vy: i32,
-    pub vz: i32,
+#[derive(Clone)]
+pub struct NoiseParams {
     pub scale: f64,
     pub octaves: usize,
     pub persistance: f64,
     pub lacunarity: f64,
-    pub amplifier: f64,
-    pub height_bias: f64,
-    pub height_offset: f64,
+    pub normalize: bool,
 }
 
-impl NoiseQuery {
-    pub fn new() -> NoiseQueryBuilder {
-        NoiseQueryBuilder::default()
-    }
-
-    pub fn voxel(&mut self, vx: i32, vy: i32, vz: i32) {
-        self.vx = vx;
-        self.vy = vy;
-        self.vz = vz;
+impl NoiseParams {
+    pub fn new() -> NoiseParamsBuilder {
+        NoiseParamsBuilder::default()
     }
 }
 
 #[derive(Default)]
-pub struct NoiseQueryBuilder {
-    vx: i32,
-    vy: i32,
-    vz: i32,
+pub struct NoiseParamsBuilder {
     scale: f64,
     octaves: usize,
     persistance: f64,
     lacunarity: f64,
-    amplifier: f64,
-    height_bias: f64,
-    height_offset: f64,
+    normalize: bool,
 }
 
-impl NoiseQueryBuilder {
+impl NoiseParamsBuilder {
     pub fn scale(mut self, scale: f64) -> Self {
         self.scale = scale;
         self
@@ -121,33 +139,18 @@ impl NoiseQueryBuilder {
         self
     }
 
-    pub fn amplifier(mut self, amplifier: f64) -> Self {
-        self.amplifier = amplifier;
+    pub fn normalize(mut self, normalize: bool) -> Self {
+        self.normalize = normalize;
         self
     }
 
-    pub fn height_bias(mut self, height_bias: f64) -> Self {
-        self.height_bias = height_bias;
-        self
-    }
-
-    pub fn height_offset(mut self, height_offset: f64) -> Self {
-        self.height_offset = height_offset;
-        self
-    }
-
-    pub fn build(self) -> NoiseQuery {
-        NoiseQuery {
-            vx: self.vx,
-            vy: self.vy,
-            vz: self.vz,
+    pub fn build(self) -> NoiseParams {
+        NoiseParams {
             scale: self.scale,
             octaves: self.octaves,
             persistance: self.persistance,
             lacunarity: self.lacunarity,
-            amplifier: self.amplifier,
-            height_bias: self.height_bias,
-            height_offset: self.height_offset,
+            normalize: self.normalize,
         }
     }
 }
