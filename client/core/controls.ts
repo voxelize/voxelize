@@ -514,7 +514,7 @@ class Controls extends EventDispatcher {
           vx,
           vy,
           vz,
-          this.client.registry.getBlockByName("Color").id
+          this.client.registry.getBlockByName("Stone").id
         );
       },
       "in-game"

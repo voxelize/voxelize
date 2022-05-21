@@ -152,7 +152,7 @@ impl SpaceBuilder<'_> {
 
         let Vec2(cx, cz) = self.coords;
 
-        if margin <= 0 {
+        if margin == 0 {
             panic!("Margin of 0 on Space is wasteful.");
         }
 

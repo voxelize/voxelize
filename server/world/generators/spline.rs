@@ -1,3 +1,4 @@
+use log::info;
 use splines::{Interpolation, Key, Spline};
 
 #[derive(Clone)]
@@ -19,7 +20,7 @@ impl SplineMap {
             max: 0.0,
             min_val: 0.0,
             max_val: 0.0,
-            interpolation: Interpolation::default(),
+            interpolation: Interpolation::Cosine,
         }
     }
 
@@ -36,6 +37,50 @@ impl SplineMap {
 
         let point = Key::new(point[0], point[1], self.interpolation.to_owned());
         self.spline.add(point);
+
+        self
+    }
+
+    pub fn rescale_values(&mut self, min_val: f64, max_val: f64) -> &mut Self {
+        let scale = |num: f64| {
+            (max_val - min_val) * (num - self.min_val) / (self.max_val - self.min_val) + min_val
+        };
+
+        let keys = self.spline.keys().to_owned();
+
+        let mut index = 0;
+        keys.into_iter().for_each(|_| {
+            self.spline.replace(index, |key| {
+                let mut key = key.to_owned();
+                key.value = scale(key.value);
+                key
+            });
+            index += 1;
+        });
+
+        self.min_val = min_val;
+        self.max_val = max_val;
+
+        self
+    }
+
+    pub fn rescale_t(&mut self, min: f64, max: f64) -> &mut Self {
+        let scale = |num: f64| (max - min) * (num - self.min) / (self.max - self.min) + min;
+
+        let keys = self.spline.keys().to_owned();
+
+        let mut index = 0;
+        keys.into_iter().for_each(|_| {
+            self.spline.replace(index, |key| {
+                let mut key = key.to_owned();
+                key.t = scale(key.t);
+                key
+            });
+            index += 1;
+        });
+
+        self.min = min;
+        self.max = max;
 
         self
     }

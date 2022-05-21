@@ -54,15 +54,7 @@ impl SeededSimplex {
         (total / max_val) / if normalize { 2.0_f64.sqrt() / 2.0 } else { 1.0 }
     }
 
-    pub fn get3d(
-        &self,
-        vx: i32,
-        vy: i32,
-        vz: i32,
-        params: &NoiseParams,
-        height_bias: f64,
-        height_offset: f64,
-    ) -> f64 {
+    pub fn get3d(&self, vx: i32, vy: i32, vz: i32, params: &NoiseParams) -> f64 {
         let &NoiseParams {
             octaves,
             scale,
@@ -79,7 +71,7 @@ impl SeededSimplex {
         for _ in 0..octaves {
             total += self.noise.get([
                 vx as f64 * frequency * scale,
-                vy as f64 * frequency * scale,
+                (vy as f64) * frequency * scale,
                 vz as f64 * frequency * scale,
             ]) * amplitude;
 
@@ -90,7 +82,6 @@ impl SeededSimplex {
         }
 
         (total / max_val) / if normalize { 3.0_f64.sqrt() / 2.0 } else { 1.0 }
-            - (height_bias * vy as f64 - height_offset) / height_offset
     }
 }
 

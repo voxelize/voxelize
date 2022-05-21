@@ -49,6 +49,7 @@ impl Lights {
             max_height,
             min_chunk,
             max_chunk,
+            max_light_level,
             ..
         } = config;
 
@@ -66,7 +67,7 @@ impl Lights {
                 break;
             }
 
-            for [ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
+            for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
                 let nvy = vy + oy;
 
                 if nvy < 0 || nvy >= max_height {
@@ -98,7 +99,12 @@ impl Lights {
                     continue;
                 }
 
-                let next_level = level - 1;
+                let next_level = level
+                    - if is_sunlight && oy == -1 && level == max_light_level {
+                        0
+                    } else {
+                        1
+                    };
                 let next_voxel = [nvx, nvy, nvz];
                 let block_type = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
 
@@ -106,7 +112,7 @@ impl Lights {
                     || (if is_sunlight {
                         space.get_sunlight(nvx, nvy, nvz)
                     } else {
-                        space.get_torch_light(nvx, nvy, nvz, &color)
+                        space.get_torch_light(nvx, nvy, nvz, color)
                     } >= next_level)
                 {
                     continue;
@@ -115,7 +121,7 @@ impl Lights {
                 if is_sunlight {
                     space.set_sunlight(nvx, nvy, nvz, next_level);
                 } else {
-                    space.set_torch_light(nvx, nvy, nvz, next_level, &color);
+                    space.set_torch_light(nvx, nvy, nvz, next_level, color);
                 }
 
                 queue.push_back(LightNode {

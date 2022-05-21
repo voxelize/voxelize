@@ -44,8 +44,8 @@ fn get_dispatcher(
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
-        .min_chunk([-1, -1])
-        .max_chunk([1, 1])
+        // .min_chunk([-10, -1])
+        // .max_chunk([10, 1])
         .seed(1213123)
         .build();
 
@@ -60,10 +60,10 @@ pub fn setup_world() -> World {
 
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
         pipeline.add_stage(TestStage);
-        pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(TreeTestStage {
-            noise: Worley::new(),
-        });
+        // pipeline.add_stage(HeightMapStage);
+        // pipeline.add_stage(TreeTestStage {
+        //     noise: Worley::new(),
+        // });
     }
 
     world

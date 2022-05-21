@@ -19,30 +19,34 @@ impl SeededTerrain {
     }
 
     pub fn add_layer(&mut self, layer: &TerrainLayer) -> &mut Self {
+        // if !self.layers.is_empty() {
+        //     let prev_layer = self.layers.last_mut().unwrap();
+        //     prev_layer.height_bias_spline.rescale_values(-1.0, 1.0);
+        //     prev_layer.height_offset_spline.rescale_values(-1.0, 1.0);
+        // }
         self.layers.push(layer.to_owned());
         self
     }
 
     pub fn density_at(&self, vx: i32, vy: i32, vz: i32) -> f64 {
         let (bias, offset) = self.get_bias_offset(vx, vz);
-        self.noise.get3d(vx, vy, vz, &self.params, bias, offset)
+        self.noise.get3d(vx, vy, vz, &self.params) - bias * (vy as f64 - offset) / offset
     }
 
     pub fn get_bias_offset(&self, vx: i32, vz: i32) -> (f64, f64) {
-        let mut sum_bias = 0.0;
-        let mut sum_offset = 0.0;
+        let mut bias = 0.0;
+        let mut offset = 0.0;
 
         self.layers.iter().for_each(|layer| {
-            let lookup = self.noise.get2d(vx, vz, &layer.params);
-            sum_bias += layer.sample_bias(lookup);
-            sum_offset += layer.sample_offset(lookup);
+            let value = self.noise.get2d(vx, vz, &layer.params);
+            bias += layer.sample_bias(value);
+            offset += layer.sample_offset(value);
         });
 
-        let len = self.layers.len() as f64;
-        let avg_bias = sum_bias / len;
-        let avg_offset = sum_offset / len;
+        bias /= self.layers.len() as f64;
+        offset /= self.layers.len() as f64;
 
-        (avg_bias, avg_offset)
+        (bias, offset)
     }
 }
 

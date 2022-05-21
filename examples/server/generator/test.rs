@@ -39,7 +39,7 @@ impl ChunkStage for TestStage {
         let map = registry.get_type_map(&["Stone", "Lol"]);
 
         let params = NoiseParams::new()
-            .scale(0.01)
+            .scale(0.016)
             .octaves(3)
             .persistance(0.9)
             .lacunarity(1.2)
@@ -49,25 +49,55 @@ impl ChunkStage for TestStage {
 
         let layer1 = TerrainLayer::new(
             &NoiseParams::new()
-                .scale(0.005)
+                .scale(0.006)
                 .octaves(4)
                 .persistance(0.5)
                 .lacunarity(2.0)
                 .normalize(true)
                 .build(),
         )
-        .add_bias_points(vec![[-0.2, 3.0], [0.4, 2.5]])
-        .add_offset_points(vec![[-0.2, 120.0], [0.1, 70.0]]);
-        // .add_bias_points(vec![[-0.3, 2.4], [0.0, 1.8], [0.4, 1.3], [0.9, 1.4]])
-        // .add_offset_points(vec![[-0.2, 120.0], [-0.1, 70.0], [0.3, 70.0], [0.7, 60.0]]);
+        .add_bias_points(vec![[-0.2, 5.0], [0.4, 4.5]])
+        .add_offset_points(vec![
+            [-0.6, 60.0],
+            [-0.3, 65.0],
+            [0.0, 70.0],
+            [0.4, 100.0],
+            [0.9, 110.0],
+        ]);
+        let layer2 = TerrainLayer::new(
+            &NoiseParams::new()
+                .scale(0.008)
+                .octaves(5)
+                .persistance(0.3)
+                .lacunarity(1.8)
+                .normalize(true)
+                .build(),
+        )
+        .add_bias_points(vec![[-0.7, 6.0], [-0.4, 4.0], [0.2, 4.0], [0.8, 6.0]])
+        .add_offset_points(vec![
+            [-1.0, 200.0],
+            [-0.8, 160.0],
+            [-0.4, 120.0],
+            [-0.3, 60.0],
+            [0.3, 55.0],
+            [0.4, 55.0],
+            [0.5, 60.0],
+            [0.6, 60.0],
+            [0.7, 55.0],
+            [0.9, 40.0],
+        ]);
 
         terrain.add_layer(&layer1);
+        // terrain.add_layer(&layer2);
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 for vy in 0..max_height {
                     let density = terrain.density_at(vx, vy, vz);
 
+                    // if (vy as f64) < offset {
+                    //     chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
+                    // }
                     if density > 0.0 {
                         chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
                     }
