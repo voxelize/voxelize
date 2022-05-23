@@ -167,7 +167,7 @@ impl Lights {
             let LightNode { voxel, level } = queue.pop_front().unwrap();
             let [vx, vy, vz] = voxel;
 
-            for [ox, oy, oz] in VOXEL_NEIGHBORS.iter() {
+            for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
                 let nvy = vy + oy;
 
                 if nvy < 0 || nvy >= max_height {
@@ -191,7 +191,7 @@ impl Lights {
                 // if level is less, or if sunlight is propagating downwards without stopping
                 if nl < level
                     || (is_sunlight
-                        && *oy == -1
+                        && oy == -1
                         && level == max_light_level
                         && nl == max_light_level)
                 {
@@ -205,7 +205,7 @@ impl Lights {
                     } else {
                         space.set_torch_light(nvx, nvy, nvz, 0, color);
                     }
-                } else if nl >= level && (!is_sunlight || *oy != -1 || nl > level) {
+                } else if nl >= level && (!is_sunlight || oy != -1 || nl > level) {
                     fill.push_back(LightNode {
                         voxel: n_voxel,
                         level: nl,

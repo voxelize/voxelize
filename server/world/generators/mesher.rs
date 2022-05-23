@@ -409,13 +409,11 @@ impl Mesher {
                         ..
                     } = block.to_owned();
 
-                    if (is_solid || is_plant)
-                        && (if transparent {
-                            is_transparent
-                        } else {
-                            !is_transparent
-                        })
-                    {
+                    if if transparent {
+                        is_transparent
+                    } else {
+                        !is_transparent
+                    } {
                         let uv_map = registry.get_uv_map(block);
                         let face_map = Registry::get_faces_map(&faces);
 

@@ -8,7 +8,7 @@ use voxelize::{
     world::{components::rigidbody::RigidBodyComp, stats::Stats, World, WorldConfig},
 };
 
-use crate::generator::{test::TestStage, tree::TreeTestStage};
+use crate::generator::{test::TestStage, tree::TreeTestStage, water::WaterStage};
 
 #[derive(Default, Component)]
 #[storage(NullStorage)]
@@ -60,7 +60,8 @@ pub fn setup_world() -> World {
 
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
         pipeline.add_stage(TestStage);
-        // pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(WaterStage);
         // pipeline.add_stage(TreeTestStage {
         //     noise: Worley::new(),
         // });

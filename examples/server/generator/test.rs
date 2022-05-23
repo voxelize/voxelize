@@ -39,7 +39,7 @@ impl ChunkStage for TestStage {
         let map = registry.get_type_map(&["Stone", "Lol"]);
 
         let params = NoiseParams::new()
-            .scale(0.016)
+            .scale(0.026)
             .octaves(3)
             .persistance(0.9)
             .lacunarity(1.2)
@@ -49,24 +49,50 @@ impl ChunkStage for TestStage {
 
         let layer1 = TerrainLayer::new(
             &NoiseParams::new()
-                .scale(0.006)
+                .scale(0.005)
                 .octaves(4)
-                .persistance(0.5)
+                .persistance(0.4)
                 .lacunarity(2.0)
                 .normalize(true)
                 .build(),
         )
         .add_bias_points(vec![[-0.2, 5.0], [0.4, 4.5]])
+        // .add_offset_points(vec![[-1.0, 120.0], [-0.6, 90.0], [-0.3, 80.0], [0.3, 60.0]]);
         .add_offset_points(vec![
-            [-0.6, 60.0],
-            [-0.3, 65.0],
-            [0.0, 70.0],
-            [0.4, 100.0],
-            [0.9, 110.0],
+            [-1.0, 130.0],
+            [-0.9, 40.0],
+            [-0.6, 43.0],
+            [-0.4, 55.0],
+            [-0.1, 60.0],
+            [0.2, 80.0],
+            [0.4, 95.0],
         ]);
         let layer2 = TerrainLayer::new(
             &NoiseParams::new()
-                .scale(0.008)
+                .scale(0.007)
+                .octaves(5)
+                .persistance(0.2)
+                .lacunarity(1.4)
+                .normalize(true)
+                .build(),
+        )
+        .add_bias_points(vec![[-0.7, 6.0], [-0.4, 6.0], [0.2, 6.0], [0.8, 6.0]])
+        // .add_offset_points(vec![[-0.4, 80.0], [0.2, 70.0]]);
+        .add_offset_points(vec![
+            [-1.0, 130.0],
+            [-0.7, 108.0],
+            [-0.4, 96.0],
+            [-0.3, 90.0],
+            [0.0, 50.0],
+            [0.5, 60.0],
+            [0.6, 70.0],
+            [0.7, 74.0],
+            [0.8, 66.0],
+            [1.0, 30.0],
+        ]);
+        let layer3 = TerrainLayer::new(
+            &NoiseParams::new()
+                .scale(0.007)
                 .octaves(5)
                 .persistance(0.3)
                 .lacunarity(1.8)
@@ -75,20 +101,19 @@ impl ChunkStage for TestStage {
         )
         .add_bias_points(vec![[-0.7, 6.0], [-0.4, 4.0], [0.2, 4.0], [0.8, 6.0]])
         .add_offset_points(vec![
-            [-1.0, 200.0],
-            [-0.8, 160.0],
-            [-0.4, 120.0],
-            [-0.3, 60.0],
-            [0.3, 55.0],
-            [0.4, 55.0],
-            [0.5, 60.0],
-            [0.6, 60.0],
-            [0.7, 55.0],
-            [0.9, 40.0],
+            [-0.9, 10.0],
+            [-0.7, 30.0],
+            [-0.6, 50.0],
+            [-0.4, 65.0],
+            [-0.2, 70.0],
+            [0.4, 90.0],
+            [0.8, 100.0],
+            [0.9, 95.0],
         ]);
 
         terrain.add_layer(&layer1);
-        // terrain.add_layer(&layer2);
+        terrain.add_layer(&layer2);
+        // terrain.add_layer(&layer3);
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {

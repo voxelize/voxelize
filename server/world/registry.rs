@@ -250,7 +250,7 @@ impl Registry {
     /// Logic for checking max height, returning true if id counts as valid max height.
     pub fn check_height(&self, id: u32) -> bool {
         let block = self.get_block_by_id(id);
-        id != 0 && !block.is_plant && !block.is_fluid
+        id != 0 && !block.is_plant
     }
 
     /// Check if registry contains type.

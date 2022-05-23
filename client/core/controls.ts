@@ -558,7 +558,7 @@ class Controls extends EventDispatcher {
       return;
     }
 
-    const { world, camera, chunks } = this.client;
+    const { world, camera, chunks, registry } = this.client;
     const { dimension, maxHeight } = world.params;
     const { reachDistance, lookBlockLerp } = this.params;
 
@@ -574,8 +574,9 @@ class Controls extends EventDispatcher {
       (x, y, z) => {
         const vCoords = ChunkUtils.mapWorldPosToVoxelPos([x, y, z], dimension);
         const type = chunks.getVoxelByVoxel(...vCoords);
+        const block = registry.getBlockById(type);
 
-        return y < maxHeight * dimension && type !== 0;
+        return y < maxHeight * dimension && type !== 0 && !block.isFluid;
       },
       [camPos.x, camPos.y, camPos.z],
       [camDir.x, camDir.y, camDir.z],

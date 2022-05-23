@@ -28,6 +28,12 @@ pub fn setup_registry() -> Registry {
             .green_light_level(10)
             .red_light_level(10)
             .build(),
+        Block::new("Water")
+            .is_transparent(true)
+            .is_fluid(true)
+            .is_solid(false)
+            .aabbs(&[])
+            .build(),
     ]);
 
     registry

@@ -20,7 +20,7 @@ import {
   Vector3,
   Color,
 } from "three";
-import DirtImage from "../assets/blocks/dirt.png";
+import WaterImage from "../assets/blocks/water.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -189,6 +189,7 @@ export const App = () => {
           { name: "Wood", side: "top", data: new Color("#E3CAA5") },
           { name: "Wood", side: "side", data: new Color("#865439") },
           { name: "Wood", side: "bottom", data: new Color("#E3CAA5") },
+          { name: "Water", side: "all", data: WaterImage },
         ]);
 
         client.current.ecs.addSystem(new UpdateBoxSystem());
