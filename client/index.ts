@@ -226,9 +226,6 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
-    // process network events no matter what.
-    this.network.update();
-
     if (
       !this.network.connected ||
       !this.joined ||

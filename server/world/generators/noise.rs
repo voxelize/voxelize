@@ -42,7 +42,7 @@ impl SeededSimplex {
         for _ in 0..octaves {
             total += self
                 .noise
-                .get([vx as f64 * frequency * scale, vz as f64 * frequency * scale])
+                .get([vx as f64 * frequency / scale, vz as f64 * frequency / scale])
                 * amplitude;
 
             max_val += amplitude;
@@ -70,9 +70,9 @@ impl SeededSimplex {
 
         for _ in 0..octaves {
             total += self.noise.get([
-                vx as f64 * frequency * scale,
-                (vy as f64) * frequency * scale,
-                vz as f64 * frequency * scale,
+                vx as f64 * frequency / scale,
+                (vy as f64) * frequency / scale,
+                vz as f64 * frequency / scale,
             ]) * amplitude;
 
             max_val += amplitude;
@@ -85,7 +85,7 @@ impl SeededSimplex {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct NoiseParams {
     pub scale: f64,
     pub octaves: usize,

@@ -82,7 +82,6 @@ class Chunks {
       );
 
       // check if player chunk changed.
-      const now = performance.now();
       if (
         !this.currentChunk ||
         this.currentChunk[0] !== coords[0] ||
@@ -91,14 +90,10 @@ class Chunks {
         this.currentChunk = coords;
         this.maintainChunks();
       }
-      const elapsed = performance.now() - now;
-      if (elapsed > 0.8) {
-        console.log(elapsed);
-      }
 
-      if (count % 3 === 0) {
+      if (count % 2 === 0) {
         this.surroundChunks();
-      } else if (count % 5 === 0) {
+      } else if (count % 3 === 0) {
         this.meshChunks();
         count = 0;
       }
@@ -442,16 +437,9 @@ class Chunks {
       });
 
       this.map.set(chunk.name, chunk);
-
-      chunk.setServerChunk(data);
-
-      if (this.isChunkInView(x, z)) {
-        chunk.build();
-      }
-    } else {
-      chunk.setServerChunk(data);
-      chunk.build();
     }
+
+    chunk.build(data);
 
     this.requested.delete(chunk.name);
   };

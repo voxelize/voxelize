@@ -93,7 +93,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 .into_iter()
                 .map(|coords| {
                     let chunk = chunks.get(&coords).unwrap();
-                    chunk.to_model(false)
+                    chunk.to_model(true, true)
                 })
                 .collect();
 

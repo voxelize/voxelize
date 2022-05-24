@@ -16,7 +16,7 @@ const defaultParams: PhysicsParams = {
   minBounceImpulse: 0.5,
   airDrag: 0.1,
   fluidDrag: 1.4,
-  fluidDensity: 1.4,
+  fluidDensity: 0.8,
 };
 
 class Physics {
@@ -49,11 +49,9 @@ class Physics {
       controls.voxel,
       world.params.chunkSize
     );
+    const chunk = chunks.getChunkByVoxel(...controls.voxel);
 
-    if (
-      !chunks.getChunkByVoxel(...controls.voxel) &&
-      chunks.isWithinWorld(...coords)
-    ) {
+    if ((!chunk && chunks.isWithinWorld(...coords)) || !chunk.isReady) {
       return;
     }
 

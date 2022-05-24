@@ -1,4 +1,5 @@
 import URL from "domurl";
+import * as fflate from "fflate";
 import Pako from "pako";
 import { Instance as PeerInstance } from "simple-peer";
 // @ts-ignore
@@ -34,8 +35,6 @@ class Network {
   public connected = false;
 
   private reconnection: any;
-  private receivedPackets: any[] = [];
-  private processedPackets: any[] = [];
 
   constructor(public client: Client, public params: NetworkParams) {
     this.url = new URL(this.params.serverURL);
@@ -74,7 +73,9 @@ class Network {
         resolve();
       };
       ws.onerror = console.error;
-      ws.onmessage = ({ data }) => this.receivedPackets.push(data);
+      ws.onmessage = ({ data }) => {
+        Network.decode(new Uint8Array(data)).then((data) => this.onEvent(data));
+      };
       ws.onclose = () => {
         this.connected = false;
 
@@ -119,39 +120,6 @@ class Network {
   send = (event: any) => {
     this.ws.sendEvent(event);
   };
-
-  update = (() => {
-    let count = 0;
-
-    return () => {
-      count++;
-
-      const { maxPacketsPerTick } = this.params;
-
-      if (count % 2 === 0) {
-        const toProcess = this.receivedPackets.splice(0, maxPacketsPerTick);
-        toProcess.forEach((packet) => {
-          // decode multi-threaded-ly
-          const bytes = new Uint8Array(packet);
-          const worker = new DecodeWorker();
-          worker.addEventListener(
-            "message",
-            (result) => {
-              this.processedPackets.push(result.data);
-              worker.terminate();
-            },
-            false
-          );
-          worker.postMessage(bytes, [bytes.buffer.slice(0)]);
-        });
-      } else {
-        const processed = this.processedPackets.splice(0, maxPacketsPerTick);
-        processed.forEach((packet) => {
-          this.onEvent(packet);
-        });
-      }
-    };
-  })();
 
   private onEvent = (event: any) => {
     const { type } = event;
@@ -267,9 +235,17 @@ class Network {
     this.client.peers.addPeer(id, connection);
   };
 
-  static decode = (buffer: any) => {
+  static decode = async (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-      buffer = Pako.inflate(buffer);
+      buffer = await new Promise((resolve) =>
+        fflate.unzlib(buffer, (err, data) => {
+          if (err) {
+            console.error(err);
+          }
+
+          resolve(data);
+        })
+      );
     }
     const message = Message.decode(buffer);
     // @ts-ignore

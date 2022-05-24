@@ -1,5 +1,6 @@
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 
+use libflate::zlib::Encoder;
 use prost::Message as ProstMesssage;
 
 use crate::libs::{ndarray::Ndarray, vec::Vec3};
@@ -28,6 +29,12 @@ pub fn encode_message(message: &Message) -> Vec<u8> {
     let mut buf = Vec::new();
     buf.reserve(message.encoded_len());
     message.encode(&mut buf).unwrap();
+    if buf.len() > 1024 {
+        let mut encoder = Encoder::new(Vec::new()).unwrap();
+        encoder.write_all(buf.as_slice()).unwrap();
+        buf = encoder.finish().into_result().unwrap();
+    }
+
     buf
 }
 

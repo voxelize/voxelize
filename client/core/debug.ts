@@ -57,7 +57,7 @@ class Debug {
     }
 
     // wait till all client members are initialized
-    client.on("initialized", () => {
+    client.on("ready", () => {
       client.inputs.bind("j", this.toggle, "*");
 
       this.makeDOM();
@@ -313,33 +313,43 @@ class Debug {
       this.client.chunks.requested,
       "size"
     );
+    // this.registerDisplay(
+    //   "Packets received",
+    //   this.client.network.receivedPackets,
+    //   "length"
+    // );
+    // this.registerDisplay(
+    //   "Packets to process",
+    //   this.client.network.decodedPackets,
+    //   "length"
+    // );
     this.registerDisplay(
-      "Scene Objects",
+      "Scene objects",
       this.client.rendering.scene.children,
       "length"
     );
     this.registerDisplay(
-      "Scene Polycount",
+      "Scene polycount",
       this.client.rendering.renderer.info.render,
       "triangles"
     );
     this.registerDisplay(
-      "Active Drawcalls",
+      "Active drawcalls",
       this.client.rendering.renderer.info.render,
       "calls"
     );
     this.registerDisplay(
-      "Textures in Memory",
+      "Textures in memory",
       this.client.rendering.renderer.info.memory,
       "textures"
     );
     this.registerDisplay(
-      "Geometries in Memory",
+      "Geometries in memory",
       this.client.rendering.renderer.info.memory,
       "geometries"
     );
     this.registerDisplay(
-      "Rigid Body Count",
+      "Rigid body count",
       this.client.physics.core.bodies,
       "length"
     );

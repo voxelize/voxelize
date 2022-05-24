@@ -104,26 +104,26 @@ impl Chunk {
     }
 
     /// Convert chunk to protocol model.
-    pub fn to_model(&self, mesh_only: bool) -> ChunkModel {
+    pub fn to_model(&self, mesh: bool, data: bool) -> ChunkModel {
         ChunkModel {
             x: self.coords.0,
             z: self.coords.1,
             id: self.id.clone(),
-            mesh: self.mesh.to_owned(),
-            voxels: if mesh_only {
-                None
-            } else {
+            mesh: if mesh { self.mesh.to_owned() } else { None },
+            voxels: if data {
                 Some(self.voxels.to_owned())
-            },
-            lights: if mesh_only {
-                None
             } else {
+                None
+            },
+            lights: if data {
                 Some(self.lights.to_owned())
-            },
-            height_map: if mesh_only {
-                None
             } else {
+                None
+            },
+            height_map: if data {
                 Some(self.height_map.to_owned())
+            } else {
+                None
             },
         }
     }

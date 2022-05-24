@@ -21,6 +21,7 @@ import {
   Color,
 } from "three";
 import WaterImage from "../assets/blocks/water.png";
+import UglyImage from '../assets/blocks/ugly.png'
 
 const GameWrapper = styled.div`
   background: black;
@@ -150,7 +151,7 @@ class UpdateBoxSystem extends System {
     }
 
     mesh.position.lerp(
-      entity.position.clone().add(new Vector3(0, 0.25, 0)),
+      entity.position.clone().add(new Vector3(0, 0, 0)),
       BaseEntity.LERP_FACTOR
     );
   }

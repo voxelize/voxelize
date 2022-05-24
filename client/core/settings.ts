@@ -10,7 +10,7 @@ class Settings {
   constructor(public client: Client) {
     this.add(
       "renderRadius",
-      Math.min(Math.max(navigator.hardwareConcurrency || 0, 4), 8)
+      Math.min(Math.max(navigator.hardwareConcurrency || 0, 4), 16)
     );
   }
 

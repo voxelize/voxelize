@@ -29,7 +29,6 @@ class Chunk {
   public lights: NdArray<Uint32Array>;
 
   private added = false;
-  private serverChunk: ServerChunk | null = null;
 
   constructor(
     public client: Client,
@@ -51,77 +50,66 @@ class Chunk {
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
-  setServerChunk = (data: ServerChunk) => {
-    this.serverChunk = data;
-  };
+  build = (data: ServerChunk) => {
+    const { mesh: meshData, lights, voxels, heightMap } = data;
 
-  build = () => {
-    if (!this.serverChunk) return;
+    if (lights && lights.length) this.lights.data = new Uint32Array(lights);
+    if (voxels && voxels.length) this.voxels.data = new Uint32Array(voxels);
+    if (heightMap && heightMap.length)
+      this.heightMap.data = new Uint32Array(heightMap);
 
-    const { mesh: meshData, lights, voxels, heightMap } = this.serverChunk;
+    if (meshData) {
+      ["opaque", "transparent"].forEach((type) => {
+        const data = meshData[type];
 
-    if (this.lights.data.length === 0) {
-      if (lights) this.lights.data = new Uint32Array(lights);
-      if (voxels) this.voxels.data = new Uint32Array(voxels);
-      if (heightMap) this.heightMap.data = new Uint32Array(heightMap);
-    }
+        if (!data) return;
 
-    ["opaque", "transparent"].forEach((type) => {
-      const data = meshData[type];
+        const { positions, indices, uvs, lights } = data;
 
-      if (!data) return;
+        if (positions.length === 0 || indices.length === 0) {
+          return;
+        }
 
-      const { positions, indices, uvs, lights } = data;
+        let mesh = this.mesh[type] as Mesh;
 
-      if (positions.length === 0 || indices.length === 0) {
-        return;
-      }
+        if (!mesh) {
+          const { opaque, transparent } = this.client.registry.materials;
 
-      let mesh = this.mesh[type] as Mesh;
+          mesh = new Mesh(
+            new BufferGeometry(),
+            type === "opaque" ? opaque : transparent
+          );
+          mesh.name = `${this.name}-${type}`;
+          mesh.matrixAutoUpdate = false;
+          mesh.renderOrder = type === "opaque" ? 100 : 100000;
+          mesh.position.set(...this.min);
+        }
 
-      if (!mesh) {
-        const { opaque, transparent } = this.client.registry.materials;
+        const geometry = mesh.geometry;
 
-        mesh = new Mesh(
-          new BufferGeometry(),
-          type === "opaque" ? opaque : transparent
+        geometry.setAttribute(
+          "position",
+          new BufferAttribute(new Float32Array(positions), 3)
         );
-        mesh.name = `${this.name}-${type}`;
-        mesh.matrixAutoUpdate = false;
-        mesh.renderOrder = type === "opaque" ? 100 : 100000;
-        mesh.position.set(...this.min);
-      }
+        geometry.setAttribute(
+          "uv",
+          new BufferAttribute(new Float32Array(uvs), 2)
+        );
+        geometry.setAttribute(
+          "light",
+          new BufferAttribute(new Int32Array(lights), 1)
+        );
+        geometry.setIndex(Array.from(new Uint32Array(indices)));
 
-      const geometry = mesh.geometry;
+        mesh.updateMatrix();
 
-      geometry.setAttribute(
-        "position",
-        new BufferAttribute(new Float32Array(positions), 3)
-      );
-      geometry.setAttribute(
-        "uv",
-        new BufferAttribute(new Float32Array(uvs), 2)
-      );
-      geometry.setAttribute(
-        "light",
-        new BufferAttribute(new Int32Array(lights), 1)
-      );
-      geometry.setIndex(Array.from(new Uint32Array(indices)));
-
-      mesh.updateMatrix();
-
-      this.mesh[type] = mesh;
-    });
-
-    this.serverChunk = null;
+        this.mesh[type] = mesh;
+      });
+    }
   };
 
   addToScene = () => {
     if (this.added) return;
-
-    if (this.serverChunk) {
-      this.build();
-    }
 
     const { scene } = this.client.rendering;
     const { opaque, transparent } = this.mesh;
@@ -318,6 +306,15 @@ class Chunk {
     this.mesh.opaque?.geometry.dispose();
     this.mesh.transparent?.geometry.dispose();
   };
+
+  get isReady() {
+    return (
+      (!!this.mesh.opaque || !!this.mesh.transparent) &&
+      this.lights.data.length !== 0 &&
+      this.voxels.data.length !== 0 &&
+      this.heightMap.data.length !== 0
+    );
+  }
 
   private getLocalRedLight = (lx: number, ly: number, lz: number) => {
     return LightUtils.extractRedLight(this.lights.get(lx, ly, lz));
