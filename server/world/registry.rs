@@ -6,7 +6,7 @@ use super::{
     voxels::block::{Block, BlockFaces},
 };
 
-const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 128.0;
+const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 64.0;
 
 /// Serializable struct representing a UV coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize)]

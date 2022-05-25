@@ -21,7 +21,7 @@ import {
   Color,
 } from "three";
 import WaterImage from "../assets/blocks/water.png";
-import UglyImage from '../assets/blocks/ugly.png'
+import UglyImage from "../assets/blocks/ugly.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -190,6 +190,7 @@ export const App = () => {
           { name: "Wood", side: "top", data: new Color("#E3CAA5") },
           { name: "Wood", side: "side", data: new Color("#865439") },
           { name: "Wood", side: "bottom", data: new Color("#E3CAA5") },
+          { name: "Sand", side: "all", data: new Color("#F9F7CF") },
           { name: "Water", side: "all", data: WaterImage },
         ]);
 

@@ -395,7 +395,7 @@ class Registry {
     endU: number,
     endV: number
   ) => {
-    const offset = 0.1 / 128;
+    const offset = 0.1 / 64;
     return [startU + offset, startV - offset, endU - offset, endV + offset];
   };
 

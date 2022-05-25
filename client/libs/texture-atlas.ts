@@ -65,8 +65,8 @@ class TextureAtlas {
       if (texture instanceof Color) {
         context.fillStyle = `#${texture.getHexString()}`;
         context.fillRect(
-          (startU - 1 / 128) * canvasWidth,
-          (1 - (startV + 1 / 128)) * canvasHeight,
+          (startU - 1 / 64) * canvasWidth,
+          (1 - (startV + 1 / 64)) * canvasHeight,
           dimension,
           dimension
         );
@@ -91,8 +91,8 @@ class TextureAtlas {
       if (context) {
         context.drawImage(
           texture.image,
-          (startU - 1 / 128) * canvasWidth,
-          (1 - (startV + 1 / 128)) * canvasHeight,
+          (startU - 1 / 64) * canvasWidth,
+          (1 - (startV + 1 / 64)) * canvasHeight,
           dimension,
           dimension
         );

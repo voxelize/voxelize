@@ -9,6 +9,7 @@ pub fn setup_registry() -> Registry {
     registry.register_blocks(&[
         Block::new("Dirt").build(),
         Block::new("Stone").build(),
+        Block::new("Sand").build(),
         Block::new("Marble").build(),
         Block::new("Lol").build(),
         Block::new("Wood")
