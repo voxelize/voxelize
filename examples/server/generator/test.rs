@@ -1,10 +1,11 @@
+use log::info;
 use voxelize::{
     chunk::Chunk,
     pipeline::{ChunkStage, ResourceRequirements, ResourceResults},
     vec::Vec3,
     world::{
         generators::{
-            noise::NoiseParams,
+            noise::{NoiseParams, SeededNoise},
             terrain::{SeededTerrain, TerrainLayer},
         },
         voxels::{access::VoxelAccess, space::Space},
@@ -32,51 +33,103 @@ impl ChunkStage for TestStage {
 
         let config = resources.config.unwrap();
         let registry = resources.registry.unwrap();
-        let noise = resources.noise.unwrap();
+        let noise = SeededNoise::new(config.seed);
 
         let max_height = config.max_height as i32;
 
         let map = registry.get_type_map(&["Stone", "Lol"]);
 
         let params = NoiseParams::new()
-            .scale(1200.0)
+            .frequency(0.008)
             .octaves(5)
-            .persistance(0.9)
+            .persistence(0.4)
             .lacunarity(1.2)
-            .normalize(true)
             .build();
 
         let mut terrain = SeededTerrain::new(config.seed, &params);
 
         let continentalness = TerrainLayer::new(
             &NoiseParams::new()
-                .scale(1000.0)
+                .frequency(0.005)
                 .octaves(5)
-                .persistance(0.8)
-                .lacunarity(1.8)
-                .normalize(true)
+                .persistence(0.8)
+                .lacunarity(1.6)
                 .build(),
         )
-        .add_bias_points(vec![[-1.0, 4.0], [1.0, 4.0]])
+        .add_bias_points(vec![[-1.0, 1.0], [-0.8, 2.0], [0.2, 4.0], [1.0, 2.0]])
         // .add_offset_points(vec![[-1.0, 60.0], [1.0, 100.0]]);
         .add_offset_points(vec![
             [-1.0, 150.0],
-            [-0.9, 40.0],
-            [-0.6, 43.0],
+            [-0.9, 20.0],
+            [-0.6, 23.0],
             [-0.4, 57.0],
-            [-0.1, 66.0],
-            [0.2, 100.0],
-            [0.4, 125.0],
+            [-0.1, 63.0],
+            [0.4, 110.0],
+            [0.6, 124.0],
             [0.9, 127.0],
         ]);
 
+        let erosion = TerrainLayer::new(
+            &NoiseParams::new()
+                .frequency(0.004)
+                .octaves(5)
+                .persistence(0.8)
+                .lacunarity(1.8)
+                .build(),
+        )
+        .add_bias_points(vec![
+            [-0.7, 2.0],
+            [-0.4, 3.0],
+            [0.0, 1.0],
+            [0.2, 3.0],
+            [0.8, 2.0],
+        ])
+        // .add_offset_points(vec![[-0.4, 80.0], [0.2, 70.0]]);
+        .add_offset_points(vec![
+            [-1.0, 170.0],
+            [-0.7, 163.0],
+            [-0.5, 113.0],
+            [-0.3, 85.0],
+            [0.0, 62.0],
+            [0.2, 38.0],
+            [0.3, 36.0],
+            [0.4, 68.0],
+            [0.7, 66.0],
+            [1.0, 10.0],
+        ]);
+
+        let pv = TerrainLayer::new(
+            &NoiseParams::new()
+                .frequency(0.003)
+                .octaves(6)
+                .persistence(0.5)
+                .lacunarity(2.0)
+                .attenuation(2.5)
+                .ridged(true)
+                .build(),
+        )
+        .add_bias_points(vec![[-0.9, 1.0], [-0.4, 3.0], [0.2, 3.0], [0.8, 8.0]])
+        // .add_offset_points(vec![[-0.4, 80.0], [0.2, 70.0]]);
+        .add_offset_points(vec![
+            [-0.9, 90.0],
+            [-0.5, 66.0],
+            [-0.4, 60.0],
+            [-0.1, 26.0],
+            [0.4, 18.0],
+            [0.5, 10.0],
+            [0.8, 10.0],
+            [1.0, 0.0],
+        ]);
+
         terrain.add_layer(&continentalness);
+        terrain.add_layer(&erosion);
+        terrain.add_layer(&pv);
 
         // let layer1 = TerrainLayer::new(
         //     &NoiseParams::new()
         //         .scale(0.001)
         //         .octaves(4)
-        //         .persistance(0.4)
+        //         .persistence(0.4)
         //         .lacunarity(2.0)
         //         .normalize(true)
         //         .build(),
@@ -96,7 +149,7 @@ impl ChunkStage for TestStage {
         //     &NoiseParams::new()
         //         .scale(0.003)
         //         .octaves(5)
-        //         .persistance(0.2)
+        //         .persistence(0.2)
         //         .lacunarity(1.4)
         //         .normalize(true)
         //         .build(),
@@ -119,7 +172,7 @@ impl ChunkStage for TestStage {
         //     &NoiseParams::new()
         //         .scale(0.008)
         //         .octaves(5)
-        //         .persistance(0.3)
+        //         .persistence(0.3)
         //         .lacunarity(1.8)
         //         .normalize(true)
         //         .build(),
@@ -145,15 +198,18 @@ impl ChunkStage for TestStage {
                 for vy in 0..max_height {
                     let density = terrain.density_at(vx, vy, vz);
 
-                    // if (vy as f64) < offset {
-                    //     chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
-                    // }
                     if density > 0.0 {
                         chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
                     }
+
+                    // if (vy as f64) < offset {
+                    //     chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
+                    // }
                 }
             }
         }
+
+        info!("Done with {:?}", chunk.coords);
 
         chunk
     }

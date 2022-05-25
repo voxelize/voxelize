@@ -135,9 +135,9 @@ const defaultParams: ControlsParams = {
   runningFriction: 0.1,
   standingFriction: 4,
 
-  flySpeed: 20,
-  flyForce: 60,
-  flyImpulse: 0.8,
+  flySpeed: 40,
+  flyForce: 80,
+  flyImpulse: 2.5,
   flyInertia: 3,
 
   sprintFactor: 1.4,
@@ -145,7 +145,7 @@ const defaultParams: ControlsParams = {
   jumpImpulse: 8,
   jumpForce: 1,
   jumpTime: 50,
-  airJumps: Infinity,
+  airJumps: 0,
 };
 
 /**

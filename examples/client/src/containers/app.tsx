@@ -185,7 +185,7 @@ export const App = () => {
           { name: "Grass", side: "top", data: new Color("#4E944F") },
           { name: "Grass", side: "side", data: new Color("#876445") },
           { name: "Grass", side: "bottom", data: new Color("#876445") },
-          { name: "Stone", side: "all", data: new Color("#DAD0C2") },
+          { name: "Stone", side: "all", data: new Color("#AAA492") },
           { name: "Leaves", side: "all", data: new Color("#9FC088") },
           { name: "Wood", side: "top", data: new Color("#E3CAA5") },
           { name: "Wood", side: "side", data: new Color("#865439") },

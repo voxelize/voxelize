@@ -374,6 +374,10 @@ class Chunks {
             continue;
           }
 
+          if (!chunk.isReady) {
+            continue;
+          }
+
           if (!this.toAdd.includes(chunk.name)) {
             this.toAdd.push(chunk.name);
           }

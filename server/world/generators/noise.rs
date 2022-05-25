@@ -1,4 +1,5 @@
 use noise::{NoiseFn, Seedable, SuperSimplex};
+use std::f64;
 
 #[derive(Clone)]
 pub struct SeededNoise {
@@ -28,90 +29,198 @@ impl SeededSimplex {
     pub fn get2d(&self, vx: i32, vz: i32, params: &NoiseParams) -> f64 {
         let &NoiseParams {
             octaves,
-            scale,
+            frequency,
             lacunarity,
-            persistance,
-            normalize,
+            persistence,
+            attenuation,
+            ridged,
         } = params;
 
-        let mut total = 0.0;
-        let mut frequency = 1.0;
-        let mut amplitude = 1.0;
-        let mut max_val = 0.0;
+        let mut vx = vx as f64 * frequency;
+        let mut vz = vz as f64 * frequency;
 
-        for _ in 0..octaves {
-            total += self
-                .noise
-                .get([vx as f64 * frequency / scale, vz as f64 * frequency / scale])
-                * amplitude;
+        // First unscaled octave of function; later octaves are scaled.
+        let mut result = if ridged {
+            0.0
+        } else {
+            self.noise.get([vx, vz])
+        };
+        let mut weight = 1.0;
 
-            max_val += amplitude;
+        for x in 1..octaves {
+            if !ridged {
+                vx *= lacunarity;
+                vz *= lacunarity;
+            }
 
-            amplitude *= persistance;
-            frequency *= lacunarity;
+            // Get noise value.
+            let mut signal = self.noise.get([vx, vz]);
+
+            // If needed, make the ridges.
+            if ridged {
+                // Make the ridges.
+                signal = signal.abs();
+                signal = 1.0 - signal;
+
+                // Square the signal to increase the sharpness of the ridges.
+                signal *= signal;
+
+                // Apply the weighting from the previous octave to the signal.
+                // Larger values have higher weights, producing sharp points along
+                // the ridges.
+                signal *= weight;
+
+                // Weight successive contributions by the previous signal.
+                weight = signal / attenuation;
+
+                // Clamp the weight to [0,1] to prevent the result from diverging.
+                weight = weight.clamp(0.0, 1.0);
+            }
+
+            // Scale the amplitude appropriately for this frequency.
+            signal *= persistence.powi(x as i32);
+
+            if !ridged {
+                // Scale the signal by the current "altitude" of the function.
+                signal *= result;
+            }
+            // Add signal to result.
+            result += signal;
+
+            if ridged {
+                vx *= lacunarity;
+                vz *= lacunarity;
+            }
         }
 
-        (total / max_val) / if normalize { 2.0_f64.sqrt() / 2.0 } else { 1.0 }
+        // Scale the result to the [-1, 1] range.
+        if ridged {
+            let scale = 2.0 - 0.5_f64.powi(octaves as i32 - 1);
+            result.abs().mul_add(2.0 / scale, -1.0_f64)
+        } else {
+            result * 0.5
+        }
     }
 
     pub fn get3d(&self, vx: i32, vy: i32, vz: i32, params: &NoiseParams) -> f64 {
         let &NoiseParams {
             octaves,
-            scale,
+            frequency,
             lacunarity,
-            persistance,
-            normalize,
+            persistence,
+            attenuation,
+            ridged,
         } = params;
 
-        let mut total = 0.0;
-        let mut frequency = 1.0;
-        let mut amplitude = 1.0;
-        let mut max_val = 0.0;
+        let mut vx = vx as f64 * frequency;
+        let mut vy = vy as f64 * frequency;
+        let mut vz = vz as f64 * frequency;
 
-        for _ in 0..octaves {
-            total += self.noise.get([
-                vx as f64 * frequency / scale,
-                (vy as f64) * frequency / scale,
-                vz as f64 * frequency / scale,
-            ]) * amplitude;
+        // First unscaled octave of function; later octaves are scaled.
+        let mut result = if ridged {
+            0.0
+        } else {
+            self.noise.get([vx, vz])
+        };
+        let mut weight = 1.0;
 
-            max_val += amplitude;
+        for x in 1..octaves {
+            if !ridged {
+                vx *= lacunarity;
+                vy *= lacunarity;
+                vz *= lacunarity;
+            }
 
-            amplitude *= persistance;
-            frequency *= lacunarity;
+            // Get noise value.
+            let mut signal = self.noise.get([vx, vy, vz]);
+
+            // If needed, make the ridges.
+            if ridged {
+                // Make the ridges.
+                signal = signal.abs();
+                signal = 1.0 - signal;
+
+                // Square the signal to increase the sharpness of the ridges.
+                signal *= signal;
+
+                // Apply the weighting from the previous octave to the signal.
+                // Larger values have higher weights, producing sharp points along
+                // the ridges.
+                signal *= weight;
+
+                // Weight successive contributions by the previous signal.
+                weight = signal / attenuation;
+
+                // Clamp the weight to [0,1] to prevent the result from diverging.
+                weight = weight.clamp(0.0, 1.0);
+            }
+
+            // Scale the amplitude appropriately for this frequency.
+            signal *= persistence.powi(x as i32);
+
+            if !ridged {
+                // Scale the signal by the current "altitude" of the function.
+                signal *= result;
+            }
+
+            // Add signal to result.
+            result += signal;
+
+            if ridged {
+                vx *= lacunarity;
+                vy *= lacunarity;
+                vz *= lacunarity;
+            }
         }
 
-        (total / max_val) / if normalize { 3.0_f64.sqrt() / 2.0 } else { 1.0 }
+        // Scale the result to the [-1, 1] range.
+        if ridged {
+            let scale = 2.0 - 0.5_f64.powi(octaves as i32 - 1);
+            result.abs().mul_add(2.0 / scale, -1.0_f64)
+        } else {
+            result * 0.5
+        }
     }
 }
 
 #[derive(Clone, Default)]
 pub struct NoiseParams {
-    pub scale: f64,
+    pub frequency: f64,
     pub octaves: usize,
-    pub persistance: f64,
+    pub persistence: f64,
     pub lacunarity: f64,
-    pub normalize: bool,
+    pub attenuation: f64,
+    pub ridged: bool,
 }
+
+const DEFAULT_FREQUENCY: f64 = f64::consts::PI * 2.0 / 3.0;
 
 impl NoiseParams {
     pub fn new() -> NoiseParamsBuilder {
-        NoiseParamsBuilder::default()
+        NoiseParamsBuilder {
+            frequency: DEFAULT_FREQUENCY,
+            lacunarity: 1.0,
+            attenuation: 2.0,
+            octaves: 6,
+            persistence: 1.0,
+            ridged: false,
+        }
     }
 }
 
 #[derive(Default)]
 pub struct NoiseParamsBuilder {
-    scale: f64,
+    frequency: f64,
     octaves: usize,
-    persistance: f64,
+    persistence: f64,
     lacunarity: f64,
-    normalize: bool,
+    attenuation: f64,
+    ridged: bool,
 }
 
 impl NoiseParamsBuilder {
-    pub fn scale(mut self, scale: f64) -> Self {
-        self.scale = scale;
+    pub fn frequency(mut self, frequency: f64) -> Self {
+        self.frequency = frequency;
         self
     }
 
@@ -120,8 +229,8 @@ impl NoiseParamsBuilder {
         self
     }
 
-    pub fn persistance(mut self, persistance: f64) -> Self {
-        self.persistance = persistance;
+    pub fn persistence(mut self, persistence: f64) -> Self {
+        self.persistence = persistence;
         self
     }
 
@@ -130,18 +239,24 @@ impl NoiseParamsBuilder {
         self
     }
 
-    pub fn normalize(mut self, normalize: bool) -> Self {
-        self.normalize = normalize;
+    pub fn attenuation(mut self, attenuation: f64) -> Self {
+        self.attenuation = attenuation;
+        self
+    }
+
+    pub fn ridged(mut self, ridged: bool) -> Self {
+        self.ridged = ridged;
         self
     }
 
     pub fn build(self) -> NoiseParams {
         NoiseParams {
-            scale: self.scale,
+            frequency: self.frequency,
             octaves: self.octaves,
-            persistance: self.persistance,
+            persistence: self.persistence,
             lacunarity: self.lacunarity,
-            normalize: self.normalize,
+            attenuation: self.attenuation,
+            ridged: self.ridged,
         }
     }
 }

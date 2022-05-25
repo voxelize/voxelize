@@ -48,11 +48,7 @@ use self::{
         rigidbody::RigidBodyComp,
         target::TargetComp,
     },
-    generators::{
-        mesher::Mesher,
-        noise::{SeededNoise, SeededSimplex},
-        pipeline::Pipeline,
-    },
+    generators::{mesher::Mesher, noise::SeededNoise, pipeline::Pipeline},
     messages::MessageQueue,
     registry::Registry,
     stats::Stats,
@@ -68,7 +64,7 @@ use self::{
         stats::update::UpdateStatsSystem,
     },
     utils::{block::BlockUtils, chunk::ChunkUtils},
-    voxels::{access::VoxelAccess, block::BlockRotation, chunks::Chunks},
+    voxels::{block::BlockRotation, chunks::Chunks},
 };
 
 pub type ModifyDispatch =

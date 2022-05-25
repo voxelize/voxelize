@@ -1,3 +1,5 @@
+use log::info;
+
 use super::{
     noise::{NoiseParams, SeededSimplex},
     spline::SplineMap,
