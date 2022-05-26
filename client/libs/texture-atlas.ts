@@ -51,24 +51,42 @@ class TextureAtlas {
       }
     }
 
-    const canvasWidth = countPerSide * dimension;
-    const canvasHeight = countPerSide * dimension;
+    const offset = 1 / 64;
+
+    let margin = 1;
+    let r = (margin / offset / countPerSide - 2 * margin) / dimension;
+
+    while (r !== Math.floor(r)) {
+      r *= 2;
+      margin *= 2;
+    }
+
+    const canvasWidth = (dimension * r + margin * 2) * countPerSide;
+    const canvasHeight = (dimension * r + margin * 2) * countPerSide;
     atlas.canvas.width = canvasWidth;
     atlas.canvas.height = canvasHeight;
 
     const context = atlas.canvas.getContext("2d");
+    context.imageSmoothingEnabled = false;
 
     ranges.forEach((range, textureName) => {
-      const { startU, startV } = range;
+      const { startU, endV } = range;
       const texture = textureMap.get(textureName);
 
       if (texture instanceof Color) {
+        console.log(canvasWidth, canvasHeight, margin, startU, offset, endV, r);
         context.fillStyle = `#${texture.getHexString()}`;
         context.fillRect(
-          (startU - 1 / 64) * canvasWidth,
-          (1 - (startV + 1 / 64)) * canvasHeight,
-          dimension,
-          dimension
+          (startU - offset) * canvasWidth,
+          (1 - endV - offset) * canvasHeight,
+          dimension * r + 2 * margin,
+          dimension * r + 2 * margin
+        );
+        context.fillRect(
+          (startU - offset) * canvasWidth + margin,
+          (1 - endV - offset) * canvasHeight + margin,
+          dimension * r,
+          dimension * r
         );
         return;
       }
@@ -91,10 +109,17 @@ class TextureAtlas {
       if (context) {
         context.drawImage(
           texture.image,
-          (startU - 1 / 64) * canvasWidth,
-          (1 - (startV + 1 / 64)) * canvasHeight,
-          dimension,
-          dimension
+          (startU - offset) * canvasWidth,
+          (1 - endV - offset) * canvasHeight,
+          dimension * r + 2 * margin,
+          dimension * r + 2 * margin
+        );
+        context.drawImage(
+          texture.image,
+          (startU - offset) * canvasWidth + margin,
+          (1 - endV - offset) * canvasHeight + margin,
+          dimension * r,
+          dimension * r
         );
       }
     });

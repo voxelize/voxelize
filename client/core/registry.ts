@@ -123,7 +123,8 @@ class Registry {
       mat.side = DoubleSide;
       mat.transparent = true;
       mat.alphaTest = 0.1;
-      mat.depthWrite = false;
+      mat.blending = NoBlending;
+      // mat.depthWrite = false;
       this.materials.transparent = mat;
     }
 
@@ -204,7 +205,10 @@ class Registry {
   getUV = (id: number): { [key: string]: [any[][], number] } => {
     const getUVInner = (range: TextureRange, uv: number[]): number[] => {
       const { startU, endU, startV, endV } = range;
-      return [uv[0] * (endU - startU) + startU, uv[1] * (startV - endV) + endV];
+      return [
+        uv[0] * (endU - startU) + startU,
+        uv[1] * (endV - startV) + startV,
+      ];
     };
 
     const { isBlock, isPlant } = this.getBlockById(id);
