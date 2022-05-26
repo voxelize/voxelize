@@ -2,6 +2,7 @@ import { AABB } from "@voxelize/voxel-physics-engine";
 import {
   Color,
   DoubleSide,
+  NoBlending,
   ShaderLib,
   ShaderMaterial,
   Texture,
@@ -121,7 +122,7 @@ class Registry {
       const mat = this.makeShaderMaterial();
       mat.side = DoubleSide;
       mat.transparent = true;
-      mat.alphaTest = 0.3;
+      mat.alphaTest = 0.1;
       mat.depthWrite = false;
       this.materials.transparent = mat;
     }

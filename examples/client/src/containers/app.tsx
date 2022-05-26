@@ -21,14 +21,16 @@ import {
   Color,
 } from "three";
 
-import WaterImage from "../assets/blocks/water.png";
-import LeavesImage from '../assets/blocks/leaves_oak.png'
-import GrassImage from '../assets/blocks/grass_top.png'
-import DirtImage from '../assets/blocks/dirt.png'
-import WoodTopImage from '../assets/blocks/log_oak_top.png'
-import WoodSideImage from '../assets/blocks/log_oak_side.png'
-import SandImage from '../assets/blocks/sand.png'
-import StoneImage from '../assets/blocks/stone.png'
+import WaterImage from "../assets/own/water.png";
+import LeavesImage from '../assets/own/leaves.png'
+import GrassImage from '../assets/own/grass_top.png'
+import GrassSideImage from '../assets/own/grass_side.png'
+import DirtImage from '../assets/own/dirt.png'
+import WoodTopImage from '../assets/own/wood_top.png'
+import WoodSideImage from '../assets/own/wood_side.png'
+import SandImage from '../assets/own/sand.png'
+import StoneImage from '../assets/own/stone.png'
+import SnowImage from '../assets/own/snow.png'
 
 const GameWrapper = styled.div`
   background: black;
@@ -190,7 +192,7 @@ export const App = () => {
           { name: "Marble", side: "all", data: new Color("#E9E5D6") },
           { name: "Color", side: "all", data: new Color("#ffffff") },
           { name: "Grass", side: "top", data: GrassImage },
-          { name: "Grass", side: "side", data: GrassImage },
+          { name: "Grass", side: "side", data: GrassSideImage },
           { name: "Grass", side: "bottom", data: DirtImage },
           { name: "Stone", side: "all", data: StoneImage },
           { name: "Leaves", side: "all", data: LeavesImage },
@@ -198,7 +200,7 @@ export const App = () => {
           { name: "Wood", side: "side", data: WoodSideImage },
           { name: "Wood", side: "bottom", data: WoodTopImage },
           { name: "Sand", side: "all", data: SandImage },
-          { name: "Snow", side: "all", data: new Color("#FFFFFF") },
+          { name: "Snow", side: "all", data: SnowImage },
           { name: "Water", side: "all", data: WaterImage },
         ]);
 

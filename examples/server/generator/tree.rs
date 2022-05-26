@@ -37,10 +37,14 @@ impl ChunkStage for TreeTestStage {
                     && self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
                     && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
                 {
-                    let r = 2;
+                    let r = 3;
                     for i in -r..=r {
                         for j in -r..=r {
                             for y in 0..3 {
+                                if i * i + j * j + y * y >= r * r {
+                                    continue;
+                                }
+
                                 chunk.set_voxel(vx + i, height + 4 + y, vz + j, leaves.id);
                             }
                         }

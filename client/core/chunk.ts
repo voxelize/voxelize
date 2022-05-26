@@ -62,7 +62,12 @@ class Chunk {
       ["opaque", "transparent"].forEach((type) => {
         const data = meshData[type];
 
-        if (!data) return;
+        if (!data) {
+          if (this.mesh[type]) {
+            this.client.rendering.scene.remove(this.mesh[type]);
+          }
+          return;
+        }
 
         const { positions, indices, uvs, lights } = data;
 

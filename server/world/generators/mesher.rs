@@ -540,7 +540,9 @@ impl Mesher {
                                         )
                                         .is_transparent;
 
-                                        if dir[0].abs() == 1 {
+                                        if is_transparent {
+                                            face_aos.push(3)
+                                        } else if dir[0].abs() == 1 {
                                             face_aos.push(vertex_ao(b110, b101, b111));
                                         } else if dir[1].abs() == 1 {
                                             face_aos.push(vertex_ao(b110, b011, b111));
