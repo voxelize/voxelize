@@ -350,8 +350,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     transparent,
                 });
 
-                info!("{:?}", coords);
-
                 chunks.to_send.push_front((coords, MessageType::Update));
             });
         }
