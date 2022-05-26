@@ -1,4 +1,4 @@
-import { Box3, Vector2, Vector3 } from "three";
+import { Vector3 } from "three";
 
 import { Client } from "..";
 import { Coords2, Coords3, ServerMesh } from "../types";
@@ -24,7 +24,7 @@ type ChunksParams = {
 };
 
 const defaultParams: ChunksParams = {
-  inViewRadius: 1,
+  inViewRadius: 5,
   maxRequestsPerTick: 4,
   maxProcessesPerTick: 1,
   maxAddsPerTick: 2,
@@ -32,8 +32,6 @@ const defaultParams: ChunksParams = {
 
 class Chunks {
   public params: ChunksParams;
-
-  // public mesh = new Group();
 
   public requested = new Set<string>();
   public toRequest: string[] = [];
@@ -100,6 +98,16 @@ class Chunks {
 
       this.addChunks();
       this.requestChunks();
+
+      this.map.forEach((chunk) => {
+        if (chunk.mesh) {
+          const { opaque, transparent } = chunk.mesh;
+          const isVisible = this.isChunkInView(...chunk.coords);
+          [opaque, transparent].filter(Boolean).forEach((mesh) => {
+            mesh.visible = isVisible;
+          });
+        }
+      });
     };
   })();
 
