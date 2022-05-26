@@ -53,9 +53,9 @@ class Chunk {
   build = (data: ServerChunk) => {
     const { mesh: meshData, lights, voxels, heightMap } = data;
 
-    if (lights && lights.length) this.lights.data = new Uint32Array(lights);
-    if (voxels && voxels.length) this.voxels.data = new Uint32Array(voxels);
-    if (heightMap && heightMap.length)
+    if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
+    if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
+    if (heightMap && heightMap.byteLength)
       this.heightMap.data = new Uint32Array(heightMap);
 
     if (meshData) {
@@ -309,7 +309,7 @@ class Chunk {
 
   get isReady() {
     return (
-      (!!this.mesh.opaque || !!this.mesh.transparent) &&
+      (!!this.mesh?.opaque || !!this.mesh?.transparent) &&
       this.lights.data.length !== 0 &&
       this.voxels.data.length !== 0 &&
       this.heightMap.data.length !== 0

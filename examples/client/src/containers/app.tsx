@@ -20,8 +20,15 @@ import {
   Vector3,
   Color,
 } from "three";
+
 import WaterImage from "../assets/blocks/water.png";
-import UglyImage from "../assets/blocks/ugly.png";
+import LeavesImage from '../assets/blocks/leaves_oak.png'
+import GrassImage from '../assets/blocks/grass_top.png'
+import DirtImage from '../assets/blocks/dirt.png'
+import WoodTopImage from '../assets/blocks/log_oak_top.png'
+import WoodSideImage from '../assets/blocks/log_oak_side.png'
+import SandImage from '../assets/blocks/sand.png'
+import StoneImage from '../assets/blocks/stone.png'
 
 const GameWrapper = styled.div`
   background: black;
@@ -178,19 +185,20 @@ export const App = () => {
         client.current.entities.registerEntity("Box", Box);
 
         client.current.registry.applyTexturesByNames([
-          { name: "Dirt", side: "all", data: new Color("#876445") },
+          { name: "Dirt", side: "all", data: DirtImage },
           { name: "Lol", side: "all", data: new Color("#8479E1") },
           { name: "Marble", side: "all", data: new Color("#E9E5D6") },
           { name: "Color", side: "all", data: new Color("#ffffff") },
-          { name: "Grass", side: "top", data: new Color("#4E944F") },
-          { name: "Grass", side: "side", data: new Color("#876445") },
-          { name: "Grass", side: "bottom", data: new Color("#876445") },
-          { name: "Stone", side: "all", data: new Color("#AAA492") },
-          { name: "Leaves", side: "all", data: new Color("#9FC088") },
-          { name: "Wood", side: "top", data: new Color("#E3CAA5") },
-          { name: "Wood", side: "side", data: new Color("#865439") },
-          { name: "Wood", side: "bottom", data: new Color("#E3CAA5") },
-          { name: "Sand", side: "all", data: new Color("#F9F7CF") },
+          { name: "Grass", side: "top", data: GrassImage },
+          { name: "Grass", side: "side", data: GrassImage },
+          { name: "Grass", side: "bottom", data: DirtImage },
+          { name: "Stone", side: "all", data: StoneImage },
+          { name: "Leaves", side: "all", data: LeavesImage },
+          { name: "Wood", side: "top", data: WoodTopImage },
+          { name: "Wood", side: "side", data: WoodSideImage },
+          { name: "Wood", side: "bottom", data: WoodTopImage },
+          { name: "Sand", side: "all", data: SandImage },
+          { name: "Snow", side: "all", data: new Color("#FFFFFF") },
           { name: "Water", side: "all", data: WaterImage },
         ]);
 

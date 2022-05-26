@@ -324,7 +324,7 @@ class Chunks {
     const vec2 = new Vector3(z, x, 0);
     const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
 
-    return Math.abs(angle) < (Math.PI * 2) / 5;
+    return Math.abs(angle) < (Math.PI * 3) / 5;
   };
 
   get worldParams() {

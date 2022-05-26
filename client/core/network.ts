@@ -235,31 +235,27 @@ class Network {
     this.client.peers.addPeer(id, connection);
   };
 
-  static decode = async (buffer: any) => {
-    if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-      buffer = await new Promise((resolve) =>
-        fflate.unzlib(buffer, (err, data) => {
-          if (err) {
-            console.error(err);
-          }
+  static decode = (() => {
+    const recycled = [];
 
+    return async (buffer: any) => {
+      const message = await new Promise<any>((resolve) => {
+        const worker =
+          recycled.length >= 1 ? recycled.pop() : new DecodeWorker();
+        worker.onmessage = ({ data }) => {
           resolve(data);
-        })
-      );
-    }
-    const message = Message.decode(buffer);
-    // @ts-ignore
-    message.type = Message.Type[message.type];
-    if (message.json) {
-      message.json = JSON.parse(message.json);
-    }
-    if (message.entities) {
-      message.entities.forEach(
-        (entity) => (entity.metadata = JSON.parse(entity.metadata))
-      );
-    }
-    return message;
-  };
+          if (recycled.length >= 100) {
+            worker.terminate();
+          } else {
+            recycled.push(worker);
+          }
+        };
+        worker.postMessage(buffer);
+      });
+
+      return message;
+    };
+  })();
 
   static encode(message: any) {
     if (message.json) {

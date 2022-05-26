@@ -1,43 +1,43 @@
-import Pako from "pako";
+import * as fflate from "fflate";
 
 import { protocol } from "../../protocol";
 
 const { Message } = protocol;
 
-self.addEventListener("message", async (e) => {
-  const { data: buffers } = e;
+self.addEventListener("message", (e) => {
+  let { data: buffer } = e;
 
-  const messages = [];
+  if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
+    buffer = fflate.unzlibSync(buffer);
+  }
+
   const transferables = [];
 
-  buffers.forEach((buffer) => {
-    if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-      buffer = Pako.inflate(buffer);
-    }
-    const message = Message.toObject(Message.decode(buffer), {
-      defaults: true,
-    });
-    message.type = Message.Type[message.type];
+  const message = Message.toObject(Message.decode(buffer), {
+    defaults: true,
+  });
+  message.type = Message.Type[message.type];
 
-    if (message.json) {
-      message.json = JSON.parse(message.json);
-    }
+  if (message.json) {
+    message.json = JSON.parse(message.json);
+  }
 
-    if (message.entities) {
-      message.entities.forEach(
-        (entity) => (entity.metadata = JSON.parse(entity.metadata))
-      );
-    }
+  if (message.entities) {
+    message.entities.forEach(
+      (entity) => (entity.metadata = JSON.parse(entity.metadata))
+    );
+  }
 
-    if (message.chunks) {
-      message.chunks.forEach((chunk) => {
-        ["heightMap", "lights", "voxels"].forEach((key) => {
-          if (chunk[key]) {
-            chunk[key] = new Uint32Array(chunk[key]).buffer;
-            transferables.push(chunk[key]);
-          }
-        });
+  if (message.chunks) {
+    message.chunks.forEach((chunk) => {
+      ["heightMap", "lights", "voxels"].forEach((key) => {
+        if (chunk[key]) {
+          chunk[key] = new Uint32Array(chunk[key]).buffer;
+          transferables.push(chunk[key]);
+        }
+      });
 
+      if (chunk.mesh) {
         ["indices", "lights"].forEach((key) => {
           const { opaque, transparent } = chunk.mesh;
 
@@ -59,12 +59,10 @@ self.addEventListener("message", async (e) => {
             }
           });
         });
-      });
-    }
-
-    messages.push(message);
-  });
+      }
+    });
+  }
 
   // @ts-ignore
-  self.postMessage(messages, transferables);
+  self.postMessage(message, transferables);
 });

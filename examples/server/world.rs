@@ -72,9 +72,9 @@ pub fn setup_world() -> World {
         pipeline.add_stage(TestStage);
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(WaterStage);
-        // pipeline.add_stage(TreeTestStage {
-        //     noise: Worley::new(),
-        // });
+        pipeline.add_stage(TreeTestStage {
+            noise: Worley::new(),
+        });
     }
 
     let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();

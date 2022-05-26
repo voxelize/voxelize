@@ -41,7 +41,10 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 request.sort_pending(&curr_chunk.coords);
             }
 
-            while !request.pending.is_empty() && count < config.max_chunk_per_tick {
+            while !request.pending.is_empty()
+                && count < config.max_chunk_per_tick
+                && to_send.len() < config.max_response_per_tick
+            {
                 count += 1;
 
                 let coords = request.pending.pop_front().unwrap();

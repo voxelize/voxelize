@@ -41,84 +41,69 @@ impl ChunkStage for TestStage {
 
         let params = NoiseParams::new()
             .frequency(0.008)
-            .octaves(5)
-            .persistence(0.4)
-            .lacunarity(1.2)
+            .octaves(7)
+            .persistence(0.8)
+            .lacunarity(1.4)
             .build();
 
         let mut terrain = SeededTerrain::new(config.seed, &params);
 
         let continentalness = TerrainLayer::new(
             &NoiseParams::new()
-                .frequency(0.005)
-                .octaves(5)
+                .frequency(0.001)
+                .octaves(7)
                 .persistence(0.8)
                 .lacunarity(1.6)
                 .build(),
         )
-        .add_bias_points(vec![[-1.0, 0.6], [-0.8, 6.0], [0.2, 0.3], [1.0, 2.0]])
-        // .add_offset_points(vec![[-1.0, 60.0], [1.0, 100.0]]);
-        .add_offset_points(vec![
-            [-1.0, 150.0],
-            [-0.9, 10.0],
-            [-0.6, 13.0],
-            [-0.4, 57.0],
-            [-0.1, 67.0],
-            [0.4, 100.0],
-            [0.6, 124.0],
-            [0.9, 127.0],
-        ]);
+        .add_bias_points(vec![[-1.0, 5.6], [-0.5, 6.6], [0.4, 3.3], [1.0, 1.0]])
+        .add_offset_points(vec![[-1.0, 60.0], [-0.3, 62.0], [1.2, 290.0]]);
 
         let erosion = TerrainLayer::new(
             &NoiseParams::new()
-                .frequency(0.004)
+                .frequency(0.0008)
                 .octaves(5)
                 .persistence(0.8)
                 .lacunarity(1.8)
                 .build(),
         )
         .add_bias_points(vec![
-            [-0.7, 1.0],
-            [-0.4, 1.8],
+            [-1.0, 1.6],
+            [-0.4, 1.2],
             [0.0, 3.0],
-            [0.2, 2.0],
-            [0.8, 6.0],
+            [0.2, 5.8],
+            [1.0, 2.0],
         ])
         // .add_offset_points(vec![[-0.4, 80.0], [0.2, 70.0]]);
         .add_offset_points(vec![
-            [-1.0, 170.0],
-            [-0.7, 163.0],
+            [-1.3, 230.0],
             [-0.5, 113.0],
             [-0.3, 85.0],
-            [0.0, 62.0],
-            [0.2, 38.0],
-            [0.3, 36.0],
-            [0.4, 48.0],
-            [0.7, 66.0],
+            [0.0, 65.0],
+            [0.3, 66.0],
+            [0.4, 63.0],
+            [0.7, 63.0],
             [1.0, 10.0],
         ]);
 
         let pv = TerrainLayer::new(
             &NoiseParams::new()
-                .frequency(0.003)
-                .octaves(6)
-                .persistence(0.5)
-                .lacunarity(2.0)
-                .attenuation(2.5)
+                .frequency(0.001)
+                .octaves(5)
+                .persistence(1.2)
+                // .lacunarity(1.2)
+                // .attenuation(2.5)
                 .ridged(true)
                 .build(),
         )
-        .add_bias_points(vec![[-0.9, 1.0], [-0.4, 1.0], [0.2, 5.0], [0.8, 8.0]])
+        .add_bias_points(vec![[-1.2, 0.4], [-0.4, 1.0], [0.9, 1.7], [1.3, 0.9]])
         // .add_offset_points(vec![[-0.4, 80.0], [0.2, 70.0]]);
         .add_offset_points(vec![
-            [-0.9, 90.0],
-            [-0.5, 66.0],
-            [-0.4, 60.0],
-            [-0.1, 26.0],
-            [0.4, 18.0],
-            [0.5, 10.0],
-            [0.8, 10.0],
-            [1.0, 0.0],
+            [-1.5, 166.0],
+            [-0.3, 80.0],
+            [0.5, 56.0],
+            [0.9, 34.0],
+            [1.2, 6.0],
         ]);
 
         terrain.add_layer(&continentalness);
@@ -197,6 +182,7 @@ impl ChunkStage for TestStage {
             for vz in min_z..max_z {
                 for vy in 0..max_height {
                     let density = terrain.density_at(vx, vy, vz);
+                    // let (bias, offset) = terrain.get_bias_offset(vx, vz);
 
                     if density > 0.0 {
                         chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());
@@ -208,8 +194,6 @@ impl ChunkStage for TestStage {
                 }
             }
         }
-
-        info!("Done with {:?}", chunk.coords);
 
         chunk
     }

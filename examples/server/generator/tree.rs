@@ -23,8 +23,6 @@ impl ChunkStage for TreeTestStage {
 
         let wood = registry.get_block_by_name("Wood");
         let leaves = registry.get_block_by_name("Leaves");
-        let dirt = registry.get_block_by_name("Dirt");
-        let grass = registry.get_block_by_name("Grass");
 
         let scale = 1.0;
 
@@ -32,25 +30,24 @@ impl ChunkStage for TreeTestStage {
             for vz in min_z..max_z {
                 let height = chunk.get_max_height(vx, vz) as i32;
 
-                chunk.set_voxel(vx, height, vz, grass.id);
+                let id = chunk.get_voxel(vx, height, vz);
+                let block = registry.get_block_by_id(id);
 
-                for k in -2..0 {
-                    chunk.set_voxel(vx, height + k, vz, dirt.id);
-                }
-
-                if self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
+                if block.is_plantable
+                    && self.noise.get([vx as f64 * scale, vz as f64 * scale]) > 0.9
                     && self.noise.get([vz as f64 * scale, vx as f64 * scale]) > 0.95
                 {
-                    for i in 0..5 {
-                        chunk.set_voxel(vx, height + i, vz, wood.id);
-                    }
-
                     let r = 2;
-
                     for i in -r..=r {
                         for j in -r..=r {
-                            chunk.set_voxel(vx + i, height + 4, vz + j, leaves.id);
+                            for y in 0..3 {
+                                chunk.set_voxel(vx + i, height + 4 + y, vz + j, leaves.id);
+                            }
                         }
+                    }
+
+                    for i in 0..5 {
+                        chunk.set_voxel(vx, height + i, vz, wood.id);
                     }
                 }
             }

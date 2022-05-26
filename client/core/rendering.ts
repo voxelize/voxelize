@@ -1,4 +1,9 @@
-import { EffectComposer, RenderPass } from "postprocessing";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
 import { Color, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";
@@ -53,6 +58,7 @@ class Rendering {
       const camera = client.camera.threeCamera;
 
       this.composer.addPass(new RenderPass(this.scene, camera));
+      this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
       this.adjustRenderer();
     });

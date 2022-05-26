@@ -47,7 +47,7 @@ impl SeededSimplex {
         };
         let mut weight = 1.0;
 
-        for x in 1..octaves {
+        for x in (if ridged { 0 } else { 1 })..octaves {
             if !ridged {
                 vx *= lacunarity;
                 vz *= lacunarity;
@@ -84,6 +84,7 @@ impl SeededSimplex {
                 // Scale the signal by the current "altitude" of the function.
                 signal *= result;
             }
+
             // Add signal to result.
             result += signal;
 
@@ -124,7 +125,7 @@ impl SeededSimplex {
         };
         let mut weight = 1.0;
 
-        for x in 1..octaves {
+        for x in (if ridged { 0 } else { 1 })..octaves {
             if !ridged {
                 vx *= lacunarity;
                 vy *= lacunarity;

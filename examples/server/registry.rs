@@ -7,7 +7,7 @@ pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
 
     registry.register_blocks(&[
-        Block::new("Dirt").build(),
+        Block::new("Dirt").is_plantable(true).build(),
         Block::new("Stone").build(),
         Block::new("Sand").build(),
         Block::new("Marble").build(),
@@ -16,12 +16,13 @@ pub fn setup_registry() -> Registry {
             .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
             .build(),
         Block::new("Leaves")
-            // .is_transparent(true)
-            // .transparent_standalone(true)
+            .is_transparent(true)
+            .transparent_standalone(true)
             .build(),
         Block::new("Snow").build(),
         Block::new("Grass")
             .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
+            .is_plantable(true)
             .build(),
         Block::new("Color")
             .is_light(true)
