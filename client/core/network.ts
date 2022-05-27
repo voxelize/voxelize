@@ -244,11 +244,7 @@ class Network {
           recycled.length >= 1 ? recycled.pop() : new DecodeWorker();
         worker.onmessage = ({ data }) => {
           resolve(data);
-          if (recycled.length >= 100) {
-            worker.terminate();
-          } else {
-            recycled.push(worker);
-          }
+          recycled.push(worker);
         };
         worker.postMessage(data, [data.buffer]);
       });

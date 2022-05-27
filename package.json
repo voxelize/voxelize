@@ -19,7 +19,11 @@
     "lint": "eslint --fix --ext js,ts,tsx .",
     "proto:ts": "pbts -o client/protocol/index.d.ts client/protocol/index.js",
     "proto:js": "pbjs -t static-module -w commonjs -o client/protocol/index.js messages.proto",
-    "proto": "yarn run proto:js && yarn run proto:ts"
+    "proto": "yarn run proto:js && yarn run proto:ts",
+    "docs": "yarn run docs:start",
+    "docs:start": "cd docs && yarn && yarn run start",
+    "docs:build": "cd docs && yarn && yarn run build",
+    "docs:deploy": "cd docs && yarn && yarn run deploy"
   },
   "peerDependencies": {
     "@voxelize/voxel-physics-engine": "^1.0.10",

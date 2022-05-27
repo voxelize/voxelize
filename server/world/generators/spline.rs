@@ -94,7 +94,7 @@ impl SplineMap {
     /// Sample the spline graph at an x-coordinate.
     pub fn sample(&self, t: f64) -> f64 {
         assert!(
-            self.spline.is_empty(),
+            !self.spline.is_empty(),
             "Spline graph is empty, nothing to sample from!"
         );
 
