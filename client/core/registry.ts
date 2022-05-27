@@ -1,7 +1,9 @@
 import { AABB } from "@voxelize/voxel-physics-engine";
 import {
+  AlwaysDepth,
   Color,
   DoubleSide,
+  LessDepth,
   NoBlending,
   ShaderLib,
   ShaderMaterial,
@@ -123,7 +125,6 @@ class Registry {
       mat.side = DoubleSide;
       mat.transparent = true;
       mat.alphaTest = 0.1;
-      mat.blending = NoBlending;
       // mat.depthWrite = false;
       this.materials.transparent = mat;
     }

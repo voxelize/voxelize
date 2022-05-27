@@ -23,7 +23,7 @@
   },
   "peerDependencies": {
     "@voxelize/voxel-physics-engine": "^1.0.10",
-    "three": "^0.137.5"
+    "three": "^0.141.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
