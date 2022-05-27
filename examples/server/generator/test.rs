@@ -1,15 +1,8 @@
-use log::info;
 use voxelize::{
     chunk::Chunk,
     pipeline::{ChunkStage, ResourceRequirements, ResourceResults},
     vec::Vec3,
-    world::{
-        generators::{
-            noise::{NoiseParams, SeededNoise},
-            terrain::{SeededTerrain, TerrainLayer},
-        },
-        voxels::{access::VoxelAccess, space::Space},
-    },
+    world::voxels::{access::VoxelAccess, space::Space},
 };
 
 pub struct TestStage;

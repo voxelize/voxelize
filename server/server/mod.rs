@@ -111,10 +111,6 @@ impl Server {
         self.worlds.get_mut(world_name)
     }
 
-    pub fn broadcast(&self, data: Message) {
-        todo!();
-    }
-
     /// Handler for client's message.
     pub fn on_request(&mut self, endpoint: Endpoint, data: Message) {
         if data.r#type == MessageType::Join as i32 {
@@ -263,11 +259,11 @@ impl ServerBuilder {
 
     /// Instantiate a voxelize server instance.
     pub fn build(self) -> Server {
-        let mut registry = self.registry.unwrap_or_else(|| Registry::default());
+        let mut registry = self.registry.unwrap_or_default();
         registry.generate();
 
         Server {
-            port: self.port.unwrap_or_else(|| DEFAULT_PORT),
+            port: self.port.unwrap_or(DEFAULT_PORT),
             addr: self.addr.unwrap_or_else(|| DEFAULT_ADDR.to_owned()),
 
             registry,

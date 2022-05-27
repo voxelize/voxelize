@@ -116,15 +116,11 @@ pub struct MessageBuilder {
 
 /// Convert a `Vec3` to protocol buffer `Vector3`.
 fn vec3_to_vector3(vec3: &Option<Vec3<f32>>) -> Option<messages::Vector3> {
-    if let Some(vec3) = vec3 {
-        Some(messages::Vector3 {
-            x: vec3.0,
-            y: vec3.1,
-            z: vec3.2,
-        })
-    } else {
-        None
-    }
+    vec3.as_ref().map(|vec3| messages::Vector3 {
+        x: vec3.0,
+        y: vec3.1,
+        z: vec3.2,
+    })
 }
 
 impl MessageBuilder {

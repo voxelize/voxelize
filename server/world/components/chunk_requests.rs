@@ -38,7 +38,7 @@ impl ChunkRequestsComp {
     pub fn sort_pending(&mut self, center: &Vec2<i32>) {
         let Vec2(cx, cz) = center;
 
-        let mut pendings: Vec<Vec2<i32>> = self.pending.clone().into_iter().map(|c| c).collect();
+        let mut pendings: Vec<Vec2<i32>> = self.pending.clone().into_iter().collect();
 
         pendings.sort_by(|c1, c2| {
             let dist1 = (c1.0 - cx).pow(2) + (c1.1 - cz).pow(2);
