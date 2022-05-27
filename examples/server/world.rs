@@ -97,7 +97,7 @@ pub fn setup_world() -> World {
                 .lacunarity(1.6)
                 .build(),
         )
-        .add_bias_points(vec![[-1.0, 5.6], [-0.5, 6.6], [0.4, 3.3], [1.0, 1.0]])
+        .add_bias_points(vec![[-1.0, 3.6], [-0.5, 4.6], [0.4, 2.3], [1.0, 1.0]])
         .add_offset_points(vec![[-1.0, 60.0], [-0.3, 62.0], [1.2, 290.0]]);
 
         let erosion = TerrainLayer::new(
@@ -111,8 +111,8 @@ pub fn setup_world() -> World {
         .add_bias_points(vec![
             [-1.0, 1.6],
             [-0.4, 1.2],
-            [0.0, 3.0],
-            [0.2, 5.8],
+            [0.0, 2.0],
+            [0.2, 6.8],
             [1.0, 2.0],
         ])
         .add_offset_points(vec![
@@ -128,13 +128,13 @@ pub fn setup_world() -> World {
 
         let pv = TerrainLayer::new(
             &NoiseParams::new()
-                .frequency(0.001)
+                .frequency(0.0015)
                 .octaves(5)
                 .persistence(1.2)
                 .ridged(true)
                 .build(),
         )
-        .add_bias_points(vec![[-1.2, 0.4], [-0.4, 1.0], [0.9, 1.7], [1.3, 0.9]])
+        .add_bias_points(vec![[-1.2, 0.4], [-0.4, 1.0], [0.9, 0.7], [1.3, 0.9]])
         .add_offset_points(vec![
             [-1.5, 166.0],
             [-0.3, 80.0],

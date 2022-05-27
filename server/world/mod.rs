@@ -538,7 +538,6 @@ impl World {
 
     /// Handler for `Update` type messages.
     fn on_update(&mut self, _: &Endpoint, data: Message) {
-        let registry = (*self.registry()).clone();
         let chunk_size = self.config().chunk_size;
         let mut chunks = self.chunks_mut();
 
@@ -550,27 +549,9 @@ impl World {
                 return;
             }
 
-            let mut raw = 0;
-            raw = BlockUtils::insert_id(raw, update.r#type);
-
-            let block = registry.get_block_by_id(update.r#type);
-            if block.rotatable {
-                raw = BlockUtils::insert_rotation(
-                    raw,
-                    &BlockRotation::encode(
-                        update.rotation,
-                        if block.y_rotatable {
-                            update.y_rotation
-                        } else {
-                            0
-                        },
-                    ),
-                );
-            }
-
             chunks
                 .to_update
-                .push_front((Vec3(update.vx, update.vy, update.vz), raw));
+                .push_front((Vec3(update.vx, update.vy, update.vz), update.voxel));
         });
     }
 

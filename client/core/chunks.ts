@@ -1,8 +1,9 @@
 import { Vector3 } from "three";
 
 import { Client } from "..";
+import { BlockRotation } from "../libs";
 import { Coords2, Coords3, ServerMesh } from "../types";
-import { ChunkUtils, LightColor, MathUtils } from "../utils";
+import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
 
 import { Chunk } from "./chunk";
 
@@ -131,16 +132,40 @@ class Chunks {
     return this.getVoxelByVoxel(...voxel);
   };
 
-  setVoxelByVoxel = (vx: number, vy: number, vz: number, type: number) => {
-    this.setVoxelsByVoxel([{ vx, vy, vz, type }]);
+  setVoxelByVoxel = (
+    vx: number,
+    vy: number,
+    vz: number,
+    type: number,
+    rotation: BlockRotation
+  ) => {
+    this.setVoxelsByVoxel([{ vx, vy, vz, type, rotation }]);
   };
 
   setVoxelsByVoxel = (
-    updates: { vx: number; vy: number; vz: number; type: number }[]
+    updates: {
+      vx: number;
+      vy: number;
+      vz: number;
+      type: number;
+      rotation?: BlockRotation;
+    }[]
   ) => {
     this.client.network.send({
       type: "UPDATE",
-      updates,
+      updates: updates.map((update) => {
+        let raw = 0;
+        raw = BlockUtils.insertId(raw, update.type);
+
+        if (update.rotation) {
+          raw = BlockUtils.insertRotation(raw, update.rotation);
+        }
+
+        return {
+          ...update,
+          voxel: raw,
+        };
+      }),
     });
   };
 

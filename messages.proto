@@ -46,9 +46,9 @@ message Update {
   int32 vx = 1;
   int32 vy = 2;
   int32 vz = 3;
-  uint32 type = 4;
-  uint32 rotation = 5;
-  uint32 yRotation = 6;
+  uint32 voxel = 4;
+  uint32 light = 5;
+  uint32 height = 6;
 }
 
 message Message {

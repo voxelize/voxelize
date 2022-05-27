@@ -214,7 +214,19 @@ impl VoxelAccess for Chunk {
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
         self.voxels[&[lx, ly, lz]] = val;
 
-        return true;
+        true
+    }
+
+    /// Get the raw light of voxel.
+    ///
+    /// Returns 0 if it's outside of the chunk.
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if !self.contains(vx, vy, vz) {
+            return 0;
+        }
+
+        let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
+        self.lights[&[lx, ly, lz]]
     }
 
     /// Get a voxel type within chunk by voxel coordinates.

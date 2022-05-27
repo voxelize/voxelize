@@ -1,7 +1,8 @@
 import { BlockRotation } from "../libs/block-rotation";
 
 const ROTATION_MASK = 0xfff0ffff;
-const STAGE_MASK = 0x000fffff;
+const Y_ROTATION_MASK = 0xff0fffff;
+const STAGE_MASK = 0xf0ffffff;
 
 /**
  * Utility class to extract voxel data from a single number
@@ -22,20 +23,22 @@ class BlockUtils {
 
   static extractRotation = (voxel: number) => {
     const rotation = (voxel >> 16) & 0xf;
-    return BlockRotation.encode(rotation);
+    const yRot = (voxel >> 20) & 0xf;
+    return BlockRotation.encode(rotation, yRot);
   };
 
-  static insertRotation = (voxel: number, rotation: number) => {
-    const rot = BlockRotation.decode(rotation);
-    return (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
+  static insertRotation = (voxel: number, rotation: BlockRotation) => {
+    const [rot, yRot] = BlockRotation.decode(rotation);
+    const value = (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
+    return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
   };
 
   static extractStage = (voxel: number) => {
-    return (voxel >> 20) & 0xf;
+    return (voxel >> 24) & 0xf;
   };
 
   static insertStage = (voxel: number, stage: number) => {
-    return (voxel & STAGE_MASK) | (stage << 20);
+    return (voxel & STAGE_MASK) | (stage << 24);
   };
 }
 

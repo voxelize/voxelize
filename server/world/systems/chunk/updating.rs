@@ -316,14 +316,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     chunks.cache.insert(c);
                 });
 
-            let (rotation, y_rotation) = BlockRotation::decode(&rotation);
             results.push(Update {
                 vx,
                 vy,
                 vz,
-                r#type: updated_id,
-                rotation,
-                y_rotation,
+                voxel: chunks.get_raw_voxel(vx, vy, vz),
+                light: chunks.get_raw_light(vx, vy, vz),
+                height: chunks.get_max_height(vx, vz),
             })
         }
 

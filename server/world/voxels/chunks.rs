@@ -255,6 +255,15 @@ impl VoxelAccess for Chunks {
         false
     }
 
+    /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
+            chunk.get_raw_light(vx, vy, vz)
+        } else {
+            0
+        }
+    }
+
     /// Get the voxel ID at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {

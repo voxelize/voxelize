@@ -86,9 +86,9 @@ pub struct Update {
     pub vx: i32,
     pub vy: i32,
     pub vz: i32,
-    pub r#type: u32,
-    pub rotation: u32,
-    pub y_rotation: u32,
+    pub voxel: u32,
+    pub light: u32,
+    pub height: u32,
 }
 
 /// Protocol buffer compatible entity data structure.
@@ -243,12 +243,12 @@ impl MessageBuilder {
             message.updates = updates
                 .into_iter()
                 .map(|update| messages::Update {
-                    r#type: update.r#type,
                     vx: update.vx,
                     vy: update.vy,
                     vz: update.vz,
-                    rotation: update.rotation,
-                    y_rotation: update.y_rotation,
+                    light: update.light,
+                    voxel: update.voxel,
+                    height: update.height,
                 })
                 .collect()
         }

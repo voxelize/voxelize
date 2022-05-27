@@ -2,6 +2,7 @@ import ndarray, { NdArray } from "ndarray";
 import { BufferAttribute, BufferGeometry, Mesh } from "three";
 
 import { Client } from "..";
+import { BlockRotation } from "../libs";
 import { Coords2, Coords3 } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
 
@@ -167,7 +168,12 @@ class Chunk {
     return BlockUtils.extractRotation(this.getRawValue(vx, vy, vz));
   };
 
-  setVoxelRotation = (vx: number, vy: number, vz: number, rotation: number) => {
+  setVoxelRotation = (
+    vx: number,
+    vy: number,
+    vz: number,
+    rotation: BlockRotation
+  ) => {
     const value = BlockUtils.insertRotation(
       this.getRawValue(vx, vy, vz),
       rotation
