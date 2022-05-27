@@ -1,6 +1,4 @@
 import URL from "domurl";
-import * as fflate from "fflate";
-import Pako from "pako";
 import { Instance as PeerInstance } from "simple-peer";
 // @ts-ignore
 import SimplePeer from "simple-peer/simplepeer.min";
