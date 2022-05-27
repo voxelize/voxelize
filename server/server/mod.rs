@@ -79,7 +79,7 @@ impl Server {
         let name = world.name.clone();
         world.ecs_mut().insert(self.registry.clone());
 
-        if let Some(_) = self.worlds.insert(name.to_owned(), world) {
+        if self.worlds.insert(name.to_owned(), world).is_some() {
             return Err(AddWorldError);
         };
 
@@ -147,7 +147,7 @@ impl Server {
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
                 self.connections.remove(&endpoint);
-                self.lost_endpoints.insert(endpoint.clone());
+                self.lost_endpoints.insert(endpoint);
 
                 world.remove_client(&endpoint);
 

@@ -74,7 +74,9 @@ class Network {
       };
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
-        Network.decode(new Uint8Array(data)).then((data) => this.onEvent(data));
+        Network.decode(new Uint8Array(data)).then((data) => {
+          this.onEvent(data);
+        });
       };
       ws.onclose = () => {
         this.connected = false;
@@ -238,7 +240,7 @@ class Network {
   static decode = (() => {
     const recycled = [];
 
-    return async (buffer: any) => {
+    return async (data: any) => {
       const message = await new Promise<any>((resolve) => {
         const worker =
           recycled.length >= 1 ? recycled.pop() : new DecodeWorker();
@@ -250,7 +252,7 @@ class Network {
             recycled.push(worker);
           }
         };
-        worker.postMessage(buffer);
+        worker.postMessage(data, [data.buffer]);
       });
 
       return message;

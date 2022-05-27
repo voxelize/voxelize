@@ -18,13 +18,14 @@ use crate::{
     },
 };
 
-use super::noise::SeededNoise;
+use super::{noise::SeededNoise, terrain::SeededTerrain};
 
 #[derive(Default)]
 pub struct ResourceRequirements {
     pub needs_registry: bool,
     pub needs_config: bool,
     pub needs_noise: bool,
+    pub needs_terrain: bool,
 }
 
 #[derive(Default)]
@@ -32,6 +33,7 @@ pub struct ResourceResults<'a> {
     pub registry: Option<&'a Registry>,
     pub config: Option<&'a WorldConfig>,
     pub noise: Option<&'a SeededNoise>,
+    pub terrain: Option<&'a SeededTerrain>,
 }
 
 /// A stage in the pipeline where a chunk gets populated.
@@ -263,6 +265,7 @@ impl Pipeline {
         registry: &Registry,
         config: &WorldConfig,
         noise: &SeededNoise,
+        terrain: &SeededTerrain,
     ) {
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
@@ -278,6 +281,7 @@ impl Pipeline {
         let registry = registry.to_owned();
         let config = config.to_owned();
         let noise = noise.to_owned();
+        let terrain = terrain.to_owned();
 
         self.pool.spawn(move || {
             let mut changes = vec![];
@@ -293,6 +297,7 @@ impl Pipeline {
                                 needs_registry,
                                 needs_config,
                                 needs_noise,
+                                needs_terrain,
                             } = resources;
                             ResourceResults {
                                 registry: if needs_registry {
@@ -302,6 +307,7 @@ impl Pipeline {
                                 },
                                 config: if needs_config { Some(&config) } else { None },
                                 noise: if needs_noise { Some(&noise) } else { None },
+                                terrain: if needs_terrain { Some(&terrain) } else { None },
                             }
                         },
                         space,

@@ -48,7 +48,7 @@ use self::{
         rigidbody::RigidBodyComp,
         target::TargetComp,
     },
-    generators::{mesher::Mesher, noise::SeededNoise, pipeline::Pipeline},
+    generators::{mesher::Mesher, noise::SeededNoise, pipeline::Pipeline, terrain::SeededTerrain},
     messages::MessageQueue,
     registry::Registry,
     stats::Stats,
@@ -80,6 +80,9 @@ pub struct World {
 
     /// Name of the world, used for connection.
     pub name: String,
+
+    /// Whether if the world has started.
+    pub started: bool,
 
     /// Entity component system world.
     ecs: ECSWorld,
@@ -141,6 +144,7 @@ impl World {
 
         ecs.insert(Chunks::new(config));
         ecs.insert(SeededNoise::new(config.seed));
+        ecs.insert(SeededTerrain::new(config.seed, &config.terrain));
 
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
@@ -151,12 +155,11 @@ impl World {
         Self {
             id,
             name: name.to_owned(),
+            started: false,
 
             ecs,
 
             dispatcher: Some(get_default_dispatcher),
-
-            ..Default::default()
         }
     }
 
@@ -322,6 +325,20 @@ impl World {
         self.write_resource::<Chunks>()
     }
 
+    /// Access the terrain of the ECS world.
+    pub fn terrain(&self) -> Fetch<SeededTerrain> {
+        self.read_resource::<SeededTerrain>()
+    }
+
+    /// Access a mutable terrain of the ECS world.
+    pub fn terrain_mut(&mut self) -> FetchMut<SeededTerrain> {
+        assert!(
+            !self.started,
+            "Cannot change terrain after world has started."
+        );
+        self.write_resource::<SeededTerrain>()
+    }
+
     /// Access pipeline management in the ECS world.
     pub fn pipeline(&self) -> Fetch<Pipeline> {
         self.read_resource::<Pipeline>()
@@ -329,6 +346,10 @@ impl World {
 
     /// Access a mutable pipeline management in the ECS world.
     pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
+        assert!(
+            !self.started,
+            "Cannot change pipeline after world has started."
+        );
         self.write_resource::<Pipeline>()
     }
 
@@ -339,6 +360,7 @@ impl World {
 
     /// Access and mutate all entities in this ECS world.
     pub fn entities_mut(&mut self) -> FetchMut<EntitiesRes> {
+        assert!(!self.started, "Cannot change ECS after world has started.");
         self.ecs.entities_mut()
     }
 
@@ -370,6 +392,10 @@ impl World {
 
     /// Tick of the world, run every 16ms.
     pub fn tick(&mut self) {
+        if !self.started {
+            self.started = true;
+        }
+
         if self.is_empty() {
             return;
         }

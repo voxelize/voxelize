@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::generators::noise::NoiseParams;
+
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitConfig {
@@ -76,6 +78,9 @@ pub struct WorldConfig {
 
     /// Seed of the world. Default is "Voxelize".
     pub seed: u32,
+
+    /// Terrain parameters
+    pub terrain: NoiseParams,
 }
 
 impl WorldConfig {
@@ -142,6 +147,7 @@ pub struct WorldConfigBuilder {
     air_drag: f32,
     fluid_drag: f32,
     fluid_density: f32,
+    terrain: NoiseParams,
 }
 
 impl WorldConfigBuilder {
@@ -166,6 +172,7 @@ impl WorldConfigBuilder {
             fluid_density: DEFAULT_FLUID_DENSITY,
             gravity: DEFAULT_GRAVITY,
             min_bounce_impulse: DEFAULT_MIN_BOUNCE_IMPULSE,
+            terrain: NoiseParams::default(),
         }
     }
 
@@ -248,6 +255,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the terrain of the world. Default, check out NoiseParams.
+    pub fn terrain(mut self, terrain: &NoiseParams) -> Self {
+        self.terrain = terrain.to_owned();
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -274,6 +287,7 @@ impl WorldConfigBuilder {
             fluid_density: self.fluid_density,
             gravity: self.gravity,
             min_bounce_impulse: self.min_bounce_impulse,
+            terrain: self.terrain,
         }
     }
 }

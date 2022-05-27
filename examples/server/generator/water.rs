@@ -19,6 +19,7 @@ impl ChunkStage for WaterStage {
             needs_noise: true,
             needs_config: true,
             needs_registry: true,
+            needs_terrain: false,
         }
     }
 

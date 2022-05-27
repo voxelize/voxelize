@@ -1,10 +1,11 @@
 use nanoid::nanoid;
+use rand::rngs::adapter::ReadError;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     vec::Vec2,
     world::{
-        generators::{noise::SeededNoise, pipeline::Pipeline},
+        generators::{noise::SeededNoise, pipeline::Pipeline, terrain::SeededTerrain},
         registry::Registry,
         utils::chunk::ChunkUtils,
         voxels::{
@@ -23,12 +24,13 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, SeededNoise>,
+        ReadExpect<'a, SeededTerrain>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Chunks>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, noise, mut pipeline, mut chunks) = data;
+        let (registry, config, noise, terrain, mut pipeline, mut chunks) = data;
 
         let max_per_tick = config.max_chunk_per_tick;
         let chunk_size = config.chunk_size;
@@ -187,7 +189,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
         // if there are any leftover changes that are supposed to be applied to the chunks.
 
         if !processes.is_empty() {
-            pipeline.process(processes, &registry, &config, &noise);
+            pipeline.process(processes, &registry, &config, &noise, &terrain);
         }
     }
 }

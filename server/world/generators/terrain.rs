@@ -1,10 +1,9 @@
-use log::info;
-
 use super::{
     noise::{NoiseParams, SeededSimplex},
     spline::SplineMap,
 };
 
+#[derive(Clone)]
 pub struct SeededTerrain {
     noise: SeededSimplex,
     params: NoiseParams,
@@ -21,11 +20,6 @@ impl SeededTerrain {
     }
 
     pub fn add_layer(&mut self, layer: &TerrainLayer) -> &mut Self {
-        // if !self.layers.is_empty() {
-        //     let prev_layer = self.layers.last_mut().unwrap();
-        //     prev_layer.height_bias_spline.rescale_values(-1.0, 1.0);
-        //     prev_layer.height_offset_spline.rescale_values(-1.0, 1.0);
-        // }
         self.layers.push(layer.to_owned());
         self
     }
@@ -49,6 +43,10 @@ impl SeededTerrain {
         offset /= self.layers.len() as f64;
 
         (bias, offset)
+    }
+
+    pub fn set_params(&mut self, params: &NoiseParams) {
+        self.params = params.to_owned();
     }
 }
 

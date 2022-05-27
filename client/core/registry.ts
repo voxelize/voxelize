@@ -125,7 +125,6 @@ class Registry {
       mat.side = DoubleSide;
       mat.transparent = true;
       mat.alphaTest = 0.1;
-      // mat.depthWrite = false;
       this.materials.transparent = mat;
     }
 
