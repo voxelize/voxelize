@@ -74,7 +74,6 @@ class TextureAtlas {
       const texture = textureMap.get(textureName);
 
       if (texture instanceof Color) {
-        console.log(canvasWidth, canvasHeight, margin, startU, offset, endV, r);
         context.fillStyle = `#${texture.getHexString()}`;
         context.fillRect(
           (startU - offset) * canvasWidth,
