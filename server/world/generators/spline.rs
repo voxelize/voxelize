@@ -1,6 +1,7 @@
-use log::info;
 use splines::{Interpolation, Key, Spline};
+use std::f64;
 
+/// Spline graph of Voxelize. Used to map noise values to custom values.
 #[derive(Clone)]
 pub struct SplineMap {
     min: f64,
@@ -11,36 +12,40 @@ pub struct SplineMap {
     interpolation: Interpolation<f64, f64>,
 }
 
-impl SplineMap {
-    pub fn new() -> Self {
+impl Default for SplineMap {
+    fn default() -> Self {
         let spline = Spline::from_vec(vec![]);
         Self {
             spline,
-            min: 0.0,
-            max: 0.0,
-            min_val: 0.0,
-            max_val: 0.0,
+            min: f64::MAX,
+            max: f64::MIN,
+            min_val: f64::MAX,
+            max_val: f64::MIN,
             interpolation: Interpolation::Cosine,
         }
     }
+}
 
-    pub fn add(&mut self, point: [f64; 2]) -> &mut Self {
-        if point[0] < self.min {
-            self.min = point[0];
-            self.min_val = point[1];
+impl SplineMap {
+    /// Add a point to the spline graph.
+    pub fn add(&mut self, t: f64, value: f64) -> &mut Self {
+        if t < self.min {
+            self.min = t;
+            self.min_val = value;
         }
 
-        if point[0] > self.max {
-            self.max = point[0];
-            self.max_val = point[1];
+        if t > self.max {
+            self.max = t;
+            self.max_val = value;
         }
 
-        let point = Key::new(point[0], point[1], self.interpolation.to_owned());
+        let point = Key::new(t, value, self.interpolation.to_owned());
         self.spline.add(point);
 
         self
     }
 
+    /// Rescale the y-axis of the spline graph.
     pub fn rescale_values(&mut self, min_val: f64, max_val: f64) -> &mut Self {
         let scale = |num: f64| {
             (max_val - min_val) * (num - self.min_val) / (self.max_val - self.min_val) + min_val
@@ -64,6 +69,7 @@ impl SplineMap {
         self
     }
 
+    /// Rescale the x-axis of the spline graph.
     pub fn rescale_t(&mut self, min: f64, max: f64) -> &mut Self {
         let scale = |num: f64| (max - min) * (num - self.min) / (self.max - self.min) + min;
 
@@ -85,12 +91,18 @@ impl SplineMap {
         self
     }
 
-    pub fn sample(&self, x: f64) -> f64 {
-        if let Some(value) = self.spline.sample(x) {
+    /// Sample the spline graph at an x-coordinate.
+    pub fn sample(&self, t: f64) -> f64 {
+        assert!(
+            self.spline.is_empty(),
+            "Spline graph is empty, nothing to sample from!"
+        );
+
+        if let Some(value) = self.spline.sample(t) {
             return value;
         }
 
-        if x < self.min {
+        if t < self.min {
             return self.min_val;
         }
 
