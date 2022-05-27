@@ -6,13 +6,13 @@ const lightCodeTheme = require("prism-react-renderer/themes/github");
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: "My Site",
-  tagline: "Dinosaurs are cool",
-  url: "https://your-docusaurus-test-site.com",
+  title: "Voxelize",
+  tagline: "A god damn voxel sandbox",
+  url: "https://docs.voxelize.io",
   baseUrl: "/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
-  favicon: "img/favicon.ico",
+  favicon: "img/logo/tree_transparent.svg",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -57,21 +57,21 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: "My Site",
+        title: "Voxelize",
         logo: {
-          alt: "My Site Logo",
-          src: "img/logo.svg",
+          alt: "Voxelize Logo",
+          src: "img/logo/tree_transparent.svg",
         },
         items: [
           {
             type: "doc",
-            docId: "intro",
+            docId: "intro/what-is-voxelize",
             position: "left",
             label: "Tutorial",
           },
           { to: "/blog", label: "Blog", position: "left" },
           {
-            href: "https://github.com/facebook/docusaurus",
+            href: "https://github.com/shaoruu/voxelize",
             label: "GitHub",
             position: "right",
           },
@@ -94,7 +94,7 @@ const config = {
             items: [
               {
                 label: "Stack Overflow",
-                href: "https://stackoverflow.com/questions/tagged/docusaurus",
+                href: "https://stackoverflow.com/questions/tagged/voxelize",
               },
               {
                 label: "Discord",
@@ -115,12 +115,12 @@ const config = {
               },
               {
                 label: "GitHub",
-                href: "https://github.com/facebook/docusaurus",
+                href: "https://github.com/shaoruu/voxelize",
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Voxelize, Inc.`,
       },
       prism: {
         theme: lightCodeTheme,

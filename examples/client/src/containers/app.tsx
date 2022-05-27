@@ -21,16 +21,18 @@ import {
   Color,
 } from "three";
 
+import LogoImage from "../assets/tree_transparent.svg";
+
 import WaterImage from "../assets/own/water.png";
-import LeavesImage from '../assets/own/leaves.png'
-import GrassImage from '../assets/own/grass_top.png'
-import GrassSideImage from '../assets/own/grass_side.png'
-import DirtImage from '../assets/own/dirt.png'
-import WoodTopImage from '../assets/own/wood_top.png'
-import WoodSideImage from '../assets/own/wood_side.png'
-import SandImage from '../assets/own/sand.png'
-import StoneImage from '../assets/own/stone.png'
-import SnowImage from '../assets/own/snow.png'
+import LeavesImage from "../assets/own/leaves.png";
+import GrassImage from "../assets/own/grass_top.png";
+import GrassSideImage from "../assets/own/grass_side.png";
+import DirtImage from "../assets/own/dirt.png";
+import WoodTopImage from "../assets/own/wood_top.png";
+import WoodSideImage from "../assets/own/wood_side.png";
+import SandImage from "../assets/own/sand.png";
+import StoneImage from "../assets/own/stone.png";
+import SnowImage from "../assets/own/snow.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -282,10 +284,7 @@ export const App = () => {
       {showControls && (
         <ControlsWrapper>
           <div>
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/226/226904.png"
-              alt="logo"
-            />
+            <img src={LogoImage} alt="logo" />
             <h3>Voxelize Demo!</h3>
             <Input
               label="world"
