@@ -51,7 +51,7 @@ class Physics {
     );
     const chunk = chunks.getChunkByVoxel(...controls.voxel);
 
-    if ((!chunk && chunks.isWithinWorld(...coords)) || !chunk.isReady) {
+    if ((!chunk || !chunk.isReady) && chunks.isWithinWorld(...coords)) {
       return;
     }
 

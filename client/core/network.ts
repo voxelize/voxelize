@@ -74,6 +74,7 @@ class Network {
       ws.onmessage = ({ data }) => {
         Network.decode(new Uint8Array(data)).then((data) => {
           this.onEvent(data);
+          this.client.emit("network-event", data);
         });
       };
       ws.onclose = () => {
