@@ -86,7 +86,6 @@ class Container {
 
     this.domElement = domElement;
     this.domElement.appendChild(this.canvas);
-    this.domElement.id = "voxelize-container";
 
     canvas.addEventListener("click", () => {
       this.client.controls.lock();
