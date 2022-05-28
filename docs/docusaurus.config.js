@@ -9,7 +9,7 @@ const config = {
   title: "Voxelize",
   tagline: "A god damn voxel sandbox",
   url: "https://docs.voxelize.io",
-  baseUrl: "/voxelize/",
+  baseUrl: "/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/tree_transparent.svg",
