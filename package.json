@@ -72,7 +72,6 @@
     "typescript": "^4.5.5"
   },
   "dependencies": {
-    "@voxelize/voxel-physics-engine": "^1.0.10",
     "deepmerge": "^4.2.2",
     "domurl": "^2.3.4",
     "events": "^3.3.0",
