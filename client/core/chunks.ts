@@ -137,7 +137,7 @@ class Chunks {
     vy: number,
     vz: number,
     type: number,
-    rotation: BlockRotation
+    rotation?: BlockRotation
   ) => {
     this.setVoxelsByVoxel([{ vx, vy, vz, type, rotation }]);
   };

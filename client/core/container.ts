@@ -88,6 +88,10 @@ class Container {
     this.domElement.appendChild(this.canvas);
     this.domElement.id = "voxelize-container";
 
+    canvas.addEventListener("click", () => {
+      this.client.controls.lock();
+    });
+
     DOMUtils.applyStyles(this.domElement, {
       position: "relative",
       fontFamily: `"Fira Mono", monospace`,

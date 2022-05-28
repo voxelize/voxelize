@@ -1,14 +1,10 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 # Chunk Population
 
 In this chapter, we learn about how to populate blocks into empty chunks, in parallel.
-
-## A Note on [`Space`](https://github.com/shaoruu/voxelize/blob/master/server/world/voxels/space.rs)
-
-Voxelize achieves parallel chunk generation by utilizing a data structure called Space. Essentially, spaces contain the data of a chunk along with the data of the surrounding chunks. Data include voxels, lights, and height maps, all configurable.
 
 ## Chunk Stage
 
@@ -109,25 +105,47 @@ impl ChunkStage for FlatlandStage {
 // ...
 ```
 
-## A Word on Chunk Stages
-
-todo...about need space and shit
-
 ## The Chunk Pipeline
 
-We have mentioned that a list of chunk stages define what populates the chunks. A chunk pipeline simply manages the multi-threading of the chunk populations.
+Now we have a chunk stage defined, it's time to add it to the world's pipeline. A chunk pipeline simply manages the multi-threading of the chunk populations, pipelining all the chunks requested through every stage.
 
 We can access the world pipeline and add the stage to it:
 
 ```rust title="World Pipeline"
 {
+    let registry = world.registry();
+
+    // Access the block ID's registered.
+    let dirt = registry.get_block_by_name("Dirt").id;
+    let stone = registry.get_block_by_name("Stone").id;
+
+    drop(registry);
+
     let mut pipeline = world.pipeline_mut();
 
-    // Add chunk stages here...
-    pipeline.add_stage()
+    // Add a chunk stage with top block stone, middle dirt, and bottom stone.
+    pipeline.add_stage(FlatlandStage::new(0, stone, dirt, stone));
 }
 ```
+
+Now you have it, the world should be generating a flat land! In fact, you can simply import `FlatlandStage` from `voxelize::pipeline::FlatlandStage`!
 
 :::tip
 We wrap the pipeline access with curly braces so that the pipeline lifetime is dropped after mutating.
 :::
+
+## A Word on Chunk Stages
+
+When working with chunk stages, developers may want to access more information about the world, such as the registry, chunks around that chunk, and the world configurations.
+
+### Resources of the World
+
+By implementing the `stage.needs_resources` function, the stage would be presented with the configured data, including the registry, world config, seeded noise instance, and seeded terrain instance.
+
+### [`Space`](https://github.com/shaoruu/voxelize/blob/master/server/world/voxels/space.rs) Data Structure
+
+Voxelize achieves parallel chunk generation by utilizing a data structure called Space. Essentially, spaces contain the data of a chunk along with the data of the surrounding chunks. Data includes voxels, lights, and height maps, all configurable.
+
+- A space is provided to the stage if the `stage.needs_space` function is implemented.
+- Spaces ensures that it contains chunks in stages equal to or greater than the center chunk.
+- Spaces can also be mutated, but they are deleted after each stage. So, use `get_lights` or `get_voxels` to get its individual chunk data.
