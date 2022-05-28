@@ -80,5 +80,3 @@ client.connect({ serverURL: "http://localhost:4000" }).then(() => {
 You should see something like this:
 
 ![](./assets/yes-texture.png)
-
-You now have a fully functional, editable, and FAST voxel game running in your browser!
