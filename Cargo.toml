@@ -13,7 +13,7 @@ exclude = [
 ]
 license = "MIT"
 name = "voxelize"
-version = "0.3.0"
+version = "0.3.1"
 
 [lib]
 name = "voxelize"
@@ -51,3 +51,6 @@ rand = "0.8"
 
 [build-dependencies]
 prost-build = "0.10.0"
+
+[profile.release]
+opt-level = 3
