@@ -51,4 +51,34 @@ client.connect({ serverURL: "http://localhost:4000" }).then(() => {
 });
 ```
 
-You can now run `npm run start` and visit [`http://localhost:8080`](http://localhost:8080) and you'll most likely see something like this:
+You can now run `npm run start` and visit [`http://localhost:8080`](http://localhost:8080). Click on the canvas, look around and move around with <kbd>WASD</kbd> + <kbd>space</kbd> + <kbd>shift</kbd>, and you'll most likely see something like this:
+
+![](./assets/no-texture.png)
+
+This is perfectly normal! The purple/dark purple texture you see is actually just the default texture Voxelize applies, so let's apply our own texture next.
+
+## Applying Textures to Blocks
+
+The Voxelize example has set up [webpack file-loader](https://v4.webpack.js.org/loaders/file-loader/) to load in images. We can then apply these image sources to our defined blocks on the server:
+
+```js title="client/index.js" {6-9}
+import DirtImage from "./assets/dirt.png";
+import StoneImage from "./assets/stone.png";
+
+// ...
+
+client.registry.applyTexturesByNames([
+  { name: "Dirt", side: "all", data: DirtImage },
+  { name: "Stone", side: "all", data: StoneImage },
+]);
+
+client.connect({ serverURL: "http://localhost:4000" }).then(() => {
+  client.join("Test");
+});
+```
+
+You should see something like this:
+
+![](./assets/yes-texture.png)
+
+You now have a fully functional, editable, and FAST voxel game running in your browser!
