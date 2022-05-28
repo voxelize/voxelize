@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 4
 ---
 
 # Chunk Population
@@ -124,7 +124,7 @@ We can access the world pipeline and add the stage to it:
     let mut pipeline = world.pipeline_mut();
 
     // Add a chunk stage with top block stone, middle dirt, and bottom stone.
-    pipeline.add_stage(FlatlandStage::new(0, stone, dirt, stone));
+    pipeline.add_stage(FlatlandStage::new(10, stone, dirt, stone));
 }
 ```
 

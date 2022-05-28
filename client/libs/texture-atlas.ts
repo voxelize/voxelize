@@ -164,8 +164,8 @@ class TextureAtlas {
 
   private static makeUnknownTexture = (
     dimension: number,
-    color1 = "purple",
-    color2 = "black",
+    color1 = "#6A67CE",
+    color2 = "#16003B",
     segments = 2
   ) => {
     const tempCanvas = document.createElement("canvas") as HTMLCanvasElement;
