@@ -27,9 +27,6 @@ pub struct WorldConfig {
     /// Max clients for each world. Default is 100 clients.
     pub max_clients: usize,
 
-    /// Interval that this world ticks on. Default is 16ms.
-    pub interval: u64,
-
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
     pub chunk_size: usize,
 
@@ -109,7 +106,6 @@ impl WorldConfig {
 }
 
 const DEFAULT_MAX_CLIENT: usize = 100;
-const DEFAULT_INTERVAL: u64 = 8;
 const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
 const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
@@ -130,7 +126,6 @@ const DEFAULT_FLUID_DENSITY: f32 = 2.0;
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
     max_clients: usize,
-    interval: u64,
     chunk_size: usize,
     min_chunk: [i32; 2],
     max_chunk: [i32; 2],
@@ -155,7 +150,6 @@ impl WorldConfigBuilder {
     pub fn new() -> Self {
         Self {
             max_clients: DEFAULT_MAX_CLIENT,
-            interval: DEFAULT_INTERVAL,
             chunk_size: DEFAULT_CHUNK_SIZE,
             min_chunk: DEFAULT_MIN_CHUNK,
             max_chunk: DEFAULT_MAX_CHUNK,
@@ -179,12 +173,6 @@ impl WorldConfigBuilder {
     /// Configure the maximum clients allowed for this world. Defaults is 100 clients.
     pub fn max_clients(mut self, max_clients: usize) -> Self {
         self.max_clients = max_clients;
-        self
-    }
-
-    /// Configure the rate at which this world ticks. Default is 16ms.
-    pub fn interval(mut self, interval: u64) -> Self {
-        self.interval = interval;
         self
     }
 
@@ -270,7 +258,6 @@ impl WorldConfigBuilder {
 
         WorldConfig {
             max_clients: self.max_clients,
-            interval: self.interval,
             chunk_size: self.chunk_size,
             max_height: self.max_height,
             max_light_level: self.max_light_level,

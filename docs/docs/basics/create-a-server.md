@@ -2,42 +2,32 @@
 sidebar_position: 1
 ---
 
-# Create a Server
+# Create the Server
 
-Add **Markdown or React** files to `src/pages` to create a **standalone page**:
+We start from creating the Voxelize server, setting up what we want to have in our voxelize world.
 
-- `src/pages/index.js` -> `localhost:3000/`
-- `src/pages/foo.md` -> `localhost:3000/foo`
-- `src/pages/foo/bar.js` -> `localhost:3000/foo/bar`
+## What is a Voxelize Server?
 
-## Create your first React Page
+A Voxelize server is the backend of a Voxelize app, which handles the networking and heavy-lifting of Voxelize, such as chunk generating and meshing.
 
-Create a file at `src/pages/my-react-page.js`:
+A server can have multiple worlds. The worlds share the same set of defined blocks but can have different configurations.
 
-```jsx title="src/pages/my-react-page.js"
-import React from "react";
-import Layout from "@theme/Layout";
+Go to `server/main.rs`:
 
-export default function MyReactPage() {
-  return (
-    <Layout>
-      <h1>My React page</h1>
-      <p>This is a React page</p>
-    </Layout>
-  );
+```rust title="server/main.rs"
+use voxelize::{Server, Voxelize};
+
+fn main() {
+    let server = Server::new().port(4000).build();
+
+    Voxelize::run(server);
 }
 ```
 
-A new page is now available at `http://localhost:3000/my-react-page`.
+Here we create a Voxelize server running on port `4000`. We will add more to this later.
 
-## Create your first Markdown Page
+Run `npm run server`, which goes into the `server` folder and runs `cargo run`. The server now runs on [http://localhost:4000](http://localhost:4000)!
 
-Create a file at `src/pages/my-markdown-page.md`:
-
-```mdx title="src/pages/my-markdown-page.md"
-# My Markdown page
-
-This is a Markdown page
-```
-
-A new page is now available at `http://localhost:3000/my-markdown-page`.
+:::tip
+You will find out that the [idiomatic builder pattern](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html) is heavily used in Voxelize.
+:::
