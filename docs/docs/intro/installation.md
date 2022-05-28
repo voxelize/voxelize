@@ -25,4 +25,4 @@ The npm package of Voxelize is called [`@voxelize/client`](https://www.npmjs.com
 npm install @voxelize/client @voxelize/voxel-physics-engine three
 ```
 
-Now you're ready to start developing! Remember, the finished version of this tutorial can be find [here](tests) if you are stuck.
+Now you're ready to start developing! Remember, the finished version of this tutorial can be find [here](https://github.com/shaoruu/voxelize-example/tree/final) if you are stuck.

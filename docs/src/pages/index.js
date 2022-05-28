@@ -18,7 +18,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"
-            to="/docs/intro"
+            to="/docs/intro/what-is-voxelize"
           >
             Voxelize Tutorial - 5min ⏱️
           </Link>
