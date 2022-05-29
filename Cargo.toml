@@ -27,7 +27,7 @@ path = "examples/server/main.rs"
 crossbeam-channel = "0.5.4"
 ctrlc = "3.2.1"
 game-loop = "0.9.0"
-hashbrown = {version = "0.12.0", features = ["serde"]}
+hashbrown = { version = "0.12.0", features = ["serde"] }
 itertools = "0.10.3"
 libflate = "1.2.0"
 linked_hash_set = "0.1.4"
@@ -38,14 +38,14 @@ num = "0.4.0"
 num_cpus = "1.13.1"
 prost = "0.10.0"
 rayon = "1.5.2"
-serde = {version = "1.0.136", features = ["derive"]}
+serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
-specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
+specs = { version = "0.17.0", features = ["specs-derive", "serde"] }
 splines = "4.1.0"
 
 chrono = "0.4.19"
 env_logger = "0.9"
-fern = {version = "0.6.0", features = ["colored"]}
+fern = { version = "0.6.0", features = ["colored"] }
 log = "0.4.16"
 rand = "0.8"
 

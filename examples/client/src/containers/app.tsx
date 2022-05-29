@@ -169,7 +169,7 @@ class UpdateBoxSystem extends System {
 }
 
 export const App = () => {
-  const [world, setWorld] = useState("world1");
+  const [world, setWorld] = useState("world2");
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");

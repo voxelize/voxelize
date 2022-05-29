@@ -26,8 +26,8 @@ fn main() {
         .expect("Could not create world1.");
 
     let config2 = WorldConfig::new()
-        .min_chunk([-5, -5])
-        .max_chunk([5, 5])
+        .min_chunk([-1, -1])
+        .max_chunk([1, 1])
         .build();
     let world = server
         .create_world("world2", &config2)
@@ -35,7 +35,7 @@ fn main() {
 
     {
         let mut pipeline = world.pipeline_mut();
-        pipeline.add_stage(FlatlandStage::new(10, 1, 1, 1));
+        pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
     }
 
     Voxelize::run(server);

@@ -54,7 +54,7 @@ impl Voxelize {
             Err(_) => return error!("Can not listening at {} by {}", addr, transport),
         }
 
-        server.set_handler(handler.clone());
+        server.set_handler(handler);
         server.prepare();
         server.started = true;
 

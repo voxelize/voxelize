@@ -118,9 +118,13 @@ class Client extends EventEmitter {
     serverURL,
     reconnectTimeout,
   }: {
-    serverURL: string;
+    serverURL?: string;
     reconnectTimeout?: number;
   }) => {
+    if (!serverURL) {
+      throw new Error("Server URL undefined, cannot connect.");
+    }
+
     reconnectTimeout = reconnectTimeout || 5000;
 
     const network = new Network(this, {
