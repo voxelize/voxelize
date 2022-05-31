@@ -10,11 +10,8 @@ In Voxelize, each server has a set of blocks that the developer defines. These b
 
 Here we create our example registry, registering two blocks to it:
 
-```rust title="server/main.rs" {2,7-14}
-use voxelize::{
-    world::{registry::Registry, voxels::block::Block},
-    Server, Voxelize,
-};
+```rust title="server/main.rs" {1,4-11}
+use voxelize::{Block, Registry, Server, Voxelize};
 
 fn main() {
     let mut registry = Registry::new();

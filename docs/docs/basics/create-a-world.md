@@ -19,10 +19,7 @@ The concept of chunk allows Voxelize to organize data, and run things in paralle
 A world's most important part is the configuration. It defines how the world should be run.
 
 ```rust title="server/main.rs" {2,9-13}
-use voxelize::{
-    world::{registry::Registry, voxels::block::Block, WorldConfig},
-    Server, Voxelize,
-};
+use voxelize::{Server, Voxelize, WorldConfig};
 
 fn main() {
     // ... Create the server
@@ -66,7 +63,7 @@ There are two ways of doing so:
 
 ```rust title="server/main.rs"
 // Method 1
-use voxelize::world::World;
+use voxelize::World;
 
 let world = World::new("Test", &config);
 

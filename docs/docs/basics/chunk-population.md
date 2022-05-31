@@ -45,17 +45,9 @@ impl FlatlandStage {
 
 Chunk stages all implement the `ChunkStage` trait, so let's do that next:
 
-```rust title="server/main.rs" {2-4,7}
+```rust title="server/main.rs"
 use voxelize::{
-    chunk::Chunk,
-    pipeline::{ChunkStage, ResourceResults},
-    vec::Vec3,
-    world::{
-        registry::Registry,
-        voxels::{access::VoxelAccess, block::Block, space::Space},
-        WorldConfig,
-    },
-    Server, Voxelize,
+    Block, ChunkStage, Registry, ResourceResults, Server, Space, VoxelAccess, Voxelize, WorldConfig,
 };
 ```
 
