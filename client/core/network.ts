@@ -196,7 +196,6 @@ class Network {
       }
       case "CHAT": {
         const { chat } = event;
-        console.log(chat);
 
         if (chat) {
           this.client.chat.add(chat);

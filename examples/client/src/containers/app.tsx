@@ -43,17 +43,6 @@ const GameWrapper = styled.div`
   left: 0;
 `;
 
-const Crosshair = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
-  border: 2px solid #eee9;
-  border-radius: 50%;
-`;
-
 const ControlsWrapper = styled.div`
   position: fixed;
   width: 100vw;
@@ -298,7 +287,6 @@ export const App = () => {
 
   return (
     <GameWrapper ref={container}>
-      <Crosshair />
       {!locked && !chatEnabled && (
         <ControlsWrapper>
           <div>

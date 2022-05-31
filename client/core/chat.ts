@@ -3,13 +3,27 @@ import { ChatHistory, ChatMessage } from "../libs";
 import { MESSAGE_TYPE } from "../types";
 import { DOMUtils } from "../utils";
 
+type CSSMeasurement = `${number}${string}`;
+
 type ChatParams = {
+  gap: CSSMeasurement;
   margin: number;
+  align: "left" | "center" | "right";
+  messagesWidth: CSSMeasurement;
+  inputWidth: CSSMeasurement;
+  inputHeight: CSSMeasurement;
+  borderRadius: CSSMeasurement;
   disappearTimeout: number;
 };
 
 const defaultParams: ChatParams = {
+  gap: "26px",
   margin: 8,
+  align: "left",
+  messagesWidth: "40vw",
+  inputWidth: "100%",
+  inputHeight: "29px",
+  borderRadius: "4px",
   disappearTimeout: 2000,
 };
 
@@ -70,8 +84,103 @@ class Chat {
     );
   }
 
-  makeDOM = () => {
-    const { margin } = this.params;
+  add = ({
+    type,
+    sender,
+    body,
+  }: {
+    type: MESSAGE_TYPE;
+    sender?: string;
+    body?: string;
+  }) => {
+    const { messagesWidth } = this.params;
+
+    const newMessage = new ChatMessage(type, sender, body, {
+      width: messagesWidth,
+    });
+
+    this.messages.push(newMessage);
+    this.gui.messages.appendChild(newMessage.wrapper);
+
+    this.showMessages();
+    if (!this.enabled) {
+      this.fadeMessages();
+    }
+  };
+
+  enable = (isCommand = false) => {
+    if (this.disappearTimer) {
+      clearTimeout(this.disappearTimer);
+    }
+
+    this.enabled = true;
+    this.client.controls.unlock();
+    this.client.emit("chat-enabled");
+
+    this.resetInput();
+    this.showInput();
+    this.focusInput();
+    this.showMessages();
+
+    if (isCommand) {
+      this.inputValue = "/";
+    }
+  };
+
+  disable = () => {
+    this.enabled = false;
+
+    this.fadeMessages();
+    this.blurInput();
+    this.resetInput();
+    this.hideInput();
+
+    this.client.controls.lock(() => {
+      this.client.emit("chat-disabled");
+    });
+  };
+
+  showMessages = () => {
+    DOMUtils.applyStyles(this.gui.wrapper, {
+      opacity: "1",
+      visibility: "visible",
+      transition: "all 0s ease 0s",
+    });
+  };
+
+  showInput = () => {
+    DOMUtils.applyStyles(this.gui.input, { visibility: "visible" });
+  };
+
+  hideInput = () => {
+    DOMUtils.applyStyles(this.gui.input, { visibility: "hidden" });
+  };
+
+  resetInput = () => (this.inputValue = "");
+
+  focusInput = () => this.gui.input.focus();
+
+  blurInput = () => this.gui.input.blur();
+
+  applyMessagesStyles = (styles: Partial<CSSStyleDeclaration>) => {
+    DOMUtils.applyStyles(this.gui.messages, styles);
+  };
+
+  applyInputStyles = (styles: Partial<CSSStyleDeclaration>) => {
+    DOMUtils.applyStyles(this.gui.input, styles);
+  };
+
+  set inputValue(value: string) {
+    this.gui.input.value = value;
+  }
+
+  get inputValue() {
+    return this.gui.input.value;
+  }
+
+  private makeDOM = () => {
+    const { margin, align, inputWidth, inputHeight, gap, borderRadius } =
+      this.params;
 
     this.gui = {
       messages: document.createElement("ul"),
@@ -93,9 +202,15 @@ class Chat {
 
     DOMUtils.applyStyles(this.gui.messages, {
       position: "fixed",
-      bottom: "75px",
-      left: "0",
-      marginLeft: `${margin}px`,
+      bottom: `calc(${gap} + ${inputHeight})`,
+      ...(align === "left"
+        ? { left: "0" }
+        : align === "center"
+        ? { left: "50%", transform: "translateX(-50%)" }
+        : {
+            right: "0",
+          }),
+      margin: `${margin}px`,
       maxHeight: "50vh",
       overflowY: "auto",
       wordBreak: "break-all",
@@ -104,15 +219,22 @@ class Chat {
       flexDirection: "column",
       justifyContent: "flex-end",
       listStyle: "none",
+      borderRadius,
     });
 
     DOMUtils.applyStyles(this.gui.input, {
       position: "fixed",
       bottom: "0",
-      left: "0",
-      width: `calc(100% - ${margin * 2}px)`,
+      ...(align === "left"
+        ? { left: "0" }
+        : align === "center"
+        ? { left: "50%", transform: "translateX(-50%)" }
+        : {
+            right: "0",
+          }),
+      width: `calc(${inputWidth} - ${margin * 2}px)`,
       margin: `${margin}px`,
-      height: "29px",
+      height: inputHeight,
       background: "rgba(0,0,0,0.45)",
       padding: "5px",
       zIndex: "5",
@@ -121,6 +243,7 @@ class Chat {
       border: "none",
       outline: "none",
       visibility: "hidden",
+      borderRadius,
     });
 
     this.gui.input.type = "text";
@@ -164,7 +287,24 @@ class Chat {
     );
   };
 
-  handleEnter = () => {
+  private fadeMessages = () => {
+    if (this.disappearTimer) {
+      clearTimeout(this.disappearTimer);
+    }
+
+    DOMUtils.applyStyles(this.gui.wrapper, { opacity: "0.8" });
+
+    this.disappearTimer = setTimeout(() => {
+      DOMUtils.applyStyles(this.gui.wrapper, {
+        opacity: "0",
+        transition: "opacity 1s ease-out",
+      });
+      clearTimeout(this.disappearTimer);
+      this.disappearTimer = undefined;
+    }, this.params.disappearTimeout);
+  };
+
+  private handleEnter = () => {
     const value = this.inputValue;
 
     if (value.split(" ").filter((ele) => ele).length === 0) return;
@@ -228,114 +368,15 @@ class Chat {
     this.history.reset();
   };
 
-  handleUp = () => {
+  private handleUp = () => {
     const previous = this.history.previous();
     if (previous) this.inputValue = previous;
   };
 
-  handleDown = () => {
+  private handleDown = () => {
     const next = this.history.next();
     if (next) this.inputValue = next;
   };
-
-  add = ({
-    type,
-    sender,
-    body,
-  }: {
-    type: MESSAGE_TYPE;
-    sender?: string;
-    body?: string;
-  }) => {
-    const newMessage = new ChatMessage(type, sender, body);
-
-    this.messages.push(newMessage);
-    this.gui.messages.appendChild(newMessage.wrapper);
-
-    this.showMessages();
-    if (!this.enabled) {
-      this.fadeMessages();
-    }
-  };
-
-  enable = (isCommand = false) => {
-    if (this.disappearTimer) {
-      clearTimeout(this.disappearTimer);
-    }
-
-    this.enabled = true;
-    this.client.controls.unlock();
-    this.client.emit("chat-enabled");
-
-    this.resetInput();
-    this.showInput();
-    this.focusInput();
-    this.showMessages();
-
-    if (isCommand) {
-      this.inputValue = "/";
-    }
-  };
-
-  disable = () => {
-    this.enabled = false;
-
-    this.fadeMessages();
-    this.blurInput();
-    this.resetInput();
-    this.hideInput();
-
-    this.client.controls.lock(() => {
-      this.client.emit("chat-disabled");
-    });
-  };
-
-  showMessages = () => {
-    DOMUtils.applyStyles(this.gui.wrapper, {
-      opacity: "1",
-      visibility: "visible",
-      transition: "all 0s ease 0s",
-    });
-  };
-
-  showInput = () => {
-    DOMUtils.applyStyles(this.gui.input, { visibility: "visible" });
-  };
-
-  fadeMessages = () => {
-    if (this.disappearTimer) {
-      clearTimeout(this.disappearTimer);
-    }
-
-    DOMUtils.applyStyles(this.gui.wrapper, { opacity: "0.8" });
-
-    this.disappearTimer = setTimeout(() => {
-      DOMUtils.applyStyles(this.gui.wrapper, {
-        opacity: "0",
-        transition: "opacity 1s ease-out",
-      });
-      clearTimeout(this.disappearTimer);
-      this.disappearTimer = undefined;
-    }, this.params.disappearTimeout);
-  };
-
-  hideInput = () => {
-    DOMUtils.applyStyles(this.gui.input, { visibility: "hidden" });
-  };
-
-  resetInput = () => (this.inputValue = "");
-
-  focusInput = () => this.gui.input.focus();
-
-  blurInput = () => this.gui.input.blur();
-
-  set inputValue(value: string) {
-    this.gui.input.value = value;
-  }
-
-  get inputValue() {
-    return this.gui.input.value;
-  }
 }
 
 export { Chat, ChatParams };

@@ -51,6 +51,8 @@ class Container {
    */
   public canvas: HTMLCanvasElement;
 
+  public crosshair: HTMLDivElement;
+
   private unbinds: (() => void)[] = [];
 
   constructor(public client: Client, params: Partial<ContainerParams> = {}) {
@@ -58,6 +60,8 @@ class Container {
       ...defaultParams,
       ...params,
     });
+
+    this.crosshair = document.createElement("div");
 
     if (domElement) {
       Array.from(domElement.children).forEach((ele) => {
@@ -76,6 +80,16 @@ class Container {
       height: "100%",
     });
 
+    DOMUtils.applyStyles(this.crosshair, {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "10px",
+      height: "10px",
+      border: "2px solid #eee9",
+    });
+
     const styles = document.createElement("style");
     styles.innerHTML = `
       @import url("https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap");
@@ -86,6 +100,7 @@ class Container {
 
     this.domElement = domElement;
     this.domElement.appendChild(this.canvas);
+    this.domElement.appendChild(this.crosshair);
 
     DOMUtils.applyStyles(this.domElement, {
       position: "relative",
@@ -159,6 +174,14 @@ class Container {
    */
   dispose = () => {
     this.unbinds.forEach((fn) => fn());
+  };
+
+  showCrosshair = () => {
+    this.crosshair.style.display = "block";
+  };
+
+  hideCrosshair = () => {
+    this.crosshair.style.display = "none";
   };
 }
 
