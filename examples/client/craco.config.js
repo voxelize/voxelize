@@ -7,7 +7,6 @@ const path = require("path");
 module.exports = {
   eslint: { enable: false },
   webpack: {
-    writeToDisk: true,
     alias: {
       "@voxelize/client": path.resolve("../../dist"),
     },
@@ -71,5 +70,12 @@ module.exports = {
         prefix: "<rootDir>/",
       }),
     },
+  },
+  devServer: {
+    devMiddleware: {
+      writeToDisk: true,
+    },
+    client: false,
+    webSocketServer: false,
   },
 };

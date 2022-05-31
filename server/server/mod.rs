@@ -1,4 +1,7 @@
+pub mod content;
 pub mod models;
+pub mod request;
+pub mod response;
 
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::{HashMap, HashSet};

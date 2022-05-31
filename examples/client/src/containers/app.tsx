@@ -90,7 +90,13 @@ const ControlsWrapper = styled.div`
   }
 `;
 
-const BACKEND_SERVER = "http://localhost:4000/?world=";
+let BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+
+if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+  BACKEND_SERVER_INSTANCE.port = "4000";
+}
+
+const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 
 class Box extends BaseEntity {
   public geometry: BoxBufferGeometry;

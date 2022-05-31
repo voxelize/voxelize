@@ -54,6 +54,7 @@ class Network {
       this.socket = new URL(this.url.toString());
       this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
       this.socket.hash = "";
+      this.socket.path = "/ws/";
 
       // initialize a websocket connection to socket
       const ws = new WebSocket(this.socket.toString()) as CustomWebSocket;

@@ -5,9 +5,12 @@ mod server;
 mod types;
 pub mod world;
 
+use http::StatusCode;
 use log::{error, info};
 use message_io::network::{NetEvent, Transport};
 use message_io::node;
+use server::request::Request;
+use server::response::Response;
 
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
@@ -53,6 +56,30 @@ impl Voxelize {
             Ok((_id, real_addr)) => info!("Server running at {} by {}", real_addr, transport),
             Err(_) => return error!("Can not listening at {} by {}", addr, transport),
         }
+
+        let (handler2, listener2) = node::split::<()>();
+        let listen_addr = "127.0.0.1:5000";
+        handler2
+            .network()
+            .listen(Transport::Tcp, listen_addr)
+            .unwrap();
+
+        let task2 = listener2.for_each_async(move |event| {
+            if let NetEvent::Message(endpoint, buf) = event.network() {
+                let response = match Request::parse(buf) {
+                    Ok(request) => Response::file_request(&request, "./examples/client/build"),
+                    Err(()) => {
+                        let mut response = Response::new();
+                        response.status = StatusCode::BAD_REQUEST;
+
+                        response
+                    }
+                };
+
+                handler2.network().send(endpoint, &response.format());
+                handler2.network().remove(endpoint.resource_id());
+            }
+        });
 
         server.set_handler(handler);
         server.prepare();
