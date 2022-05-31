@@ -1,6 +1,6 @@
 use specs::{Component, VecStorage};
 
-use crate::vec::Vec3;
+use crate::Vec3;
 
 /// The direction this entity is positioned.
 #[derive(Default, Component)]

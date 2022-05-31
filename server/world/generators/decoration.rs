@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 
-use crate::{vec::Vec3, world::types::BlockChange};
+use crate::{BlockChange, Vec3};
 
 pub struct Decoration {
     pub blocks: Vec<BlockChange>,

@@ -1,19 +1,9 @@
 use nanoid::nanoid;
-use rand::rngs::adapter::ReadError;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    vec::Vec2,
-    world::{
-        generators::{noise::SeededNoise, pipeline::Pipeline, terrain::SeededTerrain},
-        registry::Registry,
-        utils::chunk::ChunkUtils,
-        voxels::{
-            chunk::{Chunk, ChunkParams},
-            chunks::Chunks,
-        },
-        WorldConfig,
-    },
+    Chunk, ChunkParams, ChunkUtils, Chunks, Pipeline, Registry, SeededNoise, SeededTerrain, Vec2,
+    WorldConfig,
 };
 
 /// An ECS system to pipeline chunks through different phases of generation.

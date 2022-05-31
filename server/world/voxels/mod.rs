@@ -1,5 +1,11 @@
-pub mod access;
-pub mod block;
-pub mod chunk;
-pub mod chunks;
-pub mod space;
+mod access;
+mod block;
+mod chunk;
+mod chunks;
+mod space;
+
+pub use access::VoxelAccess;
+pub use block::*;
+pub use chunk::*;
+pub use chunks::Chunks;
+pub use space::*;

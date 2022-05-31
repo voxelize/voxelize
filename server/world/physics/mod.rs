@@ -1,14 +1,14 @@
-use log::info;
-
-use crate::{libs::math::approx_equals, vec::Vec3};
-
-use self::{aabb::AABB, rigidbody::RigidBody, sweep::sweep};
+use crate::{approx_equals, Vec3};
 
 use super::{registry::Registry, WorldConfig};
 
-pub mod aabb;
-pub mod rigidbody;
-pub mod sweep;
+mod aabb;
+mod rigidbody;
+mod sweep;
+
+pub use aabb::*;
+pub use rigidbody::*;
+pub use sweep::*;
 
 pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> u32;
 

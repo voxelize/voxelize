@@ -1,16 +1,7 @@
-use linked_hash_set::LinkedHashSet;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
 
 use crate::{
-    vec::{Vec2, Vec3},
-    world::{
-        components::{
-            chunk_requests::ChunkRequestsComp, current_chunk::CurrentChunkComp,
-            position::PositionComp,
-        },
-        utils::chunk::ChunkUtils,
-        WorldConfig,
-    },
+    ChunkRequestsComp, ChunkUtils, CurrentChunkComp, PositionComp, Vec2, Vec3, WorldConfig,
 };
 
 pub struct CurrentChunkSystem;

@@ -1,4 +1,4 @@
-use crate::world::voxels::block::{BlockRotation, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK};
+use crate::world::voxels::{BlockRotation, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK};
 
 /// A set of utility functions for block operations.
 pub struct BlockUtils;

@@ -2,10 +2,7 @@ use log::info;
 use serde_json::json;
 use specs::{ReadStorage, System, WriteStorage};
 
-use crate::world::components::{
-    flags::EntityFlag, heading::HeadingComp, metadata::MetadataComp, position::PositionComp,
-    target::TargetComp,
-};
+use crate::world::components::{EntityFlag, HeadingComp, MetadataComp, PositionComp, TargetComp};
 
 pub struct EntityMetaSystem;
 

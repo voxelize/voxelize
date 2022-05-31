@@ -2,23 +2,11 @@ use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use itertools::izip;
-use log::info;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    server::models::{Geometry, Mesh},
-    vec::Vec3,
-    world::{
-        registry::{Registry, UV},
-        utils::light::LightUtils,
-        voxels::{
-            access::VoxelAccess,
-            block::{Block, BlockFaces},
-            chunk::Chunk,
-            space::Space,
-        },
-        WorldConfig,
-    },
+    Block, BlockFaces, Chunk, Geometry, LightUtils, MeshProtocol, Registry, Space, Vec3,
+    VoxelAccess, WorldConfig, UV,
 };
 
 use super::lights::Lights;
@@ -354,7 +342,7 @@ impl Mesher {
                     let transparent =
                         Self::mesh_space(&chunk.min, &chunk.max, &space, &registry, true);
 
-                    chunk.mesh = Some(Mesh {
+                    chunk.mesh = Some(MeshProtocol {
                         opaque,
                         transparent,
                     });

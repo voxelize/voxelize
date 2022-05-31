@@ -1,28 +1,11 @@
 use std::collections::VecDeque;
 
-use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    chunks::Chunks,
-    common::ClientFilter,
-    server::models::{Mesh, Message, MessageType, Update},
-    vec::{Vec2, Vec3},
-    world::{
-        generators::{
-            lights::{LightNode, Lights},
-            mesher::Mesher,
-        },
-        messages::MessageQueue,
-        registry::Registry,
-        types::LightColor,
-        utils::{block::BlockUtils, chunk::ChunkUtils},
-        voxels::{
-            access::VoxelAccess,
-            block::{Block, BlockRotation},
-        },
-        WorldConfig,
-    },
+    Block, BlockUtils, ChunkUtils, Chunks, ClientFilter, LightColor, LightNode, Lights,
+    MeshProtocol, Mesher, Message, MessageQueue, MessageType, Registry, UpdateProtocol, Vec2, Vec3,
+    VoxelAccess, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -316,7 +299,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     chunks.cache.insert(c);
                 });
 
-            results.push(Update {
+            results.push(UpdateProtocol {
                 vx,
                 vy,
                 vz,
@@ -344,7 +327,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 let transparent =
                     Mesher::mesh_space(&chunk.min, &chunk.max, &space, &registry, true);
 
-                chunk.mesh = Some(Mesh {
+                chunk.mesh = Some(MeshProtocol {
                     opaque,
                     transparent,
                 });

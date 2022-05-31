@@ -2,15 +2,7 @@ use std::collections::VecDeque;
 
 use hashbrown::{HashMap, HashSet};
 
-use crate::{
-    server::models::MessageType,
-    vec::{Vec2, Vec3},
-    world::{
-        types::{BlockChange, LightColor},
-        utils::chunk::ChunkUtils,
-        WorldConfig,
-    },
-};
+use crate::{BlockChange, ChunkUtils, LightColor, MessageType, Vec2, Vec3, WorldConfig};
 
 use super::{
     access::VoxelAccess,

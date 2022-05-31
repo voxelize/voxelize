@@ -1,1 +1,3 @@
-pub mod update;
+mod update;
+
+pub use update::UpdateStatsSystem;

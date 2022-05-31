@@ -1,17 +1,7 @@
 use std::collections::VecDeque;
 
-use log::info;
-
 use crate::{
-    libs::ndarray::Ndarray,
-    vec::{Vec2, Vec3},
-    world::{
-        registry::Registry,
-        types::LightColor,
-        utils::chunk::ChunkUtils,
-        voxels::{access::VoxelAccess, block::Block},
-        WorldConfig,
-    },
+    Block, ChunkUtils, LightColor, Ndarray, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [

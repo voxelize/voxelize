@@ -1,4 +1,4 @@
-use crate::{libs::ndarray::Ndarray, world::types::LightColor};
+use crate::{LightColor, Ndarray};
 
 use super::block::BlockRotation;
 

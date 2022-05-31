@@ -5,18 +5,9 @@ use specs::{
     WriteStorage,
 };
 use voxelize::{
-    pipeline::HeightMapStage,
-    world::{
-        components::{
-            current_chunk::CurrentChunkComp, etype::ETypeComp, flags::EntityFlag,
-            heading::HeadingComp, id::IDComp, metadata::MetadataComp, position::PositionComp,
-            rigidbody::RigidBodyComp, target::TargetComp,
-        },
-        generators::{noise::NoiseParams, terrain::TerrainLayer},
-        physics::{aabb::AABB, rigidbody::RigidBody},
-        stats::Stats,
-        World, WorldConfig,
-    },
+    CurrentChunkComp, ETypeComp, EntityFlag, HeadingComp, HeightMapStage, IDComp, MetadataComp,
+    NoiseParams, PositionComp, RigidBody, RigidBodyComp, Stats, TargetComp, TerrainLayer, World,
+    WorldConfig, AABB,
 };
 
 use crate::generator::{test::TestStage, tree::TreeTestStage, water::WaterStage};

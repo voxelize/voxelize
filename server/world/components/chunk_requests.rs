@@ -1,7 +1,7 @@
 use linked_hash_set::LinkedHashSet;
 use specs::{Component, VecStorage};
 
-use crate::vec::Vec2;
+use crate::Vec2;
 
 /// A list of chunks that the entity is requesting to generate.
 #[derive(Default, Component)]

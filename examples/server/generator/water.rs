@@ -1,10 +1,5 @@
 use voxelize::{
-    chunk::Chunk,
-    pipeline::{ChunkStage, ResourceRequirements, ResourceResults},
-    world::{
-        generators::noise::NoiseParams,
-        voxels::{access::VoxelAccess, space::Space},
-    },
+    Chunk, ChunkStage, NoiseParams, ResourceRequirements, ResourceResults, Space, VoxelAccess,
 };
 
 pub struct WaterStage;

@@ -1,7 +1,7 @@
-pub mod content;
-pub mod models;
-pub mod request;
-pub mod response;
+mod content;
+mod models;
+mod request;
+mod response;
 
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::{HashMap, HashSet};
@@ -10,10 +10,13 @@ use message_io::{network::Endpoint, node::NodeHandler};
 
 use crate::{
     errors::AddWorldError,
-    world::{registry::Registry, World, WorldConfig},
+    world::{Registry, World, WorldConfig},
 };
 
-use self::models::{Message, MessageType};
+pub use content::*;
+pub use models::*;
+pub use request::*;
+pub use response::*;
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.

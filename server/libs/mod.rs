@@ -1,3 +1,7 @@
-pub mod math;
-pub mod ndarray;
-pub mod vec;
+mod math;
+mod ndarray;
+mod vec;
+
+pub use math::*;
+pub use ndarray::*;
+pub use vec::*;

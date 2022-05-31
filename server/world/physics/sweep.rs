@@ -1,10 +1,6 @@
 use log::info;
 
-use crate::{
-    libs::math::{approx_equals, between},
-    vec::Vec3,
-    world::registry::Registry,
-};
+use crate::{approx_equals, between, Registry, Vec3};
 
 use super::{aabb::AABB, GetVoxelFunc};
 

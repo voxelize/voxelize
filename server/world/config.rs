@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::generators::noise::NoiseParams;
+use super::generators::NoiseParams;
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

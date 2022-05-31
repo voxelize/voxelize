@@ -1,6 +1,6 @@
 use message_io::network::Endpoint;
 
-use crate::{common::ClientFilter, server::models::Message};
+use crate::{common::ClientFilter, server::Message};
 
 pub type ClientMessages = Vec<(Endpoint, Message)>;
 

@@ -1,12 +1,6 @@
 use crate::{
-    libs::ndarray::Ndarray,
-    server::models::{Chunk as ChunkModel, Mesh},
-    vec::{Vec2, Vec3},
-    world::{
-        registry::Registry,
-        types::{BlockChange, LightColor},
-        utils::{block::BlockUtils, chunk::ChunkUtils, light::LightUtils},
-    },
+    BlockChange, BlockUtils, ChunkProtocol, ChunkUtils, LightColor, LightUtils, MeshProtocol,
+    Ndarray, Registry, Vec2, Vec3,
 };
 
 use super::{access::VoxelAccess, block::BlockRotation};
@@ -28,7 +22,7 @@ pub struct Chunk {
     pub lights: Ndarray<u32>,
     pub height_map: Ndarray<u32>,
 
-    pub mesh: Option<Mesh>,
+    pub mesh: Option<MeshProtocol>,
 
     pub min: Vec3<i32>,
     pub max: Vec3<i32>,
@@ -104,8 +98,8 @@ impl Chunk {
     }
 
     /// Convert chunk to protocol model.
-    pub fn to_model(&self, mesh: bool, data: bool) -> ChunkModel {
-        ChunkModel {
+    pub fn to_model(&self, mesh: bool, data: bool) -> ChunkProtocol {
+        ChunkProtocol {
             x: self.coords.0,
             z: self.coords.1,
             id: self.id.clone(),

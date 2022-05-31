@@ -1,7 +1,4 @@
-use voxelize::world::{
-    registry::Registry,
-    voxels::block::{Block, BlockFaces},
-};
+use voxelize::{Block, BlockFaces, Registry};
 
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();

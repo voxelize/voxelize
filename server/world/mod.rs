@@ -1,15 +1,15 @@
-pub mod clients;
-pub mod components;
-pub mod config;
-pub mod generators;
-pub mod messages;
-pub mod physics;
-pub mod registry;
-pub mod stats;
-pub mod systems;
-pub mod types;
-pub mod utils;
-pub mod voxels;
+mod clients;
+mod components;
+mod config;
+mod generators;
+mod messages;
+mod physics;
+mod registry;
+mod stats;
+mod systems;
+mod types;
+mod utils;
+mod voxels;
 
 use hashbrown::HashMap;
 use log::info;
@@ -25,47 +25,30 @@ use specs::{
 };
 
 use crate::{
-    server::models::{encode_message, messages::Peer, Message, MessageType},
-    vec::{Vec2, Vec3},
+    protocols::Peer,
+    server::{encode_message, Message, MessageType},
+    Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
 
-pub use self::config::WorldConfig;
-use self::{
-    clients::Clients,
-    components::{
-        chunk_requests::ChunkRequestsComp,
-        current_chunk::CurrentChunkComp,
-        direction::DirectionComp,
-        endpoint::EndpointComp,
-        etype::ETypeComp,
-        flags::{ClientFlag, EntityFlag},
-        heading::HeadingComp,
-        id::IDComp,
-        metadata::MetadataComp,
-        position::PositionComp,
-        rigidbody::RigidBodyComp,
-        target::TargetComp,
-    },
-    generators::{mesher::Mesher, noise::SeededNoise, pipeline::Pipeline, terrain::SeededTerrain},
-    messages::MessageQueue,
-    registry::Registry,
-    stats::Stats,
-    systems::{
-        broadcast::{entities::BroadcastEntitiesSystem, BroadcastSystem},
-        chunk::{
-            current::CurrentChunkSystem, meshing::ChunkMeshingSystem,
-            pipelining::ChunkPipeliningSystem, requests::ChunkRequestsSystem,
-            sending::ChunkSendingSystem, updating::ChunkUpdatingSystem,
-        },
-        entity_meta::EntityMetaSystem,
-        physics::PhysicsSystem,
-        stats::update::UpdateStatsSystem,
-    },
-    utils::chunk::ChunkUtils,
-    voxels::chunks::Chunks,
+use self::systems::{
+    BroadcastEntitiesSystem, BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem,
+    ChunkRequestsSystem, ChunkSendingSystem, ChunkUpdatingSystem, CurrentChunkSystem,
+    EntityMetaSystem, PhysicsSystem, UpdateStatsSystem,
 };
+
+pub use clients::*;
+pub use components::*;
+pub use config::*;
+pub use generators::*;
+pub use messages::*;
+pub use physics::*;
+pub use registry::*;
+pub use stats::*;
+pub use types::*;
+pub use utils::*;
+pub use voxels::*;
 
 pub type ModifyDispatch =
     fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;

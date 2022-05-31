@@ -1,14 +1,6 @@
 use hashbrown::HashMap;
-use log::info;
 
-use crate::{
-    libs::ndarray::{ndarray, Ndarray},
-    vec::{Vec2, Vec3},
-    world::{
-        types::LightColor,
-        utils::{block::BlockUtils, chunk::ChunkUtils, light::LightUtils},
-    },
-};
+use crate::{ndarray, BlockUtils, ChunkUtils, LightColor, LightUtils, Ndarray, Vec2, Vec3};
 
 use super::{
     access::VoxelAccess,

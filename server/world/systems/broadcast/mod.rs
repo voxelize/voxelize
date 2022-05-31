@@ -1,14 +1,15 @@
-use log::info;
 use message_io::node::NodeHandler;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
-    server::models::encode_message,
-    world::{messages::MessageQueue, Clients},
+    server::encode_message,
+    world::{Clients, MessageQueue},
 };
 
-pub mod entities;
+mod entities;
+
+pub use entities::BroadcastEntitiesSystem;
 
 pub struct BroadcastSystem;
 

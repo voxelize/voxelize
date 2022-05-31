@@ -1,7 +1,7 @@
 use std::process;
 
 use registry::setup_registry;
-use voxelize::{pipeline::FlatlandStage, world::WorldConfig, Server, Voxelize};
+use voxelize::{FlatlandStage, Server, Voxelize, WorldConfig};
 use world::setup_world;
 
 mod generator;

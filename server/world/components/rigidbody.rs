@@ -1,6 +1,6 @@
 use specs::{Component, VecStorage};
 
-use crate::world::physics::rigidbody::RigidBody;
+use crate::RigidBody;
 
 /// What makes an entity physical in Voxelize.
 #[derive(Default, Component)]

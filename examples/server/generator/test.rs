@@ -1,8 +1,5 @@
 use voxelize::{
-    chunk::Chunk,
-    pipeline::{ChunkStage, ResourceRequirements, ResourceResults},
-    vec::Vec3,
-    world::voxels::{access::VoxelAccess, space::Space},
+    Chunk, ChunkStage, ResourceRequirements, ResourceResults, Space, Vec3, VoxelAccess,
 };
 
 pub struct TestStage;

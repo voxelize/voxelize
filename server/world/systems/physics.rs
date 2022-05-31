@@ -1,17 +1,12 @@
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{
-    chunks::Chunks,
-    world::{
-        components::{
-            current_chunk::CurrentChunkComp, position::PositionComp, rigidbody::RigidBodyComp,
-        },
-        physics::Physics,
-        registry::Registry,
-        stats::Stats,
-        voxels::access::VoxelAccess,
-        WorldConfig,
-    },
+use crate::world::{
+    components::{CurrentChunkComp, PositionComp, RigidBodyComp},
+    physics::Physics,
+    registry::Registry,
+    stats::Stats,
+    voxels::{Chunks, VoxelAccess},
+    WorldConfig,
 };
 
 pub struct PhysicsSystem;

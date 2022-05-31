@@ -4,19 +4,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
-use crate::{
-    vec::{Vec2, Vec3},
-    world::{
-        registry::Registry,
-        types::BlockChange,
-        voxels::{
-            access::VoxelAccess,
-            chunk::Chunk,
-            space::{Space, SpaceData},
-        },
-        WorldConfig,
-    },
-};
+use crate::{BlockChange, Chunk, Registry, Space, SpaceData, Vec2, Vec3, VoxelAccess, WorldConfig};
 
 use super::{noise::SeededNoise, terrain::SeededTerrain};
 

@@ -3,13 +3,8 @@ use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
-    server::models::{Message, MessageType},
-    world::{
-        components::{chunk_requests::ChunkRequestsComp, id::IDComp},
-        messages::MessageQueue,
-        voxels::chunks::Chunks,
-        WorldConfig,
-    },
+    server::{Message, MessageType},
+    world::{ChunkRequestsComp, Chunks, IDComp, MessageQueue, WorldConfig},
 };
 
 pub struct ChunkSendingSystem;

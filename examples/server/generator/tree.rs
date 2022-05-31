@@ -1,10 +1,5 @@
 use noise::{NoiseFn, Worley};
-use voxelize::{
-    chunk::Chunk,
-    pipeline::{ChunkStage, ResourceResults},
-    vec::Vec3,
-    world::voxels::{access::VoxelAccess, space::Space},
-};
+use voxelize::{Chunk, ChunkStage, ResourceResults, Space, Vec3, VoxelAccess};
 
 pub struct TreeTestStage {
     pub noise: Worley,

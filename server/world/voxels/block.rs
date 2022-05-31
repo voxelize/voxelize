@@ -2,7 +2,7 @@ use std::{f32, fmt};
 
 use serde::{Deserialize, Serialize};
 
-use crate::world::physics::aabb::AABB;
+use crate::AABB;
 
 /// Base class to extract voxel data from a single u32
 ///

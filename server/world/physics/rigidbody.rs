@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::{vec::Vec3, world::physics::aabb::AABB};
+use crate::{Vec3, AABB};
 
 /// A physical body in the Voxelize world.
 #[derive(Default, Clone)]

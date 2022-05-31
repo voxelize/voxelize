@@ -2,18 +2,8 @@ use hashbrown::HashMap;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    common::ClientFilter,
-    server::models::{Chunk as ChunkModel, Message, MessageType},
-    vec::Vec2,
-    world::{
-        components::{
-            chunk_requests::ChunkRequestsComp, current_chunk::CurrentChunkComp, id::IDComp,
-        },
-        generators::pipeline::Pipeline,
-        messages::MessageQueue,
-        voxels::chunks::Chunks,
-        WorldConfig,
-    },
+    ChunkProtocol, ChunkRequestsComp, Chunks, ClientFilter, CurrentChunkComp, IDComp, Message,
+    MessageQueue, MessageType, Pipeline, Vec2, WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;
@@ -92,7 +82,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         // Add the chunk sending to message queue.
         to_send.into_iter().for_each(|(id, coords)| {
-            let chunks: Vec<ChunkModel> = coords
+            let chunks: Vec<ChunkProtocol> = coords
                 .into_iter()
                 .map(|coords| {
                     let chunk = chunks.get(&coords).unwrap();

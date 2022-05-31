@@ -3,11 +3,8 @@ use specs::{ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     common::ClientFilter,
-    server::models::{Entity, Message, MessageType},
-    world::{
-        components::{etype::ETypeComp, flags::EntityFlag, id::IDComp, metadata::MetadataComp},
-        messages::MessageQueue,
-    },
+    server::{EntityProtocol, Message, MessageType},
+    world::{ETypeComp, EntityFlag, IDComp, MessageQueue, MetadataComp},
 };
 
 pub struct BroadcastEntitiesSystem;
@@ -28,7 +25,7 @@ impl<'a> System<'a> for BroadcastEntitiesSystem {
 
         let mut entities = vec![];
         for (id, etype, metadata, _) in (&ids, &etypes, &mut metadatas, &flag).join() {
-            entities.push(Entity {
+            entities.push(EntityProtocol {
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
                 metadata: Some(metadata.to_json_string()),

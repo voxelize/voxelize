@@ -1,5 +1,3 @@
-use crate::vec::{Vec2, Vec3};
-
 /// A filter for clients, used for specific broadcasting.
 pub enum ClientFilter {
     All,

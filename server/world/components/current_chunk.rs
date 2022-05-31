@@ -1,6 +1,6 @@
 use specs::{Component, VecStorage};
 
-use crate::vec::Vec2;
+use crate::Vec2;
 
 #[derive(Default, Component)]
 #[storage(VecStorage)]
