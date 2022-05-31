@@ -26,7 +26,7 @@
     "docs:deploy": "cd docs && yarn && yarn run deploy"
   },
   "peerDependencies": {
-    "@voxelize/voxel-physics-engine": "^1.0.10",
+    "@voxelize/voxel-physics-engine": "^1.0.11",
     "three": "^0.141.0"
   },
   "devDependencies": {
@@ -72,6 +72,7 @@
     "typescript": "^4.5.5"
   },
   "dependencies": {
+    "@voxelize/voxel-physics-engine": "^1.0.11",
     "deepmerge": "^4.2.2",
     "domurl": "^2.3.4",
     "events": "^3.3.0",

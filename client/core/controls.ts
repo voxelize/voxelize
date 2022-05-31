@@ -528,12 +528,24 @@ class Controls extends EventDispatcher {
       () => {
         if (!this.targetBlock) return;
         const [vx, vy, vz] = this.targetBlock.voxel;
-        chunks.setVoxelByVoxel(
+        const { dimension } = this.client.world.params;
+        const blockAABB = new AABB(
           vx,
           vy,
           vz,
-          this.client.registry.getBlockByName("Stone").id
+          vx + dimension,
+          vy + dimension,
+          vz + dimension
         );
+
+        if (!this.body.aabb.intersects(blockAABB)) {
+          chunks.setVoxelByVoxel(
+            vx,
+            vy,
+            vz,
+            this.client.registry.getBlockByName("Stone").id
+          );
+        }
       },
       "in-game"
     );
