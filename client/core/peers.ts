@@ -53,11 +53,15 @@ class Peers extends Map<string, Peer> {
       scene.add(peer.mesh);
     });
 
-    // disconnected
-    connection.on("error", () => {
+    const disconnection = () => {
       console.log(`disconnected from peer ${id}`);
       this.removePeer(peer);
-    });
+    };
+
+    // disconnected
+    connection.on("end", disconnection);
+    connection.on("error", disconnection);
+    connection.on("close", disconnection);
 
     // signaling
     connection.on("signal", (signal) => {

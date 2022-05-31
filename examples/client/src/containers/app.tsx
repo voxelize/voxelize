@@ -61,6 +61,7 @@ const ControlsWrapper = styled.div`
   background: #00000022;
 
   & > div {
+    backdrop-filter: blur(2px);
     padding: 32px 48px;
     display: flex;
     flex-direction: column;
@@ -70,6 +71,7 @@ const ControlsWrapper = styled.div`
     position: absolute;
     top: 50%;
     left: 50%;
+    z-index: 1000;
     transform: translate(-50%, -50%);
     background: #fff2f911;
     border-radius: 4px;
