@@ -63,8 +63,8 @@ use self::{
         physics::PhysicsSystem,
         stats::update::UpdateStatsSystem,
     },
-    utils::{block::BlockUtils, chunk::ChunkUtils},
-    voxels::{block::BlockRotation, chunks::Chunks},
+    utils::chunk::ChunkUtils,
+    voxels::chunks::Chunks,
 };
 
 pub type ModifyDispatch =
@@ -251,10 +251,12 @@ impl World {
         if let Some(client) = removed {
             let entities = self.ecs.entities();
 
-            entities.delete(client.entity).expect(&format!(
-                "Something went wrong with deleting this client: {}",
-                client.id,
-            ));
+            entities.delete(client.entity).unwrap_or_else(|_| {
+                panic!(
+                    "Something went wrong with deleting this client: {}",
+                    client.id
+                )
+            });
         }
     }
 
@@ -272,6 +274,7 @@ impl World {
             MessageType::Signal => self.on_signal(endpoint, data),
             MessageType::Unload => self.on_unload(endpoint, data),
             MessageType::Debug => self.on_debug(endpoint, data),
+            MessageType::Chat => self.on_chat(endpoint, data),
             MessageType::Update => self.on_update(endpoint, data),
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
@@ -422,7 +425,7 @@ impl World {
             .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
 
         let mut dispatcher = builder.build();
-        dispatcher.dispatch(&mut self.ecs);
+        dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
     }
@@ -568,13 +571,33 @@ impl World {
 
             let coords = Vec2(x, z);
 
-            if chunks.is_within_world(&coords) {
-                if !chunks.to_remesh.contains(&coords) {
-                    chunks.to_remesh.push_front(coords);
-                }
+            if chunks.is_within_world(&coords) && !chunks.to_remesh.contains(&coords) {
+                chunks.to_remesh.push_front(coords);
             }
         } else {
             info!("Received unknown debug method of {}", json.method);
+        }
+    }
+
+    /// Handler for `Chat` type messages.
+    fn on_chat(&mut self, _: &Endpoint, data: Message) {
+        if let Some(chat) = data.chat.clone() {
+            let sender = chat.sender;
+            let body = chat.body;
+
+            info!("{}: {}", sender, body);
+
+            if body.starts_with('/') {
+                let body = body
+                    .strip_prefix('/')
+                    .unwrap()
+                    .split_whitespace()
+                    .collect::<Vec<_>>();
+
+                // let mut msgs = vec![];
+            } else {
+                self.broadcast(data, ClientFilter::All);
+            }
         }
     }
 }

@@ -229,6 +229,10 @@ class Controls extends EventDispatcher {
 
       this.setPosition(...this.params.initialPosition);
     });
+
+    client.on("chat-enabled", () => {
+      this.resetMovements();
+    });
   }
 
   /**
@@ -382,6 +386,20 @@ class Controls extends EventDispatcher {
   reset = () => {
     this.setPosition(...this.params.initialPosition);
     this.object.rotation.set(0, 0, 0);
+
+    this.resetMovements();
+  };
+
+  resetMovements = () => {
+    this.movements = {
+      sprint: false,
+      front: false,
+      back: false,
+      left: false,
+      right: false,
+      down: false,
+      up: false,
+    };
   };
 
   toggleGhostMode = () => {
@@ -1020,7 +1038,7 @@ class Controls extends EventDispatcher {
 
   private onUnlock = () => {
     this.client.emit("unlock");
-    this.client.inputs.setNamespace("menu");
+    this.client.inputs.setNamespace(this.client.chat.enabled ? "chat" : "menu");
   };
 }
 

@@ -15,3 +15,4 @@ export * from "./comps";
 export * from "./settings";
 export * from "./physics";
 export * from "./particles";
+export * from "./chat";

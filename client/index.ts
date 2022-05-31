@@ -26,6 +26,8 @@ import {
   PhysicsParams,
   Physics,
   Particles,
+  ChatParams,
+  Chat,
 } from "./core";
 import { Chunks, ChunksParams } from "./core/chunks";
 import { ECS } from "./libs";
@@ -41,6 +43,7 @@ type ClientParams = {
   world?: Partial<WorldInitParams>;
   physics?: Partial<PhysicsParams>;
   chunks?: Partial<ChunksParams>;
+  chat?: Partial<ChatParams>;
 };
 
 class Client extends EventEmitter {
@@ -66,6 +69,7 @@ class Client extends EventEmitter {
   public chunks: Chunks;
   public physics: Physics;
   public particles: Particles;
+  public chat: Chat;
 
   public joined = false;
   public loaded = false;
@@ -89,6 +93,7 @@ class Client extends EventEmitter {
       world,
       physics,
       chunks,
+      chat,
     } = params;
 
     this.ecs = new ECS();
@@ -109,6 +114,7 @@ class Client extends EventEmitter {
     this.chunks = new Chunks(this, chunks);
     this.physics = new Physics(this, physics);
     this.particles = new Particles(this);
+    this.chat = new Chat(this, chat);
 
     // all members has been initialized
     this.emit("initialized");

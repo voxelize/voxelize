@@ -188,6 +188,7 @@ class Debug {
   private makeDOM = () => {
     this.dataWrapper = document.createElement("div");
     this.dataWrapper.id = "data-wrapper";
+
     DOMUtils.applyStyles(this.dataWrapper, {
       position: "fixed",
       top: "10px",
@@ -210,11 +211,13 @@ class Debug {
     });
 
     this.stats = Stats();
+    this.stats.dom.parentNode?.removeChild(this.stats.dom);
+
     DOMUtils.applyStyles(this.stats.dom, {
-      position: "fixed",
+      position: "relative",
       top: "unset",
-      bottom: "10px",
-      left: "10px",
+      bottom: "unset",
+      left: "unset",
       zIndex: "1000000000000",
     });
   };
@@ -223,7 +226,6 @@ class Debug {
     const { domElement } = this.client.container;
     domElement.appendChild(this.dataWrapper);
     domElement.appendChild(this.gui.element);
-    domElement.appendChild(this.stats.dom);
   };
 
   private makeAtlasTest = () => {
@@ -353,6 +355,9 @@ class Debug {
       this.client.physics.core.bodies,
       "length"
     );
+
+    this.displayNewline();
+    this.dataWrapper.insertBefore(this.stats.dom, this.dataWrapper.firstChild);
   };
 
   private setupInputs = () => {

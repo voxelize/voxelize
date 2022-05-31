@@ -59,6 +59,7 @@ const ControlsWrapper = styled.div`
   width: 100vw;
   height: 100vh;
   background: #00000022;
+  z-index: 100000;
 
   & > div {
     backdrop-filter: blur(2px);
@@ -181,7 +182,8 @@ export const App = () => {
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
-  const [showControls, setShowControls] = useState(true);
+  const [locked, setLocked] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(false);
   const client = useRef<Client | null>(null);
   const container = useRef<HTMLDivElement>(null);
 
@@ -222,11 +224,19 @@ export const App = () => {
         });
 
         client.current.on("unlock", () => {
-          setShowControls(true);
+          setLocked(false);
         });
 
         client.current.on("lock", () => {
-          setShowControls(false);
+          setLocked(true);
+        });
+
+        client.current.on("chat-enabled", () => {
+          setChatEnabled(true);
+        });
+
+        client.current.on("chat-disabled", () => {
+          setChatEnabled(false);
         });
 
         client.current.on("join", () => {
@@ -289,7 +299,7 @@ export const App = () => {
   return (
     <GameWrapper ref={container}>
       <Crosshair />
-      {showControls && (
+      {!locked && !chatEnabled && (
         <ControlsWrapper>
           <div>
             <img src={LogoImage} alt="logo" />

@@ -194,6 +194,16 @@ class Network {
 
         break;
       }
+      case "CHAT": {
+        const { chat } = event;
+        console.log(chat);
+
+        if (chat) {
+          this.client.chat.add(chat);
+        }
+
+        break;
+      }
       case "UPDATE": {
         const { updates, chunks } = event;
 
@@ -204,23 +214,25 @@ class Network {
         }
 
         if (updates) {
-          this.client.particles.addBreakParticles(
-            updates
-              .filter(({ type }) => type === 0)
-              .map(({ vx, vy, vz }) => ({
-                voxel: [vx, vy, vz],
-                type: this.client.chunks.getVoxelByVoxel(vx, vy, vz),
-              })),
-            { count: updates.length > 3 ? 1 : 6 }
-          );
+          const particleUpdates = updates
+            .filter(({ voxel }) => voxel === 0)
+            .map(({ vx, vy, vz }) => ({
+              voxel: [vx, vy, vz],
+              type: this.client.chunks.getVoxelByVoxel(vx, vy, vz),
+            }));
 
           updates.forEach((update) => {
-            const { vx, vy, vz, type } = update;
+            const { vx, vy, vz, voxel, light } = update;
             const chunk = this.client.chunks.getChunkByVoxel(vx, vy, vz);
 
             if (chunk) {
-              chunk.setVoxel(vx, vy, vz, type || 0);
+              chunk.setRawValue(vx, vy, vz, voxel || 0);
+              chunk.setRawLight(vx, vy, vz, light || 0);
             }
+          });
+
+          this.client.particles.addBreakParticles(particleUpdates, {
+            count: particleUpdates.length > 3 ? 1 : 6,
           });
         }
 

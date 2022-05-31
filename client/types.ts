@@ -99,3 +99,5 @@ export type BaseWorldParams = {
   maxHeight: number;
   maxLightLevel: number;
 };
+
+export type MESSAGE_TYPE = "ERROR" | "SERVER" | "PLAYER" | "INFO";

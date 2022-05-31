@@ -51,6 +51,19 @@ message Update {
   uint32 height = 6;
 }
 
+message ChatMessage {
+  enum Type {
+    ERROR = 0;
+    SERVER = 1;
+    PLAYER = 2;
+    INFO = 3;
+  }
+
+  Type type = 1;
+  string sender = 2;
+  string body = 3;
+}
+
 message Message {
   enum Type {
     INIT = 0;
@@ -64,6 +77,7 @@ message Message {
     UNLOAD = 8;
     UPDATE = 9;
     DEBUG = 10;
+    CHAT = 11;
   }
 
   Type type = 1;
@@ -71,8 +85,10 @@ message Message {
   string text = 3;
   Peer peer = 4;
 
-  repeated string peers = 5;
-  repeated Entity entities = 6;
-  repeated Chunk chunks = 7;
-  repeated Update updates = 8;
+  ChatMessage chat = 5;
+
+  repeated string peers = 6;
+  repeated Entity entities = 7;
+  repeated Chunk chunks = 8;
+  repeated Update updates = 9;
 }

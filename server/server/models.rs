@@ -13,6 +13,7 @@ pub mod messages {
 pub use messages::Message;
 
 pub type MessageType = messages::message::Type;
+pub type ChatMessageType = messages::chat_message::Type;
 
 impl Message {
     /// Create a new protobuf message with the idiomatic Builder pattern.
@@ -99,6 +100,13 @@ pub struct Entity {
     pub metadata: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub r#type: ChatMessageType,
+    pub sender: String,
+    pub body: String,
+}
+
 /// Builder for a protocol buffer message.
 #[derive(Default)]
 pub struct MessageBuilder {
@@ -107,6 +115,8 @@ pub struct MessageBuilder {
     json: Option<String>,
     text: Option<String>,
     peer: Option<Peer>,
+
+    chat: Option<ChatMessage>,
 
     peers: Option<Vec<String>>,
     entities: Option<Vec<Entity>>,
@@ -163,6 +173,12 @@ impl MessageBuilder {
     /// Configure the voxel update data of the protocol.
     pub fn updates(mut self, updates: &[Update]) -> Self {
         self.updates = Some(updates.to_vec());
+        self
+    }
+
+    /// Configure the chat data of the protocol.
+    pub fn chat(mut self, chat: ChatMessage) -> Self {
+        self.chat = Some(chat);
         self
     }
 
@@ -251,6 +267,14 @@ impl MessageBuilder {
                     height: update.height,
                 })
                 .collect()
+        }
+
+        if let Some(chat) = self.chat {
+            message.chat = Some(messages::ChatMessage {
+                body: chat.body,
+                sender: chat.sender,
+                r#type: chat.r#type as i32,
+            });
         }
 
         message

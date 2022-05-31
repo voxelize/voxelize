@@ -8,5 +8,7 @@ export * from "./block-rotation";
 export * from "./ecs";
 export * from "./sky";
 export * from "./raycast";
+export * from "./chat-history";
+export * from "./chat-message";
 
 export { default as ECS } from "./ecs";

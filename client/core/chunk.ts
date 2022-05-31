@@ -153,6 +153,13 @@ class Chunk {
     return this.voxels.set(lx, ly, lz, val);
   };
 
+  setRawLight = (vx: number, vy: number, vz: number, level: number) => {
+    this.assert(vx, vy, vz);
+
+    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    return this.lights.set(lx, ly, lz, level);
+  };
+
   getVoxel = (vx: number, vy: number, vz: number) => {
     return BlockUtils.extractID(this.getRawValue(vx, vy, vz));
   };
