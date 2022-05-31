@@ -1,4 +1,5 @@
 import URL from "domurl";
+import * as fflate from "fflate";
 import { Instance as PeerInstance } from "simple-peer";
 // @ts-ignore
 import SimplePeer from "simple-peer/simplepeer.min";
@@ -254,6 +255,20 @@ class Network {
       return message;
     };
   })();
+
+  static decodeSync = (buffer: any) => {
+    if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
+      buffer = fflate.unzlibSync(buffer);
+    }
+
+    const message = Message.decode(buffer);
+    // @ts-ignore
+    message.type = Message.Type[message.type];
+    if (message.json) {
+      message.json = JSON.parse(message.json);
+    }
+    return message;
+  };
 
   static encode(message: any) {
     if (message.json) {

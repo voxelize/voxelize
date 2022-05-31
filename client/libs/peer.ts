@@ -46,7 +46,7 @@ class Peer {
     this.head.mesh.add(this.nameMesh);
 
     connection.on("data", (data) => {
-      const decoded = Network.decode(data);
+      const decoded = Network.decodeSync(data);
       this.onData(decoded);
     });
   }
