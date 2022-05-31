@@ -9,6 +9,14 @@ import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 
 type FormatterType = (input: any) => string;
 
+type DebugParams = {
+  onByDefault: boolean;
+};
+
+const defaultParams: DebugParams = {
+  onByDefault: true,
+};
+
 /**
  * Debugger for Voxelize, including the following features:
  * - Top-left panel for in-game object attribute inspection
@@ -47,7 +55,10 @@ class Debug {
 
   private atlasTest: Mesh;
 
-  constructor(public client: Client) {
+  constructor(
+    public client: Client,
+    params: Partial<DebugParams> = { ...defaultParams }
+  ) {
     this.gui = new Pane();
 
     // detach tweakpane from it's default parent
@@ -66,6 +77,10 @@ class Debug {
       this.mount();
 
       client.rendering.scene.add(this.group);
+
+      if (!params.onByDefault) {
+        this.toggle();
+      }
     });
 
     // wait till texture to be loaded
