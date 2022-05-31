@@ -1028,7 +1028,13 @@ class Controls extends EventDispatcher {
   };
 
   private onCanvasClick = () => {
-    if (this.client.network?.connected) this.lock();
+    if (this.client.network?.connected) {
+      if (this.client.chat.enabled) {
+        this.client.chat.focusInput();
+      } else {
+        this.lock();
+      }
+    }
   };
 
   private onLock = () => {

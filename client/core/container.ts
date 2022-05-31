@@ -87,10 +87,6 @@ class Container {
     this.domElement = domElement;
     this.domElement.appendChild(this.canvas);
 
-    canvas.addEventListener("click", () => {
-      this.client.controls.lock();
-    });
-
     DOMUtils.applyStyles(this.domElement, {
       position: "relative",
       fontFamily: `"Fira Mono", monospace`,

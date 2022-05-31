@@ -79,15 +79,15 @@ class Chat {
       input: document.createElement("input"),
     };
 
-    this.gui.wrapper.id = "mine.js-chat-wrapper";
+    this.gui.wrapper.id = "voxelize-chat-wrapper";
 
     DOMUtils.applyStyles(this.gui.wrapper, {
       position: "fixed",
-      top: "0",
+      bottom: "0",
       left: "0",
       zIndex: "4",
       width: "100vw",
-      height: "100vh",
+      height: "32px",
       visibility: "hidden",
     });
 
