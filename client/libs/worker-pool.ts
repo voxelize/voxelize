@@ -58,6 +58,10 @@ class WorkerPool {
   get isBusy() {
     return this.available.length <= 0;
   }
+
+  get workingCount() {
+    return this.workers.length - this.available.length;
+  }
 }
 
 export type { WorkerPoolParams, WorkerPoolJob };

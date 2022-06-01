@@ -61,15 +61,15 @@ class Debug {
   ) {
     this.gui = new Pane();
 
-    // detach tweakpane from it's default parent
-    const parentElement = this.gui.element;
-    if (parentElement) {
-      parentElement.parentNode?.removeChild(parentElement);
-    }
-
     // wait till all client members are initialized
     client.on("ready", () => {
       client.inputs.bind("j", this.toggle, "*");
+
+      // detach tweakpane from it's default parent
+      const parentElement = this.gui.element;
+      if (parentElement) {
+        parentElement.parentNode?.removeChild(parentElement);
+      }
 
       this.makeDOM();
       this.setupAll();
@@ -345,16 +345,16 @@ class Debug {
       this.client.rendering.scene.children,
       "length"
     );
-    this.registerDisplay(
-      "Scene polycount",
-      this.client.rendering.renderer.info.render,
-      "triangles"
-    );
-    this.registerDisplay(
-      "Active drawcalls",
-      this.client.rendering.renderer.info.render,
-      "calls"
-    );
+    // this.registerDisplay(
+    //   "Scene polycount",
+    //   this.client.rendering.renderer.info.render,
+    //   "triangles"
+    // );
+    // this.registerDisplay(
+    //   "Active drawcalls",
+    //   this.client.rendering.renderer.info.render,
+    //   "calls"
+    // );
     this.registerDisplay(
       "Textures in memory",
       this.client.rendering.renderer.info.memory,
@@ -369,6 +369,11 @@ class Debug {
       "Rigid body count",
       this.client.physics.core.bodies,
       "length"
+    );
+    this.registerDisplay(
+      "Working network workers",
+      this.client.network,
+      "concurrentWorkers"
     );
 
     this.displayNewline();

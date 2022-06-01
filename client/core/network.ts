@@ -6,6 +6,7 @@ import SimplePeer from "simple-peer/simplepeer.min";
 import DecodeWorker from "web-worker:./workers/decode-worker";
 
 import { Client } from "..";
+import { WorkerPool } from "../libs";
 import { protocol } from "../protocol";
 
 const { Message } = protocol;
@@ -32,6 +33,10 @@ class Network {
   public world: string;
   public socket: URL<QueryParams>;
   public connected = false;
+
+  private pool: WorkerPool = new WorkerPool(DecodeWorker, {
+    maxWorker: window.navigator.hardwareConcurrency * 5,
+  });
 
   private reconnection: any;
 
@@ -74,13 +79,15 @@ class Network {
       };
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
-        Network.decode(new Uint8Array(data)).then((data) => {
+        this.decode(new Uint8Array(data)).then((data) => {
           this.onEvent(data);
           this.client.emit("network-event", data);
         });
       };
       ws.onclose = () => {
         this.connected = false;
+        this.client.emit("disconnected");
+        this.client.peers.reset();
 
         // fire reconnection every "reconnectTimeout" ms
         this.reconnection = setTimeout(() => {
@@ -123,6 +130,10 @@ class Network {
   send = (event: any) => {
     this.ws.sendEvent(event);
   };
+
+  get concurrentWorkers() {
+    return this.pool.workingCount;
+  }
 
   private onEvent = (event: any) => {
     const { type } = event;
@@ -249,18 +260,24 @@ class Network {
     this.client.peers.addPeer(id, connection);
   };
 
-  static decode = (() => {
-    const recycled = [];
+  decode = (() => {
+    // const recycled = [];
 
     return async (data: any) => {
       const message = await new Promise<any>((resolve) => {
-        const worker =
-          recycled.length >= 1 ? recycled.pop() : new DecodeWorker();
-        worker.onmessage = ({ data }) => {
-          resolve(data);
-          recycled.push(worker);
-        };
-        worker.postMessage(data, [data.buffer]);
+        this.pool.addJob({
+          message: data,
+          buffers: [data.buffer],
+          resolve,
+        });
+
+        // const worker =
+        //   recycled.length >= 1 ? recycled.pop() : new DecodeWorker();
+        // worker.onmessage = ({ data }) => {
+        //   resolve(data);
+        //   recycled.push(worker);
+        // };
+        // worker.postMessage(data, [data.buffer]);
       });
 
       return message;

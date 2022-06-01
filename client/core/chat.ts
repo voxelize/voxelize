@@ -5,6 +5,21 @@ import { DOMUtils } from "../utils";
 
 type CSSMeasurement = `${number}${string}`;
 
+const HELP_TEXT = `
+Basic controls of the game:
+- <kbd>R</kbd>: Toggle sprint
+- <kbd>T</kbd>: Toggle chat
+- <kbd>J</kbd>: Toggle debug 
+- <kbd>F</kbd>: Toggle physical fly 
+- <kbd>G</kbd>: Toggle ghost mode
+- <kbd>X</kbd>: Bulk destruction
+- <kbd>Space</kbd>: Jump / fly up
+- <kbd>W/A/S/D</kbd>: Movements
+- <kbd>L-Shift</kbd>: Fly down
+- <kbd>L-Mouse</kbd>: Break block
+- <kbd>R-Mouse</kbd>: Place block
+`;
+
 type ChatParams = {
   gap: CSSMeasurement;
   margin: number;
@@ -14,6 +29,9 @@ type ChatParams = {
   inputHeight: CSSMeasurement;
   borderRadius: CSSMeasurement;
   disappearTimeout: number;
+  connectionMessage: string;
+  disconnectionMessage: string;
+  helpText: string;
 };
 
 const defaultParams: ChatParams = {
@@ -25,28 +43,10 @@ const defaultParams: ChatParams = {
   inputHeight: "29px",
   borderRadius: "4px",
   disappearTimeout: 2000,
+  connectionMessage: "Connected to world! Try /help",
+  disconnectionMessage: "World disconnected. Reconnecting...",
+  helpText: HELP_TEXT,
 };
-
-const HELP_TEXT = `
-Basic controls of the game:
-- <kbd>V</kbd>: Toggle zoom
-- <kbd>R</kbd>: Toggle sprint
-- <kbd>T</kbd>: Toggle chat
-- <kbd>J</kbd>: Toggle debug 
-- <kbd>F</kbd>: Toggle physics
-- <kbd>C</kbd>: Toggle perspective
-- <kbd>K</kbd>: Toggle fullscreen
-- <kbd>Z</kbd>: Bulk placement
-- <kbd>X</kbd>: Bulk destruction
-- <kbd>0-n</kbd>: Change block placement
-- <kbd>Space</kbd>: Jump / fly up
-- <kbd>W/A/S/D</kbd>: Movements
-- <kbd>L-Shift</kbd>: Fly down
-- <kbd>L-Mouse</kbd>: Break block
-- <kbd>M-Mouse</kbd>: Get block of looking
-- <kbd>R-Mouse</kbd>: Place block
-- <kbd>Tab</kbd>: Player list
-`;
 
 class Chat {
   public params: ChatParams;
@@ -65,10 +65,10 @@ class Chat {
   private disappearTimer: NodeJS.Timeout;
 
   constructor(public client: Client, params: Partial<ChatParams> = {}) {
-    this.params = {
+    const { connectionMessage, disconnectionMessage } = (this.params = {
       ...defaultParams,
       ...params,
-    };
+    });
 
     this.makeDOM();
 
@@ -77,10 +77,11 @@ class Chat {
     client.inputs.bind("esc", this.disable, "chat", { occasion: "keyup" });
 
     client.on("connected", () =>
-      this.add({ type: "SERVER", body: "Connected to world! Try /help" })
+      this.add({ type: "SERVER", body: connectionMessage })
     );
+
     client.on("disconnected", () =>
-      this.add({ type: "ERROR", body: "World disconnected. Reconnecting..." })
+      this.add({ type: "ERROR", body: disconnectionMessage })
     );
   }
 
@@ -312,7 +313,7 @@ class Chat {
     const { network } = this.client;
 
     if (value === "/help") {
-      this.add({ type: "INFO", body: HELP_TEXT });
+      this.add({ type: "INFO", body: this.params.helpText });
       return;
     }
 

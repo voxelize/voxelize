@@ -199,6 +199,8 @@ class Client extends EventEmitter {
       return;
     }
 
+    this.peers.reset();
+
     this.joined = false;
 
     this.network.send({

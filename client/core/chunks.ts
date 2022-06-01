@@ -25,10 +25,10 @@ type ChunksParams = {
 };
 
 const defaultParams: ChunksParams = {
-  inViewRadius: 5,
-  maxRequestsPerTick: 4,
-  maxProcessesPerTick: 1,
-  maxAddsPerTick: 2,
+  inViewRadius: 2,
+  maxRequestsPerTick: window.navigator.hardwareConcurrency,
+  maxProcessesPerTick: window.navigator.hardwareConcurrency * 2,
+  maxAddsPerTick: window.navigator.hardwareConcurrency * 2,
 };
 
 class Chunks {
@@ -422,6 +422,9 @@ class Chunks {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
       const [cx2, cz2] = ChunkUtils.parseChunkName(b);
 
+      if (!this.isChunkInView(cx1, cz1)) return -1;
+      if (!this.isChunkInView(cx2, cz2)) return 1;
+
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
       );
@@ -430,6 +433,9 @@ class Chunks {
     this.toProcess.sort((a, b) => {
       const { x: cx1, z: cz1 } = a;
       const { x: cx2, z: cz2 } = b;
+
+      if (!this.isChunkInView(cx1, cz1)) return -1;
+      if (!this.isChunkInView(cx2, cz2)) return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
