@@ -6,7 +6,7 @@ import SimplePeer from "simple-peer/simplepeer.min";
 import DecodeWorker from "web-worker:./workers/decode-worker";
 
 import { Client } from "..";
-import { WorkerPool } from "../libs";
+import { WorkerPool } from "../libs/worker-pool";
 import { protocol } from "../protocol";
 
 const { Message } = protocol;
