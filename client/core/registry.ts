@@ -68,6 +68,11 @@ class Registry {
     side: BlockFace,
     data: string | Color
   ) => {
+    // Offload texture loading to the loader for the loading screen
+    if (typeof data === "string") {
+      this.client.loader.addTexture(data);
+    }
+
     this.sources.set(this.makeSideName(name, side), data);
   };
 
@@ -76,7 +81,7 @@ class Registry {
     this.applyTextureByName(name, side, path);
   };
 
-  load = async (blocks: Block[], ranges: { [key: string]: TextureRange }) => {
+  load = (blocks: Block[], ranges: { [key: string]: TextureRange }) => {
     Object.values(blocks).forEach((block) => {
       this.recordBlock(block);
     });
@@ -100,7 +105,15 @@ class Registry {
       }
     });
 
-    this.atlas = await TextureAtlas.create(this.sources, this.ranges, {
+    const textures = new Map();
+    Array.from(this.sources.entries()).forEach(([sideName, source]) => {
+      textures.set(
+        sideName,
+        source instanceof Color ? source : this.client.loader.getTexture(source)
+      );
+    });
+
+    this.atlas = TextureAtlas.create(textures, this.ranges, {
       countPerSide: this.perSide,
       dimension,
     });
@@ -125,7 +138,7 @@ class Registry {
       this.materials.transparent = mat;
     }
 
-    this.client.emit("texture-loaded");
+    this.client.emit("registry-loaded");
     this.client.loaded = true;
   };
 

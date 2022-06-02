@@ -83,7 +83,7 @@ const SKY_CONFIGS = {
 };
 
 class Sky {
-  public skyBox: CanvasBox;
+  public box: CanvasBox;
 
   public mesh = new Group();
 
@@ -96,9 +96,10 @@ class Sky {
 
   constructor(public dimension: number) {
     this.createSkyShading();
+    this.createSkyBox();
   }
 
-  createSkyShading = () => {
+  private createSkyShading = () => {
     const {
       color: { top, middle, bottom },
       skyOffset,
@@ -128,6 +129,22 @@ class Sky {
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
 
     this.mesh.add(shadingMesh);
+  };
+
+  private createSkyBox = () => {
+    this.box = new CanvasBox({
+      dimension: this.dimension * 0.9,
+      side: BackSide,
+      width: 512,
+    });
+    this.box.boxMaterials.forEach((m) => (m.depthWrite = false));
+
+    const { meshes } = this.box;
+
+    meshes.frustumCulled = false;
+    meshes.renderOrder = -1;
+
+    this.mesh.add(meshes);
   };
 }
 

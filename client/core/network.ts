@@ -161,9 +161,11 @@ class Network {
           });
         }
 
-        if (blocks && ranges) {
-          this.client.registry.load(blocks, ranges);
-        }
+        this.client.loader.load().then(() => {
+          if (blocks && ranges) {
+            this.client.registry.load(blocks, ranges);
+          }
+        });
 
         break;
       }

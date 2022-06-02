@@ -84,7 +84,7 @@ class Debug {
     });
 
     // wait till texture to be loaded
-    client.on("texture-loaded", () => {
+    client.on("registry-loaded", () => {
       this.makeAtlasTest();
     });
   }

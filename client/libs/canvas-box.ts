@@ -1,4 +1,4 @@
-import { MathUtils } from "three";
+import { Color, MathUtils } from "three";
 import {
   BoxBufferGeometry,
   FrontSide,
@@ -22,7 +22,9 @@ type CanvasBoxParams = {
 
 type ArtFunction = (
   context: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  width?: number,
+  dimension?: number
 ) => void;
 
 type BoxSides =
@@ -50,11 +52,15 @@ class Layer {
   public materials: Map<string, MeshBasicMaterial> = new Map();
   public mesh: Mesh;
 
-  constructor(dimension: number, width: number, private side: Side) {
+  constructor(
+    public dimension: number,
+    public width: number,
+    private side: Side
+  ) {
     this.geometry = new BoxBufferGeometry(dimension, dimension, dimension);
 
     for (const face of BOX_SIDES) {
-      this.materials.set(face, this.createCanvasMaterial(width));
+      this.materials.set(face, this.createCanvasMaterial());
     }
 
     this.mesh = new Mesh(this.geometry, Array.from(this.materials.values()));
@@ -62,10 +68,10 @@ class Layer {
     this.mesh.rotation.y = Math.PI / 2;
   }
 
-  createCanvasMaterial = (width: number) => {
+  createCanvasMaterial = () => {
     const canvas = document.createElement("canvas");
-    canvas.height = width;
-    canvas.width = width;
+    canvas.height = this.width;
+    canvas.width = this.width;
 
     const material = new MeshBasicMaterial({
       side: this.side,
@@ -84,7 +90,7 @@ class Layer {
     return material;
   };
 
-  paint = (side: BoxSides[] | BoxSides, art: ArtFunction) => {
+  paint = (side: BoxSides[] | BoxSides, art: ArtFunction | Color | Texture) => {
     const actualSides = Array.isArray(side)
       ? side
       : side === "all"
@@ -97,17 +103,29 @@ class Layer {
       const material = this.materials.get(face);
       if (!material) continue;
 
-      const canvas = <HTMLCanvasElement>material.map?.image;
-      if (!canvas) continue;
+      if (art instanceof Texture) {
+        material.map = art;
+      } else {
+        const canvas = <HTMLCanvasElement>material.map?.image;
+        if (!canvas) continue;
 
-      const context = canvas.getContext("2d");
-      if (!context) continue;
+        const context = canvas.getContext("2d");
+        if (!context) continue;
 
-      art(context, canvas);
-
-      if (material.map) {
-        material.map.needsUpdate = true;
+        if (art instanceof Color) {
+          context.save();
+          context.fillStyle = `rgb(${art.r * 255},${art.g * 255},${
+            art.b * 255
+          })`;
+          context.fillRect(0, 0, this.dimension, this.dimension);
+          context.restore();
+        } else {
+          art(context, canvas, this.width, this.dimension);
+        }
       }
+
+      material.needsUpdate = true;
+      material.map.needsUpdate = true;
     }
   };
 }
@@ -137,7 +155,11 @@ class CanvasBox {
     }
   };
 
-  paint = (side: BoxSides[] | BoxSides, art: ArtFunction, layer = 0) => {
+  paint = (
+    side: BoxSides[] | BoxSides,
+    art: ArtFunction | Color | Texture,
+    layer = 0
+  ) => {
     if (layer >= this.layers.length) {
       throw new Error("Canvas box layer does not exist.");
     }
@@ -160,15 +182,11 @@ class CanvasBox {
     };
   })();
 
-  get mesh() {
-    return this.layers[0].mesh;
-  }
-
   get boxMaterials() {
     return this.layers[0].materials;
   }
 }
 
-export type { CanvasBoxParams, BoxSides };
+export type { CanvasBoxParams, BoxSides, ArtFunction };
 
 export { CanvasBox };

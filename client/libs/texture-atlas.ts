@@ -24,8 +24,8 @@ class TextureAtlas {
   public dataURLs: Map<string, string> = new Map();
   public canvas = document.createElement("canvas");
 
-  static create = async (
-    textureSources: Map<string, string | Color>,
+  static create = (
+    textureMap: Map<string, Texture | Color>,
     ranges: Map<string, TextureRange>,
     params: TextureAtlasParams
   ) => {
@@ -34,22 +34,11 @@ class TextureAtlas {
 
     const { countPerSide, dimension } = params;
 
-    const loader = new TextureLoader();
-    const textureMap: Map<string, Texture | Color> = new Map();
-
-    for (const [key, source] of textureSources) {
-      if (source instanceof Color) {
-        textureMap.set(key, source);
-        continue;
+    textureMap.forEach((texture, key) => {
+      if (!texture) {
+        textureMap.set(key, this.makeUnknownTexture(dimension));
       }
-
-      try {
-        if (!source) throw new Error();
-        textureMap.set(key, await loader.loadAsync(source));
-      } catch (e) {
-        textureMap.set(key, TextureAtlas.makeUnknownTexture(dimension));
-      }
-    }
+    });
 
     const offset = 1 / 64;
 

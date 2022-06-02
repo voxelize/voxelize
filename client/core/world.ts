@@ -1,22 +1,19 @@
-import { Vector3 } from "three";
+import { Color, Vector3 } from "three";
 
 import { Client } from "..";
-import { BlockRotation, Sky, Chunk, Chunks, ServerChunk } from "../libs";
-import { Coords2, Coords3 } from "../types";
+import {
+  BlockRotation,
+  Sky,
+  Chunk,
+  Chunks,
+  ServerChunk,
+  ArtFunction,
+  BoxSides,
+} from "../libs";
+import { Coords2, Coords3, PartialRecord } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
 
-type WorldParams = {
-  chunkSize: number;
-  maxHeight: number;
-  maxLightLevel: number;
-  dimension: number;
-  minChunk: [number, number];
-  maxChunk: [number, number];
-  inViewRadius: number;
-  maxRequestsPerTick: number;
-  maxProcessesPerTick: number;
-  maxAddsPerTick: number;
-};
+type SkyFace = ArtFunction | Color | string | null;
 
 type WorldInitParams = {
   skyDimension: number;
@@ -24,6 +21,7 @@ type WorldInitParams = {
   maxRequestsPerTick: number;
   maxProcessesPerTick: number;
   maxAddsPerTick: number;
+  skyFaces: PartialRecord<BoxSides, SkyFace>;
 };
 
 const defaultParams: WorldInitParams = {
@@ -32,6 +30,16 @@ const defaultParams: WorldInitParams = {
   maxRequestsPerTick: window.navigator.hardwareConcurrency,
   maxProcessesPerTick: window.navigator.hardwareConcurrency * 2,
   maxAddsPerTick: window.navigator.hardwareConcurrency * 2,
+  skyFaces: {},
+};
+
+type WorldParams = WorldInitParams & {
+  chunkSize: number;
+  maxHeight: number;
+  maxLightLevel: number;
+  dimension: number;
+  minChunk: [number, number];
+  maxChunk: [number, number];
 };
 
 class World {
@@ -44,16 +52,39 @@ class World {
   public uSunlightIntensity = { value: 1 };
 
   constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
-    const { skyDimension } = (params = { ...defaultParams, ...params });
+    const { skyDimension, skyFaces } = (params = {
+      ...defaultParams,
+      ...params,
+    });
 
-    this.sky = new Sky(skyDimension);
     this.chunks = new Chunks();
 
     Object.keys(params).forEach((key) => {
       this.params[key] = params[key];
     });
 
-    this.client.rendering.scene.add(this.sky.mesh);
+    Object.values((skyFace) => {
+      if (typeof skyFace === "string") {
+        client.loader.addTexture(skyFace);
+      }
+    });
+
+    client.on("loaded", () => {
+      this.sky = new Sky(skyDimension);
+
+      Object.entries(skyFaces).forEach(([side, skyFace]) => {
+        if (typeof skyFace === "string") {
+          const texture = client.loader.getTexture(skyFace);
+          if (texture) {
+            this.sky.box.paint(side as BoxSides, texture);
+          }
+        } else if (skyFace) {
+          this.sky.box.paint(side as BoxSides, skyFace);
+        }
+      });
+
+      client.rendering.scene.add(this.sky.mesh);
+    });
   }
 
   reset = () => {
@@ -84,7 +115,6 @@ class World {
       dimension: 1,
     };
 
-    console.log(this.params);
     this.client.emit("ready");
     this.client.ready = true;
   };

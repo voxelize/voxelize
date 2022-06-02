@@ -14,6 +14,7 @@ import {
   Entities,
   EntitiesParams,
   Inputs,
+  Loader,
   Mesher,
   Network,
   Particles,
@@ -52,6 +53,7 @@ class Client extends EventEmitter {
   public ecs: ECS;
 
   public debug: Debug;
+  public loader: Loader;
   public container: Container;
   public rendering: Rendering;
   public inputs: Inputs;
@@ -95,6 +97,7 @@ class Client extends EventEmitter {
     this.ecs = new ECS();
 
     this.debug = new Debug(this);
+    this.loader = new Loader(this);
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
     this.world = new World(this, world);

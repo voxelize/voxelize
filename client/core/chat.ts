@@ -319,45 +319,6 @@ class Chat {
       return;
     }
 
-    //     if (value === "/spectator") {
-    //       this.engine.player.toggleSpectatorMode();
-    //       return;
-    //     }
-
-    //     if (value.startsWith("/")) {
-    //       const { inventory, registry } = this.client;
-
-    //       const commands = value.substr(1).split(" ");
-    //       switch (commands[0]) {
-    //         case "bs":
-    //         case "blocks": {
-    //           this.add({
-    //             type: "INFO",
-    //             body: Object.keys(registry.params.blocks)
-    //               .map((key) => {
-    //                 const { name } = registry.params.blocks[key];
-    //                 return `${key}: ${name}`;
-    //               })
-    //               .join("\n"),
-    //           });
-    //           return;
-    //         }
-    //         case "b":
-    //         case "block": {
-    //           const block = +commands[1];
-    //           if (block) {
-    //             if (registry.hasBlock(block)) {
-    //               inventory.setHand(block);
-    //               this.add({ type: "INFO", body: `Block set to: ${block}` });
-    //             } else {
-    //               this.add({ type: "ERROR", body: `Block not found: ${block}` });
-    //             }
-    //             return;
-    //           }
-    //         }
-    //       }
-    //     }
-
     network.send({
       type: "CHAT",
       chat: {
