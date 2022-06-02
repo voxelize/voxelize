@@ -54,7 +54,7 @@ class Chat {
   public enabled = false;
 
   public messages: ChatMessage[] = [];
-  public history = new ChatHistory(this);
+  public history: ChatHistory;
 
   public gui: {
     messages: HTMLUListElement;
@@ -83,6 +83,8 @@ class Chat {
     client.on("disconnected", () =>
       this.add({ type: "ERROR", body: disconnectionMessage })
     );
+
+    this.history = new ChatHistory(this.gui.input);
   }
 
   add = ({

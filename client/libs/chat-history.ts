@@ -1,11 +1,10 @@
-import { Chat } from "../core";
-
 class ChatHistory {
   public messages: string[] = [];
   public cursor = -1;
-  public temp: any = null;
 
-  constructor(public chat: Chat) {}
+  private temp: any = null;
+
+  constructor(public input: HTMLInputElement) {}
 
   add = (message: string) => this.messages.unshift(message);
 
@@ -13,7 +12,7 @@ class ChatHistory {
     // Already at top
     if (!this.messages[this.cursor + 1]) return null;
 
-    if (typeof this.temp !== "string") this.temp = this.chat.inputValue;
+    if (typeof this.temp !== "string") this.temp = this.input.value;
 
     this.cursor += 1;
 
