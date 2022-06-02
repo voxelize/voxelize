@@ -35,7 +35,7 @@ class Network {
   public connected = false;
 
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
-    maxWorker: window.navigator.hardwareConcurrency * 5,
+    maxWorker: window.navigator.hardwareConcurrency * 2,
   });
 
   private reconnection: any;
@@ -262,29 +262,15 @@ class Network {
     this.client.peers.addPeer(id, connection);
   };
 
-  decode = (() => {
-    // const recycled = [];
-
-    return async (data: any) => {
-      const message = await new Promise<any>((resolve) => {
-        this.pool.addJob({
-          message: data,
-          buffers: [data.buffer],
-          resolve,
-        });
-
-        // const worker =
-        //   recycled.length >= 1 ? recycled.pop() : new DecodeWorker();
-        // worker.onmessage = ({ data }) => {
-        //   resolve(data);
-        //   recycled.push(worker);
-        // };
-        // worker.postMessage(data, [data.buffer]);
+  decode = async (data: any) => {
+    return new Promise<any>((resolve) => {
+      this.pool.addJob({
+        message: data,
+        buffers: [data.buffer],
+        resolve,
       });
-
-      return message;
-    };
-  })();
+    });
+  };
 
   static decodeSync = (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {

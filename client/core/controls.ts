@@ -15,14 +15,11 @@ import { raycast } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
-const _euler = new Euler(0, 0, 0, "YXZ");
-const _vector = new Vector3();
-
 const _changeEvent = { type: "change" };
 const _lockEvent = { type: "lock" };
 const _unlockEvent = { type: "unlock" };
 
-const _PI_2 = Math.PI / 2;
+const PI_2 = Math.PI / 2;
 
 const PY_ROTATION = 0;
 const NY_ROTATION = 1;
@@ -208,6 +205,9 @@ class Controls extends EventDispatcher {
   private lockCallback: () => void;
   private unlockCallback: () => void;
 
+  private euler = new Euler(0, 0, 0, "YXZ");
+  private vector = new Vector3();
+
   constructor(public client: Client, options: Partial<ControlsParams> = {}) {
     super();
 
@@ -341,17 +341,17 @@ class Controls extends EventDispatcher {
     // move forward parallel to the xz-plane
     // assumes camera.up is y-up
 
-    _vector.setFromMatrixColumn(this.object.matrix, 0);
+    this.vector.setFromMatrixColumn(this.object.matrix, 0);
 
-    _vector.crossVectors(this.object.up, _vector);
+    this.vector.crossVectors(this.object.up, this.vector);
 
-    this.object.position.addScaledVector(_vector, distance);
+    this.object.position.addScaledVector(this.vector, distance);
   };
 
   moveRight = (distance: number) => {
-    _vector.setFromMatrixColumn(this.object.matrix, 0);
+    this.vector.setFromMatrixColumn(this.object.matrix, 0);
 
-    this.object.position.addScaledVector(_vector, distance);
+    this.object.position.addScaledVector(this.vector, distance);
   };
 
   lock = (callback?: () => void) => {
@@ -997,17 +997,17 @@ class Controls extends EventDispatcher {
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
 
-    _euler.setFromQuaternion(this.object.quaternion);
+    this.euler.setFromQuaternion(this.object.quaternion);
 
-    _euler.y -= (movementX * this.params.sensitivity * delta) / 1000;
-    _euler.x -= (movementY * this.params.sensitivity * delta) / 1000;
+    this.euler.y -= (movementX * this.params.sensitivity * delta) / 1000;
+    this.euler.x -= (movementY * this.params.sensitivity * delta) / 1000;
 
-    _euler.x = Math.max(
-      _PI_2 - this.params.maxPolarAngle,
-      Math.min(_PI_2 - this.params.minPolarAngle, _euler.x)
+    this.euler.x = Math.max(
+      PI_2 - this.params.maxPolarAngle,
+      Math.min(PI_2 - this.params.minPolarAngle, this.euler.x)
     );
 
-    this.object.quaternion.setFromEuler(_euler);
+    this.object.quaternion.setFromEuler(this.euler);
 
     this.dispatchEvent(_changeEvent);
   };

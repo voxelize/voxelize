@@ -9,6 +9,7 @@ import {
   ServerChunk,
   ArtFunction,
   BoxSides,
+  drawSun,
 } from "../libs";
 import { Coords2, Coords3, PartialRecord } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
@@ -27,10 +28,10 @@ type WorldInitParams = {
 const defaultParams: WorldInitParams = {
   skyDimension: 1000,
   inViewRadius: 2,
-  maxRequestsPerTick: window.navigator.hardwareConcurrency,
-  maxProcessesPerTick: window.navigator.hardwareConcurrency * 2,
-  maxAddsPerTick: window.navigator.hardwareConcurrency * 2,
-  skyFaces: {},
+  maxRequestsPerTick: 2,
+  maxProcessesPerTick: 2,
+  maxAddsPerTick: 2,
+  skyFaces: { top: drawSun },
 };
 
 type WorldParams = WorldInitParams & {

@@ -176,68 +176,12 @@ export const App = () => {
   const client = useRef<Client | null>(null);
   const container = useRef<HTMLDivElement>(null);
 
-  const rgba = (r: number, g: number, b: number, a: number) => {
-    return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
-  };
-
   useEffect(() => {
     if (container.current) {
       if (!client.current) {
         client.current = new Client({
           container: {
             domElement: container.current,
-          },
-          world: {
-            skyFaces: {
-              top: (context, canvas) => {
-                const radius = 50;
-                const sunColor = "#f8ffb5";
-
-                const color = new Color(sunColor);
-
-                context.save();
-
-                // bg glow
-                context.beginPath();
-                let x = canvas.width / 2;
-                let y = canvas.height / 2;
-                const grd = context.createRadialGradient(
-                  x,
-                  y,
-                  1,
-                  x,
-                  y,
-                  radius * 2
-                );
-                grd.addColorStop(0, rgba(1, 1, 1, 0.3));
-                grd.addColorStop(1, rgba(1, 1, 1, 0));
-                context.arc(x, y, radius * 3, 0, 2 * Math.PI, false);
-                context.fillStyle = grd;
-                context.fill();
-                context.closePath();
-
-                // outer sun
-                context.beginPath();
-                x = canvas.width / 2 - radius / 2;
-                y = canvas.height / 2 - radius / 2;
-                context.rect(x, y, radius, radius);
-                context.fillStyle = rgba(color.r, color.g, color.b, 1);
-                context.fill();
-                context.closePath();
-
-                // inner sun
-                context.beginPath();
-                const r = radius / 1.6;
-                x = canvas.width / 2 - r / 2;
-                y = canvas.height / 2 - r / 2;
-                context.rect(x, y, r, r);
-                context.fillStyle = rgba(1, 1, 1, 0.5);
-                context.fill();
-                context.closePath();
-
-                context.restore();
-              },
-            },
           },
         });
 

@@ -59,7 +59,7 @@ class Debug {
     public client: Client,
     params: Partial<DebugParams> = { ...defaultParams }
   ) {
-    this.gui = new Pane();
+    this.gui = new Pane({ title: "Voxelize Debug Panel" });
 
     // wait till all client members are initialized
     client.on("ready", () => {
@@ -278,17 +278,22 @@ class Debug {
   };
 
   private setupAll = () => {
-    const testFolder = this.gui.addFolder({ title: "Registry" });
-    testFolder.addButton({ title: "atlas test" }).on("click", () => {
+    const { network, controls, world, rendering, physics, settings } =
+      this.client;
+
+    const registryFolder = this.gui.addFolder({ title: "Registry" });
+    registryFolder.addButton({ title: "atlas test" }).on("click", () => {
       if (!this.atlasTest) return;
       this.atlasTest.visible = !this.atlasTest.visible;
     });
-    testFolder.addButton({ title: "remesh chunk" }).on("click", () => {
+
+    const worldFolder = this.gui.addFolder({ title: "World", expanded: false });
+    worldFolder.addButton({ title: "remesh chunk" }).on("click", () => {
       const currChunk = ChunkUtils.mapVoxelPosToChunkPos(
-        this.client.controls.voxel,
-        this.client.world.params.chunkSize
+        controls.voxel,
+        world.params.chunkSize
       );
-      this.client.network.send({
+      network.send({
         type: "DEBUG",
         json: {
           method: "remesh",
@@ -299,80 +304,43 @@ class Debug {
         },
       });
     });
-    testFolder.addInput(this.client.registry.minLightUniform, "value", {
-      min: 0.02,
-      max: 1,
+
+    const settingsFolder = this.gui.addFolder({
+      title: "Settings",
+      expanded: true,
+    });
+    settingsFolder.addInput(settings, "renderRadius", {
+      min: 2,
+      max: 20,
+      step: 1.0,
     });
 
     this.displayTitle(`Voxelize ${"__buildVersion__"}`);
     this.displayNewline();
     this.registerDisplay("Mem", this, "memoryUsage");
-    this.registerDisplay("Position", this.client.controls, "voxel");
-    this.registerDisplay(
-      "Chunk",
-      this.client.controls,
-      "voxel",
-      (voxel: Coords3) =>
-        ChunkUtils.mapVoxelPosToChunkPos(
-          voxel,
-          this.client.world.params.chunkSize
-        ).toString()
+    this.registerDisplay("Position", controls, "voxel");
+    this.registerDisplay("Chunk", controls, "voxel", (voxel: Coords3) =>
+      ChunkUtils.mapVoxelPosToChunkPos(voxel, world.params.chunkSize).toString()
     );
     this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
-    this.registerDisplay(
-      "Chunk to request",
-      this.client.world.chunks.toRequest,
-      "length"
-    );
-    this.registerDisplay(
-      "Chunk requested",
-      this.client.world.chunks.requested,
-      "size"
-    );
-    // this.registerDisplay(
-    //   "Packets received",
-    //   this.client.network.receivedPackets,
-    //   "length"
-    // );
-    // this.registerDisplay(
-    //   "Packets to process",
-    //   this.client.network.decodedPackets,
-    //   "length"
-    // );
-    this.registerDisplay(
-      "Scene objects",
-      this.client.rendering.scene.children,
-      "length"
-    );
-    // this.registerDisplay(
-    //   "Scene polycount",
-    //   this.client.rendering.renderer.info.render,
-    //   "triangles"
-    // );
-    // this.registerDisplay(
-    //   "Active drawcalls",
-    //   this.client.rendering.renderer.info.render,
-    //   "calls"
-    // );
+    this.registerDisplay("Chunk to request", world.chunks.toRequest, "length");
+    this.registerDisplay("Chunk requested", world.chunks.requested, "size");
+    this.registerDisplay("Scene objects", rendering.scene.children, "length");
     this.registerDisplay(
       "Textures in memory",
-      this.client.rendering.renderer.info.memory,
+      rendering.renderer.info.memory,
       "textures"
     );
     this.registerDisplay(
       "Geometries in memory",
-      this.client.rendering.renderer.info.memory,
+      rendering.renderer.info.memory,
       "geometries"
     );
-    this.registerDisplay(
-      "Rigid body count",
-      this.client.physics.core.bodies,
-      "length"
-    );
+    this.registerDisplay("Rigid body count", physics.core.bodies, "length");
     this.registerDisplay(
       "Working network workers",
-      this.client.network,
+      network,
       "concurrentWorkers"
     );
 
