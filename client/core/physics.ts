@@ -29,12 +29,12 @@ class Physics {
 
     this.core = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
-        const id = client.chunks.getVoxelByVoxel(vx, vy, vz);
+        const id = client.world.getVoxelByVoxel(vx, vy, vz);
         const { aabbs } = client.registry.getBlockById(id);
         return aabbs;
       },
       (vx: number, vy: number, vz: number) => {
-        const id = client.chunks.getVoxelByVoxel(vx, vy, vz);
+        const id = client.world.getVoxelByVoxel(vx, vy, vz);
         const { isFluid } = client.registry.getBlockById(id);
         return isFluid;
       },
@@ -43,15 +43,15 @@ class Physics {
   }
 
   update = () => {
-    const { controls, chunks, world } = this.client;
+    const { controls, world } = this.client;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
       controls.voxel,
       world.params.chunkSize
     );
-    const chunk = chunks.getChunkByVoxel(...controls.voxel);
+    const chunk = world.getChunkByVoxel(...controls.voxel);
 
-    if ((!chunk || !chunk.isReady) && chunks.isWithinWorld(...coords)) {
+    if ((!chunk || !chunk.isReady) && world.isWithinWorld(...coords)) {
       return;
     }
 

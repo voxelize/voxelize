@@ -509,7 +509,7 @@ class Controls extends EventDispatcher {
   };
 
   private setupListeners = () => {
-    const { inputs, chunks } = this.client;
+    const { inputs, world } = this.client;
 
     this.connect();
 
@@ -518,7 +518,7 @@ class Controls extends EventDispatcher {
       () => {
         if (!this.lookBlock) return;
         const [vx, vy, vz] = this.lookBlock;
-        chunks.setVoxelByVoxel(vx, vy, vz, 0);
+        world.setVoxelByVoxel(vx, vy, vz, 0);
       },
       "in-game"
     );
@@ -539,7 +539,7 @@ class Controls extends EventDispatcher {
         );
 
         if (!this.body.aabb.intersects(blockAABB)) {
-          chunks.setVoxelByVoxel(
+          world.setVoxelByVoxel(
             vx,
             vy,
             vz,
@@ -588,7 +588,7 @@ class Controls extends EventDispatcher {
       return;
     }
 
-    const { world, camera, chunks, registry } = this.client;
+    const { world, camera, registry } = this.client;
     const { dimension, maxHeight } = world.params;
     const { reachDistance, lookBlockLerp } = this.params;
 
@@ -603,7 +603,7 @@ class Controls extends EventDispatcher {
     const result = raycast(
       (x, y, z) => {
         const vCoords = ChunkUtils.mapWorldPosToVoxelPos([x, y, z], dimension);
-        const type = chunks.getVoxelByVoxel(...vCoords);
+        const type = world.getVoxelByVoxel(...vCoords);
         const block = registry.getBlockById(type);
 
         return y < maxHeight * dimension && type !== 0 && !block.isFluid;
@@ -632,7 +632,7 @@ class Controls extends EventDispatcher {
     );
 
     // Pointing at air.
-    if (this.client.chunks.getVoxelByVoxel(...newLookBlock) === 0) {
+    if (this.client.world.getVoxelByVoxel(...newLookBlock) === 0) {
       disableLookBlock();
       return;
     }

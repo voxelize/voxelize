@@ -322,12 +322,12 @@ class Debug {
     this.registerDisplay("Light", this, "light");
     this.registerDisplay(
       "Chunk to request",
-      this.client.chunks.toRequest,
+      this.client.world.chunks.toRequest,
       "length"
     );
     this.registerDisplay(
       "Chunk requested",
-      this.client.chunks.requested,
+      this.client.world.chunks.requested,
       "size"
     );
     // this.registerDisplay(
@@ -381,12 +381,12 @@ class Debug {
   };
 
   private setupInputs = () => {
-    const { inputs, camera, chunks, registry, controls } = this.client;
+    const { inputs, camera, world, registry, controls } = this.client;
 
     inputs.bind(
       "l",
       () => {
-        chunks.reset();
+        world.reset();
       },
       "in-game"
     );
@@ -432,7 +432,7 @@ class Debug {
           }
         }
 
-        chunks.setVoxelsByVoxel(changes);
+        world.setVoxelsByVoxel(changes);
       },
       "in-game"
     );
@@ -457,7 +457,7 @@ class Debug {
           }
         }
 
-        chunks.setVoxelsByVoxel(changes);
+        world.setVoxelsByVoxel(changes);
       },
       "in-game"
     );
@@ -465,12 +465,12 @@ class Debug {
 
   get light() {
     const { voxel } = this.client.controls;
-    return this.client.chunks.getSunlightByVoxel(...voxel);
+    return this.client.world.getSunlightByVoxel(...voxel);
   }
 
   get maxHeight() {
     const { voxel } = this.client.controls;
-    return this.client.chunks.getMaxHeight(voxel[0], voxel[2]);
+    return this.client.world.getMaxHeight(voxel[0], voxel[2]);
   }
 }
 

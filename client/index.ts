@@ -1,35 +1,34 @@
 import { EventEmitter } from "events";
 
 import {
-  Container,
-  ContainerParams,
-  World,
-  Network,
-  RenderingParams,
-  Rendering,
   Camera,
   CameraParams,
-  Peers,
-  PeersParams,
-  Inputs,
+  Chat,
+  ChatParams,
   Clock,
+  Container,
+  ContainerParams,
   Controls,
   ControlsParams,
   Debug,
   Entities,
   EntitiesParams,
+  Inputs,
   Mesher,
+  Network,
+  Particles,
+  Peers,
+  PeersParams,
+  Physics,
+  PhysicsParams,
   Registry,
   RegistryParams,
+  Rendering,
+  RenderingParams,
   Settings,
+  World,
   WorldInitParams,
-  PhysicsParams,
-  Physics,
-  Particles,
-  ChatParams,
-  Chat,
 } from "./core";
-import { Chunks, ChunksParams } from "./core/chunks";
 import { ECS } from "./libs";
 
 type ClientParams = {
@@ -42,7 +41,6 @@ type ClientParams = {
   registry?: Partial<RegistryParams>;
   world?: Partial<WorldInitParams>;
   physics?: Partial<PhysicsParams>;
-  chunks?: Partial<ChunksParams>;
   chat?: Partial<ChatParams>;
 };
 
@@ -66,7 +64,6 @@ class Client extends EventEmitter {
   public mesher: Mesher;
   public registry: Registry;
   public settings: Settings;
-  public chunks: Chunks;
   public physics: Physics;
   public particles: Particles;
   public chat: Chat;
@@ -92,7 +89,6 @@ class Client extends EventEmitter {
       registry,
       world,
       physics,
-      chunks,
       chat,
     } = params;
 
@@ -111,7 +107,6 @@ class Client extends EventEmitter {
     this.mesher = new Mesher(this);
     this.clock = new Clock(this);
     this.settings = new Settings(this);
-    this.chunks = new Chunks(this, chunks);
     this.physics = new Physics(this, physics);
     this.particles = new Particles(this);
     this.chat = new Chat(this, chat);
@@ -219,7 +214,7 @@ class Client extends EventEmitter {
 
   reset = () => {
     this.entities.reset();
-    this.chunks.reset();
+    this.world.reset();
     this.controls.reset();
     this.peers.reset();
   };
@@ -255,8 +250,6 @@ class Client extends EventEmitter {
     this.entities.update();
     this.peers.update();
     this.debug.update();
-    this.chunks.update();
-    this.chunks.update();
     this.particles.update();
     this.physics.update();
 

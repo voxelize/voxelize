@@ -1,11 +1,10 @@
 import ndarray, { NdArray } from "ndarray";
-import { BufferAttribute, BufferGeometry, Mesh } from "three";
+import { BufferAttribute, BufferGeometry, Material, Mesh, Scene } from "three";
 
-import { Client } from "..";
-import { BlockRotation } from "../libs";
 import { Coords2, Coords3 } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
 
+import { BlockRotation } from "./block-rotation";
 import { ServerChunk } from "./chunks";
 
 type ChunkParams = {
@@ -32,7 +31,6 @@ class Chunk {
   private added = false;
 
   constructor(
-    public client: Client,
     public id: string,
     x: number,
     z: number,
@@ -51,7 +49,11 @@ class Chunk {
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
-  build = (data: ServerChunk) => {
+  build = (
+    data: ServerChunk,
+    scene: Scene,
+    materials: { opaque?: Material; transparent?: Material }
+  ) => {
     const { mesh: meshData, lights, voxels, heightMap } = data;
 
     if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
@@ -65,7 +67,7 @@ class Chunk {
 
         if (!data) {
           if (this.mesh[type]) {
-            this.client.rendering.scene.remove(this.mesh[type]);
+            scene.remove(this.mesh[type]);
           }
           return;
         }
@@ -79,7 +81,7 @@ class Chunk {
         let mesh = this.mesh[type] as Mesh;
 
         if (!mesh) {
-          const { opaque, transparent } = this.client.registry.materials;
+          const { opaque, transparent } = materials;
 
           mesh = new Mesh(
             new BufferGeometry(),
@@ -115,10 +117,9 @@ class Chunk {
     }
   };
 
-  addToScene = () => {
+  addToScene = (scene: Scene) => {
     if (this.added) return;
 
-    const { scene } = this.client.rendering;
     const { opaque, transparent } = this.mesh;
 
     if (opaque) scene.add(opaque);
@@ -127,8 +128,7 @@ class Chunk {
     this.added = true;
   };
 
-  removeFromScene = () => {
-    const { scene } = this.client.rendering;
+  removeFromScene = (scene: Scene) => {
     const { opaque, transparent } = this.mesh;
 
     if (opaque) scene.remove(opaque);
@@ -321,7 +321,6 @@ class Chunk {
   };
 
   dispose = () => {
-    this.removeFromScene();
     this.mesh.opaque?.geometry.dispose();
     this.mesh.transparent?.geometry.dispose();
   };

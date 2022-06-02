@@ -79,12 +79,11 @@ class Particles {
 
       const [x, y, z] = voxel;
 
-      const red = this.client.chunks.getTorchLightByVoxel(x, y, z, "RED") / 15;
+      const red = this.client.world.getTorchLightByVoxel(x, y, z, "RED") / 15;
       const green =
-        this.client.chunks.getTorchLightByVoxel(x, y, z, "GREEN") / 15;
-      const blue =
-        this.client.chunks.getTorchLightByVoxel(x, y, z, "BLUE") / 15;
-      const sun = this.client.chunks.getSunlightByVoxel(x, y, z) / 15;
+        this.client.world.getTorchLightByVoxel(x, y, z, "GREEN") / 15;
+      const blue = this.client.world.getTorchLightByVoxel(x, y, z, "BLUE") / 15;
+      const sun = this.client.world.getSunlightByVoxel(x, y, z) / 15;
 
       const typeUVObj = this.client.registry.getUV(type);
       const typeUVArr = [];

@@ -1,10 +1,7 @@
 import { AABB } from "@voxelize/voxel-physics-engine";
 import {
-  AlwaysDepth,
   Color,
   DoubleSide,
-  LessDepth,
-  NoBlending,
   ShaderLib,
   ShaderMaterial,
   Texture,
@@ -503,6 +500,6 @@ vLight = unpackLight(light & ((1 << 16) - 1));
   };
 }
 
-export type { RegistryParams };
+export type { RegistryParams, CustomShaderMaterial };
 
 export { Registry };

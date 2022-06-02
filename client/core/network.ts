@@ -199,7 +199,7 @@ class Network {
 
         if (chunks) {
           chunks.forEach((chunk) => {
-            this.client.chunks.handleServerChunk(chunk);
+            this.client.world.handleServerChunk(chunk);
           });
         }
 
@@ -219,7 +219,7 @@ class Network {
 
         if (chunks) {
           chunks.forEach((chunk) => {
-            this.client.chunks.handleServerChunk(chunk, true);
+            this.client.world.handleServerChunk(chunk, true);
           });
         }
 
@@ -228,12 +228,12 @@ class Network {
             .filter(({ voxel }) => voxel === 0)
             .map(({ vx, vy, vz }) => ({
               voxel: [vx, vy, vz],
-              type: this.client.chunks.getVoxelByVoxel(vx, vy, vz),
+              type: this.client.world.getVoxelByVoxel(vx, vy, vz),
             }));
 
           updates.forEach((update) => {
             const { vx, vy, vz, voxel, light } = update;
-            const chunk = this.client.chunks.getChunkByVoxel(vx, vy, vz);
+            const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
 
             if (chunk) {
               chunk.setRawValue(vx, vy, vz, voxel || 0);

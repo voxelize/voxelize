@@ -10,5 +10,7 @@ export * from "./sky";
 export * from "./raycast";
 export * from "./chat-history";
 export * from "./chat-message";
+export * from "./chunk";
+export * from "./chunks";
 
 export { default as ECS } from "./ecs";
