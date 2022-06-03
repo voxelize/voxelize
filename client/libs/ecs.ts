@@ -47,7 +47,7 @@ let SEQ_COMPONENT = 1;
 /**
  * Utility class for asynchronous access to a list
  */
-export class Iterator<T> {
+class Iterator<T> {
   private end = false;
 
   private cache: T[] = [];

@@ -135,13 +135,11 @@ const config = {
       {
         entryPoints: ["../client/index.ts"],
         tsconfig: "../tsconfig.json",
-        hidePageTitle: true,
         excludePrivate: true,
         excludeProtected: true,
-        excludeExternals: true,
         entryDocument: "none",
         disableSources: true,
-        sort: ["source-order"],
+        sort: ["source-order", "alphabetical"],
         sidebar: {
           fullNames: false,
           categoryLabel: "Client API",
@@ -151,6 +149,7 @@ const config = {
           autoConfiguration: true,
         },
         watch: process.env.TYPEDOC_WATCH,
+        preserveWatchOutput: true,
       },
     ],
   ],

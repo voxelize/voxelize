@@ -3,7 +3,7 @@ import { PerspectiveCamera, Vector3, MathUtils } from "three";
 import { Client } from "..";
 
 /**
- * Parameters to customize the Voxelize camera.
+ * Parameters to initialize the Voxelize camera.
  */
 type CameraParams = {
   /**
@@ -47,7 +47,7 @@ const defaultParams: CameraParams = {
 };
 
 /**
- * The main Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming. 
+ * The **built-in** Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming. 
  * The camera by default has a zoom of 1.0.
  *
  * ## Example
@@ -75,11 +75,15 @@ const defaultParams: CameraParams = {
  *   }
  * );
  * ```
- *
  */
 class Camera {
   /**
-   * Parameters to customize the Voxelize camera.
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * Parameters to initialize the Voxelize camera.
    */
   public params: CameraParams;
 
@@ -94,10 +98,11 @@ class Camera {
   /**
    * Construct a new Voxelize camera instance, setting up ThreeJS camera.
    *
-   * @param client - Reference back to the client instance.
-   * @param params - Parameters to customize this Voxelize camera.
+   * @hidden
    */
-  constructor(public client: Client, params: Partial<CameraParams> = {}) {
+  constructor(client: Client, params: Partial<CameraParams> = {}) {
+    this.client = client;
+
     const { fov, near, far } = (this.params = {
       ...defaultParams,
       ...params,

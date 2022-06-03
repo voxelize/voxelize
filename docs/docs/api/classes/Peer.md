@@ -58,7 +58,7 @@ ___
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-56)
+• **params**: [`PeerParams`](../modules.md#peerparams-14)
 
 ## Constructors
 
@@ -72,7 +72,7 @@ ___
 | :------ | :------ |
 | `id` | `string` |
 | `connection` | `Instance` |
-| `params` | [`PeerParams`](../modules.md#peerparams-56) |
+| `params` | [`PeerParams`](../modules.md#peerparams-14) |
 
 ## Methods
 

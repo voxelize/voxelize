@@ -19,7 +19,7 @@ so that the player can move freely around the world
 
 ### params
 
-• **params**: [`ControlsParams`](../modules.md#controlsparams-56)
+• **params**: [`ControlsParams`](../modules.md#controlsparams-14)
 
 An object storing parameters passed on `Controls` construction
 
@@ -61,7 +61,7 @@ ___
 
 ### lookBlock
 
-• **lookBlock**: `Coords3`
+• **lookBlock**: [`Coords3`](../modules.md#coords3-14)
 
 ___
 
@@ -73,7 +73,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | `Coords3` |
+| `voxel` | [`Coords3`](../modules.md#coords3-14) |
 | `rotation` | `number` |
 | `yRotation` | `number` |
 
@@ -108,7 +108,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams-56)\> |
+| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams-14)\> |
 
 #### Overrides
 
@@ -311,6 +311,115 @@ ___
 
 `void`
 
+___
+
+### addEventListener
+
+▸ **addEventListener**<`T`\>(`type`, `listener`): `void`
+
+Adds a listener to an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of event to listen to. |
+| `listener` | `EventListener`<`Event`, `T`, [`Controls`](Controls.md)\> | The function that gets called when the event is fired. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+EventDispatcher.addEventListener
+
+___
+
+### hasEventListener
+
+▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
+
+Checks if listener is added to an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of event to listen to. |
+| `listener` | `EventListener`<`Event`, `T`, [`Controls`](Controls.md)\> | The function that gets called when the event is fired. |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+EventDispatcher.hasEventListener
+
+___
+
+### removeEventListener
+
+▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
+
+Removes a listener from an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of the listener that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`Controls`](Controls.md)\> | The listener function that gets removed. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+EventDispatcher.removeEventListener
+
+___
+
+### dispatchEvent
+
+▸ **dispatchEvent**(`event`): `void`
+
+Fire an event type.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | `Event` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+EventDispatcher.dispatchEvent
+
 ## Accessors
 
 ### ghostMode
@@ -325,28 +434,28 @@ ___
 
 ### position
 
-• `get` **position**(): `Coords3`
+• `get` **position**(): [`Coords3`](../modules.md#coords3-14)
 
 #### Returns
 
-`Coords3`
+[`Coords3`](../modules.md#coords3-14)
 
 ___
 
 ### voxel
 
-• `get` **voxel**(): `Coords3`
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-14)
 
 #### Returns
 
-`Coords3`
+[`Coords3`](../modules.md#coords3-14)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): `Coords2`
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-14)
 
 #### Returns
 
-`Coords2`
+[`Coords2`](../modules.md#coords2-14)

@@ -6,40 +6,6 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-## Methods
-
-### create
-
-▸ `Static` **create**(`textureMap`, `ranges`, `params`): [`TextureAtlas`](TextureAtlas.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `textureMap` | `Map`<`string`, `Color` \| `Texture`\> |
-| `ranges` | `Map`<`string`, `TextureRange`\> |
-| `params` | `TextureAtlasParams` |
-
-#### Returns
-
-[`TextureAtlas`](TextureAtlas.md)
-
-___
-
-### makeCanvasPowerOfTwo
-
-▸ **makeCanvasPowerOfTwo**(`canvas?`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `canvas?` | `HTMLCanvasElement` |
-
-#### Returns
-
-`void`
-
 ## Constructors
 
 ### constructor
@@ -75,3 +41,37 @@ ___
 ### canvas
 
 • **canvas**: `HTMLCanvasElement`
+
+## Methods
+
+### create
+
+▸ `Static` **create**(`textureMap`, `ranges`, `params`): [`TextureAtlas`](TextureAtlas.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `textureMap` | `Map`<`string`, `Color` \| `Texture`\> |
+| `ranges` | `Map`<`string`, [`TextureRange`](../modules.md#texturerange-14)\> |
+| `params` | `TextureAtlasParams` |
+
+#### Returns
+
+[`TextureAtlas`](TextureAtlas.md)
+
+___
+
+### makeCanvasPowerOfTwo
+
+▸ **makeCanvasPowerOfTwo**(`canvas?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `canvas?` | `HTMLCanvasElement` |
+
+#### Returns
+
+`void`

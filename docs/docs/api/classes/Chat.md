@@ -6,11 +6,30 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+The **built-in** chat of the Voxelize engine. Handles the networking of sending messages, and displaying
+all messages received.
+
+## Example
+Access the chat through the client:
+```ts
+client.chat.enable();
+```
+
 ## Properties
+
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
 
 ### params
 
-• **params**: [`ChatParams`](../modules.md#chatparams-56)
+• **params**: [`ChatParams`](../modules.md#chatparams-14)
+
+Parameters to initialize the Voxelize chat.
 
 ___
 
@@ -18,11 +37,15 @@ ___
 
 • **enabled**: `boolean` = `false`
 
+Whether this chat is enabled or not.
+
 ___
 
 ### messages
 
 • **messages**: [`ChatMessage`](ChatMessage.md)[] = `[]`
+
+The list of chat messages received in this session.
 
 ___
 
@@ -30,53 +53,40 @@ ___
 
 • **history**: [`ChatHistory`](ChatHistory.md)
 
+A manager to control the history of chats, used to retrieve old sent messages.
+
 ___
 
 ### gui
 
 • **gui**: `Object`
 
+The DOM elements of this chat.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `messages` | `HTMLUListElement` |
-| `wrapper` | `HTMLDivElement` |
-| `input` | `HTMLInputElement` |
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Chat**(`client`, `params?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`ChatParams`](../modules.md#chatparams-56)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wrapper` | `HTMLDivElement` | The wrapper around both the chat and the input. |
+| `messages` | `HTMLUListElement` | The list of all the received and rendered messages. |
+| `input` | `HTMLInputElement` | The input of the chat. |
 
 ## Methods
 
 ### add
 
-▸ **add**(`__namedParameters`): `void`
+▸ **add**(`data`): `void`
+
+Add a message to the chat.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `__namedParameters` | `Object` |
-| `__namedParameters.type` | `MESSAGE_TYPE` |
-| `__namedParameters.sender?` | `string` |
-| `__namedParameters.body?` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `data` | `Object` | The data of new chat message. |
+| `data.type` | [`MESSAGE_TYPE`](../modules.md#message_type-14) | Type of message, used for color rendering. |
+| `data.sender?` | `string` | The name of the sender. |
+| `data.body?` | `string` | The body text of the message. |
 
 #### Returns
 
@@ -88,11 +98,13 @@ ___
 
 ▸ **enable**(`isCommand?`): `void`
 
+Opens the Voxelize chat. Sets the `client.inputs` namespace to "chat".
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `isCommand` | `boolean` | `false` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `isCommand` | `boolean` | `false` | Whether if this is triggered to type a command. |
 
 #### Returns
 
@@ -104,6 +116,8 @@ ___
 
 ▸ **disable**(): `void`
 
+Disable the chat of Voxelize. Sets the namespace back to "in-game".
+
 #### Returns
 
 `void`
@@ -113,6 +127,8 @@ ___
 ### showMessages
 
 ▸ **showMessages**(): `void`
+
+Show the chat messages list.
 
 #### Returns
 
@@ -124,6 +140,8 @@ ___
 
 ▸ **showInput**(): `void`
 
+Show the chat input.
+
 #### Returns
 
 `void`
@@ -133,6 +151,8 @@ ___
 ### hideInput
 
 ▸ **hideInput**(): `void`
+
+Hide the chat input.
 
 #### Returns
 
@@ -144,6 +164,8 @@ ___
 
 ▸ **resetInput**(): `string`
 
+Return the chat input, setting the input to empty string.
+
 #### Returns
 
 `string`
@@ -153,6 +175,8 @@ ___
 ### focusInput
 
 ▸ **focusInput**(): `void`
+
+Focus the page onto the input element.
 
 #### Returns
 
@@ -164,6 +188,8 @@ ___
 
 ▸ **blurInput**(): `void`
 
+Unfocus the page from the input element.
+
 #### Returns
 
 `void`
@@ -174,11 +200,13 @@ ___
 
 ▸ **applyMessagesStyles**(`styles`): `void`
 
+Apply a set of styles to the messages list DOM element.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `styles` | `Partial`<`CSSStyleDeclaration`\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `styles` | `Partial`<`CSSStyleDeclaration`\> | An object describing the styles to be added to the DOM element. |
 
 #### Returns
 
@@ -190,11 +218,13 @@ ___
 
 ▸ **applyInputStyles**(`styles`): `void`
 
+Apply a set of styles to the chat input DOM element.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `styles` | `Partial`<`CSSStyleDeclaration`\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `styles` | `Partial`<`CSSStyleDeclaration`\> | An object describing the styles to be added to the DOM element. |
 
 #### Returns
 
@@ -206,11 +236,15 @@ ___
 
 • `get` **inputValue**(): `string`
 
+Get the value of the chat input.
+
 #### Returns
 
 `string`
 
 • `set` **inputValue**(`value`): `void`
+
+Set the value of the chat input.
 
 #### Parameters
 

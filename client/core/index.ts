@@ -9,7 +9,6 @@ export * from "./rendering";
 export * from "./world";
 export * from "./debug";
 export * from "./entities";
-export * from "./mesher";
 export * from "./registry";
 export * from "./comps";
 export * from "./settings";

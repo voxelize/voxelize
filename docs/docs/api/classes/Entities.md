@@ -16,19 +16,49 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`EntitiesParams`](../modules.md#entitiesparams-56)
+• **params**: [`EntitiesParams`](../modules.md#entitiesparams-14)
 
 ___
 
 ### knownTypes
 
-• **knownTypes**: `Map`<`string`, [`NewEntity`](../modules.md#newentity-56)\>
+• **knownTypes**: `Map`<`string`, [`NewEntity`](../modules.md#newentity-14)\>
 
 ___
 
 ### client
 
 • **client**: [`Client`](Client.md)
+
+___
+
+### size
+
+• `Readonly` **size**: `number`
+
+#### Inherited from
+
+Map.size
+
+___
+
+### [toStringTag]
+
+• `Readonly` **[toStringTag]**: `string`
+
+#### Inherited from
+
+Map.\_\_@toStringTag@9023
+
+___
+
+### [species]
+
+▪ `Static` `Readonly` **[species]**: `MapConstructor`
+
+#### Inherited from
+
+Map.\_\_@species@10075
 
 ## Constructors
 
@@ -41,7 +71,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`EntitiesParams`](../modules.md#entitiesparams-56)\> |
+| `params` | `Partial`<[`EntitiesParams`](../modules.md#entitiesparams-14)\> |
 
 #### Overrides
 
@@ -74,7 +104,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `type` | `string` |
-| `protocol` | [`NewEntity`](../modules.md#newentity-56) |
+| `protocol` | [`NewEntity`](../modules.md#newentity-14) |
 
 #### Returns
 
@@ -99,3 +129,183 @@ ___
 #### Returns
 
 `void`
+
+___
+
+### clear
+
+▸ **clear**(): `void`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Map.clear
+
+___
+
+### delete
+
+▸ **delete**(`key`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+Map.delete
+
+___
+
+### forEach
+
+▸ **forEach**(`callbackfn`, `thisArg?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `callbackfn` | (`value`: [`BaseEntity`](BaseEntity.md), `key`: `string`, `map`: `Map`<`string`, [`BaseEntity`](BaseEntity.md)\>) => `void` |
+| `thisArg?` | `any` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Map.forEach
+
+___
+
+### get
+
+▸ **get**(`key`): [`BaseEntity`](BaseEntity.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+[`BaseEntity`](BaseEntity.md)
+
+#### Inherited from
+
+Map.get
+
+___
+
+### has
+
+▸ **has**(`key`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+Map.has
+
+___
+
+### set
+
+▸ **set**(`key`, `value`): [`Entities`](Entities.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+| `value` | [`BaseEntity`](BaseEntity.md) |
+
+#### Returns
+
+[`Entities`](Entities.md)
+
+#### Inherited from
+
+Map.set
+
+___
+
+### [iterator]
+
+▸ **[iterator]**(): `IterableIterator`<[`string`, [`BaseEntity`](BaseEntity.md)]\>
+
+Returns an iterable of entries in the map.
+
+#### Returns
+
+`IterableIterator`<[`string`, [`BaseEntity`](BaseEntity.md)]\>
+
+#### Inherited from
+
+Map.\_\_@iterator@10084
+
+___
+
+### entries
+
+▸ **entries**(): `IterableIterator`<[`string`, [`BaseEntity`](BaseEntity.md)]\>
+
+Returns an iterable of key, value pairs for every entry in the map.
+
+#### Returns
+
+`IterableIterator`<[`string`, [`BaseEntity`](BaseEntity.md)]\>
+
+#### Inherited from
+
+Map.entries
+
+___
+
+### keys
+
+▸ **keys**(): `IterableIterator`<`string`\>
+
+Returns an iterable of keys in the map
+
+#### Returns
+
+`IterableIterator`<`string`\>
+
+#### Inherited from
+
+Map.keys
+
+___
+
+### values
+
+▸ **values**(): `IterableIterator`<[`BaseEntity`](BaseEntity.md)\>
+
+Returns an iterable of values in the map
+
+#### Returns
+
+`IterableIterator`<[`BaseEntity`](BaseEntity.md)\>
+
+#### Inherited from
+
+Map.values

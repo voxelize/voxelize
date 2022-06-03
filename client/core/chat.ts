@@ -1,12 +1,7 @@
 import { Client } from "..";
 import { ChatHistory, ChatMessage } from "../libs";
-import { MESSAGE_TYPE } from "../types";
+import { CSSMeasurement, MESSAGE_TYPE } from "../types";
 import { DOMUtils } from "../utils";
-
-/**
- * Test test test
- */
-type CSSMeasurement = `${number}${string}`;
 
 const HELP_TEXT = `
 Basic controls of the game:
@@ -23,23 +18,74 @@ Basic controls of the game:
 - <kbd>R-Mouse</kbd>: Place block
 `;
 
+/**
+ * Parameters to initialize the Voxelize chat.
+ */
 type ChatParams = {
-  gap: CSSMeasurement;
-  margin: number;
+  /**
+   * Alignment of the chat. Defaults to `left`.
+   */
   align: "left" | "center" | "right";
-  messagesWidth: CSSMeasurement;
-  inputWidth: CSSMeasurement;
-  inputHeight: CSSMeasurement;
+
+  /**
+   * Border radius of both the radius and the message list. Defaults to `4px`.
+   */
   borderRadius: CSSMeasurement;
-  disappearTimeout: number;
+
+  /**
+   * The message sent when a connection is made. Defaults to `Connected to world! Try /help`.
+   */
   connectionMessage: string;
+
+  /**
+   * The message sent when connection is lost. Defaults to `World disconnected. Reconnecting...`.
+   */
   disconnectionMessage: string;
+
+  /**
+   * The timeout for chat to disappear once input is closed in milliseconds. Defaults to `2000`.
+   */
+  disappearTimeout: number;
+
+  /**
+   * The gap between the input and the message list. Defaults to `26px`.
+   */
+  gap: CSSMeasurement;
+
+  /**
+   * A text message that is sent to the client frontend-only when '/help' is typed in the chat.
+   */
   helpText: string;
+
+  /**
+   * Height of the chat input. Defaults to `29px`.
+   */
+  inputHeight: CSSMeasurement;
+
+  /**
+   * Width of the chat input, not regarding the margins. Defaults to `100%`.
+   */
+  inputWidth: CSSMeasurement;
+
+  /**
+   * The margin of the chat to the viewport in pixels. Defaults to `8px`.
+   */
+  margin: CSSMeasurement;
+
+  /**
+   * The default width of the message list. Defaults to `40vw`.
+   */
+  messagesWidth: CSSMeasurement;
+
+  /**
+   * Symbol to activate typing a command, needs to be 1 character long! Defaults to '/'.
+   */
+  commandSymbol: string;
 };
 
 const defaultParams: ChatParams = {
   gap: "26px",
-  margin: 8,
+  margin: "8px",
   align: "left",
   messagesWidth: "40vw",
   inputWidth: "100%",
@@ -49,34 +95,89 @@ const defaultParams: ChatParams = {
   connectionMessage: "Connected to world! Try /help",
   disconnectionMessage: "World disconnected. Reconnecting...",
   helpText: HELP_TEXT,
+  commandSymbol: "/",
 };
 
+/**
+ * The **built-in** chat of the Voxelize engine. Handles the networking of sending messages, and displaying
+ * all messages received.
+ *
+ * ## Example
+ * Access the chat through the client:
+ * ```ts
+ * client.chat.enable();
+ * ```
+ */
 class Chat {
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * Parameters to initialize the Voxelize chat.
+   */
   public params: ChatParams;
 
+  /**
+   * Whether this chat is enabled or not.
+   */
   public enabled = false;
 
+  /**
+   * The list of chat messages received in this session.
+   */
   public messages: ChatMessage[] = [];
+
+  /**
+   * A manager to control the history of chats, used to retrieve old sent messages.
+   */
   public history: ChatHistory;
 
+  /**
+   * The DOM elements of this chat.
+   */
   public gui: {
-    messages: HTMLUListElement;
+    /**
+     * The wrapper around both the chat and the input.
+     */
     wrapper: HTMLDivElement;
+
+    /**
+     * The list of all the received and rendered messages.
+     */
+    messages: HTMLUListElement;
+
+    /**
+     * The input of the chat.
+     */
     input: HTMLInputElement;
   };
 
   private disappearTimer: NodeJS.Timeout;
 
-  constructor(public client: Client, params: Partial<ChatParams> = {}) {
-    const { connectionMessage, disconnectionMessage } = (this.params = {
-      ...defaultParams,
-      ...params,
-    });
+  /**
+   * Construct a new Voxelize chat instance.
+   *
+   * @hidden
+   */
+  constructor(client: Client, params: Partial<ChatParams> = {}) {
+    this.client = client;
+
+    const { connectionMessage, disconnectionMessage, commandSymbol } =
+      (this.params = {
+        ...defaultParams,
+        ...params,
+      });
+
+    if (commandSymbol.length !== 1) {
+      throw new Error("Command symbol needs to be 1 character long.");
+    }
 
     this.makeDOM();
 
     client.inputs.bind("t", this.enable, "in-game");
-    client.inputs.bind("/", () => this.enable(true), "in-game");
+    client.inputs.bind(commandSymbol, () => this.enable(true), "in-game");
     client.inputs.bind("esc", this.disable, "chat", { occasion: "keyup" });
 
     client.on("connected", () =>
@@ -90,15 +191,16 @@ class Chat {
     this.history = new ChatHistory(this.gui.input);
   }
 
-  add = ({
-    type,
-    sender,
-    body,
-  }: {
-    type: MESSAGE_TYPE;
-    sender?: string;
-    body?: string;
-  }) => {
+  /**
+   * Add a message to the chat.
+   *
+   * @param data - The data of new chat message.
+   * @param data.type - Type of message, used for color rendering.
+   * @param data.sender - The name of the sender.
+   * @param data.body - The body text of the message.
+   */
+  add = (data: { type: MESSAGE_TYPE; sender?: string; body?: string }) => {
+    const { type, sender, body } = data;
     const { messagesWidth } = this.params;
 
     const newMessage = new ChatMessage(type, sender, body, {
@@ -114,14 +216,23 @@ class Chat {
     }
   };
 
+  /**
+   * Opens the Voxelize chat. Sets the `client.inputs` namespace to "chat".
+   *
+   * @param isCommand - Whether if this is triggered to type a command.
+   */
   enable = (isCommand = false) => {
+    const { controls, inputs } = this.client;
+
     if (this.disappearTimer) {
       clearTimeout(this.disappearTimer);
     }
 
     this.enabled = true;
-    this.client.controls.unlock();
+
+    controls.unlock();
     this.client.emit("chat-enabled");
+    inputs.setNamespace("chat");
 
     this.resetInput();
     this.showInput();
@@ -129,11 +240,16 @@ class Chat {
     this.showMessages();
 
     if (isCommand) {
-      this.inputValue = "/";
+      this.inputValue = this.params.commandSymbol;
     }
   };
 
+  /**
+   * Disable the chat of Voxelize. Sets the namespace back to "in-game".
+   */
   disable = () => {
+    const { controls, inputs } = this.client;
+
     this.enabled = false;
 
     this.fadeMessages();
@@ -141,11 +257,16 @@ class Chat {
     this.resetInput();
     this.hideInput();
 
-    this.client.controls.lock(() => {
+    controls.lock(() => {
       this.client.emit("chat-disabled");
     });
+
+    inputs.setNamespace("in-game");
   };
 
+  /**
+   * Show the chat messages list.
+   */
   showMessages = () => {
     DOMUtils.applyStyles(this.gui.wrapper, {
       opacity: "1",
@@ -154,32 +275,63 @@ class Chat {
     });
   };
 
+  /**
+   * Show the chat input.
+   */
   showInput = () => {
     DOMUtils.applyStyles(this.gui.input, { visibility: "visible" });
   };
 
+  /**
+   * Hide the chat input.
+   */
   hideInput = () => {
     DOMUtils.applyStyles(this.gui.input, { visibility: "hidden" });
   };
 
+  /**
+   * Return the chat input, setting the input to empty string.
+   */
   resetInput = () => (this.inputValue = "");
 
+  /**
+   * Focus the page onto the input element.
+   */
   focusInput = () => this.gui.input.focus();
 
+  /**
+   * Unfocus the page from the input element.
+   */
   blurInput = () => this.gui.input.blur();
 
+  /**
+   * Apply a set of styles to the messages list DOM element.
+   *
+   * @param styles - An object describing the styles to be added to the DOM element.
+   */
   applyMessagesStyles = (styles: Partial<CSSStyleDeclaration>) => {
     DOMUtils.applyStyles(this.gui.messages, styles);
   };
 
+  /**
+   * Apply a set of styles to the chat input DOM element.
+   *
+   * @param styles - An object describing the styles to be added to the DOM element.
+   */
   applyInputStyles = (styles: Partial<CSSStyleDeclaration>) => {
     DOMUtils.applyStyles(this.gui.input, styles);
   };
 
+  /**
+   * Set the value of the chat input.
+   */
   set inputValue(value: string) {
     this.gui.input.value = value;
   }
 
+  /**
+   * Get the value of the chat input.
+   */
   get inputValue() {
     return this.gui.input.value;
   }
@@ -216,7 +368,7 @@ class Chat {
         : {
             right: "0",
           }),
-      margin: `${margin}px`,
+      margin,
       maxHeight: "50vh",
       overflowY: "auto",
       wordBreak: "break-all",
@@ -238,8 +390,8 @@ class Chat {
         : {
             right: "0",
           }),
-      width: `calc(${inputWidth} - ${margin * 2}px)`,
-      margin: `${margin}px`,
+      width: `calc(${inputWidth} - ${margin} * 2)`,
+      margin,
       height: inputHeight,
       background: "rgba(0,0,0,0.45)",
       padding: "5px",
@@ -312,6 +464,7 @@ class Chat {
 
   private handleEnter = () => {
     const value = this.inputValue;
+    const { commandSymbol } = this.params;
 
     if (value.split(" ").filter((ele) => ele).length === 0) return;
 
@@ -327,7 +480,9 @@ class Chat {
       chat: {
         type: "PLAYER",
         sender: this.client.name,
-        body: value,
+        body: value.startsWith(commandSymbol)
+          ? `COMMAND: ${value.substring(1)}`
+          : value,
       },
     });
 
@@ -346,6 +501,6 @@ class Chat {
   };
 }
 
-export type { ChatParams, CSSMeasurement };
+export type { ChatParams };
 
 export { Chat };

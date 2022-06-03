@@ -15,7 +15,6 @@ import {
   EntitiesParams,
   Inputs,
   Loader,
-  Mesher,
   Network,
   Particles,
   Peers,
@@ -63,7 +62,6 @@ class Client extends EventEmitter {
   public world: World;
   public peers: Peers;
   public entities: Entities;
-  public mesher: Mesher;
   public registry: Registry;
   public settings: Settings;
   public physics: Physics;
@@ -107,7 +105,6 @@ class Client extends EventEmitter {
     this.controls = new Controls(this, controls);
     this.registry = new Registry(this, registry);
     this.inputs = new Inputs(this);
-    this.mesher = new Mesher(this);
     this.clock = new Clock(this);
     this.settings = new Settings(this);
     this.physics = new Physics(this, physics);
@@ -264,3 +261,4 @@ export { Client };
 
 export * from "./core";
 export * from "./libs";
+export * from "./types";

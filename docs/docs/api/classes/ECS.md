@@ -157,7 +157,7 @@ ___
 
 ### query
 
-▸ **query**(`componentTypes`): [`Iterator`](Iterator.md)<[`Entity`](Entity.md)\>
+▸ **query**(`componentTypes`): `Iterator`<[`Entity`](Entity.md)\>
 
 Allows you to search for all entities that have a specific set of components.
 
@@ -169,7 +169,7 @@ Allows you to search for all entities that have a specific set of components.
 
 #### Returns
 
-[`Iterator`](Iterator.md)<[`Entity`](Entity.md)\>
+`Iterator`<[`Entity`](Entity.md)\>
 
 ___
 

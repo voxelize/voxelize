@@ -28,7 +28,7 @@ ___
 
 ### toProcess
 
-• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-56)[] = `[]`
+• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-14)[] = `[]`
 
 ___
 
@@ -40,7 +40,217 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: `Coords2`
+• **currentChunk**: [`Coords2`](../modules.md#coords2-14)
+
+___
+
+### size
+
+• `Readonly` **size**: `number`
+
+#### Inherited from
+
+Map.size
+
+___
+
+### [toStringTag]
+
+• `Readonly` **[toStringTag]**: `string`
+
+#### Inherited from
+
+Map.\_\_@toStringTag@9023
+
+___
+
+### [species]
+
+▪ `Static` `Readonly` **[species]**: `MapConstructor`
+
+#### Inherited from
+
+Map.\_\_@species@10075
+
+## Methods
+
+### clear
+
+▸ **clear**(): `void`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Map.clear
+
+___
+
+### delete
+
+▸ **delete**(`key`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+Map.delete
+
+___
+
+### forEach
+
+▸ **forEach**(`callbackfn`, `thisArg?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `callbackfn` | (`value`: [`Chunk`](Chunk.md), `key`: `string`, `map`: `Map`<`string`, [`Chunk`](Chunk.md)\>) => `void` |
+| `thisArg?` | `any` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Map.forEach
+
+___
+
+### get
+
+▸ **get**(`key`): [`Chunk`](Chunk.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+[`Chunk`](Chunk.md)
+
+#### Inherited from
+
+Map.get
+
+___
+
+### has
+
+▸ **has**(`key`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+Map.has
+
+___
+
+### set
+
+▸ **set**(`key`, `value`): [`Chunks`](Chunks.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+| `value` | [`Chunk`](Chunk.md) |
+
+#### Returns
+
+[`Chunks`](Chunks.md)
+
+#### Inherited from
+
+Map.set
+
+___
+
+### [iterator]
+
+▸ **[iterator]**(): `IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
+
+Returns an iterable of entries in the map.
+
+#### Returns
+
+`IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
+
+#### Inherited from
+
+Map.\_\_@iterator@10084
+
+___
+
+### entries
+
+▸ **entries**(): `IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
+
+Returns an iterable of key, value pairs for every entry in the map.
+
+#### Returns
+
+`IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
+
+#### Inherited from
+
+Map.entries
+
+___
+
+### keys
+
+▸ **keys**(): `IterableIterator`<`string`\>
+
+Returns an iterable of keys in the map
+
+#### Returns
+
+`IterableIterator`<`string`\>
+
+#### Inherited from
+
+Map.keys
+
+___
+
+### values
+
+▸ **values**(): `IterableIterator`<[`Chunk`](Chunk.md)\>
+
+Returns an iterable of values in the map
+
+#### Returns
+
+`IterableIterator`<[`Chunk`](Chunk.md)\>
+
+#### Inherited from
+
+Map.values
 
 ## Constructors
 

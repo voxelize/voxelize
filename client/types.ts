@@ -105,3 +105,8 @@ export type BaseWorldParams = {
 };
 
 export type MESSAGE_TYPE = "ERROR" | "SERVER" | "PLAYER" | "INFO";
+
+/**
+ * A CSS measurement. E.g. "30px", "51em"
+ */
+export type CSSMeasurement = `${number}${string}`;

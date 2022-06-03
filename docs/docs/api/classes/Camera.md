@@ -6,7 +6,7 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-The main Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming.
+The **built-in** Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming.
 The camera by default has a zoom of 1.0.
 
 ## Example
@@ -37,11 +37,19 @@ client.inputs.bind(
 
 ## Properties
 
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
+
 ### params
 
-• **params**: [`CameraParams`](../modules.md#cameraparams-56)
+• **params**: [`CameraParams`](../modules.md#cameraparams-14)
 
-Parameters to customize the Voxelize camera.
+Parameters to initialize the Voxelize camera.
 
 ___
 
@@ -50,27 +58,6 @@ ___
 • **threeCamera**: `PerspectiveCamera`
 
 The inner ThreeJS perspective camera instance.
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Camera**(`client`, `params?`)
-
-Construct a new Voxelize camera instance, setting up ThreeJS camera.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `client` | [`Client`](Client.md) | Reference back to the client instance. |
-| `params` | `Partial`<[`CameraParams`](../modules.md#cameraparams-56)\> | Parameters to customize this Voxelize camera. |
 
 ## Methods
 

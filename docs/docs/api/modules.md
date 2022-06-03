@@ -18,7 +18,6 @@ custom_edit_url: null
 - [Entities](classes/Entities.md)
 - [Inputs](classes/Inputs.md)
 - [Loader](classes/Loader.md)
-- [Mesher](classes/Mesher.md)
 - [Network](classes/Network.md)
 - [Particles](classes/Particles.md)
 - [Peers](classes/Peers.md)
@@ -34,7 +33,6 @@ custom_edit_url: null
 - [ChatMessage](classes/ChatMessage.md)
 - [Chunk](classes/Chunk.md)
 - [Chunks](classes/Chunks.md)
-- [Iterator](classes/Iterator.md)
 - [Entity](classes/Entity.md)
 - [Component](classes/Component.md)
 - [System](classes/System.md)
@@ -52,7 +50,7 @@ custom_edit_url: null
 
 Ƭ **CameraParams**: `Object`
 
-Parameters to customize the Voxelize camera.
+Parameters to initialize the Voxelize camera.
 
 #### Type declaration
 
@@ -67,33 +65,28 @@ Parameters to customize the Voxelize camera.
 
 ___
 
-### CSSMeasurement
-
-Ƭ **CSSMeasurement**: \`${number}${string}\`
-
-Test test test
-
-___
-
 ### ChatParams
 
 Ƭ **ChatParams**: `Object`
 
+Parameters to initialize the Voxelize chat.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-56) |
-| `margin` | `number` |
-| `align` | ``"left"`` \| ``"center"`` \| ``"right"`` |
-| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-56) |
-| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-56) |
-| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-56) |
-| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-56) |
-| `disappearTimeout` | `number` |
-| `connectionMessage` | `string` |
-| `disconnectionMessage` | `string` |
-| `helpText` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `align` | ``"left"`` \| ``"center"`` \| ``"right"`` | Alignment of the chat. Defaults to `left`. |
+| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-14) | Border radius of both the radius and the message list. Defaults to `4px`. |
+| `connectionMessage` | `string` | The message sent when a connection is made. Defaults to `Connected to world! Try /help`. |
+| `disconnectionMessage` | `string` | The message sent when connection is lost. Defaults to `World disconnected. Reconnecting...`. |
+| `disappearTimeout` | `number` | The timeout for chat to disappear once input is closed in milliseconds. Defaults to `2000`. |
+| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-14) | The gap between the input and the message list. Defaults to `26px`. |
+| `helpText` | `string` | A text message that is sent to the client frontend-only when '/help' is typed in the chat. |
+| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-14) | Height of the chat input. Defaults to `29px`. |
+| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-14) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
+| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-14) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
+| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-14) | The default width of the message list. Defaults to `40vw`. |
+| `commandSymbol` | `string` | Symbol to activate typing a command, needs to be 1 character long! Defaults to '/'. |
 
 ___
 
@@ -127,7 +120,7 @@ ___
 | `lookBlockColor` | `string` |
 | `lookBlockLerp` | `number` |
 | `reachDistance` | `number` |
-| `initialPosition` | `Coords3` |
+| `initialPosition` | [`Coords3`](modules.md#coords3-14) |
 | `rotationLerp` | `number` |
 | `bodyWidth` | `number` |
 | `bodyHeight` | `number` |
@@ -262,7 +255,7 @@ ___
 | `maxRequestsPerTick` | `number` |
 | `maxProcessesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
-| `skyFaces` | `PartialRecord`<[`BoxSides`](modules.md#boxsides-56), `SkyFace`\> |
+| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-14)<[`BoxSides`](modules.md#boxsides-14), `SkyFace`\> |
 
 ___
 
@@ -325,7 +318,7 @@ ___
 | `lights` | `Uint32Array` |
 | `voxels` | `Uint32Array` |
 | `heightMap` | `Uint32Array` |
-| `mesh` | `ServerMesh` |
+| `mesh` | [`ServerMesh`](modules.md#servermesh-14) |
 
 ___
 
@@ -367,7 +360,7 @@ ___
 
 ### EventCallback
 
-Ƭ **EventCallback**: (`data`: `any`, `entities`: [`Iterator`](classes/Iterator.md)<[`Entity`](classes/Entity.md)\>) => `void`
+Ƭ **EventCallback**: (`data`: `any`, `entities`: `Iterator`<[`Entity`](classes/Entity.md)\>) => `void`
 
 #### Type declaration
 
@@ -380,7 +373,7 @@ System callback
 | Name | Type |
 | :------ | :------ |
 | `data` | `any` |
-| `entities` | [`Iterator`](classes/Iterator.md)<[`Entity`](classes/Entity.md)\> |
+| `entities` | `Iterator`<[`Entity`](classes/Entity.md)\> |
 
 ##### Returns
 
@@ -428,77 +421,281 @@ ___
 | :------ | :------ |
 | `maxWorker` | `number` |
 
+___
+
+### DeepPartial
+
+Ƭ **DeepPartial**<`T`\>: { [P in keyof T]?: DeepPartial<T[P]\> }
+
+#### Type parameters
+
+| Name |
+| :------ |
+| `T` |
+
+___
+
+### PartialRecord
+
+Ƭ **PartialRecord**<`K`, `T`\>: { [P in K]?: T }
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `K` | extends keyof `any` |
+| `T` | `T` |
+
+___
+
+### AllFaces
+
+Ƭ **AllFaces**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `all` | `string` |
+
+___
+
+### ThreeFaces
+
+Ƭ **ThreeFaces**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `top` | `string` |
+| `side` | `string` |
+| `bottom` | `string` |
+
+___
+
+### SixFaces
+
+Ƭ **SixFaces**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `px` | `string` |
+| `py` | `string` |
+| `pz` | `string` |
+| `nx` | `string` |
+| `ny` | `string` |
+| `nz` | `string` |
+
+___
+
+### PlantFaces
+
+Ƭ **PlantFaces**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `diagonal` | `string` |
+
+___
+
+### BlockFace
+
+Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-14) \| keyof [`ThreeFaces`](modules.md#threefaces-14) \| keyof [`SixFaces`](modules.md#sixfaces-14) \| keyof [`PlantFaces`](modules.md#plantfaces-14)
+
+___
+
+### Block
+
+Ƭ **Block**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `number` |
+| `name` | `string` |
+| `redLightLevel` | `number` |
+| `greenLightLevel` | `number` |
+| `blueLightLevel` | `number` |
+| `rotatable` | `boolean` |
+| `yRotatable` | `boolean` |
+| `isBlock` | `boolean` |
+| `isEmpty` | `boolean` |
+| `isFluid` | `boolean` |
+| `isLight` | `boolean` |
+| `isPlant` | `boolean` |
+| `isPlantable` | `boolean` |
+| `isSolid` | `boolean` |
+| `isTransparent` | `boolean` |
+| `transparentStandalone` | `boolean` |
+| `faces` | [`BlockFace`](modules.md#blockface-14)[] |
+| `aabbs` | `AABB`[] |
+
+___
+
+### TextureRange
+
+Ƭ **TextureRange**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `startU` | `number` |
+| `endU` | `number` |
+| `startV` | `number` |
+| `endV` | `number` |
+
+___
+
+### Coords2
+
+Ƭ **Coords2**: [`number`, `number`]
+
+___
+
+### Coords3
+
+Ƭ **Coords3**: [`number`, `number`, `number`]
+
+___
+
+### ServerMesh
+
+Ƭ **ServerMesh**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `opaque?` | [`MeshData`](modules.md#meshdata-14) |
+| `transparent?` | [`MeshData`](modules.md#meshdata-14) |
+
+___
+
+### MeshData
+
+Ƭ **MeshData**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `positions` | `Float32Array` |
+| `indices` | `Int32Array` |
+| `uvs` | `Float32Array` |
+| `lights` | `Int32Array` |
+
+___
+
+### BaseWorldParams
+
+Ƭ **BaseWorldParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `chunkSize` | `number` |
+| `maxHeight` | `number` |
+| `maxLightLevel` | `number` |
+
+___
+
+### MESSAGE\_TYPE
+
+Ƭ **MESSAGE\_TYPE**: ``"ERROR"`` \| ``"SERVER"`` \| ``"PLAYER"`` \| ``"INFO"``
+
+___
+
+### CSSMeasurement
+
+Ƭ **CSSMeasurement**: \`${number}${string}\`
+
+A CSS measurement. E.g. "30px", "51em"
+
 ## Variables
 
 ### DirtyFlag
 
-• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-56)<`unknown`\>
+• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-14)<`unknown`\>
 
 ___
 
 ### EntityFlag
 
-• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-56)<`unknown`\>
+• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-14)<`unknown`\>
 
 ___
 
 ### ClientFlag
 
-• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-56)<`unknown`\>
+• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-14)<`unknown`\>
 
 ___
 
 ### ChunkFlag
 
-• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-56)<`unknown`\>
+• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-14)<`unknown`\>
 
 ___
 
 ### HeadingComponent
 
-• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`Vector3`\>
+• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`Vector3`\>
 
 ___
 
 ### IDComponent
 
-• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`string`\>
+• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`string`\>
 
 ___
 
 ### MeshComponent
 
-• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`Object3D`<`Event`\>\>
+• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`Object3D`<`Event`\>\>
 
 ___
 
 ### MetadataComponent
 
-• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<{ `[key: string]`: `any`;  }\>
+• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<{ `[key: string]`: `any`;  }\>
 
 ___
 
 ### NameComponent
 
-• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`string`\>
+• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`string`\>
 
 ___
 
 ### Position3DComponent
 
-• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`Vector3`\>
+• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`Vector3`\>
 
 ___
 
 ### TargetComponent
 
-• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`Vector3`\>
+• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`Vector3`\>
 
 ___
 
 ### TypeComponent
 
-• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-56)<`string`\>
+• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-14)<`string`\>
+
+___
+
+### defaultBlock
+
+• `Const` **defaultBlock**: [`Block`](modules.md#block-14)
 
 ## Functions
 
@@ -511,11 +708,11 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `getVoxel` | `GetVoxel` |
-| `origin` | `Coords3` |
-| `direction` | `Coords3` |
+| `origin` | [`Coords3`](modules.md#coords3-14) |
+| `direction` | [`Coords3`](modules.md#coords3-14) |
 | `maxD` | `number` |
-| `hitPos` | `Coords3` |
-| `hitNorm` | `Coords3` |
+| `hitPos` | [`Coords3`](modules.md#coords3-14) |
+| `hitNorm` | [`Coords3`](modules.md#coords3-14) |
 
 #### Returns
 
