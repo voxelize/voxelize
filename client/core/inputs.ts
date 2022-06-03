@@ -2,8 +2,23 @@ import Mousetrap from "mousetrap";
 
 import { Client } from "..";
 
+/**
+ * Three types of clicking for mouse input listening.
+ */
 type ClickType = "left" | "middle" | "right";
+
+/**
+ * Different namespaces that the {@link Inputs} is in.
+ * - `in-game`: Keys registered in-game will be fired.
+ * - `chat`: Keys registered for the chat will be fired.
+ * - `menu`: Keys registered otherwise will be fired.
+ * - `*`: Keys will be fired no matter what.
+ */
 type InputNamespace = "in-game" | "chat" | "inventory" | "menu" | "*";
+
+/**
+ * The occasion that the input should be fired.
+ */
 type InputOccasion = "keydown" | "keypress" | "keyup";
 
 type ClickCallbacks = { callback: () => void; namespace: InputNamespace }[];
@@ -13,15 +28,41 @@ type ScrollCallbacks = {
   namespace: InputNamespace;
 }[];
 
+/**
+ * A **built-in** key-bind manager for Voxelize. Uses the [mousetrap](https://github.com/ccampbell/mousetrap)
+ * library internally.
+ *
+ * ## Example
+ * Print "Hello world" on <kbd>p</kbd> presses:
+ * ```typescript
+ * client.inputs.bind(
+ *   "p",
+ *   () => {
+ *     console.log("Hello world");
+ *   },
+ *   "*"
+ * );
+ * ```
+ */
 class Inputs {
+  /**
+   * The namespace that the Voxelize inputs is in. Use `setNamespace` to
+   * set the namespace for namespace checking.
+   */
   public namespace: InputNamespace = "menu";
   public combos: Map<string, string> = new Map();
   public callbacks: Map<string, () => void> = new Map();
-  public clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
-  public scrollCallbacks: ScrollCallbacks = [];
+
+  private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
+  private scrollCallbacks: ScrollCallbacks = [];
 
   private unbinds: (() => void)[] = [];
 
+  /**
+   * Construct a Voxelize inputs instance.
+   *
+   * @hidden
+   */
   constructor(public client: Client) {
     this.add("forward", "w");
     this.add("backward", "s");
@@ -39,49 +80,13 @@ class Inputs {
     this.initScrollListener();
   }
 
-  initClickListener = () => {
-    (["left", "middle", "right"] as ClickType[]).forEach((type) =>
-      this.clickCallbacks.set(type, [])
-    );
-
-    const listener = ({ button }: MouseEvent) => {
-      if (!this.client.controls.isLocked) return;
-
-      let callbacks: ClickCallbacks = [];
-
-      if (button === 0) callbacks = this.clickCallbacks.get("left") as any;
-      else if (button === 1)
-        callbacks = this.clickCallbacks.get("middle") as any;
-      else if (button === 2)
-        callbacks = this.clickCallbacks.get("right") as any;
-
-      callbacks.forEach(({ namespace, callback }) => {
-        if (this.namespace === namespace) callback();
-      });
-    };
-
-    document.addEventListener("mousedown", listener, false);
-    this.unbinds.push(() =>
-      document.removeEventListener("mousedown", listener, false)
-    );
-  };
-
-  initScrollListener = () => {
-    const listener = ({ deltaY }: any) => {
-      if (!this.client.controls.isLocked) return;
-
-      this.scrollCallbacks.forEach(({ up, down, namespace }) => {
-        if (this.namespace === namespace) {
-          if (deltaY > 0) up(deltaY);
-          else if (deltaY < 0) down(deltaY);
-        }
-      });
-    };
-
-    document.addEventListener("wheel", listener);
-    this.unbinds.push(() => document.removeEventListener("wheel", listener));
-  };
-
+  /**
+   * Register a new click event listener.
+   *
+   * @param type - Which mouse button to register on.
+   * @param callback - What to do when that button is clicked.
+   * @param namespace - Which namespace should this event be fired?
+   */
   click = (
     type: ClickType,
     callback: () => void,
@@ -90,6 +95,13 @@ class Inputs {
     this.clickCallbacks.get(type)?.push({ namespace, callback });
   };
 
+  /**
+   * Register a new scroll event listener.
+   *
+   * @param up - What to do when scrolled upwards.
+   * @param down - What to do when scrolled downwards.
+   * @param namespace - Which namespace should this even be fired?
+   */
   scroll = (
     up: (delta?: number) => void,
     down: (delta?: number) => void,
@@ -98,19 +110,23 @@ class Inputs {
     this.scrollCallbacks.push({ up, down, namespace });
   };
 
-  add = (name: string, combo: string) => {
-    this.combos.set(name, combo);
-  };
-
+  /**
+   * Register a key-bind event listener.
+   *
+   * @param name - The name of the key or key combo to listen on.
+   * @param callback - What to do when the key/combo is pressed.
+   * @param namespace - The namespace in which the to fire this event.
+   * @param specifics - Used to specify in more details when/where the press occurs.
+   * @param specifics.occasion - Which pressing occasion should the event be fired.
+   * @param specifics.element - Which element should the key binding be bound to.
+   */
   bind = (
     name: string,
     callback: () => void,
     namespace: InputNamespace,
-    {
-      occasion = "keydown",
-      element,
-    }: { occasion?: InputOccasion; element?: HTMLElement } = {}
+    specifics: { occasion?: InputOccasion; element?: HTMLElement } = {}
   ) => {
+    const { occasion = "keydown", element } = specifics;
     let combo = this.combos.get(name);
 
     if (!combo) {
@@ -139,13 +155,78 @@ class Inputs {
     });
   };
 
+  /**
+   * Set the namespace of the inputs instance, also checks if the namespace is valid.
+   *
+   * @param namespace - The namespace to set to.
+   */
   setNamespace = (namespace: InputNamespace) => {
+    if (!["*", "in-game", "chat", "menu"].includes(namespace)) {
+      throw new Error(
+        `Set namespace to unknown namespace: ${namespace}. Known namespaces are: chat, in-game, menu, *.`
+      );
+    }
+
     this.namespace = namespace;
   };
 
+  /**
+   * Dispose all event listeners.
+   *
+   * @internal
+   */
   dispose = () => {
     this.unbinds.forEach((fn) => fn());
   };
+
+  private initClickListener = () => {
+    (["left", "middle", "right"] as ClickType[]).forEach((type) =>
+      this.clickCallbacks.set(type, [])
+    );
+
+    const listener = ({ button }: MouseEvent) => {
+      if (!this.client.controls.isLocked) return;
+
+      let callbacks: ClickCallbacks = [];
+
+      if (button === 0) callbacks = this.clickCallbacks.get("left") as any;
+      else if (button === 1)
+        callbacks = this.clickCallbacks.get("middle") as any;
+      else if (button === 2)
+        callbacks = this.clickCallbacks.get("right") as any;
+
+      callbacks.forEach(({ namespace, callback }) => {
+        if (this.namespace === namespace) callback();
+      });
+    };
+
+    document.addEventListener("mousedown", listener, false);
+    this.unbinds.push(() =>
+      document.removeEventListener("mousedown", listener, false)
+    );
+  };
+
+  private initScrollListener = () => {
+    const listener = ({ deltaY }: any) => {
+      if (!this.client.controls.isLocked) return;
+
+      this.scrollCallbacks.forEach(({ up, down, namespace }) => {
+        if (this.namespace === namespace) {
+          if (deltaY > 0) up(deltaY);
+          else if (deltaY < 0) down(deltaY);
+        }
+      });
+    };
+
+    document.addEventListener("wheel", listener);
+    this.unbinds.push(() => document.removeEventListener("wheel", listener));
+  };
+
+  private add = (name: string, combo: string) => {
+    this.combos.set(name, combo);
+  };
 }
+
+export type { ClickType, InputNamespace, InputOccasion };
 
 export { Inputs };
