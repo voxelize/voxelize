@@ -27,7 +27,7 @@ ___
 
 ### params
 
-• **params**: [`ChatParams`](../modules.md#chatparams-328)
+• **params**: [`ChatParams`](../modules.md#chatparams)
 
 Parameters to initialize the Voxelize chat.
 
@@ -84,7 +84,7 @@ Add a message to the chat.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `data` | `Object` | The data of new chat message. |
-| `data.type` | [`MESSAGE_TYPE`](../modules.md#message_type-328) | Type of message, used for color rendering. |
+| `data.type` | [`MESSAGE_TYPE`](../modules.md#message_type) | Type of message, used for color rendering. |
 | `data.sender?` | `string` | The name of the sender. |
 | `data.body?` | `string` | The body text of the message. |
 
