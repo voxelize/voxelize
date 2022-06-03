@@ -78,7 +78,7 @@ ___
 
 #### Inherited from
 
-[Entity](Entity.md).[entId](Entity.md#entid)
+[Entity](Entity.md).[entId](Entity.md#entid-56)
 
 ___
 
@@ -90,7 +90,7 @@ Informs if the entity is active
 
 #### Inherited from
 
-[Entity](Entity.md).[active](Entity.md#active)
+[Entity](Entity.md).[active](Entity.md#active-56)
 
 ## Constructors
 
@@ -100,7 +100,7 @@ Informs if the entity is active
 
 #### Overrides
 
-[Entity](Entity.md).[constructor](Entity.md#constructor)
+[Entity](Entity.md).[constructor](Entity.md#constructor-56)
 
 ## Accessors
 
@@ -224,7 +224,7 @@ Allows interested parties to receive information when this entity's component li
 
 | Name | Type |
 | :------ | :------ |
-| `handler` | [`Susbcription`](../modules.md#susbcription) |
+| `handler` | [`Susbcription`](../modules.md#susbcription-56) |
 
 #### Returns
 
@@ -240,7 +240,7 @@ Allows interested parties to receive information when this entity's component li
 
 #### Inherited from
 
-[Entity](Entity.md).[subscribe](Entity.md#subscribe)
+[Entity](Entity.md).[subscribe](Entity.md#subscribe-56)
 
 ___
 
@@ -262,7 +262,7 @@ Add a component to this entity
 
 #### Inherited from
 
-[Entity](Entity.md).[add](Entity.md#add)
+[Entity](Entity.md).[add](Entity.md#add-56)
 
 ___
 
@@ -284,4 +284,4 @@ Removes a component's reference from this entity
 
 #### Inherited from
 
-[Entity](Entity.md).[remove](Entity.md#remove)
+[Entity](Entity.md).[remove](Entity.md#remove-56)

@@ -7,18 +7,39 @@ custom_edit_url: null
 ---
 
 The main Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming.
+The camera by default has a zoom of 1.0.
 
 ## Example
-```typescript
-// Access it by:
-console.log(client.camera)
+This is an example on binding the `v` key to zooming the camera by a factor of 2.
+```ts 
+client.inputs.bind(
+  "v",
+  () => {
+    client.camera.setZoom(2);
+  },
+  "in-game",
+  {
+    occasion: "keydown",
+  }
+);
+
+client.inputs.bind(
+  "v",
+  () => {
+    client.camera.setZoom(1);
+  },
+  "in-game",
+  {
+    occasion: "keyup",
+  }
+);
 ```
 
 ## Properties
 
 ### params
 
-• **params**: [`CameraParams`](../modules.md#cameraparams)
+• **params**: [`CameraParams`](../modules.md#cameraparams-56)
 
 Parameters to customize the Voxelize camera.
 
@@ -27,6 +48,8 @@ ___
 ### threeCamera
 
 • **threeCamera**: `PerspectiveCamera`
+
+The inner ThreeJS perspective camera instance.
 
 ___
 
@@ -40,34 +63,28 @@ ___
 
 • **new Camera**(`client`, `params?`)
 
+Construct a new Voxelize camera instance, setting up ThreeJS camera.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`CameraParams`](../modules.md#cameraparams)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `client` | [`Client`](Client.md) | Reference back to the client instance. |
+| `params` | `Partial`<[`CameraParams`](../modules.md#cameraparams-56)\> | Parameters to customize this Voxelize camera. |
 
 ## Methods
-
-### update
-
-▸ **update**(): `void`
-
-#### Returns
-
-`void`
-
-___
 
 ### setZoom
 
 ▸ **setZoom**(`zoom`): `void`
 
+Interpolate the camera's zoom. Default zoom is 1.0.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `zoom` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `zoom` | `number` | The new zoom for the camera to lerp to. |
 
 #### Returns
 
@@ -79,11 +96,13 @@ ___
 
 ▸ **setFOV**(`fov`): `void`
 
+Interpolate the camera's FOV. Default FOV is 90.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `fov` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `fov` | `number` | The new field of view to lerp to. |
 
 #### Returns
 

@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams)
+• **params**: [`PeerParams`](../modules.md#peerparams-56)
 
 ___
 
@@ -35,7 +35,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams)\> |
+| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-56)\> |
 
 #### Overrides
 

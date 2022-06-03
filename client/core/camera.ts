@@ -47,13 +47,34 @@ const defaultParams: CameraParams = {
 };
 
 /**
- * The main Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming.
+ * The main Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming. 
+ * The camera by default has a zoom of 1.0.
  *
  * ## Example
-```typescript
-// Access it by:
-console.log(client.camera)
-```
+ * This is an example on binding the `v` key to zooming the camera by a factor of 2.
+ * ```ts 
+ * client.inputs.bind(
+ *   "v",
+ *   () => {
+ *     client.camera.setZoom(2);
+ *   },
+ *   "in-game",
+ *   {
+ *     occasion: "keydown",
+ *   }
+ * );
+
+ * client.inputs.bind(
+ *   "v",
+ *   () => {
+ *     client.camera.setZoom(1);
+ *   },
+ *   "in-game",
+ *   {
+ *     occasion: "keyup",
+ *   }
+ * );
+ * ```
  *
  */
 class Camera {
@@ -61,11 +82,21 @@ class Camera {
    * Parameters to customize the Voxelize camera.
    */
   public params: CameraParams;
+
+  /**
+   * The inner ThreeJS perspective camera instance.
+   */
   public threeCamera: PerspectiveCamera;
 
   private newZoom: number;
   private newFOV: number;
 
+  /**
+   * Construct a new Voxelize camera instance, setting up ThreeJS camera.
+   *
+   * @param client - Reference back to the client instance.
+   * @param params - Parameters to customize this Voxelize camera.
+   */
   constructor(public client: Client, params: Partial<CameraParams> = {}) {
     const { fov, near, far } = (this.params = {
       ...defaultParams,
@@ -96,6 +127,29 @@ class Camera {
     });
   }
 
+  /**
+   * Interpolate the camera's zoom. Default zoom is 1.0.
+   *
+   * @param zoom - The new zoom for the camera to lerp to.
+   */
+  setZoom = (zoom: number) => {
+    this.newZoom = zoom;
+  };
+
+  /**
+   * Interpolate the camera's FOV. Default FOV is 90.
+   *
+   * @param fov - The new field of view to lerp to.
+   */
+  setFOV = (fov: number) => {
+    this.newFOV = fov;
+  };
+
+  /**
+   * Updater of the camera.
+   *
+   * @hidden
+   */
   update = () => {
     if (this.newFOV !== this.threeCamera.fov) {
       this.threeCamera.fov = MathUtils.lerp(
@@ -117,14 +171,6 @@ class Camera {
 
     this.threeCamera.updateMatrix();
     this.threeCamera.updateMatrixWorld();
-  };
-
-  setZoom = (zoom: number) => {
-    this.newZoom = zoom;
-  };
-
-  setFOV = (fov: number) => {
-    this.newFOV = fov;
   };
 }
 

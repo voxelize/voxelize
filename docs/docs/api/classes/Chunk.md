@@ -98,7 +98,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk) |
+| `data` | [`ServerChunk`](../modules.md#serverchunk-56) |
 | `scene` | `Scene` |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |

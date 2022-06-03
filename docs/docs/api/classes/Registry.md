@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams)
+• **params**: [`RegistryParams`](../modules.md#registryparams-56)
 
 ___
 
@@ -70,8 +70,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-56) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-56) |
 
 ___
 
@@ -90,7 +90,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams)\> |
+| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-56)\> |
 
 ## Methods
 

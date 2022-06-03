@@ -16,13 +16,13 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`EntitiesParams`](../modules.md#entitiesparams)
+• **params**: [`EntitiesParams`](../modules.md#entitiesparams-56)
 
 ___
 
 ### knownTypes
 
-• **knownTypes**: `Map`<`string`, [`NewEntity`](../modules.md#newentity)\>
+• **knownTypes**: `Map`<`string`, [`NewEntity`](../modules.md#newentity-56)\>
 
 ___
 
@@ -41,7 +41,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`EntitiesParams`](../modules.md#entitiesparams)\> |
+| `params` | `Partial`<[`EntitiesParams`](../modules.md#entitiesparams-56)\> |
 
 #### Overrides
 
@@ -74,7 +74,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `type` | `string` |
-| `protocol` | [`NewEntity`](../modules.md#newentity) |
+| `protocol` | [`NewEntity`](../modules.md#newentity-56) |
 
 #### Returns
 
