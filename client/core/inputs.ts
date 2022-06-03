@@ -117,8 +117,8 @@ class Inputs {
    * @param callback - What to do when the key/combo is pressed.
    * @param namespace - The namespace in which the to fire this event.
    * @param specifics - Used to specify in more details when/where the press occurs.
-   * @param specifics.occasion - Which pressing occasion should the event be fired.
-   * @param specifics.element - Which element should the key binding be bound to.
+   * @param specifics.occasion - Which pressing occasion should the event be fired. Defaults to "keydown".
+   * @param specifics.element - Which element should the key binding be bound to. Defaults to "document".
    */
   bind = (
     name: string,
