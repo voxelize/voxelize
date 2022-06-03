@@ -61,7 +61,7 @@ const config = {
         title: "Voxelize",
         logo: {
           alt: "Voxelize Logo",
-          src: "img/logo/tree_transparent.svg",
+          src: "img/logo/tree_transparent_compressed.svg",
         },
         items: [
           {
@@ -129,6 +129,23 @@ const config = {
         additionalLanguages: ["toml", "rust"],
       },
     }),
+  plugins: [
+    [
+      "docusaurus-plugin-typedoc",
+      {
+        entryPoints: ["../client/index.ts"],
+        tsconfig: "../tsconfig.json",
+        hidePageTitle: true,
+        excludePrivate: true,
+        excludeProtected: true,
+        excludeExternals: true,
+        entryDocument: "none",
+        disableSources: true,
+        sort: ["source-order"],
+        watch: process.env.TYPEDOC_WATCH,
+      },
+    ],
+  ],
 };
 
 module.exports = config;

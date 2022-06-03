@@ -3,6 +3,9 @@ import { ChatHistory, ChatMessage } from "../libs";
 import { MESSAGE_TYPE } from "../types";
 import { DOMUtils } from "../utils";
 
+/**
+ * Test test test
+ */
 type CSSMeasurement = `${number}${string}`;
 
 const HELP_TEXT = `
@@ -343,4 +346,6 @@ class Chat {
   };
 }
 
-export { Chat, ChatParams };
+export type { ChatParams, CSSMeasurement };
+
+export { Chat };

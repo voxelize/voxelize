@@ -1,13 +1,39 @@
-import { PerspectiveCamera, Vector3, MathUtils, Matrix4 } from "three";
+import { PerspectiveCamera, Vector3, MathUtils } from "three";
 
 import { Client } from "..";
 
+/**
+ * Parameters to customize the Voxelize camera.
+ */
 type CameraParams = {
+  /**
+   * Default camera field of view. Defaults to `90`.
+   */
   fov: number;
+
+  /**
+   * Default nearest distance camera can render. Defaults to `0.1`.
+   */
   near: number;
+
+  /**
+   * Default farthest distance camera can render. Defaults to `2000`.
+   */
   far: number;
+
+  /**
+   * Lerp factor of camera FOV/zoom change. Defaults to `0.7`.
+   */
   lerpFactor: number;
+
+  /**
+   * Minimum polar angle that camera can look down to. Defaults to `0`.
+   */
   minPolarAngle: number;
+
+  /**
+   * Maximum polar angle that camera can look up to. Defaults to `Math.PI`
+   */
   maxPolarAngle: number;
 };
 
@@ -21,26 +47,20 @@ const defaultParams: CameraParams = {
 };
 
 /**
- * A wrapper class around THREE.JS's perspective camera, adding on custom functionalities
- * for Voxelize and in-game utilities such as FOV interpolating
+ * The main Voxelize camera class using ThreeJS's `PerspectiveCamera`, adding custom functionalities such as FOV interpolating and camera zooming.
  *
- * @class Camera
+ * ## Example
+```typescript
+// Access it by:
+console.log(client.camera)
+```
+ *
  */
 class Camera {
   /**
-   * An object storing the parameters passed on `Camera` construction
-   *
-   * @type {CameraParams}
-   * @memberof Camera
+   * Parameters to customize the Voxelize camera.
    */
   public params: CameraParams;
-
-  /**
-   * Actual THREE.JS `PerspectiveCamera` instance
-   *
-   * @type {PerspectiveCamera}
-   * @memberof Camera
-   */
   public threeCamera: PerspectiveCamera;
 
   private newZoom: number;
@@ -76,13 +96,6 @@ class Camera {
     });
   }
 
-  /**
-   * Update for the camera of the game, does the following:
-   * - interpolate FOV to a new value if `camera.setFOV` is called
-   * - interpolate zoom to a new value if `camera.setZoom` is called
-   *
-   * @memberof Camera
-   */
   update = () => {
     if (this.newFOV !== this.threeCamera.fov) {
       this.threeCamera.fov = MathUtils.lerp(
@@ -106,24 +119,10 @@ class Camera {
     this.threeCamera.updateMatrixWorld();
   };
 
-  /**
-   * Set the zoom of the game camera, gets lerp over time. Default is 1.
-   *
-   * @param zoom - The desired zoom for camera
-   *
-   * @memberof Camera
-   */
   setZoom = (zoom: number) => {
     this.newZoom = zoom;
   };
 
-  /**
-   * Set the FOV of the game camera, gets lerp over time. Default is 90.
-   *
-   * @param fov - The desired FOV for camera
-   *
-   * @memberof Camera
-   */
   setFOV = (fov: number) => {
     this.newFOV = fov;
   };

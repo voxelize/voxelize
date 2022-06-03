@@ -13,8 +13,6 @@ import { CanvasBox } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
 
-export const hi = "hi";
-
 const STAR_COLORS = [
   "#FFFFFF",
   "#FFFFFF",
