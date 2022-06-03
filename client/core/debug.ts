@@ -7,9 +7,18 @@ import { NameTag } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 
-type FormatterType = (input: any) => string;
+/**
+ * Formats any values into a presentable string representation.
+ */
+type Formatter = (input: any) => string;
 
+/**
+ * Parameters to initialize the Voxelize debug panel.
+ */
 type DebugParams = {
+  /**
+   * Whether should debug be on by default. Defaults to `true`.
+   */
   onByDefault: boolean;
 };
 
@@ -19,46 +28,53 @@ const defaultParams: DebugParams = {
 
 /**
  * Debugger for Voxelize, including the following features:
- * - Top-left panel for in-game object attribute inspection
- * - Bottom-left corner for detailed FPS data
- * - Top-right corner for interactive debugging pane
- *
- * @class Debug
+ * - Top-left panel for in-game object attribute inspection and FPS data.
+ * - Top-right corner for interactive debugging pane>
  */
 class Debug {
   /**
-   * Top-right corner of debug, used for interactive debugging
-   *
-   * @type {Pane}
-   * @memberof Debug
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * Top-right corner [pane](https://cocopon.github.io/tweakpane/) of debug,
+   * used for interactive debugging.
    */
   public gui: Pane;
 
   /**
-   * Bottom-left panel for performance statistics
-   *
-   * @type {Stats}
-   * @memberof Debug
+   * Panel for performance statistics. Check out [stats.js](https://github.com/mrdoob/stats.js/) for more.
    */
   public stats: Stats;
 
+  /**
+   * A DOM wrapper for the top-left panel.
+   */
   public dataWrapper: HTMLDivElement;
-  public dataEntries: {
+
+  private dataEntries: {
     ele: HTMLParagraphElement;
     obj?: any;
     attribute?: string;
     title: string;
-    formatter: FormatterType;
+    formatter: Formatter;
   }[] = [];
 
   private group = new Group();
 
   private atlasTest: Mesh;
 
+  /**
+   * Construct a Voxelize debug instance.
+   *
+   * @hidden
+   */
   constructor(
-    public client: Client,
+    client: Client,
     params: Partial<DebugParams> = { ...defaultParams }
   ) {
+    this.client = client;
     this.gui = new Pane({ title: "Voxelize Debug Panel" });
 
     // wait till all client members are initialized
@@ -90,9 +106,9 @@ class Debug {
   }
 
   /**
-   * Update for the debug of the game
+   * Update for the debug of the game.
    *
-   * @memberof Debug
+   * @hidden
    */
   update = () => {
     // loop through all data entries, and get their latest updated values
@@ -106,9 +122,7 @@ class Debug {
   };
 
   /**
-   * Toggle debug visually, both UI and in-game elements
-   *
-   * @memberof Debug
+   * Toggle debug visually, both UI and in-game elements.
    */
   toggle = () => {
     const display = this.dataWrapper.style.display;
@@ -123,20 +137,18 @@ class Debug {
 
   /**
    * Register an entry for the debug info-panel, which gets appended
-   * to the top left corner of the debug screen
+   * to the top left corner of the debug screen.
    *
-   * @param title - The title of the entry
-   * @param object - The object to listen to changes on
-   * @param [attribute] - The attribute in the object to listen on
-   * @param [formatter] - A function passed on the new data before updating the entry
-   *
-   * @memberof Debug
+   * @param title - The title of the entry.
+   * @param object - The object to listen to changes on.
+   * @param attribute - The attribute in the object to listen on.
+   * @param formatter - A function passed on the new data before updating the entry.
    */
   registerDisplay = (
     title: string,
     object?: any,
     attribute?: string,
-    formatter: FormatterType = (str) => str
+    formatter: Formatter = (str) => str
   ) => {
     const wrapper = this.makeDataEntry();
 
@@ -153,11 +165,9 @@ class Debug {
   };
 
   /**
-   * Display a static title in the debug info-panel
+   * Display a static title in the debug info-panel.
    *
-   * @param title - Title content of display entry
-   *
-   * @memberof Debug
+   * @param title - Title content of display entry.
    */
   displayTitle = (title: string) => {
     const newline = this.makeDataEntry(true);
@@ -166,9 +176,7 @@ class Debug {
   };
 
   /**
-   * Add a new line at the bottom of current info-panel
-   *
-   * @memberof Debug
+   * Add a new line at the bottom of current info-panel.
    */
   displayNewline = () => {
     const newline = this.makeDataEntry(true);
@@ -176,10 +184,7 @@ class Debug {
   };
 
   /**
-   * Memory usage of current page
-   *
-   * @readonly
-   * @memberof Debug
+   * Memory usage of current page.
    */
   get memoryUsage() {
     // @ts-ignore
@@ -187,6 +192,22 @@ class Debug {
     if (!info) return "unknown";
     const { usedJSHeapSize, jsHeapSizeLimit } = info;
     return `${MathUtils.round(usedJSHeapSize / jsHeapSizeLimit, 2)}%`;
+  }
+
+  /**
+   * The light value at which the client is at.
+   */
+  get light() {
+    const { voxel } = this.client.controls;
+    return this.client.world.getSunlightByVoxel(...voxel);
+  }
+
+  /**
+   * The maximum height of the voxel column the client is at.
+   */
+  get maxHeight() {
+    const { voxel } = this.client.controls;
+    return this.client.world.getMaxHeight(voxel[0], voxel[2]);
   }
 
   // create a data entry element
@@ -430,16 +451,8 @@ class Debug {
       "in-game"
     );
   };
-
-  get light() {
-    const { voxel } = this.client.controls;
-    return this.client.world.getSunlightByVoxel(...voxel);
-  }
-
-  get maxHeight() {
-    const { voxel } = this.client.controls;
-    return this.client.world.getMaxHeight(voxel[0], voxel[2]);
-  }
 }
+
+export type { Formatter };
 
 export { Debug };

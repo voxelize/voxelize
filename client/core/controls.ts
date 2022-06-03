@@ -288,7 +288,13 @@ const defaultParams: ControlsParams = {
 
 /**
  * Inspired by THREE.JS's PointerLockControls, the **built-in** main control of the game
- * so that the player can move freely around the world
+ * so that the player can move freely around the world.
+ *
+ * ## Example
+ * Printing the voxel that the client is in:
+ * ```ts
+ * console.log(client.controls.voxel);
+ * ```
  *
  * @noInheritDoc
  */

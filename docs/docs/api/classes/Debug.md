@@ -7,19 +7,25 @@ custom_edit_url: null
 ---
 
 Debugger for Voxelize, including the following features:
-- Top-left panel for in-game object attribute inspection
-- Bottom-left corner for detailed FPS data
-- Top-right corner for interactive debugging pane
+- Top-left panel for in-game object attribute inspection and FPS data.
+- Top-right corner for interactive debugging pane>
 
 ## Properties
+
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
 
 ### gui
 
 • **gui**: `Pane`
 
-Top-right corner of debug, used for interactive debugging
-
-**`memberof`** Debug
+Top-right corner [pane](https://cocopon.github.io/tweakpane/) of debug,
+used for interactive debugging.
 
 ___
 
@@ -27,9 +33,7 @@ ___
 
 • **stats**: `Stats`
 
-Bottom-left panel for performance statistics
-
-**`memberof`** Debug
+Panel for performance statistics. Check out [stats.js](https://github.com/mrdoob/stats.js/) for more.
 
 ___
 
@@ -37,54 +41,15 @@ ___
 
 • **dataWrapper**: `HTMLDivElement`
 
-___
-
-### dataEntries
-
-• **dataEntries**: { `ele`: `HTMLParagraphElement` ; `obj?`: `any` ; `attribute?`: `string` ; `title`: `string` ; `formatter`: `FormatterType`  }[] = `[]`
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Debug**(`client`, `params?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | `Partial`<`DebugParams`\> |
+A DOM wrapper for the top-left panel.
 
 ## Methods
-
-### update
-
-▸ **update**(): `void`
-
-Update for the debug of the game
-
-**`memberof`** Debug
-
-#### Returns
-
-`void`
-
-___
 
 ### toggle
 
 ▸ **toggle**(): `void`
 
-Toggle debug visually, both UI and in-game elements
-
-**`memberof`** Debug
+Toggle debug visually, both UI and in-game elements.
 
 #### Returns
 
@@ -97,18 +62,16 @@ ___
 ▸ **registerDisplay**(`title`, `object?`, `attribute?`, `formatter?`): `void`
 
 Register an entry for the debug info-panel, which gets appended
-to the top left corner of the debug screen
-
-**`memberof`** Debug
+to the top left corner of the debug screen.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `title` | `string` | The title of the entry |
-| `object?` | `any` | The object to listen to changes on |
-| `attribute?` | `string` | - |
-| `formatter` | `FormatterType` | - |
+| `title` | `string` | The title of the entry. |
+| `object?` | `any` | The object to listen to changes on. |
+| `attribute?` | `string` | The attribute in the object to listen on. |
+| `formatter` | [`Formatter`](../modules.md#formatter-12) | A function passed on the new data before updating the entry. |
 
 #### Returns
 
@@ -120,15 +83,13 @@ ___
 
 ▸ **displayTitle**(`title`): `void`
 
-Display a static title in the debug info-panel
-
-**`memberof`** Debug
+Display a static title in the debug info-panel.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `title` | `string` | Title content of display entry |
+| `title` | `string` | Title content of display entry. |
 
 #### Returns
 
@@ -140,9 +101,7 @@ ___
 
 ▸ **displayNewline**(): `void`
 
-Add a new line at the bottom of current info-panel
-
-**`memberof`** Debug
+Add a new line at the bottom of current info-panel.
 
 #### Returns
 
@@ -154,11 +113,7 @@ Add a new line at the bottom of current info-panel
 
 • `get` **memoryUsage**(): `string`
 
-Memory usage of current page
-
-**`readonly`**
-
-**`memberof`** Debug
+Memory usage of current page.
 
 #### Returns
 
@@ -170,6 +125,8 @@ ___
 
 • `get` **light**(): `number`
 
+The light value at which the client is at.
+
 #### Returns
 
 `number`
@@ -179,6 +136,8 @@ ___
 ### maxHeight
 
 • `get` **maxHeight**(): `number`
+
+The maximum height of the voxel column the client is at.
 
 #### Returns
 
