@@ -3,7 +3,7 @@ import { PerspectiveCamera, Vector3, MathUtils } from "three";
 import { Client } from "..";
 
 /**
- * Parameters to initialize the Voxelize camera.
+ * Parameters to initialize the Voxelize {@link Camera}.
  */
 type CameraParams = {
   /**

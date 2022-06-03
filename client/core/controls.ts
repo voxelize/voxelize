@@ -50,7 +50,7 @@ function rotateY(a: number[], b: number[], c: number) {
 }
 
 /**
- * The state of which a Voxelize control is in.
+ * The state of which a Voxelize {@link Controls} is in.
  */
 type ControlState = {
   /**
@@ -107,7 +107,7 @@ const defaultControlState: ControlState = {
 };
 
 /**
- * Parameters to initialize the Voxelize controls.
+ * Parameters to initialize the Voxelize {@link Controls}.
  */
 type ControlsParams = {
   /**

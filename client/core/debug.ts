@@ -13,7 +13,7 @@ import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 type Formatter = (input: any) => string;
 
 /**
- * Parameters to initialize the Voxelize debug panel.
+ * Parameters to initialize the Voxelize {@link Debug} panel.
  */
 type DebugParams = {
   /**

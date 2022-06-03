@@ -110,14 +110,6 @@ class Box extends BaseEntity {
 
     this.mesh.add(nameTag);
   }
-
-  onCreation = (client: Client) => {
-    client.rendering.scene.add(this.mesh);
-  };
-
-  onDeletion = (client: Client) => {
-    client.rendering.scene.remove(this.mesh);
-  };
 }
 
 class UpdateBoxSystem extends System {

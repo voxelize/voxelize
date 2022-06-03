@@ -19,7 +19,7 @@ Basic controls of the game:
 `;
 
 /**
- * Parameters to initialize the Voxelize chat.
+ * Parameters to initialize the Voxelize {@link Chat}.
  */
 type ChatParams = {
   /**

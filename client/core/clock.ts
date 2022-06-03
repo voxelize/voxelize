@@ -1,7 +1,7 @@
 import { Client } from "..";
 
 /**
- * Parameters to initialize the Voxelize clock.
+ * Parameters to initialize the Voxelize {@link Clock}.
  */
 type ClockParams = {
   /**

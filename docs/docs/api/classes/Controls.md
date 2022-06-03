@@ -33,7 +33,7 @@ ___
 
 ### params
 
-• **params**: [`ControlsParams`](../modules.md#controlsparams-126)
+• **params**: [`ControlsParams`](../modules.md#controlsparams-260)
 
 Parameters to initialize the Voxelize controls.
 
@@ -49,7 +49,7 @@ ___
 
 ### state
 
-• **state**: [`ControlState`](../modules.md#controlstate-126)
+• **state**: [`ControlState`](../modules.md#controlstate-260)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -76,7 +76,7 @@ ___
 
 ### lookBlock
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3-126)
+• **lookBlock**: [`Coords3`](../modules.md#coords3-260)
 
 The voxel at which the client is looking at.
 
@@ -92,7 +92,7 @@ The block that a client can potentially place at.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3-126) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
+| `voxel` | [`Coords3`](../modules.md#coords3-260) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
 | `rotation` | `number` | The rotation of the block that may be placed. |
 | `yRotation` | `number` | The rotation on the y-axis of the block that may be placed. |
 
@@ -294,34 +294,34 @@ ___
 
 ### position
 
-• `get` **position**(): [`Coords3`](../modules.md#coords3-126)
+• `get` **position**(): [`Coords3`](../modules.md#coords3-260)
 
 The 3D position that the client is at.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-126)
+[`Coords3`](../modules.md#coords3-260)
 
 ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-126)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-260)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-126)
+[`Coords3`](../modules.md#coords3-260)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-126)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-260)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-126)
+[`Coords2`](../modules.md#coords2-260)

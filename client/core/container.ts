@@ -2,7 +2,7 @@ import { Client } from "..";
 import { DOMUtils } from "../utils";
 
 /**
- * Parameters to initialize the Voxelize container.
+ * Parameters to initialize the Voxelize {@link Container}.
  */
 type ContainerParams = {
   /**

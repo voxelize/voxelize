@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`PhysicsParams`](../modules.md#physicsparams-126)
+• **params**: [`PhysicsParams`](../modules.md#physicsparams-260)
 
 ___
 
@@ -35,7 +35,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`PhysicsParams`](../modules.md#physicsparams-126)\> |
+| `params` | `Partial`<[`PhysicsParams`](../modules.md#physicsparams-260)\> |
 
 ## Methods
 

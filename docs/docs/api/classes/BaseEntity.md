@@ -6,6 +6,10 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+The base class of an entity in the ECS on the client-side. Entities are all
+server based, meaning that other than the entity `mesh` field, mutating values
+within does not affect the actual entities living on the server.
+
 ## Hierarchy
 
 - [`Entity`](Entity.md)
@@ -14,21 +18,27 @@ custom_edit_url: null
 
 ## Properties
 
-### LERP\_FACTOR
-
-▪ `Static` **LERP\_FACTOR**: `number` = `1`
-
-___
-
 ### id
 
 • **id**: `string`
+
+The ID of the entity, used for data syncing.
 
 ___
 
 ### type
 
 • **type**: `string`
+
+The type of the entity, used to differentiate entities.
+
+___
+
+### LERP\_FACTOR
+
+▪ `Static` **LERP\_FACTOR**: `number` = `1`
+
+The **shared** interpolation factor of all entities.
 
 ___
 
@@ -39,6 +49,8 @@ ___
 #### Type declaration
 
 ▸ (`client`): `void`
+
+If implemented, gets called when a new entity of this type is created.
 
 ##### Parameters
 
@@ -60,6 +72,8 @@ ___
 
 ▸ (`client`): `void`
 
+If implemented, gets called when a new entity of this type is deleted.
+
 ##### Parameters
 
 | Name | Type |
@@ -70,137 +84,39 @@ ___
 
 `void`
 
-___
-
-### entId
-
-• **entId**: `number`
-
-#### Inherited from
-
-[Entity](Entity.md).[entId](Entity.md#entid-126)
-
-___
-
-### active
-
-• **active**: `boolean` = `true`
-
-Informs if the entity is active
-
-#### Inherited from
-
-[Entity](Entity.md).[active](Entity.md#active-126)
-
 ## Constructors
 
 ### constructor
 
 • **new BaseEntity**()
 
+Construct a new entity with some preset ECS components:
+- [EntityFlag](../modules.md#entityflag-260)
+- [MeshComponent](../modules.md#meshcomponent-260)
+- [Position3DComponent](../modules.md#position3dcomponent-260)
+- [HeadingComponent](../modules.md#headingcomponent-260)
+- [TargetComponent](../modules.md#targetcomponent-260)
+- [MetadataComponent](../modules.md#metadatacomponent-260)
+
 #### Overrides
 
-[Entity](Entity.md).[constructor](Entity.md#constructor-126)
+[Entity](Entity.md).[constructor](Entity.md#constructor-260)
 
 ## Accessors
-
-### metadata
-
-• `get` **metadata**(): `Object`
-
-#### Returns
-
-`Object`
-
-• `set` **metadata**(`m`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `m` | `Object` |
-
-#### Returns
-
-`void`
-
-___
-
-### position
-
-• `get` **position**(): `Vector3`
-
-#### Returns
-
-`Vector3`
-
-• `set` **position**(`p`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `p` | `Vector3` |
-
-#### Returns
-
-`void`
-
-___
-
-### target
-
-• `get` **target**(): `Vector3`
-
-#### Returns
-
-`Vector3`
-
-• `set` **target**(`t`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `t` | `Vector3` |
-
-#### Returns
-
-`void`
-
-___
-
-### heading
-
-• `get` **heading**(): `Vector3`
-
-#### Returns
-
-`Vector3`
-
-• `set` **heading**(`h`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `h` | `Vector3` |
-
-#### Returns
-
-`void`
-
-___
 
 ### mesh
 
 • `get` **mesh**(): `Object3D`<`Event`\>
+
+Get the position of the entity.
 
 #### Returns
 
 `Object3D`<`Event`\>
 
 • `set` **mesh**(`mesh`): `void`
+
+Set the position of the entity.
 
 #### Parameters
 
@@ -211,77 +127,3 @@ ___
 #### Returns
 
 `void`
-
-## Methods
-
-### subscribe
-
-▸ **subscribe**(`handler`): () => [`Entity`](Entity.md)
-
-Allows interested parties to receive information when this entity's component list is updated
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `handler` | [`Susbcription`](../modules.md#susbcription-126) |
-
-#### Returns
-
-`fn`
-
-▸ (): [`Entity`](Entity.md)
-
-Allows interested parties to receive information when this entity's component list is updated
-
-##### Returns
-
-[`Entity`](Entity.md)
-
-#### Inherited from
-
-[Entity](Entity.md).[subscribe](Entity.md#subscribe-126)
-
-___
-
-### add
-
-▸ **add**(`component`): `void`
-
-Add a component to this entity
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `component` | [`Component`](Component.md)<`any`\> |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-[Entity](Entity.md).[add](Entity.md#add-126)
-
-___
-
-### remove
-
-▸ **remove**(`component`): `void`
-
-Removes a component's reference from this entity
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `component` | [`Component`](Component.md)<`any`\> |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-[Entity](Entity.md).[remove](Entity.md#remove-126)
