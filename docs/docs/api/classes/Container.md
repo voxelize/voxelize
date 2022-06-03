@@ -14,7 +14,7 @@ The class managing the container of the game. Does the following:
 
 ### params
 
-• **params**: [`ContainerParams`](../modules.md#containerparams-36)
+• **params**: [`ContainerParams`](../modules.md#containerparams)
 
 An object storing the parameters passed on `Container` construction
 
@@ -74,7 +74,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`ContainerParams`](../modules.md#containerparams-36)\> |
+| `params` | `Partial`<[`ContainerParams`](../modules.md#containerparams)\> |
 
 ## Methods
 

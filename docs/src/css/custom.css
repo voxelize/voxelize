@@ -28,3 +28,7 @@
   --ifm-color-primary-lightest: #80e6d9;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+.server-api-button a svg {
+  display: none;
+}

@@ -28,7 +28,7 @@ ___
 
 ### toProcess
 
-• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-36)[] = `[]`
+• **toProcess**: [`ServerChunk`](../modules.md#serverchunk)[] = `[]`
 
 ___
 
@@ -58,13 +58,13 @@ ___
 
 Map<string, Chunk\>.constructor
 
-• **new Chunks**(`iterable?`)
+• **new Chunks**(`iterable`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `iterable?` | `Iterable`<readonly [`string`, [`Chunk`](Chunk.md)]\> |
+| `iterable` | `Iterable`<readonly [`string`, [`Chunk`](Chunk.md)]\> |
 
 #### Inherited from
 

@@ -19,7 +19,7 @@ so that the player can move freely around the world
 
 ### params
 
-• **params**: [`ControlsParams`](../modules.md#controlsparams-36)
+• **params**: [`ControlsParams`](../modules.md#controlsparams)
 
 An object storing parameters passed on `Controls` construction
 
@@ -108,7 +108,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams-36)\> |
+| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams)\> |
 
 #### Overrides
 

@@ -182,7 +182,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`WorldInitParams`](../modules.md#worldinitparams-36)\> |
+| `params` | `Partial`<[`WorldInitParams`](../modules.md#worldinitparams)\> |
 
 ## Methods
 
@@ -274,7 +274,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk-36) | `undefined` |
+| `data` | [`ServerChunk`](../modules.md#serverchunk) | `undefined` |
 | `urgent` | `boolean` | `false` |
 
 #### Returns

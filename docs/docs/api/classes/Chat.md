@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`ChatParams`](../modules.md#chatparams-36)
+• **params**: [`ChatParams`](../modules.md#chatparams)
 
 ___
 
@@ -61,7 +61,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`ChatParams`](../modules.md#chatparams-36)\> |
+| `params` | `Partial`<[`ChatParams`](../modules.md#chatparams)\> |
 
 ## Methods
 

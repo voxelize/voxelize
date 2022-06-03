@@ -83,13 +83,13 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-4) |
+| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement) |
 | `margin` | `number` |
 | `align` | ``"left"`` \| ``"center"`` \| ``"right"`` |
-| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-4) |
-| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-4) |
-| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-4) |
-| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-4) |
+| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement) |
+| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement) |
+| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement) |
+| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement) |
 | `disappearTimeout` | `number` |
 | `connectionMessage` | `string` |
 | `disconnectionMessage` | `string` |
@@ -262,7 +262,7 @@ ___
 | `maxRequestsPerTick` | `number` |
 | `maxProcessesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
-| `skyFaces` | `PartialRecord`<[`BoxSides`](modules.md#boxsides-36), `SkyFace`\> |
+| `skyFaces` | `PartialRecord`<[`BoxSides`](modules.md#boxsides), `SkyFace`\> |
 
 ___
 
@@ -432,73 +432,73 @@ ___
 
 ### DirtyFlag
 
-• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-36)<`unknown`\>
+• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype)<`unknown`\>
 
 ___
 
 ### EntityFlag
 
-• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-36)<`unknown`\>
+• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype)<`unknown`\>
 
 ___
 
 ### ClientFlag
 
-• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-36)<`unknown`\>
+• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype)<`unknown`\>
 
 ___
 
 ### ChunkFlag
 
-• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-36)<`unknown`\>
+• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype)<`unknown`\>
 
 ___
 
 ### HeadingComponent
 
-• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`Vector3`\>
+• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`Vector3`\>
 
 ___
 
 ### IDComponent
 
-• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`string`\>
+• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`string`\>
 
 ___
 
 ### MeshComponent
 
-• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`Object3D`<`Event`\>\>
+• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`Object3D`<`Event`\>\>
 
 ___
 
 ### MetadataComponent
 
-• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<{ `[key: string]`: `any`;  }\>
+• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype)<{ `[key: string]`: `any`;  }\>
 
 ___
 
 ### NameComponent
 
-• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`string`\>
+• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`string`\>
 
 ___
 
 ### Position3DComponent
 
-• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`Vector3`\>
+• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`Vector3`\>
 
 ___
 
 ### TargetComponent
 
-• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`Vector3`\>
+• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`Vector3`\>
 
 ___
 
 ### TypeComponent
 
-• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-36)<`string`\>
+• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype)<`string`\>
 
 ## Functions
 

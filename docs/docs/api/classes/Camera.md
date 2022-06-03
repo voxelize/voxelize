@@ -18,7 +18,7 @@ console.log(client.camera)
 
 ### params
 
-• **params**: [`CameraParams`](../modules.md#cameraparams-36)
+• **params**: [`CameraParams`](../modules.md#cameraparams)
 
 Parameters to customize the Voxelize camera.
 
@@ -45,7 +45,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`CameraParams`](../modules.md#cameraparams-36)\> |
+| `params` | `Partial`<[`CameraParams`](../modules.md#cameraparams)\> |
 
 ## Methods
 

@@ -16,7 +16,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `textureMap` | `Map`<`string`, `Texture` \| `Color`\> |
+| `textureMap` | `Map`<`string`, `Color` \| `Texture`\> |
 | `ranges` | `Map`<`string`, `TextureRange`\> |
 | `params` | `TextureAtlasParams` |
 
