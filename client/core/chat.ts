@@ -78,7 +78,7 @@ type ChatParams = {
   messagesWidth: CSSMeasurement;
 
   /**
-   * Symbol to activate typing a command, needs to be 1 character long! Defaults to '/'.
+   * Symbol to activate typing a command, needs to be 1 character long! Defaults to `/`.
    */
   commandSymbol: string;
 };

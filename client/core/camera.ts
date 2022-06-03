@@ -25,16 +25,6 @@ type CameraParams = {
    * Lerp factor of camera FOV/zoom change. Defaults to `0.7`.
    */
   lerpFactor: number;
-
-  /**
-   * Minimum polar angle that camera can look down to. Defaults to `0`.
-   */
-  minPolarAngle: number;
-
-  /**
-   * Maximum polar angle that camera can look up to. Defaults to `Math.PI`
-   */
-  maxPolarAngle: number;
 };
 
 const defaultParams: CameraParams = {
@@ -42,8 +32,6 @@ const defaultParams: CameraParams = {
   near: 0.1,
   far: 2000,
   lerpFactor: 0.7,
-  minPolarAngle: 0,
-  maxPolarAngle: Math.PI,
 };
 
 /**

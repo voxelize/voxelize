@@ -49,20 +49,52 @@ function rotateY(a: number[], b: number[], c: number) {
   return out;
 }
 
-type BrainStateType = {
-  heading: number; // radians, heading location
+/**
+ * The state of which a Voxelize control is in.
+ */
+type ControlState = {
+  /**
+   * In radians, the heading y-rotation of the client. Defaults to `0`.
+   */
+  heading: number;
+
+  /**
+   * Whether if the client is running. Defaults to `false`.
+   */
   running: boolean;
+
+  /**
+   * Whether if the client is attempting to jump, if the jump key is pressed. Defaults to `false`.
+   */
   jumping: boolean;
+
+  /**
+   * Whether if the client is attempting to sprint, if the sprint key is pressed. Defaults to `false`.
+   */
   sprinting: boolean;
+
+  /**
+   * Whether if the client is attempting to crouch, if the crouch key is pressed. Defaults to `false`.
+   */
   crouching: boolean;
 
-  // internal state
+  /**
+   * How many times has the client jumped. Defaults to `0`.
+   */
   jumpCount: number;
+
+  /**
+   * Whether or not is the client jumping, in the air. Defaults to `false`.
+   */
   isJumping: boolean;
+
+  /**
+   * The current amount of time spent in the air from jump. Defaults to `0`.
+   */
   currentJumpTime: number;
 };
 
-const defaultBrainState: BrainStateType = {
+const defaultControlState: ControlState = {
   heading: 0,
   running: false,
   jumping: false,
@@ -74,47 +106,153 @@ const defaultBrainState: BrainStateType = {
   currentJumpTime: 0,
 };
 
+/**
+ * Parameters to initialize the Voxelize controls.
+ */
 type ControlsParams = {
+  /**
+   * The mouse sensitivity. Defaults to `100`.
+   */
   sensitivity: number;
-  acceleration: number;
-  flyingInertia: number;
+
+  /**
+   * Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`.
+   */
   minPolarAngle: number;
+
+  /**
+   * Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99`
+   */
   maxPolarAngle: number;
+
+  /**
+   * The scale of the outline of the looking block. Defaults to `1.002`.
+   */
   lookBlockScale: number;
+
+  /**
+   * The color of the outline of the looking block. Defaults to `black`.
+   */
   lookBlockColor: string;
+
+  /**
+   * The interpolation factor of the looking block changing. Defaults to `1`, immediate changes.
+   */
   lookBlockLerp: number;
+
+  /**
+   * The maximum distance a client can reach a block. Defaults to `32`.
+   */
   reachDistance: number;
+
+  /**
+   * Initial position of the client. Defaults to `(0, 80, 10)`.
+   */
   initialPosition: Coords3;
+
+  /**
+   * The interpolation factor of the client's rotation. Defaults to `0.9`.
+   */
   rotationLerp: number;
 
+  /**
+   * The width of the client's avatar. Defaults to `0.8` blocks.
+   */
   bodyWidth: number;
+
+  /**
+   * The height of the client's avatar. Defaults to `1.8` blocks.
+   */
   bodyHeight: number;
+
+  /**
+   * The depth of the client's avatar. Defaults to `0.8` blocks.
+   */
   bodyDepth: number;
+
+  /**
+   * The height from the ground at which the camera of the client is placed at. Defaults at `0.8`.
+   */
   eyeHeight: number;
 
+  /**
+   * The maximum level of speed of a client. Default is `6` .
+   */
   maxSpeed: number;
+
+  /**
+   * The level of force of which the client can move at. Default is `30`.
+   */
   moveForce: number;
+
+  /**
+   * The level of responsiveness of a client to movements. Default is `240`.
+   */
   responsiveness: number;
+
+  /**
+   * Default running friction of a client. Defaults to `0.1`.
+   */
   runningFriction: number;
+
+  /**
+   * Default standing friction of a client. Defaults to `4`.
+   */
   standingFriction: number;
 
+  /**
+   * The level of speed at which a client flies at. Defaults to `40`.
+   */
   flySpeed: number;
+
+  /**
+   * The level of force at which a client flies at. Defaults to `80`.
+   */
   flyForce: number;
+
+  /**
+   * The level impulse of which a client flies at. Defaults to `2.5`.
+   */
   flyImpulse: number;
+
+  /**
+   * The inertia of a client when they're flying. Defaults to `3`.
+   */
   flyInertia: number;
 
+  /**
+   * The factor to the movement speed when sprint is applied. Defaults to `1.4`.
+   */
   sprintFactor: number;
+
+  /**
+   * The factor applied to the movements of the client in air, such as while half-jump. Defaults to `0.7`.
+   */
   airMoveMult: number;
+
+  /**
+   * The level of impulse at which the client jumps upwards. Defaults to `8`.
+   */
   jumpImpulse: number;
+
+  /**
+   * The level of force applied to the client when jumping. Defaults to `1`.
+   */
   jumpForce: number;
-  jumpTime: number; // ms
+
+  /**
+   * The time, in milliseconds, that a client can be jumping. Defaults to `50`ms.
+   */
+  jumpTime: number;
+
+  /**
+   * How many times can a client jump in the air. Defaults to `0`.
+   */
   airJumps: number;
 };
 
 const defaultParams: ControlsParams = {
   sensitivity: 100,
-  acceleration: 1.6,
-  flyingInertia: 5,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
   lookBlockScale: 1.002,
@@ -149,43 +287,67 @@ const defaultParams: ControlsParams = {
 };
 
 /**
- * Inspired by THREE.JS's PointerLockControls, the main control of the game
+ * Inspired by THREE.JS's PointerLockControls, the **built-in** main control of the game
  * so that the player can move freely around the world
  *
- * @class Controls
- * @extends {EventDispatcher}
+ * @noInheritDoc
  */
 class Controls extends EventDispatcher {
   /**
-   * An object storing parameters passed on `Controls` construction
-   *
-   * @type {ControlsParams}
-   * @memberof Controls
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * Parameters to initialize the Voxelize controls.
    */
   public params: ControlsParams;
 
   /**
-   * A THREE.JS object, parent to the camera for pointerlock controls
-   *
-   * @memberof Controls
+   * A THREE.JS object, parent to the camera for pointerlock controls.
    */
   public object = new Group();
 
-  public state: BrainStateType = defaultBrainState;
+  /**
+   * The state of the control, indicating things like whether or not the client is running.
+   */
+  public state: ControlState;
 
   /**
-   * Flag indicating whether pointerlock controls have control over mouse
-   *
-   * @memberof Controls
+   * Flag indicating whether pointerlock controls have control over the cursor.
    */
   public isLocked = false;
 
+  /**
+   * The physical rigid body of the client, dimensions described by:
+   * - `params.bodyWidth`
+   * - `params.bodyHeight`
+   * - `params.bodyDepth`
+   */
   public body: RigidBody;
 
+  /**
+   * The voxel at which the client is looking at.
+   */
   public lookBlock: Coords3 | null = [0, 0, 0];
+
+  /**
+   * The block that a client can potentially place at.
+   */
   public targetBlock: {
+    /**
+     * The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`.
+     */
     voxel: Coords3;
+
+    /**
+     * The rotation of the block that may be placed.
+     */
     rotation: number;
+
+    /**
+     * The rotation on the y-axis of the block that may be placed.
+     */
     yRotation: number;
   } | null = {
     voxel: [0, 0, 0],
@@ -212,8 +374,16 @@ class Controls extends EventDispatcher {
   private quaternion = new Quaternion();
   private vector = new Vector3();
 
-  constructor(public client: Client, options: Partial<ControlsParams> = {}) {
+  /**
+   * Construct a Voxelize controls.
+   *
+   * @hidden
+   */
+  constructor(client: Client, options: Partial<ControlsParams> = {}) {
     super();
+
+    this.client = client;
+    this.state = defaultControlState;
 
     const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
       ...defaultParams,
@@ -240,10 +410,9 @@ class Controls extends EventDispatcher {
   }
 
   /**
-   * Update for the camera of the game, does the following:
-   * - Move `controls.object` around according to input
+   * Update for the camera of the game.
    *
-   * @memberof Controls
+   * @hidden
    */
   update = () => {
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
@@ -261,7 +430,7 @@ class Controls extends EventDispatcher {
    * - Key up/down events
    * - Control lock/unlock events
    *
-   * @memberof Controls
+   * @hidden
    */
   connect = () => {
     this.client.container.domElement.ownerDocument.addEventListener(
@@ -277,7 +446,11 @@ class Controls extends EventDispatcher {
       this.onPointerlockError
     );
 
-    this.client.container.canvas.addEventListener("click", this.onCanvasClick);
+    this.client.container.canvas.addEventListener(
+      "click",
+      this.onCanvasClick,
+      false
+    );
 
     document.addEventListener("keydown", this.onKeyDown, false);
     document.addEventListener("keyup", this.onKeyUp, false);
@@ -294,7 +467,7 @@ class Controls extends EventDispatcher {
    * - Key up/down events
    * - Control lock/unlock events
    *
-   * @memberof Controls
+   * @hidden
    */
   disconnect = () => {
     this.client.container.domElement.ownerDocument.removeEventListener(
@@ -312,7 +485,8 @@ class Controls extends EventDispatcher {
 
     this.client.container.canvas.removeEventListener(
       "click",
-      this.onCanvasClick
+      this.onCanvasClick,
+      false
     );
 
     document.removeEventListener("keydown", this.onKeyDown, false);
@@ -323,43 +497,20 @@ class Controls extends EventDispatcher {
   };
 
   /**
-   * Disposal of `Controls`, disconnects all event listeners
-   *
-   * @memberof Controls
+   * Get the direction that the client is looking at.
    */
-  dispose = () => {
-    this.disconnect();
+  getDirection = () => {
+    return new Vector3(0, 0, -1)
+      .applyQuaternion(this.object.quaternion)
+      .normalize();
   };
 
-  getDirection = (() => {
-    const v = new Vector3();
-    const direction = new Vector3(0, 0, -1);
-
-    return () => {
-      return v
-        .copy(direction)
-        .applyQuaternion(this.object.quaternion)
-        .normalize();
-    };
-  })();
-
-  moveForward = (distance: number) => {
-    // move forward parallel to the xz-plane
-    // assumes camera.up is y-up
-
-    this.vector.setFromMatrixColumn(this.object.matrix, 0);
-
-    this.vector.crossVectors(this.object.up, this.vector);
-
-    this.object.position.addScaledVector(this.vector, distance);
-  };
-
-  moveRight = (distance: number) => {
-    this.vector.setFromMatrixColumn(this.object.matrix, 0);
-
-    this.object.position.addScaledVector(this.vector, distance);
-  };
-
+  /**
+   * Lock the cursor to the game, calling `requestPointerLock` on `client.container.domElement`.
+   * Needs to be called within a DOM event listener callback!
+   *
+   * @param callback - Callback to be run once done.
+   */
   lock = (callback?: () => void) => {
     this.client.container.domElement.requestPointerLock();
 
@@ -368,6 +519,12 @@ class Controls extends EventDispatcher {
     }
   };
 
+  /**
+   * Unlock the cursor from the game, calling `exitPointerLock` on `document`. Needs to be
+   * called within a DOM event listener callback!
+   *
+   * @param callback - Callback to be run once done.
+   */
   unlock = (callback?: () => void) => {
     this.client.container.domElement.ownerDocument.exitPointerLock();
 
@@ -376,12 +533,26 @@ class Controls extends EventDispatcher {
     }
   };
 
+  /**
+   * Set the position of the client.
+   *
+   * @param x - X-coordinate to be at.
+   * @param y - Y-coordinate to be at.
+   * @param z - Z-coordinate to be at.
+   */
   setPosition = (x: number, y: number, z: number) => {
     const { eyeHeight, bodyHeight } = this.params;
     this.object.position.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
     this.body.setPosition([x, y, z]);
   };
 
+  /**
+   * Make the client look at a coordinate.
+   *
+   * @param x - X-coordinate to look at.
+   * @param y - Y-coordinate to look at.
+   * @param z - Z-coordinate to look at.
+   */
   lookAt = (x: number, y: number, z: number) => {
     const vec = this.object.position
       .clone()
@@ -389,13 +560,9 @@ class Controls extends EventDispatcher {
     this.object.lookAt(vec);
   };
 
-  reset = () => {
-    this.setPosition(...this.params.initialPosition);
-    this.object.rotation.set(0, 0, 0);
-
-    this.resetMovements();
-  };
-
+  /**
+   * Reset all of the control's movements.
+   */
   resetMovements = () => {
     this.movements = {
       sprint: false,
@@ -408,6 +575,9 @@ class Controls extends EventDispatcher {
     };
   };
 
+  /**
+   * Toggle ghost mode. Ghost mode is when a client can fly through blocks.
+   */
   toggleGhostMode = () => {
     const { aabb } = this.body;
     const [px, py, pz] = this.position;
@@ -435,14 +605,73 @@ class Controls extends EventDispatcher {
     }
   };
 
+  /**
+   * Reset the controls instance.
+   *
+   * @internal
+   */
+  reset = () => {
+    this.setPosition(...this.params.initialPosition);
+    this.object.rotation.set(0, 0, 0);
+
+    this.resetMovements();
+  };
+
+  /**
+   * Disposal of `Controls`, disconnects all event listeners.
+   *
+   * @internal
+   */
+  dispose = () => {
+    this.disconnect();
+  };
+
+  /**
+   * Move the client forward/backward by a certain distance.
+   *
+   * @internal
+   * @param distance - Distance to move forward by.
+   */
+  moveForward = (distance: number) => {
+    // move forward parallel to the xz-plane
+    // assumes camera.up is y-up
+
+    this.vector.setFromMatrixColumn(this.object.matrix, 0);
+
+    this.vector.crossVectors(this.object.up, this.vector);
+
+    this.object.position.addScaledVector(this.vector, distance);
+  };
+
+  /**
+   * Move the client left/right by a certain distance.
+   *
+   * @internal
+   * @param distance - Distance to move left/right by.
+   */
+  moveRight = (distance: number) => {
+    this.vector.setFromMatrixColumn(this.object.matrix, 0);
+
+    this.object.position.addScaledVector(this.vector, distance);
+  };
+
+  /**
+   * Whether if the client is in ghost mode. Ghost mode means client can fly through blocks.
+   */
   get ghostMode() {
     return this.body.aabb.width <= 0;
   }
 
+  /**
+   * The 3D position that the client is at.
+   */
   get position() {
     return this.body.getPosition() as Coords3;
   }
 
+  /**
+   * The voxel coordinates that the client is on.
+   */
   get voxel() {
     return ChunkUtils.mapWorldPosToVoxelPos(
       this.position,
@@ -450,6 +679,9 @@ class Controls extends EventDispatcher {
     );
   }
 
+  /**
+   * The chunk that the client is situated in.
+   */
   get chunk() {
     return ChunkUtils.mapVoxelPosToChunkPos(
       this.voxel,
@@ -1064,6 +1296,6 @@ class Controls extends EventDispatcher {
   };
 }
 
-export type { ControlsParams };
+export type { ControlsParams, ControlState };
 
 export { Controls };

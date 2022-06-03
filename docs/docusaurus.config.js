@@ -148,6 +148,7 @@ const config = {
           position: null,
           autoConfiguration: true,
         },
+        plugin: ["typedoc-plugin-no-inherit"],
         watch: process.env.TYPEDOC_WATCH,
         preserveWatchOutput: true,
       },

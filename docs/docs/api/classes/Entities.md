@@ -16,13 +16,13 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`EntitiesParams`](../modules.md#entitiesparams-114)
+• **params**: [`EntitiesParams`](../modules.md#entitiesparams-64)
 
 ___
 
 ### knownTypes
 
-• **knownTypes**: `Map`<`string`, [`NewEntity`](../modules.md#newentity-114)\>
+• **knownTypes**: `Map`<`string`, [`NewEntity`](../modules.md#newentity-64)\>
 
 ___
 
@@ -48,7 +48,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@9023
+Map.\_\_@toStringTag@10001
 
 ___
 
@@ -58,7 +58,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@10075
+Map.\_\_@species@10520
 
 ## Constructors
 
@@ -71,7 +71,7 @@ Map.\_\_@species@10075
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`EntitiesParams`](../modules.md#entitiesparams-114)\> |
+| `params` | `Partial`<[`EntitiesParams`](../modules.md#entitiesparams-64)\> |
 
 #### Overrides
 
@@ -104,7 +104,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `type` | `string` |
-| `protocol` | [`NewEntity`](../modules.md#newentity-114) |
+| `protocol` | [`NewEntity`](../modules.md#newentity-64) |
 
 #### Returns
 
@@ -260,7 +260,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@10084
+Map.\_\_@iterator@10005
 
 ___
 

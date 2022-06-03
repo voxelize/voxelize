@@ -6,7 +6,7 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-Inspired by THREE.JS's PointerLockControls, the main control of the game
+Inspired by THREE.JS's PointerLockControls, the **built-in** main control of the game
 so that the player can move freely around the world
 
 ## Hierarchy
@@ -17,13 +17,19 @@ so that the player can move freely around the world
 
 ## Properties
 
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
+
 ### params
 
-• **params**: [`ControlsParams`](../modules.md#controlsparams-114)
+• **params**: [`ControlsParams`](../modules.md#controlsparams-64)
 
-An object storing parameters passed on `Controls` construction
-
-**`memberof`** Controls
+Parameters to initialize the Voxelize controls.
 
 ___
 
@@ -31,15 +37,15 @@ ___
 
 • **object**: `Group`
 
-A THREE.JS object, parent to the camera for pointerlock controls
-
-**`memberof`** Controls
+A THREE.JS object, parent to the camera for pointerlock controls.
 
 ___
 
 ### state
 
-• **state**: `BrainStateType` = `defaultBrainState`
+• **state**: [`ControlState`](../modules.md#controlstate-64)
+
+The state of the control, indicating things like whether or not the client is running.
 
 ___
 
@@ -47,9 +53,7 @@ ___
 
 • **isLocked**: `boolean` = `false`
 
-Flag indicating whether pointerlock controls have control over mouse
-
-**`memberof`** Controls
+Flag indicating whether pointerlock controls have control over the cursor.
 
 ___
 
@@ -57,11 +61,18 @@ ___
 
 • **body**: `RigidBody`
 
+The physical rigid body of the client, dimensions described by:
+- `params.bodyWidth`
+- `params.bodyHeight`
+- `params.bodyDepth`
+
 ___
 
 ### lookBlock
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3-114)
+• **lookBlock**: [`Coords3`](../modules.md#coords3-64)
+
+The voxel at which the client is looking at.
 
 ___
 
@@ -69,149 +80,27 @@ ___
 
 • **targetBlock**: `Object`
 
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3-114) |
-| `rotation` | `number` |
-| `yRotation` | `number` |
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-___
-
-### getDirection
-
-• **getDirection**: () => `Vector3`
+The block that a client can potentially place at.
 
 #### Type declaration
 
-▸ (): `Vector3`
-
-##### Returns
-
-`Vector3`
-
-## Constructors
-
-### constructor
-
-• **new Controls**(`client`, `options?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams-114)\> |
-
-#### Overrides
-
-EventDispatcher.constructor
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | [`Coords3`](../modules.md#coords3-64) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
+| `rotation` | `number` | The rotation of the block that may be placed. |
+| `yRotation` | `number` | The rotation on the y-axis of the block that may be placed. |
 
 ## Methods
 
-### update
+### getDirection
 
-▸ **update**(): `void`
+▸ **getDirection**(): `Vector3`
 
-Update for the camera of the game, does the following:
-- Move `controls.object` around according to input
-
-**`memberof`** Controls
+Get the direction that the client is looking at.
 
 #### Returns
 
-`void`
-
-___
-
-### connect
-
-▸ **connect**(): `void`
-
-Sets up all event listeners for controls, including:
-- Mouse move event
-- Pointer-lock events
-- Canvas click event
-- Key up/down events
-- Control lock/unlock events
-
-**`memberof`** Controls
-
-#### Returns
-
-`void`
-
-___
-
-### disconnect
-
-▸ **disconnect**(): `void`
-
-Removes all event listeners for controls, including:
-- Mouse move event
-- Pointer-lock events
-- Canvas click event
-- Key up/down events
-- Control lock/unlock events
-
-**`memberof`** Controls
-
-#### Returns
-
-`void`
-
-___
-
-### dispose
-
-▸ **dispose**(): `void`
-
-Disposal of `Controls`, disconnects all event listeners
-
-**`memberof`** Controls
-
-#### Returns
-
-`void`
-
-___
-
-### moveForward
-
-▸ **moveForward**(`distance`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `distance` | `number` |
-
-#### Returns
-
-`void`
-
-___
-
-### moveRight
-
-▸ **moveRight**(`distance`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `distance` | `number` |
-
-#### Returns
-
-`void`
+`Vector3`
 
 ___
 
@@ -219,11 +108,14 @@ ___
 
 ▸ **lock**(`callback?`): `void`
 
+Lock the cursor to the game, calling `requestPointerLock` on `client.container.domElement`.
+Needs to be called within a DOM event listener callback!
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `callback?` | () => `void` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `callback?` | () => `void` | Callback to be run once done. |
 
 #### Returns
 
@@ -235,11 +127,14 @@ ___
 
 ▸ **unlock**(`callback?`): `void`
 
+Unlock the cursor from the game, calling `exitPointerLock` on `document`. Needs to be
+called within a DOM event listener callback!
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `callback?` | () => `void` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `callback?` | () => `void` | Callback to be run once done. |
 
 #### Returns
 
@@ -251,13 +146,15 @@ ___
 
 ▸ **setPosition**(`x`, `y`, `z`): `void`
 
+Set the position of the client.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `x` | `number` |
-| `y` | `number` |
-| `z` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `x` | `number` | X-coordinate to be at. |
+| `y` | `number` | Y-coordinate to be at. |
+| `z` | `number` | Z-coordinate to be at. |
 
 #### Returns
 
@@ -269,23 +166,15 @@ ___
 
 ▸ **lookAt**(`x`, `y`, `z`): `void`
 
+Make the client look at a coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `x` | `number` |
-| `y` | `number` |
-| `z` | `number` |
-
-#### Returns
-
-`void`
-
-___
-
-### reset
-
-▸ **reset**(): `void`
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `x` | `number` | X-coordinate to look at. |
+| `y` | `number` | Y-coordinate to look at. |
+| `z` | `number` | Z-coordinate to look at. |
 
 #### Returns
 
@@ -297,6 +186,8 @@ ___
 
 ▸ **resetMovements**(): `void`
 
+Reset all of the control's movements.
+
 #### Returns
 
 `void`
@@ -307,124 +198,87 @@ ___
 
 ▸ **toggleGhostMode**(): `void`
 
+Toggle ghost mode. Ghost mode is when a client can fly through blocks.
+
 #### Returns
 
 `void`
 
 ___
 
-### addEventListener
+### reset
 
-▸ **addEventListener**<`T`\>(`type`, `listener`): `void`
+▸ **reset**(): `void`
 
-Adds a listener to an event type.
+Reset the controls instance.
 
-#### Type parameters
+**`internal`**
 
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
+#### Returns
+
+`void`
+
+___
+
+### dispose
+
+▸ **dispose**(): `void`
+
+Disposal of `Controls`, disconnects all event listeners.
+
+**`internal`**
+
+#### Returns
+
+`void`
+
+___
+
+### moveForward
+
+▸ **moveForward**(`distance`): `void`
+
+Move the client forward/backward by a certain distance.
+
+**`internal`**
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Controls`](Controls.md)\> | The function that gets called when the event is fired. |
+| `distance` | `number` | Distance to move forward by. |
 
 #### Returns
 
 `void`
 
-#### Inherited from
-
-EventDispatcher.addEventListener
-
 ___
 
-### hasEventListener
+### moveRight
 
-▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
+▸ **moveRight**(`distance`): `void`
 
-Checks if listener is added to an event type.
+Move the client left/right by a certain distance.
 
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
+**`internal`**
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Controls`](Controls.md)\> | The function that gets called when the event is fired. |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-EventDispatcher.hasEventListener
-
-___
-
-### removeEventListener
-
-▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
-
-Removes a listener from an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`Controls`](Controls.md)\> | The listener function that gets removed. |
+| `distance` | `number` | Distance to move left/right by. |
 
 #### Returns
 
 `void`
-
-#### Inherited from
-
-EventDispatcher.removeEventListener
-
-___
-
-### dispatchEvent
-
-▸ **dispatchEvent**(`event`): `void`
-
-Fire an event type.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | `Event` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-EventDispatcher.dispatchEvent
 
 ## Accessors
 
 ### ghostMode
 
 • `get` **ghostMode**(): `boolean`
+
+Whether if the client is in ghost mode. Ghost mode means client can fly through blocks.
 
 #### Returns
 
@@ -434,28 +288,34 @@ ___
 
 ### position
 
-• `get` **position**(): [`Coords3`](../modules.md#coords3-114)
+• `get` **position**(): [`Coords3`](../modules.md#coords3-64)
+
+The 3D position that the client is at.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-114)
+[`Coords3`](../modules.md#coords3-64)
 
 ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-114)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-64)
+
+The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-114)
+[`Coords3`](../modules.md#coords3-64)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-114)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-64)
+
+The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-114)
+[`Coords2`](../modules.md#coords2-64)

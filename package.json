@@ -21,7 +21,7 @@
     "proto:js": "pbjs -t static-module -w commonjs -o client/protocol/index.js messages.proto",
     "proto": "yarn run proto:js && yarn run proto:ts",
     "docs": "yarn run docs:start",
-    "docs:start": "cd docs && yarn && yarn run start",
+    "docs:start": "cd docs && rimraf docs/docs/api && yarn && yarn run start",
     "docs:build": "cd docs && yarn && yarn run build",
     "docs:deploy": "cd docs && yarn && yarn run deploy"
   },

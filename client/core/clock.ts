@@ -5,7 +5,7 @@ import { Client } from "..";
  */
 type ClockParams = {
   /**
-   * The maximum delta allowed for each game loop. Defaults to 0.3.
+   * The maximum delta allowed for each game loop. Defaults to `0.3`.
    */
   maxDelta: number;
 };

@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-114)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-64)
 
 ___
 
@@ -54,7 +54,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-114)\> |
+| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-64)\> |
 
 ## Methods
 
@@ -76,8 +76,8 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-114) \| [`BoxSides`](../modules.md#boxsides-114)[] | `undefined` |
-| `art` | [`ArtFunction`](../modules.md#artfunction-114) \| `Color` \| `Texture` | `undefined` |
+| `side` | [`BoxSides`](../modules.md#boxsides-64) \| [`BoxSides`](../modules.md#boxsides-64)[] | `undefined` |
+| `art` | [`ArtFunction`](../modules.md#artfunction-64) \| `Color` \| `Texture` | `undefined` |
 | `layer` | `number` | `0` |
 
 #### Returns

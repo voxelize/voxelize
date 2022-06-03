@@ -60,8 +60,6 @@ Parameters to initialize the Voxelize camera.
 | `near` | `number` | Default nearest distance camera can render. Defaults to `0.1`. |
 | `far` | `number` | Default farthest distance camera can render. Defaults to `2000`. |
 | `lerpFactor` | `number` | Lerp factor of camera FOV/zoom change. Defaults to `0.7`. |
-| `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `0`. |
-| `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI` |
 
 ___
 
@@ -76,17 +74,17 @@ Parameters to initialize the Voxelize chat.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `align` | ``"left"`` \| ``"center"`` \| ``"right"`` | Alignment of the chat. Defaults to `left`. |
-| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-114) | Border radius of both the radius and the message list. Defaults to `4px`. |
+| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-64) | Border radius of both the radius and the message list. Defaults to `4px`. |
 | `connectionMessage` | `string` | The message sent when a connection is made. Defaults to `Connected to world! Try /help`. |
 | `disconnectionMessage` | `string` | The message sent when connection is lost. Defaults to `World disconnected. Reconnecting...`. |
 | `disappearTimeout` | `number` | The timeout for chat to disappear once input is closed in milliseconds. Defaults to `2000`. |
-| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-114) | The gap between the input and the message list. Defaults to `26px`. |
+| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-64) | The gap between the input and the message list. Defaults to `26px`. |
 | `helpText` | `string` | A text message that is sent to the client frontend-only when '/help' is typed in the chat. |
-| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-114) | Height of the chat input. Defaults to `29px`. |
-| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-114) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
-| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-114) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
-| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-114) | The default width of the message list. Defaults to `40vw`. |
-| `commandSymbol` | `string` | Symbol to activate typing a command, needs to be 1 character long! Defaults to '/'. |
+| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-64) | Height of the chat input. Defaults to `29px`. |
+| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-64) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
+| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-64) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
+| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-64) | The default width of the message list. Defaults to `40vw`. |
+| `commandSymbol` | `string` | Symbol to activate typing a command, needs to be 1 character long! Defaults to `/`. |
 
 ___
 
@@ -100,7 +98,7 @@ Parameters to initialize the Voxelize clock.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `maxDelta` | `number` | The maximum delta allowed for each game loop. Defaults to 0.3. |
+| `maxDelta` | `number` | The maximum delta allowed for each game loop. Defaults to `0.3`. |
 
 ___
 
@@ -120,44 +118,65 @@ Parameters to initialize the Voxelize container.
 
 ___
 
+### ControlState
+
+Ƭ **ControlState**: `Object`
+
+The state of which a Voxelize control is in.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `heading` | `number` | In radians, the heading y-rotation of the client. Defaults to `0`. |
+| `running` | `boolean` | Whether if the client is running. Defaults to `false`. |
+| `jumping` | `boolean` | Whether if the client is attempting to jump, if the jump key is pressed. Defaults to `false`. |
+| `sprinting` | `boolean` | Whether if the client is attempting to sprint, if the sprint key is pressed. Defaults to `false`. |
+| `crouching` | `boolean` | Whether if the client is attempting to crouch, if the crouch key is pressed. Defaults to `false`. |
+| `jumpCount` | `number` | How many times has the client jumped. Defaults to `0`. |
+| `isJumping` | `boolean` | Whether or not is the client jumping, in the air. Defaults to `false`. |
+| `currentJumpTime` | `number` | The current amount of time spent in the air from jump. Defaults to `0`. |
+
+___
+
 ### ControlsParams
 
 Ƭ **ControlsParams**: `Object`
 
+Parameters to initialize the Voxelize controls.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `sensitivity` | `number` |
-| `acceleration` | `number` |
-| `flyingInertia` | `number` |
-| `minPolarAngle` | `number` |
-| `maxPolarAngle` | `number` |
-| `lookBlockScale` | `number` |
-| `lookBlockColor` | `string` |
-| `lookBlockLerp` | `number` |
-| `reachDistance` | `number` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-114) |
-| `rotationLerp` | `number` |
-| `bodyWidth` | `number` |
-| `bodyHeight` | `number` |
-| `bodyDepth` | `number` |
-| `eyeHeight` | `number` |
-| `maxSpeed` | `number` |
-| `moveForce` | `number` |
-| `responsiveness` | `number` |
-| `runningFriction` | `number` |
-| `standingFriction` | `number` |
-| `flySpeed` | `number` |
-| `flyForce` | `number` |
-| `flyImpulse` | `number` |
-| `flyInertia` | `number` |
-| `sprintFactor` | `number` |
-| `airMoveMult` | `number` |
-| `jumpImpulse` | `number` |
-| `jumpForce` | `number` |
-| `jumpTime` | `number` |
-| `airJumps` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
+| `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
+| `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
+| `lookBlockScale` | `number` | The scale of the outline of the looking block. Defaults to `1.002`. |
+| `lookBlockColor` | `string` | The color of the outline of the looking block. Defaults to `black`. |
+| `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
+| `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-64) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
+| `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
+| `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.8` blocks. |
+| `bodyDepth` | `number` | The depth of the client's avatar. Defaults to `0.8` blocks. |
+| `eyeHeight` | `number` | The height from the ground at which the camera of the client is placed at. Defaults at `0.8`. |
+| `maxSpeed` | `number` | The maximum level of speed of a client. Default is `6` . |
+| `moveForce` | `number` | The level of force of which the client can move at. Default is `30`. |
+| `responsiveness` | `number` | The level of responsiveness of a client to movements. Default is `240`. |
+| `runningFriction` | `number` | Default running friction of a client. Defaults to `0.1`. |
+| `standingFriction` | `number` | Default standing friction of a client. Defaults to `4`. |
+| `flySpeed` | `number` | The level of speed at which a client flies at. Defaults to `40`. |
+| `flyForce` | `number` | The level of force at which a client flies at. Defaults to `80`. |
+| `flyImpulse` | `number` | The level impulse of which a client flies at. Defaults to `2.5`. |
+| `flyInertia` | `number` | The inertia of a client when they're flying. Defaults to `3`. |
+| `sprintFactor` | `number` | The factor to the movement speed when sprint is applied. Defaults to `1.4`. |
+| `airMoveMult` | `number` | The factor applied to the movements of the client in air, such as while half-jump. Defaults to `0.7`. |
+| `jumpImpulse` | `number` | The level of impulse at which the client jumps upwards. Defaults to `8`. |
+| `jumpForce` | `number` | The level of force applied to the client when jumping. Defaults to `1`. |
+| `jumpTime` | `number` | The time, in milliseconds, that a client can be jumping. Defaults to `50`ms. |
+| `airJumps` | `number` | How many times can a client jump in the air. Defaults to `0`. |
 
 ___
 
@@ -272,7 +291,7 @@ ___
 | `maxRequestsPerTick` | `number` |
 | `maxProcessesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
-| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-114)<[`BoxSides`](modules.md#boxsides-114), `SkyFace`\> |
+| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-64)<[`BoxSides`](modules.md#boxsides-64), `SkyFace`\> |
 
 ___
 
@@ -335,7 +354,7 @@ ___
 | `lights` | `Uint32Array` |
 | `voxels` | `Uint32Array` |
 | `heightMap` | `Uint32Array` |
-| `mesh` | [`ServerMesh`](modules.md#servermesh-114) |
+| `mesh` | [`ServerMesh`](modules.md#servermesh-64) |
 
 ___
 
@@ -522,7 +541,7 @@ ___
 
 ### BlockFace
 
-Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-114) \| keyof [`ThreeFaces`](modules.md#threefaces-114) \| keyof [`SixFaces`](modules.md#sixfaces-114) \| keyof [`PlantFaces`](modules.md#plantfaces-114)
+Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-64) \| keyof [`ThreeFaces`](modules.md#threefaces-64) \| keyof [`SixFaces`](modules.md#sixfaces-64) \| keyof [`PlantFaces`](modules.md#plantfaces-64)
 
 ___
 
@@ -550,7 +569,7 @@ ___
 | `isSolid` | `boolean` |
 | `isTransparent` | `boolean` |
 | `transparentStandalone` | `boolean` |
-| `faces` | [`BlockFace`](modules.md#blockface-114)[] |
+| `faces` | [`BlockFace`](modules.md#blockface-64)[] |
 | `aabbs` | `AABB`[] |
 
 ___
@@ -590,8 +609,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`MeshData`](modules.md#meshdata-114) |
-| `transparent?` | [`MeshData`](modules.md#meshdata-114) |
+| `opaque?` | [`MeshData`](modules.md#meshdata-64) |
+| `transparent?` | [`MeshData`](modules.md#meshdata-64) |
 
 ___
 
@@ -640,79 +659,79 @@ A CSS measurement. E.g. "30px", "51em"
 
 ### DirtyFlag
 
-• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-114)<`unknown`\>
+• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-64)<`unknown`\>
 
 ___
 
 ### EntityFlag
 
-• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-114)<`unknown`\>
+• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-64)<`unknown`\>
 
 ___
 
 ### ClientFlag
 
-• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-114)<`unknown`\>
+• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-64)<`unknown`\>
 
 ___
 
 ### ChunkFlag
 
-• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-114)<`unknown`\>
+• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-64)<`unknown`\>
 
 ___
 
 ### HeadingComponent
 
-• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`Vector3`\>
+• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`Vector3`\>
 
 ___
 
 ### IDComponent
 
-• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`string`\>
+• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`string`\>
 
 ___
 
 ### MeshComponent
 
-• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`Object3D`<`Event`\>\>
+• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`Object3D`<`Event`\>\>
 
 ___
 
 ### MetadataComponent
 
-• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<{ `[key: string]`: `any`;  }\>
+• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<{ `[key: string]`: `any`;  }\>
 
 ___
 
 ### NameComponent
 
-• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`string`\>
+• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`string`\>
 
 ___
 
 ### Position3DComponent
 
-• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`Vector3`\>
+• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`Vector3`\>
 
 ___
 
 ### TargetComponent
 
-• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`Vector3`\>
+• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`Vector3`\>
 
 ___
 
 ### TypeComponent
 
-• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-114)<`string`\>
+• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-64)<`string`\>
 
 ___
 
 ### defaultBlock
 
-• `Const` **defaultBlock**: [`Block`](modules.md#block-114)
+• `Const` **defaultBlock**: [`Block`](modules.md#block-64)
 
 ## Functions
 
@@ -725,11 +744,11 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `getVoxel` | `GetVoxel` |
-| `origin` | [`Coords3`](modules.md#coords3-114) |
-| `direction` | [`Coords3`](modules.md#coords3-114) |
+| `origin` | [`Coords3`](modules.md#coords3-64) |
+| `direction` | [`Coords3`](modules.md#coords3-64) |
 | `maxD` | `number` |
-| `hitPos` | [`Coords3`](modules.md#coords3-114) |
-| `hitNorm` | [`Coords3`](modules.md#coords3-114) |
+| `hitPos` | [`Coords3`](modules.md#coords3-64) |
+| `hitNorm` | [`Coords3`](modules.md#coords3-64) |
 
 #### Returns
 
