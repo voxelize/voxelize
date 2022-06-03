@@ -19,7 +19,7 @@ so that the player can move freely around the world
 
 ### params
 
-• **params**: [`ControlsParams`](../modules.md#controlsparams-14)
+• **params**: [`ControlsParams`](../modules.md#controlsparams-114)
 
 An object storing parameters passed on `Controls` construction
 
@@ -61,7 +61,7 @@ ___
 
 ### lookBlock
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3-14)
+• **lookBlock**: [`Coords3`](../modules.md#coords3-114)
 
 ___
 
@@ -73,7 +73,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3-14) |
+| `voxel` | [`Coords3`](../modules.md#coords3-114) |
 | `rotation` | `number` |
 | `yRotation` | `number` |
 
@@ -108,7 +108,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams-14)\> |
+| `options` | `Partial`<[`ControlsParams`](../modules.md#controlsparams-114)\> |
 
 #### Overrides
 
@@ -434,28 +434,28 @@ ___
 
 ### position
 
-• `get` **position**(): [`Coords3`](../modules.md#coords3-14)
+• `get` **position**(): [`Coords3`](../modules.md#coords3-114)
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-14)
+[`Coords3`](../modules.md#coords3-114)
 
 ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-14)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-114)
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-14)
+[`Coords3`](../modules.md#coords3-114)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-14)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-114)
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-14)
+[`Coords2`](../modules.md#coords2-114)

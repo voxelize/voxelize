@@ -10,7 +10,7 @@ The **built-in** Voxelize camera class using ThreeJS's `PerspectiveCamera`, addi
 The camera by default has a zoom of 1.0.
 
 ## Example
-This is an example on binding the `v` key to zooming the camera by a factor of 2.
+This is an example on binding the <kbd>v</kbd> key to zooming the camera by a factor of 2.
 ```ts 
 client.inputs.bind(
   "v",
@@ -47,7 +47,7 @@ ___
 
 ### params
 
-• **params**: [`CameraParams`](../modules.md#cameraparams-14)
+• **params**: [`CameraParams`](../modules.md#cameraparams-114)
 
 Parameters to initialize the Voxelize camera.
 

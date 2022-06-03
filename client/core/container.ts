@@ -1,9 +1,24 @@
 import { Client } from "..";
 import { DOMUtils } from "../utils";
 
+/**
+ * Parameters to initialize the Voxelize container.
+ */
 type ContainerParams = {
+  /**
+   * The DOM element that wraps all Voxelize UI components.
+   */
   domElement: HTMLElement;
+
+  /**
+   * The `HTMLCanvasElement` that Voxelize draws on.
+   */
   canvas: HTMLCanvasElement;
+
+  /**
+   * The styles applied to the crosshair.
+   */
+  crosshairStyles?: CSSStyleDeclaration;
 };
 
 const defaultParams: ContainerParams = {
@@ -12,28 +27,26 @@ const defaultParams: ContainerParams = {
 };
 
 /**
- * The class managing the container of the game. Does the following:
- * - Create/use passed in `HTMLDivElement` to contain the game
- * - Create/use passed in `HTMLCanvasElement` to draw the game on
+ * The **built-in** class managing the container of the game. Does the following:
+ * - Create/use passed in `HTMLDivElement` to contain the game and its UI components.
+ * - Create/use passed in `HTMLCanvasElement` to draw the game on.
  *
- * @class Container
+ * # Example
+ * Bind the key <kbd>k</kbd> to toggle full screen:
+ * ```ts
+ * client.inputs.bind("k", client.container.toggleFullScreen, "in-game");
+ * ```
  */
 class Container {
   /**
-   * An object storing the parameters passed on `Container` construction
-   *
-   * @type {ContainerParams}
-   * @memberof Container
+   * Reference linking back to the Voxelize client instance.
    */
-  public params: ContainerParams;
+  public client: Client;
 
   /**
-   * A flag to indicate whether the game is locked, in other words, if
-   * the pointer-lock controls are locked
-   *
-   * @memberof Container
+   * Parameters to initialize the Voxelize container.
    */
-  public focused = false;
+  public params: ContainerParams;
 
   /**
    * The `div` containing the game, parent to `container.canvas`
@@ -45,18 +58,23 @@ class Container {
 
   /**
    * The `canvas` that the game draws on, child of `container.domElement`
-   *
-   * @type {HTMLCanvasElement}
-   * @memberof Container
    */
   public canvas: HTMLCanvasElement;
 
+  /**
+   * A div that draws the crosshair of the container.
+   */
   public crosshair: HTMLDivElement;
 
-  private unbinds: (() => void)[] = [];
+  /**
+   * Construct a new Voxelize container.
+   *
+   * @hidden
+   */
+  constructor(client: Client, params: Partial<ContainerParams> = {}) {
+    this.client = client;
 
-  constructor(public client: Client, params: Partial<ContainerParams> = {}) {
-    const { domElement, canvas } = (this.params = {
+    const { domElement, canvas, crosshairStyles } = (this.params = {
       ...defaultParams,
       ...params,
     });
@@ -90,6 +108,10 @@ class Container {
       border: "2px solid #eee9",
     });
 
+    if (crosshairStyles) {
+      DOMUtils.applyStyles(this.crosshair, crosshairStyles);
+    }
+
     const styles = document.createElement("style");
     styles.innerHTML = `
       @import url("https://fonts.googleapis.com/css2?family=Syne+Mono&display=swap");
@@ -106,31 +128,10 @@ class Container {
       position: "relative",
       fontFamily: `"Fira Mono", monospace`,
     });
-
-    // add listeners
-    const onBlur = () => {
-      this.client.emit("blur");
-      this.focused = false;
-    };
-
-    const onFocus = () => {
-      this.client.emit("focus");
-      this.focused = true;
-    };
-
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
-
-    this.unbinds.push(
-      () => window.removeEventListener("blur", onBlur),
-      () => window.removeEventListener("focus", onFocus)
-    );
   }
 
   /**
-   * Toggle fullscreen for game
-   *
-   * @memberof Container
+   * Toggle fullscreen for Voxelize.
    */
   toggleFullScreen = () => {
     const elem = document.body as any;
@@ -167,19 +168,15 @@ class Container {
   };
 
   /**
-   * Disposal of container, unbinds all existing event listeners
-   * on `domElement` and `canvas`
-   *
-   * @memberof Container
+   * Show the crosshair.
    */
-  dispose = () => {
-    this.unbinds.forEach((fn) => fn());
-  };
-
   showCrosshair = () => {
     this.crosshair.style.display = "block";
   };
 
+  /**
+   * Hide the crosshair.
+   */
   hideCrosshair = () => {
     this.crosshair.style.display = "none";
   };

@@ -6,30 +6,31 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-The class managing the container of the game. Does the following:
-- Create/use passed in `HTMLDivElement` to contain the game
-- Create/use passed in `HTMLCanvasElement` to draw the game on
+The **built-in** class managing the container of the game. Does the following:
+- Create/use passed in `HTMLDivElement` to contain the game and its UI components.
+- Create/use passed in `HTMLCanvasElement` to draw the game on.
+
+# Example
+Bind the key <kbd>k</kbd> to toggle full screen:
+```ts
+client.inputs.bind("k", client.container.toggleFullScreen, "in-game");
+```
 
 ## Properties
 
-### params
+### client
 
-• **params**: [`ContainerParams`](../modules.md#containerparams-14)
+• **client**: [`Client`](Client.md)
 
-An object storing the parameters passed on `Container` construction
-
-**`memberof`** Container
+Reference linking back to the Voxelize client instance.
 
 ___
 
-### focused
+### params
 
-• **focused**: `boolean` = `false`
+• **params**: [`ContainerParams`](../modules.md#containerparams-114)
 
-A flag to indicate whether the game is locked, in other words, if
-the pointer-lock controls are locked
-
-**`memberof`** Container
+Parameters to initialize the Voxelize container.
 
 ___
 
@@ -49,32 +50,13 @@ ___
 
 The `canvas` that the game draws on, child of `container.domElement`
 
-**`memberof`** Container
-
 ___
 
 ### crosshair
 
 • **crosshair**: `HTMLDivElement`
 
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Container**(`client`, `params?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`ContainerParams`](../modules.md#containerparams-14)\> |
+A div that draws the crosshair of the container.
 
 ## Methods
 
@@ -82,24 +64,7 @@ ___
 
 ▸ **toggleFullScreen**(): `void`
 
-Toggle fullscreen for game
-
-**`memberof`** Container
-
-#### Returns
-
-`void`
-
-___
-
-### dispose
-
-▸ **dispose**(): `void`
-
-Disposal of container, unbinds all existing event listeners
-on `domElement` and `canvas`
-
-**`memberof`** Container
+Toggle fullscreen for Voxelize.
 
 #### Returns
 
@@ -111,6 +76,8 @@ ___
 
 ▸ **showCrosshair**(): `void`
 
+Show the crosshair.
+
 #### Returns
 
 `void`
@@ -120,6 +87,8 @@ ___
 ### hideCrosshair
 
 ▸ **hideCrosshair**(): `void`
+
+Hide the crosshair.
 
 #### Returns
 

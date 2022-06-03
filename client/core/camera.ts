@@ -51,7 +51,7 @@ const defaultParams: CameraParams = {
  * The camera by default has a zoom of 1.0.
  *
  * ## Example
- * This is an example on binding the `v` key to zooming the camera by a factor of 2.
+ * This is an example on binding the <kbd>v</kbd> key to zooming the camera by a factor of 2.
  * ```ts 
  * client.inputs.bind(
  *   "v",

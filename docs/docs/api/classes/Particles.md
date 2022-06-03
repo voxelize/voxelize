@@ -40,7 +40,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxels` | { `voxel`: [`Coords3`](../modules.md#coords3-14) ; `type`: `number`  }[] |
+| `voxels` | { `voxel`: [`Coords3`](../modules.md#coords3-114) ; `type`: `number`  }[] |
 | `params` | `Partial`<`ParticleParams`\> |
 
 #### Returns
