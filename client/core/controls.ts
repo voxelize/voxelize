@@ -8,6 +8,7 @@ import {
   MeshBasicMaterial,
   Color,
   BoxBufferGeometry,
+  Quaternion,
 } from "three";
 
 import { Client } from "..";
@@ -84,6 +85,7 @@ type ControlsParams = {
   lookBlockLerp: number;
   reachDistance: number;
   initialPosition: Coords3;
+  rotationLerp: number;
 
   bodyWidth: number;
   bodyHeight: number;
@@ -120,6 +122,7 @@ const defaultParams: ControlsParams = {
   lookBlockColor: "black",
   reachDistance: 32,
   initialPosition: [0, 80, 10],
+  rotationLerp: 0.9,
 
   bodyWidth: 0.8,
   bodyHeight: 1.8,
@@ -206,6 +209,7 @@ class Controls extends EventDispatcher {
   private unlockCallback: () => void;
 
   private euler = new Euler(0, 0, 0, "YXZ");
+  private quaternion = new Quaternion();
   private vector = new Vector3();
 
   constructor(public client: Client, options: Partial<ControlsParams> = {}) {
@@ -242,6 +246,8 @@ class Controls extends EventDispatcher {
    * @memberof Controls
    */
   update = () => {
+    this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
+
     this.moveRigidBody();
     this.updateRigidBody();
     this.updateLookBlock();
@@ -992,22 +998,20 @@ class Controls extends EventDispatcher {
   private onMouseMove = (event: MouseEvent) => {
     if (this.isLocked === false) return;
 
-    const { delta } = this.client.clock;
-
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
 
-    this.euler.setFromQuaternion(this.object.quaternion);
+    this.euler.setFromQuaternion(this.quaternion);
 
-    this.euler.y -= (movementX * this.params.sensitivity * delta) / 1000;
-    this.euler.x -= (movementY * this.params.sensitivity * delta) / 1000;
+    this.euler.y -= (movementX * this.params.sensitivity * 0.002) / 100;
+    this.euler.x -= (movementY * this.params.sensitivity * 0.002) / 100;
 
     this.euler.x = Math.max(
       PI_2 - this.params.maxPolarAngle,
       Math.min(PI_2 - this.params.minPolarAngle, this.euler.x)
     );
 
-    this.object.quaternion.setFromEuler(this.euler);
+    this.quaternion.setFromEuler(this.euler);
 
     this.dispatchEvent(_changeEvent);
   };
