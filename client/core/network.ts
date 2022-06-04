@@ -244,7 +244,7 @@ class Network {
           });
 
           this.client.particles.addBreakParticles(particleUpdates, {
-            count: particleUpdates.length > 3 ? 1 : 6,
+            count: particleUpdates.length > 3 ? 10 : 24,
           });
         }
 

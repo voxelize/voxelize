@@ -421,8 +421,8 @@ class World {
         }
       });
 
-      const [px, , pz] = this.client.controls.position;
-      this.sky.mesh.position.set(px, 0, pz);
+      const [px, py, pz] = this.client.controls.position;
+      this.sky.mesh.position.set(px, py, pz);
     };
   })();
 

@@ -182,7 +182,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`WorldInitParams`](../modules.md#worldinitparams-58)\> |
+| `params` | `Partial`<[`WorldInitParams`](../modules.md#worldinitparams-66)\> |
 
 ## Methods
 
@@ -274,7 +274,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk-58) | `undefined` |
+| `data` | [`ServerChunk`](../modules.md#serverchunk-66) | `undefined` |
 | `urgent` | `boolean` | `false` |
 
 #### Returns
@@ -337,9 +337,9 @@ ___
 
 ___
 
-### setVoxelByVoxel
+### setServerVoxel
 
-▸ **setVoxelByVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`): `void`
+▸ **setServerVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`): `void`
 
 #### Parameters
 
@@ -357,9 +357,9 @@ ___
 
 ___
 
-### setVoxelsByVoxel
+### setServerVoxels
 
-▸ **setVoxelsByVoxel**(`updates`): `void`
+▸ **setServerVoxels**(`updates`): `void`
 
 #### Parameters
 
@@ -448,7 +448,7 @@ ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-58)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-66)
 
 #### Parameters
 
@@ -460,7 +460,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-58)
+[`Block`](../modules.md#block-66)
 
 ___
 
@@ -537,7 +537,7 @@ ___
 
 ### getNeighborChunkCoords
 
-▸ **getNeighborChunkCoords**(`vx`, `vy`, `vz`): [`Coords2`](../modules.md#coords2-58)[]
+▸ **getNeighborChunkCoords**(`vx`, `vy`, `vz`): [`Coords2`](../modules.md#coords2-66)[]
 
 #### Parameters
 
@@ -549,13 +549,13 @@ ___
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-58)[]
+[`Coords2`](../modules.md#coords2-66)[]
 
 ___
 
 ### getStandableVoxel
 
-▸ **getStandableVoxel**(`vx`, `vy`, `vz`): [`Coords3`](../modules.md#coords3-58)
+▸ **getStandableVoxel**(`vx`, `vy`, `vz`): [`Coords3`](../modules.md#coords3-66)
 
 #### Parameters
 
@@ -567,7 +567,7 @@ ___
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-58)
+[`Coords3`](../modules.md#coords3-66)
 
 ___
 

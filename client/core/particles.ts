@@ -35,14 +35,14 @@ type Group = {
 };
 
 const defaultParams: ParticleParams = {
-  count: 6,
-  force: 6,
-  timeout: 3000,
+  count: 12,
+  force: 4,
+  timeout: 1000,
   gravity: true,
-  fadeTimeout: 50,
+  fadeTimeout: 100,
   impulseFunc: (force) => [
     Math.random() * force - force / 2,
-    (Math.random() * force) / 2,
+    Math.random() * force,
     Math.random() * force - force / 2,
   ],
 };

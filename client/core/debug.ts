@@ -421,7 +421,7 @@ class Debug {
           }
         }
 
-        world.setVoxelsByVoxel(changes);
+        world.setServerVoxels(changes);
       },
       "in-game"
     );
@@ -446,7 +446,7 @@ class Debug {
           }
         }
 
-        world.setVoxelsByVoxel(changes);
+        world.setServerVoxels(changes);
       },
       "in-game"
     );
