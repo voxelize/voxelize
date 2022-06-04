@@ -6,11 +6,23 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A **built-in** loader for Voxelize.
+
 ## Properties
+
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
 
 ### textures
 
 • **textures**: `Map`<`string`, `Texture`\>
+
+A map of all textures loaded by Voxelize.
 
 ___
 
@@ -18,23 +30,7 @@ ___
 
 • **progress**: `number` = `0`
 
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Loader**(`client`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
+The progress at which Loader has loaded, zero to one.
 
 ## Methods
 

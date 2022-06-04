@@ -162,17 +162,17 @@ class World {
     return this.getVoxelByVoxel(...voxel);
   };
 
-  setVoxelByVoxel = (
+  setServerVoxel = (
     vx: number,
     vy: number,
     vz: number,
     type: number,
     rotation?: BlockRotation
   ) => {
-    this.setVoxelsByVoxel([{ vx, vy, vz, type, rotation }]);
+    this.setServerVoxels([{ vx, vy, vz, type, rotation }]);
   };
 
-  setVoxelsByVoxel = (
+  setServerVoxels = (
     updates: {
       vx: number;
       vy: number;

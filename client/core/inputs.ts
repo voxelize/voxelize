@@ -46,13 +46,17 @@ type ScrollCallbacks = {
  */
 class Inputs {
   /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace for namespace checking.
    */
   public namespace: InputNamespace = "menu";
-  public combos: Map<string, string> = new Map();
-  public callbacks: Map<string, () => void> = new Map();
 
+  private combos: Map<string, string> = new Map();
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
   private scrollCallbacks: ScrollCallbacks = [];
 
@@ -63,7 +67,9 @@ class Inputs {
    *
    * @hidden
    */
-  constructor(public client: Client) {
+  constructor(client: Client) {
+    this.client = client;
+
     this.add("forward", "w");
     this.add("backward", "s");
     this.add("left", "a");

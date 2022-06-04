@@ -439,7 +439,7 @@ class Controls extends EventDispatcher {
    * @hidden
    */
   connect = () => {
-    this.client.container.domElement.ownerDocument.addEventListener(
+    this.client.container.domElement.addEventListener(
       "mousemove",
       this.onMouseMove
     );
@@ -476,7 +476,7 @@ class Controls extends EventDispatcher {
    * @hidden
    */
   disconnect = () => {
-    this.client.container.domElement.ownerDocument.removeEventListener(
+    this.client.container.domElement.removeEventListener(
       "mousemove",
       this.onMouseMove
     );
@@ -762,7 +762,7 @@ class Controls extends EventDispatcher {
       () => {
         if (!this.lookBlock) return;
         const [vx, vy, vz] = this.lookBlock;
-        world.setVoxelByVoxel(vx, vy, vz, 0);
+        world.setServerVoxel(vx, vy, vz, 0);
       },
       "in-game"
     );
@@ -783,7 +783,7 @@ class Controls extends EventDispatcher {
         );
 
         if (!this.body.aabb.intersects(blockAABB)) {
-          world.setVoxelByVoxel(
+          world.setServerVoxel(
             vx,
             vy,
             vz,

@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RenderingParams`](../modules.md#renderingparams-4)
+• **params**: [`RenderingParams`](../modules.md#renderingparams-58)
 
 ___
 
@@ -47,7 +47,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-4)\> |
+| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-58)\> |
 
 ## Methods
 

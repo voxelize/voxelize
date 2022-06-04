@@ -52,7 +52,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-4)
+• **params**: [`NetworkParams`](../modules.md#networkparams-58)
 
 ## Constructors
 
@@ -65,7 +65,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | [`NetworkParams`](../modules.md#networkparams-4) |
+| `params` | [`NetworkParams`](../modules.md#networkparams-58) |
 
 ## Methods
 

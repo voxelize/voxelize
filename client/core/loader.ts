@@ -2,16 +2,37 @@ import { LoadingManager, Texture, TextureLoader } from "three";
 
 import { Client } from "..";
 
+/**
+ * A **built-in** loader for Voxelize.
+ */
 class Loader {
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * A map of all textures loaded by Voxelize.
+   */
   public textures = new Map<string, Texture>();
 
+  /**
+   * The progress at which Loader has loaded, zero to one.
+   */
   public progress = 0;
 
   private manager = new LoadingManager();
   private textureLoader = new TextureLoader(this.manager);
   private promises = new Map<string, Promise<void>>();
 
-  constructor(public client: Client) {
+  /**
+   * Construct a Voxelize loader.
+   *
+   * @hidden
+   */
+  constructor(client: Client) {
+    this.client = client;
+
     this.manager.onProgress = (_, loaded, total) => {
       this.progress = loaded / total;
     };
