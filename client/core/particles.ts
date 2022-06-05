@@ -37,9 +37,9 @@ type Group = {
 const defaultParams: ParticleParams = {
   count: 12,
   force: 4,
-  timeout: 1000,
+  timeout: 2000,
   gravity: true,
-  fadeTimeout: 100,
+  fadeTimeout: 200,
   impulseFunc: (force) => [
     Math.random() * force - force / 2,
     Math.random() * force,

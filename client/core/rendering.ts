@@ -4,16 +4,20 @@ import {
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
-import { Color, Scene, WebGLRenderer } from "three";
+import { Color, Fog, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";
 
 type RenderingParams = {
   clearColor: string;
+  fogNearColor: string;
+  fogFarColor: string;
 };
 
 const defaultParams: RenderingParams = {
   clearColor: "#123",
+  fogNearColor: "#B1CCFD",
+  fogFarColor: "#B1CCFD",
 };
 
 class Rendering {
@@ -23,8 +27,12 @@ class Rendering {
   public renderer: WebGLRenderer;
   public composer: EffectComposer;
 
+  public fogNearColor: Color;
+  public fogFarColor: Color;
+  public fogUniforms: { [key: string]: { value: number | Color } };
+
   constructor(public client: Client, params: Partial<RenderingParams> = {}) {
-    const { clearColor } = (this.params = {
+    const { clearColor, fogNearColor, fogFarColor } = (this.params = {
       ...defaultParams,
       ...params,
     });
@@ -59,6 +67,17 @@ class Rendering {
 
       this.composer.addPass(new RenderPass(this.scene, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+
+      const { chunkSize, dimension } = client.world.params;
+      const { renderRadius } = client.settings;
+      this.fogNearColor = new Color(fogNearColor);
+      this.fogFarColor = new Color(fogFarColor);
+      this.fogUniforms = {
+        uFogColor: { value: this.fogNearColor },
+        uFogNearColor: { value: this.fogFarColor },
+        uFogNear: { value: renderRadius * 0.3 * chunkSize * dimension },
+        uFogFar: { value: renderRadius * 0.7 * chunkSize * dimension },
+      };
 
       this.adjustRenderer();
     });

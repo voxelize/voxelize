@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RenderingParams`](../modules.md#renderingparams-66)
+• **params**: [`RenderingParams`](../modules.md#renderingparams-112)
 
 ___
 
@@ -32,6 +32,28 @@ ___
 
 ___
 
+### fogNearColor
+
+• **fogNearColor**: `Color`
+
+___
+
+### fogFarColor
+
+• **fogFarColor**: `Color`
+
+___
+
+### fogUniforms
+
+• **fogUniforms**: `Object`
+
+#### Index signature
+
+▪ [key: `string`]: { `value`: `number` \| `Color`  }
+
+___
+
 ### client
 
 • **client**: [`Client`](Client.md)
@@ -47,7 +69,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-66)\> |
+| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-112)\> |
 
 ## Methods
 

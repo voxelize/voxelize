@@ -135,123 +135,130 @@ class Network {
     return this.pool.workingCount;
   }
 
-  private onEvent = (event: any) => {
-    const { type } = event;
+  private onEvent = (() => {
+    let initialized = false;
 
-    switch (type) {
-      case "INIT": {
-        const {
-          peers,
-          json: { blocks, ranges, id, params },
-        } = event;
+    return (event: any) => {
+      const { type } = event;
 
-        if (id) {
-          this.id = id;
-        }
+      switch (type) {
+        case "INIT": {
+          if (initialized) break;
+          initialized = true;
 
-        if (params) {
-          this.client.world.setParams(params);
-        }
+          const {
+            peers,
+            json: { blocks, ranges, id, params },
+          } = event;
 
-        // if any other peers exist on load:
-        // try to reach out to them as an initiator
-        if (peers) {
-          peers.forEach((i: string) => {
-            this.connectToPeer(i, true);
-          });
-        }
-
-        this.client.loader.load().then(() => {
-          if (blocks && ranges) {
-            this.client.registry.load(blocks, ranges);
+          if (id) {
+            this.id = id;
           }
-        });
 
-        break;
-      }
-      case "JOIN": {
-        // if a new peer joined, connect to them passively,
-        // as they would have already tried to reach out
-        const { text: id } = event;
-        this.connectToPeer(id);
+          if (params) {
+            this.client.world.setParams(params);
+          }
 
-        break;
-      }
-      case "SIGNAL": {
-        const {
-          json: { id, signal },
-        } = event;
-        const { connection } = this.client.peers.get(id) || {};
+          // if any other peers exist on load:
+          // try to reach out to them as an initiator
+          if (peers) {
+            peers.forEach((i: string) => {
+              this.connectToPeer(i, true);
+            });
+          }
 
-        // receiving signal from another peer
-        if (connection && !connection.destroyed) {
-          connection.signal(signal);
-        }
-        break;
-      }
-      case "ENTITY": {
-        const { entities } = event;
-        entities.forEach((entity: any) => {
-          this.client.entities.onEvent(entity);
-        });
-        break;
-      }
-      case "LOAD": {
-        const { chunks } = event;
-
-        if (chunks) {
-          chunks.forEach((chunk) => {
-            this.client.world.handleServerChunk(chunk);
-          });
-        }
-
-        break;
-      }
-      case "CHAT": {
-        const { chat } = event;
-
-        if (chat) {
-          this.client.chat.add(chat);
-        }
-
-        break;
-      }
-      case "UPDATE": {
-        const { updates, chunks } = event;
-
-        if (chunks) {
-          chunks.forEach((chunk) => {
-            this.client.world.handleServerChunk(chunk, true);
-          });
-        }
-
-        if (updates) {
-          const particleUpdates = updates
-            .filter(({ voxel }) => voxel === 0)
-            .map(({ vx, vy, vz }) => ({
-              voxel: [vx, vy, vz],
-              type: this.client.world.getVoxelByVoxel(vx, vy, vz),
-            }));
-
-          updates.forEach((update) => {
-            const { vx, vy, vz, voxel, light } = update;
-            const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
-
-            if (chunk) {
-              chunk.setRawValue(vx, vy, vz, voxel || 0);
-              chunk.setRawLight(vx, vy, vz, light || 0);
+          this.client.loader.load().then(() => {
+            if (blocks && ranges) {
+              this.client.registry.load(blocks, ranges);
             }
           });
 
-          this.client.particles.addBreakParticles(particleUpdates, {
-            count: particleUpdates.length > 3 ? 10 : 24,
-          });
+          break;
         }
+        case "JOIN": {
+          // if a new peer joined, connect to them passively,
+          // as they would have already tried to reach out
+          const { text: id } = event;
+          this.connectToPeer(id);
 
-        break;
+          break;
+        }
+        case "SIGNAL": {
+          const {
+            json: { id, signal },
+          } = event;
+          const { connection } = this.client.peers.get(id) || {};
+
+          // receiving signal from another peer
+          if (connection && !connection.destroyed) {
+            connection.signal(signal);
+          }
+          break;
+        }
+        case "ENTITY": {
+          const { entities } = event;
+          entities.forEach((entity: any) => {
+            this.client.entities.onEvent(entity);
+          });
+          break;
+        }
+        case "LOAD": {
+          const { chunks } = event;
+
+          if (chunks) {
+            chunks.forEach((chunk) => {
+              this.client.world.handleServerChunk(chunk);
+            });
+          }
+
+          break;
+        }
+        case "CHAT": {
+          const { chat } = event;
+
+          if (chat) {
+            this.client.chat.add(chat);
+          }
+
+          break;
+        }
+        case "UPDATE": {
+          const { updates, chunks } = event;
+
+          if (chunks) {
+            chunks.forEach((chunk) => {
+              this.client.world.handleServerChunk(chunk, true);
+            });
+          }
+
+          if (updates) {
+            const particleUpdates = updates
+              .filter(({ voxel }) => voxel === 0)
+              .map(({ vx, vy, vz }) => ({
+                voxel: [vx, vy, vz],
+                type: this.client.world.getVoxelByVoxel(vx, vy, vz),
+              }));
+
+            updates.forEach((update) => {
+              const { vx, vy, vz, voxel, light } = update;
+              const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
+
+              if (chunk) {
+                chunk.setRawValue(vx, vy, vz, voxel || 0);
+                chunk.setRawLight(vx, vy, vz, light || 0);
+              }
+            });
+
+            this.client.particles.addBreakParticles(particleUpdates, {
+              count: particleUpdates.length > 3 ? 10 : 24,
+            });
+          }
+
+          break;
+        }
       }
-    }
-  };
+    };
+  })();
 
   private connectToPeer = (id: string, initiator = false) => {
     const connection = new SimplePeer({

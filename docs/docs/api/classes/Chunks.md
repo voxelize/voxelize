@@ -28,7 +28,7 @@ ___
 
 ### toProcess
 
-• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-66)[] = `[]`
+• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-112)[] = `[]`
 
 ___
 
@@ -40,7 +40,7 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-66)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-112)
 
 ___
 

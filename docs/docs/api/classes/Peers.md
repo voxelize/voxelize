@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-66)
+• **params**: [`PeerParams`](../modules.md#peerparams-112)
 
 ___
 
@@ -65,7 +65,7 @@ Map.\_\_@species@10924
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-66)\> |
+| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-112)\> |
 
 #### Overrides
 
