@@ -136,16 +136,11 @@ class Network {
   }
 
   private onEvent = (() => {
-    let initialized = false;
-
     return (event: any) => {
       const { type } = event;
 
       switch (type) {
         case "INIT": {
-          if (initialized) break;
-          initialized = true;
-
           const {
             peers,
             json: { blocks, ranges, id, params },

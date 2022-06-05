@@ -71,7 +71,7 @@ to the top left corner of the debug screen.
 | `title` | `string` | The title of the entry. |
 | `object?` | `any` | The object to listen to changes on. |
 | `attribute?` | `string` | The attribute in the object to listen on. |
-| `formatter` | [`Formatter`](../modules.md#formatter-112) | A function passed on the new data before updating the entry. |
+| `formatter` | [`Formatter`](../modules.md#formatter-222) | A function passed on the new data before updating the entry. |
 
 #### Returns
 

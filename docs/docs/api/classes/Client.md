@@ -154,7 +154,7 @@ ___
 
 ### errorMonitor
 
-▪ `Static` `Readonly` **errorMonitor**: typeof [`errorMonitor`](Client.md#errormonitor-112)
+▪ `Static` `Readonly` **errorMonitor**: typeof [`errorMonitor`](Client.md#errormonitor-336)
 
 This symbol shall be used to install a listener for only monitoring `'error'`
 events. Listeners installed using this symbol are called before the regular
@@ -172,7 +172,7 @@ ___
 
 ### captureRejectionSymbol
 
-▪ `Static` `Readonly` **captureRejectionSymbol**: typeof [`captureRejectionSymbol`](Client.md#capturerejectionsymbol-112)
+▪ `Static` `Readonly` **captureRejectionSymbol**: typeof [`captureRejectionSymbol`](Client.md#capturerejectionsymbol-336)
 
 #### Inherited from
 
@@ -571,7 +571,7 @@ const { getEventListeners, EventEmitter } = require('events');
 
 | Name | Type |
 | :------ | :------ |
-| `emitter` | `EventEmitter` \| `DOMEventTarget` |
+| `emitter` | `DOMEventTarget` \| `EventEmitter` |
 | `name` | `string` \| `symbol` |
 
 #### Returns
@@ -612,7 +612,7 @@ EventEmitter.setMaxListeners(20, eventTarget);
 | Name | Type |
 | :------ | :------ |
 | `n?` | `number` |
-| `...eventTargets` | (`EventEmitter` \| `DOMEventTarget`)[] |
+| `...eventTargets` | (`DOMEventTarget` \| `EventEmitter`)[] |
 
 #### Returns
 
@@ -934,7 +934,7 @@ ___
 ▸ **getMaxListeners**(): `number`
 
 Returns the current max listener value for the `EventEmitter` which is either
-set by `emitter.setMaxListeners(n)` or defaults to [defaultMaxListeners](Client.md#defaultmaxlisteners-112).
+set by `emitter.setMaxListeners(n)` or defaults to [defaultMaxListeners](Client.md#defaultmaxlisteners-336).
 
 **`since`** v1.0.0
 

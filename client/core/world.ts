@@ -71,20 +71,22 @@ class World {
     });
 
     client.on("loaded", () => {
-      this.sky = new Sky(skyDimension);
+      if (!this.sky) {
+        this.sky = new Sky(skyDimension);
 
-      Object.entries(skyFaces).forEach(([side, skyFace]) => {
-        if (typeof skyFace === "string") {
-          const texture = client.loader.getTexture(skyFace);
-          if (texture) {
-            this.sky.box.paint(side as BoxSides, texture);
+        Object.entries(skyFaces).forEach(([side, skyFace]) => {
+          if (typeof skyFace === "string") {
+            const texture = client.loader.getTexture(skyFace);
+            if (texture) {
+              this.sky.box.paint(side as BoxSides, texture);
+            }
+          } else if (skyFace) {
+            this.sky.box.paint(side as BoxSides, skyFace);
           }
-        } else if (skyFace) {
-          this.sky.box.paint(side as BoxSides, skyFace);
-        }
-      });
+        });
 
-      client.rendering.scene.add(this.sky.mesh);
+        client.rendering.scene.add(this.sky.mesh);
+      }
     });
   }
 
