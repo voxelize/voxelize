@@ -460,6 +460,7 @@ uniform float uSunlightIntensity;
 uniform float uMinLight;
 varying float vAO;
 varying vec4 vLight; 
+varying vec4 vWorldPosition;
 `
         )
         .replace(
@@ -475,7 +476,10 @@ outgoingLight *= 0.88 * vAO;
         .replace(
           "#include <fog_fragment>",
           `
-float depth = gl_FragCoord.z / gl_FragCoord.w;
+vec3 fogOrigin = cameraPosition;
+float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
+
+// float depth = gl_FragCoord.z / gl_FragCoord.w;
 float fogFactor = smoothstep(uFogNear, uFogFar, depth);
 gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(uFogNearColor, uFogColor, fogFactor), fogFactor);
 `
@@ -487,6 +491,7 @@ gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(uFogNearColor, uFogColor, fogFactor
 attribute int light;
 varying float vAO;
 varying vec4 vLight;
+varying vec4 vWorldPosition;
 uniform vec4 uAOTable;
 vec4 unpackLight(int l) {
   float r = float((l >> 8) & 0xF) / 15.0;
@@ -507,6 +512,17 @@ vAO = ((ao == 0) ? uAOTable.x :
     (ao == 1) ? uAOTable.y :
     (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
 vLight = unpackLight(light & ((1 << 16) - 1));
+`
+        )
+        .replace(
+          "#include <worldpos_vertex>",
+          `
+vec4 worldPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  worldPosition = instanceMatrix * worldPosition;
+#endif
+worldPosition = modelMatrix * worldPosition;
+vWorldPosition = worldPosition;
 `
         ),
 
