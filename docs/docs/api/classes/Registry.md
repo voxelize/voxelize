@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-336)
+• **params**: [`RegistryParams`](../modules.md#registryparams)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-336)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange)\>
 
 ___
 
@@ -70,8 +70,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-336) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-336) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
 
 ___
 
@@ -90,7 +90,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-336)\> |
+| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams)\> |
 
 ## Methods
 
@@ -102,7 +102,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-336) ; `data`: `string` \| `Color`  }[] |
+| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface) ; `data`: `string` \| `Color`  }[] |
 
 #### Returns
 
@@ -119,7 +119,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `side` | [`BlockFace`](../modules.md#blockface-336) |
+| `side` | [`BlockFace`](../modules.md#blockface) |
 | `data` | `string` \| `Color` |
 
 #### Returns
@@ -137,7 +137,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `number` |
-| `side` | [`BlockFace`](../modules.md#blockface-336) |
+| `side` | [`BlockFace`](../modules.md#blockface) |
 | `path` | `string` |
 
 #### Returns
@@ -154,7 +154,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `blocks` | [`Block`](../modules.md#block-336)[] |
+| `blocks` | [`Block`](../modules.md#block)[] |
 | `ranges` | `Object` |
 
 #### Returns
@@ -165,7 +165,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-336)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block)
 
 #### Parameters
 
@@ -175,13 +175,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-336)
+[`Block`](../modules.md#block)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-336)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
 
 #### Parameters
 
@@ -191,7 +191,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-336)
+[`Block`](../modules.md#block)
 
 ___
 
@@ -325,7 +325,7 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-336)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface)[]
 
 #### Parameters
 
@@ -335,13 +335,13 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-336)[]
+[`BlockFace`](../modules.md#blockface)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-336)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface)[]
 
 #### Parameters
 
@@ -351,7 +351,7 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-336)[]
+[`BlockFace`](../modules.md#blockface)[]
 
 ___
 
@@ -395,7 +395,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-336) |
+| `block` | [`Block`](../modules.md#block) |
 
 #### Returns
 
@@ -469,7 +469,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `faces` | [`BlockFace`](../modules.md#blockface-336)[] |
+| `faces` | [`BlockFace`](../modules.md#blockface)[] |
 
 #### Returns
 

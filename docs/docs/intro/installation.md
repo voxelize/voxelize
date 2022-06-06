@@ -4,25 +4,28 @@ sidebar_position: 2
 
 # Installation
 
-The next step is to install the required libraries, both on the frontend and backend.
+Once the github repository is cloned, it is important to understand what is going on.
 
 ## Server Setup
 
-To get Voxelize on the app, add it to `server/Cargo.toml` under `dependencies`. Voxelize also heavily relies on the [specs ECS](https://github.com/amethyst/specs) library, so add that to `Cargo.toml` as well.
+The Voxelize server runs mainly on the [voxelize](https://crates.io/crates/voxelize) crate, along with [actix-web](https://crates.io/crates/actix-web) for network handling and [specs](https://crates.io/crates/specs) for Entity Component System, more on that later.
 
-```toml
+```toml title="server/Cargo.toml"
 [dependencies]
-voxelize = "0.3.0"
+actix-web = "4"
 specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
+voxelize = "0.5.3"
 ```
 
 ## Client Setup
 
-The npm package of Voxelize is called [`@voxelize/client`](https://www.npmjs.com/package/@voxelize/client). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. Here we add them to our project.
+The client-side npm package of Voxelize is called [`@voxelize/client`](https://www.npmjs.com/package/@voxelize/client). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. Here we added them to our project.
 
-```bash
-# Install Voxelize on the Client
-npm install @voxelize/client three
+```json title="package.json"
+"dependencies": {
+  "@voxelize/client": "^1.1.3",
+  "three": "^0.141.0"
+}
 ```
 
 Now you're ready to start developing! Remember, the finished version of this tutorial can be find [here](https://github.com/shaoruu/voxelize-example/tree/final) if you are stuck.

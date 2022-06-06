@@ -18,10 +18,11 @@ The concept of chunk allows Voxelize to organize data, and run things in paralle
 
 A world's most important part is the configuration. It defines how the world should be run.
 
-```rust title="server/main.rs" {2,9-13}
+```rust title="server/main.rs" {1,7-10}
 use voxelize::{Server, Voxelize, WorldConfig};
 
-fn main() {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     // ... Create the server
 
     let config = WorldConfig::new()
@@ -66,9 +67,38 @@ There are two ways of doing so:
 use voxelize::World;
 
 let world = World::new("Test", &config);
+server.add_world(world).expect("Could not add world!");
 
 // Method 2
 let world = server.create_world("Test", &config).unwrap();
+```
+
+## Progress Check
+
+The code so far should look like this:
+
+```rust title="server/main.rs"
+use voxelize::{Block, Registry, Server, Voxelize, WorldConfig};
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let mut registry = Registry::new();
+
+    let dirt = Block::new("Dirt").build();
+    let stone = Block::new("Stone").build();
+
+    registry.register_blocks(&[dirt, stone]);
+
+    let mut server = Server::new().port(4000).registry(&registry).build();
+
+    let config = WorldConfig::new()
+        .min_chunk([-1, -1])
+        .max_chunk([1, 1])
+        .build();
+    let world = server.create_world("Test", &config).unwrap();
+
+    Voxelize::run(server).await
+}
 ```
 
 Now we have a world, it's time to populate the chunks with blocks!

@@ -10,17 +10,18 @@ We start from creating the Voxelize server, setting up what we want to have in o
 
 A Voxelize server is the backend of a Voxelize app, which handles the networking and heavy-lifting of Voxelize, such as chunk generating and meshing.
 
-A server can have multiple worlds. The worlds share the same set of defined blocks but can have different configurations.
+A server can have multiple worlds. The worlds share the same set of defined blocks but can have different configurations. We will add the worlds and the blocks later on.
 
 Go to `server/main.rs`:
 
 ```rust title="server/main.rs"
 use voxelize::{Server, Voxelize};
 
-fn main() {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     let server = Server::new().port(4000).build();
 
-    Voxelize::run(server);
+    Voxelize::run(server).await
 }
 ```
 

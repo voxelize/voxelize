@@ -2,3 +2,5 @@ src
 target
 node_modules
 examples
+docs
+server

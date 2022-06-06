@@ -103,7 +103,9 @@ Now we have a chunk stage defined, it's time to add it to the world's pipeline. 
 
 We can access the world pipeline and add the stage to it:
 
-```rust title="World Pipeline"
+```rust title="server/main.rs"
+// Create the world
+
 {
     let registry = world.registry();
 
@@ -118,9 +120,11 @@ We can access the world pipeline and add the stage to it:
     // Add a chunk stage with top block stone, middle dirt, and bottom stone.
     pipeline.add_stage(FlatlandStage::new(10, stone, dirt, stone));
 }
+
+// Run the server
 ```
 
-Now you have it, the world should be generating a flat land! In fact, you can simply import `FlatlandStage` from `voxelize::pipeline::FlatlandStage`!
+The world should now be generating a flat land. In fact, you can simply import `FlatlandStage` from `voxelize::pipeline::FlatlandStage`!
 
 :::tip
 We wrap the pipeline access with curly braces so that the pipeline lifetime is dropped after mutating.
@@ -141,3 +145,44 @@ Voxelize achieves parallel chunk generation by utilizing a data structure called
 - A space is provided to the stage if the `stage.needs_space` function is implemented.
 - Spaces ensures that it contains chunks in stages equal to or greater than the center chunk.
 - Spaces can also be mutated, but they are deleted after each stage. So, use `get_lights` or `get_voxels` to get its individual chunk data.
+
+## Progress Check
+
+The code so far should look like this:
+
+```rust title="server/main.rs"
+use voxelize::{Block, FlatlandStage, Registry, Server, Voxelize, WorldConfig};
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let mut registry = Registry::new();
+
+    let dirt = Block::new("Dirt").build();
+    let stone = Block::new("Stone").build();
+
+    registry.register_blocks(&[dirt, stone]);
+
+    let mut server = Server::new().port(4000).registry(&registry).build();
+
+    let config = WorldConfig::new()
+        .min_chunk([-1, -1])
+        .max_chunk([1, 1])
+        .build();
+    let world = server.create_world("Test", &config).unwrap();
+
+    {
+        let registry = world.registry();
+
+        let dirt = registry.get_block_by_name("Dirt").id;
+        let stone = registry.get_block_by_name("Stone").id;
+
+        drop(registry);
+
+        let mut pipeline = world.pipeline_mut();
+
+        pipeline.add_stage(FlatlandStage::new(10, dirt, stone, stone));
+    }
+
+    Voxelize::run(server).await
+}
+```

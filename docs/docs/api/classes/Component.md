@@ -18,7 +18,7 @@ Representation of a component in ECS
 
 ### register
 
-▸ `Static` **register**<`P`\>(): [`ComponentClassType`](../modules.md#componentclasstype-336)<`P`\>
+▸ `Static` **register**<`P`\>(): [`ComponentClassType`](../modules.md#componentclasstype)<`P`\>
 
 Register a new component class
 
@@ -30,7 +30,7 @@ Register a new component class
 
 #### Returns
 
-[`ComponentClassType`](../modules.md#componentclasstype-336)<`P`\>
+[`ComponentClassType`](../modules.md#componentclasstype)<`P`\>
 
 ## Properties
 

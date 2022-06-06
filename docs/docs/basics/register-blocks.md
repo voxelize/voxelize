@@ -10,10 +10,11 @@ In Voxelize, each server has a set of blocks that the developer defines. These b
 
 Here we create our example registry, registering two blocks to it:
 
-```rust title="server/main.rs" {1,4-11}
+```rust title="server/main.rs" {1,5-12}
 use voxelize::{Block, Registry, Server, Voxelize};
 
-fn main() {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     let mut registry = Registry::new();
 
     let dirt = Block::new("Dirt").build();
@@ -23,7 +24,7 @@ fn main() {
 
     let mut server = Server::new().port(4000).registry(&registry).build();
 
-    Voxelize::run(server);
+    Voxelize::run(server).await
 }
 ```
 

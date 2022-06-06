@@ -36,4 +36,4 @@ cd voxelize-example
 npm install
 ```
 
-The template example consists of a Rust app `server` contained in a basic `webpack` based JS frontend, with client-side code in the `/client` folder.
+The template example consists of a Rust app `server` contained within a basic `webpack` based JS frontend, with client-side code located in the `client` folder.

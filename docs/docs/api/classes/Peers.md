@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-336)
+• **params**: [`PeerParams`](../modules.md#peerparams)
 
 ___
 
@@ -42,7 +42,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@10001
+Map.\_\_@toStringTag@10422
 
 ___
 
@@ -52,7 +52,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@10520
+Map.\_\_@species@10951
 
 ## Constructors
 
@@ -65,7 +65,7 @@ Map.\_\_@species@10520
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-336)\> |
+| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams)\> |
 
 #### Overrides
 
@@ -254,7 +254,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@10005
+Map.\_\_@iterator@10426
 
 ___
 
