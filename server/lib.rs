@@ -5,16 +5,14 @@ mod server;
 mod types;
 mod world;
 
-use http::StatusCode;
-use log::{error, info};
-use message_io::network::{NetEvent, Transport};
-use message_io::node;
-use server::{Request, Response};
+use actix::{Actor, Addr};
+use actix_cors::Cors;
+use actix_files::{Files, NamedFile};
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web_actors::ws;
+use log::info;
 
-use std::net::ToSocketAddrs;
-use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub use common::*;
 pub use libs::*;
@@ -22,7 +20,38 @@ pub use server::*;
 pub use types::*;
 pub use world::*;
 
-const MS_PER_UPDATE: u128 = 16;
+struct Config {
+    serve: String,
+}
+
+/// Entry point for our websocket route
+async fn ws_route(
+    req: HttpRequest,
+    stream: web::Payload,
+    srv: web::Data<Addr<Server>>,
+) -> Result<HttpResponse, Error> {
+    ws::start(
+        server::WsSession {
+            id: "".to_owned(),
+            hb: Instant::now(),
+            name: None,
+            addr: srv.get_ref().clone(),
+        },
+        &req,
+        stream,
+    )
+}
+
+/// Main website path, serving statically built index.html
+async fn index(path: web::Data<Config>) -> Result<NamedFile> {
+    info!("Opening: {}", path.serve.to_owned() + "index.html");
+    let path = path.serve.to_owned();
+    Ok(NamedFile::open(if path.ends_with("/") {
+        path + "index.html"
+    } else {
+        path + "/index.html"
+    })?)
+}
 
 pub struct Voxelize;
 
@@ -38,86 +67,37 @@ impl Voxelize {
     /// let server = Server::new().port(4000).build();
     /// Voxelize::run(server);
     /// ```
-    pub fn run(mut server: Server) {
-        let transport = Transport::Ws;
-        let addr = (server.addr.to_owned(), server.port)
-            .to_socket_addrs()
-            .unwrap()
-            .next()
-            .unwrap();
-
-        let (handler, listener) = node::split::<()>();
-
-        match handler.network().listen(transport, addr) {
-            Ok((_id, real_addr)) => info!("Server running at {} by {}", real_addr, transport),
-            Err(_) => return error!("Can not listening at {} by {}", addr, transport),
-        }
-
-        let (handler2, listener2) = node::split::<()>();
-        let listen_addr = "127.0.0.1:5000";
-        handler2
-            .network()
-            .listen(Transport::Tcp, listen_addr)
-            .unwrap();
-
-        let task2 = listener2.for_each_async(move |event| {
-            if let NetEvent::Message(endpoint, buf) = event.network() {
-                let response = match Request::parse(buf) {
-                    Ok(request) => Response::file_request(&request, "./examples/client/build"),
-                    Err(()) => {
-                        let mut response = Response::new();
-                        response.status = StatusCode::BAD_REQUEST;
-
-                        response
-                    }
-                };
-
-                handler2.network().send(endpoint, &response.format());
-                handler2.network().remove(endpoint.resource_id());
-            }
-        });
-
-        server.set_handler(handler);
+    pub async fn run(mut server: Server) -> std::io::Result<()> {
         server.prepare();
         server.started = true;
 
-        let server_wrapped = Arc::new(RwLock::new(server));
+        let addr = server.addr.to_owned();
+        let port = server.port.to_owned();
+        let serve = server.serve.to_owned();
 
-        let server_inner = server_wrapped.clone();
+        let server_addr = server.start();
 
-        let task = listener.for_each_async(move |event| {
-            let server = server_inner.clone();
+        info!("Attempting to serve static index.html at: {}", serve);
 
-            match event.network() {
-                NetEvent::Connected(_, _) => (), // Only generated at connect() calls.
-                NetEvent::Accepted(endpoint, _listener_id) => {
-                    server.write().unwrap().add_endpoint(endpoint);
-                }
-                NetEvent::Message(endpoint, input_data) => {
-                    let data: Message = decode_message(input_data).unwrap();
-                    server.write().unwrap().on_request(endpoint, data);
-                }
-                NetEvent::Disconnected(endpoint) => {
-                    server.write().unwrap().on_leave(endpoint);
-                }
-            }
-        });
+        let srv = HttpServer::new(move || {
+            let serve = serve.to_owned();
+            let cors = Cors::permissive();
 
-        let mut previous = Instant::now();
-        loop {
-            let current = Instant::now();
+            App::new()
+                .wrap(cors)
+                .app_data(web::Data::new(server_addr.clone()))
+                .app_data(web::Data::new(Config {
+                    serve: serve.to_owned(),
+                }))
+                .route("/", web::get().to(index))
+                .route("/ws/", web::get().to(ws_route))
+                .service(Files::new("/", serve).show_files_listing())
+        })
+        .workers(1)
+        .bind((addr.to_owned(), port.to_owned()))?;
 
-            // Run the tick.
-            server_wrapped.write().unwrap().tick();
+        info!("🧱  Voxelize running on http://{}:{}", addr, port);
 
-            let elapsed = current - previous;
-            previous = current;
-
-            if elapsed.as_millis() < MS_PER_UPDATE {
-                thread::sleep(Duration::from_millis(
-                    (MS_PER_UPDATE - elapsed.as_millis()) as u64,
-                ));
-            }
-        }
+        srv.run().await
     }
 }

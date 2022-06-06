@@ -11,9 +11,9 @@ mod types;
 mod utils;
 mod voxels;
 
+use actix::Recipient;
 use hashbrown::HashMap;
 use log::info;
-use message_io::{network::Endpoint, node::NodeHandler};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -25,9 +25,10 @@ use specs::{
 };
 
 use crate::{
+    encode_message,
     protocols::Peer,
-    server::{encode_message, Message, MessageType},
-    Vec2, Vec3,
+    server::{Message, MessageType},
+    EncodedMessage, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
@@ -111,7 +112,6 @@ impl World {
         ecs.register::<ChunkRequestsComp>();
         ecs.register::<CurrentChunkComp>();
         ecs.register::<IDComp>();
-        ecs.register::<EndpointComp>();
         ecs.register::<PositionComp>();
         ecs.register::<DirectionComp>();
         ecs.register::<ClientFlag>();
@@ -121,6 +121,7 @@ impl World {
         ecs.register::<MetadataComp>();
         ecs.register::<TargetComp>();
         ecs.register::<RigidBodyComp>();
+        ecs.register::<AddrComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -181,15 +182,8 @@ impl World {
         self.entities().entity(ent_id)
     }
 
-    /// Check if the world has a specific client at endpoint.
-    pub fn has_client(&self, endpoint: &Endpoint) -> bool {
-        self.clients().has(endpoint)
-    }
-
-    /// Add a client to the world, with ID generated with `nanoid!()`.
-    pub fn add_client(&mut self, endpoint: &Endpoint) -> String {
-        let id = nanoid!();
-
+    /// Add a client to the world by an ID and an Actix actor address.
+    pub fn add_client(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
         let config = self.config().get_init_config();
         let mut json = HashMap::new();
 
@@ -198,38 +192,47 @@ impl World {
         json.insert("ranges".to_owned(), json!(self.registry().ranges));
         json.insert("params".to_owned(), json!(config));
 
-        let peers = self.clients().id_list();
+        let mut peers = vec![];
+
+        self.clients()
+            .keys()
+            .for_each(|key| peers.push(key.to_owned()));
 
         let ent = self
             .ecs
             .create_entity()
             .with(ClientFlag::default())
             .with(IDComp::new(&id))
-            .with(EndpointComp::new(endpoint))
+            .with(AddrComp::new(addr))
             .with(ChunkRequestsComp::default())
             .with(CurrentChunkComp::default())
             .with(PositionComp::default())
             .with(DirectionComp::default())
             .build();
 
-        self.clients_mut().add(endpoint, &id, &ent);
+        self.clients_mut().insert(
+            id.to_owned(),
+            Client {
+                id: id.to_owned(),
+                entity: ent,
+                addr: addr.to_owned(),
+            },
+        );
 
         let init_message = Message::new(&MessageType::Init)
             .json(&serde_json::to_string(&json).unwrap())
             .peers(&peers)
             .build();
 
-        self.send(endpoint, &init_message);
+        self.send(addr, &init_message);
 
         let join_message = Message::new(&MessageType::Join).text(&id).build();
         self.broadcast(join_message, ClientFilter::All);
-
-        id
     }
 
     /// Remove a client from the world by endpoint.
-    pub fn remove_client(&mut self, endpoint: &Endpoint) {
-        let removed = self.clients_mut().remove(endpoint);
+    pub fn remove_client(&mut self, id: &str) {
+        let removed = self.clients_mut().remove(id);
 
         if let Some(client) = removed {
             let entities = self.ecs.entities();
@@ -248,17 +251,17 @@ impl World {
     }
 
     /// Handler for protobuf requests from clients.
-    pub fn on_request(&mut self, endpoint: &Endpoint, data: Message) {
+    pub fn on_request(&mut self, client_id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
 
         match msg_type {
-            MessageType::Peer => self.on_peer(endpoint, data),
-            MessageType::Load => self.on_load(endpoint, data),
-            MessageType::Signal => self.on_signal(endpoint, data),
-            MessageType::Unload => self.on_unload(endpoint, data),
-            MessageType::Debug => self.on_debug(endpoint, data),
-            MessageType::Chat => self.on_chat(endpoint, data),
-            MessageType::Update => self.on_update(endpoint, data),
+            MessageType::Peer => self.on_peer(client_id, data),
+            MessageType::Load => self.on_load(client_id, data),
+            MessageType::Signal => self.on_signal(client_id, data),
+            MessageType::Unload => self.on_unload(client_id, data),
+            MessageType::Debug => self.on_debug(client_id, data),
+            MessageType::Chat => self.on_chat(client_id, data),
+            MessageType::Update => self.on_update(client_id, data),
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
             }
@@ -271,14 +274,8 @@ impl World {
     }
 
     /// Send a direct message to an endpoint
-    pub fn send(&self, endpoint: &Endpoint, data: &Message) {
-        let encoded = encode_message(data);
-        self.handler().network().send(*endpoint, &encoded);
-    }
-
-    /// Access to the network handler.
-    pub fn handler(&self) -> Fetch<NodeHandler<()>> {
-        self.read_resource::<NodeHandler<()>>()
+    pub fn send(&self, addr: &Recipient<EncodedMessage>, data: &Message) {
+        addr.do_send(EncodedMessage(encode_message(data)));
     }
 
     /// Access to the world's config.
@@ -414,8 +411,8 @@ impl World {
     }
 
     /// Handler for `Peer` type messages.
-    fn on_peer(&mut self, endpoint: &Endpoint, data: Message) {
-        let client_ent = if let Some(client) = self.clients().get(endpoint) {
+    fn on_peer(&mut self, client_id: &str, data: Message) {
+        let client_ent = if let Some(client) = self.clients().get(client_id) {
             client.entity.to_owned()
         } else {
             return;
@@ -444,22 +441,16 @@ impl World {
     }
 
     /// Handler for `Signal` type messages.
-    fn on_signal(&mut self, endpoint: &Endpoint, data: Message) {
-        let client_id = if let Some(client) = self.clients().get(endpoint) {
-            client.id.to_owned()
-        } else {
-            return;
-        };
-
+    fn on_signal(&mut self, client_id: &str, data: Message) {
         let json: OnSignalRequest = serde_json::from_str(&data.json)
             .expect("`on_signal` error. Could not read JSON string.");
 
         let id = json.id;
         let signal = json.signal;
 
-        if let Some(endpoint) = self.clients().id_to_endpoint(&id) {
+        if let Some(client) = self.clients().get(&id) {
             let json = OnSignalRequest {
-                id: client_id,
+                id: client_id.to_owned(),
                 signal,
             };
             let message = Message::new(&MessageType::Signal)
@@ -467,14 +458,14 @@ impl World {
                     &serde_json::to_string(&json).expect("Unable to serialize `OnSignalRequest`."),
                 )
                 .build();
-            let encoded = encode_message(&message);
-            self.handler().network().send(endpoint.to_owned(), &encoded);
+
+            self.send(&client.addr, &message)
         }
     }
 
     /// Handler for `Load` type messages.
-    fn on_load(&mut self, endpoint: &Endpoint, data: Message) {
-        let client_ent = if let Some(client) = self.clients().get(endpoint) {
+    fn on_load(&mut self, client_id: &str, data: Message) {
+        let client_ent = if let Some(client) = self.clients().get(client_id) {
             client.entity.to_owned()
         } else {
             return;
@@ -498,8 +489,8 @@ impl World {
     }
 
     /// Handler for `Unload` type messages.
-    fn on_unload(&mut self, endpoint: &Endpoint, data: Message) {
-        let client_ent = if let Some(client) = self.clients().get(endpoint) {
+    fn on_unload(&mut self, client_id: &str, data: Message) {
+        let client_ent = if let Some(client) = self.clients().get(client_id) {
             client.entity.to_owned()
         } else {
             return;
@@ -523,7 +514,7 @@ impl World {
     }
 
     /// Handler for `Update` type messages.
-    fn on_update(&mut self, _: &Endpoint, data: Message) {
+    fn on_update(&mut self, _: &str, data: Message) {
         let chunk_size = self.config().chunk_size;
         let mut chunks = self.chunks_mut();
 
@@ -542,7 +533,7 @@ impl World {
     }
 
     /// Handler for `Debug` type messages.
-    fn on_debug(&mut self, _: &Endpoint, data: Message) {
+    fn on_debug(&mut self, _: &str, data: Message) {
         let json: OnDebugRequest = serde_json::from_str(&data.json)
             .expect("`on_debug` error. Could not read JSON string.");
 
@@ -563,7 +554,7 @@ impl World {
     }
 
     /// Handler for `Chat` type messages.
-    fn on_chat(&mut self, _: &Endpoint, data: Message) {
+    fn on_chat(&mut self, _: &str, data: Message) {
         if let Some(chat) = data.chat.clone() {
             let sender = chat.sender;
             let body = chat.body;

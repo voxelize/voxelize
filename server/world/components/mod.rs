@@ -1,7 +1,7 @@
+mod addr;
 mod chunk_requests;
 mod current_chunk;
 mod direction;
-mod endpoint;
 mod etype;
 mod flags;
 mod heading;
@@ -11,10 +11,10 @@ mod position;
 mod rigidbody;
 mod target;
 
+pub use addr::AddrComp;
 pub use chunk_requests::ChunkRequestsComp;
 pub use current_chunk::CurrentChunkComp;
 pub use direction::DirectionComp;
-pub use endpoint::EndpointComp;
 pub use etype::ETypeComp;
 pub use flags::*;
 pub use heading::HeadingComp;

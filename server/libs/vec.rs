@@ -1,6 +1,6 @@
 use num::{cast, Float, Num};
 
-use std::ops::{self, Deref, Index, IndexMut};
+use std::ops::{self, Index, IndexMut};
 
 use serde::{Deserialize, Serialize};
 

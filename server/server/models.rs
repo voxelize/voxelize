@@ -1,5 +1,6 @@
 use std::io::{Cursor, Write};
 
+use actix::Message as ActixMessage;
 use libflate::zlib::Encoder;
 use prost::Message as ProstMesssage;
 
@@ -15,6 +16,10 @@ pub use protocols::Message;
 pub type MessageType = protocols::message::Type;
 pub type ChatMessageType = protocols::chat_message::Type;
 
+impl ActixMessage for Message {
+    type Result = ();
+}
+
 impl Message {
     /// Create a new protobuf message with the idiomatic Builder pattern.
     pub fn new(r#type: &MessageType) -> MessageBuilder {
@@ -28,8 +33,10 @@ impl Message {
 /// Encode message into protocol buffers.
 pub fn encode_message(message: &Message) -> Vec<u8> {
     let mut buf = Vec::new();
+
     buf.reserve(message.encoded_len());
     message.encode(&mut buf).unwrap();
+
     if buf.len() > 1024 {
         let mut encoder = Encoder::new(Vec::new()).unwrap();
         encoder.write_all(buf.as_slice()).unwrap();

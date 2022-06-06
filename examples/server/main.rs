@@ -16,10 +16,15 @@ fn handle_ctrlc() {
     .expect("Error setting Ctrl-C handler");
 }
 
-fn main() {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     handle_ctrlc();
 
-    let mut server = Server::new().port(4000).registry(&setup_registry()).build();
+    let mut server = Server::new()
+        .port(4000)
+        .serve("./examples/client/build")
+        .registry(&setup_registry())
+        .build();
 
     server
         .add_world(setup_world())
@@ -38,5 +43,5 @@ fn main() {
         pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
     }
 
-    Voxelize::run(server);
+    Voxelize::run(server).await
 }

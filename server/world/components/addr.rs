@@ -1,14 +1,16 @@
-use message_io::network::Endpoint;
+use actix::Recipient;
 use specs::{Component, VecStorage};
+
+use crate::EncodedMessage;
 
 /// An endpoint to a client's connection.
 #[derive(Component)]
 #[storage(VecStorage)]
-pub struct EndpointComp(pub Endpoint);
+pub struct AddrComp(pub Recipient<EncodedMessage>);
 
-impl EndpointComp {
+impl AddrComp {
     /// Create a component of an endpoint to a client's connection.
-    pub fn new(endpoint: &Endpoint) -> Self {
+    pub fn new(endpoint: &Recipient<EncodedMessage>) -> Self {
         Self(endpoint.to_owned())
     }
 }

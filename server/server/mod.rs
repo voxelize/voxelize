@@ -1,12 +1,16 @@
 mod content;
 mod models;
-mod request;
-mod response;
+mod session;
 
+use std::time::Duration;
+
+use actix::{
+    Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, Recipient,
+};
 use fern::colors::{Color, ColoredLevelConfig};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use log::{info, warn};
-use message_io::{network::Endpoint, node::NodeHandler};
+use nanoid::nanoid;
 
 use crate::{
     errors::AddWorldError,
@@ -15,8 +19,7 @@ use crate::{
 
 pub use content::*;
 pub use models::*;
-pub use request::*;
-pub use response::*;
+pub use session::*;
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.
@@ -30,8 +33,11 @@ pub struct Server {
     /// Whether or not if the socket server has started as a system service.
     pub started: bool,
 
-    /// Network handler
-    handler: Option<NodeHandler<()>>,
+    /// Static folder to serve from.
+    pub serve: String,
+
+    /// Interval to tick the server at.
+    pub interval: u64,
 
     /// A map of all the worlds.
     worlds: HashMap<String, World>,
@@ -39,11 +45,11 @@ pub struct Server {
     /// Registry of the server.
     registry: Registry,
 
-    /// Endpoints who haven't connected to a world.
-    lost_endpoints: HashSet<Endpoint>,
+    /// Session IDs and addresses who haven't connected to a world.
+    lost_sessions: HashMap<String, Recipient<EncodedMessage>>,
 
-    /// What world each endpoint is connected to, endpoint <-> world ID.
-    connections: HashMap<Endpoint, String>,
+    /// What world each client ID is connected to, client ID <-> world ID.
+    connections: HashMap<String, (Recipient<EncodedMessage>, String)>,
 }
 
 impl Server {
@@ -60,22 +66,7 @@ impl Server {
     /// ```
     pub fn new() -> ServerBuilder {
         Server::setup_logger();
-        ServerBuilder::default()
-    }
-
-    /// Assign a network handler to this server
-    pub fn set_handler(&mut self, handler: NodeHandler<()>) {
-        self.worlds.values_mut().for_each(|world| {
-            world.ecs_mut().insert(handler.clone());
-        });
-
-        self.handler = Some(handler);
-    }
-
-    /// Add an endpoint, without assigning them to a world. Endpoint(client) needs to pass a `CONNECT` type
-    /// protocol buffer with a world name to be assigned to a world.
-    pub fn add_endpoint(&mut self, endpoint: Endpoint) {
-        self.lost_endpoints.insert(endpoint);
+        ServerBuilder::new()
     }
 
     /// Add a world instance to the server. Different worlds have different configurations, and can hold
@@ -118,82 +109,67 @@ impl Server {
     }
 
     /// Handler for client's message.
-    pub fn on_request(&mut self, endpoint: Endpoint, data: Message) {
+    pub fn on_request(&mut self, id: &str, data: Message) {
         if data.r#type == MessageType::Join as i32 {
-            if !self.lost_endpoints.contains(&endpoint) {
-                warn!("Client at {} is already in world: {}", endpoint, data.text);
+            if !self.lost_sessions.contains_key(id) {
+                warn!("Client at {} is already in world: {}", id, data.text);
                 return;
             }
 
             if let Some(world) = self.worlds.get_mut(&data.text) {
-                self.lost_endpoints.remove(&endpoint);
+                let addr = self.lost_sessions.remove(id).unwrap();
+
+                world.add_client(id, &addr);
                 self.connections
-                    .insert(endpoint.to_owned(), data.text.to_owned());
+                    .insert(id.to_owned(), (addr, data.text.to_owned()));
 
-                world.add_client(&endpoint);
-
-                info!(
-                    "Client at {} joined the server to world: {}",
-                    endpoint, data.text
-                );
+                info!("Client at {} joined the server to world: {}", id, data.text);
 
                 return;
             }
 
             warn!(
-                "Endpoint {} is attempting to connect to a non-existent world!",
-                endpoint
+                "ID {} is attempting to connect to a non-existent world!",
+                id
             );
 
             return;
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
-                self.connections.remove(&endpoint);
-                self.lost_endpoints.insert(endpoint);
+                let (addr, _) = self.connections.remove(id).unwrap();
+                self.lost_sessions.insert(id.to_owned(), addr);
 
-                world.remove_client(&endpoint);
+                world.remove_client(id);
 
-                info!(
-                    "Client at {} joined the server to world: {}",
-                    endpoint, data.text
-                );
+                info!("Client at {} joined the server to world: {}", id, data.text);
 
                 return;
             }
         }
 
-        let world_name = self.connections.get(&endpoint);
-        if world_name.is_none() {
+        let connection = self.connections.get(id);
+        if connection.is_none() {
             return;
         }
 
-        let world_name = world_name.unwrap().to_owned();
+        let (_, world_name) = connection.unwrap().to_owned();
 
         if let Some(world) = self.get_world_mut(&world_name) {
-            world.on_request(&endpoint, data);
+            world.on_request(id, data);
         }
     }
 
     /// Handler for client leaving.
-    pub fn on_leave(&mut self, endpoint: Endpoint) {
-        if let Some(world_name) = self.connections.remove(&endpoint) {
+    pub fn on_leave(&mut self, client_id: &str) {
+        if let Some((_, world_name)) = self.connections.remove(client_id) {
             if let Some(world) = self.get_world_mut(&world_name) {
-                world.remove_client(&endpoint);
+                world.remove_client(client_id);
             }
         }
 
-        info!("Client at {} left the server.", endpoint);
+        info!("Client at {} left the server.", client_id);
 
-        self.lost_endpoints.remove(&endpoint);
-    }
-
-    /// Obtain the network handler.
-    pub fn handler(&self) -> &NodeHandler<()> {
-        if self.handler.is_none() {
-            panic!("Attempting to make network calls when handler isn't set.");
-        }
-
-        self.handler.as_ref().unwrap()
+        self.lost_sessions.remove(client_id);
     }
 
     /// Prepare all worlds on the server to start.
@@ -232,27 +208,136 @@ impl Server {
     }
 }
 
+/// New chat session is created
+#[derive(ActixMessage)]
+#[rtype(result = "String")]
+pub struct Connect {
+    pub addr: Recipient<EncodedMessage>,
+}
+
+#[derive(ActixMessage, Clone)]
+#[rtype(result = "()")]
+pub struct EncodedMessage(pub Vec<u8>);
+
+/// Session is disconnected
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct Disconnect {
+    pub id: String,
+}
+
+/// Send message to specific world
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct ClientMessage {
+    /// Id of the client session
+    pub id: String,
+
+    /// Protobuf message
+    pub data: Message,
+}
+
+/// Make actor from `ChatServer`
+impl Actor for Server {
+    /// We are going to use simple Context, we just need ability to communicate
+    /// with other actors.
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
+            act.tick();
+        });
+    }
+}
+
+/// Handler for Connect message.
+///
+/// Register new session and assign unique id to this session
+impl Handler<Connect> for Server {
+    type Result = MessageResult<Connect>;
+
+    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
+        // notify all users in same room
+        // self.send_message("Main", "Someone joined", 0);
+
+        // register session with random id
+        let id = nanoid!();
+        self.lost_sessions.insert(id.to_owned(), msg.addr);
+
+        // send id back
+        MessageResult(id)
+    }
+}
+
+/// Handler for Disconnect message.
+impl Handler<Disconnect> for Server {
+    type Result = ();
+
+    fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
+        if let Some((_, world_name)) = self.connections.remove(&msg.id) {
+            if let Some(world) = self.worlds.get_mut(&world_name) {
+                world.remove_client(&msg.id);
+            }
+        }
+    }
+}
+
+/// Handler for Message message.
+impl Handler<ClientMessage> for Server {
+    type Result = ();
+
+    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
+        self.on_request(&msg.id, msg.data);
+    }
+}
+
 const DEFAULT_PORT: u16 = 4000;
 const DEFAULT_ADDR: &str = "0.0.0.0";
+const DEFAULT_SERVE: &str = "./";
+const DEFAULT_INTERVAL: u64 = 8;
 
 /// Builder for a voxelize server.
-#[derive(Default)]
 pub struct ServerBuilder {
-    port: Option<u16>,
-    addr: Option<String>,
+    port: u16,
+    addr: String,
+    serve: String,
+    interval: u64,
     registry: Option<Registry>,
 }
 
 impl ServerBuilder {
+    /// Create a new server builder instance.
+    pub fn new() -> Self {
+        Self {
+            port: DEFAULT_PORT,
+            addr: DEFAULT_ADDR.to_owned(),
+            serve: DEFAULT_SERVE.to_owned(),
+            interval: DEFAULT_INTERVAL,
+            registry: None,
+        }
+    }
+
     /// Configure the port to the voxelize server.
     pub fn port(mut self, port: u16) -> Self {
-        self.port = Some(port);
+        self.port = port;
         self
     }
 
     /// Configure the address of the voxelize server.
     pub fn addr(mut self, addr: &str) -> Self {
-        self.addr = Some(addr.to_owned());
+        self.addr = addr.to_owned();
+        self
+    }
+
+    /// Configure the static folder to serve.
+    pub fn serve(mut self, serve: &str) -> Self {
+        self.serve = serve.to_owned();
+        self
+    }
+
+    /// Configure the interval for the server to tick at.
+    pub fn interval(mut self, interval: u64) -> Self {
+        self.interval = interval;
         self
     }
 
@@ -269,16 +354,17 @@ impl ServerBuilder {
         registry.generate();
 
         Server {
-            port: self.port.unwrap_or(DEFAULT_PORT),
-            addr: self.addr.unwrap_or_else(|| DEFAULT_ADDR.to_owned()),
+            port: self.port,
+            addr: self.addr,
+            serve: self.serve,
+            interval: self.interval,
 
             registry,
 
             started: false,
-            handler: None,
 
             connections: HashMap::default(),
-            lost_endpoints: HashSet::default(),
+            lost_sessions: HashMap::default(),
             worlds: HashMap::default(),
         }
     }

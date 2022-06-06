@@ -1,8 +1,6 @@
 use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{
-    ChunkRequestsComp, ChunkUtils, CurrentChunkComp, PositionComp, Vec2, Vec3, WorldConfig,
-};
+use crate::{ChunkRequestsComp, ChunkUtils, CurrentChunkComp, PositionComp, Vec3, WorldConfig};
 
 pub struct CurrentChunkSystem;
 

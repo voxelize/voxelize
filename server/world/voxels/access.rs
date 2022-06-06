@@ -2,6 +2,7 @@ use crate::{LightColor, Ndarray};
 
 use super::block::BlockRotation;
 
+#[allow(unused)]
 pub trait VoxelAccess {
     /// Get the raw voxel data at the voxel coordinate. Zero is returned if chunk DNE.
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {

@@ -1,10 +1,10 @@
-use message_io::node::NodeHandler;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
     server::encode_message,
     world::{Clients, MessageQueue},
+    EncodedMessage,
 };
 
 mod entities;
@@ -14,47 +14,43 @@ pub use entities::BroadcastEntitiesSystem;
 pub struct BroadcastSystem;
 
 impl<'a> System<'a> for BroadcastSystem {
-    type SystemData = (
-        ReadExpect<'a, NodeHandler<()>>,
-        ReadExpect<'a, Clients>,
-        WriteExpect<'a, MessageQueue>,
-    );
+    type SystemData = (ReadExpect<'a, Clients>, WriteExpect<'a, MessageQueue>);
 
     fn run(&mut self, data: Self::SystemData) {
-        let (handler, clients, mut queue) = data;
+        let (clients, mut queue) = data;
 
         if queue.is_empty() {
             return;
         }
 
         for (message, filter) in queue.drain(..) {
-            let encoded = encode_message(&message);
+            let encoded = EncodedMessage(encode_message(&message));
 
             if let ClientFilter::Direct(id) = &filter {
-                if let Some(endpoint) = clients.id_to_endpoint(id) {
-                    handler.network().send(*endpoint, &encoded);
+                if let Some(client) = clients.get(id) {
+                    client.addr.do_send(encoded);
                 }
 
                 continue;
             }
 
-            clients.list.iter().for_each(|(endpoint, client)| {
+            clients.iter().for_each(|(id, client)| {
                 match &filter {
                     ClientFilter::All => {}
                     ClientFilter::Include(ids) => {
-                        if !ids.iter().any(|i| *i == *client.id) {
+                        if !ids.iter().any(|i| *i == *id) {
                             return;
                         }
                     }
                     ClientFilter::Exclude(ids) => {
-                        if ids.iter().any(|i| *i == *client.id) {
+                        if ids.iter().any(|i| *i == *id) {
                             return;
                         }
                     }
                     _ => {}
                 };
 
-                handler.network().send(*endpoint, &encoded);
+                client.addr.do_send(encoded.to_owned());
             })
         }
     }
