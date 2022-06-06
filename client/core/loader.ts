@@ -38,7 +38,16 @@ class Loader {
     };
   }
 
+  /**
+   * Add a texture source to load from. Must be called before `client.connect`.
+   *
+   * @param source - The source to the texture file to load from.
+   */
   addTexture = (source: string) => {
+    if (this.client.ready) {
+      throw new Error("Cannot add texture after client has started!");
+    }
+
     this.promises.set(
       source,
       new Promise((resolve) => {
@@ -52,10 +61,20 @@ class Loader {
     );
   };
 
+  /**
+   * After the "loaded" event is emitted, get the loaded texture with this function.
+   *
+   * @param source - The source to the texture file loaded from.
+   */
   getTexture = (source: string) => {
     return this.textures.get(source);
   };
 
+  /**
+   * Load all loader promises.
+   *
+   * @hidden
+   */
   load = async () => {
     await Promise.all(Array.from(this.promises.values()));
 

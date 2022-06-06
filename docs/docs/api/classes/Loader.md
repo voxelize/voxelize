@@ -38,11 +38,13 @@ The progress at which Loader has loaded, zero to one.
 
 ▸ **addTexture**(`source`): `void`
 
+Add a texture source to load from. Must be called before `client.connect`.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `source` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `source` | `string` | The source to the texture file to load from. |
 
 #### Returns
 
@@ -54,22 +56,14 @@ ___
 
 ▸ **getTexture**(`source`): `Texture`
 
+After the "loaded" event is emitted, get the loaded texture with this function.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `source` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `source` | `string` | The source to the texture file loaded from. |
 
 #### Returns
 
 `Texture`
-
-___
-
-### load
-
-▸ **load**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
