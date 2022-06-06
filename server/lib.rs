@@ -44,7 +44,6 @@ async fn ws_route(
 
 /// Main website path, serving statically built index.html
 async fn index(path: web::Data<Config>) -> Result<NamedFile> {
-    info!("Opening: {}", path.serve.to_owned() + "index.html");
     let path = path.serve.to_owned();
     Ok(NamedFile::open(if path.ends_with("/") {
         path + "index.html"
