@@ -92,9 +92,8 @@ class Peers extends Map<string, Peer> {
   };
 
   update = () => {
-    const { name, controls, network } = this.client;
+    const { name, controls, network, id } = this.client;
 
-    const { id } = network;
     const { object } = controls;
     const {
       position: { x: px, y: py, z: pz },

@@ -8,7 +8,6 @@ type ServerChunk = {
   id: string;
   lights: Uint32Array;
   voxels: Uint32Array;
-  heightMap: Uint32Array;
   mesh: ServerMesh;
 };
 

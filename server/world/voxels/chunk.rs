@@ -114,11 +114,6 @@ impl Chunk {
             } else {
                 None
             },
-            height_map: if data {
-                Some(self.height_map.to_owned())
-            } else {
-                None
-            },
         }
     }
 

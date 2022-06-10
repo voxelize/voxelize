@@ -71,7 +71,7 @@ to the top left corner of the debug screen.
 | `title` | `string` | The title of the entry. |
 | `object?` | `any` | The object to listen to changes on. |
 | `attribute?` | `string` | The attribute in the object to listen on. |
-| `formatter` | [`Formatter`](../modules.md#formatter-4) | A function passed on the new data before updating the entry. |
+| `formatter` | [`Formatter`](../modules.md#formatter-72) | A function passed on the new data before updating the entry. |
 
 #### Returns
 
@@ -126,18 +126,6 @@ ___
 • `get` **light**(): `number`
 
 The light value at which the client is at.
-
-#### Returns
-
-`number`
-
-___
-
-### maxHeight
-
-• `get` **maxHeight**(): `number`
-
-The maximum height of the voxel column the client is at.
 
 #### Returns
 

@@ -14,6 +14,12 @@ custom_edit_url: null
 
 ## Properties
 
+### id
+
+• **id**: `string` = `""`
+
+___
+
 ### name
 
 • **name**: `string` = `"test"`
@@ -154,7 +160,7 @@ ___
 
 ### errorMonitor
 
-▪ `Static` `Readonly` **errorMonitor**: typeof [`errorMonitor`](Client.md#errormonitor-4)
+▪ `Static` `Readonly` **errorMonitor**: typeof [`errorMonitor`](Client.md#errormonitor-72)
 
 This symbol shall be used to install a listener for only monitoring `'error'`
 events. Listeners installed using this symbol are called before the regular
@@ -172,7 +178,7 @@ ___
 
 ### captureRejectionSymbol
 
-▪ `Static` `Readonly` **captureRejectionSymbol**: typeof [`captureRejectionSymbol`](Client.md#capturerejectionsymbol-4)
+▪ `Static` `Readonly` **captureRejectionSymbol**: typeof [`captureRejectionSymbol`](Client.md#capturerejectionsymbol-72)
 
 #### Inherited from
 
@@ -934,7 +940,7 @@ ___
 ▸ **getMaxListeners**(): `number`
 
 Returns the current max listener value for the `EventEmitter` which is either
-set by `emitter.setMaxListeners(n)` or defaults to [defaultMaxListeners](Client.md#defaultmaxlisteners-4).
+set by `emitter.setMaxListeners(n)` or defaults to [defaultMaxListeners](Client.md#defaultmaxlisteners-72).
 
 **`since`** v1.0.0
 

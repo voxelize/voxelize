@@ -30,7 +30,7 @@ self.addEventListener("message", (e) => {
 
   if (message.chunks) {
     message.chunks.forEach((chunk) => {
-      ["heightMap", "lights", "voxels"].forEach((key) => {
+      ["lights", "voxels"].forEach((key) => {
         if (chunk[key]) {
           chunk[key] = new Uint32Array(chunk[key]).buffer;
           transferables.push(chunk[key]);

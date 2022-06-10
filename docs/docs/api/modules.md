@@ -74,16 +74,16 @@ Parameters to initialize the Voxelize [Chat](classes/Chat.md).
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `align` | ``"left"`` \| ``"center"`` \| ``"right"`` | Alignment of the chat. Defaults to `left`. |
-| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-4) | Border radius of both the radius and the message list. Defaults to `4px`. |
+| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-72) | Border radius of both the radius and the message list. Defaults to `4px`. |
 | `connectionMessage` | `string` | The message sent when a connection is made. Defaults to `Connected to world! Try /help`. |
 | `disconnectionMessage` | `string` | The message sent when connection is lost. Defaults to `World disconnected. Reconnecting...`. |
 | `disappearTimeout` | `number` | The timeout for chat to disappear once input is closed in milliseconds. Defaults to `2000`. |
-| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-4) | The gap between the input and the message list. Defaults to `26px`. |
+| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-72) | The gap between the input and the message list. Defaults to `26px`. |
 | `helpText` | `string` | A text message that is sent to the client frontend-only when '/help' is typed in the chat. |
-| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-4) | Height of the chat input. Defaults to `29px`. |
-| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-4) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
-| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-4) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
-| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-4) | The default width of the message list. Defaults to `40vw`. |
+| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-72) | Height of the chat input. Defaults to `29px`. |
+| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-72) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
+| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-72) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
+| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-72) | The default width of the message list. Defaults to `40vw`. |
 | `commandSymbol` | `string` | Symbol to activate typing a command, needs to be 1 character long! Defaults to `/`. |
 
 ___
@@ -156,7 +156,7 @@ Parameters to initialize the Voxelize [Controls](classes/Controls.md).
 | `lookBlockColor` | `string` | The color of the outline of the looking block. Defaults to `black`. |
 | `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
 | `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-4) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-72) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
 | `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.8` blocks. |
@@ -256,17 +256,26 @@ The occasion that the input should be fired.
 
 ___
 
+### ProtocolWS
+
+Ƭ **ProtocolWS**: `WebSocket` & { `sendEvent`: (`event`: `any`) => `void`  }
+
+A custom WebSocket type that supports protocol buffer sending.
+
+___
+
 ### NetworkParams
 
 Ƭ **NetworkParams**: `Object`
 
+Parameters to initializing a Voxelize [Network](classes/Network.md) connection to the server.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `serverURL` | `string` |
-| `reconnectTimeout` | `number` |
-| `maxPacketsPerTick` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `serverURL` | `string` | The HTTP url to the backend. Example: `http://localhost:4000` |
+| `reconnectTimeout` | `number` | On disconnection, the timeout to attempt to reconnect. Defaults to 5000. |
 
 ___
 
@@ -347,7 +356,7 @@ ___
 | `maxRequestsPerTick` | `number` |
 | `maxProcessesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
-| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-4)<[`BoxSides`](modules.md#boxsides-4), `SkyFace`\> |
+| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-72)<[`BoxSides`](modules.md#boxsides-72), `SkyFace`\> |
 
 ___
 
@@ -409,8 +418,7 @@ ___
 | `id` | `string` |
 | `lights` | `Uint32Array` |
 | `voxels` | `Uint32Array` |
-| `heightMap` | `Uint32Array` |
-| `mesh` | [`ServerMesh`](modules.md#servermesh-4) |
+| `mesh` | [`ServerMesh`](modules.md#servermesh-72) |
 
 ___
 
@@ -597,7 +605,7 @@ ___
 
 ### BlockFace
 
-Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-4) \| keyof [`ThreeFaces`](modules.md#threefaces-4) \| keyof [`SixFaces`](modules.md#sixfaces-4) \| keyof [`PlantFaces`](modules.md#plantfaces-4)
+Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-72) \| keyof [`ThreeFaces`](modules.md#threefaces-72) \| keyof [`SixFaces`](modules.md#sixfaces-72) \| keyof [`PlantFaces`](modules.md#plantfaces-72)
 
 ___
 
@@ -625,7 +633,7 @@ ___
 | `isSolid` | `boolean` |
 | `isTransparent` | `boolean` |
 | `transparentStandalone` | `boolean` |
-| `faces` | [`BlockFace`](modules.md#blockface-4)[] |
+| `faces` | [`BlockFace`](modules.md#blockface-72)[] |
 | `aabbs` | `AABB`[] |
 
 ___
@@ -665,8 +673,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`MeshData`](modules.md#meshdata-4) |
-| `transparent?` | [`MeshData`](modules.md#meshdata-4) |
+| `opaque?` | [`MeshData`](modules.md#meshdata-72) |
+| `transparent?` | [`MeshData`](modules.md#meshdata-72) |
 
 ___
 
@@ -715,79 +723,79 @@ A CSS measurement. E.g. "30px", "51em"
 
 ### DirtyFlag
 
-• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-4)<`unknown`\>
+• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-72)<`unknown`\>
 
 ___
 
 ### EntityFlag
 
-• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-4)<`unknown`\>
+• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-72)<`unknown`\>
 
 ___
 
 ### ClientFlag
 
-• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-4)<`unknown`\>
+• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-72)<`unknown`\>
 
 ___
 
 ### ChunkFlag
 
-• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-4)<`unknown`\>
+• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-72)<`unknown`\>
 
 ___
 
 ### HeadingComponent
 
-• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`Vector3`\>
+• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`Vector3`\>
 
 ___
 
 ### IDComponent
 
-• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`string`\>
+• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`string`\>
 
 ___
 
 ### MeshComponent
 
-• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`Object3D`<`Event`\>\>
+• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`Object3D`<`Event`\>\>
 
 ___
 
 ### MetadataComponent
 
-• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<{ `[key: string]`: `any`;  }\>
+• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<{ `[key: string]`: `any`;  }\>
 
 ___
 
 ### NameComponent
 
-• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`string`\>
+• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`string`\>
 
 ___
 
 ### Position3DComponent
 
-• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`Vector3`\>
+• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`Vector3`\>
 
 ___
 
 ### TargetComponent
 
-• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`Vector3`\>
+• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`Vector3`\>
 
 ___
 
 ### TypeComponent
 
-• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-4)<`string`\>
+• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-72)<`string`\>
 
 ___
 
 ### defaultBlock
 
-• `Const` **defaultBlock**: [`Block`](modules.md#block-4)
+• `Const` **defaultBlock**: [`Block`](modules.md#block-72)
 
 ## Functions
 
@@ -800,11 +808,11 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `getVoxel` | `GetVoxel` |
-| `origin` | [`Coords3`](modules.md#coords3-4) |
-| `direction` | [`Coords3`](modules.md#coords3-4) |
+| `origin` | [`Coords3`](modules.md#coords3-72) |
+| `direction` | [`Coords3`](modules.md#coords3-72) |
 | `maxD` | `number` |
-| `hitPos` | [`Coords3`](modules.md#coords3-4) |
-| `hitNorm` | [`Coords3`](modules.md#coords3-4) |
+| `hitPos` | [`Coords3`](modules.md#coords3-72) |
+| `hitNorm` | [`Coords3`](modules.md#coords3-72) |
 
 #### Returns
 

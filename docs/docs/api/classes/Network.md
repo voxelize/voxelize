@@ -6,23 +6,41 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A **built-in** network connector to the Voxelize backend. Establishes a WebSocket connection to the backend
+server and handles the Protocol Buffer encoding and decoding.
+
 ## Properties
 
-### ws
+### client
 
-• **ws**: `CustomWebSocket`
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
 
 ___
 
-### id
+### params
 
-• **id**: `string`
+• **params**: [`NetworkParams`](../modules.md#networkparams-72)
+
+Parameters to initialize the Network instance.
+
+___
+
+### ws
+
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-72)
+
+The WebSocket client for Voxelize.
 
 ___
 
 ### url
 
-• **url**: `Url`<`QueryParams`\>
+• **url**: `Url`<{ `[key: string]`: `any`;  }\>
+
+A [domurl Url instance](https://github.com/Mikhus/domurl) constructed with `network.params.serverURL`,
+representing a HTTP connection URL to the server.
 
 ___
 
@@ -30,11 +48,16 @@ ___
 
 • **world**: `string`
 
+The name of the world that the client is connected to.
+
 ___
 
 ### socket
 
-• **socket**: `Url`<`QueryParams`\>
+• **socket**: `Url`<{ `[key: string]`: `any`;  }\>
+
+A [domurl Url instance](https://github.com/Mikhus/domurl) constructed with `network.params.serverURL`,
+representing a WebSocket connection URL to the server.
 
 ___
 
@@ -42,69 +65,9 @@ ___
 
 • **connected**: `boolean` = `false`
 
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-___
-
-### params
-
-• **params**: [`NetworkParams`](../modules.md#networkparams-4)
-
-## Constructors
-
-### constructor
-
-• **new Network**(`client`, `params`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | [`NetworkParams`](../modules.md#networkparams-4) |
+Whether or not the network connection is established.
 
 ## Methods
-
-### connect
-
-▸ **connect**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
-### disconnect
-
-▸ **disconnect**(): `void`
-
-#### Returns
-
-`void`
-
-___
-
-### fetch
-
-▸ **fetch**(`path`, `query?`): `Promise`<`any`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `path` | `string` |
-| `query` | `Object` |
-
-#### Returns
-
-`Promise`<`any`\>
-
-___
 
 ### send
 

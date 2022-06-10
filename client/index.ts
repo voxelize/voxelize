@@ -45,6 +45,7 @@ type ClientParams = {
 };
 
 class Client extends EventEmitter {
+  public id = "";
   public name = "test";
 
   public network: Network | undefined;
@@ -131,7 +132,6 @@ class Client extends EventEmitter {
     const network = new Network(this, {
       reconnectTimeout,
       serverURL,
-      maxPacketsPerTick: 4,
     });
     this.network = network;
 

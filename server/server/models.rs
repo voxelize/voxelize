@@ -76,7 +76,6 @@ pub struct ChunkProtocol {
     pub mesh: Option<MeshProtocol>,
     pub voxels: Option<Ndarray<u32>>,
     pub lights: Option<Ndarray<u32>>,
-    pub height_map: Option<Ndarray<u32>>,
 }
 
 /// Protocol buffer compatible peer data structure.
@@ -255,7 +254,6 @@ impl MessageBuilder {
                     },
                     lights: chunk.lights.unwrap_or_default().data,
                     voxels: chunk.voxels.unwrap_or_default().data,
-                    height_map: chunk.height_map.unwrap_or_default().data,
                     x: chunk.x,
                     z: chunk.z,
                 })

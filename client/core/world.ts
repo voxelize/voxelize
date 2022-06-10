@@ -264,14 +264,6 @@ class World {
     return this.client.registry.getBlockById(voxel);
   };
 
-  getMaxHeight = (vx: number, vz: number) => {
-    const chunk = this.getChunkByVoxel(vx, 0, vz);
-    if (!chunk) return 0;
-    return chunk.getMaxHeight(vx, vz);
-  };
-
-  setMaxHeight: (vx: number, vz: number, height: number) => void;
-
   getWalkableByVoxel = (vx: number, vy: number, vz: number) => {
     const block = this.getBlockByVoxel(vx, vy, vz);
     return !block.isSolid || block.isPlant;

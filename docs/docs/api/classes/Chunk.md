@@ -29,31 +29,25 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2-4)
+• **coords**: [`Coords2`](../modules.md#coords2-72)
 
 ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3-4)
+• **min**: [`Coords3`](../modules.md#coords3-72)
 
 ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3-4)
+• **max**: [`Coords3`](../modules.md#coords3-72)
 
 ___
 
 ### voxels
 
 • **voxels**: `NdArray`<`Uint32Array`\>
-
-___
-
-### heightMap
-
-• **heightMap**: `NdArray`<`Uint32Array`\>
 
 ___
 
@@ -98,7 +92,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk-4) |
+| `data` | [`ServerChunk`](../modules.md#serverchunk-72) |
 | `scene` | `Scene` |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |
@@ -489,41 +483,6 @@ ___
 | `vy` | `number` |
 | `vz` | `number` |
 | `level` | `number` |
-
-#### Returns
-
-`number`
-
-___
-
-### getMaxHeight
-
-▸ **getMaxHeight**(`vx`, `vz`): `number`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vz` | `number` |
-
-#### Returns
-
-`number`
-
-___
-
-### setMaxHeight
-
-▸ **setMaxHeight**(`vx`, `vz`, `height`): `number`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vz` | `number` |
-| `height` | `number` |
 
 #### Returns
 

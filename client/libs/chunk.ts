@@ -25,7 +25,6 @@ class Chunk {
   public max: Coords3;
 
   public voxels: NdArray<Uint32Array>;
-  public heightMap: NdArray<Uint32Array>;
   public lights: NdArray<Uint32Array>;
 
   private added = false;
@@ -42,7 +41,6 @@ class Chunk {
     const { size, maxHeight } = params;
 
     this.voxels = ndarray([] as any, [size, maxHeight, size]);
-    this.heightMap = ndarray([] as any, [size, size]);
     this.lights = ndarray([] as any, [size, maxHeight, size]);
 
     this.min = [x * size, 0, z * size];
@@ -54,12 +52,10 @@ class Chunk {
     scene: Scene,
     materials: { opaque?: Material; transparent?: Material }
   ) => {
-    const { mesh: meshData, lights, voxels, heightMap } = data;
+    const { mesh: meshData, lights, voxels } = data;
 
     if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
     if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
-    if (heightMap && heightMap.byteLength)
-      this.heightMap.data = new Uint32Array(heightMap);
 
     if (meshData) {
       ["opaque", "transparent"].forEach((type) => {
@@ -295,22 +291,6 @@ class Chunk {
     return this.setLocalSunlight(lx, ly, lz, level);
   };
 
-  getMaxHeight = (vx: number, vz: number) => {
-    if (!this.contains(vx, 0, vz)) {
-      return this.params.maxHeight;
-    }
-
-    const [lx, , lz] = this.toLocal(vx, 0, vz);
-    return this.heightMap.get(lx, lz);
-  };
-
-  setMaxHeight = (vx: number, vz: number, height: number) => {
-    this.assert(vx, 0, vz);
-
-    const [lx, , lz] = this.toLocal(vx, 0, vz);
-    return this.heightMap.set(lx, lz, height);
-  };
-
   distTo = (vx: number, _: number, vz: number) => {
     const [mx, , mz] = this.min;
 
@@ -329,8 +309,7 @@ class Chunk {
     return (
       (!!this.mesh?.opaque || !!this.mesh?.transparent) &&
       this.lights.data.length !== 0 &&
-      this.voxels.data.length !== 0 &&
-      this.heightMap.data.length !== 0
+      this.voxels.data.length !== 0
     );
   }
 

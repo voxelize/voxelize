@@ -11,27 +11,75 @@ import { protocol } from "../protocol";
 
 const { Message } = protocol;
 
-type CustomWebSocket = WebSocket & {
+/**
+ * A custom WebSocket type that supports protocol buffer sending.
+ */
+type ProtocolWS = WebSocket & {
+  /**
+   * Send a protocol buffer encoded message to the server.
+   */
   sendEvent: (event: any) => void;
 };
 
+/**
+ * Parameters to initializing a Voxelize {@link Network} connection to the server.
+ */
 type NetworkParams = {
+  /**
+   * The HTTP url to the backend. Example: `http://localhost:4000`
+   */
   serverURL: string;
+
+  /**
+   * On disconnection, the timeout to attempt to reconnect. Defaults to 5000.
+   */
   reconnectTimeout: number;
-  maxPacketsPerTick: number;
 };
 
-type QueryParams = {
-  [key: string]: any;
-};
-
+/**
+ * A **built-in** network connector to the Voxelize backend. Establishes a WebSocket connection to the backend
+ * server and handles the Protocol Buffer encoding and decoding.
+ */
 class Network {
-  public ws: CustomWebSocket;
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
 
-  public id: string;
-  public url: URL<QueryParams>;
+  /**
+   * Parameters to initialize the Network instance.
+   */
+  public params: NetworkParams;
+
+  /**
+   * The WebSocket client for Voxelize.
+   */
+  public ws: ProtocolWS;
+
+  /**
+   * A {@link https://github.com/Mikhus/domurl | domurl Url instance} constructed with `network.params.serverURL`,
+   * representing a HTTP connection URL to the server.
+   */
+  public url: URL<{
+    [key: string]: any;
+  }>;
+
+  /**
+   * The name of the world that the client is connected to.
+   */
   public world: string;
-  public socket: URL<QueryParams>;
+
+  /**
+   * A {@link https://github.com/Mikhus/domurl | domurl Url instance} constructed with `network.params.serverURL`,
+   * representing a WebSocket connection URL to the server.
+   */
+  public socket: URL<{
+    [key: string]: any;
+  }>;
+
+  /**
+   * Whether or not the network connection is established.
+   */
   public connected = false;
 
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
@@ -40,10 +88,30 @@ class Network {
 
   private reconnection: any;
 
-  constructor(public client: Client, public params: NetworkParams) {
+  /**
+   * Construct a built in Voxelize Network instance.
+   *
+   * @hidden
+   */
+  constructor(client: Client, params: NetworkParams) {
+    this.client = client;
+    this.params = params;
+
     this.url = new URL(this.params.serverURL);
+    this.url.protocol = this.url.protocol.replace(/ws/, "http");
+    this.url.hash = "";
+
+    this.socket = new URL(this.params.serverURL);
+    this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
+    this.socket.hash = "";
+    this.socket.path = "/ws/";
   }
 
+  /**
+   * Used internally in `client.connect` to connect to the Voxelize backend.
+   *
+   * @hidden
+   */
   connect = async () => {
     // if websocket connection already exists, disconnect it
     if (this.ws) {
@@ -57,13 +125,8 @@ class Network {
     }
 
     return new Promise<void>((resolve) => {
-      this.socket = new URL(this.url.toString());
-      this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
-      this.socket.hash = "";
-      this.socket.path = "/ws/";
-
       // initialize a websocket connection to socket
-      const ws = new WebSocket(this.socket.toString()) as CustomWebSocket;
+      const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
       // custom Protobuf event sending
       ws.sendEvent = (event: any) => {
@@ -99,6 +162,11 @@ class Network {
     });
   };
 
+  /**
+   * Used internally to disconnect from the Voxelize backend.
+   *
+   * @hidden
+   */
   disconnect = () => {
     this.ws.onclose = null;
     this.ws.onmessage = null;
@@ -111,24 +179,18 @@ class Network {
     }
   };
 
-  fetch = async (path: string, query: { [key: string]: any } = {}) => {
-    const stage = this.url.toString();
-
-    if (!path.startsWith("/")) path = `/${path}`;
-    this.url.path = path;
-
-    Object.keys(query).forEach((key) => {
-      this.url.query[key] = query[key];
-    });
-    const result = await fetch(this.url.toString());
-
-    this.url = new URL(stage);
-
-    return result.json();
-  };
-
   send = (event: any) => {
     this.ws.sendEvent(event);
+  };
+
+  decode = async (data: any) => {
+    return new Promise<any>((resolve) => {
+      this.pool.addJob({
+        message: data,
+        buffers: [data.buffer],
+        resolve,
+      });
+    });
   };
 
   get concurrentWorkers() {
@@ -147,7 +209,7 @@ class Network {
           } = event;
 
           if (id) {
-            this.id = id;
+            this.client.id = id;
           }
 
           if (params) {
@@ -264,16 +326,6 @@ class Network {
     this.client.peers.addPeer(id, connection);
   };
 
-  decode = async (data: any) => {
-    return new Promise<any>((resolve) => {
-      this.pool.addJob({
-        message: data,
-        buffers: [data.buffer],
-        resolve,
-      });
-    });
-  };
-
   static decodeSync = (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
       buffer = fflate.unzlibSync(buffer);
@@ -302,6 +354,6 @@ class Network {
   }
 }
 
-export type { NetworkParams };
+export type { NetworkParams, ProtocolWS };
 
 export { Network };

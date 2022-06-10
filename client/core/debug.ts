@@ -202,14 +202,6 @@ class Debug {
     return this.client.world.getSunlightByVoxel(...voxel);
   }
 
-  /**
-   * The maximum height of the voxel column the client is at.
-   */
-  get maxHeight() {
-    const { voxel } = this.client.controls;
-    return this.client.world.getMaxHeight(voxel[0], voxel[2]);
-  }
-
   // create a data entry element
   private makeDataEntry = (newline = false) => {
     const dataEntry = document.createElement("p");
@@ -343,7 +335,6 @@ class Debug {
     this.registerDisplay("Chunk", controls, "voxel", (voxel: Coords3) =>
       ChunkUtils.mapVoxelPosToChunkPos(voxel, world.params.chunkSize).toString()
     );
-    this.registerDisplay("Max Height", this, "maxHeight");
     this.registerDisplay("Light", this, "light");
     this.registerDisplay("Chunk to request", world.chunks.toRequest, "length");
     this.registerDisplay("Chunk requested", world.chunks.requested, "size");
