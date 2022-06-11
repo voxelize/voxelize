@@ -179,11 +179,21 @@ class Network {
     }
   };
 
+  /**
+   * Encode and send a protocol buffer message to the server.
+   *
+   * @param event - An object that obeys the protocol buffers.
+   */
   send = (event: any) => {
     this.ws.sendEvent(event);
   };
 
-  decode = async (data: any) => {
+  /**
+   * Decode a byte array into protocol buffer objects.
+   *
+   * @param data - Data to offload to the worker pool to decode.
+   */
+  decode = async (data: Uint8Array) => {
     return new Promise<any>((resolve) => {
       this.pool.addJob({
         message: data,

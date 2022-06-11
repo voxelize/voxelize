@@ -21,7 +21,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-72)
+• **params**: [`NetworkParams`](../modules.md#networkparams-82)
 
 Parameters to initialize the Network instance.
 
@@ -29,7 +29,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-72)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-82)
 
 The WebSocket client for Voxelize.
 
@@ -73,11 +73,13 @@ Whether or not the network connection is established.
 
 ▸ **send**(`event`): `void`
 
+Encode and send a protocol buffer message to the server.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `event` | `any` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `event` | `any` | An object that obeys the protocol buffers. |
 
 #### Returns
 
@@ -89,11 +91,13 @@ ___
 
 ▸ **decode**(`data`): `Promise`<`any`\>
 
+Decode a byte array into protocol buffer objects.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `data` | `any` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `data` | `Uint8Array` | Data to offload to the worker pool to decode. |
 
 #### Returns
 
