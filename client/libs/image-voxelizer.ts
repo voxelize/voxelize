@@ -125,6 +125,17 @@ class ImageVoxelizer {
         return;
       }
 
+      if (
+        name.endsWith("bottom") ||
+        name.endsWith("top") ||
+        ["px", "py", "pz", "nx", "ny", "nz"].filter((key) => name.endsWith(key))
+          .length > 0
+      ) {
+        return;
+      }
+
+      // TODO: add orientation
+
       const startX = startU * width;
       const startY = startV * height;
       const endX = endU * width;
