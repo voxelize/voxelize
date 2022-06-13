@@ -399,11 +399,11 @@ class Controls extends EventDispatcher {
     this.object.add(client.camera.threeCamera);
     client.rendering.scene.add(this.object);
 
-    client.on("initialized", () => {
+    client.on("ready", () => {
       this.setupLookBlock();
       this.setupListeners();
 
-      this.body = client.physics.core.addBody({
+      this.body = client.physics.addBody({
         aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
       });
 
@@ -549,7 +549,10 @@ class Controls extends EventDispatcher {
   setPosition = (x: number, y: number, z: number) => {
     const { eyeHeight, bodyHeight } = this.params;
     this.object.position.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
-    this.body.setPosition([x, y, z]);
+
+    if (this.body) {
+      this.body.setPosition([x, y, z]);
+    }
   };
 
   /**

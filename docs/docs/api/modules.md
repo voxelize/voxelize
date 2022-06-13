@@ -74,16 +74,16 @@ Parameters to initialize the Voxelize [Chat](classes/Chat.md).
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `align` | ``"left"`` \| ``"center"`` \| ``"right"`` | Alignment of the chat. Defaults to `left`. |
-| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-128) | Border radius of both the radius and the message list. Defaults to `4px`. |
+| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-210) | Border radius of both the radius and the message list. Defaults to `4px`. |
 | `connectionMessage` | `string` | The message sent when a connection is made. Defaults to `Connected to world! Try /help`. |
 | `disconnectionMessage` | `string` | The message sent when connection is lost. Defaults to `World disconnected. Reconnecting...`. |
 | `disappearTimeout` | `number` | The timeout for chat to disappear once input is closed in milliseconds. Defaults to `2000`. |
-| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-128) | The gap between the input and the message list. Defaults to `26px`. |
+| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-210) | The gap between the input and the message list. Defaults to `26px`. |
 | `helpText` | `string` | A text message that is sent to the client frontend-only when '/help' is typed in the chat. |
-| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-128) | Height of the chat input. Defaults to `29px`. |
-| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-128) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
-| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-128) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
-| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-128) | The default width of the message list. Defaults to `40vw`. |
+| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-210) | Height of the chat input. Defaults to `29px`. |
+| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-210) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
+| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-210) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
+| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-210) | The default width of the message list. Defaults to `40vw`. |
 | `commandSymbol` | `string` | Symbol to activate typing a command, needs to be 1 character long! Defaults to `/`. |
 
 ___
@@ -156,7 +156,7 @@ Parameters to initialize the Voxelize [Controls](classes/Controls.md).
 | `lookBlockColor` | `string` | The color of the outline of the looking block. Defaults to `black`. |
 | `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
 | `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-128) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-210) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
 | `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.8` blocks. |
@@ -295,8 +295,8 @@ Parameters to initialize **a group of** particles.
 | `gravity` | `boolean` | Whether or not this particle is effected by gravity. |
 | `fadeTimeout` | `number` | The time for the particle to fade away once the timeout is reached. |
 | `scale` | `number` | The scale of each particles. |
-| `impulseFunc` | (`f`: `number`) => [`Coords3`](modules.md#coords3-128) | A function returning a 3-element array that modifies the force applied on each particle. |
-| `update` | (`g`: [`ParticleGroup`](modules.md#particlegroup-104)) => `void` | A function used to update the particles. |
+| `impulseFunc` | (`f`: `number`) => [`Coords3`](modules.md#coords3-210) | A function returning a 3-element array that modifies the force applied on each particle. |
+| `update` | (`g`: [`ParticleGroup`](modules.md#particlegroup-186)) => `void` | A function used to update the particles. |
 
 ___
 
@@ -312,7 +312,7 @@ An object storing the data for a group of particles.
 | :------ | :------ | :------ |
 | `mesh` | `Points` | The ThreeJS Points instance for rendering. |
 | `bodies` | `RigidBody`[] | The rigid bodies of the particles, allowing them to act physically. |
-| `params` | [`ParticleParams`](modules.md#particleparams-122) | Parameters used to initialize this particle group. |
+| `params` | [`ParticleParams`](modules.md#particleparams-204) | Parameters used to initialize this particle group. |
 
 ___
 
@@ -331,22 +331,6 @@ Parameters to initialize the [Peers](classes/Peers.md) manager for Voxelize.
 | `headDimension` | `number` | The dimension of the peer head mesh. Defaults to 0.4. |
 | `maxNameDistance` | `number` | The maximum distance, in blocks, at which the peer's nametag will still be rendered. Defaults to 50 voxels. |
 | `fontFace` | `string` | The font for the peer's nametag. Defaults to `monospace`. |
-
-___
-
-### PhysicsParams
-
-Ƭ **PhysicsParams**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `gravity` | `number`[] |
-| `minBounceImpulse` | `number` |
-| `airDrag` | `number` |
-| `fluidDrag` | `number` |
-| `fluidDensity` | `number` |
 
 ___
 
@@ -395,7 +379,7 @@ ___
 | `maxRequestsPerTick` | `number` |
 | `maxProcessesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
-| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-128)<[`BoxSides`](modules.md#boxsides-128), `SkyFace`\> |
+| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-210)<[`BoxSides`](modules.md#boxsides-210), `SkyFace`\> |
 
 ___
 
@@ -457,7 +441,7 @@ ___
 | `id` | `string` |
 | `lights` | `Uint32Array` |
 | `voxels` | `Uint32Array` |
-| `mesh` | [`ServerMesh`](modules.md#servermesh-128) |
+| `mesh` | [`ServerMesh`](modules.md#servermesh-210) |
 
 ___
 
@@ -644,7 +628,7 @@ ___
 
 ### BlockFace
 
-Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-128) \| keyof [`ThreeFaces`](modules.md#threefaces-128) \| keyof [`SixFaces`](modules.md#sixfaces-128) \| keyof [`PlantFaces`](modules.md#plantfaces-128)
+Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-210) \| keyof [`ThreeFaces`](modules.md#threefaces-210) \| keyof [`SixFaces`](modules.md#sixfaces-210) \| keyof [`PlantFaces`](modules.md#plantfaces-210)
 
 ___
 
@@ -672,7 +656,7 @@ ___
 | `isSolid` | `boolean` |
 | `isTransparent` | `boolean` |
 | `transparentStandalone` | `boolean` |
-| `faces` | [`BlockFace`](modules.md#blockface-128)[] |
+| `faces` | [`BlockFace`](modules.md#blockface-210)[] |
 | `aabbs` | `AABB`[] |
 
 ___
@@ -712,8 +696,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`MeshData`](modules.md#meshdata-128) |
-| `transparent?` | [`MeshData`](modules.md#meshdata-128) |
+| `opaque?` | [`MeshData`](modules.md#meshdata-210) |
+| `transparent?` | [`MeshData`](modules.md#meshdata-210) |
 
 ___
 
@@ -762,79 +746,79 @@ A CSS measurement. E.g. "30px", "51em"
 
 ### DirtyFlag
 
-• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-128)<`unknown`\>
+• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-210)<`unknown`\>
 
 ___
 
 ### EntityFlag
 
-• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-128)<`unknown`\>
+• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-210)<`unknown`\>
 
 ___
 
 ### ClientFlag
 
-• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-128)<`unknown`\>
+• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-210)<`unknown`\>
 
 ___
 
 ### ChunkFlag
 
-• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-128)<`unknown`\>
+• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-210)<`unknown`\>
 
 ___
 
 ### HeadingComponent
 
-• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`Vector3`\>
+• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`Vector3`\>
 
 ___
 
 ### IDComponent
 
-• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`string`\>
+• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`string`\>
 
 ___
 
 ### MeshComponent
 
-• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`Object3D`<`Event`\>\>
+• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`Object3D`<`Event`\>\>
 
 ___
 
 ### MetadataComponent
 
-• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<{ `[key: string]`: `any`;  }\>
+• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<{ `[key: string]`: `any`;  }\>
 
 ___
 
 ### NameComponent
 
-• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`string`\>
+• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`string`\>
 
 ___
 
 ### Position3DComponent
 
-• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`Vector3`\>
+• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`Vector3`\>
 
 ___
 
 ### TargetComponent
 
-• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`Vector3`\>
+• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`Vector3`\>
 
 ___
 
 ### TypeComponent
 
-• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-128)<`string`\>
+• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-210)<`string`\>
 
 ___
 
 ### defaultBlock
 
-• `Const` **defaultBlock**: [`Block`](modules.md#block-128)
+• `Const` **defaultBlock**: [`Block`](modules.md#block-210)
 
 ## Functions
 
@@ -847,11 +831,11 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `getVoxel` | `GetVoxel` |
-| `origin` | [`Coords3`](modules.md#coords3-128) |
-| `direction` | [`Coords3`](modules.md#coords3-128) |
+| `origin` | [`Coords3`](modules.md#coords3-210) |
+| `direction` | [`Coords3`](modules.md#coords3-210) |
 | `maxD` | `number` |
-| `hitPos` | [`Coords3`](modules.md#coords3-128) |
-| `hitNorm` | [`Coords3`](modules.md#coords3-128) |
+| `hitPos` | [`Coords3`](modules.md#coords3-210) |
+| `hitNorm` | [`Coords3`](modules.md#coords3-210) |
 
 #### Returns
 

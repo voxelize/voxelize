@@ -1,48 +1,85 @@
-import { Engine as PhysicsEngine } from "@voxelize/voxel-physics-engine";
+import {
+  Engine as PhysicsEngine,
+  EngineOptions,
+  BodyOptions,
+  RigidBody,
+} from "@voxelize/voxel-physics-engine";
 
 import { Client } from "..";
 import { ChunkUtils } from "../utils";
 
-type PhysicsParams = {
-  gravity: number[];
-  minBounceImpulse: number;
-  airDrag: number;
-  fluidDrag: number;
-  fluidDensity: number;
-};
-
-const defaultParams: PhysicsParams = {
-  gravity: [0, -24.8, 0],
-  minBounceImpulse: 0.5,
-  airDrag: 0.1,
-  fluidDrag: 1.4,
-  fluidDensity: 0.8,
-};
-
+/**
+ * A **built-in** physics engine for Voxelize using [@voxelize/voxel-physics-engine](https://github.com/shaoruu/voxel-physics-engine).
+ */
 class Physics {
-  public params: PhysicsParams;
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
 
+  /**
+   * The core physics engine.
+   */
   public core: PhysicsEngine;
 
-  constructor(public client: Client, params: Partial<PhysicsParams> = {}) {
-    this.params = { ...defaultParams, ...params };
+  /**
+   * Construct a Voxelize physics engine.
+   *
+   * @hidden
+   */
+  constructor(client: Client) {
+    this.client = client;
+  }
 
+  /**
+   * Add a physical body to the Voxelize client-side world.
+   *
+   * @param options - Options for adding a new physical rigid body.
+   */
+  addBody = (options: Partial<BodyOptions>) => {
+    return this.core.addBody(options);
+  };
+
+  /**
+   * Remove a rigid body from the Voxelize client-side world.
+   *
+   * @param body - The rigid body to remove.
+   */
+  removeBody = (body: RigidBody) => {
+    this.core.removeBody(body);
+  };
+
+  /**
+   * Initialize the Voxel physics engine.
+   *
+   * @hidden
+   * @internal
+   * @param params - World parameters sent from the server.
+   */
+  initialize = (params: any) => {
     this.core = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
-        const id = client.world.getVoxelByVoxel(vx, vy, vz);
-        const { aabbs } = client.registry.getBlockById(id);
+        const id = this.client.world.getVoxelByVoxel(vx, vy, vz);
+        const { aabbs } = this.client.registry.getBlockById(id);
         return aabbs;
       },
       (vx: number, vy: number, vz: number) => {
-        const id = client.world.getVoxelByVoxel(vx, vy, vz);
-        const { isFluid } = client.registry.getBlockById(id);
+        const id = this.client.world.getVoxelByVoxel(vx, vy, vz);
+        const { isFluid } = this.client.registry.getBlockById(id);
         return isFluid;
       },
-      this.params
+      params
     );
-  }
+  };
 
+  /**
+   * Updater for Voxelize physics.
+   *
+   * @hidden
+   */
   update = () => {
+    if (!this.core) return;
+
     const { controls, world } = this.client;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
@@ -58,8 +95,13 @@ class Physics {
     const dt = this.client.clock.delta;
     this.core.update(dt);
   };
-}
 
-export type { PhysicsParams };
+  /**
+   * A list of rigid bodies in this physics engine.
+   */
+  get bodies() {
+    return this.core.bodies;
+  }
+}
 
 export { Physics };

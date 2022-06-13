@@ -41,6 +41,12 @@ type WorldParams = WorldInitParams & {
   dimension: number;
   minChunk: [number, number];
   maxChunk: [number, number];
+
+  gravity: number[];
+  minBounceImpulse: number;
+  airDrag: number;
+  fluidDrag: number;
+  fluidDensity: number;
 };
 
 class World {
@@ -117,6 +123,9 @@ class World {
       ...data,
       dimension: 1,
     };
+
+    // initialize the physics engine with server provided parameters.
+    this.client.physics.initialize(this.params);
 
     this.client.emit("ready");
     this.client.ready = true;

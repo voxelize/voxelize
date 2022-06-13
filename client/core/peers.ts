@@ -76,6 +76,32 @@ class Peers extends Map<string, Peer> {
   }
 
   /**
+   * Send a protocol buffer event to all peers.
+   *
+   * @param event - A protocol buffer object.
+   */
+  broadcast = (event: any) => {
+    const encoded = Network.encode(event);
+    this.forEach((peer) => {
+      if (peer.connected && peer.connection.connected) {
+        peer.connection.send(encoded);
+      }
+    });
+  };
+
+  /**
+   * Reset the peers map.
+   *
+   * @internal
+   * @hidden
+   */
+  reset = () => {
+    this.forEach((peer) => {
+      this.removePeer(peer);
+    });
+  };
+
+  /**
    * Add a Voxelize peer, initializing its mesh and network connection.
    *
    * @internal
@@ -132,20 +158,6 @@ class Peers extends Map<string, Peer> {
     this.set(id, peer);
   };
 
-  broadcast = (encoded: any) => {
-    this.forEach((peer) => {
-      if (peer.connected && peer.connection.connected) {
-        peer.connection.send(encoded);
-      }
-    });
-  };
-
-  reset = () => {
-    this.forEach((peer) => {
-      this.removePeer(peer);
-    });
-  };
-
   update = () => {
     const { name, controls, network, id } = this.client;
 
@@ -173,11 +185,10 @@ class Peers extends Map<string, Peer> {
       },
     };
 
-    const encoded = Network.encode(event);
-    network.ws.send(encoded);
+    network.send(event);
 
     if (this.size > 0) {
-      this.broadcast(encoded);
+      this.broadcast(event);
     }
 
     this.forEach((peer) => {

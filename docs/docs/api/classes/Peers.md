@@ -26,7 +26,7 @@ ___
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-128)
+• **params**: [`PeerParams`](../modules.md#peerparams-210)
 
 Parameters to initialize the Peers manager.
 
@@ -34,23 +34,15 @@ Parameters to initialize the Peers manager.
 
 ### broadcast
 
-▸ **broadcast**(`encoded`): `void`
+▸ **broadcast**(`event`): `void`
+
+Send a protocol buffer event to all peers.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `encoded` | `any` |
-
-#### Returns
-
-`void`
-
-___
-
-### reset
-
-▸ **reset**(): `void`
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `event` | `any` | A protocol buffer object. |
 
 #### Returns
 

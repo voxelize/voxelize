@@ -27,7 +27,7 @@ ___
 
 ### params
 
-• **params**: [`ClockParams`](../modules.md#clockparams-128)
+• **params**: [`ClockParams`](../modules.md#clockparams-210)
 
 Parameters to initialize the clock.
 

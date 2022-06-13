@@ -20,7 +20,6 @@ import {
   Peers,
   PeersParams,
   Physics,
-  PhysicsParams,
   Registry,
   RegistryParams,
   Rendering,
@@ -40,7 +39,6 @@ type ClientParams = {
   controls?: Partial<ControlsParams>;
   registry?: Partial<RegistryParams>;
   world?: Partial<WorldInitParams>;
-  physics?: Partial<PhysicsParams>;
   chat?: Partial<ChatParams>;
 };
 
@@ -89,7 +87,6 @@ class Client extends EventEmitter {
       controls,
       registry,
       world,
-      physics,
       chat,
     } = params;
 
@@ -105,12 +102,12 @@ class Client extends EventEmitter {
     this.entities = new Entities(this, entities);
     this.controls = new Controls(this, controls);
     this.registry = new Registry(this, registry);
+    this.chat = new Chat(this, chat);
     this.inputs = new Inputs(this);
     this.clock = new Clock(this);
     this.settings = new Settings(this);
-    this.physics = new Physics(this, physics);
+    this.physics = new Physics(this);
     this.particles = new Particles(this);
-    this.chat = new Chat(this, chat);
 
     // all members has been initialized
     this.emit("initialized");

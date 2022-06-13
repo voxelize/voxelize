@@ -176,10 +176,6 @@ class Chat {
 
     this.makeDOM();
 
-    client.inputs.bind("t", this.enable, "in-game");
-    client.inputs.bind(commandSymbol, () => this.enable(true), "in-game");
-    client.inputs.bind("esc", this.disable, "chat", { occasion: "keyup" });
-
     client.on("connected", () =>
       this.add({ type: "SERVER", body: connectionMessage })
     );
@@ -187,6 +183,12 @@ class Chat {
     client.on("disconnected", () =>
       this.add({ type: "ERROR", body: disconnectionMessage })
     );
+
+    client.on("initialized", () => {
+      client.inputs.bind("t", this.enable, "in-game");
+      client.inputs.bind(commandSymbol, () => this.enable(true), "in-game");
+      client.inputs.bind("esc", this.disable, "chat", { occasion: "keyup" });
+    });
 
     this.history = new ChatHistory(this.gui.input);
   }

@@ -19,6 +19,22 @@ pub struct InitConfig {
 
     /// The maximum inclusive chunk on this world. Default is [i32::MAX, i32::MAX].
     pub max_chunk: [i32; 2],
+
+    /// Gravity of the voxelize world.
+    pub gravity: [f32; 3],
+
+    /// Minimum impulse to start bouncing.
+    pub min_bounce_impulse: f32,
+
+    /// Drag of the air in the voxelize world.
+    pub air_drag: f32,
+
+    /// Drag of the fluid in the voxelize world.
+    pub fluid_drag: f32,
+
+    /// Fluid density of the voxelize world.
+    /// TODO: move this to registry.
+    pub fluid_density: f32,
 }
 
 /// World configuration, storing information of how a world is constructed.
@@ -101,6 +117,11 @@ impl WorldConfig {
             max_light_level: self.max_light_level,
             min_chunk: self.min_chunk,
             max_chunk: self.max_chunk,
+            gravity: self.gravity.to_owned(),
+            air_drag: self.air_drag,
+            fluid_density: self.fluid_density,
+            fluid_drag: self.fluid_drag,
+            min_bounce_impulse: self.min_bounce_impulse,
         }
     }
 }
@@ -117,11 +138,11 @@ const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 6;
 const DEFAULT_WATER_LEVEL: usize = 60;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 const DEFAULT_SEED: u32 = 123123123;
-const DEFAULT_GRAVITY: [f32; 3] = [0.0, -9.8, 0.0];
-const DEFAULT_MIN_BOUNCE_IMPULSE: f32 = 0.1;
+const DEFAULT_GRAVITY: [f32; 3] = [0.0, -24.8, 0.0];
+const DEFAULT_MIN_BOUNCE_IMPULSE: f32 = 0.5;
 const DEFAULT_AIR_DRAG: f32 = 0.1;
-const DEFAULT_FLUID_DRAG: f32 = 0.4;
-const DEFAULT_FLUID_DENSITY: f32 = 2.0;
+const DEFAULT_FLUID_DRAG: f32 = 1.4;
+const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {

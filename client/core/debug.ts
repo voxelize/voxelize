@@ -349,7 +349,7 @@ class Debug {
       rendering.renderer.info.memory,
       "geometries"
     );
-    this.registerDisplay("Rigid body count", physics.core.bodies, "length");
+    this.registerDisplay("Rigid body count", physics.bodies, "length");
     this.registerDisplay(
       "Working network workers",
       network,

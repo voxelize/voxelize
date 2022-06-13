@@ -186,7 +186,7 @@ class Particles {
       });
 
       for (let i = 0; i < count; i++) {
-        const body = this.client.physics.core.addBody({
+        const body = this.client.physics.addBody({
           aabb: new AABB(0, 0, 0, 0, 0.1, 0),
           gravityMultiplier: gravity ? 1 : 0,
           restitution: 0.3,
@@ -284,7 +284,7 @@ class Particles {
       const { mesh, bodies, params } = group;
 
       bodies.forEach((body) => {
-        physics.core.removeBody(body);
+        physics.removeBody(body);
       });
 
       if (animate) {
