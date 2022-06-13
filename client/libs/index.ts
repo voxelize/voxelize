@@ -12,5 +12,6 @@ export * from "./chat-history";
 export * from "./chat-message";
 export * from "./chunk";
 export * from "./chunks";
+export * from "./image-voxelizer";
 
 export { default as ECS } from "./ecs";

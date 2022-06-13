@@ -41,7 +41,6 @@ impl Lights {
             max_height,
             min_chunk,
             max_chunk,
-            max_light_level,
             ..
         } = config;
 
@@ -91,12 +90,7 @@ impl Lights {
                     continue;
                 }
 
-                let next_level = level
-                    - if is_sunlight && oy == -1 && level == max_light_level {
-                        0
-                    } else {
-                        1
-                    };
+                let next_level = level - 1;
                 let next_voxel = [nvx, nvy, nvz];
                 let block_type = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
 
@@ -392,6 +386,17 @@ mod tests {
             }
         }
 
+        for vy in height..=height * 2 {
+            chunk.set_voxel(5, vy, 5, 1);
+        }
+
+        chunk.set_voxel(6, height * 2, 5, 1);
+        chunk.set_voxel(7, height * 2, 5, 1);
+        chunk.set_voxel(6, height * 2, 6, 1);
+        chunk.set_voxel(6, height * 2 - 1, 6, 1);
+        chunk.set_voxel(6, height * 2, 4, 1);
+        chunk.set_voxel(6, height * 2 - 1, 4, 1);
+
         chunk
     }
 
@@ -435,5 +440,23 @@ mod tests {
         for vy in height..(config.max_height as i32) {
             assert!(chunk.get_sunlight(0, vy, 0) == config.max_light_level);
         }
+
+        chunk.set_voxel(7, height * 2 - 1, 5, 1);
+        Lights::remove_light(
+            &mut chunk,
+            &Vec3(7, height * 2 - 1, 5),
+            &LightColor::Sunlight,
+            &config,
+            &registry,
+        );
+
+        println!(
+            "6 {} 5: {} {}",
+            height * 2 - 1,
+            chunk.get_sunlight(6, height * 2 - 1, 5),
+            chunk.get_voxel(6, height * 2 - 1, 5)
+        );
+        assert!(chunk.get_sunlight(6, height * 2 - 2, 5) == 13);
+        assert!(chunk.get_sunlight(6, height * 2 - 1, 5) == 12);
     }
 }

@@ -27,7 +27,7 @@ ___
 
 ### params
 
-• **params**: [`ChatParams`](../modules.md#chatparams-230)
+• **params**: [`ChatParams`](../modules.md#chatparams-508)
 
 Parameters to initialize the Voxelize chat.
 
@@ -84,13 +84,50 @@ Add a message to the chat.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `data` | `Object` | The data of new chat message. |
-| `data.type` | [`MESSAGE_TYPE`](../modules.md#message_type-230) | Type of message, used for color rendering. |
+| `data.type` | [`MESSAGE_TYPE`](../modules.md#message_type-508) | Type of message, used for color rendering. |
 | `data.sender?` | `string` | The name of the sender. |
 | `data.body?` | `string` | The body text of the message. |
 
 #### Returns
 
 `void`
+
+___
+
+### addCommand
+
+▸ **addCommand**(`trigger`, `process`): `void`
+
+Add a command to the chat system. Commands are case sensitive.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `trigger` | `string` | The text to trigger the command, needs to be one single word without spaces. |
+| `process` | `CommandProcessor` | The process run when this command is triggered. |
+
+#### Returns
+
+`void`
+
+___
+
+### removeCommand
+
+▸ **removeCommand**(`trigger`): `boolean`
+
+Remove a command from the chat system. Case sensitive.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `trigger` | `string` | The trigger to remove. |
+
+#### Returns
+
+`boolean`
 
 ___
 

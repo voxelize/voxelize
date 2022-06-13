@@ -46,7 +46,7 @@ Allows interested parties to receive information when this entity's component li
 
 | Name | Type |
 | :------ | :------ |
-| `handler` | [`Susbcription`](../modules.md#susbcription-230) |
+| `handler` | [`Susbcription`](../modules.md#susbcription-508) |
 
 #### Returns
 

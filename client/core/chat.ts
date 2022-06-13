@@ -99,6 +99,11 @@ const defaultParams: ChatParams = {
 };
 
 /**
+ * A process that gets run when a command is triggered.
+ */
+type CommandProcessor = (rest: string, client: Client) => void;
+
+/**
  * The **built-in** chat of the Voxelize engine. Handles the networking of sending messages, and displaying
  * all messages received.
  *
@@ -155,6 +160,7 @@ class Chat {
   };
 
   private disappearTimer: NodeJS.Timeout;
+  private commands: Map<string, CommandProcessor> = new Map();
 
   /**
    * Construct a new Voxelize chat instance.
@@ -216,6 +222,29 @@ class Chat {
     if (!this.enabled) {
       this.fadeMessages();
     }
+  };
+
+  /**
+   * Add a command to the chat system. Commands are case sensitive.
+   *
+   * @param trigger - The text to trigger the command, needs to be one single word without spaces.
+   * @param process - The process run when this command is triggered.
+   */
+  addCommand = (trigger: string, process: CommandProcessor) => {
+    if (trigger.split(" ").length > 1) {
+      throw new Error("Command trigger must be one word.");
+    }
+
+    this.commands.set(trigger, process);
+  };
+
+  /**
+   * Remove a command from the chat system. Case sensitive.
+   *
+   * @param trigger - The trigger to remove.
+   */
+  removeCommand = (trigger: string) => {
+    return !!this.commands.delete(trigger);
   };
 
   /**
@@ -466,15 +495,31 @@ class Chat {
 
   private handleEnter = () => {
     const value = this.inputValue;
-    const { commandSymbol } = this.params;
+    const { commandSymbol, helpText } = this.params;
 
     if (value.split(" ").filter((ele) => ele).length === 0) return;
 
     const { network } = this.client;
 
-    if (value === "/help") {
-      this.add({ type: "INFO", body: this.params.helpText });
+    if (value === `${commandSymbol}help`) {
+      this.add({ type: "INFO", body: helpText });
       return;
+    }
+
+    if (value.startsWith(commandSymbol)) {
+      const words = value
+        .substring(commandSymbol.length)
+        .split(" ")
+        .filter(Boolean);
+      const trigger = words.shift();
+      const rest = words.join(" ");
+
+      const process = this.commands.get(trigger);
+
+      if (process) {
+        process(rest.trim(), this.client);
+        return;
+      }
     }
 
     network.send({

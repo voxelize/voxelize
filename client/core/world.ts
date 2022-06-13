@@ -11,7 +11,7 @@ import {
   BoxSides,
   drawSun,
 } from "../libs";
-import { Coords2, Coords3, PartialRecord } from "../types";
+import { Coords2, Coords3, PartialRecord, BlockUpdate } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
 
 type SkyFace = ArtFunction | Color | string | null;
@@ -177,15 +177,7 @@ class World {
     this.setServerVoxels([{ vx, vy, vz, type, rotation }]);
   };
 
-  setServerVoxels = (
-    updates: {
-      vx: number;
-      vy: number;
-      vz: number;
-      type: number;
-      rotation?: BlockRotation;
-    }[]
-  ) => {
+  setServerVoxels = (updates: BlockUpdate[]) => {
     this.client.network.send({
       type: "UPDATE",
       updates: updates.map((update) => {

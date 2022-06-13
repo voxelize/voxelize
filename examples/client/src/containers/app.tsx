@@ -10,6 +10,7 @@ import {
   MetadataComponent,
   System,
   EntityFlag,
+  ImageVoxelizer,
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -158,7 +159,7 @@ class UpdateBoxSystem extends System {
 }
 
 export const App = () => {
-  const [world, setWorld] = useState("world2");
+  const [world, setWorld] = useState("world1");
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
@@ -195,6 +196,11 @@ export const App = () => {
           { name: "Snow", side: "all", data: SnowImage },
           { name: "Water", side: "all", data: WaterImage },
         ]);
+
+        client.current.chat.addCommand(
+          "image-voxelize",
+          ImageVoxelizer.commander
+        );
 
         client.current.ecs.addSystem(new UpdateBoxSystem());
 

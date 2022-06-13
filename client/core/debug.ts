@@ -441,6 +441,33 @@ class Debug {
       },
       "in-game"
     );
+
+    inputs.bind(
+      "m",
+      () => {
+        if (!controls.lookBlock) return;
+
+        const height = 5;
+
+        const id = registry.getBlockByName("Dirt").id;
+        const [vx, vy, vz] = controls.lookBlock;
+        const changes = [];
+
+        for (let y = vy; y <= vy + height; y++) {
+          changes.push({ vx, vy: y, vz, type: id });
+        }
+
+        changes.push({ vx: vx + 1, vy: vy + height, vz, type: id });
+        changes.push({ vx: vx + 2, vy: vy + height, vz, type: id });
+        changes.push({ vx: vx + 1, vy: vy + height, vz: vz + 1, type: id });
+        changes.push({ vx: vx + 1, vy: vy + height - 1, vz: vz + 1, type: id });
+        changes.push({ vx: vx + 1, vy: vy + height, vz: vz - 1, type: id });
+        changes.push({ vx: vx + 1, vy: vy + height - 1, vz: vz - 1, type: id });
+
+        world.setServerVoxels(changes);
+      },
+      "in-game"
+    );
   };
 }
 

@@ -48,9 +48,7 @@ class Registry {
 
   constructor(public client: Client, params: Partial<RegistryParams>) {
     this.aoUniform = {
-      value:
-        // new Vector4(100.0, 170.0, 210.0, 255.0)
-        new Vector4(255, 255, 255, 255),
+      value: new Vector4(100.0, 170.0, 210.0, 255.0),
     };
 
     this.params = {
@@ -152,6 +150,18 @@ class Registry {
 
   getBlockById = (id: number) => {
     return this.blocksById.get(id);
+  };
+
+  getBlockByTextureName = (textureName: string) => {
+    for (const [name, block] of this.blocksByName) {
+      for (const face of block.faces) {
+        if (textureName === this.makeSideName(name, face)) {
+          return block;
+        }
+      }
+    }
+
+    return null;
   };
 
   getTransparencyByName = (name: string) => {

@@ -1,5 +1,7 @@
 import { AABB } from "@voxelize/voxel-physics-engine";
 
+import { BlockRotation } from "./libs";
+
 export type DeepPartial<T> = {
   [P in keyof T]?: DeepPartial<T[P]>;
 };
@@ -110,3 +112,11 @@ export type MESSAGE_TYPE = "ERROR" | "SERVER" | "PLAYER" | "INFO";
  * A CSS measurement. E.g. "30px", "51em"
  */
 export type CSSMeasurement = `${number}${string}`;
+
+export type BlockUpdate = {
+  vx: number;
+  vy: number;
+  vz: number;
+  type: number;
+  rotation?: BlockRotation;
+};
