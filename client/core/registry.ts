@@ -47,7 +47,11 @@ class Registry {
   private sources: Map<string, string | Color> = new Map();
 
   constructor(public client: Client, params: Partial<RegistryParams>) {
-    this.aoUniform = { value: new Vector4(100.0, 170.0, 210.0, 255.0) };
+    this.aoUniform = {
+      value:
+        // new Vector4(100.0, 170.0, 210.0, 255.0)
+        new Vector4(255, 255, 255, 255),
+    };
 
     this.params = {
       ...defaultParams,
@@ -378,41 +382,6 @@ class Registry {
     }
     return i;
   }
-
-  static getFacesMap = (faces: BlockFace[]) => {
-    const faceMap: { [key: string]: string } = {};
-    const sides = ["px", "pz", "nx", "nz"];
-
-    sides.forEach((side) => {
-      if (faces.includes(side as BlockFace)) {
-        faceMap[side] = side;
-      } else if (faces.includes("side")) {
-        faceMap[side] = "side";
-      } else {
-        faceMap[side] = "all";
-      }
-    });
-
-    if (faces.includes("py")) faceMap.py = "py";
-    else if (faces.includes("top")) faceMap.py = "top";
-    else faceMap.py = "all";
-
-    if (faces.includes("ny")) faceMap.py = "ny";
-    else if (faces.includes("bottom")) faceMap.py = "bottom";
-    else faceMap.ny = "all";
-
-    return faceMap;
-  };
-
-  static fixTextureBleeding = (
-    startU: number,
-    startV: number,
-    endU: number,
-    endV: number
-  ) => {
-    const offset = 0.1 / 64;
-    return [startU + offset, startV - offset, endU - offset, endV + offset];
-  };
 
   private makeSideName = (name: string, side: BlockFace) => {
     return `${name.toLowerCase()}__${side.toLowerCase()}`;

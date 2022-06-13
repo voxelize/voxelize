@@ -4,7 +4,6 @@ import {
   CanvasTexture,
   ClampToEdgeWrapping,
   NearestFilter,
-  TextureLoader,
   MeshBasicMaterial,
   DoubleSide,
   Color,

@@ -549,6 +549,37 @@ impl Mesher {
                                                         }
                                                     }
 
+                                                    // Diagonal light leaking fix.
+                                                    if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                                                        if !get_block_by_voxel(
+                                                            vx,
+                                                            vy + ddy,
+                                                            vz + ddz,
+                                                            space,
+                                                            registry,
+                                                        )
+                                                        .is_transparent
+                                                            && !get_block_by_voxel(
+                                                                vx + ddx,
+                                                                vy,
+                                                                vz + ddz,
+                                                                space,
+                                                                registry,
+                                                            )
+                                                            .is_transparent
+                                                            && !get_block_by_voxel(
+                                                                vx + ddx,
+                                                                vy + ddy,
+                                                                vz,
+                                                                space,
+                                                                registry,
+                                                            )
+                                                            .is_transparent
+                                                        {
+                                                            continue;
+                                                        }
+                                                    }
+
                                                     let is_transparent = get_block_by_voxel(
                                                         vx + ddx,
                                                         vy + ddy,

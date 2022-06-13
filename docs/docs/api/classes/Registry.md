@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-210)
+• **params**: [`RegistryParams`](../modules.md#registryparams-230)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-210)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-230)\>
 
 ___
 
@@ -70,8 +70,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-210) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-210) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-230) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-230) |
 
 ___
 
@@ -90,7 +90,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-210)\> |
+| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-230)\> |
 
 ## Methods
 
@@ -102,7 +102,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-210) ; `data`: `string` \| `Color`  }[] |
+| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-230) ; `data`: `string` \| `Color`  }[] |
 
 #### Returns
 
@@ -119,7 +119,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `side` | [`BlockFace`](../modules.md#blockface-210) |
+| `side` | [`BlockFace`](../modules.md#blockface-230) |
 | `data` | `string` \| `Color` |
 
 #### Returns
@@ -137,7 +137,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `number` |
-| `side` | [`BlockFace`](../modules.md#blockface-210) |
+| `side` | [`BlockFace`](../modules.md#blockface-230) |
 | `path` | `string` |
 
 #### Returns
@@ -154,7 +154,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `blocks` | [`Block`](../modules.md#block-210)[] |
+| `blocks` | [`Block`](../modules.md#block-230)[] |
 | `ranges` | `Object` |
 
 #### Returns
@@ -165,7 +165,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-210)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-230)
 
 #### Parameters
 
@@ -175,13 +175,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-210)
+[`Block`](../modules.md#block-230)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-210)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-230)
 
 #### Parameters
 
@@ -191,7 +191,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-210)
+[`Block`](../modules.md#block-230)
 
 ___
 
@@ -325,7 +325,7 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-210)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-230)[]
 
 #### Parameters
 
@@ -335,13 +335,13 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-210)[]
+[`BlockFace`](../modules.md#blockface-230)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-210)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-230)[]
 
 #### Parameters
 
@@ -351,7 +351,7 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-210)[]
+[`BlockFace`](../modules.md#blockface-230)[]
 
 ___
 
@@ -395,7 +395,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-210) |
+| `block` | [`Block`](../modules.md#block-230) |
 
 #### Returns
 
@@ -458,41 +458,6 @@ ___
 #### Returns
 
 `boolean`
-
-___
-
-### getFacesMap
-
-▸ `Static` **getFacesMap**(`faces`): `Object`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `faces` | [`BlockFace`](../modules.md#blockface-210)[] |
-
-#### Returns
-
-`Object`
-
-___
-
-### fixTextureBleeding
-
-▸ `Static` **fixTextureBleeding**(`startU`, `startV`, `endU`, `endV`): `number`[]
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `startU` | `number` |
-| `startV` | `number` |
-| `endU` | `number` |
-| `endV` | `number` |
-
-#### Returns
-
-`number`[]
 
 ## Accessors
 

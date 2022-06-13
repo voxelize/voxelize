@@ -56,7 +56,7 @@ class Physics {
    * @internal
    * @param params - World parameters sent from the server.
    */
-  initialize = (params: any) => {
+  initialize = (params: EngineOptions) => {
     this.core = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
         const id = this.client.world.getVoxelByVoxel(vx, vy, vz);
