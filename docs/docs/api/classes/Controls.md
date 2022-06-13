@@ -33,7 +33,7 @@ ___
 
 ### params
 
-• **params**: [`ControlsParams`](../modules.md#controlsparams-82)
+• **params**: [`ControlsParams`](../modules.md#controlsparams-128)
 
 Parameters to initialize the Voxelize controls.
 
@@ -49,7 +49,7 @@ ___
 
 ### state
 
-• **state**: [`ControlState`](../modules.md#controlstate-82)
+• **state**: [`ControlState`](../modules.md#controlstate-128)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -76,7 +76,7 @@ ___
 
 ### lookBlock
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3-82)
+• **lookBlock**: [`Coords3`](../modules.md#coords3-128)
 
 The voxel at which the client is looking at.
 
@@ -92,7 +92,7 @@ The block that a client can potentially place at.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3-82) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
+| `voxel` | [`Coords3`](../modules.md#coords3-128) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
 | `rotation` | `number` | The rotation of the block that may be placed. |
 | `yRotation` | `number` | The rotation on the y-axis of the block that may be placed. |
 
@@ -210,74 +210,6 @@ Toggle ghost mode. Ghost mode is when a client can fly through blocks.
 
 `void`
 
-___
-
-### reset
-
-▸ **reset**(): `void`
-
-Reset the controls instance.
-
-**`internal`**
-
-#### Returns
-
-`void`
-
-___
-
-### dispose
-
-▸ **dispose**(): `void`
-
-Disposal of `Controls`, disconnects all event listeners.
-
-**`internal`**
-
-#### Returns
-
-`void`
-
-___
-
-### moveForward
-
-▸ **moveForward**(`distance`): `void`
-
-Move the client forward/backward by a certain distance.
-
-**`internal`**
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `distance` | `number` | Distance to move forward by. |
-
-#### Returns
-
-`void`
-
-___
-
-### moveRight
-
-▸ **moveRight**(`distance`): `void`
-
-Move the client left/right by a certain distance.
-
-**`internal`**
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `distance` | `number` | Distance to move left/right by. |
-
-#### Returns
-
-`void`
-
 ## Accessors
 
 ### ghostMode
@@ -294,34 +226,34 @@ ___
 
 ### position
 
-• `get` **position**(): [`Coords3`](../modules.md#coords3-82)
+• `get` **position**(): [`Coords3`](../modules.md#coords3-128)
 
 The 3D position that the client is at.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-82)
+[`Coords3`](../modules.md#coords3-128)
 
 ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-82)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-128)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-82)
+[`Coords3`](../modules.md#coords3-128)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-82)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-128)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-82)
+[`Coords2`](../modules.md#coords2-128)

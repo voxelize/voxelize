@@ -29,9 +29,9 @@ class Peer {
     public connection: PeerInstance,
     public params: PeerParams
   ) {
-    const { fontFace, headDimension } = params;
+    const { fontFace, headDimension, headColor } = params;
 
-    this.head = new Head({ headDimension });
+    this.head = new Head({ headDimension, headColor });
 
     this.newPosition = this.head.mesh.position;
     this.newQuaternion = this.head.mesh.quaternion;
@@ -44,11 +44,6 @@ class Peer {
     });
 
     this.head.mesh.add(this.nameMesh);
-
-    connection.on("data", (data) => {
-      const decoded = Network.decodeSync(data);
-      this.onData(decoded);
-    });
   }
 
   set = (name: string, position: Vector3, quaternion: Quaternion) => {
@@ -70,7 +65,7 @@ class Peer {
     }
   };
 
-  private onData = (data: any) => {
+  onData = (data: any) => {
     const { type } = data;
 
     switch (type) {

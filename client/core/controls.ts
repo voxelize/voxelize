@@ -216,7 +216,7 @@ type ControlsParams = {
   flyImpulse: number;
 
   /**
-   * The inertia of a client when they're flying. Defaults to `3`.
+   * The inertia of a client when they're flying. Defaults to `6`.
    */
   flyInertia: number;
 
@@ -276,7 +276,7 @@ const defaultParams: ControlsParams = {
   flySpeed: 40,
   flyForce: 80,
   flyImpulse: 2.5,
-  flyInertia: 3,
+  flyInertia: 6,
 
   sprintFactor: 1.4,
   airMoveMult: 0.7,
@@ -615,6 +615,7 @@ class Controls extends EventDispatcher {
    * Reset the controls instance.
    *
    * @internal
+   * @hidden
    */
   reset = () => {
     this.setPosition(...this.params.initialPosition);
@@ -627,6 +628,7 @@ class Controls extends EventDispatcher {
    * Disposal of `Controls`, disconnects all event listeners.
    *
    * @internal
+   * @hidden
    */
   dispose = () => {
     this.disconnect();
@@ -636,6 +638,7 @@ class Controls extends EventDispatcher {
    * Move the client forward/backward by a certain distance.
    *
    * @internal
+   * @hidden
    * @param distance - Distance to move forward by.
    */
   moveForward = (distance: number) => {
@@ -653,6 +656,7 @@ class Controls extends EventDispatcher {
    * Move the client left/right by a certain distance.
    *
    * @internal
+   * @hidden
    * @param distance - Distance to move left/right by.
    */
   moveRight = (distance: number) => {

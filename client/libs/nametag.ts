@@ -7,7 +7,7 @@ class NameTag extends SpriteText {
   constructor(
     text: string,
     {
-      fontFace = `'Syne Mono', monospace`,
+      fontFace = `monospace`,
       fontSize = 0.1,
       yOffset = 0,
       backgroundColor = "#00000077",

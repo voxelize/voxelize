@@ -122,12 +122,6 @@ class World {
     this.client.ready = true;
   };
 
-  setDimension = (value: number) => {
-    this.params.dimension = value;
-
-    // TODO: scale the chunks
-  };
-
   getChunk = (cx: number, cz: number) => {
     return this.getChunkByName(ChunkUtils.getChunkName([cx, cz]));
   };

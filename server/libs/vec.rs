@@ -47,11 +47,15 @@ impl<T: Num + Copy + Default> ops::Add<&Vec3<T>> for &Vec3<T> {
     type Output = Vec3<T>;
 
     fn add(self, rhs: &Vec3<T>) -> Self::Output {
-        let mut result = Vec3::default();
-        result.0 = self.0 + rhs.0;
-        result.1 = self.1 + rhs.1;
-        result.2 = self.2 + rhs.2;
-        result
+        Vec3::<T>(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
+    }
+}
+
+impl<T: Num + Copy + Default> ops::Add<Vec3<T>> for Vec3<T> {
+    type Output = Vec3<T>;
+
+    fn add(self, rhs: Vec3<T>) -> Self::Output {
+        Vec3::<T>(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
     }
 }
 
@@ -59,11 +63,15 @@ impl<T: Num + Copy + Default> ops::Sub<&Vec3<T>> for &Vec3<T> {
     type Output = Vec3<T>;
 
     fn sub(self, rhs: &Vec3<T>) -> Self::Output {
-        let mut result = Vec3::default();
-        result.0 = self.0 - rhs.0;
-        result.1 = self.1 - rhs.1;
-        result.2 = self.2 - rhs.2;
-        result
+        Vec3::<T>(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
+    }
+}
+
+impl<T: Num + Copy + Default> ops::Sub<Vec3<T>> for Vec3<T> {
+    type Output = Vec3<T>;
+
+    fn sub(self, rhs: Vec3<T>) -> Self::Output {
+        Vec3::<T>(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
     }
 }
 

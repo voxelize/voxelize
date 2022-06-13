@@ -203,6 +203,9 @@ class Network {
     });
   };
 
+  /**
+   * The number of active workers decoding network packets.
+   */
   get concurrentWorkers() {
     return this.pool.workingCount;
   }

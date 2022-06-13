@@ -103,7 +103,6 @@ class Box extends BaseEntity {
 
     const nameTag = new NameTag("BOX", {
       backgroundColor: "#00000077",
-      fontFace: "Syne Mono",
       fontSize: 0.2,
       yOffset: 0.3,
     });

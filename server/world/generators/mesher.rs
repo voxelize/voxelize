@@ -362,6 +362,7 @@ impl Mesher {
 
     /// Mesh a Space struct from specified voxel coordinates, generating the 3D data needed
     /// to render a chunk/space.
+    #[allow(clippy::all)]
     pub fn mesh_space(
         min: &Vec3<i32>,
         max: &Vec3<i32>,
@@ -388,10 +389,8 @@ impl Mesher {
 
                     let Block {
                         rotatable,
-                        is_solid,
                         is_transparent,
                         is_block,
-                        is_plant,
                         is_fluid,
                         faces,
                         ..
@@ -484,14 +483,6 @@ impl Mesher {
                                         let mut sum_green_lights = vec![];
                                         let mut sum_blue_lights = vec![];
 
-                                        let b000 = get_block_by_voxel(vx, vy, vz, space, registry)
-                                            .is_transparent;
-                                        let b001 =
-                                            get_block_by_voxel(vx, vy, vz + dz, space, registry)
-                                                .is_transparent;
-                                        let b010 =
-                                            get_block_by_voxel(vx, vy + dy, vz, space, registry)
-                                                .is_transparent;
                                         let b011 = get_block_by_voxel(
                                             vx,
                                             vy + dy,
@@ -500,9 +491,6 @@ impl Mesher {
                                             registry,
                                         )
                                         .is_transparent;
-                                        let b100 =
-                                            get_block_by_voxel(vx + dx, vy, vz, space, registry)
-                                                .is_transparent;
                                         let b101 = get_block_by_voxel(
                                             vx + dx,
                                             vy,
@@ -538,163 +526,64 @@ impl Mesher {
                                             face_aos.push(vertex_ao(b011, b101, b111));
                                         }
 
-                                        // TODO: light be leaking
+                                        // Loop through all 8 neighbors of this vertex.
+                                        for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
+                                            for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
+                                                for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
+                                                    // The block that we're checking is on the side that the face is facing, so
+                                                    // check if the diagonal block would be blocking this block's potential light.
+                                                    // Perpendicular check done by crossing the vectors.
+                                                    if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz
+                                                        == 0
+                                                    {
+                                                        if !get_block_by_voxel(
+                                                            vx + ddx * dir[0],
+                                                            vy + ddy * dir[1],
+                                                            vz + ddz * dir[2],
+                                                            space,
+                                                            registry,
+                                                        )
+                                                        .is_transparent
+                                                        {
+                                                            continue;
+                                                        }
+                                                    }
 
-                                        if b000 {
-                                            sum_sunlight.push(space.get_sunlight(vx, vy, vz));
-                                            sum_red_lights.push(space.get_red_light(vx, vy, vz));
-                                            sum_green_lights
-                                                .push(space.get_green_light(vx, vy, vz));
-                                            sum_blue_lights.push(space.get_blue_light(vx, vy, vz));
-                                        }
+                                                    let is_transparent = get_block_by_voxel(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                        space,
+                                                        registry,
+                                                    )
+                                                    .is_transparent;
 
-                                        if b001 {
-                                            sum_sunlight.push(space.get_sunlight(vx, vy, vz + dz));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                        }
-
-                                        if b010 {
-                                            sum_sunlight.push(space.get_sunlight(vx, vy + dy, vz));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                        }
-
-                                        if b011 {
-                                            sum_sunlight.push(space.get_sunlight(
-                                                vx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                        }
-
-                                        if b100 {
-                                            sum_sunlight.push(space.get_sunlight(vx + dx, vy, vz));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx + dx,
-                                                vy,
-                                                vz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx + dx,
-                                                vy,
-                                                vz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx + dx,
-                                                vy,
-                                                vz,
-                                            ));
-                                        }
-
-                                        if b101 {
-                                            sum_sunlight.push(space.get_sunlight(
-                                                vx + dx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx + dx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx + dx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx + dx,
-                                                vy,
-                                                vz + dz,
-                                            ));
-                                        }
-
-                                        if b110 {
-                                            sum_sunlight.push(space.get_sunlight(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz,
-                                            ));
-                                        }
-
-                                        if b111 {
-                                            sum_sunlight.push(space.get_sunlight(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                            sum_red_lights.push(space.get_red_light(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                            sum_green_lights.push(space.get_green_light(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
-                                            sum_blue_lights.push(space.get_blue_light(
-                                                vx + dx,
-                                                vy + dy,
-                                                vz + dz,
-                                            ));
+                                                    if is_transparent {
+                                                        sum_sunlight.push(space.get_sunlight(
+                                                            vx + ddx,
+                                                            vy + ddy,
+                                                            vz + ddz,
+                                                        ));
+                                                        sum_red_lights.push(space.get_red_light(
+                                                            vx + ddx,
+                                                            vy + ddy,
+                                                            vz + ddz,
+                                                        ));
+                                                        sum_green_lights.push(
+                                                            space.get_green_light(
+                                                                vx + ddx,
+                                                                vy + ddy,
+                                                                vz + ddz,
+                                                            ),
+                                                        );
+                                                        sum_blue_lights.push(space.get_blue_light(
+                                                            vx + ddx,
+                                                            vy + ddy,
+                                                            vz + ddz,
+                                                        ));
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         four_sunlights.push(

@@ -435,4 +435,12 @@ impl VoxelAccess for Chunk {
 
         true
     }
+
+    fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
+        Some(&self.lights)
+    }
+
+    fn get_voxels(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
+        Some(&self.voxels)
+    }
 }

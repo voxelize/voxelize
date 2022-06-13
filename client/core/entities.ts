@@ -253,6 +253,7 @@ class Entities extends Map<string, BaseEntity> {
    * Reset the entities map.
    *
    * @internal
+   * @hidden
    */
   reset = () => {
     this.forEach((entity, key) => {

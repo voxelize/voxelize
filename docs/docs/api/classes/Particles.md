@@ -6,53 +6,45 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A **built-in** manager for everything particles in Voxelize.
+
 ## Properties
-
-### groups
-
-• **groups**: `Group`[] = `[]`
-
-___
 
 ### client
 
 • **client**: [`Client`](Client.md)
 
-## Constructors
+Reference linking back to the Voxelize client instance.
 
-### constructor
+___
 
-• **new Particles**(`client`)
+### groups
 
-#### Parameters
+• **groups**: [`ParticleGroup`](../modules.md#particlegroup-104)[] = `[]`
 
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
+An array of active particle groups.
+
+___
+
+### private
+
+• **private**: `any`
 
 ## Methods
 
 ### addBreakParticles
 
-▸ **addBreakParticles**(`voxels`, `params?`): `void`
+▸ **addBreakParticles**(`voxels`, `params?`): [`ParticleGroup`](../modules.md#particlegroup-104)
+
+Create a group of particles for a voxel breaking effect. Returns `null` if empty voxels is passed in.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `voxels` | { `voxel`: [`Coords3`](../modules.md#coords3-82) ; `type`: `number`  }[] |
-| `params` | `Partial`<`ParticleParams`\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxels` | { `voxel`: [`Coords3`](../modules.md#coords3-128) ; `type`: `number`  }[] | The original voxel and block type that was broken. |
+| `params` | `Partial`<[`ParticleParams`](../modules.md#particleparams-122)\> | Parameters to customize the particle initialization. |
 
 #### Returns
 
-`void`
-
-___
-
-### update
-
-▸ **update**(): `void`
-
-#### Returns
-
-`void`
+[`ParticleGroup`](../modules.md#particlegroup-104)

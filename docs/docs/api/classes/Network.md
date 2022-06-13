@@ -21,7 +21,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-82)
+• **params**: [`NetworkParams`](../modules.md#networkparams-128)
 
 Parameters to initialize the Network instance.
 
@@ -29,7 +29,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-82)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-128)
 
 The WebSocket client for Voxelize.
 
@@ -140,6 +140,8 @@ ___
 ### concurrentWorkers
 
 • `get` **concurrentWorkers**(): `number`
+
+The number of active workers decoding network packets.
 
 #### Returns
 

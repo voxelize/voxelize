@@ -4,6 +4,7 @@ import { CanvasBox } from "./canvas-box";
 
 type HeadParams = {
   headDimension: number;
+  headColor: string;
 };
 
 class Head {
@@ -31,7 +32,7 @@ class Head {
     context: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement
   ) => {
-    context.fillStyle = "#323232";
+    context.fillStyle = this.params.headColor;
     context.fillRect(0, 0, canvas.width, canvas.height);
   };
 

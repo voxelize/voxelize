@@ -5,11 +5,33 @@ import { Peer, PeerParams } from "../libs";
 
 import { Network } from "./network";
 
+/**
+ * Parameters to initialize the {@link Peers} manager for Voxelize.
+ */
 type PeersParams = {
+  /**
+   * The interpolation factor between each peer update. Defaults to 0.6.
+   */
   lerpFactor: number;
+
+  /**
+   * The background color of the peer head mesh. Defaults to `#94d0cc`.
+   */
   headColor: string;
+
+  /**
+   * The dimension of the peer head mesh. Defaults to 0.4.
+   */
   headDimension: number;
+
+  /**
+   * The maximum distance, in blocks, at which the peer's nametag will still be rendered. Defaults to 50 voxels.
+   */
   maxNameDistance: number;
+
+  /**
+   * The font for the peer's nametag. Defaults to `monospace`.
+   */
   fontFace: string;
 };
 
@@ -18,14 +40,34 @@ const defaultParams: PeersParams = {
   headColor: "#94d0cc",
   headDimension: 0.4,
   maxNameDistance: 50,
-  fontFace: `'Syne Mono', monospace`,
+  fontFace: `monospace`,
 };
 
+/**
+ * A **built-in** manager for the peer clients in the same Voxelize world.
+ *
+ * @noInheritDoc
+ */
 class Peers extends Map<string, Peer> {
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * Parameters to initialize the Peers manager.
+   */
   public params: PeerParams;
 
-  constructor(public client: Client, params: Partial<PeersParams> = {}) {
+  /**
+   * Initialize a Peers manager for Voxelize.
+   *
+   * @hidden
+   */
+  constructor(client: Client, params: Partial<PeersParams> = {}) {
     super();
+
+    this.client = client;
 
     this.params = {
       ...defaultParams,
@@ -33,6 +75,12 @@ class Peers extends Map<string, Peer> {
     };
   }
 
+  /**
+   * Add a Voxelize peer, initializing its mesh and network connection.
+   *
+   * @internal
+   * @hidden
+   */
   addPeer = (id: string, connection: PeerInstance) => {
     const { headColor, headDimension, lerpFactor, maxNameDistance, fontFace } =
       this.params;
@@ -74,13 +122,14 @@ class Peers extends Map<string, Peer> {
       });
     });
 
-    this.set(id, peer);
-  };
-
-  reset = () => {
-    this.forEach((peer) => {
-      this.removePeer(peer);
+    // updating
+    connection.on("data", (data) => {
+      this.client.network.decode(data).then((decoded) => {
+        peer.onData(decoded);
+      });
     });
+
+    this.set(id, peer);
   };
 
   broadcast = (encoded: any) => {
@@ -88,6 +137,12 @@ class Peers extends Map<string, Peer> {
       if (peer.connected && peer.connection.connected) {
         peer.connection.send(encoded);
       }
+    });
+  };
+
+  reset = () => {
+    this.forEach((peer) => {
+      this.removePeer(peer);
     });
   };
 

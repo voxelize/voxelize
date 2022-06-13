@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use log::info;
+
 use crate::{
     Block, ChunkUtils, LightColor, Ndarray, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
@@ -361,5 +363,77 @@ impl Lights {
         }
 
         space.get_lights(center.0, center.1).unwrap().to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    fn make_test_chunk(height: i32) -> Chunk {
+        let mut chunk = Chunk::new(
+            "test",
+            0,
+            0,
+            &ChunkParams {
+                max_height: 64,
+                size: 16,
+            },
+        );
+
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                for vy in 0..height {
+                    chunk.set_voxel(vx, vy, vz, 1);
+                }
+            }
+        }
+
+        chunk
+    }
+
+    fn make_test_registry() -> Registry {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Dirt").is_solid(true).build());
+        registry
+    }
+
+    fn make_test_config() -> WorldConfig {
+        WorldConfig::new()
+            .chunk_size(16)
+            .max_height(64)
+            .max_light_level(15)
+            .min_chunk([0, 0])
+            .max_chunk([0, 0])
+            .build()
+    }
+
+    #[test]
+    fn propagate_works() {
+        let height = 10;
+
+        let mut chunk = make_test_chunk(height);
+
+        let registry = make_test_registry();
+        let config = make_test_config();
+
+        let min = chunk.min.to_owned();
+        let coords = chunk.coords.to_owned();
+
+        let shape = &chunk.max - &chunk.min;
+        let shape = Vec3(shape.0 as usize, shape.1 as usize, shape.2 as usize);
+
+        Lights::propagate(&mut chunk, &min, &coords, &shape, &registry, &config);
+
+        for vy in 0..height {
+            assert!(chunk.get_sunlight(0, vy, 0) == 0);
+        }
+
+        for vy in height..(config.max_height as i32) {
+            assert!(chunk.get_sunlight(0, vy, 0) == config.max_light_level);
+        }
     }
 }

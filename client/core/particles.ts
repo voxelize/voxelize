@@ -18,57 +18,150 @@ const flatten = (arr: any[][]) => {
   return arr.reduce((acc, val) => acc.concat(val), []);
 };
 
+/**
+ * Parameters to initialize **a group of** particles.
+ */
 type ParticleParams = {
+  /**
+   * Number of particles spawned in this group.
+   */
   count: number;
+
+  /**
+   * The magnitude of the default force applied to each particle.
+   */
   force: number;
+
+  /**
+   * The time until this particle is discarded.
+   */
   timeout: number;
+
+  /**
+   * Whether or not this particle is effected by gravity.
+   */
   gravity: boolean;
+
+  /**
+   * The time for the particle to fade away once the timeout is reached.
+   */
   fadeTimeout: number;
+
+  /**
+   * The scale of each particles.
+   */
+  scale: number;
+
+  /**
+   * A function returning a 3-element array that modifies the force applied on each particle.
+   */
   impulseFunc: (f: number) => Coords3;
+
+  /**
+   * A function used to update the particles.
+   */
+  update: (g: ParticleGroup) => void;
 };
 
-type Group = {
+/**
+ * An object storing the data for a group of particles.
+ */
+type ParticleGroup = {
+  /**
+   * The ThreeJS Points instance for rendering.
+   */
   mesh: Points;
-  particles: RigidBody[];
+
+  /**
+   * The rigid bodies of the particles, allowing them to act physically.
+   */
+  bodies: RigidBody[];
+
+  /**
+   * Parameters used to initialize this particle group.
+   */
   params: ParticleParams;
-  update: () => void;
 };
 
-const defaultParams: ParticleParams = {
+const defaultUpdate = ({ bodies, mesh }: ParticleGroup) => {
+  const positions = [];
+
+  for (const body of bodies) {
+    positions.push(...body.getPosition());
+  }
+
+  mesh.geometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(positions, 3)
+  );
+  mesh.geometry.attributes.position.needsUpdate = true;
+};
+
+const defaultBreakingParams: ParticleParams = {
   count: 12,
   force: 4,
   timeout: 2000,
   gravity: true,
   fadeTimeout: 200,
+  scale: 0.4,
   impulseFunc: (force) => [
     Math.random() * force - force / 2,
     Math.random() * force,
     Math.random() * force - force / 2,
   ],
+  update: defaultUpdate,
 };
 
-const PARTICLE_SCALE = 0.6;
 const MAX_GROUPS = 3;
 const MAX_PARTICLES = 100;
 
+/**
+ * A **built-in** manager for everything particles in Voxelize.
+ */
 class Particles {
-  public groups: Group[] = [];
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
 
-  constructor(public client: Client) {}
+  /**
+   * An array of active particle groups.
+   */
+  public groups: ParticleGroup[] = [];
 
+  /**
+   * Initialize a Voxelize particle manager.
+   *
+   * @hidden
+   */
+  constructor(client: Client) {
+    this.client = client;
+  }
+
+  /**
+   * Create a group of particles for a voxel breaking effect. Returns `null` if empty voxels is passed in.
+   *
+   * @param voxels - The original voxel and block type that was broken.
+   * @param params - Parameters to customize the particle initialization.
+   */
   addBreakParticles = (
     voxels: { voxel: Coords3; type: number }[],
     params: Partial<ParticleParams> = {}
   ) => {
     this.sanityCheck();
 
+    if (voxels.length === 0) {
+      return null;
+    }
+
     const allParams = {
-      ...defaultParams,
+      ...defaultBreakingParams,
       ...params,
     } as ParticleParams;
-    const { count, force, gravity, timeout, impulseFunc } = allParams;
 
-    const particles = [];
+    const { count, force, gravity, timeout, impulseFunc, scale } = allParams;
+
+    const bodies = [];
     const lights = [];
     const uvs = [];
 
@@ -105,7 +198,7 @@ class Particles {
         ]);
 
         body.applyImpulse(impulseFunc(force));
-        particles.push(body);
+        bodies.push(body);
         uvs.push(typeUVArr[i % typeUVArr.length]);
 
         // TODO: fix this. this is costly
@@ -113,8 +206,8 @@ class Particles {
       }
     });
 
-    if (particles.length === 0) {
-      return;
+    if (bodies.length === 0) {
+      return null;
     }
 
     geometry.setAttribute("uv", new Float32BufferAttribute(flatten(uvs), 2));
@@ -131,7 +224,7 @@ class Particles {
           value:
             (window.innerHeight /
               (2.0 * Math.tan((0.5 * 60.0 * Math.PI) / 180.0))) *
-            PARTICLE_SCALE,
+            scale,
         },
         uRepeat: {
           value: new Vector2(
@@ -158,34 +251,40 @@ class Particles {
 
     const group = {
       mesh: points,
-      particles,
+      bodies,
       params: allParams,
-      update: () => {
-        this.updatePositions(geometry, particles);
-      },
-    };
+    } as ParticleGroup;
 
     this.groups.push(group);
 
     setTimeout(() => {
       this.removeGroup(group);
     }, timeout);
+
+    return group;
   };
 
+  /**
+   * Updater of Voxelize particles manager.
+   *
+   * @hidden
+   */
   update = () => {
-    this.groups.forEach((g) => g.update());
+    this.groups.forEach((g) => {
+      g.params.update(g);
+    });
   };
 
-  private removeGroup(group: Group, animate = true) {
+  private removeGroup(group: ParticleGroup, animate = true) {
     const { physics, rendering } = this.client;
 
     const index = this.groups.indexOf(group);
     if (index > -1) {
       const [group] = this.groups.splice(index, 1);
-      const { mesh, particles, params } = group;
+      const { mesh, bodies, params } = group;
 
-      particles.forEach((particle) => {
-        physics.core.removeBody(particle);
+      bodies.forEach((body) => {
+        physics.core.removeBody(body);
       });
 
       if (animate) {
@@ -212,22 +311,12 @@ class Particles {
     }
   }
 
-  private updatePositions = (
-    geometry: BufferGeometry,
-    particles: RigidBody[]
-  ) => {
-    const positions = [];
-    for (const particle of particles) {
-      positions.push(...particle.getPosition());
-    }
-    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
-    geometry.attributes.position.needsUpdate = true;
-  };
+  private;
 
   private sanityCheck() {
     if (this.groups.length > MAX_GROUPS) {
       let total = 0;
-      this.groups.forEach((g) => (total += g.particles.length));
+      this.groups.forEach((g) => (total += g.bodies.length));
 
       if (total > MAX_PARTICLES) {
         this.removeGroup(this.groups[0]);
@@ -235,5 +324,7 @@ class Particles {
     }
   }
 }
+
+export type { ParticleParams, ParticleGroup };
 
 export { Particles };
