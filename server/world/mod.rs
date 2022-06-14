@@ -28,15 +28,15 @@ use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType},
-    EncodedMessage, Vec2, Vec3,
+    EncodedMessage, PeerProtocol, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
 
 use self::systems::{
-    BroadcastEntitiesSystem, BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem,
-    ChunkRequestsSystem, ChunkSendingSystem, ChunkUpdatingSystem, CurrentChunkSystem,
-    EntityMetaSystem, PhysicsSystem, UpdateStatsSystem,
+    BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem, ChunkMeshingSystem,
+    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSendingSystem, ChunkUpdatingSystem,
+    CurrentChunkSystem, EntityMetaSystem, PhysicsSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -88,12 +88,6 @@ struct OnLoadRequest {
 #[derive(Serialize, Deserialize)]
 struct OnUnloadRequest {
     chunks: Vec<Vec2<i32>>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct OnSignalRequest {
-    id: String,
-    signal: Value,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -194,15 +188,18 @@ impl World {
 
         let mut peers = vec![];
 
-        self.clients()
-            .keys()
-            .for_each(|key| peers.push(key.to_owned()));
+        self.clients().keys().for_each(|key| {
+            peers.push(PeerProtocol {
+                id: key.to_owned(),
+                ..Default::default()
+            })
+        });
 
         let ent = self
             .ecs
             .create_entity()
             .with(ClientFlag::default())
-            .with(IDComp::new(&id))
+            .with(IDComp::new(id))
             .with(AddrComp::new(addr))
             .with(ChunkRequestsComp::default())
             .with(CurrentChunkComp::default())
@@ -226,7 +223,7 @@ impl World {
 
         self.send(addr, &init_message);
 
-        let join_message = Message::new(&MessageType::Join).text(&id).build();
+        let join_message = Message::new(&MessageType::Join).text(id).build();
         self.broadcast(join_message, ClientFilter::All);
     }
 
@@ -235,14 +232,19 @@ impl World {
         let removed = self.clients_mut().remove(id);
 
         if let Some(client) = removed {
-            let entities = self.ecs.entities();
+            {
+                let entities = self.ecs.entities();
 
-            entities.delete(client.entity).unwrap_or_else(|_| {
-                panic!(
-                    "Something went wrong with deleting this client: {}",
-                    client.id
-                )
-            });
+                entities.delete(client.entity).unwrap_or_else(|_| {
+                    panic!(
+                        "Something went wrong with deleting this client: {}",
+                        client.id
+                    )
+                });
+            }
+
+            let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
+            self.broadcast(leave_message, ClientFilter::All);
         }
     }
 
@@ -257,7 +259,6 @@ impl World {
         match msg_type {
             MessageType::Peer => self.on_peer(client_id, data),
             MessageType::Load => self.on_load(client_id, data),
-            MessageType::Signal => self.on_signal(client_id, data),
             MessageType::Unload => self.on_unload(client_id, data),
             MessageType::Debug => self.on_debug(client_id, data),
             MessageType::Chat => self.on_chat(client_id, data),
@@ -402,6 +403,7 @@ impl World {
         let builder = builder
             .with(PhysicsSystem, "physics", &["update-stats"])
             .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
+            .with(BroadcastPeersSystem, "broadcast-peers", &[])
             .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
 
         let mut dispatcher = builder.build();
@@ -418,12 +420,13 @@ impl World {
             return;
         };
 
-        if let Some(Peer {
-            direction,
-            position,
-            ..
-        }) = data.peer
-        {
+        data.peers.into_iter().for_each(|peer| {
+            let Peer {
+                direction,
+                position,
+                ..
+            } = peer;
+
             if let Some(position) = position {
                 let mut positions = self.write_component::<PositionComp>();
                 if let Some(p) = positions.get_mut(client_ent) {
@@ -437,30 +440,7 @@ impl World {
                     d.0.set(direction.x, direction.y, direction.z);
                 }
             }
-        }
-    }
-
-    /// Handler for `Signal` type messages.
-    fn on_signal(&mut self, client_id: &str, data: Message) {
-        let json: OnSignalRequest = serde_json::from_str(&data.json)
-            .expect("`on_signal` error. Could not read JSON string.");
-
-        let id = json.id;
-        let signal = json.signal;
-
-        if let Some(client) = self.clients().get(&id) {
-            let json = OnSignalRequest {
-                id: client_id.to_owned(),
-                signal,
-            };
-            let message = Message::new(&MessageType::Signal)
-                .json(
-                    &serde_json::to_string(&json).expect("Unable to serialize `OnSignalRequest`."),
-                )
-                .build();
-
-            self.send(&client.addr, &message)
-        }
+        })
     }
 
     /// Handler for `Load` type messages.

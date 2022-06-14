@@ -52,7 +52,7 @@ pub fn decode_message(buf: &[u8]) -> Result<Message, prost::DecodeError> {
 }
 
 /// Protocol buffer compatible geometry data structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Geometry {
     pub positions: Vec<f32>,
     pub indices: Vec<i32>,
@@ -61,7 +61,7 @@ pub struct Geometry {
 }
 
 /// Protocol buffer compatible mesh data structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MeshProtocol {
     pub opaque: Option<Geometry>,
     pub transparent: Option<Geometry>,
@@ -79,7 +79,7 @@ pub struct ChunkProtocol {
 }
 
 /// Protocol buffer compatible peer data structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PeerProtocol {
     pub id: String,
     pub name: String,
@@ -88,7 +88,7 @@ pub struct PeerProtocol {
 }
 
 /// Protobuf buffer compatible update data structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UpdateProtocol {
     pub vx: i32,
     pub vy: i32,
@@ -99,14 +99,14 @@ pub struct UpdateProtocol {
 }
 
 /// Protocol buffer compatible entity data structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EntityProtocol {
     pub id: String,
     pub r#type: String,
     pub metadata: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ChatMessageProtocol {
     pub r#type: ChatMessageType,
     pub sender: String,
@@ -120,11 +120,10 @@ pub struct MessageBuilder {
 
     json: Option<String>,
     text: Option<String>,
-    peer: Option<PeerProtocol>,
 
     chat: Option<ChatMessageProtocol>,
 
-    peers: Option<Vec<String>>,
+    peers: Option<Vec<PeerProtocol>>,
     entities: Option<Vec<EntityProtocol>>,
     chunks: Option<Vec<ChunkProtocol>>,
     updates: Option<Vec<UpdateProtocol>>,
@@ -152,14 +151,8 @@ impl MessageBuilder {
         self
     }
 
-    /// Configure the peer data of the protocol.
-    pub fn peer(mut self, peer: PeerProtocol) -> Self {
-        self.peer = Some(peer);
-        self
-    }
-
     /// Configure the peers data of the protocol.
-    pub fn peers(mut self, peers: &[String]) -> Self {
+    pub fn peers(mut self, peers: &[PeerProtocol]) -> Self {
         self.peers = Some(peers.to_vec());
         self
     }
@@ -197,22 +190,17 @@ impl MessageBuilder {
 
         message.json = self.json.unwrap_or_default();
         message.text = self.text.unwrap_or_default();
-        message.peers = self.peers.unwrap_or_default();
 
-        if let Some(peer) = self.peer {
-            let PeerProtocol {
-                id,
-                name,
-                direction,
-                position,
-            } = peer;
-
-            message.peer = Some(protocols::Peer {
-                id,
-                name,
-                direction: vec3_to_vector3(&direction),
-                position: vec3_to_vector3(&position),
-            });
+        if let Some(peers) = self.peers {
+            message.peers = peers
+                .into_iter()
+                .map(|peer| protocols::Peer {
+                    id: peer.id,
+                    name: peer.name,
+                    position: vec3_to_vector3(&peer.position),
+                    direction: vec3_to_vector3(&peer.direction),
+                })
+                .collect();
         }
 
         if let Some(entities) = self.entities {

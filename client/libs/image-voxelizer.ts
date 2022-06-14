@@ -75,7 +75,9 @@ class ImageVoxelizer {
       fullParams,
       client.registry
     );
+
     client.world.setServerVoxels(updates);
+    client.chat.add({ type: "INFO", body: `Image voxelization done: ${file}` });
   };
 
   static process = async (

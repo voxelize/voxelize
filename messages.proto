@@ -68,26 +68,24 @@ message Message {
     INIT = 0;
     JOIN = 1;
     LEAVE = 2;
-    SIGNAL = 3;
-    ERROR = 4;
-    PEER = 5;
-    ENTITY = 6;
-    LOAD = 7;
-    UNLOAD = 8;
-    UPDATE = 9;
-    DEBUG = 10;
-    CHAT = 11;
+    ERROR = 3;
+    PEER = 4;
+    ENTITY = 5;
+    LOAD = 6;
+    UNLOAD = 7;
+    UPDATE = 8;
+    DEBUG = 9;
+    CHAT = 10;
   }
 
   Type type = 1;
   string json = 2;
   string text = 3;
-  Peer peer = 4;
 
-  ChatMessage chat = 5;
+  ChatMessage chat = 4;
 
-  repeated string peers = 6;
-  repeated Entity entities = 7;
-  repeated Chunk chunks = 8;
-  repeated Update updates = 9;
+  repeated Peer peers = 5;
+  repeated Entity entities = 6;
+  repeated Chunk chunks = 7;
+  repeated Update updates = 8;
 }

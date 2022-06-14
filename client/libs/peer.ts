@@ -1,8 +1,6 @@
 import { Instance as PeerInstance } from "simple-peer";
 import { Matrix4, Quaternion, Vector3 } from "three";
 
-import { Network } from "../core/network";
-
 import { Head } from "./head";
 import { NameTag } from "./nametag";
 
@@ -24,11 +22,7 @@ class Peer {
   public newQuaternion: Quaternion;
   public nameMesh: NameTag;
 
-  constructor(
-    public id: string,
-    public connection: PeerInstance,
-    public params: PeerParams
-  ) {
+  constructor(public id: string, public params: PeerParams) {
     const { fontFace, headDimension, headColor } = params;
 
     this.head = new Head({ headDimension, headColor });
@@ -62,45 +56,6 @@ class Peer {
     if (camPos) {
       this.nameMesh.visible =
         this.head.mesh.position.distanceTo(camPos) < maxNameDistance;
-    }
-  };
-
-  onData = (data: any) => {
-    const { type } = data;
-
-    switch (type) {
-      case "PEER": {
-        const { peer } = data;
-        if (peer) {
-          const {
-            name,
-            position: { x: px, y: py, z: pz },
-            direction: { x: dx, y: dy, z: dz },
-          } = peer;
-
-          const position = new Vector3(px, py, pz);
-
-          // using closure to reuse objects
-          // reference: https://stackoverflow.com/questions/32849600/direction-vector-to-a-rotation-three-js
-          const updateQuaternion = () => {
-            const m = new Matrix4();
-            const q = new Quaternion();
-            const zero = new Vector3(0, 0, 0);
-            const one = new Vector3(0, 1, 0);
-
-            return () => {
-              return q.setFromRotationMatrix(
-                m.lookAt(new Vector3(dx, dy, dz), zero, one)
-              );
-            };
-          };
-
-          const quaternion = updateQuaternion()();
-
-          this.set(name, position, quaternion);
-        }
-        break;
-      }
     }
   };
 

@@ -1,8 +1,5 @@
 import URL from "domurl";
 import * as fflate from "fflate";
-import { Instance as PeerInstance } from "simple-peer";
-// @ts-ignore
-import SimplePeer from "simple-peer/simplepeer.min";
 import DecodeWorker from "web-worker:./workers/decode-worker";
 
 import { Client } from "..";
@@ -229,11 +226,10 @@ class Network {
             this.client.world.setParams(params);
           }
 
-          // if any other peers exist on load:
-          // try to reach out to them as an initiator
           if (peers) {
-            peers.forEach((i: string) => {
-              this.connectToPeer(i, true);
+            peers.forEach((peer: any) => {
+              if (peer.id === this.client.id) return;
+              this.client.peers.addPeer(peer.id);
             });
           }
 
@@ -246,23 +242,25 @@ class Network {
           break;
         }
         case "JOIN": {
-          // if a new peer joined, connect to them passively,
-          // as they would have already tried to reach out
           const { text: id } = event;
-          this.connectToPeer(id);
+          this.client.peers.addPeer(id);
 
           break;
         }
-        case "SIGNAL": {
-          const {
-            json: { id, signal },
-          } = event;
-          const { connection } = this.client.peers.get(id) || {};
+        case "LEAVE": {
+          const { text: id } = event;
+          this.client.peers.removePeer(id);
 
-          // receiving signal from another peer
-          if (connection && !connection.destroyed) {
-            connection.signal(signal);
-          }
+          break;
+        }
+        case "PEER": {
+          const { peers } = event;
+
+          peers.forEach((peer: any) => {
+            if (peer.id === this.client.id) return;
+            this.client.peers.updatePeer(peer);
+          });
+
           break;
         }
         case "ENTITY": {
@@ -329,15 +327,6 @@ class Network {
       }
     };
   })();
-
-  private connectToPeer = (id: string, initiator = false) => {
-    const connection = new SimplePeer({
-      initiator,
-      trickle: false,
-      channelName: this.world,
-    }) as PeerInstance;
-    this.client.peers.addPeer(id, connection);
-  };
 
   static decodeSync = (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {

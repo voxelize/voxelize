@@ -1,9 +1,7 @@
-import { Instance as PeerInstance } from "simple-peer";
+import { Matrix4, Vector3, Quaternion } from "three";
 
 import { Client } from "..";
 import { Peer, PeerParams } from "../libs";
-
-import { Network } from "./network";
 
 /**
  * Parameters to initialize the {@link Peers} manager for Voxelize.
@@ -76,20 +74,6 @@ class Peers extends Map<string, Peer> {
   }
 
   /**
-   * Send a protocol buffer event to all peers.
-   *
-   * @param event - A protocol buffer object.
-   */
-  broadcast = (event: any) => {
-    const encoded = Network.encode(event);
-    this.forEach((peer) => {
-      if (peer.connected && peer.connection.connected) {
-        peer.connection.send(encoded);
-      }
-    });
-  };
-
-  /**
    * Reset the peers map.
    *
    * @internal
@@ -97,7 +81,7 @@ class Peers extends Map<string, Peer> {
    */
   reset = () => {
     this.forEach((peer) => {
-      this.removePeer(peer);
+      this.removePeer(peer.id);
     });
   };
 
@@ -107,55 +91,76 @@ class Peers extends Map<string, Peer> {
    * @internal
    * @hidden
    */
-  addPeer = (id: string, connection: PeerInstance) => {
+  addPeer = (id: string) => {
     const { headColor, headDimension, lerpFactor, maxNameDistance, fontFace } =
       this.params;
     const { scene } = this.client.rendering;
 
-    const peer = new Peer(id, connection, {
+    const peer = new Peer(id, {
       headColor,
       headDimension,
       lerpFactor,
       maxNameDistance,
       fontFace,
     });
-
-    // connection made
-    connection.on("connect", () => {
-      console.log(`connected to peer ${id}`);
-      peer.connected = true;
-      scene.add(peer.mesh);
-    });
-
-    const disconnection = () => {
-      console.log(`disconnected from peer ${id}`);
-      this.removePeer(peer);
-    };
-
-    // disconnected
-    connection.on("end", disconnection);
-    connection.on("error", disconnection);
-    connection.on("close", disconnection);
-
-    // signaling
-    connection.on("signal", (signal) => {
-      this.client.network?.send({
-        type: "SIGNAL",
-        json: {
-          id,
-          signal,
-        },
-      });
-    });
-
-    // updating
-    connection.on("data", (data) => {
-      this.client.network.decode(data).then((decoded) => {
-        peer.onData(decoded);
-      });
-    });
+    scene.add(peer.mesh);
 
     this.set(id, peer);
+  };
+
+  /**
+   * Update a peer instance to server data.
+   *
+   * @internal
+   * @hidden
+   */
+  updatePeer = (peer: any) => {
+    const { id } = peer;
+    const instance = this.get(id);
+
+    if (instance) {
+      const {
+        name,
+        position: { x: px, y: py, z: pz },
+        direction: { x: dx, y: dy, z: dz },
+      } = peer;
+
+      const position = new Vector3(px, py, pz);
+
+      // using closure to reuse objects
+      // reference: https://stackoverflow.com/questions/32849600/direction-vector-to-a-rotation-three-js
+      const updateQuaternion = () => {
+        const m = new Matrix4();
+        const q = new Quaternion();
+        const zero = new Vector3(0, 0, 0);
+        const one = new Vector3(0, 1, 0);
+
+        return () => {
+          return q.setFromRotationMatrix(
+            m.lookAt(new Vector3(dx, dy, dz), zero, one)
+          );
+        };
+      };
+
+      const quaternion = updateQuaternion()();
+
+      instance.set(name, position, quaternion);
+    }
+  };
+
+  /**
+   * Remove a peer from the Voxelize world.
+   *
+   * @param id - ID of the peer that left.
+   */
+  removePeer = (id: string) => {
+    const peer = this.get(id);
+
+    if (peer) {
+      peer.connected = false;
+      this.client.rendering.scene.remove(peer.mesh);
+      this.delete(id);
+    }
   };
 
   update = () => {
@@ -169,38 +174,29 @@ class Peers extends Map<string, Peer> {
 
     const event = {
       type: "PEER",
-      peer: {
-        id,
-        name,
-        position: {
-          x: px,
-          y: py,
-          z: pz,
+      peers: [
+        {
+          id,
+          name,
+          position: {
+            x: px,
+            y: py,
+            z: pz,
+          },
+          direction: {
+            x: dx,
+            y: dy,
+            z: dz,
+          },
         },
-        direction: {
-          x: dx,
-          y: dy,
-          z: dz,
-        },
-      },
+      ],
     };
 
     network.send(event);
 
-    if (this.size > 0) {
-      this.broadcast(event);
-    }
-
     this.forEach((peer) => {
       peer.update();
     });
-  };
-
-  private removePeer = (peer: Peer) => {
-    peer.connected = false;
-    peer.connection.destroy();
-    this.client.rendering.scene.remove(peer.mesh);
-    this.delete(peer.id);
   };
 }
 

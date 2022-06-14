@@ -4,7 +4,7 @@ mod entity_meta;
 mod physics;
 mod stats;
 
-pub use broadcast::{BroadcastEntitiesSystem, BroadcastSystem};
+pub use broadcast::{BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem};
 pub use chunk::{
     ChunkMeshingSystem, ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSendingSystem,
     ChunkUpdatingSystem, CurrentChunkSystem,

@@ -1,16 +1,15 @@
-use log::info;
-use specs::{ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    common::ClientFilter,
-    server::{EntityProtocol, Message, MessageType},
-    world::{ETypeComp, EntityFlag, IDComp, MessageQueue, MetadataComp},
+    ClientFilter, ETypeComp, EntityFlag, EntityProtocol, IDComp, Message, MessageQueue,
+    MessageType, MetadataComp, Stats,
 };
 
 pub struct BroadcastEntitiesSystem;
 
 impl<'a> System<'a> for BroadcastEntitiesSystem {
     type SystemData = (
+        ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, EntityFlag>,
         ReadStorage<'a, IDComp>,
@@ -21,7 +20,11 @@ impl<'a> System<'a> for BroadcastEntitiesSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (mut queue, flag, ids, etypes, mut metadatas) = data;
+        let (stats, mut queue, flag, ids, etypes, mut metadatas) = data;
+
+        if stats.tick % 2 == 1 {
+            return;
+        }
 
         let mut entities = vec![];
         for (id, etype, metadata, _) in (&ids, &etypes, &mut metadatas, &flag).join() {
