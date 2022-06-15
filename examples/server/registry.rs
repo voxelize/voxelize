@@ -8,6 +8,13 @@ pub fn setup_registry() -> Registry {
         Block::new("Stone").build(),
         Block::new("Sand").build(),
         Block::new("Marble").build(),
+        Block::new("Orange Concrete").build(),
+        Block::new("Blue Concrete").build(),
+        Block::new("Red Concrete").build(),
+        Block::new("White Concrete").build(),
+        Block::new("Yellow Concrete").build(),
+        Block::new("Black Concrete").build(),
+        Block::new("Ivory Block").build(),
         Block::new("Lol").build(),
         Block::new("Wood")
             .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])

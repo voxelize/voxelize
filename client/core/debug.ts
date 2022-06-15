@@ -77,8 +77,13 @@ class Debug {
     this.client = client;
     this.gui = new Pane({ title: "Voxelize Debug Panel" });
 
+    let setup = false;
+
     // wait till all client members are initialized
     client.on("ready", () => {
+      if (setup) return;
+      setup = true;
+
       client.inputs.bind("j", this.toggle, "*");
 
       // detach tweakpane from it's default parent

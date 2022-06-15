@@ -366,7 +366,7 @@ impl Registry {
     fn make_side_name(name: &str, side: &BlockFaces) -> String {
         format!(
             "{}__{}",
-            name.to_lowercase(),
+            name.to_lowercase().replace(" ", "_"),
             side.to_string().to_lowercase()
         )
     }

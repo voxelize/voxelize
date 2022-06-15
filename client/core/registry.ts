@@ -394,7 +394,7 @@ class Registry {
   }
 
   private makeSideName = (name: string, side: BlockFace) => {
-    return `${name.toLowerCase()}__${side.toLowerCase()}`;
+    return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
   private recordBlock = (block: Block) => {

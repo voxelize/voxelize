@@ -123,7 +123,8 @@ class ImageVoxelizer {
     const metrics = new Map<string, [number, number, number, number]>();
 
     ranges.forEach(({ startU, startV, endU, endV }, name) => {
-      if (name === "air__all") {
+      const block = registry.getBlockByTextureName(name);
+      if (block.isTransparent) {
         return;
       }
 
@@ -200,6 +201,10 @@ class ImageVoxelizer {
 
         width = Math.floor(width);
         height = Math.floor(height);
+
+        canvas.width = width;
+        canvas.height = height;
+
         orientation = orientation.toLowerCase() as "x" | "z";
 
         console.log(

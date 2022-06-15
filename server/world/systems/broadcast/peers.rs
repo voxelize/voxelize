@@ -40,7 +40,7 @@ impl<'a> System<'a> for BroadcastPeersSystem {
             });
         }
 
-        if peers.is_empty() {
+        if peers.is_empty() || peers.len() == 1 {
             return;
         }
 

@@ -21,6 +21,7 @@ type WorldInitParams = {
   inViewRadius: number;
   maxRequestsPerTick: number;
   maxProcessesPerTick: number;
+  maxUpdatesPerTick: number;
   maxAddsPerTick: number;
   skyFaces: PartialRecord<BoxSides, SkyFace>;
 };
@@ -30,6 +31,7 @@ const defaultParams: WorldInitParams = {
   inViewRadius: 2,
   maxRequestsPerTick: 2,
   maxProcessesPerTick: 2,
+  maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
   skyFaces: { top: drawSun },
 };
@@ -178,22 +180,7 @@ class World {
   };
 
   setServerVoxels = (updates: BlockUpdate[]) => {
-    this.client.network.send({
-      type: "UPDATE",
-      updates: updates.map((update) => {
-        let raw = 0;
-        raw = BlockUtils.insertId(raw, update.type);
-
-        if (update.rotation) {
-          raw = BlockUtils.insertRotation(raw, update.rotation);
-        }
-
-        return {
-          ...update,
-          voxel: raw,
-        };
-      }),
-    });
+    this.chunks.toUpdate.push(...updates);
   };
 
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {
@@ -373,7 +360,7 @@ class World {
       count++;
 
       const { position } = this.client.controls;
-      const { dimension, chunkSize } = this.params;
+      const { dimension, chunkSize, maxUpdatesPerTick } = this.params;
 
       const coords = ChunkUtils.mapVoxelPosToChunkPos(
         ChunkUtils.mapWorldPosToVoxelPos(position as Coords3, dimension),
@@ -412,6 +399,28 @@ class World {
 
       const [px, py, pz] = this.client.controls.position;
       this.sky.mesh.position.set(px, py, pz);
+
+      // Update server voxels
+      if (this.chunks.toUpdate.length >= 0) {
+        this.client.network.send({
+          type: "UPDATE",
+          updates: this.chunks.toUpdate
+            .splice(0, maxUpdatesPerTick)
+            .map((update) => {
+              let raw = 0;
+              raw = BlockUtils.insertId(raw, update.type);
+
+              if (update.rotation) {
+                raw = BlockUtils.insertRotation(raw, update.rotation);
+              }
+
+              return {
+                ...update,
+                voxel: raw,
+              };
+            }),
+        });
+      }
     };
   })();
 

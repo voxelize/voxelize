@@ -31,6 +31,13 @@ import GrassSideImage from "../assets/own/grass_side.png";
 import DirtImage from "../assets/own/dirt.png";
 import WoodTopImage from "../assets/own/wood_top.png";
 import WoodSideImage from "../assets/own/wood_side.png";
+import OrangeConcreteImage from "../assets/own/orange_concrete.png";
+import BlueConcrete from "../assets/own/blue_concrete.png";
+import RedConcreteImage from "../assets/own/red_concrete.png";
+import WhiteConcreteImage from "../assets/own/white_concrete.png";
+import YellowConcreteImage from "../assets/own/yellow_concrete.png";
+import BlackConcreteImage from "../assets/own/black_concrete.png";
+import IvoryBlockImage from "../assets/own/ivory_block.png";
 import SandImage from "../assets/own/sand.png";
 import StoneImage from "../assets/own/stone.png";
 import SnowImage from "../assets/own/snow.png";
@@ -183,6 +190,13 @@ export const App = () => {
           { name: "Dirt", side: "all", data: DirtImage },
           { name: "Lol", side: "all", data: new Color("#8479E1") },
           { name: "Marble", side: "all", data: new Color("#E9E5D6") },
+          { name: "Orange Concrete", side: "all", data: OrangeConcreteImage },
+          { name: "Blue Concrete", side: "all", data: BlueConcrete },
+          { name: "Red Concrete", side: "all", data: RedConcreteImage },
+          { name: "White Concrete", side: "all", data: WhiteConcreteImage },
+          { name: "Yellow Concrete", side: "all", data: YellowConcreteImage },
+          { name: "Black Concrete", side: "all", data: BlackConcreteImage },
+          { name: "Ivory Block", side: "all", data: IvoryBlockImage },
           { name: "Color", side: "all", data: new Color("#ffffff") },
           { name: "Grass", side: "top", data: GrassImage },
           { name: "Grass", side: "side", data: GrassSideImage },

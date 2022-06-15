@@ -1,4 +1,4 @@
-import { Coords2, ServerMesh } from "../types";
+import { BlockUpdate, Coords2, ServerMesh } from "../types";
 
 import { Chunk } from "./chunk";
 
@@ -15,6 +15,7 @@ class Chunks extends Map<string, Chunk> {
   public requested = new Set<string>();
   public toRequest: string[] = [];
   public toProcess: ServerChunk[] = [];
+  public toUpdate: BlockUpdate[] = [];
   public toAdd: string[] = [];
 
   public currentChunk: Coords2;

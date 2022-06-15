@@ -91,16 +91,16 @@ If implemented, gets called when a new entity of this type is deleted.
 • **new BaseEntity**()
 
 Construct a new entity with some preset ECS components:
-- [EntityFlag](../modules.md#entityflag-116)
-- [MeshComponent](../modules.md#meshcomponent-116)
-- [Position3DComponent](../modules.md#position3dcomponent-116)
-- [HeadingComponent](../modules.md#headingcomponent-116)
-- [TargetComponent](../modules.md#targetcomponent-116)
-- [MetadataComponent](../modules.md#metadatacomponent-116)
+- [EntityFlag](../modules.md#entityflag-26)
+- [MeshComponent](../modules.md#meshcomponent-26)
+- [Position3DComponent](../modules.md#position3dcomponent-26)
+- [HeadingComponent](../modules.md#headingcomponent-26)
+- [TargetComponent](../modules.md#targetcomponent-26)
+- [MetadataComponent](../modules.md#metadatacomponent-26)
 
 #### Overrides
 
-[Entity](Entity.md).[constructor](Entity.md#constructor-116)
+[Entity](Entity.md).[constructor](Entity.md#constructor-26)
 
 ## Accessors
 
