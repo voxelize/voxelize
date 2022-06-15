@@ -41,6 +41,7 @@ import IvoryBlockImage from "../assets/own/ivory_block.png";
 import SandImage from "../assets/own/sand.png";
 import StoneImage from "../assets/own/stone.png";
 import SnowImage from "../assets/own/snow.png";
+import Color2Image from "../assets/own/color2.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -197,8 +198,9 @@ export const App = () => {
           { name: "Yellow Concrete", side: "all", data: YellowConcreteImage },
           { name: "Black Concrete", side: "all", data: BlackConcreteImage },
           { name: "Ivory Block", side: "all", data: IvoryBlockImage },
-          { name: "Color", side: "all", data: new Color("#ffffff") },
           { name: "Grass", side: "top", data: GrassImage },
+          { name: "Color", side: "all", data: new Color("#ffffff") },
+          { name: "Color", side: "all", data: Color2Image },
           { name: "Grass", side: "side", data: GrassSideImage },
           { name: "Grass", side: "bottom", data: DirtImage },
           { name: "Stone", side: "all", data: StoneImage },

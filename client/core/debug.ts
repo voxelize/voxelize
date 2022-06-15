@@ -323,15 +323,23 @@ class Debug {
       });
     });
 
+    const settingsObj = {
+      renderRadius: settings.getRenderRadius(),
+    };
+
     const settingsFolder = this.gui.addFolder({
       title: "Settings",
       expanded: true,
     });
-    settingsFolder.addInput(settings, "renderRadius", {
-      min: 2,
-      max: 20,
-      step: 1.0,
-    });
+    settingsFolder
+      .addInput(settingsObj, "renderRadius", {
+        min: 2,
+        max: 20,
+        step: 1.0,
+      })
+      .on("change", ({ value }) => {
+        settings.setRenderRadius(value);
+      });
 
     this.displayTitle(`Voxelize ${"__buildVersion__"}`);
     this.displayNewline();

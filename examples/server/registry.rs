@@ -28,12 +28,8 @@ pub fn setup_registry() -> Registry {
             .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
             .is_plantable(true)
             .build(),
-        Block::new("Color")
-            .is_light(true)
-            .blue_light_level(10)
-            .green_light_level(10)
-            .red_light_level(10)
-            .build(),
+        Block::new("Color").build(),
+        Block::new("Color2").build(),
         Block::new("Water")
             .is_transparent(true)
             .is_fluid(true)

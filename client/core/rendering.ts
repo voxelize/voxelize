@@ -4,20 +4,18 @@ import {
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
-import { Color, Fog, Scene, WebGLRenderer } from "three";
+import { Color, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";
 
 type RenderingParams = {
   clearColor: string;
-  fogNearColor: string;
-  fogFarColor: string;
+  fogColor: string;
 };
 
 const defaultParams: RenderingParams = {
   clearColor: "#123",
-  fogNearColor: "#B1CCFD",
-  fogFarColor: "#B1CCFD",
+  fogColor: "#B1CCFD",
 };
 
 class Rendering {
@@ -27,12 +25,11 @@ class Rendering {
   public renderer: WebGLRenderer;
   public composer: EffectComposer;
 
-  public fogNearColor: Color;
-  public fogFarColor: Color;
+  public fogColor: Color;
   public fogUniforms: { [key: string]: { value: number | Color } };
 
   constructor(public client: Client, params: Partial<RenderingParams> = {}) {
-    const { clearColor, fogNearColor, fogFarColor } = (this.params = {
+    const { clearColor, fogColor } = (this.params = {
       ...defaultParams,
       ...params,
     });
@@ -69,13 +66,11 @@ class Rendering {
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
       const { chunkSize, dimension } = client.world.params;
-      const { renderRadius } = client.settings;
-      this.fogNearColor = new Color(fogNearColor);
-      this.fogFarColor = new Color(fogFarColor);
+      const renderRadius = client.settings.getRenderRadius();
+      this.fogColor = new Color(fogColor);
       this.fogUniforms = {
-        uFogColor: { value: this.fogNearColor },
-        uFogNearColor: { value: this.fogFarColor },
-        uFogNear: { value: renderRadius * 0.3 * chunkSize * dimension },
+        uFogColor: { value: this.fogColor },
+        uFogNear: { value: renderRadius * 0.5 * chunkSize * dimension },
         uFogFar: { value: renderRadius * 0.7 * chunkSize * dimension },
       };
 
@@ -90,6 +85,13 @@ class Rendering {
 
     this.renderer.setSize(width, height);
     this.composer.setSize(width, height);
+  };
+
+  matchRenderRadius = (radius: number) => {
+    const { chunkSize, dimension } = this.client.world.params;
+
+    this.fogUniforms.uFogNear.value = radius * 0.5 * chunkSize * dimension;
+    this.fogUniforms.uFogFar.value = radius * chunkSize * dimension;
   };
 
   render = () => {

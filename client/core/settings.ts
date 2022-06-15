@@ -2,38 +2,86 @@ import { Client } from "..";
 
 type SettingsField = number | boolean;
 
+type SettingsChangeHandler = (client: Client, newVal: SettingsField) => void;
+
 class Settings {
   public fields = new Map<string, SettingsField>();
 
   [key: string]: any;
 
+  private listeners: Map<string, SettingsChangeHandler> = new Map();
+
   constructor(public client: Client) {
-    this.add("renderRadius", 8);
+    this.add("renderRadius", 8, (client, value) => {
+      client.rendering.matchRenderRadius(value as number);
+    });
   }
 
-  add = (property: string, value: SettingsField) => {
-    const funcName = `set${property
-      .substring(0, 1)
-      .toUpperCase()}${property.substring(1)}`;
+  add = (
+    property: string,
+    value: SettingsField,
+    onChange?: SettingsChangeHandler
+  ) => {
+    const getter = this.makeGetterName(property);
+    const setter = this.makeSetterName(property);
 
-    if (property.startsWith("set")) {
-      throw new Error("Settings property cannot start with `set`.");
+    if (property.startsWith("set") || property.startsWith("get")) {
+      throw new Error("Settings property cannot start with `set` or `get`.");
     }
 
-    this[funcName] = (val: SettingsField) => {
-      this.set(property, val);
+    const innerProperty = this.makeInnerName(property);
+
+    this[getter] = () => {
+      return this.get(innerProperty);
     };
 
-    this[funcName](value);
+    this[setter] = (val: SettingsField) => {
+      this.set(innerProperty, val);
+
+      const onChange = this.listeners.get(innerProperty);
+
+      if (onChange) {
+        onChange(this.client, val);
+      }
+    };
+
+    this[innerProperty] = value;
+
+    if (onChange) {
+      this.listeners.set(innerProperty, onChange);
+    }
   };
 
-  get = (property: string) => {
+  listen = (property: string, onChange: SettingsChangeHandler) => {
+    const innerProperty = this.makeInnerName(property);
+    this.listeners.set(innerProperty, onChange);
+  };
+
+  private makeInnerName = (property: string) => {
+    return `_${property}`;
+  };
+
+  private makeGetterName = (property: string) => {
+    return `get${property.substring(0, 1).toUpperCase()}${property.substring(
+      1
+    )}`;
+  };
+
+  private makeSetterName = (property: string) => {
+    return `set${property.substring(0, 1).toUpperCase()}${property.substring(
+      1
+    )}`;
+  };
+
+  private get = (property: string) => {
     return this[property];
   };
 
-  set = (property: string, value: SettingsField) => {
+  private set = (property: string, value: SettingsField) => {
     this[property] = value;
   };
 }
+
+export type { SettingsField };
 
 export { Settings };

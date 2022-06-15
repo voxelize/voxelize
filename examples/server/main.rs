@@ -34,13 +34,22 @@ async fn main() -> std::io::Result<()> {
         .min_chunk([-1, -1])
         .max_chunk([1, 1])
         .build();
-    let world = server
+    let world2 = server
         .create_world("world2", &config2)
         .expect("Could not create world2.");
 
     {
-        let mut pipeline = world.pipeline_mut();
+        let mut pipeline = world2.pipeline_mut();
         pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
+    }
+
+    let world3 = server
+        .create_world("world3", &WorldConfig::new().build())
+        .expect("Could not create world2.");
+
+    {
+        let mut pipeline = world3.pipeline_mut();
+        pipeline.add_stage(FlatlandStage::new(10, 2, 1, 3));
     }
 
     Voxelize::run(server).await

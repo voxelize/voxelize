@@ -318,6 +318,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         if !chunks.cache.is_empty() {
             let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
             cache.into_iter().for_each(|coords| {
+                if !chunks.is_chunk_ready(&coords) {
+                    return;
+                }
+
                 // Remesh chunk
                 let space = chunks
                     .make_space(&coords, config.max_light_level as usize)

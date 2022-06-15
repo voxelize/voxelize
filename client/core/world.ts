@@ -374,7 +374,6 @@ class World {
         this.chunks.currentChunk[1] !== coords[1]
       ) {
         this.chunks.currentChunk = coords;
-        this.maintainChunks();
       }
 
       if (count % 2 === 0) {
@@ -386,6 +385,7 @@ class World {
 
       this.addChunks();
       this.requestChunks();
+      this.maintainChunks();
 
       this.chunks.forEach((chunk) => {
         if (chunk.mesh) {
@@ -426,7 +426,7 @@ class World {
 
   private surroundChunks = () => {
     const [cx, cz] = this.chunks.currentChunk;
-    const { renderRadius } = this.client.settings;
+    const renderRadius = this.client.settings.getRenderRadius();
 
     (() => {
       const now = performance.now();
@@ -560,7 +560,7 @@ class World {
   // if the chunk is too far away, remove from scene.
   private maintainChunks = () => {
     const { chunkSize } = this.params;
-    const { renderRadius } = this.client.settings;
+    const renderRadius = this.client.settings.getRenderRadius();
 
     const deleteDistance = renderRadius * chunkSize * 1.414;
     const deleted: Coords2[] = [];

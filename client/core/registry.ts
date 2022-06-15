@@ -432,7 +432,6 @@ class Registry {
           `
 #include <common>
 uniform vec3 uFogColor;
-uniform vec3 uFogNearColor;
 uniform float uFogNear;
 uniform float uFogFar;
 uniform float uSunlightIntensity;
@@ -460,7 +459,7 @@ float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition
 
 // float depth = gl_FragCoord.z / gl_FragCoord.w;
 float fogFactor = smoothstep(uFogNear, uFogFar, depth);
-gl_FragColor.rgb = mix(gl_FragColor.rgb, mix(uFogNearColor, uFogColor, fogFactor), fogFactor);
+gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
 `
         ),
       vertexShader: ShaderLib.basic.vertexShader
