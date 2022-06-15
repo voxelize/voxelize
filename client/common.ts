@@ -1,0 +1,2 @@
+export const TRANSPARENT_RENDER_ORDER = 100000;
+export const OPAQUE_RENDER_ORDER = 100;

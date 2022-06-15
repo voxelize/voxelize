@@ -804,7 +804,14 @@ class Controls extends EventDispatcher {
     const toggleFly = () => {
       if (!this.ghostMode) {
         const isFlying = this.body.gravityMultiplier === 0;
-        this.body.gravityMultiplier = isFlying ? 1 : 0;
+
+        if (!isFlying) {
+          this.body.applyImpulse([0, 8, 0]);
+        }
+
+        setTimeout(() => {
+          this.body.gravityMultiplier = isFlying ? 1 : 0;
+        }, 100);
       }
     };
     inputs.bind("f", toggleFly, "in-game");

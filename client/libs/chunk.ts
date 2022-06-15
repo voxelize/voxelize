@@ -1,6 +1,7 @@
 import ndarray, { NdArray } from "ndarray";
 import { BufferAttribute, BufferGeometry, Material, Mesh, Scene } from "three";
 
+import { OPAQUE_RENDER_ORDER, TRANSPARENT_RENDER_ORDER } from "../common";
 import { Coords2, Coords3 } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
 
@@ -85,7 +86,8 @@ class Chunk {
           );
           mesh.name = `${this.name}-${type}`;
           mesh.matrixAutoUpdate = false;
-          mesh.renderOrder = type === "opaque" ? 100 : 100000;
+          mesh.renderOrder =
+            type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
           mesh.frustumCulled = false;
           mesh.position.set(...this.min);
         }

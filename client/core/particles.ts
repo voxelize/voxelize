@@ -9,6 +9,7 @@ import {
 import Tweezer from "tweezer.js";
 
 import { Client } from "..";
+import { TRANSPARENT_RENDER_ORDER } from "../common";
 import { Coords3 } from "../types";
 
 import ParticlesFragmentShader from "./shaders/particles/fragment.glsl";
@@ -246,7 +247,7 @@ class Particles {
     });
 
     const points = new Points(geometry, material);
-    points.renderOrder = 10000;
+    points.renderOrder = TRANSPARENT_RENDER_ORDER;
     this.client.rendering.scene.add(points);
 
     const group = {
