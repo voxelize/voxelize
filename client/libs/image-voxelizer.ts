@@ -42,7 +42,7 @@ const defaultParams: ImageVoxelizerParams = {
 
 class ImageVoxelizer {
   static commander = async (rest: string, client: Client) => {
-    const index = rest.indexOf("{");
+    const index = rest.indexOf("{") === -1 ? rest.length : rest.indexOf("{");
 
     let file = rest.substring(0, index).trim();
 
@@ -54,6 +54,8 @@ class ImageVoxelizer {
     }
 
     let params: Partial<ImageVoxelizerParams>;
+
+    console.log(rest.substring(index), file);
 
     try {
       params = JSON.parse(rest.substring(index) || "{}");

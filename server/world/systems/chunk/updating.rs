@@ -62,6 +62,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 continue;
             }
 
+            for neighbor in chunks.light_traversed_chunks(&coords) {
+                if !chunks.is_chunk_ready(&neighbor) {
+                    chunks.to_update.push_back((voxel.to_owned(), raw));
+                }
+            }
+
             let current_id = chunks.get_voxel(vx, vy, vz);
             if registry.is_air(updated_id) && registry.is_air(current_id) {
                 continue;
@@ -318,7 +324,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     .needs_height_maps()
                     .needs_voxels()
                     .needs_lights()
-                    .strict()
                     .build();
 
                 let mut chunk = chunks.raw_mut(&coords).unwrap();
