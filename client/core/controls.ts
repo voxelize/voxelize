@@ -12,7 +12,7 @@ import {
 } from "three";
 
 import { Client } from "..";
-import { raycast } from "../libs";
+import { BlockRotation, raycast } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -760,9 +760,11 @@ class Controls extends EventDispatcher {
   };
 
   private setupListeners = () => {
-    const { inputs, world } = this.client;
+    const { inputs, world, registry } = this.client;
 
     this.connect();
+
+    let hand = "Birch Log";
 
     inputs.click(
       "left",
@@ -775,10 +777,25 @@ class Controls extends EventDispatcher {
     );
 
     inputs.click(
+      "middle",
+      () => {
+        if (!this.lookBlock) return;
+        const [vx, vy, vz] = this.lookBlock;
+        const block = world.getBlockByVoxel(vx, vy, vz);
+        hand = block.name;
+      },
+      "in-game"
+    );
+
+    inputs.click(
       "right",
       () => {
         if (!this.targetBlock) return;
-        const [vx, vy, vz] = this.targetBlock.voxel;
+        const {
+          voxel: [vx, vy, vz],
+          rotation,
+          yRotation,
+        } = this.targetBlock;
         const { dimension } = this.client.world.params;
         const blockAABB = new AABB(
           vx,
@@ -794,7 +811,8 @@ class Controls extends EventDispatcher {
             vx,
             vy,
             vz,
-            this.client.registry.getBlockByName("Stone").id
+            this.client.registry.getBlockByName(hand).id,
+            BlockRotation.encode(rotation, yRotation)
           );
         }
       },

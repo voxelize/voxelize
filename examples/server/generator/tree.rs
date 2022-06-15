@@ -16,8 +16,8 @@ impl ChunkStage for TreeTestStage {
 
         let registry = resource.registry.unwrap();
 
-        let wood = registry.get_block_by_name("Wood");
-        let leaves = registry.get_block_by_name("Leaves");
+        let oak_log = registry.get_block_by_name("Oak Log");
+        let leaves = registry.get_block_by_name("Oak Leaves");
 
         let scale = 1.0;
 
@@ -46,7 +46,7 @@ impl ChunkStage for TreeTestStage {
                     }
 
                     for i in 0..5 {
-                        chunk.set_voxel(vx, height + i, vz, wood.id);
+                        chunk.set_voxel(vx, height + i, vz, oak_log.id);
                     }
                 }
             }

@@ -16,10 +16,15 @@ pub fn setup_registry() -> Registry {
         Block::new("Black Concrete").build(),
         Block::new("Ivory Block").build(),
         Block::new("Lol").build(),
-        Block::new("Wood")
+        Block::new("Oak Log")
+            .rotatable(true)
             .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
             .build(),
-        Block::new("Leaves")
+        Block::new("Birch Log")
+            .rotatable(true)
+            .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
+            .build(),
+        Block::new("Oak Leaves")
             .is_transparent(true)
             .transparent_standalone(true)
             .build(),

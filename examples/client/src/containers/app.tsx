@@ -25,12 +25,12 @@ import {
 import LogoImage from "../assets/tree_transparent.svg";
 
 import WaterImage from "../assets/own/water.png";
-import LeavesImage from "../assets/own/leaves.png";
+import OakLeavesImage from "../assets/own/oak_leaves.png";
 import GrassImage from "../assets/own/grass_top.png";
 import GrassSideImage from "../assets/own/grass_side.png";
 import DirtImage from "../assets/own/dirt.png";
-import WoodTopImage from "../assets/own/wood_top.png";
-import WoodSideImage from "../assets/own/wood_side.png";
+import OakTopImage from "../assets/own/oak_log_top.png";
+import OakSideImage from "../assets/own/oak_log_side.png";
 import OrangeConcreteImage from "../assets/own/orange_concrete.png";
 import BlueConcrete from "../assets/own/blue_concrete.png";
 import RedConcreteImage from "../assets/own/red_concrete.png";
@@ -42,6 +42,8 @@ import SandImage from "../assets/own/sand.png";
 import StoneImage from "../assets/own/stone.png";
 import SnowImage from "../assets/own/snow.png";
 import Color2Image from "../assets/own/color2.png";
+import BirchTopImage from "../assets/own/birch_log_top.png";
+import BirchSideImage from "../assets/own/birch_log_side.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -204,10 +206,13 @@ export const App = () => {
           { name: "Grass", side: "side", data: GrassSideImage },
           { name: "Grass", side: "bottom", data: DirtImage },
           { name: "Stone", side: "all", data: StoneImage },
-          { name: "Leaves", side: "all", data: LeavesImage },
-          { name: "Wood", side: "top", data: WoodTopImage },
-          { name: "Wood", side: "side", data: WoodSideImage },
-          { name: "Wood", side: "bottom", data: WoodTopImage },
+          { name: "Oak Leaves", side: "all", data: OakLeavesImage },
+          { name: "Oak Log", side: "top", data: OakTopImage },
+          { name: "Oak Log", side: "side", data: OakSideImage },
+          { name: "Oak Log", side: "bottom", data: OakTopImage },
+          { name: "Birch Log", side: "top", data: BirchTopImage },
+          { name: "Birch Log", side: "side", data: BirchSideImage },
+          { name: "Birch Log", side: "bottom", data: BirchTopImage },
           { name: "Sand", side: "all", data: SandImage },
           { name: "Snow", side: "all", data: SnowImage },
           { name: "Water", side: "all", data: WaterImage },

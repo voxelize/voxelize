@@ -28,7 +28,7 @@ type WorldInitParams = {
 
 const defaultParams: WorldInitParams = {
   skyDimension: 1000,
-  inViewRadius: 2,
+  inViewRadius: 5,
   maxRequestsPerTick: 2,
   maxProcessesPerTick: 2,
   maxUpdatesPerTick: 1000,

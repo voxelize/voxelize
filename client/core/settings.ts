@@ -12,8 +12,12 @@ class Settings {
   private listeners: Map<string, SettingsChangeHandler> = new Map();
 
   constructor(public client: Client) {
-    this.add("renderRadius", 8, (client, value) => {
-      client.rendering.matchRenderRadius(value as number);
+    this.add("renderRadius", 8);
+
+    client.on("ready", () => {
+      this.listen("renderRadius", (client, value) => {
+        client.rendering.matchRenderRadius(value as number);
+      });
     });
   }
 
