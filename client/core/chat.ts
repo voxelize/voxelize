@@ -159,7 +159,7 @@ class Chat {
     input: HTMLInputElement;
   };
 
-  private disappearTimer: NodeJS.Timeout;
+  private disappearTimer: number;
   private commands: Map<string, CommandProcessor> = new Map();
 
   /**

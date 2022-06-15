@@ -2,7 +2,7 @@
   "compilerOptions": {
     "allowJs": true,
     "module": "commonjs",
-    "target": "ES2016",
+    "target": "es2017",
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,

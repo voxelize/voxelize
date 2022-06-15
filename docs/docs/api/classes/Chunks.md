@@ -28,7 +28,7 @@ ___
 
 ### toProcess
 
-• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-508)[] = `[]`
+• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-116)[] = `[]`
 
 ___
 
@@ -40,7 +40,7 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-508)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-116)
 
 ___
 
@@ -60,7 +60,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@10380
+Map.\_\_@toStringTag@10425
 
 ___
 
@@ -70,7 +70,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@10909
+Map.\_\_@species@10954
 
 ## Methods
 
@@ -202,7 +202,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@10384
+Map.\_\_@iterator@10429
 
 ___
 

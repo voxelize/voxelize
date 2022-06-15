@@ -113,7 +113,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-508) |
+| `node` | [`Coords3`](../modules.md#coords3-116) |
 | `translate` | `boolean` |
 
 #### Returns
@@ -130,7 +130,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-508) |
+| `node` | [`Coords3`](../modules.md#coords3-116) |
 | `translate` | `boolean` |
 
 #### Returns

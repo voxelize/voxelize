@@ -26,23 +26,23 @@ ___
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-508)
+• **params**: [`PeerParams`](../modules.md#peerparams-116)
 
 Parameters to initialize the Peers manager.
 
 ## Methods
 
-### broadcast
+### removePeer
 
-▸ **broadcast**(`event`): `void`
+▸ **removePeer**(`id`): `void`
 
-Send a protocol buffer event to all peers.
+Remove a peer from the Voxelize world.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `event` | `any` | A protocol buffer object. |
+| `id` | `string` | ID of the peer that left. |
 
 #### Returns
 

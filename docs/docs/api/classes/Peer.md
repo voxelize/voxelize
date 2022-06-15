@@ -50,29 +50,22 @@ ___
 
 ___
 
-### connection
-
-• **connection**: `Instance`
-
-___
-
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-508)
+• **params**: [`PeerParams`](../modules.md#peerparams-116)
 
 ## Constructors
 
 ### constructor
 
-• **new Peer**(`id`, `connection`, `params`)
+• **new Peer**(`id`, `params`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `connection` | `Instance` |
-| `params` | [`PeerParams`](../modules.md#peerparams-508) |
+| `params` | [`PeerParams`](../modules.md#peerparams-116) |
 
 ## Methods
 
@@ -103,22 +96,6 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `camPos?` | `Vector3` |
-
-#### Returns
-
-`void`
-
-___
-
-### onData
-
-▸ **onData**(`data`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `data` | `any` |
 
 #### Returns
 

@@ -27,19 +27,19 @@ ___
 
 ### process
 
-▸ `Static` **process**(`file`, `params`, `registry`): `Promise`<[`BlockUpdate`](../modules.md#blockupdate-30)[]\>
+▸ `Static` **process**(`file`, `params`, `registry`): `Promise`<[`BlockUpdate`](../modules.md#blockupdate-32)[]\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `file` | `string` |
-| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-174) |
+| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-32) |
 | `registry` | [`Registry`](Registry.md) |
 
 #### Returns
 
-`Promise`<[`BlockUpdate`](../modules.md#blockupdate-30)[]\>
+`Promise`<[`BlockUpdate`](../modules.md#blockupdate-32)[]\>
 
 ## Constructors
 

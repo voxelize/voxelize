@@ -106,6 +106,7 @@ impl World {
         ecs.register::<ChunkRequestsComp>();
         ecs.register::<CurrentChunkComp>();
         ecs.register::<IDComp>();
+        ecs.register::<NameComp>();
         ecs.register::<PositionComp>();
         ecs.register::<DirectionComp>();
         ecs.register::<ClientFlag>();
@@ -200,6 +201,7 @@ impl World {
             .create_entity()
             .with(ClientFlag::default())
             .with(IDComp::new(id))
+            .with(NameComp::new("testtesttest"))
             .with(AddrComp::new(addr))
             .with(ChunkRequestsComp::default())
             .with(CurrentChunkComp::default())
@@ -424,8 +426,16 @@ impl World {
             let Peer {
                 direction,
                 position,
+                name,
                 ..
             } = peer;
+
+            {
+                let mut names = self.write_component::<NameComp>();
+                if let Some(n) = names.get_mut(client_ent) {
+                    n.0 = name;
+                }
+            }
 
             if let Some(position) = position {
                 let mut positions = self.write_component::<PositionComp>();

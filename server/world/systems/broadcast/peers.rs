@@ -2,8 +2,8 @@ use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    ClientFilter, ClientFlag, DirectionComp, EntityProtocol, IDComp, Message, MessageQueue,
-    MessageType, PeerProtocol, PositionComp, Stats,
+    ClientFilter, ClientFlag, DirectionComp, IDComp, Message, MessageQueue, MessageType, NameComp,
+    PeerProtocol, PositionComp, Stats,
 };
 
 pub struct BroadcastPeersSystem;
@@ -14,6 +14,7 @@ impl<'a> System<'a> for BroadcastPeersSystem {
         WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, ClientFlag>,
         ReadStorage<'a, IDComp>,
+        ReadStorage<'a, NameComp>,
         ReadStorage<'a, PositionComp>,
         ReadStorage<'a, DirectionComp>,
     );
@@ -21,19 +22,21 @@ impl<'a> System<'a> for BroadcastPeersSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (stats, mut queue, flag, ids, positions, directions) = data;
+        let (stats, mut queue, flag, ids, names, positions, directions) = data;
 
         if stats.tick % 2 == 0 {
             return;
         }
 
         let mut peers = vec![];
-        for (id, position, direction, _) in (&ids, &positions, &directions, &flag).join() {
+        for (id, name, position, direction, _) in
+            (&ids, &names, &positions, &directions, &flag).join()
+        {
             peers.push(PeerProtocol {
                 id: id.0.to_owned(),
+                name: name.0.to_owned(),
                 position: Some(position.0.to_owned()),
                 direction: Some(direction.0.to_owned()),
-                ..Default::default()
             });
         }
 

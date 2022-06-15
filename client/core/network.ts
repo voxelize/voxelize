@@ -80,7 +80,7 @@ class Network {
   public connected = false;
 
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
-    maxWorker: window.navigator.hardwareConcurrency * 2,
+    maxWorker: (window.navigator.hardwareConcurrency || 4) * 2,
   });
 
   private reconnection: any;

@@ -36,6 +36,7 @@
     "@swc/core": "^1.2.163",
     "@tweakpane/core": "^1.0.8",
     "@types/domurl": "^0.0.7",
+    "@types/events": "^3.0.0",
     "@types/gl-vec3": "^1.1.1",
     "@types/jest": "^27.4.1",
     "@types/mousetrap": "^1.6.9",
