@@ -237,12 +237,16 @@ class Network {
             if (blocks && ranges) {
               this.client.registry.load(blocks, ranges);
             }
+
+            this.client.emit("ready");
+            this.client.ready = true;
           });
 
           break;
         }
         case "JOIN": {
           const { text: id } = event;
+          if (!this.client.id || this.client.id === id) return;
           this.client.peers.addPeer(id);
 
           break;

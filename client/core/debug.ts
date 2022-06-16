@@ -392,6 +392,15 @@ class Debug {
       network,
       "concurrentWorkers"
     );
+    this.displayNewline();
+    this.registerDisplay("Looking at", controls, "lookBlock", (voxel) => {
+      if (voxel) {
+        const block = world.getBlockByVoxel(voxel[0], voxel[1], voxel[2]);
+        return `${block.name} (${block.id})`;
+      }
+
+      return null;
+    });
 
     this.displayNewline();
     this.dataWrapper.insertBefore(this.stats.dom, this.dataWrapper.firstChild);

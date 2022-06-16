@@ -325,6 +325,11 @@ class Controls extends EventDispatcher {
   public isLocked = false;
 
   /**
+   * The type of block that the player is currently holding. Defaults to whatever the block of ID 1 is.
+   */
+  public hand = "";
+
+  /**
    * The physical rigid body of the client, dimensions described by:
    * - `params.bodyWidth`
    * - `params.bodyHeight`
@@ -406,6 +411,8 @@ class Controls extends EventDispatcher {
       this.body = client.physics.addBody({
         aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
       });
+
+      this.hand = client.registry.getBlockById(1)?.name;
 
       this.setPosition(...this.params.initialPosition);
     });
@@ -760,11 +767,9 @@ class Controls extends EventDispatcher {
   };
 
   private setupListeners = () => {
-    const { inputs, world, registry } = this.client;
+    const { inputs, world } = this.client;
 
     this.connect();
-
-    let hand = "Birch Log";
 
     inputs.click(
       "left",
@@ -782,7 +787,7 @@ class Controls extends EventDispatcher {
         if (!this.lookBlock) return;
         const [vx, vy, vz] = this.lookBlock;
         const block = world.getBlockByVoxel(vx, vy, vz);
-        hand = block.name;
+        this.hand = block.name;
       },
       "in-game"
     );
@@ -811,7 +816,7 @@ class Controls extends EventDispatcher {
             vx,
             vy,
             vz,
-            this.client.registry.getBlockByName(hand).id,
+            this.client.registry.getBlockByName(this.hand).id,
             BlockRotation.encode(rotation, yRotation)
           );
         }

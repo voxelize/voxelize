@@ -16,6 +16,12 @@ pub fn setup_registry() -> Registry {
         Block::new("Black Concrete").build(),
         Block::new("Ivory Block").build(),
         Block::new("Lol").build(),
+        Block::new("Obsidian").build(),
+        Block::new("Granite").build(),
+        Block::new("Graphite").build(),
+        Block::new("Andesite").build(),
+        Block::new("Slate").build(),
+        Block::new("Oak Planks").build(),
         Block::new("Oak Log")
             .rotatable(true)
             .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])

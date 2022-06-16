@@ -78,7 +78,7 @@ class World {
       }
     });
 
-    client.on("loaded", () => {
+    client.on("ready", () => {
       if (!this.sky) {
         this.sky = new Sky(skyDimension);
 
@@ -128,9 +128,6 @@ class World {
 
     // initialize the physics engine with server provided parameters.
     this.client.physics.initialize(this.params);
-
-    this.client.emit("ready");
-    this.client.ready = true;
   };
 
   getChunk = (cx: number, cz: number) => {

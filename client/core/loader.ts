@@ -62,7 +62,7 @@ class Loader {
   };
 
   /**
-   * After the "loaded" event is emitted, get the loaded texture with this function.
+   * Get the loaded texture with this function.
    *
    * @param source - The source to the texture file loaded from.
    */
@@ -77,8 +77,6 @@ class Loader {
    */
   load = async () => {
     await Promise.all(Array.from(this.promises.values()));
-
-    this.client.emit("loaded");
   };
 }
 

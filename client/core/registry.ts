@@ -384,6 +384,10 @@ class Registry {
     return this.nameMap.has(id);
   };
 
+  getSummary = () => {
+    return this.blocksById;
+  };
+
   get perSide() {
     let i = 1;
     const sqrt = Math.ceil(Math.sqrt(this.textures.size));

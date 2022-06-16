@@ -60,7 +60,7 @@ class Rendering {
     // composer
     this.composer = new EffectComposer(this.renderer);
 
-    client.on("ready", () => {
+    client.on("initialized", () => {
       const camera = client.camera.threeCamera;
 
       this.composer.addPass(new RenderPass(this.scene, camera));
@@ -94,7 +94,9 @@ class Rendering {
   };
 
   render = () => {
-    this.composer.render();
+    if (this.composer.passes.length) {
+      this.composer.render();
+    }
   };
 
   get renderSize() {

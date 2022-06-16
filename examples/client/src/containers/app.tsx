@@ -11,6 +11,7 @@ import {
   System,
   EntityFlag,
   ImageVoxelizer,
+  BlockUpdate,
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -25,6 +26,7 @@ import {
 import LogoImage from "../assets/tree_transparent.svg";
 
 import WaterImage from "../assets/own/water.png";
+import ObsidianImage from "../assets/own/obsidian.png";
 import OakLeavesImage from "../assets/own/oak_leaves.png";
 import GrassImage from "../assets/own/grass_top.png";
 import GrassSideImage from "../assets/own/grass_side.png";
@@ -44,6 +46,12 @@ import SnowImage from "../assets/own/snow.png";
 import Color2Image from "../assets/own/color2.png";
 import BirchTopImage from "../assets/own/birch_log_top.png";
 import BirchSideImage from "../assets/own/birch_log_side.png";
+import GraniteImage from "../assets/own/granite.png";
+import GraphiteImage from "../assets/own/graphite.png";
+import MarbleImage from "../assets/own/marble.png";
+import SlateImage from "../assets/own/slate.png";
+import AndesiteImage from "../assets/own/andesite.png";
+import OakPlanksImage from "../assets/own/oak_planks.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -169,7 +177,7 @@ class UpdateBoxSystem extends System {
 }
 
 export const App = () => {
-  const [world, setWorld] = useState("world1");
+  const [world, setWorld] = useState("world3");
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
@@ -192,7 +200,7 @@ export const App = () => {
         client.current.registry.applyTexturesByNames([
           { name: "Dirt", side: "all", data: DirtImage },
           { name: "Lol", side: "all", data: new Color("#8479E1") },
-          { name: "Marble", side: "all", data: new Color("#E9E5D6") },
+          { name: "Marble", side: "all", data: MarbleImage },
           { name: "Orange Concrete", side: "all", data: OrangeConcreteImage },
           { name: "Blue Concrete", side: "all", data: BlueConcrete },
           { name: "Red Concrete", side: "all", data: RedConcreteImage },
@@ -216,12 +224,94 @@ export const App = () => {
           { name: "Sand", side: "all", data: SandImage },
           { name: "Snow", side: "all", data: SnowImage },
           { name: "Water", side: "all", data: WaterImage },
+          { name: "Obsidian", side: "all", data: ObsidianImage },
+          { name: "Granite", side: "all", data: GraniteImage },
+          { name: "Graphite", side: "all", data: GraphiteImage },
+          { name: "Slate", side: "all", data: SlateImage },
+          { name: "Andesite", side: "all", data: AndesiteImage },
+          { name: "Oak Planks", side: "all", data: OakPlanksImage },
         ]);
 
         client.current.chat.addCommand(
           "image-voxelize",
           ImageVoxelizer.commander
         );
+
+        client.current.chat.addCommand(
+          "hand",
+          (rest: string, client: Client) => {
+            const block = client.registry.getBlockByName(rest.trim());
+
+            if (block) {
+              client.controls.hand = block.name;
+              client.chat.add({
+                type: "INFO",
+                body: "Client is now holding: " + block.name,
+              });
+            } else {
+              const id = parseInt(rest, 10);
+
+              if (!isNaN(id)) {
+                const block = client.registry.getBlockById(id);
+
+                if (block) {
+                  client.controls.hand = block.name;
+                  client.chat.add({
+                    type: "INFO",
+                    body: "Client is now holding: " + block.name,
+                  });
+                  return;
+                }
+              }
+
+              client.chat.add({
+                type: "ERROR",
+                body: "Unknown block: " + rest,
+              });
+            }
+          }
+        );
+
+        client.current.chat.addCommand("blocks", (_, client: Client) => {
+          const summary = client.registry.getSummary();
+
+          const list: any[] = [];
+
+          summary.forEach((block, id) => {
+            list.push([id, block]);
+          });
+
+          list.sort((a, b) => a[0] - b[0]);
+
+          client.chat.add({
+            type: "INFO",
+            body: list
+              .map(([id, block]) => `${id}: ${block.name}`)
+              .join("<br/>"),
+          });
+        });
+
+        client.current.chat.addCommand("allblocks", (_, client: Client) => {
+          const summary = client.registry.getSummary();
+
+          const list: any[] = [];
+
+          summary.forEach((block, id) => {
+            list.push([id, block]);
+          });
+
+          list.sort((a, b) => a[0] - b[0]);
+
+          const [vx, vy, vz] = client.controls.voxel;
+
+          const updates: BlockUpdate[] = [];
+          for (let x = 0; x < list.length; x++) {
+            const [id] = list[x];
+            updates.push({ vx: vx + x, vy, vz, type: id });
+          }
+
+          client.world.setServerVoxels(updates);
+        });
 
         client.current.ecs.addSystem(new UpdateBoxSystem());
 
