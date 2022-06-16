@@ -510,7 +510,9 @@ vWorldPosition = worldPosition;
         uSunlightIntensity: this.client.world.uSunlightIntensity,
         uAOTable: this.aoUniform,
         uMinLight: this.minLightUniform,
-        ...this.client.rendering.fogUniforms,
+        uFogNear: this.client.rendering.uFogNear,
+        uFogFar: this.client.rendering.uFogFar,
+        uFogColor: this.client.rendering.uFogColor,
       },
     }) as CustomShaderMaterial;
 

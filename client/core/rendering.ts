@@ -25,8 +25,9 @@ class Rendering {
   public renderer: WebGLRenderer;
   public composer: EffectComposer;
 
-  public fogColor: Color;
-  public fogUniforms: { [key: string]: { value: number | Color } };
+  public uFogColor: { value: Color };
+  public uFogNear: { value: number };
+  public uFogFar: { value: number };
 
   constructor(public client: Client, params: Partial<RenderingParams> = {}) {
     const { clearColor, fogColor } = (this.params = {
@@ -65,14 +66,9 @@ class Rendering {
       this.composer.addPass(new RenderPass(this.scene, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
-      const { chunkSize, dimension } = client.world.params;
       const renderRadius = client.settings.getRenderRadius();
-      this.fogColor = new Color(fogColor);
-      this.fogUniforms = {
-        uFogColor: { value: this.fogColor },
-        uFogNear: { value: renderRadius * 0.5 * chunkSize * dimension },
-        uFogFar: { value: renderRadius * 0.7 * chunkSize * dimension },
-      };
+      this.uFogColor = { value: new Color(fogColor) };
+      this.matchRenderRadius(renderRadius);
 
       this.adjustRenderer();
     });
@@ -90,8 +86,11 @@ class Rendering {
   matchRenderRadius = (radius: number) => {
     const { chunkSize, dimension } = this.client.world.params;
 
-    this.fogUniforms.uFogNear.value = radius * 0.5 * chunkSize * dimension;
-    this.fogUniforms.uFogFar.value = radius * chunkSize * dimension;
+    if (!this.uFogNear) this.uFogNear = { value: 0 };
+    if (!this.uFogFar) this.uFogFar = { value: 0 };
+
+    this.uFogNear.value = radius * 0.5 * chunkSize * dimension;
+    this.uFogFar.value = radius * chunkSize * dimension;
   };
 
   render = () => {

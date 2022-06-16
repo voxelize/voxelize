@@ -41,6 +41,7 @@ impl Lights {
             max_height,
             min_chunk,
             max_chunk,
+            max_light_level,
             ..
         } = config;
 
@@ -90,7 +91,12 @@ impl Lights {
                     continue;
                 }
 
-                let next_level = level - 1;
+                let next_level = level
+                    - if is_sunlight && oy == -1 && level == max_light_level {
+                        0
+                    } else {
+                        1
+                    };
                 let next_voxel = [nvx, nvy, nvz];
                 let block_type = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
 

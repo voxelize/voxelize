@@ -170,6 +170,20 @@ class Debug {
   };
 
   /**
+   * Remove a display from the top left debug panel.
+   *
+   * @param title - The title of the display to remove from the debug.
+   */
+  removeDisplay = (title: string) => {
+    const index = this.dataEntries.findIndex((entry) => entry.title === title);
+    const entry = this.dataEntries.splice(index, 1)[0];
+
+    if (entry) {
+      this.dataWrapper.removeChild(entry.ele);
+    }
+  };
+
+  /**
    * Display a static title in the debug info-panel.
    *
    * @param title - Title content of display entry.
@@ -321,6 +335,16 @@ class Debug {
           },
         },
       });
+    });
+
+    const controlsFolder = this.gui.addFolder({
+      title: "Controls",
+      expanded: false,
+    });
+    controlsFolder.addInput(controls.params, "flyForce", {
+      min: 10,
+      max: 200,
+      step: 10,
     });
 
     const settingsObj = {
