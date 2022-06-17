@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RenderingParams`](../modules.md#renderingparams-26)
+• **params**: [`RenderingParams`](../modules.md#renderingparams-36)
 
 ___
 
@@ -32,25 +32,39 @@ ___
 
 ___
 
-### fogNearColor
+### uFogColor
 
-• **fogNearColor**: `Color`
+• **uFogColor**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Color` |
 
 ___
 
-### fogFarColor
+### uFogNear
 
-• **fogFarColor**: `Color`
+• **uFogNear**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
 
 ___
 
-### fogUniforms
+### uFogFar
 
-• **fogUniforms**: `Object`
+• **uFogFar**: `Object`
 
-#### Index signature
+#### Type declaration
 
-▪ [key: `string`]: { `value`: `number` \| `Color`  }
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
 
 ___
 
@@ -69,13 +83,29 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-26)\> |
+| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-36)\> |
 
 ## Methods
 
 ### adjustRenderer
 
 ▸ **adjustRenderer**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### matchRenderRadius
+
+▸ **matchRenderRadius**(`radius`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `radius` | `number` |
 
 #### Returns
 

@@ -66,11 +66,16 @@ class Rendering {
       this.composer.addPass(new RenderPass(this.scene, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
-      const renderRadius = client.settings.getRenderRadius();
       this.uFogColor = { value: new Color(fogColor) };
-      this.matchRenderRadius(renderRadius);
+      this.uFogNear = { value: 0 };
+      this.uFogFar = { value: 0 };
 
       this.adjustRenderer();
+    });
+
+    client.on("ready", () => {
+      const renderRadius = client.settings.getRenderRadius();
+      this.matchRenderRadius(renderRadius);
     });
   }
 
@@ -85,9 +90,6 @@ class Rendering {
 
   matchRenderRadius = (radius: number) => {
     const { chunkSize, dimension } = this.client.world.params;
-
-    if (!this.uFogNear) this.uFogNear = { value: 0 };
-    if (!this.uFogFar) this.uFogFar = { value: 0 };
 
     this.uFogNear.value = radius * 0.5 * chunkSize * dimension;
     this.uFogFar.value = radius * chunkSize * dimension;

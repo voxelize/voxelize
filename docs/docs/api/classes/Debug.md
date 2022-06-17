@@ -71,7 +71,25 @@ to the top left corner of the debug screen.
 | `title` | `string` | The title of the entry. |
 | `object?` | `any` | The object to listen to changes on. |
 | `attribute?` | `string` | The attribute in the object to listen on. |
-| `formatter` | [`Formatter`](../modules.md#formatter-26) | A function passed on the new data before updating the entry. |
+| `formatter` | [`Formatter`](../modules.md#formatter-36) | A function passed on the new data before updating the entry. |
+
+#### Returns
+
+`void`
+
+___
+
+### removeDisplay
+
+▸ **removeDisplay**(`title`): `void`
+
+Remove a display from the top left debug panel.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `title` | `string` | The title of the display to remove from the debug. |
 
 #### Returns
 

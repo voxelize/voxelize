@@ -28,13 +28,13 @@ ___
 
 ### toProcess
 
-• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-26)[] = `[]`
+• **toProcess**: [`ServerChunk`](../modules.md#serverchunk-36)[] = `[]`
 
 ___
 
 ### toUpdate
 
-• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-26)[] = `[]`
+• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-36)[] = `[]`
 
 ___
 
@@ -46,7 +46,7 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-26)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-36)
 
 ___
 

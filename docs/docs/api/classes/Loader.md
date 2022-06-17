@@ -56,7 +56,7 @@ ___
 
 ▸ **getTexture**(`source`): `Texture`
 
-After the "loaded" event is emitted, get the loaded texture with this function.
+Get the loaded texture with this function.
 
 #### Parameters
 

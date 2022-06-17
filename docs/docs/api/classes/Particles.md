@@ -20,7 +20,7 @@ ___
 
 ### groups
 
-• **groups**: [`ParticleGroup`](../modules.md#particlegroup-26)[] = `[]`
+• **groups**: [`ParticleGroup`](../modules.md#particlegroup-36)[] = `[]`
 
 An array of active particle groups.
 
@@ -34,7 +34,7 @@ ___
 
 ### addBreakParticles
 
-▸ **addBreakParticles**(`voxels`, `params?`): [`ParticleGroup`](../modules.md#particlegroup-26)
+▸ **addBreakParticles**(`voxels`, `params?`): [`ParticleGroup`](../modules.md#particlegroup-36)
 
 Create a group of particles for a voxel breaking effect. Returns `null` if empty voxels is passed in.
 
@@ -42,9 +42,9 @@ Create a group of particles for a voxel breaking effect. Returns `null` if empty
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxels` | { `voxel`: [`Coords3`](../modules.md#coords3-26) ; `type`: `number`  }[] | The original voxel and block type that was broken. |
-| `params` | `Partial`<[`ParticleParams`](../modules.md#particleparams-26)\> | Parameters to customize the particle initialization. |
+| `voxels` | { `voxel`: [`Coords3`](../modules.md#coords3-36) ; `type`: `number`  }[] | The original voxel and block type that was broken. |
+| `params` | `Partial`<[`ParticleParams`](../modules.md#particleparams-36)\> | Parameters to customize the particle initialization. |
 
 #### Returns
 
-[`ParticleGroup`](../modules.md#particlegroup-26)
+[`ParticleGroup`](../modules.md#particlegroup-36)

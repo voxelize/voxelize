@@ -14,7 +14,7 @@ custom_edit_url: null
 
 ### fields
 
-• **fields**: `Map`<`string`, `SettingsField`\>
+• **fields**: `Map`<`string`, [`SettingsField`](../modules.md#settingsfield-8)\>
 
 ___
 
@@ -38,14 +38,15 @@ ___
 
 ### add
 
-▸ **add**(`property`, `value`): `void`
+▸ **add**(`property`, `value`, `onChange?`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `property` | `string` |
-| `value` | `SettingsField` |
+| `value` | [`SettingsField`](../modules.md#settingsfield-8) |
+| `onChange?` | `SettingsChangeHandler` |
 
 #### Returns
 
@@ -53,32 +54,16 @@ ___
 
 ___
 
-### get
+### listen
 
-▸ **get**(`property`): `any`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `property` | `string` |
-
-#### Returns
-
-`any`
-
-___
-
-### set
-
-▸ **set**(`property`, `value`): `void`
+▸ **listen**(`property`, `onChange`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `property` | `string` |
-| `value` | `SettingsField` |
+| `onChange` | `SettingsChangeHandler` |
 
 #### Returns
 
