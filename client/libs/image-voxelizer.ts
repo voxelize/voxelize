@@ -55,8 +55,6 @@ class ImageVoxelizer {
 
     let params: Partial<ImageVoxelizerParams>;
 
-    console.log(rest.substring(index), file);
-
     try {
       params = JSON.parse(rest.substring(index) || "{}");
     } catch (e) {

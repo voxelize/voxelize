@@ -33,7 +33,7 @@ ___
 
 ### namespace
 
-• **namespace**: [`InputNamespace`](../modules.md#inputnamespace-42) = `"menu"`
+• **namespace**: [`InputNamespace`](../modules.md#inputnamespace-48) = `"menu"`
 
 The namespace that the Voxelize inputs is in. Use `setNamespace` to
 set the namespace for namespace checking.
@@ -50,9 +50,9 @@ Register a new click event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype-42) | Which mouse button to register on. |
+| `type` | [`ClickType`](../modules.md#clicktype-48) | Which mouse button to register on. |
 | `callback` | () => `void` | What to do when that button is clicked. |
-| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-42) | Which namespace should this event be fired? |
+| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-48) | Which namespace should this event be fired? |
 
 #### Returns
 
@@ -72,7 +72,7 @@ Register a new scroll event listener.
 | :------ | :------ | :------ |
 | `up` | (`delta?`: `number`) => `void` | What to do when scrolled upwards. |
 | `down` | (`delta?`: `number`) => `void` | What to do when scrolled downwards. |
-| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-42) | Which namespace should this even be fired? |
+| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-48) | Which namespace should this even be fired? |
 
 #### Returns
 
@@ -92,9 +92,9 @@ Register a key-bind event listener.
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the key or key combo to listen on. |
 | `callback` | () => `void` | What to do when the key/combo is pressed. |
-| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-42) | The namespace in which the to fire this event. |
+| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-48) | The namespace in which the to fire this event. |
 | `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-42) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-48) | Which pressing occasion should the event be fired. Defaults to "keydown". |
 | `specifics.element?` | `HTMLElement` | Which element should the key binding be bound to. Defaults to "document". |
 
 #### Returns
@@ -113,7 +113,7 @@ Set the namespace of the inputs instance, also checks if the namespace is valid.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-42) | The namespace to set to. |
+| `namespace` | [`InputNamespace`](../modules.md#inputnamespace-48) | The namespace to set to. |
 
 #### Returns
 

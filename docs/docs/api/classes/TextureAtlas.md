@@ -53,7 +53,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `textureMap` | `Map`<`string`, `Texture` \| `Color`\> |
-| `ranges` | `Map`<`string`, [`TextureRange`](../modules.md#texturerange-42)\> |
+| `ranges` | `Map`<`string`, [`TextureRange`](../modules.md#texturerange-48)\> |
 | `params` | `TextureAtlasParams` |
 
 #### Returns

@@ -95,7 +95,6 @@ pub struct UpdateProtocol {
     pub vz: i32,
     pub voxel: u32,
     pub light: u32,
-    pub height: u32,
 }
 
 /// Protocol buffer compatible entity data structure.
@@ -257,7 +256,6 @@ impl MessageBuilder {
                     vz: update.vz,
                     light: update.light,
                     voxel: update.voxel,
-                    height: update.height,
                 })
                 .collect()
         }

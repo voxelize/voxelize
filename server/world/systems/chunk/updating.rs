@@ -17,6 +17,11 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [0, -1, 0],
 ];
 
+const RED: LightColor = LightColor::Red;
+const GREEN: LightColor = LightColor::Green;
+const BLUE: LightColor = LightColor::Blue;
+const SUNLIGHT: LightColor = LightColor::Sunlight;
+
 pub struct ChunkUpdatingSystem;
 
 impl<'a> System<'a> for ChunkUpdatingSystem {
@@ -42,6 +47,11 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         chunks.clear_cache();
 
         let mut results = vec![];
+
+        let mut red_flood = VecDeque::default();
+        let mut green_flood = VecDeque::default();
+        let mut blue_flood = VecDeque::default();
+        let mut sun_flood = VecDeque::default();
 
         while count < config.max_updates_per_tick && !chunks.to_update.is_empty() {
             count += 1;
@@ -100,11 +110,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 chunks.set_max_height(vx, vz, vy as u32);
             }
 
-            const RED: LightColor = LightColor::Red;
-            const GREEN: LightColor = LightColor::Green;
-            const BLUE: LightColor = LightColor::Blue;
-            const SUNLIGHT: LightColor = LightColor::Sunlight;
-
             // Updating light levels...
 
             // Remove leftover light.
@@ -139,51 +144,24 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             if updated_type.is_light {
                 if updated_type.red_light_level > 0 {
                     chunks.set_torch_light(vx, vy, vz, updated_type.red_light_level, &RED);
-
-                    Lights::flood_light(
-                        &mut *chunks,
-                        VecDeque::from(vec![LightNode {
-                            voxel: [voxel.0, voxel.1, voxel.2],
-                            level: updated_type.red_light_level,
-                        }]),
-                        &RED,
-                        &registry,
-                        &config,
-                        None,
-                        None,
-                    )
+                    red_flood.push_back(LightNode {
+                        voxel: [voxel.0, voxel.1, voxel.2],
+                        level: updated_type.red_light_level,
+                    });
                 }
                 if updated_type.green_light_level > 0 {
                     chunks.set_torch_light(vx, vy, vz, updated_type.green_light_level, &GREEN);
-
-                    Lights::flood_light(
-                        &mut *chunks,
-                        VecDeque::from(vec![LightNode {
-                            voxel: [voxel.0, voxel.1, voxel.2],
-                            level: updated_type.green_light_level,
-                        }]),
-                        &GREEN,
-                        &registry,
-                        &config,
-                        None,
-                        None,
-                    )
+                    green_flood.push_back(LightNode {
+                        voxel: [voxel.0, voxel.1, voxel.2],
+                        level: updated_type.green_light_level,
+                    });
                 }
                 if updated_type.blue_light_level > 0 {
                     chunks.set_torch_light(vx, vy, vz, updated_type.blue_light_level, &BLUE);
-
-                    Lights::flood_light(
-                        &mut *chunks,
-                        VecDeque::from(vec![LightNode {
-                            voxel: [voxel.0, voxel.1, voxel.2],
-                            level: updated_type.blue_light_level,
-                        }]),
-                        &BLUE,
-                        &registry,
-                        &config,
-                        None,
-                        None,
-                    )
+                    blue_flood.push_back(LightNode {
+                        voxel: [voxel.0, voxel.1, voxel.2],
+                        level: updated_type.blue_light_level,
+                    });
                 }
             }
             // Solid block removed.
@@ -257,43 +235,11 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     }
 
                     if is_sunlight {
-                        Lights::flood_light(
-                            &mut *chunks,
-                            queue,
-                            &SUNLIGHT,
-                            &registry,
-                            &config,
-                            None,
-                            None,
-                        )
+                        sun_flood.append(&mut queue);
                     } else {
-                        Lights::flood_light(
-                            &mut *chunks,
-                            red_queue,
-                            &RED,
-                            &registry,
-                            &config,
-                            None,
-                            None,
-                        );
-                        Lights::flood_light(
-                            &mut *chunks,
-                            green_queue,
-                            &GREEN,
-                            &registry,
-                            &config,
-                            None,
-                            None,
-                        );
-                        Lights::flood_light(
-                            &mut *chunks,
-                            blue_queue,
-                            &BLUE,
-                            &registry,
-                            &config,
-                            None,
-                            None,
-                        );
+                        red_flood.append(&mut red_queue);
+                        green_flood.append(&mut green_queue);
+                        blue_flood.append(&mut blue_queue);
                     }
                 });
             }
@@ -309,11 +255,67 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 vx,
                 vy,
                 vz,
-                voxel: chunks.get_raw_voxel(vx, vy, vz),
-                light: chunks.get_raw_light(vx, vy, vz),
-                height: chunks.get_max_height(vx, vz),
+                voxel: 0,
+                light: 0,
             })
         }
+
+        if !red_flood.is_empty() {
+            Lights::flood_light(
+                &mut *chunks,
+                red_flood,
+                &RED,
+                &registry,
+                &config,
+                None,
+                None,
+            );
+        }
+
+        if !green_flood.is_empty() {
+            Lights::flood_light(
+                &mut *chunks,
+                green_flood,
+                &GREEN,
+                &registry,
+                &config,
+                None,
+                None,
+            );
+        }
+
+        if !blue_flood.is_empty() {
+            Lights::flood_light(
+                &mut *chunks,
+                blue_flood,
+                &BLUE,
+                &registry,
+                &config,
+                None,
+                None,
+            );
+        }
+
+        if !sun_flood.is_empty() {
+            Lights::flood_light(
+                &mut *chunks,
+                sun_flood,
+                &SUNLIGHT,
+                &registry,
+                &config,
+                None,
+                None,
+            );
+        }
+
+        let results = results
+            .into_iter()
+            .map(|mut update| {
+                update.voxel = chunks.get_voxel(update.vx, update.vy, update.vz);
+                update.light = chunks.get_voxel(update.vx, update.vy, update.vz);
+                update
+            })
+            .collect::<Vec<UpdateProtocol>>();
 
         if !chunks.cache.is_empty() {
             let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();

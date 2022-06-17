@@ -47,7 +47,6 @@ message Update {
   int32 vz = 3;
   uint32 voxel = 4;
   uint32 light = 5;
-  uint32 height = 6;
 }
 
 message ChatMessage {

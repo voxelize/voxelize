@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-42)
+• **params**: [`RegistryParams`](../modules.md#registryparams-48)
 
 ___
 
@@ -22,7 +22,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-42)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-48)\>
 
 ___
 
@@ -70,8 +70,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-42) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-42) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-48) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-48) |
 
 ___
 
@@ -90,7 +90,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-42)\> |
+| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-48)\> |
 
 ## Methods
 
@@ -102,7 +102,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-42) ; `data`: `string` \| `Color`  }[] |
+| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-48) ; `data`: `string` \| `Color`  }[] |
 
 #### Returns
 
@@ -119,7 +119,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `side` | [`BlockFace`](../modules.md#blockface-42) |
+| `side` | [`BlockFace`](../modules.md#blockface-48) |
 | `data` | `string` \| `Color` |
 
 #### Returns
@@ -137,7 +137,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `number` |
-| `side` | [`BlockFace`](../modules.md#blockface-42) |
+| `side` | [`BlockFace`](../modules.md#blockface-48) |
 | `path` | `string` |
 
 #### Returns
@@ -154,7 +154,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `blocks` | [`Block`](../modules.md#block-42)[] |
+| `blocks` | [`Block`](../modules.md#block-48)[] |
 | `ranges` | `Object` |
 
 #### Returns
@@ -165,7 +165,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-42)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-48)
 
 #### Parameters
 
@@ -175,13 +175,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-42)
+[`Block`](../modules.md#block-48)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-42)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-48)
 
 #### Parameters
 
@@ -191,13 +191,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-42)
+[`Block`](../modules.md#block-48)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-42)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-48)
 
 #### Parameters
 
@@ -207,7 +207,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-42)
+[`Block`](../modules.md#block-48)
 
 ___
 
@@ -341,7 +341,7 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-42)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-48)[]
 
 #### Parameters
 
@@ -351,13 +351,13 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-42)[]
+[`BlockFace`](../modules.md#blockface-48)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-42)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-48)[]
 
 #### Parameters
 
@@ -367,7 +367,7 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-42)[]
+[`BlockFace`](../modules.md#blockface-48)[]
 
 ___
 
@@ -411,7 +411,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-42) |
+| `block` | [`Block`](../modules.md#block-48) |
 
 #### Returns
 
@@ -479,11 +479,11 @@ ___
 
 ### getSummary
 
-▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-42)\>
+▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-48)\>
 
 #### Returns
 
-`Map`<`number`, [`Block`](../modules.md#block-42)\>
+`Map`<`number`, [`Block`](../modules.md#block-48)\>
 
 ## Accessors
 
