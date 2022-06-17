@@ -116,14 +116,15 @@ class Chunk {
   };
 
   addToScene = (scene: Scene) => {
-    if (this.added) return;
-
     const { opaque, transparent } = this.mesh;
 
-    if (opaque) scene.add(opaque);
-    if (transparent) scene.add(transparent);
+    if (transparent && !transparent.parent) {
+      scene.add(transparent);
+    }
 
-    this.added = true;
+    if (opaque && !opaque.parent) {
+      scene.add(opaque);
+    }
   };
 
   removeFromScene = (scene: Scene) => {
@@ -131,8 +132,6 @@ class Chunk {
 
     if (opaque) scene.remove(opaque);
     if (transparent) scene.remove(transparent);
-
-    this.added = false;
   };
 
   getRawValue = (vx: number, vy: number, vz: number) => {

@@ -26,7 +26,7 @@ ___
 
 ### params
 
-• **params**: [`EntitiesParams`](../modules.md#entitiesparams-36)
+• **params**: [`EntitiesParams`](../modules.md#entitiesparams-42)
 
 Parameters to customize the Voxelize entities.
 
@@ -50,7 +50,7 @@ client.entities.registerEntity("Test", TestEntity);
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `string` | The name of the type of the new entity. |
-| `protocol` | [`NewEntity`](../modules.md#newentity-36) | The class protocol to create a new entity. |
+| `protocol` | [`NewEntity`](../modules.md#newentity-42) | The class protocol to create a new entity. |
 
 #### Returns
 
