@@ -204,6 +204,9 @@ class ImageVoxelizer {
         width = Math.floor(width);
         height = Math.floor(height);
 
+        width = width % 2 === 0 ? width : width + 1;
+        height = height % 2 === 0 ? height : height + 1;
+
         canvas.width = width;
         canvas.height = height;
 
@@ -237,9 +240,9 @@ class ImageVoxelizer {
             const block = registry.getBlockByTextureName(closest);
 
             updates.push({
-              vx: orientation === "z" ? baseX : baseX + x,
+              vx: orientation === "z" ? baseX : baseX - width / 2 + x,
               vy: baseY + height - y,
-              vz: orientation === "z" ? baseZ + x : baseZ,
+              vz: orientation === "z" ? baseZ - width / 2 + x : baseZ,
               type: block ? block.id : 0,
             });
           }
