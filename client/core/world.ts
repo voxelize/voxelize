@@ -11,6 +11,7 @@ import {
   BoxSides,
   drawSun,
   Clouds,
+  CloudsParams,
 } from "../libs";
 import { Coords2, Coords3, PartialRecord, BlockUpdate } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
@@ -25,6 +26,7 @@ type WorldInitParams = {
   maxUpdatesPerTick: number;
   maxAddsPerTick: number;
   skyFaces: PartialRecord<BoxSides, SkyFace>;
+  clouds: Partial<CloudsParams> | false;
 };
 
 const defaultParams: WorldInitParams = {
@@ -35,6 +37,7 @@ const defaultParams: WorldInitParams = {
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
   skyFaces: { top: drawSun },
+  clouds: false,
 };
 
 type WorldParams = WorldInitParams & {
@@ -63,7 +66,7 @@ class World {
   public uSunlightIntensity = { value: 1 };
 
   constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
-    const { skyDimension, skyFaces } = (params = {
+    const { skyDimension, skyFaces, clouds } = (params = {
       ...defaultParams,
       ...params,
     });
@@ -97,28 +100,31 @@ class World {
 
         client.rendering.scene.add(this.sky.mesh);
 
-        this.clouds = new Clouds({
-          alpha: 0.8,
-          color: "#eee",
-          count: 16,
-          scale: 0.3,
-          width: 8,
-          height: 1,
-          worldHeight: this.params.maxHeight * this.params.dimension,
-          dimensions: [20, 20, 20],
-          speedFactor: 8,
-          lerpFactor: 0.3,
-          threshold: 0.5,
-          octaves: 5,
-          falloff: 0.8,
-          uFogColor: this.client.rendering.uFogColor,
-          uFogNear: this.client.rendering.uFogNear,
-          uFogFar: this.client.rendering.uFogFar,
-        });
+        if (clouds !== false) {
+          this.clouds = new Clouds({
+            alpha: 0.8,
+            color: "#eee",
+            count: 16,
+            scale: 0.3,
+            width: 8,
+            height: 1,
+            dimensions: [20, 20, 20],
+            speedFactor: 8,
+            lerpFactor: 0.3,
+            threshold: 0.5,
+            octaves: 5,
+            falloff: 0.8,
+            ...(typeof clouds === "object" ? clouds : {}),
+            worldHeight: this.params.maxHeight * this.params.dimension,
+            uFogColor: this.client.rendering.uFogColor,
+            uFogNear: this.client.rendering.uFogNear,
+            uFogFar: this.client.rendering.uFogFar,
+          });
 
-        this.clouds.initialize().then(() => {
-          client.rendering.scene.add(this.clouds.mesh);
-        });
+          this.clouds.initialize().then(() => {
+            client.rendering.scene.add(this.clouds.mesh);
+          });
+        }
       }
     });
   }

@@ -19,7 +19,7 @@ import CloudsFragmentShader from "./shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "./shaders/clouds/vertex.glsl";
 import { WorkerPool } from "./worker-pool";
 
-type CloudsOptionsType = {
+type CloudsParams = {
   scale: number;
   width: number;
   height: number;
@@ -60,8 +60,8 @@ class Clouds {
     maxWorker: 6,
   });
 
-  constructor(public options: CloudsOptionsType) {
-    const { color, alpha, uFogNear, uFogFar, uFogColor } = this.options;
+  constructor(public params: CloudsParams) {
+    const { color, alpha, uFogNear, uFogFar, uFogColor } = this.params;
 
     this.material = new ShaderMaterial({
       transparent: true,
@@ -83,7 +83,7 @@ class Clouds {
   }
 
   initialize = async () => {
-    const { width } = this.options;
+    const { width } = this.params;
 
     for (let x = 0; x < width; x++) {
       const arr = [];
@@ -103,7 +103,7 @@ class Clouds {
   move = async (delta: number, position: Vector3) => {
     if (!this.initialized) return;
 
-    const { lerpFactor, speedFactor, count, dimensions } = this.options;
+    const { lerpFactor, speedFactor, count, dimensions } = this.params;
 
     const newPosition = this.mesh.position.clone();
     newPosition.z -= speedFactor * delta;
@@ -138,7 +138,7 @@ class Clouds {
   }
 
   private shiftX = async (direction = 1) => {
-    const { width } = this.options;
+    const { width } = this.params;
 
     const arr = direction > 0 ? this.meshes.shift() : this.meshes.pop();
 
@@ -160,7 +160,7 @@ class Clouds {
   };
 
   private shiftZ = async (direction = 1) => {
-    const { width } = this.options;
+    const { width } = this.params;
 
     for (let x = 0; x < width; x++) {
       const arr = this.meshes[x];
@@ -193,7 +193,7 @@ class Clouds {
       worldHeight,
       octaves,
       falloff,
-    } = this.options;
+    } = this.params;
 
     const array = mesh
       ? mesh.userData.data
@@ -253,5 +253,7 @@ class Clouds {
     return mesh;
   };
 }
+
+export type { CloudsParams };
 
 export { Clouds };
