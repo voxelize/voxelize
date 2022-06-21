@@ -26,7 +26,7 @@ ___
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-48)
+• **params**: [`PeerParams`](../modules.md#peerparams-88)
 
 Parameters to initialize the Peers manager.
 

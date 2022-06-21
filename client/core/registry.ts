@@ -13,11 +13,20 @@ import { Client } from "..";
 import { TextureAtlas } from "../libs";
 import { Block, BlockFace, TextureRange } from "../types";
 
+/**
+ * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
+ */
 type CustomShaderMaterial = ShaderMaterial & {
   map: Texture;
 };
 
+/**
+ * Parameters to initialize the registry.
+ */
 type RegistryParams = {
+  /**
+   * The dimension of each registered block texture. Defaults to `8`.
+   */
   dimension: number;
 };
 
@@ -25,15 +34,48 @@ const defaultParams: RegistryParams = {
   dimension: 8,
 };
 
+/**
+ * A **built-in** block registry for Voxelize.
+ */
 class Registry {
+  /**
+   * Reference linking back to the Voxelize client instance.
+   */
+  public client: Client;
+
+  /**
+   * Parameters to initialize the Voxelize registry.
+   */
   public params: RegistryParams;
+
+  /**
+   * The generated texture atlas built from all registered block textures.
+   */
   public atlas: TextureAtlas;
+
+  /**
+   * A map of UV ranges for all registered blocks.
+   */
   public ranges: Map<string, TextureRange> = new Map();
 
+  /**
+   * The uniform for the texture atlas to work with chunks.
+   */
   public atlasUniform: { value: Texture | null };
+
+  /**
+   * A `Vector4` representing the [4 levels of ambient occlusion](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/).
+   */
   public aoUniform: { value: Vector4 };
+
+  /**
+   * The minimum sunlight for each block rendered.
+   */
   public minLightUniform = { value: 0.05 };
 
+  /**
+   * The shared material instances for chunks.
+   */
   public materials: {
     opaque?: CustomShaderMaterial;
     transparent?: CustomShaderMaterial;
@@ -46,7 +88,14 @@ class Registry {
   private typeMap: Map<string, number> = new Map();
   private sources: Map<string, string | Color> = new Map();
 
-  constructor(public client: Client, params: Partial<RegistryParams>) {
+  /**
+   * Construct a block registry for Voxelize.
+   *
+   * @hidden
+   */
+  constructor(client: Client, params: Partial<RegistryParams>) {
+    this.client = client;
+
     this.aoUniform = {
       value: new Vector4(100.0, 170.0, 210.0, 255.0),
     };

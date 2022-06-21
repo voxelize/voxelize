@@ -10,6 +10,7 @@ import {
   ArtFunction,
   BoxSides,
   drawSun,
+  Clouds,
 } from "../libs";
 import { Coords2, Coords3, PartialRecord, BlockUpdate } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
@@ -56,6 +57,7 @@ class World {
   public params: WorldParams = {};
 
   public sky: Sky;
+  public clouds: Clouds;
   public chunks: Chunks;
 
   public uSunlightIntensity = { value: 1 };
@@ -94,6 +96,28 @@ class World {
         });
 
         client.rendering.scene.add(this.sky.mesh);
+
+        this.clouds = new Clouds({
+          alpha: 0.8,
+          color: "#eee",
+          count: 8,
+          scale: 0.05,
+          width: 16,
+          height: 1,
+          worldHeight: this.params.maxHeight * this.params.dimension,
+          dimensions: [16, 10, 16],
+          speedFactor: 8,
+          lerpFactor: 0.3,
+          seed: -1,
+          threshold: 0.4,
+          uFogColor: this.client.rendering.uFogColor,
+          uFogNear: this.client.rendering.uFogNear,
+          uFogFar: this.client.rendering.uFogFar,
+        });
+
+        this.clouds.initialize().then(() => {
+          client.rendering.scene.add(this.clouds.mesh);
+        });
       }
     });
   }
@@ -396,6 +420,13 @@ class World {
 
       const [px, py, pz] = this.client.controls.position;
       this.sky.mesh.position.set(px, py, pz);
+
+      if (this.clouds && this.clouds.initialized) {
+        this.clouds.move(
+          this.client.clock.delta,
+          this.client.controls.object.position
+        );
+      }
 
       // Update server voxels
       if (this.chunks.toUpdate.length >= 0) {

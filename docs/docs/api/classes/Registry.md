@@ -6,11 +6,23 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A **built-in** block registry for Voxelize.
+
 ## Properties
+
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-48)
+• **params**: [`RegistryParams`](../modules.md#registryparams-88)
+
+Parameters to initialize the Voxelize registry.
 
 ___
 
@@ -18,17 +30,23 @@ ___
 
 • **atlas**: [`TextureAtlas`](TextureAtlas.md)
 
+The generated texture atlas built from all registered block textures.
+
 ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-48)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-88)\>
+
+A map of UV ranges for all registered blocks.
 
 ___
 
 ### atlasUniform
 
 • **atlasUniform**: `Object`
+
+The uniform for the texture atlas to work with chunks.
 
 #### Type declaration
 
@@ -42,6 +60,8 @@ ___
 
 • **aoUniform**: `Object`
 
+A `Vector4` representing the [4 levels of ambient occlusion](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/).
+
 #### Type declaration
 
 | Name | Type |
@@ -53,6 +73,8 @@ ___
 ### minLightUniform
 
 • **minLightUniform**: `Object`
+
+The minimum sunlight for each block rendered.
 
 #### Type declaration
 
@@ -66,31 +88,14 @@ ___
 
 • **materials**: `Object` = `{}`
 
+The shared material instances for chunks.
+
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-48) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-48) |
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Registry**(`client`, `params`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RegistryParams`](../modules.md#registryparams-48)\> |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-88) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-88) |
 
 ## Methods
 
@@ -102,7 +107,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-48) ; `data`: `string` \| `Color`  }[] |
+| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-88) ; `data`: `string` \| `Color`  }[] |
 
 #### Returns
 
@@ -119,7 +124,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `side` | [`BlockFace`](../modules.md#blockface-48) |
+| `side` | [`BlockFace`](../modules.md#blockface-88) |
 | `data` | `string` \| `Color` |
 
 #### Returns
@@ -137,7 +142,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `number` |
-| `side` | [`BlockFace`](../modules.md#blockface-48) |
+| `side` | [`BlockFace`](../modules.md#blockface-88) |
 | `path` | `string` |
 
 #### Returns
@@ -154,7 +159,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `blocks` | [`Block`](../modules.md#block-48)[] |
+| `blocks` | [`Block`](../modules.md#block-88)[] |
 | `ranges` | `Object` |
 
 #### Returns
@@ -165,7 +170,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-48)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-88)
 
 #### Parameters
 
@@ -175,13 +180,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-48)
+[`Block`](../modules.md#block-88)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-48)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-88)
 
 #### Parameters
 
@@ -191,13 +196,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-48)
+[`Block`](../modules.md#block-88)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-48)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-88)
 
 #### Parameters
 
@@ -207,7 +212,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-48)
+[`Block`](../modules.md#block-88)
 
 ___
 
@@ -341,7 +346,7 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-48)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-88)[]
 
 #### Parameters
 
@@ -351,13 +356,13 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-48)[]
+[`BlockFace`](../modules.md#blockface-88)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-48)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-88)[]
 
 #### Parameters
 
@@ -367,7 +372,7 @@ ___
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-48)[]
+[`BlockFace`](../modules.md#blockface-88)[]
 
 ___
 
@@ -411,7 +416,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-48) |
+| `block` | [`Block`](../modules.md#block-88) |
 
 #### Returns
 
@@ -479,11 +484,11 @@ ___
 
 ### getSummary
 
-▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-48)\>
+▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-88)\>
 
 #### Returns
 
-`Map`<`number`, [`Block`](../modules.md#block-48)\>
+`Map`<`number`, [`Block`](../modules.md#block-88)\>
 
 ## Accessors
 

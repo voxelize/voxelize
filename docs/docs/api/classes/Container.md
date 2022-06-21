@@ -28,7 +28,7 @@ ___
 
 ### params
 
-• **params**: [`ContainerParams`](../modules.md#containerparams-48)
+• **params**: [`ContainerParams`](../modules.md#containerparams-88)
 
 Parameters to initialize the Voxelize container.
 
