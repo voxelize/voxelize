@@ -104,15 +104,15 @@ class World {
           alpha: 0.8,
           color: "#fff",
           count: 16,
-          scale: 0.3,
+          scale: 0.08,
           width: 8,
           height: 1,
           dimensions: [20, 20, 20],
           speedFactor: 8,
           lerpFactor: 0.3,
-          threshold: 0.5,
+          threshold: 0.05,
           octaves: 5,
-          falloff: 0.8,
+          falloff: 0.9,
           ...(typeof clouds === "object" ? clouds : {}),
           worldHeight: this.params.maxHeight * this.params.dimension,
           uFogColor: this.sky.uMiddleColor,
@@ -140,6 +140,10 @@ class World {
     this.chunks.toRequest.length = 0;
     this.chunks.toProcess.length = 0;
     this.chunks.currentChunk = [0, 0];
+
+    if (this.clouds) {
+      this.clouds.reset();
+    }
   };
 
   /**

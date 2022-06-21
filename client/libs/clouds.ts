@@ -100,6 +100,16 @@ class Clouds {
     this.initialized = true;
   };
 
+  reset = async () => {
+    const { width } = this.params;
+
+    for (let x = 0; x < width; x++) {
+      for (let z = 0; z < width; z++) {
+        await this.makeCell(x, z, this.meshes[x][z]);
+      }
+    }
+  };
+
   move = async (delta: number, position: Vector3) => {
     if (!this.initialized) return;
 
