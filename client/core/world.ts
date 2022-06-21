@@ -99,37 +99,35 @@ class World {
 
       client.rendering.scene.add(this.sky.mesh);
 
-      if (clouds) {
-        this.clouds = new Clouds({
-          alpha: 0.8,
-          color: "#fff",
-          count: 16,
-          scale: 0.08,
-          width: 8,
-          height: 1,
-          dimensions: [20, 20, 20],
-          speedFactor: 8,
-          lerpFactor: 0.3,
-          threshold: 0.05,
-          octaves: 5,
-          falloff: 0.9,
-          seed: -1,
-          ...(typeof clouds === "object" ? clouds : {}),
-          worldHeight: this.params.maxHeight * this.params.dimension,
-          uFogColor: this.sky.uMiddleColor,
-          uFogNear: this.client.rendering.uFogNear,
-          uFogFar: this.client.rendering.uFogFar,
-        });
+      this.clouds = new Clouds({
+        alpha: 0.8,
+        color: "#fff",
+        count: 16,
+        scale: 0.08,
+        width: 8,
+        height: 1,
+        dimensions: [20, 20, 20],
+        speedFactor: 8,
+        lerpFactor: 0.3,
+        threshold: 0.05,
+        octaves: 5,
+        falloff: 0.9,
+        seed: -1,
+        ...(typeof clouds === "object" ? clouds : {}),
+        worldHeight: this.params.maxHeight * this.params.dimension,
+        uFogColor: this.sky.uMiddleColor,
+        uFogNear: this.client.rendering.uFogNear,
+        uFogFar: this.client.rendering.uFogFar,
+      });
 
-        this.clouds.initialize().then(() => {
-          client.rendering.scene.add(this.clouds.mesh);
-        });
-      }
+      this.clouds.initialize().then(() => {
+        client.rendering.scene.add(this.clouds.mesh);
+      });
     });
   }
 
   reset = () => {
-    const scene = this.client.rendering.scene;
+    const { scene } = this.client.rendering;
 
     this.chunks.forEach((chunk) => {
       chunk.removeFromScene(scene);

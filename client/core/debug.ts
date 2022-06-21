@@ -296,10 +296,12 @@ class Debug {
       })
     );
 
-    this.client.registry.ranges.forEach(({ startU, endV }, name) => {
-      const tag = new NameTag(name, { fontSize: planeWidth * 0.06 });
+    this.client.registry.ranges.forEach(({ startU, endV, endU }, name) => {
+      const tag = new NameTag(name, {
+        fontSize: planeWidth * (endU - startU) * 0.1,
+      });
       tag.position.set(
-        -planeWidth / 2 + (startU + 1 / 2 / countPerSide) * planeWidth,
+        -planeWidth / 2 + ((endU - startU) / 2 + startU) * planeWidth,
         planeWidth - (1 - endV) * planeWidth - planeWidth / 2,
         0
       );
