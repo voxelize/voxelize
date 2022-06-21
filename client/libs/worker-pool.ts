@@ -15,6 +15,8 @@ const defaultParams: WorkerPoolParams = {
 class WorkerPool {
   public queue: WorkerPoolJob[] = [];
 
+  static WORKING_COUNT = 0;
+
   private workers: Worker[] = [];
   private available: number[] = [];
 
@@ -43,8 +45,10 @@ class WorkerPool {
       const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
 
       worker.postMessage(message, buffers || []);
+      WorkerPool.WORKING_COUNT++;
 
       const workerCallback = ({ data }: any) => {
+        WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
         this.available.push(index);
         resolve(data);

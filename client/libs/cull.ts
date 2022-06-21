@@ -32,31 +32,23 @@ async function cull(
 
   const voxelsBuffer = (<Uint8Array>data).buffer.slice(0);
 
-  const { positions, normals, indices } = await new Promise<MeshResultType>(
-    (resolve) => {
-      cullPool.addJob({
-        message: {
-          data: voxelsBuffer,
-          configs: {
-            min,
-            max,
-            realMin,
-            realMax,
-            dimensions,
-            stride,
-          },
+  return new Promise<MeshResultType>((resolve) => {
+    cullPool.addJob({
+      message: {
+        data: voxelsBuffer,
+        configs: {
+          min,
+          max,
+          realMin,
+          realMax,
+          dimensions,
+          stride,
         },
-        resolve,
-        buffers: [voxelsBuffer],
-      });
-    }
-  );
-
-  return {
-    positions: new Float32Array(positions),
-    normals: new Float32Array(normals),
-    indices: new Float32Array(indices),
-  };
+      },
+      resolve,
+      buffers: [voxelsBuffer],
+    });
+  });
 }
 
 export { cull };

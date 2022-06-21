@@ -126,17 +126,17 @@ onmessage = function (e) {
     }
   }
 
-  const positionsArrayBuffer = new Float32Array(positions).buffer;
-  const normalsArrayBuffer = new Float32Array(normals).buffer;
-  const indicesArrayBuffer = new Float32Array(indices).buffer;
+  const positionsArray = new Float32Array(positions);
+  const normalsArray = new Float32Array(normals);
+  const indicesArray = new Float32Array(indices);
 
   postMessage(
     {
-      positions: positionsArrayBuffer,
-      normals: normalsArrayBuffer,
-      indices: indicesArrayBuffer,
+      positions: positionsArray,
+      normals: normalsArray,
+      indices: indicesArray,
     },
     // @ts-ignore
-    [positionsArrayBuffer, normalsArrayBuffer, indicesArrayBuffer]
+    [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer]
   );
 };

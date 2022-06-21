@@ -70,11 +70,7 @@ class ImageVoxelizer {
       fullParams.voxel = client.controls.voxel;
     }
 
-    const updates = await ImageVoxelizer.process(
-      file,
-      fullParams,
-      client.registry
-    );
+    const updates = await ImageVoxelizer.process(file, fullParams, client);
 
     client.world.setServerVoxels(updates);
     client.chat.add({ type: "INFO", body: `Image voxelization done: ${file}` });
@@ -83,14 +79,14 @@ class ImageVoxelizer {
   static process = async (
     file: string,
     params: ImageVoxelizerParams,
-    registry: Registry
+    client: Client
   ) => {
     console.log(`Starting to voxelize image: ${file}`);
 
     const {
       ranges,
       atlas: { canvas },
-    } = registry;
+    } = client.registry;
 
     const getPixelAt = (
       context: CanvasRenderingContext2D,
@@ -123,7 +119,7 @@ class ImageVoxelizer {
     const metrics = new Map<string, [number, number, number, number]>();
 
     ranges.forEach(({ startU, startV, endU, endV }, name) => {
-      const block = registry.getBlockByTextureName(name);
+      const block = client.registry.getBlockByTextureName(name);
       if (block.isTransparent) {
         return;
       }
@@ -235,7 +231,7 @@ class ImageVoxelizer {
             const { r, g, b, a } = getPixelAt(context, x, y);
 
             const closest = getClosest([r, g, b, a]);
-            const block = registry.getBlockByTextureName(closest);
+            const block = client.registry.getBlockByTextureName(closest);
 
             updates.push({
               vx: orientation === "z" ? baseX : baseX - width / 2 + x,
@@ -249,7 +245,13 @@ class ImageVoxelizer {
         resolve(updates);
       };
 
-      original.onerror = console.error;
+      original.onerror = (error) => {
+        client.chat.add({
+          type: "ERROR",
+          body: "Image voxelizer Could not load image.",
+        });
+        console.error(error);
+      };
       original.src = file;
     });
   };

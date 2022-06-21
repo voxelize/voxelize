@@ -20,7 +20,6 @@ import CloudsVertexShader from "./shaders/clouds/vertex.glsl";
 import { WorkerPool } from "./worker-pool";
 
 type CloudsOptionsType = {
-  seed: number;
   scale: number;
   width: number;
   height: number;
@@ -32,6 +31,8 @@ type CloudsOptionsType = {
   color: string;
   alpha: number;
   count: number;
+  octaves: number;
+  falloff: number;
   uFogNear: {
     value: number;
   };
@@ -60,9 +61,7 @@ class Clouds {
   });
 
   constructor(public options: CloudsOptionsType) {
-    const { color, alpha, seed, uFogNear, uFogFar, uFogColor } = this.options;
-
-    if (seed === -1) this.options.seed = Math.random() * 10000;
+    const { color, alpha, uFogNear, uFogFar, uFogColor } = this.options;
 
     this.material = new ShaderMaterial({
       transparent: true,
@@ -101,7 +100,7 @@ class Clouds {
     this.initialized = true;
   };
 
-  move = (delta: number, position: Vector3) => {
+  move = async (delta: number, position: Vector3) => {
     if (!this.initialized) return;
 
     const { lerpFactor, speedFactor, count, dimensions } = this.options;
@@ -123,11 +122,11 @@ class Clouds {
       const dz = locatedCell[1] - this.locatedCell[1];
 
       if (dx) {
-        this.shiftX(dx);
+        await this.shiftX(dx);
       }
 
       if (dz) {
-        this.shiftZ(dz);
+        await this.shiftZ(dz);
       }
 
       this.locatedCell = locatedCell;
@@ -141,30 +140,20 @@ class Clouds {
   private shiftX = async (direction = 1) => {
     const { width } = this.options;
 
-    const arr = [];
+    const arr = direction > 0 ? this.meshes.shift() : this.meshes.pop();
 
     for (let z = 0; z < width; z++) {
-      const cell = await this.makeCell(
+      await this.makeCell(
         this.xOffset + (direction > 0 ? width : 0),
-        z + this.zOffset
+        z + this.zOffset,
+        arr[z]
       );
-      this.cloudGroup.add(cell);
-      arr.push(cell);
     }
-
-    let removed: Mesh[];
 
     if (direction > 0) {
-      removed = this.meshes.shift();
       this.meshes.push(arr);
     } else {
-      removed = this.meshes.pop();
       this.meshes.unshift(arr);
-    }
-
-    if (removed) {
-      removed.forEach((mesh) => mesh.geometry?.dispose());
-      this.cloudGroup.remove(...removed);
     }
 
     this.xOffset += direction;
@@ -174,50 +163,45 @@ class Clouds {
     const { width } = this.options;
 
     for (let x = 0; x < width; x++) {
-      const cell = await this.makeCell(
-        x + this.xOffset,
-        this.zOffset + (direction > 0 ? width : 0)
-      );
-      this.cloudGroup.add(cell);
-
       const arr = this.meshes[x];
+      const cell = direction > 0 ? arr.shift() : arr.pop();
 
-      let removed: Mesh;
+      await this.makeCell(
+        x + this.xOffset,
+        this.zOffset + (direction > 0 ? width : 0),
+        cell
+      );
 
       if (direction > 0) {
-        removed = arr.shift();
         arr.push(cell);
       } else {
-        removed = arr.pop();
         arr.unshift(cell);
-      }
-
-      if (removed) {
-        removed.geometry?.dispose();
-        this.cloudGroup.remove(removed);
       }
     }
 
     this.zOffset += direction;
   };
 
-  private makeCell = async (x: number, z: number) => {
+  private makeCell = async (x: number, z: number, mesh?: Mesh) => {
     const {
       width,
       height,
       count,
       scale,
       threshold,
-      seed,
       dimensions,
       worldHeight,
+      octaves,
+      falloff,
     } = this.options;
 
-    const array = ndarray(new Uint8Array((count + 2) * height * (count + 2)), [
-      count + 2,
-      height,
-      count + 2,
-    ]);
+    const array = mesh
+      ? mesh.userData.data
+      : ndarray(new Uint8Array((count + 2) * height * (count + 2)), [
+          count + 2,
+          height,
+          count + 2,
+        ]);
 
     const buffer = (<Uint8Array>array.data).buffer.slice(0);
 
@@ -231,10 +215,11 @@ class Clouds {
           configs: {
             min,
             max,
-            seed,
             scale,
             threshold,
             stride: array.stride,
+            octaves,
+            falloff,
           },
         },
         resolve,
@@ -242,8 +227,7 @@ class Clouds {
       })
     );
 
-    const newBuffer = new Uint8Array(data);
-    array.data = newBuffer;
+    array.data = data;
 
     const { positions, indices, normals } = await cull(array, {
       dimensions,
@@ -253,17 +237,18 @@ class Clouds {
       realMax: [count + 2, height, count + 2],
     });
 
-    const geometry = new BufferGeometry();
+    const geometry = mesh ? mesh.geometry : new BufferGeometry();
+    geometry.dispose();
     geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new Int8BufferAttribute(normals, 3));
     geometry.setIndex(Array.from(indices));
-    geometry.computeVertexNormals();
 
-    const mesh = new Mesh(geometry, this.material);
+    mesh = mesh || new Mesh(geometry, this.material);
 
     mesh.position.setX((-width / 2 + x) * count * dimensions[0]);
     mesh.position.setY(worldHeight);
     mesh.position.setZ((-width / 2 + z) * count * dimensions[2]);
+    mesh.userData.data = array;
 
     return mesh;
   };

@@ -11,7 +11,7 @@ void main() {
 
   // fog
   vec3 fogOrigin = cameraPosition;
-  float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0)) / 6.0;
+  float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0)) / 8.0;
 
   float fogFactor = smoothstep(uFogNear, uFogFar, depth);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);

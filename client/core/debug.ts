@@ -3,7 +3,7 @@ import Stats from "three/examples/jsm/libs/stats.module.js";
 import { Pane } from "tweakpane";
 
 import { Client } from "..";
-import { NameTag } from "../libs";
+import { NameTag, WorkerPool } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils, DOMUtils, MathUtils } from "../utils";
 
@@ -392,6 +392,7 @@ class Debug {
       network,
       "concurrentWorkers"
     );
+    this.registerDisplay("Worker count", WorkerPool, "WORKING_COUNT");
     this.displayNewline();
     this.registerDisplay("Looking at", controls, "lookBlock", (voxel) => {
       if (voxel) {
