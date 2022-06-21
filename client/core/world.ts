@@ -113,6 +113,7 @@ class World {
           threshold: 0.05,
           octaves: 5,
           falloff: 0.9,
+          seed: -1,
           ...(typeof clouds === "object" ? clouds : {}),
           worldHeight: this.params.maxHeight * this.params.dimension,
           uFogColor: this.sky.uMiddleColor,

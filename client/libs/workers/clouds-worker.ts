@@ -36,11 +36,11 @@ function noise(
 
 onmessage = function (e) {
   const {
-    data: dataBuffer,
-    configs: { min, max, scale, threshold, stride, octaves, falloff },
+    data,
+    configs: { min, max, scale, threshold, stride, octaves, falloff, seed },
   } = e.data;
 
-  const data = new Uint8Array(dataBuffer);
+  instance.seed(seed);
 
   const [startX, startY, startZ] = min;
   const [endX, endY, endZ] = max;

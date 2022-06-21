@@ -61,8 +61,15 @@ const FACES = [
   },
 ];
 
-function get(arr, x, y, z, stride) {
-  return arr[x * stride[0] + y * stride[1] + z * stride[2]];
+function get(
+  arr: Uint8Array,
+  x: number,
+  y: number,
+  z: number,
+  stride: number[]
+) {
+  const index = x * stride[0] + y * stride[1] + z * stride[2];
+  return index > arr.length || index < 0 ? 0 : arr[index];
 }
 
 function contains(voxel, min, max) {
@@ -74,11 +81,9 @@ function contains(voxel, min, max) {
 
 onmessage = function (e) {
   const {
-    data: dataBuffer,
+    data,
     configs: { dimensions, min, max, realMin, realMax, stride },
   } = e.data;
-
-  const data = new Uint8Array(dataBuffer);
 
   const positions = [];
   const normals = [];
@@ -89,9 +94,9 @@ onmessage = function (e) {
 
   const [dx, dy, dz] = dimensions;
 
-  for (let vx = startX; vx < endX; ++vx) {
-    for (let vz = startZ; vz < endZ; ++vz) {
-      for (let vy = startY; vy < endY; ++vy) {
+  for (let vx = startX, x = 0; vx < endX; ++vx, ++x) {
+    for (let vz = startZ, z = 0; vz < endZ; ++vz, ++z) {
+      for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
         const voxel = get(data, vx, vy, vz, stride);
 
         if (voxel) {
@@ -101,18 +106,19 @@ onmessage = function (e) {
             const nvy = vy + dir[1];
             const nvz = vz + dir[2];
 
-            const nVoxel = [vx + dir[0], vy + dir[1], vz + dir[2]];
+            const nVoxel = [nvx, nvy, nvz];
 
-            const neighbor = get(data, nvx, nvy, nvz, stride);
-
-            if (!neighbor || !contains(nVoxel, realMin, realMax)) {
+            if (
+              !get(data, nvx, nvy, nvz, stride) ||
+              !contains(nVoxel, realMin, realMax)
+            ) {
               // this voxel has no neighbor in this direction so we need a face.
               const ndx = positions.length / 3;
 
               for (const pos of corners) {
-                const posX = pos[0] + vx;
-                const posY = pos[1] + vy;
-                const posZ = pos[2] + vz;
+                const posX = pos[0] + x;
+                const posY = pos[1] + y;
+                const posZ = pos[2] + z;
 
                 positions.push(posX * dx, posY * dy, posZ * dz);
                 normals.push(...dir);

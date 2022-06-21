@@ -30,6 +30,7 @@ type CloudsParams = {
   speedFactor: number;
   color: string;
   alpha: number;
+  seed: number;
   count: number;
   octaves: number;
   falloff: number;
@@ -61,7 +62,11 @@ class Clouds {
   });
 
   constructor(public params: CloudsParams) {
-    const { color, alpha, uFogNear, uFogFar, uFogColor } = this.params;
+    const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.params;
+
+    if (seed === -1) {
+      this.params.seed = Math.floor(Math.random() * 10230123);
+    }
 
     this.material = new ShaderMaterial({
       transparent: true,
@@ -110,7 +115,7 @@ class Clouds {
     }
   };
 
-  move = async (delta: number, position: Vector3) => {
+  move = (delta: number, position: Vector3) => {
     if (!this.initialized) return;
 
     const { lerpFactor, speedFactor, count, dimensions } = this.params;
@@ -132,11 +137,11 @@ class Clouds {
       const dz = locatedCell[1] - this.locatedCell[1];
 
       if (dx) {
-        await this.shiftX(dx);
+        this.shiftX(dx);
       }
 
       if (dz) {
-        await this.shiftZ(dz);
+        this.shiftZ(dz);
       }
 
       this.locatedCell = locatedCell;
@@ -198,6 +203,7 @@ class Clouds {
       height,
       count,
       scale,
+      seed,
       threshold,
       dimensions,
       worldHeight,
@@ -213,15 +219,13 @@ class Clouds {
           count + 2,
         ]);
 
-    const buffer = (<Uint8Array>array.data).buffer.slice(0);
-
-    const min = [count * (x - 1), 0, count * (z - 1)];
-    const max = [count * (x + 2), height, count * (z + 2)];
+    const min = [x * count - 1, 0, z * count - 1];
+    const max = [(x + 1) * count + 1, height, (z + 1) * count + 1];
 
     const data = await new Promise<any>((resolve) =>
       this.pool.addJob({
         message: {
-          data: buffer,
+          data: array.data,
           configs: {
             min,
             max,
@@ -230,10 +234,11 @@ class Clouds {
             stride: array.stride,
             octaves,
             falloff,
+            seed,
           },
         },
         resolve,
-        buffers: [buffer],
+        buffers: [array.data.buffer.slice(0)],
       })
     );
 
@@ -248,10 +253,10 @@ class Clouds {
     });
 
     const geometry = mesh ? mesh.geometry : new BufferGeometry();
-    geometry.dispose();
     geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new Int8BufferAttribute(normals, 3));
     geometry.setIndex(Array.from(indices));
+    geometry.computeVertexNormals();
 
     mesh = mesh || new Mesh(geometry, this.material);
 

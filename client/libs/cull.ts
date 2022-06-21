@@ -30,23 +30,21 @@ async function cull(
   const { stride, data } = array;
   const { dimensions, min, max, realMin, realMax } = options;
 
-  const voxelsBuffer = (<Uint8Array>data).buffer.slice(0);
-
   return new Promise<MeshResultType>((resolve) => {
     cullPool.addJob({
       message: {
-        data: voxelsBuffer,
+        data,
         configs: {
           min,
           max,
-          realMin,
-          realMax,
           dimensions,
           stride,
+          realMin,
+          realMax,
         },
       },
       resolve,
-      buffers: [voxelsBuffer],
+      buffers: [(<Uint8Array>data).buffer.slice(0)],
     });
   });
 }
