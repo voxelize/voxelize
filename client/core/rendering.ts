@@ -66,7 +66,7 @@ class Rendering {
       this.composer.addPass(new RenderPass(this.scene, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
-      this.uFogColor = { value: new Color(fogColor) };
+      this.uFogColor = client.world.sky.uMiddleColor;
       this.uFogNear = { value: 0 };
       this.uFogFar = { value: 0 };
 

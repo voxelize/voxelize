@@ -132,9 +132,16 @@ class Sky {
 
   public mesh = new Group();
 
-  private topColor: Color;
-  private middleColor: Color;
-  private bottomColor: Color;
+  public uTopColor: {
+    value: Color;
+  };
+  public uMiddleColor: {
+    value: Color;
+  };
+  public uBottomColor: {
+    value: Color;
+  };
+
   private newTopColor: Color;
   private newMiddleColor: Color;
   private newBottomColor: Color;
@@ -151,20 +158,26 @@ class Sky {
       voidOffset,
     } = SKY_CONFIGS.hours[700];
 
-    this.topColor = new Color(top);
-    this.middleColor = new Color(middle);
-    this.bottomColor = new Color(bottom);
+    this.uTopColor = {
+      value: new Color(top),
+    };
+    this.uMiddleColor = {
+      value: new Color(middle),
+    };
+    this.uBottomColor = {
+      value: new Color(bottom),
+    };
 
     const shadingGeometry = new SphereGeometry(this.dimension);
     const shadingMaterial = new ShaderMaterial({
       uniforms: {
-        topColor: { value: this.topColor },
-        middleColor: { value: this.middleColor },
-        bottomColor: { value: this.bottomColor },
-        skyOffset: { value: skyOffset },
-        voidOffset: { value: voidOffset },
-        exponent: { value: 0.6 },
-        exponent2: { value: 1.2 },
+        uTopColor: this.uTopColor,
+        uMiddleColor: this.uMiddleColor,
+        uBottomColor: this.uBottomColor,
+        uSkyOffset: { value: skyOffset },
+        uVoidOffset: { value: voidOffset },
+        uExponent: { value: 0.6 },
+        uExponent2: { value: 1.2 },
       },
       vertexShader: SkyVertexShader,
       fragmentShader: SkyFragmentShader,

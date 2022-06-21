@@ -336,6 +336,9 @@ class Debug {
         },
       });
     });
+    worldFolder.addInput(world.sky.uMiddleColor, "value", {
+      color: { type: "float" },
+    });
 
     const controlsFolder = this.gui.addFolder({
       title: "Controls",
