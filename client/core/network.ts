@@ -310,9 +310,14 @@ class Network {
             })
             .map(({ vx, vy, vz }) => {
               const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+              let original = this.client.world.blockCache.get(name);
+
+              if (original === undefined)
+                original = this.client.world.getVoxelByVoxel(vx, vy, vz);
+
               const result = {
                 voxel: [vx, vy, vz],
-                type: this.client.world.blockCache.get(name),
+                type: original,
               };
 
               this.client.world.blockCache.delete(name);
