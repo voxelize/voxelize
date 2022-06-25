@@ -35,17 +35,36 @@ impl<'a> System<'a> for ChunkSendingSystem {
                     [[true, false], [false, true]]
                         .into_iter()
                         .for_each(|[mesh, data]| {
-                            let message = Message::new(&r#type)
-                                .chunks(&[chunk.to_model(mesh, data)])
-                                .build();
+                            let mut messages = vec![];
+
+                            if mesh {
+                                (0..(config.sub_chunks as u32)).for_each(|level| {
+                                    messages.push(
+                                        Message::new(&r#type)
+                                            .chunks(&[chunk.to_model(
+                                                mesh,
+                                                data,
+                                                if r#type == MessageType::Load {
+                                                    0..(config.sub_chunks as u32)
+                                                } else {
+                                                    let level = level as u32;
+                                                    level..(level + 1)
+                                                },
+                                            )])
+                                            .build(),
+                                    );
+                                })
+                            }
 
                             // See if each request is interested in this chunk update.
                             for (id, request) in (&ids, &requests).join() {
                                 if request.loaded.contains(&coords) {
-                                    queue.push((
-                                        message.clone(),
-                                        ClientFilter::Direct(id.0.to_owned()),
-                                    ));
+                                    messages.iter().for_each(|message| {
+                                        queue.push((
+                                            message.clone(),
+                                            ClientFilter::Direct(id.0.to_owned()),
+                                        ));
+                                    });
                                 }
                             }
                         });
