@@ -14,7 +14,7 @@ custom_edit_url: null
 
 ### fields
 
-• **fields**: `Map`<`string`, [`SettingsField`](../modules.md#settingsfield-60)\>
+• **fields**: `Map`<`string`, [`SettingsField`](../modules.md#settingsfield-92)\>
 
 ___
 
@@ -45,7 +45,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `property` | `string` |
-| `value` | [`SettingsField`](../modules.md#settingsfield-60) |
+| `value` | [`SettingsField`](../modules.md#settingsfield-92) |
 | `onChange?` | `SettingsChangeHandler` |
 
 #### Returns

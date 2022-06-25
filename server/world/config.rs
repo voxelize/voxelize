@@ -8,6 +8,9 @@ pub struct InitConfig {
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
     pub chunk_size: usize,
 
+    /// The number of sub chunks a chunk is divided into to mesh more efficiently. Defaults to 4.
+    pub sub_chunks: usize,
+
     /// Max height of the world. Default is 256 blocks high.
     pub max_height: usize,
 
@@ -45,6 +48,9 @@ pub struct WorldConfig {
 
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
     pub chunk_size: usize,
+
+    /// The number of sub chunks a chunk is divided into to mesh more efficiently. Defaults to 4.
+    pub sub_chunks: usize,
 
     /// The minimum inclusive chunk on this world. Default is [i32::MIN, i32::MIN].
     pub min_chunk: [i32; 2],
@@ -113,6 +119,7 @@ impl WorldConfig {
     pub fn get_init_config(&self) -> InitConfig {
         InitConfig {
             chunk_size: self.chunk_size,
+            sub_chunks: self.sub_chunks,
             max_height: self.max_height,
             max_light_level: self.max_light_level,
             min_chunk: self.min_chunk,
@@ -128,6 +135,7 @@ impl WorldConfig {
 
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_CHUNK_SIZE: usize = 16;
+const DEFAULT_SUB_CHUNKS: usize = 4;
 const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
 const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
 const DEFAULT_MAX_HEIGHT: usize = 256;
@@ -148,6 +156,7 @@ const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 pub struct WorldConfigBuilder {
     max_clients: usize,
     chunk_size: usize,
+    sub_chunks: usize,
     min_chunk: [i32; 2],
     max_chunk: [i32; 2],
     max_height: usize,
@@ -172,6 +181,7 @@ impl WorldConfigBuilder {
         Self {
             max_clients: DEFAULT_MAX_CLIENT,
             chunk_size: DEFAULT_CHUNK_SIZE,
+            sub_chunks: DEFAULT_SUB_CHUNKS,
             min_chunk: DEFAULT_MIN_CHUNK,
             max_chunk: DEFAULT_MAX_CHUNK,
             max_height: DEFAULT_MAX_HEIGHT,
@@ -200,6 +210,12 @@ impl WorldConfigBuilder {
     /// Configure the horizontal dimension of chunks in this world. Default is 16 blocks wide.
     pub fn chunk_size(mut self, chunk_size: usize) -> Self {
         self.chunk_size = chunk_size;
+        self
+    }
+
+    /// Configure the number of sub chunks a chunk is divided into. Default is 4 sub-chunks.
+    pub fn sub_chunks(mut self, sub_chunks: usize) -> Self {
+        self.sub_chunks = sub_chunks;
         self
     }
 
@@ -277,9 +293,14 @@ impl WorldConfigBuilder {
             panic!("Min/max chunk parameters do not make sense.");
         }
 
+        if self.chunk_size % self.sub_chunks != 0 {
+            panic!("Chunk size should be divisible by sub-chunks.");
+        }
+
         WorldConfig {
             max_clients: self.max_clients,
             chunk_size: self.chunk_size,
+            sub_chunks: self.sub_chunks,
             max_height: self.max_height,
             max_light_level: self.max_light_level,
             max_chunk_per_tick: self.max_chunk_per_tick,

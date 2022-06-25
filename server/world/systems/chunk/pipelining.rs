@@ -84,6 +84,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
                     cz,
                     &ChunkParams {
                         max_height: config.max_height,
+                        sub_chunks: config.sub_chunks,
                         size: config.chunk_size,
                     },
                 );

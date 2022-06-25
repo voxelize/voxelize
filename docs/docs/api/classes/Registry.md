@@ -20,7 +20,7 @@ ___
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-88)
+• **params**: [`RegistryParams`](../modules.md#registryparams-92)
 
 Parameters to initialize the Voxelize registry.
 
@@ -36,7 +36,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-88)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-92)\>
 
 A map of UV ranges for all registered blocks.
 
@@ -94,8 +94,8 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-88) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-88) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-92) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-92) |
 
 ## Methods
 
@@ -103,11 +103,13 @@ The shared material instances for chunks.
 
 ▸ **applyTexturesByNames**(`textures`): `void`
 
+Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `textures` | { `name`: `string` ; `side`: [`BlockFace`](../modules.md#blockface-88) ; `data`: `string` \| `Color`  }[] |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `textures` | [`TextureData`](../modules.md#texturedata-78)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -117,50 +119,15 @@ ___
 
 ### applyTextureByName
 
-▸ **applyTextureByName**(`name`, `side`, `data`): `void`
+▸ **applyTextureByName**(`texture`): `void`
+
+Apply a texture onto a face/side of a block.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
-| `side` | [`BlockFace`](../modules.md#blockface-88) |
-| `data` | `string` \| `Color` |
-
-#### Returns
-
-`void`
-
-___
-
-### applyTextureById
-
-▸ **applyTextureById**(`id`, `side`, `path`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
-| `side` | [`BlockFace`](../modules.md#blockface-88) |
-| `path` | `string` |
-
-#### Returns
-
-`void`
-
-___
-
-### load
-
-▸ **load**(`blocks`, `ranges`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `blocks` | [`Block`](../modules.md#block-88)[] |
-| `ranges` | `Object` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `texture` | [`TextureData`](../modules.md#texturedata-78) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -170,49 +137,55 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-88)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-92)
+
+Get the block information by its name.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
-[`Block`](../modules.md#block-88)
+[`Block`](../modules.md#block-92)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-88)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-92)
+
+Get the block information by its ID.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
-[`Block`](../modules.md#block-88)
+[`Block`](../modules.md#block-92)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-88)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-92)
+
+Reverse engineer to get the block information from a texture name.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `textureName` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `textureName` | `string` | The texture name that the block has. |
 
 #### Returns
 
-[`Block`](../modules.md#block-88)
+[`Block`](../modules.md#block-92)
 
 ___
 
@@ -220,11 +193,13 @@ ___
 
 ▸ **getTransparencyByName**(`name`): `boolean`
 
+Get the transparency of the block by name.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
@@ -236,11 +211,13 @@ ___
 
 ▸ **getTransparencyById**(`id`): `boolean`
 
+Get the transparency of the block by ID.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
@@ -252,11 +229,13 @@ ___
 
 ▸ **getFluidityByName**(`name`): `boolean`
 
+Get the fluidity of the block by name.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
@@ -268,11 +247,13 @@ ___
 
 ▸ **getFluidityById**(`id`): `boolean`
 
+Get the fluidity of the block by ID.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
@@ -284,11 +265,13 @@ ___
 
 ▸ **getSolidityByName**(`name`): `boolean`
 
+Get the solidity of the block by name.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
@@ -300,11 +283,13 @@ ___
 
 ▸ **getSolidityById**(`id`): `boolean`
 
+Get the solidity of the block by ID.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
@@ -316,11 +301,13 @@ ___
 
 ▸ **getEmptinessByName**(`name`): `boolean`
 
+Get the emptiness of the block by name.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
@@ -332,11 +319,13 @@ ___
 
 ▸ **getEmptinessById**(`id`): `boolean`
 
+Get the emptiness of the block by ID.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
@@ -346,33 +335,37 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-88)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-92)[]
+
+Get the faces/sides of the block by name.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-88)[]
+[`BlockFace`](../modules.md#blockface-92)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-88)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-92)[]
+
+Get the faces/sides of the block by ID.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-88)[]
+[`BlockFace`](../modules.md#blockface-92)[]
 
 ___
 
@@ -380,11 +373,13 @@ ___
 
 ▸ **getUVByName**(`name`): `Object`
 
+Get the UV ranges of the block by name.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The ID of the block to get. |
 
 #### Returns
 
@@ -416,7 +411,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-88) |
+| `block` | [`Block`](../modules.md#block-92) |
 
 #### Returns
 
@@ -466,6 +461,16 @@ ___
 
 ___
 
+### getSummary
+
+▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-92)\>
+
+#### Returns
+
+`Map`<`number`, [`Block`](../modules.md#block-92)\>
+
+___
+
 ### hasType
 
 ▸ **hasType**(`id`): `boolean`
@@ -479,16 +484,6 @@ ___
 #### Returns
 
 `boolean`
-
-___
-
-### getSummary
-
-▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-88)\>
-
-#### Returns
-
-`Map`<`number`, [`Block`](../modules.md#block-88)\>
 
 ## Accessors
 

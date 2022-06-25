@@ -33,6 +33,13 @@ export type PlantFaces = {
   diagonal: string;
 };
 
+/**
+ * A face/side of the block.
+ * - `all`: All 6 sides of the block.
+ * - `top`, `side`, `bottom`: Three types of sides of the block.
+ * - `px`, `py`, `pz`, `nx`, `ny`, `nz`: Six faces of a block.
+ * - `diagonal`: The diagonal face, used for plants.
+ */
 export type BlockFace =
   | keyof AllFaces
   | keyof ThreeFaces
@@ -91,7 +98,11 @@ export type TextureRange = {
 export type Coords2 = [number, number];
 export type Coords3 = [number, number, number];
 
-export type ServerMesh = { opaque?: MeshData; transparent?: MeshData };
+export type ServerMesh = {
+  opaque?: MeshData;
+  transparent?: MeshData;
+  level: number;
+};
 
 export type MeshData = {
   positions: Float32Array;

@@ -21,6 +21,26 @@ type CustomShaderMaterial = ShaderMaterial & {
 };
 
 /**
+ * Data passed to {@link applyTextureByName} or {@link applyTexturesByNames} to load a block texture.
+ */
+type TextureData = {
+  /**
+   * The name of the block to load. E.g. "Dirt".
+   */
+  name: string;
+
+  /**
+   * The side that this data loads onto.
+   */
+  side: BlockFace;
+
+  /**
+   * Either the URL to the source image, or a ThreeJS color instance.
+   */
+  data: string | Color;
+};
+
+/**
  * Parameters to initialize the registry.
  */
 type RegistryParams = {
@@ -106,32 +126,12 @@ class Registry {
     };
   }
 
-  applyTexturesByNames = (
-    textures: { name: string; side: BlockFace; data: string | Color }[]
-  ) => {
-    textures.forEach(({ name, side, data }) => {
-      this.applyTextureByName(name, side, data);
-    });
-  };
-
-  applyTextureByName = (
-    name: string,
-    side: BlockFace,
-    data: string | Color
-  ) => {
-    // Offload texture loading to the loader for the loading screen
-    if (typeof data === "string") {
-      this.client.loader.addTexture(data);
-    }
-
-    this.sources.set(this.makeSideName(name, side), data);
-  };
-
-  applyTextureById = (id: number, side: BlockFace, path: string) => {
-    const name = this.nameMap.get(id);
-    this.applyTextureByName(name, side, path);
-  };
-
+  /**
+   * Load blocks from the server and generate atlas. Emits "registry-loaded" event on client once done.
+   *
+   * @hidden
+   * @internal
+   */
   load = (blocks: Block[], ranges: { [key: string]: TextureRange }) => {
     Object.values(blocks).forEach((block) => {
       this.recordBlock(block);
@@ -193,14 +193,55 @@ class Registry {
     this.client.loaded = true;
   };
 
+  /**
+   * Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
+   *
+   * @param textures - List of data to load into the game before the game starts.
+   */
+  applyTexturesByNames = (textures: TextureData[]) => {
+    textures.forEach((texture) => {
+      this.applyTextureByName(texture);
+    });
+  };
+
+  /**
+   * Apply a texture onto a face/side of a block.
+   *
+   * @param texture - The data of the texture and where the texture is applying to.
+   */
+  applyTextureByName = (texture: TextureData) => {
+    const { name, side, data } = texture;
+    // Offload texture loading to the loader for the loading screen
+    if (typeof data === "string") {
+      this.client.loader.addTexture(data);
+    }
+
+    this.sources.set(this.makeSideName(name, side), data);
+  };
+
+  /**
+   * Get the block information by its name.
+   *
+   * @param name - The name of the block to get.
+   */
   getBlockByName = (name: string) => {
     return this.blocksByName.get(name.toLowerCase());
   };
 
+  /**
+   * Get the block information by its ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getBlockById = (id: number) => {
     return this.blocksById.get(id);
   };
 
+  /**
+   * Reverse engineer to get the block information from a texture name.
+   *
+   * @param textureName - The texture name that the block has.
+   */
   getBlockByTextureName = (textureName: string) => {
     for (const [name, block] of this.blocksByName) {
       for (const face of block.faces) {
@@ -213,46 +254,101 @@ class Registry {
     return null;
   };
 
+  /**
+   * Get the transparency of the block by name.
+   *
+   * @param name - The name of the block to get.
+   */
   getTransparencyByName = (name: string) => {
     return this.getBlockByName(name)?.isTransparent;
   };
 
+  /**
+   * Get the transparency of the block by ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getTransparencyById = (id: number) => {
     return this.getBlockById(id)?.isTransparent;
   };
 
+  /**
+   * Get the fluidity of the block by name.
+   *
+   * @param name - The name of the block to get.
+   */
   getFluidityByName = (name: string) => {
     return this.getBlockByName(name)?.isFluid;
   };
 
+  /**
+   * Get the fluidity of the block by ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getFluidityById = (id: number) => {
     return this.getBlockById(id)?.isFluid;
   };
 
+  /**
+   * Get the solidity of the block by name.
+   *
+   * @param name - The name of the block to get.
+   */
   getSolidityByName = (name: string) => {
     return this.getBlockByName(name)?.isSolid;
   };
 
+  /**
+   * Get the solidity of the block by ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getSolidityById = (id: number) => {
     return this.getBlockById(id)?.isSolid;
   };
 
+  /**
+   * Get the emptiness of the block by name.
+   *
+   * @param name - The name of the block to get.
+   */
   getEmptinessByName = (name: string) => {
     return this.getBlockByName(name)?.isEmpty;
   };
 
+  /**
+   * Get the emptiness of the block by ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getEmptinessById = (id: number) => {
     return this.getBlockById(id)?.isEmpty;
   };
 
+  /**
+   * Get the faces/sides of the block by name.
+   *
+   * @param name - The name of the block to get.
+   */
   getFacesByName = (name: string) => {
     return this.getBlockByName(name)?.faces;
   };
 
+  /**
+   * Get the faces/sides of the block by ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getFacesById = (id: number) => {
     return this.getBlockById(id)?.faces;
   };
 
+  /**
+   * Get the UV ranges of the block by name.
+   *
+   * @param name - The ID of the block to get.
+   */
   getUVByName = (name: string) => {
     return this.getUVMap(this.getBlockByName(name));
   };
@@ -429,12 +525,12 @@ class Registry {
     return blockMap;
   };
 
-  hasType = (id: number) => {
-    return this.nameMap.has(id);
-  };
-
   getSummary = () => {
     return this.blocksById;
+  };
+
+  hasType = (id: number) => {
+    return this.nameMap.has(id);
   };
 
   get perSide() {
@@ -575,6 +671,6 @@ vWorldPosition = worldPosition;
   };
 }
 
-export type { RegistryParams, CustomShaderMaterial };
+export type { RegistryParams, CustomShaderMaterial, TextureData };
 
 export { Registry };

@@ -96,7 +96,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                     .needs_height_maps()
                     .needs_voxels();
 
-                if chunk.mesh.is_some() {
+                if chunk.meshes.is_some() {
                     space = space.needs_lights()
                 }
 

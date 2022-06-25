@@ -41,6 +41,7 @@ const defaultParams: WorldInitParams = {
 };
 
 type WorldParams = WorldInitParams & {
+  subChunks: number;
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;
@@ -417,12 +418,8 @@ class World {
       this.maintainChunks();
 
       this.chunks.forEach((chunk) => {
-        if (chunk.mesh) {
-          const { opaque, transparent } = chunk.mesh;
-          const isVisible = this.isChunkInView(...chunk.coords);
-          [opaque, transparent].filter(Boolean).forEach((mesh) => {
-            mesh.visible = isVisible;
-          });
+        if (chunk.mesh && !chunk.mesh.isEmpty) {
+          chunk.mesh.visible = this.isChunkInView(...chunk.coords);
         }
       });
 
@@ -563,22 +560,21 @@ class World {
 
     let chunk = this.getChunk(x, z);
 
-    const { chunkSize, maxHeight } = this.params;
+    const { chunkSize, maxHeight, subChunks } = this.params;
 
     if (!chunk) {
       chunk = new Chunk(id, x, z, {
         size: chunkSize,
         maxHeight,
+        subChunks,
       });
 
       this.chunks.set(chunk.name, chunk);
     }
 
-    const { scene } = this.client.rendering;
     const { materials } = this.client.registry;
 
-    chunk.build(data, scene, materials);
-
+    chunk.build(data, materials);
     this.chunks.requested.delete(chunk.name);
   };
 

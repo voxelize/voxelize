@@ -20,6 +20,12 @@ ___
 
 ___
 
+### clouds
+
+• **clouds**: [`Clouds`](Clouds.md)
+
+___
+
 ### chunks
 
 • **chunks**: [`Chunks`](Chunks.md)
@@ -160,7 +166,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`WorldInitParams`](../modules.md#worldinitparams-88)\> |
+| `params` | `Partial`<[`WorldInitParams`](../modules.md#worldinitparams-92)\> |
 
 ## Methods
 
@@ -236,7 +242,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk-88) | `undefined` |
+| `data` | [`ServerChunk`](../modules.md#serverchunk-92) | `undefined` |
 | `urgent` | `boolean` | `false` |
 
 #### Returns
@@ -327,7 +333,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-88)[] |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-92)[] |
 
 #### Returns
 
@@ -410,7 +416,7 @@ ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-88)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-92)
 
 #### Parameters
 
@@ -422,7 +428,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-88)
+[`Block`](../modules.md#block-92)
 
 ___
 
@@ -482,7 +488,7 @@ ___
 
 ### getNeighborChunkCoords
 
-▸ **getNeighborChunkCoords**(`vx`, `vy`, `vz`): [`Coords2`](../modules.md#coords2-88)[]
+▸ **getNeighborChunkCoords**(`vx`, `vy`, `vz`): [`Coords2`](../modules.md#coords2-92)[]
 
 #### Parameters
 
@@ -494,13 +500,13 @@ ___
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-88)[]
+[`Coords2`](../modules.md#coords2-92)[]
 
 ___
 
 ### getStandableVoxel
 
-▸ **getStandableVoxel**(`vx`, `vy`, `vz`): [`Coords3`](../modules.md#coords3-88)
+▸ **getStandableVoxel**(`vx`, `vy`, `vz`): [`Coords3`](../modules.md#coords3-92)
 
 #### Parameters
 
@@ -512,7 +518,7 @@ ___
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-88)
+[`Coords3`](../modules.md#coords3-92)
 
 ___
 

@@ -1,8 +1,15 @@
 import ndarray, { NdArray } from "ndarray";
-import { BufferAttribute, BufferGeometry, Material, Mesh, Scene } from "three";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Group,
+  Material,
+  Mesh,
+  Scene,
+} from "three";
 
 import { OPAQUE_RENDER_ORDER, TRANSPARENT_RENDER_ORDER } from "../common";
-import { Coords2, Coords3 } from "../types";
+import { Coords2, Coords3, ServerMesh } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
 
 import { BlockRotation } from "./block-rotation";
@@ -11,13 +18,98 @@ import { ServerChunk } from "./chunks";
 type ChunkParams = {
   size: number;
   maxHeight: number;
+  subChunks: number;
 };
 
+class ChunkMesh extends Group {
+  public opaque = new Map<number, Mesh>();
+  public transparent = new Map<number, Mesh>();
+
+  constructor(public chunk: Chunk) {
+    super();
+  }
+
+  set = (
+    meshData: ServerMesh,
+    materials: { opaque?: Material; transparent?: Material }
+  ) => {
+    let { level } = meshData;
+
+    if (!level) {
+      level = 0;
+    }
+
+    ["opaque", "transparent"].forEach((type) => {
+      const data = meshData[type];
+      const map = this[type];
+
+      if (!data) {
+        const existing = map.get(level);
+
+        if (existing) {
+          this.remove(existing);
+        }
+
+        return;
+      }
+
+      const { positions, indices, uvs, lights } = data;
+
+      // No mesh actually
+      if (positions.length === 0 || indices.length === 0) {
+        return;
+      }
+
+      let mesh = map.get(level) as Mesh;
+
+      if (!mesh) {
+        mesh = new Mesh(new BufferGeometry(), materials[type]);
+        mesh.name = `${this.chunk.name}-${type}-${level}`;
+        mesh.matrixAutoUpdate = false;
+        mesh.renderOrder =
+          type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
+        mesh.frustumCulled = false;
+        mesh.position.set(...this.chunk.min);
+
+        this.add(mesh);
+        map.set(level, mesh);
+      }
+
+      const geometry = mesh.geometry;
+
+      geometry.setAttribute(
+        "position",
+        new BufferAttribute(new Float32Array(positions), 3)
+      );
+      geometry.setAttribute(
+        "uv",
+        new BufferAttribute(new Float32Array(uvs), 2)
+      );
+      geometry.setAttribute(
+        "light",
+        new BufferAttribute(new Int32Array(lights), 1)
+      );
+      geometry.setIndex(Array.from(new Uint32Array(indices)));
+
+      mesh.updateMatrix();
+    });
+  };
+
+  dispose = () => {
+    [this.opaque, this.transparent].forEach((map) => {
+      map.forEach((mesh) => {
+        mesh.geometry.dispose();
+      });
+    });
+  };
+
+  get isEmpty() {
+    return this.opaque.size === 0 && this.transparent.size === 0;
+  }
+}
+
 class Chunk {
-  public mesh: {
-    opaque?: Mesh;
-    transparent?: Mesh;
-  } = {};
+  public mesh: ChunkMesh;
 
   public name: string;
   public coords: Coords2;
@@ -27,8 +119,6 @@ class Chunk {
 
   public voxels: NdArray<Uint32Array>;
   public lights: NdArray<Uint32Array>;
-
-  private added = false;
 
   constructor(
     public id: string,
@@ -46,92 +136,36 @@ class Chunk {
 
     this.min = [x * size, 0, z * size];
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
+
+    this.mesh = new ChunkMesh(this);
   }
 
   build = (
     data: ServerChunk,
-    scene: Scene,
     materials: { opaque?: Material; transparent?: Material }
   ) => {
-    const { mesh: meshData, lights, voxels } = data;
+    const { meshes, lights, voxels } = data;
 
     if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
     if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
 
-    if (meshData) {
-      ["opaque", "transparent"].forEach((type) => {
-        const data = meshData[type];
-
-        if (!data) {
-          if (this.mesh[type]) {
-            scene.remove(this.mesh[type]);
-          }
-          return;
-        }
-
-        const { positions, indices, uvs, lights } = data;
-
-        if (positions.length === 0 || indices.length === 0) {
-          return;
-        }
-
-        let mesh = this.mesh[type] as Mesh;
-
-        if (!mesh) {
-          const { opaque, transparent } = materials;
-
-          mesh = new Mesh(
-            new BufferGeometry(),
-            type === "opaque" ? opaque : transparent
-          );
-          mesh.name = `${this.name}-${type}`;
-          mesh.matrixAutoUpdate = false;
-          mesh.renderOrder =
-            type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
-          mesh.frustumCulled = false;
-          mesh.position.set(...this.min);
-        }
-
-        const geometry = mesh.geometry;
-
-        geometry.setAttribute(
-          "position",
-          new BufferAttribute(new Float32Array(positions), 3)
-        );
-        geometry.setAttribute(
-          "uv",
-          new BufferAttribute(new Float32Array(uvs), 2)
-        );
-        geometry.setAttribute(
-          "light",
-          new BufferAttribute(new Int32Array(lights), 1)
-        );
-        geometry.setIndex(Array.from(new Uint32Array(indices)));
-
-        mesh.updateMatrix();
-
-        this.mesh[type] = mesh;
+    if (meshes) {
+      meshes.forEach((meshData) => {
+        this.mesh.set(meshData, materials);
       });
     }
   };
 
   addToScene = (scene: Scene) => {
-    const { opaque, transparent } = this.mesh;
-
-    if (transparent && !transparent.parent) {
-      scene.add(transparent);
-    }
-
-    if (opaque && !opaque.parent) {
-      scene.add(opaque);
+    if (this.mesh && !this.mesh.isEmpty && !this.mesh.parent) {
+      scene.add(this.mesh);
     }
   };
 
   removeFromScene = (scene: Scene) => {
-    const { opaque, transparent } = this.mesh;
-
-    if (opaque) scene.remove(opaque);
-    if (transparent) scene.remove(transparent);
+    if (this.mesh && !this.mesh.isEmpty) {
+      scene.remove(this.mesh);
+    }
   };
 
   getRawValue = (vx: number, vy: number, vz: number) => {
@@ -302,8 +336,7 @@ class Chunk {
   };
 
   dispose = () => {
-    this.mesh.opaque?.geometry.dispose();
-    this.mesh.transparent?.geometry.dispose();
+    this.mesh.dispose();
   };
 
   get isReady() {
@@ -405,4 +438,4 @@ class Chunk {
   };
 }
 
-export { Chunk };
+export { Chunk, ChunkMesh };

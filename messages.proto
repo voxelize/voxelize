@@ -9,15 +9,16 @@ message Geometry {
 }
 
 message Mesh {
-  Geometry opaque = 1;
-  Geometry transparent = 2;
+  int32 level = 1;
+  Geometry opaque = 2;
+  Geometry transparent = 3;
 }
 
 message Chunk {
   int32 x = 1;
   int32 z = 2;
   string id = 3;
-  Mesh mesh = 4;
+  repeated Mesh meshes = 4;
   repeated uint32 voxels = 5 [ packed = true ];
   repeated uint32 lights = 6 [ packed = true ];
 }

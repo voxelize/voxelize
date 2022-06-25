@@ -163,41 +163,47 @@ class Peers extends Map<string, Peer> {
     }
   };
 
-  update = () => {
-    const { name, controls, network, id } = this.client;
+  update = (() => {
+    let count = 0;
 
-    const { object } = controls;
-    const {
-      position: { x: px, y: py, z: pz },
-    } = object;
-    const { x: dx, y: dy, z: dz } = controls.getDirection();
+    return () => {
+      if (count++ % 2 === 0) return;
 
-    const event = {
-      type: "PEER",
-      peers: [
-        {
-          id,
-          name,
-          position: {
-            x: px,
-            y: py,
-            z: pz,
+      const { name, controls, network, id } = this.client;
+
+      const { object } = controls;
+      const {
+        position: { x: px, y: py, z: pz },
+      } = object;
+      const { x: dx, y: dy, z: dz } = controls.getDirection();
+
+      const event = {
+        type: "PEER",
+        peers: [
+          {
+            id,
+            name,
+            position: {
+              x: px,
+              y: py,
+              z: pz,
+            },
+            direction: {
+              x: dx,
+              y: dy,
+              z: dz,
+            },
           },
-          direction: {
-            x: dx,
-            y: dy,
-            z: dz,
-          },
-        },
-      ],
+        ],
+      };
+
+      network.send(event);
+
+      this.forEach((peer) => {
+        peer.update();
+      });
     };
-
-    network.send(event);
-
-    this.forEach((peer) => {
-      peer.update();
-    });
-  };
+  })();
 }
 
 export type { PeersParams };

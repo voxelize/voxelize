@@ -49,7 +49,7 @@ async fn main() -> std::io::Result<()> {
 
     {
         let mut pipeline = world3.pipeline_mut();
-        pipeline.add_stage(FlatlandStage::new(10, 2, 1, 3));
+        pipeline.add_stage(FlatlandStage::new(70, 2, 1, 3));
     }
 
     Voxelize::run(server).await

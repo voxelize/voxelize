@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 use crate::{ndarray, BlockUtils, ChunkUtils, LightColor, LightUtils, Ndarray, Vec2, Vec3};
 
@@ -24,6 +24,9 @@ pub struct SpaceParams {
 
     /// The horizontal dimension of each chunk.
     pub chunk_size: usize,
+
+    /// The number of sub-chunks of each chunk.
+    pub sub_chunks: usize,
 
     /// Maximum height of the chunk/space.
     pub max_height: usize,
@@ -53,6 +56,9 @@ pub struct Space {
 
     /// Parameters to construct the space.
     pub params: SpaceParams,
+
+    /// A set of sub-chunks that have been updated.
+    pub updated_levels: HashSet<u32>,
 
     /// A map of voxels, chunk coordinates -> n-dims array of voxels.
     voxels: HashMap<Vec2<i32>, Ndarray<u32>>,
@@ -200,6 +206,8 @@ impl SpaceBuilder<'_> {
             voxels,
             lights,
             height_maps,
+
+            ..Default::default()
         }
     }
 }
@@ -291,6 +299,9 @@ impl VoxelAccess for Space {
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 
         if let Some(lights) = self.lights.get_mut(&coords) {
+            let chunk_level = vy as u32 / (self.params.max_height / self.params.sub_chunks) as u32;
+            self.updated_levels.insert(chunk_level);
+
             lights[&[lx, ly, lz]] = level;
             return true;
         }
@@ -309,88 +320,6 @@ impl VoxelAccess for Space {
         }
 
         LightUtils::extract_sunlight(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the sunlight level at the voxel position. Returns false if chunk doesn't exist.
-    fn set_sunlight(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_sunlight(self.get_raw_light(vx, vy, vz), level),
-        )
-    }
-
-    /// Get the red light level at the voxel position. Zero is returned if chunk doesn't exist.
-    fn get_red_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        LightUtils::extract_red_light(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the red light level at the voxel position. Returns false if chunk doesn't exist.
-    fn set_red_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_red_light(self.get_raw_light(vx, vy, vz), level),
-        )
-    }
-
-    /// Get the green light level at the voxel position. Zero is returned if chunk doesn't exist.
-    fn get_green_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        LightUtils::extract_green_light(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the green light level at the voxel position. Returns false if chunk doesn't exist.
-    fn set_green_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_green_light(self.get_raw_light(vx, vy, vz), level),
-        )
-    }
-
-    /// Get the blue light level at the voxel position. Zero is returned if chunk doesn't exist.
-    fn get_blue_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
-        LightUtils::extract_blue_light(self.get_raw_light(vx, vy, vz))
-    }
-
-    /// Set the blue light level at the voxel position. Returns false if chunk doesn't exist.
-    fn set_blue_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
-        self.set_raw_light(
-            vx,
-            vy,
-            vz,
-            LightUtils::insert_blue_light(self.get_raw_light(vx, vy, vz), level),
-        )
-    }
-
-    /// Get the torch light level of a color at the voxel position. Zero is returned if chunk doesn't exist.
-    fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: &LightColor) -> u32 {
-        match color {
-            LightColor::Red => self.get_red_light(vx, vy, vz),
-            LightColor::Green => self.get_green_light(vx, vy, vz),
-            LightColor::Blue => self.get_blue_light(vx, vy, vz),
-            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
-        }
-    }
-
-    /// Set the torch light level of a color at the voxel position. Returns false if chunk doesn't exist.
-    fn set_torch_light(
-        &mut self,
-        vx: i32,
-        vy: i32,
-        vz: i32,
-        level: u32,
-        color: &LightColor,
-    ) -> bool {
-        match color {
-            LightColor::Red => self.set_red_light(vx, vy, vz, level),
-            LightColor::Green => self.set_green_light(vx, vy, vz, level),
-            LightColor::Blue => self.set_blue_light(vx, vy, vz, level),
-            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
-        }
     }
 
     /// Get the max height at the voxel column. Zero is returned if column doesn't exist.

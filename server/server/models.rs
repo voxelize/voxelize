@@ -63,6 +63,7 @@ pub struct Geometry {
 /// Protocol buffer compatible mesh data structure.
 #[derive(Debug, Clone, Default)]
 pub struct MeshProtocol {
+    pub level: i32,
     pub opaque: Option<Geometry>,
     pub transparent: Option<Geometry>,
 }
@@ -73,7 +74,7 @@ pub struct ChunkProtocol {
     pub x: i32,
     pub z: i32,
     pub id: String,
-    pub mesh: Option<MeshProtocol>,
+    pub meshes: Vec<MeshProtocol>,
     pub voxels: Option<Ndarray<u32>>,
     pub lights: Option<Ndarray<u32>>,
 }
@@ -218,27 +219,30 @@ impl MessageBuilder {
                 .into_iter()
                 .map(|chunk| protocols::Chunk {
                     id: chunk.id,
-                    mesh: if let Some(mesh) = chunk.mesh {
-                        let opaque = mesh.opaque.as_ref();
-                        let transparent = mesh.transparent.as_ref();
+                    meshes: chunk
+                        .meshes
+                        .into_iter()
+                        .map(|mesh| {
+                            let opaque = mesh.opaque.as_ref();
+                            let transparent = mesh.transparent.as_ref();
 
-                        Some(protocols::Mesh {
-                            opaque: opaque.map(|opaque| protocols::Geometry {
-                                indices: opaque.indices.to_owned(),
-                                positions: opaque.positions.to_owned(),
-                                lights: opaque.lights.to_owned(),
-                                uvs: opaque.uvs.to_owned(),
-                            }),
-                            transparent: transparent.map(|transparent| protocols::Geometry {
-                                indices: transparent.indices.to_owned(),
-                                positions: transparent.positions.to_owned(),
-                                lights: transparent.lights.to_owned(),
-                                uvs: transparent.uvs.to_owned(),
-                            }),
+                            protocols::Mesh {
+                                level: mesh.level,
+                                opaque: opaque.map(|opaque| protocols::Geometry {
+                                    indices: opaque.indices.to_owned(),
+                                    positions: opaque.positions.to_owned(),
+                                    lights: opaque.lights.to_owned(),
+                                    uvs: opaque.uvs.to_owned(),
+                                }),
+                                transparent: transparent.map(|transparent| protocols::Geometry {
+                                    indices: transparent.indices.to_owned(),
+                                    positions: transparent.positions.to_owned(),
+                                    lights: transparent.lights.to_owned(),
+                                    uvs: transparent.uvs.to_owned(),
+                                }),
+                            }
                         })
-                    } else {
-                        None
-                    },
+                        .collect(),
                     lights: chunk.lights.unwrap_or_default().data,
                     voxels: chunk.voxels.unwrap_or_default().data,
                     x: chunk.x,

@@ -8,7 +8,7 @@ type ServerChunk = {
   id: string;
   lights: Uint32Array;
   voxels: Uint32Array;
-  mesh: ServerMesh;
+  meshes: ServerMesh[];
 };
 
 class Chunks extends Map<string, Chunk> {

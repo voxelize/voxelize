@@ -377,6 +377,7 @@ mod tests {
             0,
             &ChunkParams {
                 max_height: 64,
+                sub_chunks: 4,
                 size: 16,
             },
         );

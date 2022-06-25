@@ -1,4 +1,3 @@
-mod content;
 mod models;
 mod session;
 
@@ -17,7 +16,6 @@ use crate::{
     world::{Registry, World, WorldConfig},
 };
 
-pub use content::*;
 pub use models::*;
 pub use session::*;
 

@@ -207,130 +207,128 @@ class Network {
     return this.pool.workingCount;
   }
 
-  private onEvent = (() => {
-    return (event: any) => {
-      const { type } = event;
+  private onEvent = (event: any) => {
+    const { type } = event;
 
-      switch (type) {
-        case "INIT": {
-          const {
-            peers,
-            json: { blocks, ranges, id, params },
-          } = event;
+    switch (type) {
+      case "INIT": {
+        const {
+          peers,
+          json: { blocks, ranges, id, params },
+        } = event;
 
-          if (id) {
-            this.client.id = id;
-          }
-
-          if (params) {
-            this.client.world.setParams(params);
-          }
-
-          if (peers) {
-            peers.forEach((peer: any) => {
-              if (peer.id === this.client.id) return;
-              this.client.peers.addPeer(peer.id);
-            });
-          }
-
-          this.client.loader.load().then(() => {
-            if (blocks && ranges) {
-              this.client.registry.load(blocks, ranges);
-            }
-
-            this.client.emit("ready");
-            this.client.ready = true;
-          });
-
-          break;
+        if (id) {
+          this.client.id = id;
         }
-        case "JOIN": {
-          const { text: id } = event;
-          if (!this.client.id || this.client.id === id) return;
-          this.client.peers.addPeer(id);
 
-          break;
+        if (params) {
+          this.client.world.setParams(params);
         }
-        case "LEAVE": {
-          const { text: id } = event;
-          this.client.peers.removePeer(id);
 
-          break;
-        }
-        case "PEER": {
-          const { peers } = event;
-
+        if (peers) {
           peers.forEach((peer: any) => {
             if (peer.id === this.client.id) return;
-            this.client.peers.updatePeer(peer);
+            this.client.peers.addPeer(peer.id);
           });
-
-          break;
         }
-        case "ENTITY": {
-          const { entities } = event;
-          entities.forEach((entity: any) => {
-            this.client.entities.onEvent(entity);
-          });
-          break;
-        }
-        case "LOAD": {
-          const { chunks } = event;
 
-          if (chunks) {
-            chunks.forEach((chunk) => {
-              this.client.world.handleServerChunk(chunk);
-            });
+        this.client.loader.load().then(() => {
+          if (blocks && ranges) {
+            this.client.registry.load(blocks, ranges);
           }
 
-          break;
-        }
-        case "CHAT": {
-          const { chat } = event;
+          this.client.emit("ready");
+          this.client.ready = true;
+        });
 
-          if (chat) {
-            this.client.chat.add(chat);
-          }
-
-          break;
-        }
-        case "UPDATE": {
-          const { updates, chunks } = event;
-
-          if (chunks) {
-            chunks.forEach((chunk) => {
-              this.client.world.handleServerChunk(chunk, true);
-            });
-          }
-
-          if (updates) {
-            const particleUpdates = updates
-              .filter(({ voxel }) => voxel === 0)
-              .map(({ vx, vy, vz }) => ({
-                voxel: [vx, vy, vz],
-                type: this.client.world.getVoxelByVoxel(vx, vy, vz),
-              }));
-
-            updates.forEach((update) => {
-              const { vx, vy, vz, voxel, light } = update;
-              const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
-
-              if (chunk) {
-                chunk.setRawValue(vx, vy, vz, voxel || 0);
-                chunk.setRawLight(vx, vy, vz, light || 0);
-              }
-            });
-
-            this.client.particles.addBreakParticles(particleUpdates, {
-              count: particleUpdates.length > 3 ? 10 : 24,
-            });
-          }
-
-          break;
-        }
+        break;
       }
-    };
-  })();
+      case "JOIN": {
+        const { text: id } = event;
+        if (!this.client.id || this.client.id === id) return;
+        this.client.peers.addPeer(id);
+
+        break;
+      }
+      case "LEAVE": {
+        const { text: id } = event;
+        this.client.peers.removePeer(id);
+
+        break;
+      }
+      case "PEER": {
+        const { peers } = event;
+
+        peers.forEach((peer: any) => {
+          if (peer.id === this.client.id) return;
+          this.client.peers.updatePeer(peer);
+        });
+
+        break;
+      }
+      case "ENTITY": {
+        const { entities } = event;
+        entities.forEach((entity: any) => {
+          this.client.entities.onEvent(entity);
+        });
+        break;
+      }
+      case "LOAD": {
+        const { chunks } = event;
+
+        if (chunks) {
+          chunks.forEach((chunk) => {
+            this.client.world.handleServerChunk(chunk);
+          });
+        }
+
+        break;
+      }
+      case "CHAT": {
+        const { chat } = event;
+
+        if (chat) {
+          this.client.chat.add(chat);
+        }
+
+        break;
+      }
+      case "UPDATE": {
+        const { updates, chunks } = event;
+
+        if (chunks) {
+          chunks.forEach((chunk) => {
+            this.client.world.handleServerChunk(chunk, true);
+          });
+        }
+
+        if (updates) {
+          const particleUpdates = updates
+            .filter(({ voxel }) => voxel === 0)
+            .map(({ vx, vy, vz }) => ({
+              voxel: [vx, vy, vz],
+              type: this.client.world.getVoxelByVoxel(vx, vy, vz),
+            }));
+
+          updates.forEach((update) => {
+            const { vx, vy, vz, voxel, light } = update;
+            const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
+
+            if (chunk) {
+              chunk.setRawValue(vx, vy, vz, voxel || 0);
+              chunk.setRawLight(vx, vy, vz, light || 0);
+            }
+          });
+
+          this.client.particles.addBreakParticles(particleUpdates, {
+            count: particleUpdates.length > 3 ? 10 : 24,
+          });
+        }
+
+        break;
+      }
+    }
+  };
 
   static decodeSync = (buffer: any) => {
     if (buffer[0] === 0x78 && buffer[1] === 0x9c) {

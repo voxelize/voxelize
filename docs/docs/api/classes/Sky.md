@@ -20,6 +20,42 @@ ___
 
 ___
 
+### uTopColor
+
+• **uTopColor**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Color` |
+
+___
+
+### uMiddleColor
+
+• **uMiddleColor**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Color` |
+
+___
+
+### uBottomColor
+
+• **uBottomColor**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Color` |
+
+___
+
 ### dimension
 
 • **dimension**: `number`

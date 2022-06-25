@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use hashbrown::HashMap;
 use itertools::izip;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
@@ -328,7 +329,7 @@ impl Mesher {
             let chunks: Vec<Chunk> = processes
                 .into_iter()
                 .map(|(mut chunk, mut space)| {
-                    if chunk.mesh.is_none() {
+                    if chunk.meshes.is_none() {
                         let min = space.min.to_owned();
                         let coords = space.coords.to_owned();
                         let shape = space.shape.to_owned();
@@ -338,13 +339,36 @@ impl Mesher {
                         );
                     }
 
-                    let opaque = Self::mesh_space(&chunk.min, &chunk.max, &space, &registry, false);
-                    let transparent =
-                        Self::mesh_space(&chunk.min, &chunk.max, &space, &registry, true);
+                    let sub_chunks = space.updated_levels.to_owned();
+                    space.updated_levels.clear();
 
-                    chunk.mesh = Some(MeshProtocol {
-                        opaque,
-                        transparent,
+                    let Vec3(min_x, min_y, min_z) = chunk.min;
+                    let Vec3(max_x, _, max_z) = chunk.max;
+
+                    let blocks_per_sub_chunk =
+                        (space.params.max_height / space.params.sub_chunks) as i32;
+
+                    sub_chunks.into_iter().for_each(|level| {
+                        let level = level as i32;
+
+                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+
+                        let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
+                        let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
+
+                        if chunk.meshes.is_none() {
+                            chunk.meshes = Some(HashMap::new());
+                        }
+
+                        chunk.meshes.as_mut().unwrap().insert(
+                            level as u32,
+                            MeshProtocol {
+                                level,
+                                opaque,
+                                transparent,
+                            },
+                        );
                     });
 
                     chunk
@@ -375,14 +399,18 @@ impl Mesher {
         let mut uvs = Vec::<f32>::new();
         let mut lights = Vec::<i32>::new();
 
-        let &Vec3(min_x, _, min_z) = min;
-        let &Vec3(max_x, _, max_z) = max;
+        let &Vec3(min_x, min_y, min_z) = min;
+        let &Vec3(max_x, max_y, max_z) = max;
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                let height = space.get_max_height(vx, vz);
+                let height = space.get_max_height(vx, vz) as i32;
 
-                for vy in (0..=height as i32).rev() {
+                if min_y > height {
+                    continue;
+                }
+
+                for vy in (min_y..=max_y.min(height) as i32).rev() {
                     let voxel_id = space.get_voxel(vx, vy, vz);
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = registry.get_block_by_id(voxel_id);
