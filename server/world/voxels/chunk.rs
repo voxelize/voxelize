@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use hashbrown::{HashMap, HashSet};
+use log::info;
 
 use crate::{BlockChange, ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Registry, Vec2, Vec3};
 
@@ -131,18 +132,18 @@ impl Chunk {
     pub fn add_updated_level(&mut self, vy: i32) {
         let partition = (self.params.max_height / self.params.sub_chunks) as i32;
 
-        let level = vy as u32 / (partition) as u32;
+        let level = vy / partition;
         let remainder = vy % partition;
 
-        if remainder == partition - 1 && (level as i32) < (self.params.sub_chunks as i32) - 1 {
-            self.updated_levels.insert(level + 1);
+        if remainder == partition - 1 && (level) < (self.params.sub_chunks as i32) - 1 {
+            self.updated_levels.insert(level as u32 + 1);
         }
 
         if remainder == 0 && level > 0 {
-            self.updated_levels.insert(level - 1);
+            self.updated_levels.insert(level as u32 - 1);
         }
 
-        self.updated_levels.insert(level);
+        self.updated_levels.insert(level as u32);
     }
 
     /// Convert voxel coordinates to local chunk coordinates.

@@ -340,7 +340,9 @@ impl Mesher {
                     }
 
                     let sub_chunks = space.updated_levels.to_owned();
+
                     space.updated_levels.clear();
+                    chunk.updated_levels.clear();
 
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;

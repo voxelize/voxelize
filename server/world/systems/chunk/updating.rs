@@ -341,34 +341,29 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 let blocks_per_sub_chunk =
                     (space.params.max_height / space.params.sub_chunks) as i32;
 
-                chunk
-                    .updated_levels
-                    .to_owned()
-                    .into_iter()
-                    .for_each(|level| {
-                        let level = level as i32;
+                chunk.updated_levels.iter().for_each(|&level| {
+                    let level = level as i32;
 
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                    let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                    let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                        let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
-                        let transparent = Mesher::mesh_space(&min, &max, &space, &registry, true);
+                    let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
+                    let transparent = Mesher::mesh_space(&min, &max, &space, &registry, true);
 
-                        if chunk.meshes.is_none() {
-                            chunk.meshes = Some(HashMap::new());
-                        }
+                    if chunk.meshes.is_none() {
+                        chunk.meshes = Some(HashMap::new());
+                    }
 
-                        chunk.meshes.as_mut().unwrap().insert(
-                            level as u32,
-                            MeshProtocol {
-                                level,
-                                opaque,
-                                transparent,
-                            },
-                        );
-                    });
+                    chunk.meshes.as_mut().unwrap().insert(
+                        level as u32,
+                        MeshProtocol {
+                            level,
+                            opaque,
+                            transparent,
+                        },
+                    );
+                });
 
-                chunk.updated_levels.clear();
                 chunks.to_send.push_front((coords, MessageType::Update));
             });
         }

@@ -31,29 +31,40 @@ impl<'a> System<'a> for ChunkSendingSystem {
             count += 1;
 
             if let Some((coords, r#type)) = chunks.to_send.pop_front() {
-                if let Some(chunk) = chunks.get(&coords) {
+                if let Some(chunk) = chunks.get_mut(&coords) {
                     [[true, false], [false, true]]
                         .into_iter()
                         .for_each(|[mesh, data]| {
                             let mut messages = vec![];
 
                             if mesh {
-                                (0..(config.sub_chunks as u32)).for_each(|level| {
+                                if r#type == MessageType::Load {
                                     messages.push(
                                         Message::new(&r#type)
                                             .chunks(&[chunk.to_model(
                                                 mesh,
                                                 data,
-                                                if r#type == MessageType::Load {
-                                                    0..(config.sub_chunks as u32)
-                                                } else {
-                                                    let level = level as u32;
-                                                    level..(level + 1)
-                                                },
+                                                0..(config.sub_chunks as u32),
                                             )])
                                             .build(),
-                                    );
-                                })
+                                    )
+                                } else {
+                                    chunk
+                                        .updated_levels
+                                        .to_owned()
+                                        .into_iter()
+                                        .for_each(|level| {
+                                            messages.push(
+                                                Message::new(&r#type)
+                                                    .chunks(&[chunk.to_model(mesh, data, {
+                                                        let level = level as u32;
+                                                        level..(level + 1)
+                                                    })])
+                                                    .build(),
+                                            );
+                                        });
+                                    chunk.updated_levels.clear();
+                                }
                             }
 
                             // See if each request is interested in this chunk update.
