@@ -404,9 +404,12 @@ class Controls extends EventDispatcher {
     this.object.add(client.camera.threeCamera);
     client.rendering.scene.add(this.object);
 
+    client.on("initialized", () => {
+      this.setupListeners();
+    });
+
     client.on("ready", () => {
       this.setupLookBlock();
-      this.setupListeners();
 
       this.body = client.physics.addBody({
         aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),

@@ -66,6 +66,8 @@ class World {
 
   public uSunlightIntensity = { value: 1 };
 
+  public blockCache = new Map<string, number>();
+
   constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
     const { skyDimension, skyFaces, clouds } = (params = {
       ...defaultParams,
@@ -144,6 +146,8 @@ class World {
     if (this.clouds) {
       this.clouds.reset();
     }
+
+    this.blockCache.clear();
   };
 
   /**
@@ -435,11 +439,24 @@ class World {
 
       // Update server voxels
       if (this.chunks.toUpdate.length >= 0) {
-        this.client.network.send({
-          type: "UPDATE",
-          updates: this.chunks.toUpdate
-            .splice(0, maxUpdatesPerTick)
-            .map((update) => {
+        const updates = this.chunks.toUpdate.splice(0, maxUpdatesPerTick);
+
+        if (updates.length) {
+          this.client.network.send({
+            type: "UPDATE",
+            updates: updates.map((update) => {
+              const { type, vx, vy, vz } = update;
+
+              const chunk = this.getChunkByVoxel(vx, vy, vz);
+
+              if (chunk) {
+                this.blockCache.set(
+                  ChunkUtils.getVoxelName([vx, vy, vz]),
+                  chunk.getVoxel(vx, vy, vz)
+                );
+                chunk.setVoxel(vx, vy, vz, type);
+              }
+
               let raw = 0;
               raw = BlockUtils.insertId(raw, update.type);
 
@@ -452,7 +469,8 @@ class World {
                 voxel: raw,
               };
             }),
-        });
+          });
+        }
       }
     };
   })();

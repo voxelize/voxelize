@@ -94,7 +94,6 @@ class Debug {
 
       this.makeDOM();
       this.setupAll();
-      this.setupInputs();
       this.mount();
 
       client.rendering.scene.add(this.group);
@@ -107,6 +106,10 @@ class Debug {
     // wait till texture to be loaded
     client.on("registry-loaded", () => {
       this.makeAtlasTest();
+    });
+
+    client.on("initialized", () => {
+      this.setupInputs();
     });
   }
 

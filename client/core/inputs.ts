@@ -60,7 +60,8 @@ class Inputs {
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
   private scrollCallbacks: ScrollCallbacks = [];
 
-  private unbinds: (() => void)[] = [];
+  private unbinds = new Map<string, () => void>();
+  private mouseUnbinds: (() => void)[] = [];
 
   /**
    * Construct a Voxelize inputs instance.
@@ -156,7 +157,13 @@ class Inputs {
       occasion
     );
 
-    this.unbinds.push(() => {
+    if (this.unbinds.get(combo + occasion)) {
+      console.warn(
+        `Re-registering "${combo}" listener... If this is not intended, wrap the listener initialization under the "initialized" event to only run once.`
+      );
+    }
+
+    this.unbinds.set(combo + occasion, () => {
       if (combo) mousetrap.unbind(combo, occasion);
     });
   };
@@ -177,12 +184,13 @@ class Inputs {
   };
 
   /**
-   * Dispose all event listeners.
+   * Reset and dispose all event listeners.
    *
    * @internal
    */
-  dispose = () => {
+  reset = () => {
     this.unbinds.forEach((fn) => fn());
+    this.mouseUnbinds.forEach((fn) => fn());
   };
 
   private initClickListener = () => {
@@ -207,7 +215,7 @@ class Inputs {
     };
 
     document.addEventListener("mousedown", listener, false);
-    this.unbinds.push(() =>
+    this.mouseUnbinds.push(() =>
       document.removeEventListener("mousedown", listener, false)
     );
   };
@@ -225,7 +233,9 @@ class Inputs {
     };
 
     document.addEventListener("wheel", listener);
-    this.unbinds.push(() => document.removeEventListener("wheel", listener));
+    this.mouseUnbinds.push(() =>
+      document.removeEventListener("wheel", listener)
+    );
   };
 
   private add = (name: string, combo: string) => {

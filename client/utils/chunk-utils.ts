@@ -6,12 +6,23 @@ class ChunkUtils {
   /**
    * Given a coordinate of a chunk, return the chunk representation.
    *
-   * @param {Coords3} coords
+   * @param {Coords2} coords
    * @param {string} [concat='|']
    * @returns
    */
   public static getChunkName = (coords: Coords2, concat = "|") => {
     return coords[0] + concat + coords[1];
+  };
+
+  /**
+   * Given a coordinate of a voxel, return the voxel representation.
+   *
+   * @param {Coords3} coords
+   * @param {string} [concat='|']
+   * @returns
+   */
+  public static getVoxelName = (coords: Coords3, concat = "|") => {
+    return coords[0] + concat + coords[1] + concat + coords[2];
   };
 
   /**

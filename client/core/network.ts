@@ -5,6 +5,7 @@ import DecodeWorker from "web-worker:./workers/decode-worker";
 import { Client } from "..";
 import { WorkerPool } from "../libs/worker-pool";
 import { protocol } from "../protocol";
+import { ChunkUtils } from "../utils";
 
 const { Message } = protocol;
 
@@ -304,11 +305,20 @@ class Network {
 
         if (updates) {
           const particleUpdates = updates
-            .filter(({ voxel }) => voxel === 0)
-            .map(({ vx, vy, vz }) => ({
-              voxel: [vx, vy, vz],
-              type: this.client.world.getVoxelByVoxel(vx, vy, vz),
-            }));
+            .filter(({ voxel }) => {
+              return voxel === 0;
+            })
+            .map(({ vx, vy, vz }) => {
+              const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+              const result = {
+                voxel: [vx, vy, vz],
+                type: this.client.world.blockCache.get(name),
+              };
+
+              this.client.world.blockCache.delete(name);
+
+              return result;
+            });
 
           updates.forEach((update) => {
             const { vx, vy, vz, voxel, light } = update;
