@@ -28,7 +28,7 @@ ___
 
 ### type
 
-• **type**: [`MESSAGE_TYPE`](../modules.md#message_type-92)
+• **type**: [`MESSAGE_TYPE`](../modules.md#message_type-44)
 
 ## Constructors
 
@@ -40,7 +40,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `type` | [`MESSAGE_TYPE`](../modules.md#message_type-92) |
+| `type` | [`MESSAGE_TYPE`](../modules.md#message_type-44) |
 | `sender?` | `string` |
 | `body?` | `string` |
 | `params` | `ChatMessageParams` |

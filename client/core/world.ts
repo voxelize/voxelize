@@ -214,7 +214,11 @@ class World {
   };
 
   setServerVoxels = (updates: BlockUpdate[]) => {
-    this.chunks.toUpdate.push(...updates);
+    this.chunks.toUpdate.push(
+      ...updates.filter(
+        (update) => update.vy >= 0 && update.vy < this.params.maxHeight
+      )
+    );
   };
 
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {

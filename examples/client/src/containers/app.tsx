@@ -273,11 +273,9 @@ export const App = () => {
         );
 
         client.current.chat.addCommand("blocks", (_, client: Client) => {
-          const summary = client.registry.getSummary();
-
           const list: any[] = [];
 
-          summary.forEach((block, id) => {
+          client.registry.blocksById.forEach((block, id) => {
             list.push([id, block]);
           });
 
@@ -292,11 +290,9 @@ export const App = () => {
         });
 
         client.current.chat.addCommand("allblocks", (_, client: Client) => {
-          const summary = client.registry.getSummary();
-
           const list: any[] = [];
 
-          summary.forEach((block, id) => {
+          client.registry.blocksById.forEach((block, id) => {
             list.push([id, block]);
           });
 

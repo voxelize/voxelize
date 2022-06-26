@@ -20,7 +20,7 @@ ___
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-92)
+• **params**: [`RegistryParams`](../modules.md#registryparams-44)
 
 Parameters to initialize the Voxelize registry.
 
@@ -36,7 +36,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-92)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-44)\>
 
 A map of UV ranges for all registered blocks.
 
@@ -94,8 +94,24 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-92) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-92) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-44) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-44) |
+
+___
+
+### blocksByName
+
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-44)\>
+
+A map of blocks by their names.
+
+___
+
+### blocksById
+
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-44)\>
+
+A map of blocks by their IDs.
 
 ## Methods
 
@@ -109,7 +125,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-78)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-44)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -127,7 +143,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-78) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-44) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -137,7 +153,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-92)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-44)
 
 Get the block information by its name.
 
@@ -149,13 +165,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-92)
+[`Block`](../modules.md#block-44)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-92)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-44)
 
 Get the block information by its ID.
 
@@ -167,13 +183,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-92)
+[`Block`](../modules.md#block-44)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-92)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-44)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -185,7 +201,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-92)
+[`Block`](../modules.md#block-44)
 
 ___
 
@@ -335,7 +351,7 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-92)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-44)[]
 
 Get the faces/sides of the block by name.
 
@@ -347,13 +363,13 @@ Get the faces/sides of the block by name.
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-92)[]
+[`BlockFace`](../modules.md#blockface-44)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-92)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-44)[]
 
 Get the faces/sides of the block by ID.
 
@@ -365,7 +381,7 @@ Get the faces/sides of the block by ID.
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-92)[]
+[`BlockFace`](../modules.md#blockface-44)[]
 
 ___
 
@@ -379,7 +395,7 @@ Get the UV ranges of the block by name.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `name` | `string` | The ID of the block to get. |
+| `name` | `string` | The name of the block to get. |
 
 #### Returns
 
@@ -391,43 +407,13 @@ ___
 
 ▸ **getUVById**(`id`): `Object`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
-
-#### Returns
-
-`Object`
-
-___
-
-### getUVMap
-
-▸ **getUVMap**(`block`): `Object`
+Get the UV ranges of the block by ID.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `block` | [`Block`](../modules.md#block-92) |
-
-#### Returns
-
-`Object`
-
-___
-
-### getUV
-
-▸ **getUV**(`id`): `Object`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to get. |
 
 #### Returns
 
@@ -439,11 +425,13 @@ ___
 
 ▸ **getTypeMap**(`blocks`): `string`[]
 
+Get a list of block ID's from a list of block names.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `blocks` | `string`[] |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `blocks` | `string`[] | The list of block names. |
 
 #### Returns
 
@@ -451,35 +439,17 @@ ___
 
 ___
 
-### getBlockMap
-
-▸ **getBlockMap**(): `Object`
-
-#### Returns
-
-`Object`
-
-___
-
-### getSummary
-
-▸ **getSummary**(): `Map`<`number`, [`Block`](../modules.md#block-92)\>
-
-#### Returns
-
-`Map`<`number`, [`Block`](../modules.md#block-92)\>
-
-___
-
 ### hasType
 
 ▸ **hasType**(`id`): `boolean`
 
+Check if there's a block with a certain ID.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The ID of the block to check. |
 
 #### Returns
 
@@ -490,6 +460,8 @@ ___
 ### perSide
 
 • `get` **perSide**(): `number`
+
+On the texture atlas, how many textures are on each side.
 
 #### Returns
 

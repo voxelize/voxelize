@@ -101,8 +101,16 @@ class Registry {
     transparent?: CustomShaderMaterial;
   } = {};
 
-  private blocksByName: Map<string, Block> = new Map();
-  private blocksById: Map<number, Block> = new Map();
+  /**
+   * A map of blocks by their names.
+   */
+  public blocksByName: Map<string, Block> = new Map();
+
+  /**
+   * A map of blocks by their IDs.
+   */
+  public blocksById: Map<number, Block> = new Map();
+
   private textures: Set<string> = new Set();
   private nameMap: Map<number, string> = new Map();
   private typeMap: Map<string, number> = new Map();
@@ -347,30 +355,29 @@ class Registry {
   /**
    * Get the UV ranges of the block by name.
    *
-   * @param name - The ID of the block to get.
+   * @param name - The name of the block to get.
    */
   getUVByName = (name: string) => {
     return this.getUVMap(this.getBlockByName(name));
   };
 
+  /**
+   * Get the UV ranges of the block by ID.
+   *
+   * @param id - The ID of the block to get.
+   */
   getUVById = (id: number) => {
     return this.getUVMap(this.getBlockById(id));
   };
 
-  getUVMap = (block: Block) => {
-    const uvMap: { [key: string]: TextureRange } = {};
-
-    block.faces.forEach((side) => {
-      const sideName = this.makeSideName(block.name, side);
-      const uv = this.ranges.get(sideName);
-      if (!uv)
-        throw new Error(`UV range not found: ${sideName} - ${block.name}`);
-      uvMap[side] = uv;
-    });
-
-    return uvMap;
-  };
-
+  /**
+   * Get the UV for the block type.
+   *
+   * @param id - The ID of the block type.
+   *
+   * @hidden
+   * @internal
+   */
   getUV = (id: number): { [key: string]: [any[][], number] } => {
     const getUVInner = (range: TextureRange, uv: number[]): number[] => {
       const { startU, endU, startV, endV } = range;
@@ -506,6 +513,11 @@ class Registry {
     return {};
   };
 
+  /**
+   * Get a list of block ID's from a list of block names.
+   *
+   * @param blocks - The list of block names.
+   */
   getTypeMap = (blocks: string[]) => {
     const typeMap = {};
 
@@ -517,22 +529,18 @@ class Registry {
     return blocks;
   };
 
-  getBlockMap = () => {
-    const blockMap = {};
-    this.blocksByName.forEach((value, key) => {
-      blockMap[key] = value;
-    });
-    return blockMap;
-  };
-
-  getSummary = () => {
-    return this.blocksById;
-  };
-
+  /**
+   * Check if there's a block with a certain ID.
+   *
+   * @param id - The ID of the block to check.
+   */
   hasType = (id: number) => {
     return this.nameMap.has(id);
   };
 
+  /**
+   * On the texture atlas, how many textures are on each side.
+   */
   get perSide() {
     let i = 1;
     const sqrt = Math.ceil(Math.sqrt(this.textures.size));
@@ -541,6 +549,20 @@ class Registry {
     }
     return i;
   }
+
+  private getUVMap = (block: Block) => {
+    const uvMap: { [key: string]: TextureRange } = {};
+
+    block.faces.forEach((side) => {
+      const sideName = this.makeSideName(block.name, side);
+      const uv = this.ranges.get(sideName);
+      if (!uv)
+        throw new Error(`UV range not found: ${sideName} - ${block.name}`);
+      uvMap[side] = uv;
+    });
+
+    return uvMap;
+  };
 
   private makeSideName = (name: string, side: BlockFace) => {
     return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;

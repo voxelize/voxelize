@@ -26,23 +26,9 @@ ___
 
 ### params
 
-• **params**: [`PeerParams`](../modules.md#peerparams-92)
+• **params**: [`PeerParams`](../modules.md#peerparams-44)
 
 Parameters to initialize the Peers manager.
-
-___
-
-### update
-
-• **update**: () => `void`
-
-#### Type declaration
-
-▸ (): `void`
-
-##### Returns
-
-`void`
 
 ## Methods
 
@@ -57,6 +43,16 @@ Remove a peer from the Voxelize world.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `id` | `string` | ID of the peer that left. |
+
+#### Returns
+
+`void`
+
+___
+
+### update
+
+▸ **update**(): `void`
 
 #### Returns
 

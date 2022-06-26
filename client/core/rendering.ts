@@ -8,14 +8,15 @@ import { Color, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";
 
+/**
+ * Parameters to initialize the rendering pipeline.
+ */
 type RenderingParams = {
   clearColor: string;
-  fogColor: string;
 };
 
 const defaultParams: RenderingParams = {
   clearColor: "#123",
-  fogColor: "#B1CCFD",
 };
 
 class Rendering {
@@ -30,7 +31,7 @@ class Rendering {
   public uFogFar: { value: number };
 
   constructor(public client: Client, params: Partial<RenderingParams> = {}) {
-    const { clearColor, fogColor } = (this.params = {
+    const { clearColor } = (this.params = {
       ...defaultParams,
       ...params,
     });
@@ -39,7 +40,7 @@ class Rendering {
     this.scene = new Scene();
 
     const canvas = this.client.container.canvas;
-    let context;
+    let context: WebGL2RenderingContext | WebGLRenderingContext;
     try {
       if (window.WebGL2RenderingContext) {
         context = canvas.getContext("webgl2");

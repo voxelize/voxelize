@@ -10,14 +10,7 @@ custom_edit_url: null
 
 ### mesh
 
-• **mesh**: `Object` = `{}`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `opaque?` | `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\> |
-| `transparent?` | `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\> |
+• **mesh**: [`ChunkMesh`](ChunkMesh.md)
 
 ___
 
@@ -29,19 +22,19 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2-92)
+• **coords**: [`Coords2`](../modules.md#coords2-44)
 
 ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3-92)
+• **min**: [`Coords3`](../modules.md#coords3-44)
 
 ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3-92)
+• **max**: [`Coords3`](../modules.md#coords3-44)
 
 ___
 
@@ -86,14 +79,13 @@ ___
 
 ### build
 
-▸ **build**(`data`, `scene`, `materials`): `void`
+▸ **build**(`data`, `materials`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk-92) |
-| `scene` | `Scene` |
+| `data` | [`ServerChunk`](../modules.md#serverchunk-44) |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |
 | `materials.transparent?` | `Material` |
