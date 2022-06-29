@@ -63,6 +63,7 @@ impl Physics {
         let Vec3(px, py, pz) = body.get_position();
 
         let rapier_body = RapierBodyBuilder::dynamic()
+            .additional_mass(body.mass)
             .translation(vector![px, py, pz])
             .gravity_scale(0.0)
             .lock_rotations()
