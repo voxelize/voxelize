@@ -1196,7 +1196,7 @@ class Controls extends EventDispatcher {
 
     const [x, y, z] = this.body.getPosition();
     const { eyeHeight, bodyHeight } = this.params;
-    this.object.position.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+    this.object.position.set(x, y - bodyHeight / 2 + eyeHeight, z);
   };
 
   private onKeyDown = ({ code }: KeyboardEvent) => {

@@ -33,12 +33,15 @@ crossbeam-channel = "0.5.4"
 ctrlc = "3.2.1"
 hashbrown = {version = "0.12.0", features = ["serde"]}
 itertools = "0.10.3"
+kdtree = "0.6.0"
 libflate = "1.2.0"
 linked_hash_set = "0.1.4"
+nalgebra = "0.31.0"
 nanoid = "0.4.0"
 noise = "0.7.0"
 num = "0.4.0"
 prost = "0.10.0"
+rapier3d = {version = "0.13.0", features = ["simd-stable"]}
 rayon = "1.5.2"
 serde = {version = "1.0.136", features = ["derive"]}
 serde_json = "1.0.79"

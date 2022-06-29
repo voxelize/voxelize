@@ -19,8 +19,8 @@ impl<'a> System<'a> for UpdateStatsSystem {
             .unwrap_or_default()
             .as_millis() as f32
             / 1000.0)
-            .min(0.020)
-            .max(0.014);
+            .max(0.008)
+            .min(0.020);
         stats.prev_time = now;
 
         stats.tick += 1;

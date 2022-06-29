@@ -95,6 +95,9 @@ pub struct WorldConfig {
     /// TODO: move this to registry.
     pub fluid_density: f32,
 
+    /// The repulsion factor when a collision is detected between entities.
+    pub collision_repulsion: f32,
+
     /// Seed of the world. Default is "Voxelize".
     pub seed: u32,
 
@@ -151,6 +154,7 @@ const DEFAULT_MIN_BOUNCE_IMPULSE: f32 = 0.5;
 const DEFAULT_AIR_DRAG: f32 = 0.1;
 const DEFAULT_FLUID_DRAG: f32 = 1.4;
 const DEFAULT_FLUID_DENSITY: f32 = 0.8;
+const DEFAULT_COLLISION_REPULSION: f32 = 1.0;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -172,6 +176,7 @@ pub struct WorldConfigBuilder {
     air_drag: f32,
     fluid_drag: f32,
     fluid_density: f32,
+    collision_repulsion: f32,
     terrain: NoiseParams,
 }
 
@@ -197,6 +202,7 @@ impl WorldConfigBuilder {
             fluid_density: DEFAULT_FLUID_DENSITY,
             gravity: DEFAULT_GRAVITY,
             min_bounce_impulse: DEFAULT_MIN_BOUNCE_IMPULSE,
+            collision_repulsion: DEFAULT_COLLISION_REPULSION,
             terrain: NoiseParams::default(),
         }
     }
@@ -286,6 +292,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the collision repulsion between entities. Defaults to `1`.
+    pub fn collision_repulsion(mut self, collision_repulsion: f32) -> Self {
+        self.collision_repulsion = collision_repulsion;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -316,6 +328,7 @@ impl WorldConfigBuilder {
             fluid_density: self.fluid_density,
             gravity: self.gravity,
             min_bounce_impulse: self.min_bounce_impulse,
+            collision_repulsion: self.collision_repulsion,
             terrain: self.terrain,
         }
     }

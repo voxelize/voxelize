@@ -140,6 +140,7 @@ const config = {
         entryDocument: "none",
         disableSources: true,
         sort: ["source-order", "alphabetical"],
+        categorizeByGroup: true,
         sidebar: {
           fullNames: false,
           categoryLabel: "Client API",

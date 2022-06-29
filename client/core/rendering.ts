@@ -12,11 +12,14 @@ import { Client } from "..";
  * Parameters to initialize the rendering pipeline.
  */
 type RenderingParams = {
+  /**
+   * The color behind the sky, the default color clients see. Defaults to `#000`.
+   */
   clearColor: string;
 };
 
 const defaultParams: RenderingParams = {
-  clearColor: "#123",
+  clearColor: "#000",
 };
 
 class Rendering {

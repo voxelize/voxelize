@@ -1,5 +1,3 @@
-use log::info;
-
 use crate::{Vec3, AABB};
 
 /// A physical body in the Voxelize world.
@@ -21,13 +19,16 @@ pub struct RigidBody {
 
     /// Whether or not this body is in fluid.
     pub in_fluid: bool,
+
     /// Ratio of body this body is in fluid.
     pub ratio_in_fluid: f32,
 
     /// Velocity vector of the rigid body.
     pub velocity: Vec3<f32>,
+
     /// Forces vector of the rigid body.
     pub forces: Vec3<f32>,
+
     /// Impulses vector of the rigid body.
     pub impulses: Vec3<f32>,
 
@@ -39,10 +40,13 @@ pub struct RigidBody {
 
     /// Mass of this rigid body.
     pub mass: f32,
+
     /// Friction of this rigid body.
     pub friction: f32,
+
     /// Restitution of this rigid body.
     pub restitution: f32,
+
     /// Gravity Multiplier of this rigid body. Set to 0 to fly.
     pub gravity_multiplier: f32,
 
@@ -111,7 +115,7 @@ impl RigidBody {
 
     /// Mark rigid body as active in the physical world.
     pub fn mark_active(&mut self) {
-        self.sleep_frame_count = 10 | 0;
+        self.sleep_frame_count = 10;
     }
 
     /// Compute the offset from the minimum coordinates to the bottom center.

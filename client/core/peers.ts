@@ -125,7 +125,9 @@ class Peers extends Map<string, Peer> {
         direction: { x: dx, y: dy, z: dz },
       } = peer;
 
-      const position = new Vector3(px, py, pz);
+      const { bodyHeight, eyeHeight } = this.client.controls.params;
+
+      const position = new Vector3(px, py - bodyHeight / 2 + eyeHeight, pz);
 
       // using closure to reuse objects
       // reference: https://stackoverflow.com/questions/32849600/direction-vector-to-a-rotation-three-js
@@ -166,10 +168,8 @@ class Peers extends Map<string, Peer> {
   update = () => {
     const { name, controls, network, id } = this.client;
 
-    const { object } = controls;
-    const {
-      position: { x: px, y: py, z: pz },
-    } = object;
+    const { body } = controls;
+    const [px, py, pz] = body.getPosition();
     const { x: dx, y: dy, z: dz } = controls.getDirection();
 
     const event = {

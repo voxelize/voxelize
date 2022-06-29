@@ -1,20 +1,107 @@
-use crate::{approx_equals, Vec3};
+use rapier3d::prelude::{
+    vector, BroadPhase, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
+    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase,
+    PhysicsPipeline, RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
+    RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
+};
+
+use crate::{approx_equals, InteractorComp, Vec3};
 
 use super::{registry::Registry, WorldConfig};
 
 mod aabb;
+mod collision;
 mod rigidbody;
 mod sweep;
 
 pub use aabb::*;
+pub use collision::*;
 pub use rigidbody::*;
 pub use sweep::*;
 
 pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> u32;
 
-pub struct Physics;
+#[derive(Default)]
+pub struct Physics {
+    body_set: RapierBodySet,
+    collider_set: ColliderSet,
+    pipeline: PhysicsPipeline,
+    integration_parameters: IntegrationParameters,
+    island_manager: IslandManager,
+    broad_phase: BroadPhase,
+    narrow_phase: NarrowPhase,
+    impulse_joint_set: ImpulseJointSet,
+    multibody_joint_set: MultibodyJointSet,
+    ccd_solver: CCDSolver,
+}
 
 impl Physics {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn step(&mut self, dt: f32) {
+        self.integration_parameters.dt = dt;
+
+        self.pipeline.step(
+            &vector![0.0, 0.0, 0.0],
+            &self.integration_parameters,
+            &mut self.island_manager,
+            &mut self.broad_phase,
+            &mut self.narrow_phase,
+            &mut self.body_set,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            &mut self.ccd_solver,
+            &(),
+            &(),
+        )
+    }
+
+    pub fn register(&mut self, body: &RigidBody) -> (RapierBodyHandle, ColliderHandle) {
+        let Vec3(px, py, pz) = body.get_position();
+
+        let rapier_body = RapierBodyBuilder::dynamic()
+            .translation(vector![px, py, pz])
+            .gravity_scale(0.0)
+            .lock_rotations()
+            .build();
+        let collider = ColliderBuilder::capsule_y(
+            body.aabb.height() / 2.0,
+            (body.aabb.width() / 2.0).min(body.aabb.depth() / 2.0),
+        );
+
+        let body_handle = self.body_set.insert(rapier_body);
+        let collider_handle =
+            self.collider_set
+                .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
+
+        (body_handle, collider_handle)
+    }
+
+    pub fn get(
+        &self,
+        body_handle: &RapierBodyHandle,
+        collider_handle: &ColliderHandle,
+    ) -> (&RapierBody, &Collider) {
+        let body = &self.body_set[body_handle.to_owned()];
+        let collider = &self.collider_set[collider_handle.to_owned()];
+
+        (body, collider)
+    }
+
+    pub fn get_mut(
+        &mut self,
+        body_handle: &RapierBodyHandle,
+        collider_handle: &ColliderHandle,
+    ) -> (&mut RapierBody, &mut Collider) {
+        let body = &mut self.body_set[body_handle.to_owned()];
+        let collider = &mut self.collider_set[collider_handle.to_owned()];
+
+        (body, collider)
+    }
+
     pub fn iterate_body(
         body: &mut RigidBody,
         dt: f32,
@@ -153,6 +240,52 @@ impl Physics {
         if vsq > 1e-5 {
             body.mark_active()
         }
+    }
+
+    pub fn is_body_asleep(
+        get_voxel: GetVoxelFunc,
+        registry: &Registry,
+        config: &WorldConfig,
+        body: &mut RigidBody,
+        dt: f32,
+        no_gravity: bool,
+    ) -> bool {
+        if body.sleep_frame_count > 0 {
+            return false;
+        }
+
+        // without gravity bodies stay asleep until a force/impulse wakes them up
+        if no_gravity {
+            return true;
+        }
+
+        // otherwise check body is resting against something
+        // i.e. sweep along by distance d = 1/2 g*t^2
+        // and check there's still collision
+        let g_mult = 0.5 * dt * dt * body.gravity_multiplier;
+
+        let sleep_vec = Vec3(
+            config.gravity[0] * g_mult,
+            config.gravity[1] * g_mult,
+            config.gravity[2] * g_mult,
+        );
+
+        let mut is_resting = false;
+
+        sweep(
+            get_voxel,
+            registry,
+            &mut body.aabb,
+            &sleep_vec,
+            &mut |_, _, _, _| {
+                is_resting = true;
+                true
+            },
+            false,
+            10,
+        );
+
+        is_resting
     }
 
     fn apply_fluid_forces(
@@ -370,51 +503,5 @@ impl Physics {
         body.resting[0] = tmp_resting[0];
         body.resting[2] = tmp_resting[2];
         body.stepped = true;
-    }
-
-    fn is_body_asleep(
-        get_voxel: GetVoxelFunc,
-        registry: &Registry,
-        config: &WorldConfig,
-        body: &mut RigidBody,
-        dt: f32,
-        no_gravity: bool,
-    ) -> bool {
-        if body.sleep_frame_count > 0 {
-            return false;
-        }
-
-        // without gravity bodies stay asleep until a force/impulse wakes them up
-        if no_gravity {
-            return true;
-        }
-
-        // otherwise check body is resting against something
-        // i.e. sweep along by distance d = 1/2 g*t^2
-        // and check there's still collision
-        let g_mult = 0.5 * dt * dt * body.gravity_multiplier;
-
-        let sleep_vec = Vec3(
-            config.gravity[0] * g_mult,
-            config.gravity[1] * g_mult,
-            config.gravity[2] * g_mult,
-        );
-
-        let mut is_resting = false;
-
-        sweep(
-            get_voxel,
-            registry,
-            &mut body.aabb,
-            &sleep_vec,
-            &mut |_, _, _, _| {
-                is_resting = true;
-                true
-            },
-            false,
-            10,
-        );
-
-        is_resting
     }
 }

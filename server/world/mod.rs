@@ -5,6 +5,7 @@ mod generators;
 mod messages;
 mod physics;
 mod registry;
+mod search;
 mod stats;
 mod systems;
 mod types;
@@ -36,7 +37,7 @@ use super::common::ClientFilter;
 use self::systems::{
     BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem, ChunkMeshingSystem,
     ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSendingSystem, ChunkUpdatingSystem,
-    CurrentChunkSystem, EntityMetaSystem, PhysicsSystem, UpdateStatsSystem,
+    CurrentChunkSystem, EntityMetaSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -46,6 +47,7 @@ pub use generators::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
+pub use search::*;
 pub use stats::*;
 pub use types::*;
 pub use utils::*;
@@ -117,6 +119,7 @@ impl World {
         ecs.register::<TargetComp>();
         ecs.register::<RigidBodyComp>();
         ecs.register::<AddrComp>();
+        ecs.register::<InteractorComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -124,12 +127,14 @@ impl World {
         ecs.insert(Chunks::new(config));
         ecs.insert(SeededNoise::new(config.seed));
         ecs.insert(SeededTerrain::new(config.seed, &config.terrain));
+        ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
         ecs.insert(Stats::new());
+        ecs.insert(Physics::new());
 
         Self {
             id,
@@ -196,6 +201,10 @@ impl World {
             })
         });
 
+        let body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.8, 1.8, 0.8)).build();
+
+        let (body_handle, collider_handle) = self.physics_mut().register(&body);
+
         let ent = self
             .ecs
             .create_entity()
@@ -207,6 +216,8 @@ impl World {
             .with(CurrentChunkComp::default())
             .with(PositionComp::default())
             .with(DirectionComp::default())
+            .with(RigidBodyComp::new(&body))
+            .with(InteractorComp::new(body_handle, collider_handle))
             .build();
 
         self.clients_mut().insert(
@@ -311,6 +322,16 @@ impl World {
         self.write_resource::<Chunks>()
     }
 
+    /// Access physics management in the ECS world.
+    pub fn physics(&self) -> Fetch<Physics> {
+        self.read_resource::<Physics>()
+    }
+
+    /// Access a mutable physics manager in the ECS world.
+    pub fn physics_mut(&mut self) -> FetchMut<Physics> {
+        self.write_resource::<Physics>()
+    }
+
     /// Access the terrain of the ECS world.
     pub fn terrain(&self) -> Fetch<SeededTerrain> {
         self.read_resource::<SeededTerrain>()
@@ -389,6 +410,7 @@ impl World {
         let builder = DispatcherBuilder::new()
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityMetaSystem, "entity-meta", &[])
+            .with(SearchSystem, "search", &["entity-meta"])
             .with(CurrentChunkSystem, "current-chunking", &[])
             .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
             .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
@@ -438,9 +460,18 @@ impl World {
             }
 
             if let Some(position) = position {
-                let mut positions = self.write_component::<PositionComp>();
-                if let Some(p) = positions.get_mut(client_ent) {
-                    p.0.set(position.x, position.y, position.z);
+                {
+                    let mut positions = self.write_component::<PositionComp>();
+                    if let Some(p) = positions.get_mut(client_ent) {
+                        p.0.set(position.x, position.y, position.z);
+                    }
+                }
+
+                {
+                    let mut bodies = self.write_component::<RigidBodyComp>();
+                    if let Some(b) = bodies.get_mut(client_ent) {
+                        b.0.set_position(position.x, position.y, position.z);
+                    }
                 }
             }
 
