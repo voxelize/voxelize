@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use log::info;
 use rapier3d::prelude::{vector, Isometry, RigidBodySet};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
@@ -31,7 +33,8 @@ impl<'a> System<'a> for PhysicsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use specs::Join;
+        use rayon::prelude::*;
+        use specs::{Join, ParJoin};
 
         let (
             stats,
@@ -81,33 +84,37 @@ impl<'a> System<'a> for PhysicsSystem {
 
         physics.step(stats.delta);
 
-        for (curr_chunk, body, interactor, _) in
-            (&curr_chunks, &mut bodies, &interactors, !&client_flag).join()
-        {
-            if !chunks.is_chunk_ready(&curr_chunk.coords) {
-                continue;
-            }
+        let physics = Arc::new(physics);
+        let chunks = Arc::new(chunks);
 
-            let (rapier_body, _) =
-                physics.get(&interactor.body_handle, &interactor.collider_handle);
+        // Collision detection, push bodies away from one another.
+        (&curr_chunks, &mut bodies, &interactors, !&client_flag)
+            .par_join()
+            .for_each(|(curr_chunk, body, interactor, _)| {
+                if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                    return;
+                }
 
-            let after = rapier_body.translation();
+                let (rapier_body, _) =
+                    physics.get(&interactor.body_handle, &interactor.collider_handle);
 
-            let Vec3(px, py, pz) = body.0.get_position();
+                let after = rapier_body.translation();
 
-            let dx = after.x - px;
-            let dy = after.y - py;
-            let dz = after.z - pz;
+                let Vec3(px, py, pz) = body.0.get_position();
 
-            let dx = if dx.abs() < 0.0001 { 0.0 } else { dx };
-            let dy = if dy.abs() < 0.0001 { 0.0 } else { dy };
-            let dz = if dz.abs() < 0.0001 { 0.0 } else { dz };
+                let dx = after.x - px;
+                let dy = after.y - py;
+                let dz = after.z - pz;
 
-            body.0.apply_impulse(
-                (dx * config.collision_repulsion).min(3.0),
-                (dy * config.collision_repulsion).min(3.0),
-                (dz * config.collision_repulsion).min(3.0),
-            );
-        }
+                let dx = if dx.abs() < 0.0001 { 0.0 } else { dx };
+                let dy = if dy.abs() < 0.0001 { 0.0 } else { dy };
+                let dz = if dz.abs() < 0.0001 { 0.0 } else { dz };
+
+                body.0.apply_impulse(
+                    (dx * config.collision_repulsion).min(3.0),
+                    (dy * config.collision_repulsion).min(3.0),
+                    (dz * config.collision_repulsion).min(3.0),
+                );
+            });
     }
 }
