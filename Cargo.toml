@@ -49,10 +49,8 @@ specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
 splines = "4.1.0"
 
 chrono = "0.4.19"
-env_logger = "0.9"
 fern = {version = "0.6.0", features = ["colored"]}
 log = "0.4.16"
-rand = "0.8"
 
 [build-dependencies]
 prost-build = "0.10.0"
