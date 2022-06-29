@@ -63,6 +63,8 @@ const defaultParams: CameraParams = {
  *   }
  * );
  * ```
+ *
+ * @category Core
  */
 class Camera {
   /**

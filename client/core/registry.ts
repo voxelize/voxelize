@@ -56,6 +56,8 @@ const defaultParams: RegistryParams = {
 
 /**
  * A **built-in** block registry for Voxelize.
+ *
+ * @category Core
  */
 class Registry {
   /**

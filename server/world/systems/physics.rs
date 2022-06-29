@@ -51,36 +51,33 @@ impl<'a> System<'a> for PhysicsSystem {
 
         let get_voxel = |vx: i32, vy: i32, vz: i32| chunks.get_voxel(vx, vy, vz);
 
-        for (curr_chunk, interactor, body, position) in
-            (&curr_chunks, &interactors, &mut bodies, &mut positions).join()
+        for (curr_chunk, interactor, body, position, _) in (
+            &curr_chunks,
+            &interactors,
+            &mut bodies,
+            &mut positions,
+            !&client_flag,
+        )
+            .join()
         {
             if !chunks.is_chunk_ready(&curr_chunk.coords) {
                 continue;
             }
 
-            let (rapier_body, _) =
-                physics.get_mut(&interactor.body_handle, &interactor.collider_handle);
-
             Physics::iterate_body(&mut body.0, stats.delta, &get_voxel, &registry, &config);
 
-            let Vec3(px, py, pz) = body.0.get_position();
+            let body_pos = body.0.get_position();
+            let Vec3(px, py, pz) = body_pos;
 
             position.0.set(px, py, pz);
-
-            let wake_up = !Physics::is_body_asleep(
-                &get_voxel,
-                &registry,
-                &config,
-                &mut body.0,
-                stats.delta,
-                false,
-            );
-            rapier_body.set_translation(vector![px, py, pz], wake_up);
-            rapier_body.set_linvel(vector![0.0, 0.0, 0.0], wake_up);
-            rapier_body.set_angvel(vector![0.0, 0.0, 0.0], wake_up);
-            rapier_body.reset_forces(wake_up);
-            rapier_body.reset_torques(wake_up);
+            physics.move_rapier_body(&interactor.0, &body_pos);
         }
+
+        (&interactors, &positions, &client_flag)
+            .join()
+            .for_each(|(interactor, position, _)| {
+                physics.move_rapier_body(&interactor.0, &position.0);
+            });
 
         physics.step(stats.delta);
 
@@ -95,9 +92,7 @@ impl<'a> System<'a> for PhysicsSystem {
                     return;
                 }
 
-                let (rapier_body, _) =
-                    physics.get(&interactor.body_handle, &interactor.collider_handle);
-
+                let rapier_body = physics.get(&interactor.0);
                 let after = rapier_body.translation();
 
                 let Vec3(px, py, pz) = body.0.get_position();
@@ -109,6 +104,16 @@ impl<'a> System<'a> for PhysicsSystem {
                 let dx = if dx.abs() < 0.0001 { 0.0 } else { dx };
                 let dy = if dy.abs() < 0.0001 { 0.0 } else { dy };
                 let dz = if dz.abs() < 0.0001 { 0.0 } else { dz };
+
+                let len = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                if len <= 0.0001 {
+                    return;
+                }
+
+                let dx = dx / len;
+                let dy = dy / len;
+                let dz = dz / len;
 
                 body.0.apply_impulse(
                     (dx * config.collision_repulsion).min(3.0),

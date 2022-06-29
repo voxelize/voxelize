@@ -4,9 +4,15 @@ type SettingsField = number | boolean;
 
 type SettingsChangeHandler = (client: Client, newVal: SettingsField) => void;
 
+/**
+ * The **built-in** Voxelize settings.
+ *
+ * @category Core
+ */
 class Settings {
-  public fields = new Map<string, SettingsField>();
-
+  /**
+   * Settings' fields, `string` to `any`.
+   */
   [key: string]: any;
 
   private listeners: Map<string, SettingsChangeHandler> = new Map();
@@ -16,7 +22,7 @@ class Settings {
 
     client.on("ready", () => {
       this.listen("renderRadius", (client, value) => {
-        client.rendering.matchRenderRadius(value as number);
+        client.rendering.setFogDistance(value as number);
       });
     });
   }

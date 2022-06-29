@@ -6,7 +6,7 @@ sidebar_position: 0.5
 custom_edit_url: null
 ---
 
-## Classes
+## Core Classes
 
 - [Camera](classes/Camera.md)
 - [Chat](classes/Chat.md)
@@ -14,8 +14,6 @@ custom_edit_url: null
 - [Container](classes/Container.md)
 - [Controls](classes/Controls.md)
 - [Debug](classes/Debug.md)
-- [BaseEntity](classes/BaseEntity.md)
-- [Entities](classes/Entities.md)
 - [Inputs](classes/Inputs.md)
 - [Loader](classes/Loader.md)
 - [Network](classes/Network.md)
@@ -26,6 +24,11 @@ custom_edit_url: null
 - [Rendering](classes/Rendering.md)
 - [Settings](classes/Settings.md)
 - [World](classes/World.md)
+
+## Other Classes
+
+- [BaseEntity](classes/BaseEntity.md)
+- [Entities](classes/Entities.md)
 - [Client](classes/Client.md)
 - [BlockRotation](classes/BlockRotation.md)
 - [CanvasBox](classes/CanvasBox.md)
@@ -77,16 +80,16 @@ Parameters to initialize the Voxelize [Chat](classes/Chat.md).
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `align` | ``"left"`` \| ``"center"`` \| ``"right"`` | Alignment of the chat. Defaults to `left`. |
-| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-18) | Border radius of both the radius and the message list. Defaults to `4px`. |
+| `borderRadius` | [`CSSMeasurement`](modules.md#cssmeasurement-66) | Border radius of both the radius and the message list. Defaults to `4px`. |
 | `connectionMessage` | `string` | The message sent when a connection is made. Defaults to `Connected to world! Try /help`. |
 | `disconnectionMessage` | `string` | The message sent when connection is lost. Defaults to `World disconnected. Reconnecting...`. |
 | `disappearTimeout` | `number` | The timeout for chat to disappear once input is closed in milliseconds. Defaults to `2000`. |
-| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-18) | The gap between the input and the message list. Defaults to `26px`. |
+| `gap` | [`CSSMeasurement`](modules.md#cssmeasurement-66) | The gap between the input and the message list. Defaults to `26px`. |
 | `helpText` | `string` | A text message that is sent to the client frontend-only when '/help' is typed in the chat. |
-| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-18) | Height of the chat input. Defaults to `29px`. |
-| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-18) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
-| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-18) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
-| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-18) | The default width of the message list. Defaults to `40vw`. |
+| `inputHeight` | [`CSSMeasurement`](modules.md#cssmeasurement-66) | Height of the chat input. Defaults to `29px`. |
+| `inputWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-66) | Width of the chat input, not regarding the margins. Defaults to `100%`. |
+| `margin` | [`CSSMeasurement`](modules.md#cssmeasurement-66) | The margin of the chat to the viewport in pixels. Defaults to `8px`. |
+| `messagesWidth` | [`CSSMeasurement`](modules.md#cssmeasurement-66) | The default width of the message list. Defaults to `40vw`. |
 | `commandSymbol` | `string` | Symbol to activate typing a command, needs to be 1 character long! Defaults to `/`. |
 
 ___
@@ -159,7 +162,7 @@ Parameters to initialize the Voxelize [Controls](classes/Controls.md).
 | `lookBlockColor` | `string` | The color of the outline of the looking block. Defaults to `black`. |
 | `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
 | `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-18) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-66) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
 | `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.8` blocks. |
@@ -298,8 +301,8 @@ Parameters to initialize **a group of** particles.
 | `gravity` | `boolean` | Whether or not this particle is effected by gravity. |
 | `fadeTimeout` | `number` | The time for the particle to fade away once the timeout is reached. |
 | `scale` | `number` | The scale of each particles. |
-| `impulseFunc` | (`f`: `number`) => [`Coords3`](modules.md#coords3-18) | A function returning a 3-element array that modifies the force applied on each particle. |
-| `update` | (`g`: [`ParticleGroup`](modules.md#particlegroup-18)) => `void` | A function used to update the particles. |
+| `impulseFunc` | (`f`: `number`) => [`Coords3`](modules.md#coords3-66) | A function returning a 3-element array that modifies the force applied on each particle. |
+| `update` | (`g`: [`ParticleGroup`](modules.md#particlegroup-66)) => `void` | A function used to update the particles. |
 
 ___
 
@@ -315,7 +318,7 @@ An object storing the data for a group of particles.
 | :------ | :------ | :------ |
 | `mesh` | `Points` | The ThreeJS Points instance for rendering. |
 | `bodies` | `RigidBody`[] | The rigid bodies of the particles, allowing them to act physically. |
-| `params` | [`ParticleParams`](modules.md#particleparams-18) | Parameters used to initialize this particle group. |
+| `params` | [`ParticleParams`](modules.md#particleparams-66) | Parameters used to initialize this particle group. |
 
 ___
 
@@ -349,14 +352,14 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/Registry.md#applytexturebyname-18) or [applyTexturesByNames](classes/Registry.md#applytexturesbynames-18) to load a block texture.
+Data passed to [applyTextureByName](classes/Registry.md#applytexturebyname-66) or [applyTexturesByNames](classes/Registry.md#applytexturesbynames-66) to load a block texture.
 
 #### Type declaration
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the block to load. E.g. "Dirt". |
-| `side` | [`BlockFace`](modules.md#blockface-18) | The side that this data loads onto. |
+| `side` | [`BlockFace`](modules.md#blockface-66) | The side that this data loads onto. |
 | `data` | `string` \| `Color` | Either the URL to the source image, or a ThreeJS color instance. |
 
 ___
@@ -409,8 +412,8 @@ ___
 | `maxProcessesPerTick` | `number` |
 | `maxUpdatesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
-| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-18)<[`BoxSides`](modules.md#boxsides-18), `SkyFace`\> |
-| `clouds` | `Partial`<[`CloudsParams`](modules.md#cloudsparams-18)\> \| `boolean` |
+| `skyFaces` | [`PartialRecord`](modules.md#partialrecord-66)<[`BoxSides`](modules.md#boxsides-66), `SkyFace`\> |
+| `clouds` | `Partial`<[`CloudsParams`](modules.md#cloudsparams-66)\> \| `boolean` |
 
 ___
 
@@ -472,7 +475,7 @@ ___
 | `id` | `string` |
 | `lights` | `Uint32Array` |
 | `voxels` | `Uint32Array` |
-| `meshes` | [`ServerMesh`](modules.md#servermesh-18)[] |
+| `meshes` | [`ServerMesh`](modules.md#servermesh-66)[] |
 
 ___
 
@@ -488,7 +491,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-18) |
+| `dimensions` | [`Coords3`](modules.md#coords3-66) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -529,11 +532,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-18) |
-| `max` | [`Coords3`](modules.md#coords3-18) |
-| `realMin` | [`Coords3`](modules.md#coords3-18) |
-| `realMax` | [`Coords3`](modules.md#coords3-18) |
-| `dimensions` | [`Coords3`](modules.md#coords3-18) |
+| `min` | [`Coords3`](modules.md#coords3-66) |
+| `max` | [`Coords3`](modules.md#coords3-66) |
+| `realMin` | [`Coords3`](modules.md#coords3-66) |
+| `realMax` | [`Coords3`](modules.md#coords3-66) |
+| `dimensions` | [`Coords3`](modules.md#coords3-66) |
 
 ___
 
@@ -609,7 +612,7 @@ Parameters to process an image voxelization.
 | `width` | `number` | The width, in blocks, of the voxelized image. Defaults to `64`. |
 | `height` | `number` | The height, in blocks, of the voxelized image. Defaults to `64`. |
 | `lockedRatio` | `boolean` | Whether or not should the ratio between width and height be locked. If true, the width would be ignored and be later determined form the height. Defaults to `false`. |
-| `voxel?` | [`Coords3`](modules.md#coords3-18) | The voxel at which to offset the voxelizer at. |
+| `voxel?` | [`Coords3`](modules.md#coords3-66) | The voxel at which to offset the voxelizer at. |
 | `orientation` | ``"x"`` \| ``"z"`` | Which direction to place the voxelized image. |
 
 ___
@@ -738,7 +741,7 @@ ___
 
 ### BlockFace
 
-Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-18) \| keyof [`ThreeFaces`](modules.md#threefaces-18) \| keyof [`SixFaces`](modules.md#sixfaces-18) \| keyof [`PlantFaces`](modules.md#plantfaces-18)
+Ƭ **BlockFace**: keyof [`AllFaces`](modules.md#allfaces-66) \| keyof [`ThreeFaces`](modules.md#threefaces-66) \| keyof [`SixFaces`](modules.md#sixfaces-66) \| keyof [`PlantFaces`](modules.md#plantfaces-66)
 
 A face/side of the block.
 - `all`: All 6 sides of the block.
@@ -772,7 +775,7 @@ ___
 | `isSolid` | `boolean` |
 | `isTransparent` | `boolean` |
 | `transparentStandalone` | `boolean` |
-| `faces` | [`BlockFace`](modules.md#blockface-18)[] |
+| `faces` | [`BlockFace`](modules.md#blockface-66)[] |
 | `aabbs` | `AABB`[] |
 
 ___
@@ -812,8 +815,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`MeshData`](modules.md#meshdata-18) |
-| `transparent?` | [`MeshData`](modules.md#meshdata-18) |
+| `opaque?` | [`MeshData`](modules.md#meshdata-66) |
+| `transparent?` | [`MeshData`](modules.md#meshdata-66) |
 | `level` | `number` |
 
 ___
@@ -879,96 +882,96 @@ ___
 
 ### DirtyFlag
 
-• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-18)<`unknown`\>
+• `Const` **DirtyFlag**: [`ComponentClassType`](modules.md#componentclasstype-66)<`unknown`\>
 
 ___
 
 ### EntityFlag
 
-• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-18)<`unknown`\>
+• `Const` **EntityFlag**: [`ComponentClassType`](modules.md#componentclasstype-66)<`unknown`\>
 
 ___
 
 ### ClientFlag
 
-• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-18)<`unknown`\>
+• `Const` **ClientFlag**: [`ComponentClassType`](modules.md#componentclasstype-66)<`unknown`\>
 
 ___
 
 ### ChunkFlag
 
-• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-18)<`unknown`\>
+• `Const` **ChunkFlag**: [`ComponentClassType`](modules.md#componentclasstype-66)<`unknown`\>
 
 ___
 
 ### HeadingComponent
 
-• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`Vector3`\>
+• `Const` **HeadingComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`Vector3`\>
 
 ___
 
 ### IDComponent
 
-• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`string`\>
+• `Const` **IDComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`string`\>
 
 ___
 
 ### MeshComponent
 
-• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`Object3D`<`Event`\>\>
+• `Const` **MeshComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`Object3D`<`Event`\>\>
 
 ___
 
 ### MetadataComponent
 
-• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<{ `[key: string]`: `any`;  }\>
+• `Const` **MetadataComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<{ `[key: string]`: `any`;  }\>
 
 ___
 
 ### NameComponent
 
-• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`string`\>
+• `Const` **NameComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`string`\>
 
 ___
 
 ### Position3DComponent
 
-• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`Vector3`\>
+• `Const` **Position3DComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`Vector3`\>
 
 ___
 
 ### TargetComponent
 
-• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`Vector3`\>
+• `Const` **TargetComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`Vector3`\>
 
 ___
 
 ### TypeComponent
 
-• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-18)<`string`\>
+• `Const` **TypeComponent**: [`ComponentClassType`](modules.md#componentclasstype-66)<`string`\>
 
 ___
 
 ### defaultBlock
 
-• `Const` **defaultBlock**: [`Block`](modules.md#block-18)
+• `Const` **defaultBlock**: [`Block`](modules.md#block-66)
 
 ## Functions
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-18)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-66)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-18) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-66) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-18)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-66)\>
 
 ___
 
@@ -981,11 +984,11 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `getVoxel` | `GetVoxel` |
-| `origin` | [`Coords3`](modules.md#coords3-18) |
-| `direction` | [`Coords3`](modules.md#coords3-18) |
+| `origin` | [`Coords3`](modules.md#coords3-66) |
+| `direction` | [`Coords3`](modules.md#coords3-66) |
 | `maxD` | `number` |
-| `hitPos` | [`Coords3`](modules.md#coords3-18) |
-| `hitNorm` | [`Coords3`](modules.md#coords3-18) |
+| `hitPos` | [`Coords3`](modules.md#coords3-66) |
+| `hitNorm` | [`Coords3`](modules.md#coords3-66) |
 
 #### Returns
 

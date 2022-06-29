@@ -1,3 +1,4 @@
+use log::info;
 use rapier3d::prelude::{
     vector, BroadPhase, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
     ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase,
@@ -59,7 +60,7 @@ impl Physics {
         )
     }
 
-    pub fn register(&mut self, body: &RigidBody) -> (RapierBodyHandle, ColliderHandle) {
+    pub fn register(&mut self, body: &RigidBody) -> RapierBodyHandle {
         let Vec3(px, py, pz) = body.get_position();
 
         let rapier_body = RapierBodyBuilder::dynamic()
@@ -74,33 +75,29 @@ impl Physics {
         );
 
         let body_handle = self.body_set.insert(rapier_body);
-        let collider_handle =
-            self.collider_set
-                .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
+        self.collider_set
+            .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
 
-        (body_handle, collider_handle)
+        body_handle
     }
 
-    pub fn get(
-        &self,
-        body_handle: &RapierBodyHandle,
-        collider_handle: &ColliderHandle,
-    ) -> (&RapierBody, &Collider) {
-        let body = &self.body_set[body_handle.to_owned()];
-        let collider = &self.collider_set[collider_handle.to_owned()];
-
-        (body, collider)
+    pub fn get(&self, body_handle: &RapierBodyHandle) -> &RapierBody {
+        &self.body_set[body_handle.to_owned()]
     }
 
-    pub fn get_mut(
-        &mut self,
-        body_handle: &RapierBodyHandle,
-        collider_handle: &ColliderHandle,
-    ) -> (&mut RapierBody, &mut Collider) {
-        let body = &mut self.body_set[body_handle.to_owned()];
-        let collider = &mut self.collider_set[collider_handle.to_owned()];
+    pub fn get_mut(&mut self, body_handle: &RapierBodyHandle) -> &mut RapierBody {
+        &mut self.body_set[body_handle.to_owned()]
+    }
 
-        (body, collider)
+    pub fn move_rapier_body(&mut self, body_handle: &RapierBodyHandle, position: &Vec3<f32>) {
+        let body = self.get_mut(body_handle);
+        let &Vec3(px, py, pz) = position;
+
+        body.set_translation(vector![px, py, pz], false);
+        body.set_linvel(vector![0.0, 0.0, 0.0], false);
+        body.set_angvel(vector![0.0, 0.0, 0.0], false);
+        body.reset_forces(false);
+        body.reset_torques(false);
     }
 
     pub fn iterate_body(

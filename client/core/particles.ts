@@ -118,6 +118,8 @@ const MAX_PARTICLES = 100;
 
 /**
  * A **built-in** manager for everything particles in Voxelize.
+ *
+ * @category Core
  */
 class Particles {
   /**

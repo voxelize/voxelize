@@ -112,6 +112,8 @@ type CommandProcessor = (rest: string, client: Client) => void;
  * ```ts
  * client.chat.enable();
  * ```
+ *
+ * @category Core
  */
 class Chat {
   /**

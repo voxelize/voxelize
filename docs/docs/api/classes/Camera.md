@@ -47,7 +47,7 @@ ___
 
 ### params
 
-• **params**: [`CameraParams`](../modules.md#cameraparams-18)
+• **params**: [`CameraParams`](../modules.md#cameraparams-66)
 
 Parameters to initialize the Voxelize camera.
 

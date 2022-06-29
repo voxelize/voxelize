@@ -45,6 +45,7 @@ const defaultParams: PeersParams = {
  * A **built-in** manager for the peer clients in the same Voxelize world.
  *
  * @noInheritDoc
+ * @category Core
  */
 class Peers extends Map<string, Peer> {
   /**

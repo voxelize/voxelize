@@ -43,6 +43,8 @@ type ScrollCallbacks = {
  *   "*"
  * );
  * ```
+ *
+ * @category Core
  */
 class Inputs {
   /**

@@ -4,6 +4,8 @@ import { Client } from "..";
 
 /**
  * A **built-in** loader for Voxelize.
+ *
+ * @category Core
  */
 class Loader {
   /**

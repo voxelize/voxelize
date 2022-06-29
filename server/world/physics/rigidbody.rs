@@ -60,7 +60,7 @@ impl RigidBody {
         RigidBodyBuilder::new(aabb)
     }
 
-    /// Setter for rigid body's position, which is the bottom center of the rigid body.
+    /// Setter for rigid body's position, which is the center of the rigid body.
     pub fn set_position(&mut self, px: f32, py: f32, pz: f32) {
         let [offset_w, offset_h, offset_d] = self.aabb_offset();
 

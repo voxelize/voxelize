@@ -96,8 +96,8 @@ async fn main() -> std::io::Result<()> {
     world3.ecs_mut().register::<BoxFlag>();
     world3.set_dispatcher(get_dispatcher);
 
-    let (body_handle1, collider_handle1) = world3.physics_mut().register(&test_body);
-    let (body_handle2, collider_handle2) = world3.physics_mut().register(&test_body);
+    let body_handle1 = world3.physics_mut().register(&test_body);
+    let body_handle2 = world3.physics_mut().register(&test_body);
 
     world3
         .ecs_mut()
@@ -110,7 +110,7 @@ async fn main() -> std::io::Result<()> {
         .with(HeadingComp::new(0.0, 0.0, 0.0))
         .with(MetadataComp::new())
         .with(RigidBodyComp::new(&test_body))
-        .with(InteractorComp::new(body_handle1, collider_handle1))
+        .with(InteractorComp::new(body_handle1))
         .with(CurrentChunkComp::default())
         .with(BoxFlag)
         .build();
@@ -126,7 +126,7 @@ async fn main() -> std::io::Result<()> {
         .with(HeadingComp::new(0.0, 0.0, 0.0))
         .with(MetadataComp::new())
         .with(RigidBodyComp::new(&test_body))
-        .with(InteractorComp::new(body_handle2, collider_handle2))
+        .with(InteractorComp::new(body_handle2))
         .with(CurrentChunkComp::default())
         .with(BoxFlag)
         .build();

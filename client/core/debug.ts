@@ -30,6 +30,8 @@ const defaultParams: DebugParams = {
  * Debugger for Voxelize, including the following features:
  * - Top-left panel for in-game object attribute inspection and FPS data.
  * - Top-right corner for interactive debugging pane>
+ *
+ * @category Core
  */
 class Debug {
   /**

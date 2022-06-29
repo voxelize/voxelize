@@ -10,6 +10,8 @@ import { ChunkUtils } from "../utils";
 
 /**
  * A **built-in** physics engine for Voxelize using [@voxelize/voxel-physics-engine](https://github.com/shaoruu/voxel-physics-engine).
+ *
+ * @category Core
  */
 class Physics {
   /**

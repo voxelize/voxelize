@@ -56,6 +56,9 @@ type WorldParams = WorldInitParams & {
   fluidDensity: number;
 };
 
+/**
+ * @category Core
+ */
 class World {
   // @ts-ignore
   public params: WorldParams = {};

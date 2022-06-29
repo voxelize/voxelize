@@ -154,7 +154,7 @@ const DEFAULT_MIN_BOUNCE_IMPULSE: f32 = 0.5;
 const DEFAULT_AIR_DRAG: f32 = 0.1;
 const DEFAULT_FLUID_DRAG: f32 = 1.4;
 const DEFAULT_FLUID_DENSITY: f32 = 0.8;
-const DEFAULT_COLLISION_REPULSION: f32 = 1.0;
+const DEFAULT_COLLISION_REPULSION: f32 = 0.3;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -280,7 +280,7 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the seed of the world. Default is "Voxelize".
+    /// Configure the seed of the world. Default is `123123123`.
     pub fn seed(mut self, seed: u32) -> Self {
         self.seed = seed;
         self
@@ -292,7 +292,7 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the collision repulsion between entities. Defaults to `1`.
+    /// Configure the collision repulsion between entities. Defaults to `0.3`.
     pub fn collision_repulsion(mut self, collision_repulsion: f32) -> Self {
         self.collision_repulsion = collision_repulsion;
         self

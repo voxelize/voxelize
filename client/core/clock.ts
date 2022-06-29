@@ -23,6 +23,8 @@ const defaultParams: ClockParams = {
  * ```ts
  * console.log(client.clock.delta);
  * ```
+ *
+ * @category Core
  */
 class Clock {
   /**

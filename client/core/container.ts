@@ -36,6 +36,8 @@ const defaultParams: ContainerParams = {
  * ```ts
  * client.inputs.bind("k", client.container.toggleFullScreen, "in-game");
  * ```
+ *
+ * @category Core
  */
 class Container {
   /**

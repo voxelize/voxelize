@@ -203,7 +203,7 @@ impl World {
 
         let body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.8, 1.8, 0.8)).build();
 
-        let (body_handle, collider_handle) = self.physics_mut().register(&body);
+        let body_handle = self.physics_mut().register(&body);
 
         let ent = self
             .ecs
@@ -217,7 +217,7 @@ impl World {
             .with(PositionComp::default())
             .with(DirectionComp::default())
             .with(RigidBodyComp::new(&body))
-            .with(InteractorComp::new(body_handle, collider_handle))
+            .with(InteractorComp::new(body_handle))
             .build();
 
         self.clients_mut().insert(
@@ -471,6 +471,23 @@ impl World {
                     let mut bodies = self.write_component::<RigidBodyComp>();
                     if let Some(b) = bodies.get_mut(client_ent) {
                         b.0.set_position(position.x, position.y, position.z);
+                    }
+                }
+
+                {
+                    let interactors = self.read_component::<InteractorComp>();
+
+                    let handle = if let Some(i) = interactors.get(client_ent) {
+                        Some(i.0.clone())
+                    } else {
+                        None
+                    };
+
+                    drop(interactors);
+
+                    if let Some(handle) = handle {
+                        self.physics_mut()
+                            .move_rapier_body(&handle, &Vec3(position.x, position.y, position.z));
                     }
                 }
             }

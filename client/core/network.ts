@@ -37,6 +37,8 @@ type NetworkParams = {
 /**
  * A **built-in** network connector to the Voxelize backend. Establishes a WebSocket connection to the backend
  * server and handles the Protocol Buffer encoding and decoding.
+ *
+ * @category Core
  */
 class Network {
   /**

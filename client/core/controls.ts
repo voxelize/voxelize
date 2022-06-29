@@ -297,6 +297,7 @@ const defaultParams: ControlsParams = {
  * ```
  *
  * @noInheritDoc
+ * @category Core
  */
 class Controls extends EventDispatcher {
   /**

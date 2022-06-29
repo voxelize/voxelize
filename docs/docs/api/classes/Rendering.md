@@ -6,11 +6,23 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A **built-in** rendering pipeline for Voxelize, based on ThreeJS's `WebGLRenderer`.
+
 ## Properties
+
+### client
+
+• **client**: [`Client`](Client.md)
+
+Reference linking back to the Voxelize client instance.
+
+___
 
 ### params
 
-• **params**: [`RenderingParams`](../modules.md#renderingparams-18)
+• **params**: [`RenderingParams`](../modules.md#renderingparams-66)
+
+Parameters to initialize the Voxelize rendering pipeline.
 
 ___
 
@@ -18,11 +30,15 @@ ___
 
 • **scene**: `Scene`
 
+A ThreeJS `Scene` instance holding all ThreeJS-renderable objects.
+
 ___
 
 ### renderer
 
 • **renderer**: `WebGLRenderer`
+
+The ThreeJS `WebGLRenderer` used to render Voxelize.
 
 ___
 
@@ -30,17 +46,21 @@ ___
 
 • **composer**: `EffectComposer`
 
+A postprocessing effect composer to add post-processing to Voxelize.
+
 ___
 
 ### uFogColor
 
 • **uFogColor**: `Object`
 
+The GLSL uniform for the color of the fog, in other words the color objects fade into when afar.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `value` | `Color` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `value` | `Color` | A ThreeJS `Color` instance, GLSL-compatible. |
 
 ___
 
@@ -48,11 +68,13 @@ ___
 
 • **uFogNear**: `Object`
 
+The GLSL uniform for the near distance that the fog starts fogging up.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `value` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `value` | `number` | The actual fog near distance, in world units. |
 
 ___
 
@@ -60,30 +82,13 @@ ___
 
 • **uFogFar**: `Object`
 
+The GLSL uniform for the near distance that the fog fogs up fully.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `value` | `number` |
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
-
-## Constructors
-
-### constructor
-
-• **new Rendering**(`client`, `params?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `client` | [`Client`](Client.md) |
-| `params` | `Partial`<[`RenderingParams`](../modules.md#renderingparams-18)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `value` | `number` | The actual fog far distance, in world units. |
 
 ## Methods
 
@@ -91,31 +96,26 @@ ___
 
 ▸ **adjustRenderer**(): `void`
 
+Adjust the Voxelize rendering pipeline to fit the game container's size, updating the
+aspect ratio and renderer size.
+
 #### Returns
 
 `void`
 
 ___
 
-### matchRenderRadius
+### setFogDistance
 
-▸ **matchRenderRadius**(`radius`): `void`
+▸ **setFogDistance**(`distance`): `void`
+
+Set the farthest distance for the fog. Fog starts fogging up 50% from the farthest.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `radius` | `number` |
-
-#### Returns
-
-`void`
-
-___
-
-### render
-
-▸ **render**(): `void`
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `distance` | `number` | The maximum distance that the fog fully fogs up. |
 
 #### Returns
 
@@ -127,20 +127,24 @@ ___
 
 • `get` **renderSize**(): `Object`
 
+The size of the Voxelize containing DOM element (offsetWidth and offsetHeight).
+
 #### Returns
 
 `Object`
 
-| Name | Type |
-| :------ | :------ |
-| `width` | `number` |
-| `height` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `width` | `number` | The offset width of the DOM container. |
+| `height` | `number` | The offset height of the DOM container. |
 
 ___
 
 ### aspectRatio
 
 • `get` **aspectRatio**(): `number`
+
+The aspect ratio of the renderer, based on the `renderSize`.
 
 #### Returns
 

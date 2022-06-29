@@ -6,21 +6,13 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+The **built-in** Voxelize settings.
+
 ## Indexable
 
 ▪ [key: `string`]: `any`
 
-## Properties
-
-### fields
-
-• **fields**: `Map`<`string`, [`SettingsField`](../modules.md#settingsfield-18)\>
-
-___
-
-### client
-
-• **client**: [`Client`](Client.md)
+Settings' fields, `string` to `any`.
 
 ## Constructors
 
@@ -34,6 +26,12 @@ ___
 | :------ | :------ |
 | `client` | [`Client`](Client.md) |
 
+## Properties
+
+### client
+
+• **client**: [`Client`](Client.md)
+
 ## Methods
 
 ### add
@@ -45,7 +43,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `property` | `string` |
-| `value` | [`SettingsField`](../modules.md#settingsfield-18) |
+| `value` | [`SettingsField`](../modules.md#settingsfield-66) |
 | `onChange?` | `SettingsChangeHandler` |
 
 #### Returns
