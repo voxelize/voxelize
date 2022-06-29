@@ -530,7 +530,7 @@ Group.constructor
 
 | Name | Type |
 | :------ | :------ |
-| `meshData` | [`ServerMesh`](../modules.md#servermesh-12) |
+| `meshData` | [`ServerMesh`](../modules.md#servermesh-18) |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |
 | `materials.transparent?` | `Material` |

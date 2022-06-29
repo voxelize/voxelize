@@ -22,19 +22,19 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2-12)
+• **coords**: [`Coords2`](../modules.md#coords2-18)
 
 ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3-12)
+• **min**: [`Coords3`](../modules.md#coords3-18)
 
 ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3-12)
+• **max**: [`Coords3`](../modules.md#coords3-18)
 
 ___
 
@@ -85,7 +85,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`ServerChunk`](../modules.md#serverchunk-12) |
+| `data` | [`ServerChunk`](../modules.md#serverchunk-18) |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |
 | `materials.transparent?` | `Material` |

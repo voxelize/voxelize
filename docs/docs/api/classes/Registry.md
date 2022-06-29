@@ -20,7 +20,7 @@ ___
 
 ### params
 
-• **params**: [`RegistryParams`](../modules.md#registryparams-12)
+• **params**: [`RegistryParams`](../modules.md#registryparams-18)
 
 Parameters to initialize the Voxelize registry.
 
@@ -36,7 +36,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-12)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-18)\>
 
 A map of UV ranges for all registered blocks.
 
@@ -94,14 +94,14 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-12) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-12) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-18) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-18) |
 
 ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-12)\>
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-18)\>
 
 A map of blocks by their names.
 
@@ -109,7 +109,7 @@ ___
 
 ### blocksById
 
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-12)\>
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-18)\>
 
 A map of blocks by their IDs.
 
@@ -125,7 +125,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-12)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-18)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -143,7 +143,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-12) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-18) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -153,7 +153,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-12)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-18)
 
 Get the block information by its name.
 
@@ -165,13 +165,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-12)
+[`Block`](../modules.md#block-18)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-12)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-18)
 
 Get the block information by its ID.
 
@@ -183,13 +183,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-12)
+[`Block`](../modules.md#block-18)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-12)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-18)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -201,7 +201,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-12)
+[`Block`](../modules.md#block-18)
 
 ___
 
@@ -351,7 +351,7 @@ ___
 
 ### getFacesByName
 
-▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-12)[]
+▸ **getFacesByName**(`name`): [`BlockFace`](../modules.md#blockface-18)[]
 
 Get the faces/sides of the block by name.
 
@@ -363,13 +363,13 @@ Get the faces/sides of the block by name.
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-12)[]
+[`BlockFace`](../modules.md#blockface-18)[]
 
 ___
 
 ### getFacesById
 
-▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-12)[]
+▸ **getFacesById**(`id`): [`BlockFace`](../modules.md#blockface-18)[]
 
 Get the faces/sides of the block by ID.
 
@@ -381,7 +381,7 @@ Get the faces/sides of the block by ID.
 
 #### Returns
 
-[`BlockFace`](../modules.md#blockface-12)[]
+[`BlockFace`](../modules.md#blockface-18)[]
 
 ___
 

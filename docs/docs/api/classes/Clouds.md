@@ -34,7 +34,7 @@ ___
 
 ### params
 
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-12)
+• **params**: [`CloudsParams`](../modules.md#cloudsparams-18)
 
 ## Constructors
 
@@ -46,7 +46,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `params` | [`CloudsParams`](../modules.md#cloudsparams-12) |
+| `params` | [`CloudsParams`](../modules.md#cloudsparams-18) |
 
 ## Methods
 

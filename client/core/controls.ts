@@ -265,7 +265,7 @@ const defaultParams: ControlsParams = {
   bodyWidth: 0.8,
   bodyHeight: 1.8,
   bodyDepth: 0.8,
-  eyeHeight: 0.8,
+  eyeHeight: 1.6,
 
   maxSpeed: 6,
   moveForce: 30,
