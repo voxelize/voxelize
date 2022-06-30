@@ -339,7 +339,7 @@ impl Mesher {
                         );
                     }
 
-                    let sub_chunks = space.updated_levels.to_owned();
+                    let sub_chunks = chunk.updated_levels.to_owned();
 
                     space.updated_levels.clear();
                     chunk.updated_levels.clear();
