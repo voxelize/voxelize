@@ -24,6 +24,8 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, Read, ReadStorage, World as ECSWorld, WorldExt,
     WriteStorage,
 };
+use std::env;
+use std::path::PathBuf;
 
 use crate::{
     encode_message,
@@ -36,8 +38,9 @@ use super::common::ClientFilter;
 
 use self::systems::{
     BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem, ChunkMeshingSystem,
-    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSendingSystem, ChunkUpdatingSystem,
-    CurrentChunkSystem, EntityMetaSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
+    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem,
+    ChunkUpdatingSystem, CurrentChunkSystem, EntityMetaSystem, PhysicsSystem, SearchSystem,
+    UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -102,6 +105,30 @@ impl World {
     /// Create a new voxelize world.
     pub fn new(name: &str, config: &WorldConfig) -> Self {
         let id = nanoid!();
+
+        if config.saving {
+            let folder = PathBuf::from(&config.save_dir);
+
+            if !folder.exists() {
+                panic!(
+                    "World folder not created at: '{}'",
+                    if folder.is_absolute() {
+                        folder.to_path_buf()
+                    } else {
+                        if let Ok(curr_dir) = env::current_dir() {
+                            curr_dir.join(folder)
+                        } else {
+                            folder
+                        }
+                    }
+                    .to_string_lossy()
+                );
+            }
+
+            info!("Storage for world '{}' is at '{}'", name, config.save_dir);
+        } else {
+            info!("World '{}' is temporarily saved in memory.", name);
+        }
 
         let mut ecs = ECSWorld::new();
 
@@ -420,7 +447,8 @@ impl World {
                 &["chunk-requests"],
             )
             .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
-            .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"]);
+            .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
+            .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"]);
 
         let builder = self.dispatcher.unwrap()(builder);
 

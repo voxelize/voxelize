@@ -7,14 +7,14 @@ use crate::{BlockChange, ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Regis
 
 use super::access::VoxelAccess;
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct ChunkParams {
     pub size: usize,
     pub max_height: usize,
     pub sub_chunks: usize,
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Chunk {
     pub id: String,
     pub name: String,

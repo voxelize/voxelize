@@ -364,6 +364,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     );
                 });
 
+                if config.saving {
+                    chunks.to_save.push_back(coords.clone());
+                }
+
                 chunks.to_send.push_front((coords, MessageType::Update));
             });
         }

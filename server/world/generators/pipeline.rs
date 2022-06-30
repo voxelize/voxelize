@@ -341,7 +341,7 @@ impl Pipeline {
             chunk.stage = None;
 
             // Remove this chunk from the pipeline.
-            self.chunks.remove(&chunk.coords);
+            self.remove(&chunk.coords);
 
             return;
         }
@@ -350,6 +350,11 @@ impl Pipeline {
 
         // Add the chunk with the new index to the queue.
         self.queue.push_back((chunk.coords.to_owned(), index + 1));
+    }
+
+    /// Remove a chunk from the pipeline.
+    pub fn remove(&mut self, coords: &Vec2<i32>) {
+        self.chunks.remove(&coords);
     }
 
     /// Is this pipeline vacant?

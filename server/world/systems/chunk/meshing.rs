@@ -1,3 +1,4 @@
+use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{Chunks, Mesher, MessageType, Pipeline, Registry, Vec3, VoxelAccess, WorldConfig};
@@ -87,6 +88,13 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                         chunks.to_remesh.push_back(coords);
                     }
                     continue;
+                }
+
+                // At this point, the chunk is ready to be saved.
+                if config.saving {
+                    if !chunks.to_save.contains(&coords) {
+                        chunks.to_save.push_back(coords.clone());
+                    }
                 }
 
                 let chunk = chunks.raw(&coords).unwrap().to_owned();

@@ -73,6 +73,9 @@ pub struct WorldConfig {
     /// Maximum responses to send to client per tick to prevent bottle-necking. Default is 4 chunks.
     pub max_response_per_tick: usize,
 
+    /// Maximum chunks saved per tick.
+    pub max_saves_per_tick: usize,
+
     /// Radius of chunks around `0,0` to be preloaded. Default is 8 chunks.
     pub preload_radius: u32,
 
@@ -103,6 +106,12 @@ pub struct WorldConfig {
 
     /// Terrain parameters
     pub terrain: NoiseParams,
+
+    /// Whether this world is saved.
+    pub saving: bool,
+
+    /// Path to save all the saved chunks. Needs `save` to be true to be used.
+    pub save_dir: String,
 }
 
 impl WorldConfig {
@@ -146,6 +155,7 @@ const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 200;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 6;
+const DEFAULT_MAX_SAVES_PER_TICK: usize = 10;
 const DEFAULT_WATER_LEVEL: usize = 60;
 const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 const DEFAULT_SEED: u32 = 123123123;
@@ -155,6 +165,8 @@ const DEFAULT_AIR_DRAG: f32 = 0.1;
 const DEFAULT_FLUID_DRAG: f32 = 1.4;
 const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 const DEFAULT_COLLISION_REPULSION: f32 = 0.3;
+const DEFAULT_SAVING: bool = false;
+const DEFAULT_SAVE_DIR: &str = "";
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -168,6 +180,7 @@ pub struct WorldConfigBuilder {
     max_chunk_per_tick: usize,
     max_updates_per_tick: usize,
     max_response_per_tick: usize,
+    max_saves_per_tick: usize,
     water_level: usize,
     preload_radius: u32,
     seed: u32,
@@ -178,6 +191,8 @@ pub struct WorldConfigBuilder {
     fluid_density: f32,
     collision_repulsion: f32,
     terrain: NoiseParams,
+    saving: bool,
+    save_dir: String,
 }
 
 impl WorldConfigBuilder {
@@ -194,6 +209,7 @@ impl WorldConfigBuilder {
             max_chunk_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
+            max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
             water_level: DEFAULT_WATER_LEVEL,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
             seed: DEFAULT_SEED,
@@ -203,6 +219,8 @@ impl WorldConfigBuilder {
             gravity: DEFAULT_GRAVITY,
             min_bounce_impulse: DEFAULT_MIN_BOUNCE_IMPULSE,
             collision_repulsion: DEFAULT_COLLISION_REPULSION,
+            saving: DEFAULT_SAVING,
+            save_dir: DEFAULT_SAVE_DIR.to_owned(),
             terrain: NoiseParams::default(),
         }
     }
@@ -268,6 +286,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the maximum amount of chunks to be saved.
+    pub fn max_saves_per_tick(mut self, max_saves_per_tick: usize) -> Self {
+        self.max_saves_per_tick = max_saves_per_tick;
+        self
+    }
+
     /// Configure the water level of the voxelize world.
     pub fn water_level(mut self, water_level: usize) -> Self {
         self.water_level = water_level;
@@ -298,6 +322,18 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure whether or not this world should have the chunk data saved.
+    pub fn saving(mut self, saving: bool) -> Self {
+        self.saving = saving;
+        self
+    }
+
+    /// Configure the directory to save the world.
+    pub fn save_dir(mut self, save_dir: &str) -> Self {
+        self.save_dir = save_dir.to_owned();
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -309,6 +345,10 @@ impl WorldConfigBuilder {
             panic!("Chunk size should be divisible by sub-chunks.");
         }
 
+        if !self.saving && !self.save_dir.is_empty() {
+            panic!("Save directory shouldn't be used unless `config.save` is set to true!");
+        }
+
         WorldConfig {
             max_clients: self.max_clients,
             chunk_size: self.chunk_size,
@@ -318,6 +358,7 @@ impl WorldConfigBuilder {
             max_chunk_per_tick: self.max_chunk_per_tick,
             max_updates_per_tick: self.max_updates_per_tick,
             max_response_per_tick: self.max_response_per_tick,
+            max_saves_per_tick: self.max_saves_per_tick,
             water_level: self.water_level,
             preload_radius: self.preload_radius,
             seed: self.seed,
@@ -330,6 +371,8 @@ impl WorldConfigBuilder {
             min_bounce_impulse: self.min_bounce_impulse,
             collision_repulsion: self.collision_repulsion,
             terrain: self.terrain,
+            saving: self.saving,
+            save_dir: self.save_dir,
         }
     }
 }

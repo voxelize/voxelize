@@ -1,14 +1,32 @@
-use std::collections::VecDeque;
-
+use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
+use libflate::zlib::{Decoder, Encoder};
+use log::info;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::VecDeque,
+    fs::{self, File},
+    io::{Read, Write},
+    path::PathBuf,
+};
 
-use crate::{BlockChange, ChunkUtils, MessageType, Vec2, Vec3, WorldConfig};
+use crate::{BlockChange, ChunkParams, ChunkUtils, MessageType, Vec2, Vec3, WorldConfig};
 
 use super::{
     access::VoxelAccess,
     chunk::Chunk,
     space::{SpaceBuilder, SpaceParams},
 };
+
+/// Prototype for chunk's internal data used to send to client
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChunkFileData {
+    id: String,
+    voxels: String,
+    lights: String,
+    height_map: String,
+}
 
 /// A manager for all chunks in the Voxelize world.
 #[derive(Default)]
@@ -25,20 +43,129 @@ pub struct Chunks {
     /// A list of chunks that are done meshing and ready to be sent.
     pub to_send: VecDeque<(Vec2<i32>, MessageType)>,
 
+    /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
+    pub to_save: VecDeque<Vec2<i32>>,
+
     /// A cache of what chunks has been borrowed mutable.
     pub cache: HashSet<Vec2<i32>>,
 
     /// A copy of the world's config.
     config: WorldConfig,
+
+    /// The folder to store the chunks.
+    folder: Option<PathBuf>,
 }
 
 impl Chunks {
     /// Create a new instance of a chunk manager.
     pub fn new(config: &WorldConfig) -> Self {
+        let folder = if config.saving {
+            let mut folder = PathBuf::from(&config.save_dir);
+            folder.push("chunks");
+
+            fs::create_dir_all(&folder).expect("Unable to create chunks directory...");
+
+            Some(folder)
+        } else {
+            None
+        };
+
         Self {
+            folder,
             config: config.to_owned(),
             ..Default::default()
         }
+    }
+
+    // Try to load the data of a chunk, returns whether successful or not.
+    pub fn try_load(&mut self, coords: &Vec2<i32>) -> Option<Chunk> {
+        if !self.config.saving {
+            return None;
+        }
+
+        // Generate path first before getting a mutable reference to the chunk.
+        let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
+
+        // Open a file for reading
+        if let Ok(chunk_data) = File::open(&path) {
+            let data: ChunkFileData = serde_json::from_reader(chunk_data)
+                .unwrap_or_else(|_| panic!("Could not load chunk file: {:?}", coords));
+
+            let ChunkFileData {
+                id,
+                voxels,
+                lights,
+                height_map,
+            } = data;
+
+            let decode_base64 = |base: String| {
+                let decoded = base64::decode(base).unwrap();
+                let mut decoder = Decoder::new(&decoded[..]).unwrap();
+                let mut buf = Vec::new();
+                decoder.read_to_end(&mut buf).unwrap();
+                let mut data = vec![0; buf.len() / 4];
+                LittleEndian::read_u32_into(&buf, &mut data);
+                data
+            };
+
+            let mut chunk = Chunk::new(
+                &id,
+                coords.0,
+                coords.1,
+                &ChunkParams {
+                    max_height: self.config.max_height,
+                    sub_chunks: self.config.sub_chunks,
+                    size: self.config.chunk_size,
+                },
+            );
+
+            chunk.lights.data = decode_base64(lights);
+            chunk.voxels.data = decode_base64(voxels);
+            chunk.height_map.data = decode_base64(height_map);
+            chunk.stage = None;
+
+            Some(chunk)
+        } else {
+            None
+        }
+    }
+
+    // Save a certain chunk.
+    pub fn save(&self, coords: &Vec2<i32>) {
+        if !self.config.saving {
+            panic!("Calling `chunks.save` when saving mode is not on.");
+        }
+
+        let chunk = if let Some(chunk) = self.get(coords) {
+            chunk
+        } else {
+            return;
+        };
+
+        let path = self.get_chunk_file_path(&chunk.name);
+        let mut file = File::create(&path).expect("Could not create chunk file.");
+
+        let to_base_64 = |data: &Vec<u32>| {
+            let mut bytes = vec![0; data.len() * 4];
+            LittleEndian::write_u32_into(data, &mut bytes);
+
+            let mut encoder = Encoder::new(vec![]).unwrap();
+            encoder.write_all(bytes.as_slice()).unwrap();
+            let encoded = encoder.finish().into_result().unwrap();
+            base64::encode(&encoded)
+        };
+
+        let data = ChunkFileData {
+            id: chunk.id.to_owned(),
+            lights: to_base_64(&chunk.lights.data),
+            voxels: to_base_64(&chunk.voxels.data),
+            height_map: to_base_64(&chunk.height_map.data),
+        };
+
+        let j = serde_json::to_string(&data).unwrap();
+
+        file.write_all(j.as_bytes())
+            .expect("Unable to write to chunk file.");
     }
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.
@@ -206,7 +333,7 @@ impl Chunks {
 
     /// Guard to getting a chunk, only allowing chunks to be accessed when they're ready.
     pub fn is_chunk_ready(&self, coords: &Vec2<i32>) -> bool {
-        if let Some(chunk) = self.map.get(coords) {
+        if let Some(chunk) = self.raw(coords) {
             if chunk.stage.is_some() {
                 return false;
             }
@@ -224,6 +351,12 @@ impl Chunks {
     /// Clear the mutable chunk borrowing list.
     pub fn clear_cache(&mut self) {
         self.cache.clear();
+    }
+
+    fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
+        let mut path = self.folder.clone().unwrap();
+        path.push(format!("{}.json", chunk_name));
+        path
     }
 
     fn add_updated_level_at(&mut self, vx: i32, vy: i32, vz: i32) {

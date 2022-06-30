@@ -10,9 +10,9 @@ pub struct ChunkRequestsSystem;
 
 impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
-        ReadExpect<'a, Chunks>,
         ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, Pipeline>,
+        WriteExpect<'a, Chunks>,
         WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, CurrentChunkComp>,
@@ -20,7 +20,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut pipeline, mut queue, ids, curr_chunks, mut requests) = data;
+        let (config, mut pipeline, mut chunks, mut queue, ids, curr_chunks, mut requests) = data;
 
         let mut to_send: HashMap<String, Vec<Vec2<i32>>> = HashMap::new();
 
@@ -43,15 +43,12 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     continue;
                 }
 
-                if let Some(chunk) = chunks.get(&coords) {
+                if let Some(_) = chunks.get(&coords) {
                     if !to_send.contains_key(&id.0) {
                         to_send.insert(id.0.to_owned(), vec![]);
                     }
 
-                    to_send
-                        .get_mut(&id.0)
-                        .unwrap()
-                        .push(chunk.coords.to_owned());
+                    to_send.get_mut(&id.0).unwrap().push(coords.to_owned());
 
                     // Add coordinate to the "finished" pile.
                     request.mark_finish(&coords);

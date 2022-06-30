@@ -5,5 +5,7 @@ node_modules
 .yarn
 /target
 
+examples/server/worlds/world3/*
+
 client/protocol/index.*
 Cargo.lock

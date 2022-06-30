@@ -1,3 +1,4 @@
+use log::info;
 use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
@@ -74,10 +75,23 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             let margin = stage.neighbors(&config);
             let r = (margin as f32 / chunk_size as f32).ceil() as i32;
 
-            let chunk = chunks.raw(&Vec2(cx, cz));
+            let coords = Vec2(cx, cz);
+            let chunk = chunks.raw(&coords);
 
             // Chunk DNE, make one.
             if chunk.is_none() {
+                if let Some(chunk) = chunks.try_load(&coords) {
+                    chunks.add(chunk);
+
+                    pipeline.remove(&coords);
+
+                    if !chunks.to_remesh.contains(&coords) {
+                        chunks.to_remesh.push_back(coords);
+                    }
+
+                    continue;
+                }
+
                 let new_chunk = Chunk::new(
                     &nanoid!(),
                     cx,
