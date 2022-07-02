@@ -166,6 +166,7 @@ impl Mesher {
                         let &Block {
                             is_fluid,
                             is_transparent,
+                            is_full_block,
                             rotatable,
                             ..
                         } = block;
@@ -192,6 +193,7 @@ impl Mesher {
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
                         if is_void
+                            || !is_full_block
                             || !n_block_type.is_full_block
                             || ((n_block_type.is_transparent && !n_block_type.is_fluid)
                                 || (n_block_type.is_fluid && !is_fluid))

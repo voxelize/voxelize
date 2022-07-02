@@ -72,7 +72,7 @@
   },
   "dependencies": {
     "@tweenjs/tween.js": "^18.6.4",
-    "@voxelize/voxel-physics-engine": "^1.1.18",
+    "@voxelize/voxel-physics-engine": "^1.1.22",
     "deepmerge": "^4.2.2",
     "domurl": "^2.3.4",
     "events": "^3.3.0",

@@ -438,6 +438,7 @@ class Controls extends EventDispatcher {
             clearInterval(stepInterval);
           }, 500);
         },
+        stepHeight: 0.5,
       });
 
       this.hand = client.registry.getBlockById(1)?.name;

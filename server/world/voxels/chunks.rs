@@ -131,7 +131,7 @@ impl Chunks {
     }
 
     // Save a certain chunk.
-    pub fn save(&self, coords: &Vec2<i32>) {
+    pub fn save(&self, coords: &Vec2<i32>) -> bool {
         if !self.config.saving {
             panic!("Calling `chunks.save` when saving mode is not on.");
         }
@@ -139,7 +139,7 @@ impl Chunks {
         let chunk = if let Some(chunk) = self.get(coords) {
             chunk
         } else {
-            return;
+            return false;
         };
 
         let path = self.get_chunk_file_path(&chunk.name);
@@ -166,6 +166,8 @@ impl Chunks {
 
         file.write_all(j.as_bytes())
             .expect("Unable to write to chunk file.");
+
+        true
     }
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.

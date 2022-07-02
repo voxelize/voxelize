@@ -20,7 +20,9 @@ impl<'a> System<'a> for ChunkSavingSystem {
             count += 1;
 
             if let Some(coords) = chunks.to_save.pop_front() {
-                chunks.save(&coords);
+                if !chunks.save(&coords) {
+                    chunks.to_save.push_back(coords);
+                }
             }
         }
     }
