@@ -194,7 +194,7 @@ impl Mesher {
 
                         if is_void
                             || !is_full_block
-                            || !n_block_type.is_full_block
+                            || !n_block_type.is_full_block && !is_fluid
                             || ((n_block_type.is_transparent && !n_block_type.is_fluid)
                                 || (n_block_type.is_fluid && !is_fluid))
                                 && (!transparent

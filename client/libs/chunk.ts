@@ -70,9 +70,12 @@ class ChunkMesh extends Group {
           type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
         mesh.frustumCulled = false;
         mesh.position.set(...this.chunk.min);
-
-        this.add(mesh);
+        mesh.updateMatrix();
         map.set(level, mesh);
+      }
+
+      if (!mesh.parent) {
+        this.add(mesh);
       }
 
       const geometry = mesh.geometry;
@@ -90,8 +93,6 @@ class ChunkMesh extends Group {
         new BufferAttribute(new Int32Array(lights), 1)
       );
       geometry.setIndex(Array.from(new Uint32Array(indices)));
-
-      mesh.updateMatrix();
     });
   };
 
