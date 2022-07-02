@@ -426,9 +426,8 @@ class Controls extends EventDispatcher {
           const { positionLerp, jumpImpulse } = this.params;
 
           const blockHeight = newAABB.minY - this.body.aabb.minY;
-          console.log(blockHeight);
           if (blockHeight >= 1) {
-            this.body.applyImpulse([0, jumpImpulse * 0.5, 0]);
+            this.body.applyImpulse([0, jumpImpulse * blockHeight * 0.5, 0]);
           }
 
           this.params.positionLerp = 0.6;

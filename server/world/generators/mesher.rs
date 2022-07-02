@@ -154,346 +154,360 @@ impl Mesher {
                     continue;
                 }
 
-                let mut process_face = |vx: i32,
-                                        vy: i32,
-                                        vz: i32,
-                                        voxel_id: u32,
-                                        rotation: &BlockRotation,
-                                        face: &BlockFace,
-                                        block: &Block| {
-                    let &Block {
-                        is_fluid,
-                        is_transparent,
-                        is_full_block,
-                        rotatable,
-                        ..
-                    } = block;
-                    let BlockFace { dir, corners, .. } = face;
+                let mut process_face =
+                    |vx: i32,
+                     vy: i32,
+                     vz: i32,
+                     voxel_id: u32,
+                     rotation: &BlockRotation,
+                     face: &BlockFace,
+                     block: &Block,
+                     uv_map: &HashMap<String, &UV>| {
+                        let &Block {
+                            is_fluid,
+                            is_transparent,
+                            rotatable,
+                            ..
+                        } = block;
+                        let BlockFace { dir, corners, .. } = face;
 
-                    let uv_map = registry.get_uv_map(block);
-                    let mut dir = [dir[0] as f32, dir[1] as f32, dir[2] as f32];
+                        let mut dir = [dir[0] as f32, dir[1] as f32, dir[2] as f32];
 
-                    if rotatable {
-                        rotation.rotate(&mut dir, false);
-                    }
+                        if rotatable {
+                            rotation.rotate(&mut dir, false);
+                        }
 
-                    let dir = [
-                        dir[0].round() as i32,
-                        dir[1].round() as i32,
-                        dir[2].round() as i32,
-                    ];
+                        let dir = [
+                            dir[0].round() as i32,
+                            dir[1].round() as i32,
+                            dir[2].round() as i32,
+                        ];
 
-                    let nvx = vx + dir[0];
-                    let nvy = vy + dir[1];
-                    let nvz = vz + dir[2];
+                        let nvx = vx + dir[0];
+                        let nvy = vy + dir[1];
+                        let nvz = vz + dir[2];
 
-                    let is_void = !space.contains(nvx, nvy, nvz);
-                    let neighbor_id = space.get_voxel(nvx, nvy, nvz);
-                    let n_block_type = registry.get_block_by_id(neighbor_id);
+                        let is_void = !space.contains(nvx, nvy, nvz);
+                        let neighbor_id = space.get_voxel(nvx, nvy, nvz);
+                        let n_block_type = registry.get_block_by_id(neighbor_id);
 
-                    if is_void
-                        || !n_block_type.is_full_block
-                        || ((n_block_type.is_transparent && !n_block_type.is_fluid)
-                            || (n_block_type.is_fluid && !is_fluid))
-                            && (!transparent
-                                || n_block_type.is_empty
-                                || neighbor_id != voxel_id
-                                || (n_block_type.transparent_standalone
-                                    && (dir[0] + dir[1] + dir[2]) as i32 >= 1))
-                    {
-                        let UV {
-                            start_u,
-                            end_u,
-                            start_v,
-                            end_v,
-                        } = uv_map.get(&face.name).unwrap();
+                        if is_void
+                            || !n_block_type.is_full_block
+                            || ((n_block_type.is_transparent && !n_block_type.is_fluid)
+                                || (n_block_type.is_fluid && !is_fluid))
+                                && (!transparent
+                                    || n_block_type.is_empty
+                                    || neighbor_id != voxel_id
+                                    || (n_block_type.transparent_standalone
+                                        && (dir[0] + dir[1] + dir[2]) as i32 >= 1))
+                        {
+                            let UV {
+                                start_u,
+                                end_u,
+                                start_v,
+                                end_v,
+                            } = uv_map.get(&face.name).unwrap();
 
-                        let ndx = (positions.len() as f32 / 3.0).floor() as i32;
-                        let mut face_aos = vec![];
+                            let ndx = (positions.len() as f32 / 3.0).floor() as i32;
+                            let mut face_aos = vec![];
 
-                        let mut four_sunlights = vec![];
-                        let mut four_red_lights = vec![];
-                        let mut four_green_lights = vec![];
-                        let mut four_blue_lights = vec![];
+                            let mut four_sunlights = vec![];
+                            let mut four_red_lights = vec![];
+                            let mut four_green_lights = vec![];
+                            let mut four_blue_lights = vec![];
 
-                        for CornerData { mut pos, uv } in corners.iter() {
-                            if rotatable {
-                                rotation.rotate(&mut pos, true);
-                            }
+                            for CornerData { mut pos, uv } in corners.iter() {
+                                if rotatable {
+                                    rotation.rotate(&mut pos, true);
+                                }
 
-                            let pos_x = pos[0] + vx as f32;
-                            let pos_y = pos[1] + vy as f32;
-                            let pos_z = pos[2] + vz as f32;
+                                let pos_x = pos[0] + vx as f32;
+                                let pos_y = pos[1] + vy as f32;
+                                let pos_z = pos[2] + vz as f32;
 
-                            positions.push(pos_x - min_x as f32);
-                            positions.push(pos_y);
-                            positions.push(pos_z - min_z as f32);
+                                positions.push(pos_x - min_x as f32);
+                                positions.push(pos_y);
+                                positions.push(pos_z - min_z as f32);
 
-                            uvs.push(uv[0] * (end_u - start_u) + start_u);
-                            uvs.push(uv[1] * (end_v - start_v) + start_v);
+                                uvs.push(uv[0] * (end_u - start_u) + start_u);
+                                uvs.push(uv[1] * (end_v - start_v) + start_v);
 
-                            // calculating the 8 voxels around this vertex
-                            let dx = pos[0].round() as i32;
-                            let dy = pos[1].round() as i32;
-                            let dz = pos[2].round() as i32;
+                                // calculating the 8 voxels around this vertex
+                                let dx = pos[0].round() as i32;
+                                let dy = pos[1].round() as i32;
+                                let dz = pos[2].round() as i32;
 
-                            let dx = if dx == 0 { -1 } else { 1 };
-                            let dy = if dy == 0 { -1 } else { 1 };
-                            let dz = if dz == 0 { -1 } else { 1 };
+                                let dx = if dx == 0 { -1 } else { 1 };
+                                let dy = if dy == 0 { -1 } else { 1 };
+                                let dz = if dz == 0 { -1 } else { 1 };
 
-                            let mut sum_sunlight = vec![];
-                            let mut sum_red_lights = vec![];
-                            let mut sum_green_lights = vec![];
-                            let mut sum_blue_lights = vec![];
+                                let mut sum_sunlight = vec![];
+                                let mut sum_red_lights = vec![];
+                                let mut sum_green_lights = vec![];
+                                let mut sum_blue_lights = vec![];
 
-                            let b011 = get_block_by_voxel(vx, vy + dy, vz + dz, space, registry);
-                            let b011 = b011.is_transparent || !b011.is_full_block;
-                            let b101 = get_block_by_voxel(vx + dx, vy, vz + dz, space, registry);
-                            let b101 = b101.is_transparent || !b101.is_full_block;
-                            let b110 = get_block_by_voxel(vx + dx, vy + dy, vz, space, registry);
-                            let b110 = b110.is_transparent || !b110.is_full_block;
-                            let b111 =
-                                get_block_by_voxel(vx + dx, vy + dy, vz + dz, space, registry);
-                            let b111 = b111.is_transparent || !b111.is_full_block;
+                                let b011 =
+                                    get_block_by_voxel(vx, vy + dy, vz + dz, space, registry);
+                                let b011 = b011.is_transparent || !b011.is_full_block;
+                                let b101 =
+                                    get_block_by_voxel(vx + dx, vy, vz + dz, space, registry);
+                                let b101 = b101.is_transparent || !b101.is_full_block;
+                                let b110 =
+                                    get_block_by_voxel(vx + dx, vy + dy, vz, space, registry);
+                                let b110 = b110.is_transparent || !b110.is_full_block;
+                                let b111 =
+                                    get_block_by_voxel(vx + dx, vy + dy, vz + dz, space, registry);
+                                let b111 = b111.is_transparent || !b111.is_full_block;
 
-                            if is_transparent {
-                                face_aos.push(3)
-                            } else if dir[0].abs() == 1 {
-                                face_aos.push(vertex_ao(b110, b101, b111));
-                            } else if dir[1].abs() == 1 {
-                                face_aos.push(vertex_ao(b110, b011, b111));
-                            } else {
-                                face_aos.push(vertex_ao(b011, b101, b111));
-                            }
+                                if is_transparent {
+                                    face_aos.push(3)
+                                } else if dir[0].abs() == 1 {
+                                    face_aos.push(vertex_ao(b110, b101, b111));
+                                } else if dir[1].abs() == 1 {
+                                    face_aos.push(vertex_ao(b110, b011, b111));
+                                } else {
+                                    face_aos.push(vertex_ao(b011, b101, b111));
+                                }
 
-                            if is_transparent {
-                                let [dx, dy, dz] = dir;
+                                if is_transparent {
+                                    let [dx, dy, dz] = dir;
 
-                                sum_sunlight.push(space.get_sunlight(vx + dx, vy + dy, vz + dz));
-                                sum_red_lights.push(space.get_raw_light(vx + dx, vy + dy, vz + dz));
-                                sum_green_lights.push(space.get_green_light(
-                                    vx + dx,
-                                    vy + dy,
-                                    vz + dz,
-                                ));
-                                sum_blue_lights.push(space.get_blue_light(
-                                    vx + dx,
-                                    vy + dy,
-                                    vz + dz,
-                                ));
-                            } else {
-                                // Loop through all 8 neighbors of this vertex.
-                                for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
-                                    for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
-                                        for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
-                                            // The block that we're checking is on the side that the face is facing, so
-                                            // check if the diagonal block would be blocking this block's potential light.
-                                            // Perpendicular check done by crossing the vectors.
-                                            if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                                                let facing = get_block_by_voxel(
-                                                    vx + ddx * dir[0],
-                                                    vy + ddy * dir[1],
-                                                    vz + ddz * dir[2],
-                                                    space,
-                                                    registry,
-                                                );
+                                    sum_sunlight.push(space.get_sunlight(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                    sum_red_lights.push(space.get_raw_light(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                    sum_green_lights.push(space.get_green_light(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                    sum_blue_lights.push(space.get_blue_light(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                } else {
+                                    // Loop through all 8 neighbors of this vertex.
+                                    for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
+                                        for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
+                                            for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
+                                                // The block that we're checking is on the side that the face is facing, so
+                                                // check if the diagonal block would be blocking this block's potential light.
+                                                // Perpendicular check done by crossing the vectors.
+                                                if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
+                                                    let facing = get_block_by_voxel(
+                                                        vx + ddx * dir[0],
+                                                        vy + ddy * dir[1],
+                                                        vz + ddz * dir[2],
+                                                        space,
+                                                        registry,
+                                                    );
 
-                                                if !facing.is_transparent && facing.is_full_block {
-                                                    continue;
+                                                    if !facing.is_transparent
+                                                        && facing.is_full_block
+                                                    {
+                                                        continue;
+                                                    }
                                                 }
-                                            }
 
-                                            // Diagonal light leaking fix.
-                                            if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                                                let diagonal_yz = get_block_by_voxel(
-                                                    vx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                    space,
-                                                    registry,
-                                                );
-                                                let diagonal_xz = get_block_by_voxel(
-                                                    vx + ddx,
-                                                    vy,
-                                                    vz + ddz,
-                                                    space,
-                                                    registry,
-                                                );
-                                                let diagonal_xy = get_block_by_voxel(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz,
-                                                    space,
-                                                    registry,
-                                                );
+                                                // Diagonal light leaking fix.
+                                                if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                                                    let diagonal_yz = get_block_by_voxel(
+                                                        vx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                        space,
+                                                        registry,
+                                                    );
+                                                    let diagonal_xz = get_block_by_voxel(
+                                                        vx + ddx,
+                                                        vy,
+                                                        vz + ddz,
+                                                        space,
+                                                        registry,
+                                                    );
+                                                    let diagonal_xy = get_block_by_voxel(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz,
+                                                        space,
+                                                        registry,
+                                                    );
 
-                                                if (!diagonal_yz.is_transparent
-                                                    && diagonal_yz.is_full_block)
-                                                    && (!diagonal_xz.is_transparent
-                                                        && diagonal_xz.is_full_block)
-                                                    && (!diagonal_xy.is_transparent
-                                                        && diagonal_xy.is_full_block)
-                                                {
-                                                    continue;
+                                                    if (!diagonal_yz.is_transparent
+                                                        && diagonal_yz.is_full_block)
+                                                        && (!diagonal_xz.is_transparent
+                                                            && diagonal_xz.is_full_block)
+                                                        && (!diagonal_xy.is_transparent
+                                                            && diagonal_xy.is_full_block)
+                                                    {
+                                                        continue;
+                                                    }
                                                 }
-                                            }
 
-                                            let diagonal4 = get_block_by_voxel(
-                                                vx + ddx,
-                                                vy + ddy,
-                                                vz + ddz,
-                                                space,
-                                                registry,
-                                            );
+                                                let diagonal4 = get_block_by_voxel(
+                                                    vx + ddx,
+                                                    vy + ddy,
+                                                    vz + ddz,
+                                                    space,
+                                                    registry,
+                                                );
 
-                                            let is_transparent = diagonal4.is_transparent
-                                                || !diagonal4.is_full_block;
+                                                let is_transparent = diagonal4.is_transparent
+                                                    || !diagonal4.is_full_block;
 
-                                            if is_transparent {
-                                                sum_sunlight.push(space.get_sunlight(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
-                                                sum_red_lights.push(space.get_red_light(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
-                                                sum_green_lights.push(space.get_green_light(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
-                                                sum_blue_lights.push(space.get_blue_light(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
+                                                if is_transparent {
+                                                    sum_sunlight.push(space.get_sunlight(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                    sum_red_lights.push(space.get_red_light(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                    sum_green_lights.push(space.get_green_light(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                    sum_blue_lights.push(space.get_blue_light(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                }
                                             }
                                         }
                                     }
                                 }
+
+                                four_sunlights.push(
+                                    (sum_sunlight.iter().sum::<u32>() as f32
+                                        / sum_sunlight.len() as f32)
+                                        as i32,
+                                );
+
+                                four_red_lights.push(
+                                    (sum_red_lights.iter().sum::<u32>() as f32
+                                        / sum_red_lights.len() as f32)
+                                        as i32,
+                                );
+
+                                four_green_lights.push(
+                                    (sum_green_lights.iter().sum::<u32>() as f32
+                                        / sum_green_lights.len() as f32)
+                                        as i32,
+                                );
+
+                                four_blue_lights.push(
+                                    (sum_blue_lights.iter().sum::<u32>() as f32
+                                        / sum_blue_lights.len() as f32)
+                                        as i32,
+                                );
                             }
 
-                            four_sunlights.push(
-                                (sum_sunlight.iter().sum::<u32>() as f32
-                                    / sum_sunlight.len() as f32)
-                                    as i32,
-                            );
+                            let a_rt = four_red_lights[0];
+                            let b_rt = four_red_lights[1];
+                            let c_rt = four_red_lights[2];
+                            let d_rt = four_red_lights[3];
 
-                            four_red_lights.push(
-                                (sum_red_lights.iter().sum::<u32>() as f32
-                                    / sum_red_lights.len() as f32)
-                                    as i32,
-                            );
+                            let a_gt = four_green_lights[0];
+                            let b_gt = four_green_lights[1];
+                            let c_gt = four_green_lights[2];
+                            let d_gt = four_green_lights[3];
 
-                            four_green_lights.push(
-                                (sum_green_lights.iter().sum::<u32>() as f32
-                                    / sum_green_lights.len() as f32)
-                                    as i32,
-                            );
+                            let a_bt = four_blue_lights[0];
+                            let b_bt = four_blue_lights[1];
+                            let c_bt = four_blue_lights[2];
+                            let d_bt = four_blue_lights[3];
 
-                            four_blue_lights.push(
-                                (sum_blue_lights.iter().sum::<u32>() as f32
-                                    / sum_blue_lights.len() as f32)
-                                    as i32,
-                            );
-                        }
+                            let threshold = 0;
 
-                        let a_rt = four_red_lights[0];
-                        let b_rt = four_red_lights[1];
-                        let c_rt = four_red_lights[2];
-                        let d_rt = four_red_lights[3];
+                            /* -------------------------------------------------------------------------- */
+                            /*                     I KNOW THIS IS UGLY, BUT IT WORKS!                     */
+                            /* -------------------------------------------------------------------------- */
+                            // at least one zero
+                            let one_tr0 = a_rt <= threshold
+                                || b_rt <= threshold
+                                || c_rt <= threshold
+                                || d_rt <= threshold;
+                            let one_tg0 = a_gt <= threshold
+                                || b_gt <= threshold
+                                || c_gt <= threshold
+                                || d_gt <= threshold;
+                            let one_tb0 = a_bt <= threshold
+                                || b_bt <= threshold
+                                || c_bt <= threshold
+                                || d_bt <= threshold;
+                            // one is zero, and ao rule, but only for zero AO's
+                            let fequals =
+                                (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
+                            let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
+                            let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
+                            let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
+                            // all not zero, 4 parts
+                            let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
+                                && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
+                                || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0
+                                    && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
+                            let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
+                                && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
+                                || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0
+                                    && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
+                            let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
+                                && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
+                                || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0
+                                    && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
+                            // fixed two light sources colliding
+                            let anz_r = one_tr0 && anzp1_r;
+                            let anz_g = one_tg0 && anzp1_g;
+                            let anz_b = one_tb0 && anzp1_b;
 
-                        let a_gt = four_green_lights[0];
-                        let b_gt = four_green_lights[1];
-                        let c_gt = four_green_lights[2];
-                        let d_gt = four_green_lights[3];
-
-                        let a_bt = four_blue_lights[0];
-                        let b_bt = four_blue_lights[1];
-                        let c_bt = four_blue_lights[2];
-                        let d_bt = four_blue_lights[3];
-
-                        let threshold = 0;
-
-                        /* -------------------------------------------------------------------------- */
-                        /*                     I KNOW THIS IS UGLY, BUT IT WORKS!                     */
-                        /* -------------------------------------------------------------------------- */
-                        // at least one zero
-                        let one_tr0 = a_rt <= threshold
-                            || b_rt <= threshold
-                            || c_rt <= threshold
-                            || d_rt <= threshold;
-                        let one_tg0 = a_gt <= threshold
-                            || b_gt <= threshold
-                            || c_gt <= threshold
-                            || d_gt <= threshold;
-                        let one_tb0 = a_bt <= threshold
-                            || b_bt <= threshold
-                            || c_bt <= threshold
-                            || d_bt <= threshold;
-                        // one is zero, and ao rule, but only for zero AO's
-                        let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
-                        let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
-                        let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
-                        let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
-                        // all not zero, 4 parts
-                        let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
-                            && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
-                            || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0
-                                && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
-                        let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
-                            && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
-                            || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0
-                                && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
-                        let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
-                            && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
-                            || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0
-                                && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
-                        // fixed two light sources colliding
-                        let anz_r = one_tr0 && anzp1_r;
-                        let anz_g = one_tg0 && anzp1_g;
-                        let anz_b = one_tb0 && anzp1_b;
-
-                        // common starting indices
-                        indices.push(ndx);
-                        indices.push(ndx + 1);
-
-                        if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
-                            || (ozao_r || ozao_g || ozao_b)
-                            || (anz_r || anz_g || anz_b)
-                        {
-                            // generate flipped quad
-                            indices.push(ndx + 3);
-                            indices.push(ndx + 3);
-                            indices.push(ndx + 2);
+                            // common starting indices
                             indices.push(ndx);
-                        } else {
-                            indices.push(ndx + 2);
-                            indices.push(ndx + 2);
                             indices.push(ndx + 1);
-                            indices.push(ndx + 3);
-                        }
 
-                        let mut ao_i = 0;
-                        for (s, r, g, b) in izip!(
-                            &four_sunlights,
-                            &four_red_lights,
-                            &four_green_lights,
-                            &four_blue_lights
-                        ) {
-                            let mut light = 0;
-                            light = LightUtils::insert_red_light(light, *r as u32);
-                            light = LightUtils::insert_green_light(light, *g as u32);
-                            light = LightUtils::insert_blue_light(light, *b as u32);
-                            light = LightUtils::insert_sunlight(light, *s as u32);
-                            lights.push(light as i32 | face_aos[ao_i] << 16);
-                            ao_i += 1;
+                            if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
+                                || (ozao_r || ozao_g || ozao_b)
+                                || (anz_r || anz_g || anz_b)
+                            {
+                                // generate flipped quad
+                                indices.push(ndx + 3);
+                                indices.push(ndx + 3);
+                                indices.push(ndx + 2);
+                                indices.push(ndx);
+                            } else {
+                                indices.push(ndx + 2);
+                                indices.push(ndx + 2);
+                                indices.push(ndx + 1);
+                                indices.push(ndx + 3);
+                            }
+
+                            let mut ao_i = 0;
+                            for (s, r, g, b) in izip!(
+                                &four_sunlights,
+                                &four_red_lights,
+                                &four_green_lights,
+                                &four_blue_lights
+                            ) {
+                                let mut light = 0;
+                                light = LightUtils::insert_red_light(light, *r as u32);
+                                light = LightUtils::insert_green_light(light, *g as u32);
+                                light = LightUtils::insert_blue_light(light, *b as u32);
+                                light = LightUtils::insert_sunlight(light, *s as u32);
+                                lights.push(light as i32 | face_aos[ao_i] << 16);
+                                ao_i += 1;
+                            }
                         }
-                    }
-                };
+                    };
 
                 for vy in (min_y..=max_y.min(height) as i32).rev() {
                     let voxel_id = space.get_voxel(vx, vy, vz);
@@ -514,8 +528,10 @@ impl Mesher {
                         if is_block {
                             let Block { faces, .. } = block.to_owned();
 
+                            let uv_map = registry.get_uv_map(block);
+
                             faces.iter().for_each(|face| {
-                                process_face(vx, vy, vz, voxel_id, &rotation, face, block)
+                                process_face(vx, vy, vz, voxel_id, &rotation, face, block, &uv_map)
                             });
                         }
                     }
