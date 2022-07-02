@@ -1,3 +1,4 @@
+import { Tween } from "@tweenjs/tween.js";
 import { AABB, RigidBody } from "@voxelize/voxel-physics-engine";
 import {
   BufferGeometry,
@@ -6,7 +7,6 @@ import {
   ShaderMaterial,
   Vector2,
 } from "three";
-import Tweezer from "tweezer.js";
 
 import { Client } from "..";
 import { TRANSPARENT_RENDER_ORDER } from "../common";
@@ -291,30 +291,20 @@ class Particles {
       });
 
       if (animate) {
-        const tweenResolution = 100;
-        new Tweezer({
-          start:
-            // @ts-ignore
-            group.mesh.material.uniforms.uScale.value * tweenResolution,
-          end: 0,
-          duration: params.fadeTimeout,
-        })
-          .on("tick", (v) => {
-            // @ts-ignore
-            group.mesh.material.uniforms.uScale.value = v / tweenResolution;
-          })
-          .on("done", () => {
+        new Tween(
+          // @ts-ignore
+          group.mesh.material.uniforms.uScale
+        )
+          .to({ value: 0 }, params.fadeTimeout)
+          .onComplete(() => {
             rendering.scene.remove(mesh);
           })
-          .stop()
-          .begin();
+          .start();
       } else {
         rendering.scene.remove(mesh);
       }
     }
   }
-
-  private;
 
   private sanityCheck() {
     if (this.groups.length > MAX_GROUPS) {

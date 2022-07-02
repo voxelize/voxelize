@@ -2,7 +2,9 @@ use hashbrown::{HashMap, HashSet};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use super::voxels::{Block, BlockFaces};
+use crate::BlockFace;
+
+use super::voxels::Block;
 
 const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 64.0;
 
@@ -181,22 +183,22 @@ impl Registry {
     }
 
     /// Get block faces by id.
-    pub fn get_faces_by_id(&self, id: u32) -> &Vec<BlockFaces> {
+    pub fn get_faces_by_id(&self, id: u32) -> &Vec<BlockFace> {
         &self.get_block_by_id(id).faces
     }
 
     /// Get block faces by name.
-    pub fn get_faces_by_name(&self, name: &str) -> &Vec<BlockFaces> {
+    pub fn get_faces_by_name(&self, name: &str) -> &Vec<BlockFace> {
         &self.get_block_by_name(name).faces
     }
 
     /// Get block UV by id.
-    pub fn get_uv_by_id(&self, id: u32) -> HashMap<BlockFaces, &UV> {
+    pub fn get_uv_by_id(&self, id: u32) -> HashMap<String, &UV> {
         self.get_uv_map(self.get_block_by_id(id))
     }
 
     /// Get block UV by name.
-    pub fn get_uv_by_name(&self, name: &str) -> HashMap<BlockFaces, &UV> {
+    pub fn get_uv_by_name(&self, name: &str) -> HashMap<String, &UV> {
         self.get_uv_map(self.get_block_by_name(name))
     }
 
@@ -257,71 +259,19 @@ impl Registry {
     }
 
     /// Get UV map by block.
-    pub fn get_uv_map(&self, block: &Block) -> HashMap<BlockFaces, &UV> {
+    pub fn get_uv_map(&self, block: &Block) -> HashMap<String, &UV> {
         let mut uv_map = HashMap::new();
 
         for source in block.faces.iter() {
             let uv = self
                 .ranges
                 .get(&Registry::make_side_name(&block.name, source))
-                .unwrap_or_else(|| panic!("UV range not found: {}", source));
+                .unwrap_or_else(|| panic!("UV range not found: {:?}", source));
 
-            uv_map.insert(source.to_owned(), uv);
+            uv_map.insert(source.name.to_owned(), uv);
         }
 
         uv_map
-    }
-
-    /// Generate a faces map. A faces map is a six-property hash map that stores the keys px, py, pz, nx, ny, nz.
-    /// This generates such a struct from a list of faces, according to the faces priorities.
-    ///
-    /// Example: `["All", "Px"]` would result in:
-    /// ```
-    /// {
-    ///    "Px": "Px",
-    ///    "Py": "All",
-    ///    "Pz": "All",
-    ///    "Nx": "All",
-    ///    "Ny": "All",
-    ///    "Nz": "All",
-    /// }
-    /// ```
-    pub fn get_faces_map(faces: &Vec<BlockFaces>) -> HashMap<BlockFaces, BlockFaces> {
-        let mut faces_map = HashMap::new();
-        let sides = vec![
-            BlockFaces::Px,
-            BlockFaces::Pz,
-            BlockFaces::Nx,
-            BlockFaces::Nz,
-        ];
-
-        sides.into_iter().for_each(|side| {
-            if faces.contains(&side) {
-                faces_map.insert(side.clone(), side);
-            } else if faces.contains(&BlockFaces::Side) {
-                faces_map.insert(side.clone(), BlockFaces::Side);
-            } else {
-                faces_map.insert(side.clone(), BlockFaces::All);
-            }
-        });
-
-        if faces.contains(&BlockFaces::Py) {
-            faces_map.insert(BlockFaces::Py, BlockFaces::Py);
-        } else if faces.contains(&BlockFaces::Top) {
-            faces_map.insert(BlockFaces::Py, BlockFaces::Top);
-        } else {
-            faces_map.insert(BlockFaces::Py, BlockFaces::All);
-        }
-
-        if faces.contains(&BlockFaces::Ny) {
-            faces_map.insert(BlockFaces::Ny, BlockFaces::Ny);
-        } else if faces.contains(&BlockFaces::Bottom) {
-            faces_map.insert(BlockFaces::Ny, BlockFaces::Bottom);
-        } else {
-            faces_map.insert(BlockFaces::Ny, BlockFaces::All);
-        }
-
-        faces_map
     }
 
     /// Calculate how many textures should be on each side.
@@ -353,21 +303,17 @@ impl Registry {
         self.type_map.insert(lower_name.clone(), *id);
 
         for side in faces.iter() {
-            if *side == BlockFaces::Diagonal && !is_plant {
-                panic!("Non-plant blocks cannot have diagonal textures: {name}");
-            }
-
             let side_name = Registry::make_side_name(name, side);
             self.textures.insert(side_name);
         }
     }
 
     /// Create a name for the side texture.
-    fn make_side_name(name: &str, side: &BlockFaces) -> String {
+    fn make_side_name(name: &str, side: &BlockFace) -> String {
         format!(
             "{}__{}",
             name.to_lowercase().replace(" ", "_"),
-            side.to_string().to_lowercase()
+            side.name.to_lowercase()
         )
     }
 }

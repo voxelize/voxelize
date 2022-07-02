@@ -10,42 +10,6 @@ export type PartialRecord<K extends keyof any, T> = {
   [P in K]?: T;
 };
 
-export type AllFaces = {
-  all: string;
-};
-
-export type ThreeFaces = {
-  top: string;
-  side: string;
-  bottom: string;
-};
-
-export type SixFaces = {
-  px: string;
-  py: string;
-  pz: string;
-  nx: string;
-  ny: string;
-  nz: string;
-};
-
-export type PlantFaces = {
-  diagonal: string;
-};
-
-/**
- * A face/side of the block.
- * - `all`: All 6 sides of the block.
- * - `top`, `side`, `bottom`: Three types of sides of the block.
- * - `px`, `py`, `pz`, `nx`, `ny`, `nz`: Six faces of a block.
- * - `diagonal`: The diagonal face, used for plants.
- */
-export type BlockFace =
-  | keyof AllFaces
-  | keyof ThreeFaces
-  | keyof SixFaces
-  | keyof PlantFaces;
-
 export type Block = {
   id: number;
   name: string;
@@ -63,7 +27,11 @@ export type Block = {
   isSolid: boolean;
   isTransparent: boolean;
   transparentStandalone: boolean;
-  faces: BlockFace[];
+  faces: {
+    corners: { pos: number[]; uv: [] }[];
+    dir: number[];
+    name: string;
+  }[];
   aabbs: AABB[];
 };
 

@@ -156,6 +156,11 @@ type ControlsParams = {
   rotationLerp: number;
 
   /**
+   * The interpolation factor of the client's position. Defaults to `0.9`.
+   */
+  positionLerp: number;
+
+  /**
    * The width of the client's avatar. Defaults to `0.8` blocks.
    */
   bodyWidth: number;
@@ -171,7 +176,7 @@ type ControlsParams = {
   bodyDepth: number;
 
   /**
-   * The height from the ground at which the camera of the client is placed at. Defaults at `0.8`.
+   * The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.8`.
    */
   eyeHeight: number;
 
@@ -261,11 +266,12 @@ const defaultParams: ControlsParams = {
   reachDistance: 32,
   initialPosition: [0, 80, 10],
   rotationLerp: 0.9,
+  positionLerp: 0.9,
 
   bodyWidth: 0.8,
   bodyHeight: 1.8,
   bodyDepth: 0.8,
-  eyeHeight: 1.6,
+  eyeHeight: 0.8,
 
   maxSpeed: 6,
   moveForce: 30,
@@ -386,6 +392,8 @@ class Controls extends EventDispatcher {
   private quaternion = new Quaternion();
   private vector = new Vector3();
 
+  private newPosition = new Vector3();
+
   /**
    * Construct a Voxelize controls.
    *
@@ -414,6 +422,23 @@ class Controls extends EventDispatcher {
 
       this.body = client.physics.addBody({
         aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
+        onStep: (newAABB) => {
+          const { positionLerp, jumpImpulse } = this.params;
+
+          const blockHeight = newAABB.minY - this.body.aabb.minY;
+          console.log(blockHeight);
+          if (blockHeight >= 1) {
+            this.body.applyImpulse([0, jumpImpulse * 0.5, 0]);
+          }
+
+          this.params.positionLerp = 0.6;
+          this.body.aabb = newAABB.clone();
+
+          const stepInterval = setInterval(() => {
+            this.params.positionLerp = positionLerp;
+            clearInterval(stepInterval);
+          }, 500);
+        },
       });
 
       this.hand = client.registry.getBlockById(1)?.name;
@@ -433,6 +458,7 @@ class Controls extends EventDispatcher {
    */
   update = () => {
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
+    this.object.position.lerp(this.newPosition, this.params.positionLerp);
 
     this.moveRigidBody();
     this.updateRigidBody();
@@ -551,7 +577,7 @@ class Controls extends EventDispatcher {
   };
 
   /**
-   * Set the position of the client.
+   * Set the position of the client in interpolation.
    *
    * @param x - X-coordinate to be at.
    * @param y - Y-coordinate to be at.
@@ -559,7 +585,7 @@ class Controls extends EventDispatcher {
    */
   setPosition = (x: number, y: number, z: number) => {
     const { eyeHeight, bodyHeight } = this.params;
-    this.object.position.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+    this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
 
     if (this.body) {
       this.body.setPosition([x, y, z]);
@@ -1197,7 +1223,7 @@ class Controls extends EventDispatcher {
 
     const [x, y, z] = this.body.getPosition();
     const { eyeHeight, bodyHeight } = this.params;
-    this.object.position.set(x, y - bodyHeight / 2 + eyeHeight, z);
+    this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
   };
 
   private onKeyDown = ({ code }: KeyboardEvent) => {

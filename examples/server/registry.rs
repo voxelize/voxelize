@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFaces, Registry};
+use voxelize::{Block, BlockFace, CornerData, Registry, AABB};
 
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
@@ -22,23 +22,14 @@ pub fn setup_registry() -> Registry {
         Block::new("Andesite").build(),
         Block::new("Slate").build(),
         Block::new("Oak Planks").build(),
-        Block::new("Oak Log")
-            .rotatable(true)
-            .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
-            .build(),
-        Block::new("Birch Log")
-            .rotatable(true)
-            .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
-            .build(),
+        Block::new("Oak Log").rotatable(true).build(),
+        Block::new("Birch Log").rotatable(true).build(),
         Block::new("Oak Leaves")
             .is_transparent(true)
             .transparent_standalone(true)
             .build(),
         Block::new("Snow").build(),
-        Block::new("Grass")
-            .faces(&[BlockFaces::Top, BlockFaces::Side, BlockFaces::Bottom])
-            .is_plantable(true)
-            .build(),
+        Block::new("Grass").is_plantable(true).build(),
         Block::new("Color").build(),
         Block::new("Color2").build(),
         Block::new("Water")
@@ -46,6 +37,149 @@ pub fn setup_registry() -> Registry {
             .is_fluid(true)
             .is_solid(false)
             .aabbs(&[])
+            .build(),
+        Block::new("Slab")
+            .faces(&[
+                BlockFace {
+                    name: "nx".to_owned(),
+                    dir: [-1, 0, 0],
+                    corners: [
+                        CornerData {
+                            pos: [0.0, 0.5, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.5, 1.0],
+                            uv: [1.0, 0.5],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 1.0],
+                            uv: [1.0, 0.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "px".to_owned(),
+                    dir: [1, 0, 0],
+                    corners: [
+                        CornerData {
+                            pos: [1.0, 0.5, 1.0],
+                            uv: [0.0, 0.5],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 1.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.5, 0.0],
+                            uv: [1.0, 0.5],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 0.0],
+                            uv: [1.0, 0.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "ny".to_owned(),
+                    dir: [0, -1, 0],
+                    corners: [
+                        CornerData {
+                            pos: [1.0, 0.0, 1.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 1.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 0.0],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 0.0],
+                            uv: [0.0, 1.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "py".to_owned(),
+                    dir: [0, 1, 0],
+                    corners: [
+                        CornerData {
+                            pos: [0.0, 0.5, 1.0],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.5, 1.0],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.5, 0.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.5, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "nz".to_owned(),
+                    dir: [0, 0, -1],
+                    corners: [
+                        CornerData {
+                            pos: [1.0, 0.0, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 0.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.5, 0.0],
+                            uv: [0.0, 0.5],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.5, 0.0],
+                            uv: [1.0, 0.5],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "pz".to_owned(),
+                    dir: [0, 0, 1],
+                    corners: [
+                        CornerData {
+                            pos: [0.0, 0.0, 1.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 1.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.5, 1.0],
+                            uv: [0.0, 0.5],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.5, 1.0],
+                            uv: [1.0, 0.5],
+                        },
+                    ]
+                    .to_vec(),
+                },
+            ])
+            .aabbs(&[AABB::new(0.0, 0.0, 0.0, 1.0, 0.5, 1.0)])
             .build(),
     ]);
 

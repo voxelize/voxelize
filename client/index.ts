@@ -1,5 +1,7 @@
 import { EventEmitter } from "events";
 
+import TWEEN from "@tweenjs/tween.js";
+
 import {
   Camera,
   CameraParams,
@@ -238,6 +240,8 @@ class Client extends EventEmitter {
     ) {
       return;
     }
+
+    TWEEN.update();
 
     this.camera.update();
     this.controls.update();

@@ -254,10 +254,11 @@ impl Lights {
                         red_light_level,
                         green_light_level,
                         blue_light_level,
+                        is_full_block,
                         ..
                     } = registry.get_block_by_id(id);
 
-                    if is_transparent {
+                    if is_transparent || !is_full_block {
                         space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
 
                         if mask[index] == 0 {

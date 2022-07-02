@@ -11,7 +11,7 @@ import {
 
 import { Client } from "..";
 import { TextureAtlas } from "../libs";
-import { Block, BlockFace, TextureRange } from "../types";
+import { Block, TextureRange } from "../types";
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
@@ -30,9 +30,9 @@ type TextureData = {
   name: string;
 
   /**
-   * The side that this data loads onto.
+   * The sides that this data loads onto.
    */
-  side: BlockFace;
+  sides: string[];
 
   /**
    * Either the URL to the source image, or a ThreeJS color instance.
@@ -220,13 +220,15 @@ class Registry {
    * @param texture - The data of the texture and where the texture is applying to.
    */
   applyTextureByName = (texture: TextureData) => {
-    const { name, side, data } = texture;
+    const { name, sides, data } = texture;
     // Offload texture loading to the loader for the loading screen
     if (typeof data === "string") {
       this.client.loader.addTexture(data);
     }
 
-    this.sources.set(this.makeSideName(name, side), data);
+    sides.forEach((side) => {
+      this.sources.set(this.makeSideName(name, side), data);
+    });
   };
 
   /**
@@ -255,7 +257,7 @@ class Registry {
   getBlockByTextureName = (textureName: string) => {
     for (const [name, block] of this.blocksByName) {
       for (const face of block.faces) {
-        if (textureName === this.makeSideName(name, face)) {
+        if (textureName === this.makeSideName(name, face.name)) {
           return block;
         }
       }
@@ -399,16 +401,7 @@ class Registry {
         [0, 0],
         [1, 1],
         [0, 1],
-      ].map((uv) =>
-        getUVInner(
-          textures["all"]
-            ? textures["all"]
-            : textures["bottom"]
-            ? textures["bottom"]
-            : textures["ny"],
-          uv
-        )
-      );
+      ].map((uv) => getUVInner(textures["ny"], uv));
 
       // py
       const topUVs = [
@@ -416,16 +409,7 @@ class Registry {
         [0, 1],
         [1, 0],
         [0, 0],
-      ].map((uv) =>
-        getUVInner(
-          textures["all"]
-            ? textures["all"]
-            : textures["top"]
-            ? textures["top"]
-            : textures["py"],
-          uv
-        )
-      );
+      ].map((uv) => getUVInner(textures["py"], uv));
 
       // nx
       const side1UVs = [
@@ -433,16 +417,7 @@ class Registry {
         [0, 0],
         [1, 1],
         [1, 0],
-      ].map((uv) =>
-        getUVInner(
-          textures["all"]
-            ? textures["all"]
-            : textures["side"]
-            ? textures["side"]
-            : textures["nx"],
-          uv
-        )
-      );
+      ].map((uv) => getUVInner(textures["nx"], uv));
 
       // px
       const side2UVs = [
@@ -450,16 +425,7 @@ class Registry {
         [0, 0],
         [1, 1],
         [1, 0],
-      ].map((uv) =>
-        getUVInner(
-          textures["all"]
-            ? textures["all"]
-            : textures["side"]
-            ? textures["side"]
-            : textures["px"],
-          uv
-        )
-      );
+      ].map((uv) => getUVInner(textures["px"], uv));
 
       // nz
       const side3UVs = [
@@ -467,16 +433,7 @@ class Registry {
         [1, 0],
         [0, 1],
         [1, 1],
-      ].map((uv) =>
-        getUVInner(
-          textures["all"]
-            ? textures["all"]
-            : textures["side"]
-            ? textures["side"]
-            : textures["nz"],
-          uv
-        )
-      );
+      ].map((uv) => getUVInner(textures["nz"], uv));
 
       // pz
       const side4UVs = [
@@ -484,16 +441,7 @@ class Registry {
         [1, 0],
         [0, 1],
         [1, 1],
-      ].map((uv) =>
-        getUVInner(
-          textures["all"]
-            ? textures["all"]
-            : textures["side"]
-            ? textures["side"]
-            : textures["pz"],
-          uv
-        )
-      );
+      ].map((uv) => getUVInner(textures["pz"], uv));
 
       return {
         px: [side2UVs, 1],
@@ -556,22 +504,22 @@ class Registry {
     const uvMap: { [key: string]: TextureRange } = {};
 
     block.faces.forEach((side) => {
-      const sideName = this.makeSideName(block.name, side);
+      const sideName = this.makeSideName(block.name, side.name);
       const uv = this.ranges.get(sideName);
       if (!uv)
         throw new Error(`UV range not found: ${sideName} - ${block.name}`);
-      uvMap[side] = uv;
+      uvMap[side.name] = uv;
     });
 
     return uvMap;
   };
 
-  private makeSideName = (name: string, side: BlockFace) => {
+  private makeSideName = (name: string, side: string) => {
     return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
   private recordBlock = (block: Block) => {
-    const { name, id, faces, isPlant, aabbs } = block;
+    const { name, id, faces, aabbs } = block;
 
     const lowerName = name.toLowerCase();
     block.aabbs = aabbs.map(
@@ -585,13 +533,7 @@ class Registry {
     this.typeMap.set(lowerName, id);
 
     for (const side of faces) {
-      if (side === "diagonal" && !isPlant) {
-        throw new Error(
-          "Blocks that are not plants cannot have diagnoal textures."
-        );
-      }
-
-      const sideName = this.makeSideName(name, side);
+      const sideName = this.makeSideName(name, side.name);
       this.textures.add(sideName);
     }
   };

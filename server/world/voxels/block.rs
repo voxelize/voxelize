@@ -214,26 +214,17 @@ impl BlockRotation {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "lowercase")]
-pub enum BlockFaces {
-    All,
-    Top,
-    Side,
-    Bottom,
-    Px,
-    Py,
-    Pz,
-    Nx,
-    Ny,
-    Nz,
-    Diagonal,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CornerData {
+    pub pos: [f32; 3],
+    pub uv: [f32; 2],
 }
 
-impl fmt::Display for BlockFaces {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BlockFace {
+    pub name: String,
+    pub dir: [i32; 3],
+    pub corners: Vec<CornerData>,
 }
 
 /// Serializable struct representing block data.
@@ -288,17 +279,14 @@ pub struct Block {
     /// Do faces of this transparent block need to be rendered?
     pub transparent_standalone: bool,
 
-    /// The faces of the block that has texture, divided into three four categories, sorted in
-    /// descending priority:
-    ///
-    /// Diagonal faces: `Diagonal`
-    /// Six faces: `Px`, `Py`, `Pz`, `Nx`, `Ny`, `Nz`
-    /// Three faces: `Top`, `Side`, `Bottom`
-    /// All faces: `All`
-    pub faces: Vec<BlockFaces>,
+    /// The faces that this block has to render.
+    pub faces: Vec<BlockFace>,
 
     /// Bounding boxes of this block.
     pub aabbs: Vec<AABB>,
+
+    /// Is the block a full block.
+    pub is_full_block: bool,
 }
 
 impl Block {
@@ -324,7 +312,7 @@ pub struct BlockBuilder {
     blue_light_level: u32,
     is_plantable: bool,
     transparent_standalone: bool,
-    faces: Vec<BlockFaces>,
+    faces: Vec<BlockFace>,
     aabbs: Vec<AABB>,
 }
 
@@ -348,7 +336,146 @@ impl BlockBuilder {
             blue_light_level: 0,
             is_plantable: false,
             transparent_standalone: false,
-            faces: vec![BlockFaces::All],
+            faces: vec![
+                BlockFace {
+                    name: "nx".to_owned(),
+                    dir: [-1, 0, 0],
+                    corners: [
+                        CornerData {
+                            pos: [0.0, 1.0, 0.0],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 1.0, 1.0],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 1.0],
+                            uv: [1.0, 0.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "px".to_owned(),
+                    dir: [1, 0, 0],
+                    corners: [
+                        CornerData {
+                            pos: [1.0, 1.0, 1.0],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 1.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 1.0, 0.0],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 0.0],
+                            uv: [1.0, 0.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "ny".to_owned(),
+                    dir: [0, -1, 0],
+                    corners: [
+                        CornerData {
+                            pos: [1.0, 0.0, 1.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 1.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 0.0],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 0.0],
+                            uv: [0.0, 1.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "py".to_owned(),
+                    dir: [0, 1, 0],
+                    corners: [
+                        CornerData {
+                            pos: [0.0, 1.0, 1.0],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 1.0, 1.0],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 1.0, 0.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 1.0, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "nz".to_owned(),
+                    dir: [0, 0, -1],
+                    corners: [
+                        CornerData {
+                            pos: [1.0, 0.0, 0.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 0.0, 0.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 1.0, 0.0],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 1.0, 0.0],
+                            uv: [1.0, 1.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+                BlockFace {
+                    name: "pz".to_owned(),
+                    dir: [0, 0, 1],
+                    corners: [
+                        CornerData {
+                            pos: [0.0, 0.0, 1.0],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 0.0, 1.0],
+                            uv: [1.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [0.0, 1.0, 1.0],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [1.0, 1.0, 1.0],
+                            uv: [1.0, 1.0],
+                        },
+                    ]
+                    .to_vec(),
+                },
+            ],
             aabbs: vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)],
         }
     }
@@ -438,7 +565,7 @@ impl BlockBuilder {
     }
 
     /// Configure the faces that the block has. Default is `vec![]`.
-    pub fn faces(mut self, faces: &[BlockFaces]) -> Self {
+    pub fn faces(mut self, faces: &[BlockFace]) -> Self {
         self.faces = faces.to_vec();
         self
     }
@@ -468,6 +595,14 @@ impl BlockBuilder {
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
+        let mut sum_volume = 0.0;
+
+        self.aabbs.iter().for_each(|aabb| {
+            sum_volume += aabb.width() * aabb.height() * aabb.depth();
+        });
+
+        let is_full_block = (sum_volume - 1.0).abs() < f32::EPSILON;
+
         Block {
             id: self.id,
             name: self.name,
@@ -487,6 +622,7 @@ impl BlockBuilder {
             transparent_standalone: self.transparent_standalone,
             faces: self.faces,
             aabbs: self.aabbs,
+            is_full_block,
         }
     }
 }

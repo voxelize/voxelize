@@ -126,7 +126,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 }
             }
             // Remove light if solid block is placed.
-            else if current_type.is_transparent && !updated_type.is_transparent {
+            else if (current_type.is_transparent || !current_type.is_full_block)
+                && (!updated_type.is_transparent && updated_type.is_full_block)
+            {
                 if chunks.get_sunlight(vx, vy, vz) != 0 {
                     Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, &config, &registry);
                 }
@@ -166,7 +168,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 }
             }
             // Solid block removed.
-            else if updated_type.is_transparent && !current_type.is_transparent {
+            else if (updated_type.is_transparent || !updated_type.is_full_block)
+                && !current_type.is_transparent
+            {
                 // solid block removed
                 [false, true].into_iter().for_each(|is_sunlight| {
                     let mut queue = VecDeque::<LightNode>::new();
@@ -195,13 +199,14 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             let &Block {
                                 is_light,
                                 is_transparent,
+                                is_full_block,
                                 ..
                             } = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
 
                             // need propagation after solid block removed
                             if is_sunlight {
                                 let level = chunks.get_sunlight(nvx, nvy, nvz);
-                                if level != 0 && is_transparent {
+                                if level != 0 && (is_transparent || !is_full_block) {
                                     queue.push_back(LightNode {
                                         voxel: n_voxel,
                                         level,
@@ -209,7 +214,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                 }
                             } else {
                                 let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED);
-                                if red_level != 0 && (is_transparent || is_light) {
+                                if red_level != 0 && (is_transparent || is_light || !is_full_block)
+                                {
                                     red_queue.push_back(LightNode {
                                         voxel: n_voxel,
                                         level: red_level,
@@ -217,7 +223,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                 }
 
                                 let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN);
-                                if green_level != 0 && (is_transparent || is_light) {
+                                if green_level != 0
+                                    && (is_transparent || is_light || !is_full_block)
+                                {
                                     green_queue.push_back(LightNode {
                                         voxel: n_voxel,
                                         level: green_level,
@@ -225,7 +233,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                 }
 
                                 let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE);
-                                if blue_level != 0 && (is_transparent || is_light) {
+                                if blue_level != 0 && (is_transparent || is_light || !is_full_block)
+                                {
                                     blue_queue.push_back(LightNode {
                                         voxel: n_voxel,
                                         level: blue_level,
