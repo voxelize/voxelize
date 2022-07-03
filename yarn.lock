@@ -1155,13 +1155,31 @@
     "@typescript-eslint/types" "5.21.0"
     eslint-visitor-keys "^3.0.0"
 
-"@voxelize/voxel-physics-engine@^1.1.22":
-  version "1.1.22"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.1.22.tgz#01bb87faf67109968fad5986c07c1a3943ecded5"
-  integrity sha512-GkNpizBVRPfy5ehTm6nzFgjzfxV6Q9YCuabosZnn2OtJB8lGg9Hn1fbxmuxS8OxKDx3S1MiWo9G3SY2hvv7LJg==
+"@voxelize/voxel-aabb@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@voxelize/voxel-aabb/-/voxel-aabb-1.0.0.tgz#4c30dd70d6f84c9983f24bdff6680dcae7486ec0"
+  integrity sha512-1C51JIve2wbwN7pcfOVV/7aMew+h0EmybXtdhVH2O2LH1gxggjv6rWZLRKoApcN24mThltK55t3CkQKchh4a0A==
   dependencies:
-    gl-vec3 "^1.1.3"
-    tiny-tween-js "^0.9.5"
+    tsup "^5.12.7"
+    typescript "^4.6.4"
+    vitest "^0.10.4"
+
+"@voxelize/voxel-physics-engine@^1.1.23":
+  version "1.1.23"
+  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.1.23.tgz#4376c4ef8913b116a973a30217c90f25c4080e95"
+  integrity sha512-FEoTXdjOWYBADxOnE4IvNzKuZgemSN8KEC6j2Xc7eByAryfGHt5SZFBWRgm1s6gFHYmQOpJr8VY85R2vRCjXvg==
+  dependencies:
+    "@voxelize/voxel-aabb" "^1.0.0"
+    tsup "^5.12.7"
+    typescript "^4.6.4"
+    vitest "^0.10.4"
+
+"@voxelize/voxel-raycast@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@voxelize/voxel-raycast/-/voxel-raycast-1.0.5.tgz#d0107d0370792a1671c9ea98b7427ef6da904154"
+  integrity sha512-OvTUV3IPbxyzaTdk6dcwv47jQpvT7UHw5O3Q435XxvMpLQuUS0BZBmS020u2KE60FFeeG3JHonsigJBRQFssiw==
+  dependencies:
+    "@voxelize/voxel-aabb" "^1.0.0"
     tsup "^5.12.7"
     typescript "^4.6.4"
     vitest "^0.10.4"
@@ -5342,11 +5360,6 @@ through2@^2.0.1:
   dependencies:
     readable-stream "~2.3.6"
     xtend "~4.0.1"
-
-tiny-tween-js@^0.9.5:
-  version "0.9.5"
-  resolved "https://registry.yarnpkg.com/tiny-tween-js/-/tiny-tween-js-0.9.5.tgz#1f49ca8e05a1d44248341f0a98a941f0c64f3b63"
-  integrity sha512-ImlrgUWXa9vXd2iCSZv0FGFZv2UQaRo8npTiOD7cYxZjXV8GmVntir/W1+Dgb4g6CdARInEQCshR7kMyEJizOQ==
 
 tinypool@^0.1.3:
   version "0.1.3"

@@ -1,4 +1,6 @@
-import { AABB, RigidBody } from "@voxelize/voxel-physics-engine";
+import { AABB } from "@voxelize/voxel-aabb";
+import { RigidBody } from "@voxelize/voxel-physics-engine";
+import { raycast } from "@voxelize/voxel-raycast";
 import {
   Euler,
   EventDispatcher,
@@ -12,7 +14,7 @@ import {
 } from "three";
 
 import { Client } from "..";
-import { BlockRotation, raycast } from "../libs";
+import { BlockRotation } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -908,22 +910,20 @@ class Controls extends EventDispatcher {
     camera.threeCamera.getWorldDirection(camDir);
     camDir.normalize();
 
-    const point: Coords3 = [0, 0, 0];
-    const normal: Coords3 = [0, 0, 0];
-
     const result = raycast(
       (x, y, z) => {
-        const vCoords = ChunkUtils.mapWorldPosToVoxelPos([x, y, z], dimension);
-        const type = world.getVoxelByVoxel(...vCoords);
-        const block = registry.getBlockById(type);
+        if (y >= maxHeight || y < 0) {
+          return [];
+        }
 
-        return y < maxHeight * dimension && type !== 0 && !block.isFluid;
+        const id = world.getVoxelByVoxel(x, y, z);
+        const { aabbs, isFluid } = registry.getBlockById(id);
+
+        return isFluid ? [] : aabbs;
       },
       [camPos.x, camPos.y, camPos.z],
       [camDir.x, camDir.y, camDir.z],
-      reachDistance * dimension,
-      point,
-      normal
+      reachDistance * dimension
     );
 
     // No target.
@@ -932,13 +932,11 @@ class Controls extends EventDispatcher {
       return;
     }
 
-    const flooredPoint = point.map(
-      (n, i) => Math.floor(parseFloat(n.toFixed(3))) - Number(normal[i] > 0)
-    );
+    const { voxel, normal } = result;
 
     const [nx, ny, nz] = normal;
     const newLookBlock = ChunkUtils.mapWorldPosToVoxelPos(
-      <Coords3>flooredPoint,
+      <Coords3>voxel,
       world.params.dimension
     );
 

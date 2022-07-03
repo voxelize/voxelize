@@ -1,26 +1,26 @@
 Arguments: 
-  /usr/local/bin/node /usr/share/yarn/bin/yarn.js add -D jsdoc2md
+  /usr/local/bin/node /Users/ianhuang/.yarn/bin/yarn.js add @voxelize/raycast
 
 PATH: 
-  /home/owner/.local/bin:/home/owner/anaconda3/bin:/home/owner/anaconda3/condabin:/home/owner/.cargo/bin:/home/owner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/owner/.yarn/bin:/usr/local/go/bin
+  /usr/local/opt/ncurses/bin:/Users/ianhuang/.yarn/bin:/Users/ianhuang/.config/yarn/global/node_modules/.bin:/Users/ianhuang/.pyenv/shims:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/share/dotnet:/opt/X11/bin:~/.dotnet/tools:/Library/Apple/usr/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Users/ianhuang/.cargo/bin:/Users/ianhuang/.fig/bin:/Users/ianhuang/.local/bin
 
 Yarn version: 
-  1.22.19
+  1.22.17
 
 Node version: 
-  18.2.0
+  18.3.0
 
 Platform: 
-  linux x64
+  darwin x64
 
 Trace: 
-  Error: https://registry.yarnpkg.com/jsdoc2md: Not found
-      at params.callback [as _callback] (/usr/share/yarn/lib/cli.js:66145:18)
-      at self.callback (/usr/share/yarn/lib/cli.js:140890:22)
+  Error: https://registry.yarnpkg.com/@voxelize%2fraycast: Not found
+      at params.callback [as _callback] (/Users/ianhuang/.yarn/lib/cli.js:67029:18)
+      at self.callback (/Users/ianhuang/.yarn/lib/cli.js:140883:22)
       at Request.emit (node:events:527:28)
-      at Request.<anonymous> (/usr/share/yarn/lib/cli.js:141862:10)
+      at Request.<anonymous> (/Users/ianhuang/.yarn/lib/cli.js:141855:10)
       at Request.emit (node:events:527:28)
-      at IncomingMessage.<anonymous> (/usr/share/yarn/lib/cli.js:141784:12)
+      at IncomingMessage.<anonymous> (/Users/ianhuang/.yarn/lib/cli.js:141777:12)
       at Object.onceWrapper (node:events:641:28)
       at IncomingMessage.emit (node:events:539:35)
       at endReadableNT (node:internal/streams/readable:1344:12)
@@ -29,7 +29,7 @@ Trace:
 npm manifest: 
   {
     "name": "@voxelize/client",
-    "version": "1.1.2",
+    "version": "1.1.5",
     "module": "dist/index.js",
     "types": "dist/index.d.ts",
     "umd": "dist/voxelize.min.js",
@@ -41,7 +41,7 @@ npm manifest:
       "demo:ts": "cd examples/client && yarn && yarn demo",
       "demo:rs": "cross-env RUST_BACKTRACE=full cargo watch -w examples/server -w server -x \"run --release --example demo\"",
       "build": "yarn run clean && yarn run compile && yarn run types",
-      "clean": "rimraf -rf ./dist",
+      "clean": "rimraf ./dist",
       "compile": "rollup -c rollup.config.js",
       "types": "tsc --emitDeclarationOnly --outDir ./dist -p tsconfig.build.json --declaration --allowJs",
       "prepublishOnly": "yarn run build",
@@ -50,10 +50,9 @@ npm manifest:
       "proto:js": "pbjs -t static-module -w commonjs -o client/protocol/index.js messages.proto",
       "proto": "yarn run proto:js && yarn run proto:ts",
       "docs": "yarn run docs:start",
-      "docs:start": "cd docs && yarn && yarn run start",
+      "docs:start": "cd docs && rimraf docs/docs/api && yarn && yarn run start",
       "docs:build": "cd docs && yarn && yarn run build",
-      "docs:deploy": "cd docs && yarn && yarn run deploy",
-      "docs:gen": "node ./gendocs.js"
+      "docs:deploy": "cd docs && yarn && yarn run deploy"
     },
     "peerDependencies": {
       "three": "^0.141.0"
@@ -66,18 +65,18 @@ npm manifest:
       "@swc/core": "^1.2.163",
       "@tweakpane/core": "^1.0.8",
       "@types/domurl": "^0.0.7",
-      "@types/gl-vec3": "^1.1.1",
+      "@types/events": "^3.0.0",
       "@types/jest": "^27.4.1",
       "@types/mousetrap": "^1.6.9",
       "@types/ndarray": "^1.0.11",
       "@types/pako": "^1.0.3",
       "@types/simple-peer": "^9.11.4",
       "@types/three": "^0.137.0",
-      "@types/tweezer.js": "^1.4.3",
       "@types/typedarray-pool": "^1.1.2",
       "@typescript-eslint/eslint-plugin": "^5.21.0",
       "@typescript-eslint/parser": "^5.21.0",
       "cross-env": "^7.0.3",
+      "docusaurus-plugin-typedoc": "^0.17.5",
       "eslint": "^8.8.0",
       "eslint-config-prettier": "^8.3.0",
       "eslint-plugin-import": "^2.25.4",
@@ -98,15 +97,15 @@ npm manifest:
       "rollup-plugin-typescript2": "^0.31.2",
       "rollup-plugin-web-worker-loader": "^1.6.1",
       "ts-jest": "^27.1.3",
-      "typescript": "^4.5.5"
+      "typescript": "^4.7.2"
     },
     "dependencies": {
-      "@voxelize/voxel-physics-engine": "^1.0.11",
+      "@tweenjs/tween.js": "^18.6.4",
+      "@voxelize/voxel-physics-engine": "^1.1.23",
       "deepmerge": "^4.2.2",
       "domurl": "^2.3.4",
       "events": "^3.3.0",
       "fflate": "^0.7.3",
-      "gl-vec3": "^1.1.3",
       "mousetrap": "^1.6.5",
       "ndarray": "^1.0.19",
       "pako": "^2.0.4",
@@ -115,8 +114,8 @@ npm manifest:
       "socket.io-client": "^4.4.1",
       "three-spritetext": "^1.6.5",
       "tweakpane": "^3.0.7",
-      "tweezer.js": "^1.5.0",
-      "typedarray-pool": "^1.2.0"
+      "typedarray-pool": "^1.2.0",
+      "voxel-physics-engine": "^0.12.0"
     }
   }
 
@@ -933,9 +932,14 @@ Lockfile:
       ts-type "^2.1.4"
   
   "@tweakpane/core@^1.0.8":
-    version "1.0.8"
-    resolved "https://registry.yarnpkg.com/@tweakpane/core/-/core-1.0.8.tgz#428246eae841bbf32bed2f27e54311849fdd8501"
-    integrity sha512-q7BQrqM4NYiaSoErRgRY0EBxxC8AzsZJoz52K8SNJ/IfYu9lTzfFTwW7ouYqgElSOx+3ybXBcMlkCPZdOBZg6Q==
+    version "1.1.0"
+    resolved "https://registry.yarnpkg.com/@tweakpane/core/-/core-1.1.0.tgz#a8290a7fbc1e0b63ba6ba87f53f8f21ed0401b65"
+    integrity sha512-vbbiQb+aoFI13lIbE7DJvhHZVE1YlUpGoaAamSpU6wLp2jA3VowS1wfRJBBB8IBCYm7nF6ULl7zfJKxl1XdyfA==
+  
+  "@tweenjs/tween.js@^18.6.4":
+    version "18.6.4"
+    resolved "https://registry.yarnpkg.com/@tweenjs/tween.js/-/tween.js-18.6.4.tgz#40a3d0a93647124872dec8e0fd1bd5926695b6ca"
+    integrity sha512-lB9lMjuqjtuJrx7/kOkqQBtllspPIN+96OvTCeJ2j5FEzinoAXTdAMFnDAQT1KVPRlnYfBrqxtqP66vDM40xxQ==
   
   "@types/babel__core@^7.0.0", "@types/babel__core@^7.1.14":
     version "7.1.18"
@@ -1017,6 +1021,11 @@ Lockfile:
     resolved "https://registry.yarnpkg.com/@types/estree/-/estree-0.0.39.tgz#e177e699ee1b8c22d23174caaa7422644389509f"
     integrity sha512-EYNwp3bU+98cpU4lAWYYL7Zz+2gryWH1qbdDTidVd6hkiR6weksdbMadyXKXNPEkQFhXM+hVO9ZygomHXp+AIw==
   
+  "@types/events@^3.0.0":
+    version "3.0.0"
+    resolved "https://registry.yarnpkg.com/@types/events/-/events-3.0.0.tgz#2862f3f58a9a7f7c3e78d79f130dd4d71c25c2a7"
+    integrity sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
+  
   "@types/express-serve-static-core@^4.17.18":
     version "4.17.28"
     resolved "https://registry.yarnpkg.com/@types/express-serve-static-core/-/express-serve-static-core-4.17.28.tgz#c47def9f34ec81dc6328d0b1b5303d1ec98d86b8"
@@ -1035,11 +1044,6 @@ Lockfile:
       "@types/express-serve-static-core" "^4.17.18"
       "@types/qs" "*"
       "@types/serve-static" "*"
-  
-  "@types/gl-vec3@^1.1.1":
-    version "1.1.1"
-    resolved "https://registry.yarnpkg.com/@types/gl-vec3/-/gl-vec3-1.1.1.tgz#62cc347c3a1dee3522fcfb729cf09970844d1649"
-    integrity sha512-nLGZ7SX8e1Ni7bLfDZPr+hyhnvENZWKXvyY1PdTY29bY8jBNFw8yxsONis1iT/R8nPAC/bhhGBlCCSBJNHZHqQ==
   
   "@types/graceful-fs@^4.1.2":
     version "4.1.5"
@@ -1172,11 +1176,6 @@ Lockfile:
     resolved "https://registry.yarnpkg.com/@types/three/-/three-0.137.0.tgz#6047e0658262b4de7c464a40288f9071ddd9a6d5"
     integrity sha512-Xc5EAlfYmgrCLI/VlSVqiRJAtzhWF0Rw2jSq48nqJy+Hcb5sfDOXyfZn1+RNcHyi9l8CeCAXCZygO8IyeOJVEA==
   
-  "@types/tweezer.js@^1.4.3":
-    version "1.4.3"
-    resolved "https://registry.yarnpkg.com/@types/tweezer.js/-/tweezer.js-1.4.3.tgz#629555189dc48c3f562fce7fe0b796de107d4a3f"
-    integrity sha512-sHTeSsrel+zISBDUU7spzsPC/r3btUcbOqUkEq9jQxSK617RYNAbBJXvvcB/TIWOPaFZdJKpM4RXVH/+UdcIjA==
-  
   "@types/typedarray-pool@^1.1.2":
     version "1.1.2"
     resolved "https://registry.yarnpkg.com/@types/typedarray-pool/-/typedarray-pool-1.1.2.tgz#e8ec19c0b0cd35ed4ff228076b1f4f89dd9c5764"
@@ -1281,11 +1280,21 @@ Lockfile:
       "@typescript-eslint/types" "5.21.0"
       eslint-visitor-keys "^3.0.0"
   
-  "@voxelize/voxel-physics-engine@^1.0.11":
-    version "1.0.11"
-    resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.0.11.tgz#f67b82215e58a4c5bd174fc1b3d8b0ffb4362953"
-    integrity sha512-vNjL51NiNTwJ0QdzQHW3RkLg075siCuT9sf9yLe09IoVs81GaDrLIjdn8gTTDGAi3Lh1X06O6ouqhyz0R64omg==
+  "@voxelize/voxel-aabb@^1.0.0":
+    version "1.0.0"
+    resolved "https://registry.yarnpkg.com/@voxelize/voxel-aabb/-/voxel-aabb-1.0.0.tgz#4c30dd70d6f84c9983f24bdff6680dcae7486ec0"
+    integrity sha512-1C51JIve2wbwN7pcfOVV/7aMew+h0EmybXtdhVH2O2LH1gxggjv6rWZLRKoApcN24mThltK55t3CkQKchh4a0A==
     dependencies:
+      tsup "^5.12.7"
+      typescript "^4.6.4"
+      vitest "^0.10.4"
+  
+  "@voxelize/voxel-physics-engine@^1.1.23":
+    version "1.1.23"
+    resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.1.23.tgz#4376c4ef8913b116a973a30217c90f25c4080e95"
+    integrity sha512-FEoTXdjOWYBADxOnE4IvNzKuZgemSN8KEC6j2Xc7eByAryfGHt5SZFBWRgm1s6gFHYmQOpJr8VY85R2vRCjXvg==
+    dependencies:
+      "@voxelize/voxel-aabb" "^1.0.0"
       tsup "^5.12.7"
       typescript "^4.6.4"
       vitest "^0.10.4"
@@ -1299,6 +1308,12 @@ Lockfile:
       pkg-dir "< 6 >= 5"
       tslib "^2.3.1"
       upath2 "^3.1.12"
+  
+  "aabb-3d@github:fenomas/aabb-3d":
+    version "0.2.1"
+    resolved "https://codeload.github.com/fenomas/aabb-3d/tar.gz/c5698961161884397c711e8fb533611642a8a487"
+    dependencies:
+      gl-vec3 "^1.0.3"
   
   abab@^2.0.3, abab@^2.0.5:
     version "2.0.5"
@@ -2026,6 +2041,11 @@ Lockfile:
     integrity sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==
     dependencies:
       esutils "^2.0.2"
+  
+  docusaurus-plugin-typedoc@^0.17.5:
+    version "0.17.5"
+    resolved "https://registry.yarnpkg.com/docusaurus-plugin-typedoc/-/docusaurus-plugin-typedoc-0.17.5.tgz#d326a1e3d728c75adbb59d7d376e72ddfad0b78a"
+    integrity sha512-mMTk4lRy2+wQ7fmMOv6RLfKkoGnHkBLE8qUoPfWFoqUYDDDInwVQKxz12FNnQx86eJSLgBiZmuY/zB/bYsZQlQ==
   
   domexception@^2.0.1:
     version "2.0.1"
@@ -2850,7 +2870,7 @@ Lockfile:
       call-bind "^1.0.2"
       get-intrinsic "^1.1.1"
   
-  gl-vec3@^1.1.3:
+  gl-vec3@^1.0.3, gl-vec3@^1.1.3:
     version "1.1.3"
     resolved "https://registry.yarnpkg.com/gl-vec3/-/gl-vec3-1.1.3.tgz#a47c62f918774a06cbed1b65bcd0288ecbb03826"
     integrity sha512-jduKUqT0SGH02l8Yl+mV1yVsDfYgQAJyXGxkJQGyxPLHRiW25DwVIRPt6uvhrEMHftJfqhqKthRcyZqNEl9Xdw==
@@ -5591,14 +5611,9 @@ Lockfile:
       tslib "^1.8.1"
   
   tweakpane@^3.0.7:
-    version "3.0.7"
-    resolved "https://registry.yarnpkg.com/tweakpane/-/tweakpane-3.0.7.tgz#a514a08aa4fafb542923d83e4be6915887dac7e5"
-    integrity sha512-rgxqoo6T10atYoKHVif6aYlAMIAlHJ84hi5LXqi6ZgVEPcmnzPI34C88y6HquarBY0ZKE/ZCXVaZm8NibhQRtA==
-  
-  tweezer.js@^1.5.0:
-    version "1.5.0"
-    resolved "https://registry.yarnpkg.com/tweezer.js/-/tweezer.js-1.5.0.tgz#ca50ac5215022203fd3be4d28617e8e2305f5c0c"
-    integrity sha512-aSiJz7rGWNAQq7hjMK9ZYDuEawXupcCWgl3woQQSoDP2Oh8O4srWb/uO1PzzHIsrPEOqrjJ2sUb9FERfzuBabQ==
+    version "3.1.0"
+    resolved "https://registry.yarnpkg.com/tweakpane/-/tweakpane-3.1.0.tgz#3ecaecf09c6234e27d0d8f101e16128b65fecc86"
+    integrity sha512-PGAp/LPQdHwzL7/iAW4lV1p9iPQTti7YMjMWO48CoYjvZRS59RmgQnhEGzKzqST1JnmOYmQUjTe8bdhlZRJs5A==
   
   type-check@^0.4.0, type-check@~0.4.0:
     version "0.4.0"
@@ -5662,12 +5677,7 @@ Lockfile:
     resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
     integrity sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
   
-  typescript@^4.5.5:
-    version "4.5.5"
-    resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.5.tgz#d8c953832d28924a9e3d37c73d729c846c5896f3"
-    integrity sha512-TCTIul70LyWe6IJWT8QSYeA54WQe8EjQFU4wY52Fasj5UKx88LNYKCgBEHcOMOrFF1rKGbD8v/xcNWVUq9SymA==
-  
-  typescript@^4.6.4:
+  typescript@^4.6.4, typescript@^4.7.2:
     version "4.7.2"
     resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.7.2.tgz#1f9aa2ceb9af87cca227813b4310fff0b51593c4"
     integrity sha512-Mamb1iX2FDUpcTRzltPxgWMKy3fhg0TN378ylbktPGPK/99KbDtMQ4W1hwgsbPAsG3a0xKa1vmw4VKZQbkvz5A==
@@ -5779,6 +5789,20 @@ Lockfile:
       tinypool "^0.1.3"
       tinyspy "^0.3.2"
       vite "^2.9.7"
+  
+  voxel-aabb-sweep@^0.5.0:
+    version "0.5.0"
+    resolved "https://registry.yarnpkg.com/voxel-aabb-sweep/-/voxel-aabb-sweep-0.5.0.tgz#af4246eed88f15978390832251733067667e3a8b"
+    integrity sha512-cnjWJ8Xx03fzke8AqKCqKdDk+QsvGVOp2oAT1e6hcCFyDHAyCWM4o13G9xBofzHvXYAinz2hA8JuHK/G8+QD2w==
+  
+  voxel-physics-engine@^0.12.0:
+    version "0.12.0"
+    resolved "https://registry.yarnpkg.com/voxel-physics-engine/-/voxel-physics-engine-0.12.0.tgz#fb561bab8bcc607c336faebe47b4f040b75cc27c"
+    integrity sha512-bvKrJH3LZSNAr9VXOmJn7xMIlFJQKHR2Hp/jdoJFR3pyVSaFieGFrBC3mHblOyu/jwZ2qHb8vSvIbWI130p3/w==
+    dependencies:
+      aabb-3d "github:fenomas/aabb-3d"
+      gl-vec3 "^1.1.3"
+      voxel-aabb-sweep "^0.5.0"
   
   w3c-hr-time@^1.0.2:
     version "1.0.2"

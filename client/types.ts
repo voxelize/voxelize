@@ -1,4 +1,4 @@
-import { AABB } from "@voxelize/voxel-physics-engine";
+import { AABB } from "@voxelize/voxel-aabb";
 
 import { BlockRotation } from "./libs";
 
