@@ -128,7 +128,7 @@ class Peers extends Map<string, Peer> {
 
       const { bodyHeight, eyeHeight } = this.client.controls.params;
 
-      const position = new Vector3(px, py - bodyHeight / 2 + eyeHeight, pz);
+      const position = new Vector3(px, py + bodyHeight * (eyeHeight - 0.5), pz);
 
       // using closure to reuse objects
       // reference: https://stackoverflow.com/questions/32849600/direction-vector-to-a-rotation-three-js

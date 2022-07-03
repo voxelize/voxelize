@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -20,7 +21,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, mut pipeline, mut chunks, mut queue, ids, curr_chunks, mut requests) = data;
+        let (config, mut pipeline, chunks, mut queue, ids, curr_chunks, mut requests) = data;
 
         let mut to_send: HashMap<String, Vec<Vec2<i32>>> = HashMap::new();
 
@@ -32,7 +33,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
 
             while !request.pending.is_empty()
-                && count < config.max_chunk_per_tick
+                && count < config.max_chunks_per_tick
                 && to_send.len() < config.max_response_per_tick
             {
                 count += 1;

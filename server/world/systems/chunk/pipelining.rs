@@ -23,7 +23,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (registry, config, noise, terrain, mut pipeline, mut chunks) = data;
 
-        let max_per_tick = config.max_chunk_per_tick;
+        let max_per_tick = config.max_chunks_per_tick;
         let chunk_size = config.chunk_size;
 
         if let Ok((list, new_changes)) = pipeline.results() {

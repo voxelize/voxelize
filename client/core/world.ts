@@ -561,6 +561,8 @@ class World {
     const { maxRequestsPerTick } = this.params;
     const toRequest = this.chunks.toRequest.splice(0, maxRequestsPerTick);
 
+    if (toRequest.length === 0) return;
+
     toRequest.forEach((name) => this.chunks.requested.add(name));
 
     this.client.network.send({

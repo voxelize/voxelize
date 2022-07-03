@@ -461,6 +461,16 @@ impl World {
         let mut dispatcher = builder.build();
         dispatcher.dispatch(&self.ecs);
 
+        // {
+        //     let chunks = self.chunks();
+        //     info!(
+        //         "to_remesh: {:?}, to_send: {:?}, to_update: {:?}",
+        //         chunks.to_remesh.len(),
+        //         chunks.to_send.len(),
+        //         chunks.to_update.len()
+        //     )
+        // }
+
         self.ecs.maintain();
     }
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
@@ -194,8 +194,8 @@ impl Mesher {
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
                         if is_void
-                            || !is_full_block
-                            || !n_block_type.is_full_block && !is_fluid
+                            || (!is_full_block && !is_transparent)
+                            || (!n_block_type.is_full_block && !n_block_type.is_transparent)
                             || ((n_block_type.is_transparent && !n_block_type.is_fluid)
                                 || (n_block_type.is_fluid && !is_fluid))
                                 && (!transparent

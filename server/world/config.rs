@@ -65,7 +65,7 @@ pub struct WorldConfig {
     pub max_light_level: u32,
 
     /// Maximum chunks to be processed per tick. Default is 24 chunks.
-    pub max_chunk_per_tick: usize,
+    pub max_chunks_per_tick: usize,
 
     /// Maximum voxel updates to be processed per tick. Default is 500 voxels.
     pub max_updates_per_tick: usize,
@@ -177,7 +177,7 @@ pub struct WorldConfigBuilder {
     max_chunk: [i32; 2],
     max_height: usize,
     max_light_level: u32,
-    max_chunk_per_tick: usize,
+    max_chunks_per_tick: usize,
     max_updates_per_tick: usize,
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
@@ -206,7 +206,7 @@ impl WorldConfigBuilder {
             max_chunk: DEFAULT_MAX_CHUNK,
             max_height: DEFAULT_MAX_HEIGHT,
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
-            max_chunk_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
+            max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
@@ -269,8 +269,8 @@ impl WorldConfigBuilder {
     }
 
     /// Configure the maximum amount of chunks to be processed per tick. Default is 24 chunks.
-    pub fn max_chunk_per_tick(mut self, max_chunk_per_tick: usize) -> Self {
-        self.max_chunk_per_tick = max_chunk_per_tick;
+    pub fn max_chunks_per_tick(mut self, max_chunks_per_tick: usize) -> Self {
+        self.max_chunks_per_tick = max_chunks_per_tick;
         self
     }
 
@@ -355,7 +355,7 @@ impl WorldConfigBuilder {
             sub_chunks: self.sub_chunks,
             max_height: self.max_height,
             max_light_level: self.max_light_level,
-            max_chunk_per_tick: self.max_chunk_per_tick,
+            max_chunks_per_tick: self.max_chunks_per_tick,
             max_updates_per_tick: self.max_updates_per_tick,
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,

@@ -35,7 +35,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
         let mut processes = vec![];
         let mut count = 0;
 
-        while count < config.max_chunk_per_tick {
+        while count < config.max_chunks_per_tick {
             count += 1;
 
             if let Some(coords) = chunks.to_remesh.pop_front() {
