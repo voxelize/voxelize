@@ -404,9 +404,8 @@ class Debug {
     );
     this.registerDisplay("Worker count", WorkerPool, "WORKING_COUNT");
     this.displayNewline();
-    this.registerDisplay("Looking at", controls, "lookBlock", (voxel) => {
-      if (voxel) {
-        const block = world.getBlockByVoxel(voxel[0], voxel[1], voxel[2]);
+    this.registerDisplay("Looking at", controls, "lookingAt", (block) => {
+      if (block) {
         return `${block.name} (${block.id})`;
       }
 

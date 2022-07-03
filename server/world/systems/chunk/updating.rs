@@ -1,6 +1,7 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Instant};
 
 use hashbrown::HashMap;
+use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
@@ -344,7 +345,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                 let chunk = chunks.raw_mut(&coords).unwrap();
 
-                let Vec3(min_x, min_y, min_z) = chunk.min;
+                let Vec3(min_x, _, min_z) = chunk.min;
                 let Vec3(max_x, _, max_z) = chunk.max;
 
                 let blocks_per_sub_chunk =
@@ -353,8 +354,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 chunk.updated_levels.iter().for_each(|&level| {
                     let level = level as i32;
 
-                    let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                    let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                    let min = Vec3(min_x, level * blocks_per_sub_chunk, min_z);
+                    let max = Vec3(max_x, (level + 1) * blocks_per_sub_chunk, max_z);
 
                     let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
                     let transparent = Mesher::mesh_space(&min, &max, &space, &registry, true);

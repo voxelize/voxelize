@@ -741,9 +741,49 @@ class Controls extends EventDispatcher {
     );
   }
 
+  /**
+   * The block type that the client is looking at.
+   */
+  get lookingAt() {
+    if (this.lookBlock) {
+      return this.client.world.getBlockByVoxel(
+        this.lookBlock[0],
+        this.lookBlock[1],
+        this.lookBlock[2]
+      );
+    }
+
+    return null;
+  }
+
   private setupLookBlock = () => {
     const { lookBlockScale, lookBlockColor } = this.params;
-    const { rendering } = this.client;
+    const { rendering, world } = this.client;
+
+    if (this.lookBlockMesh) {
+      const { lookingAt } = this;
+
+      if (lookingAt) {
+        const { aabbs } = lookingAt;
+        if (!aabbs.length) return;
+
+        let union: AABB = aabbs[0];
+
+        for (let i = 1; i < aabbs.length; i++) {
+          union = union.union(aabbs[i]);
+        }
+
+        let { width, height, depth } = union;
+
+        width *= lookBlockScale;
+        height *= lookBlockScale;
+        depth *= lookBlockScale;
+
+        this.lookBlockMesh.scale.set(width, height, depth);
+      }
+
+      return;
+    }
 
     this.lookBlockMesh = new Group();
 
@@ -772,9 +812,9 @@ class Controls extends EventDispatcher {
       for (let j = -1; j <= 1; j += 2) {
         const temp = side.clone();
 
-        temp.position.x = ((dim - w) / 2) * i;
-        temp.position.y = ((dim - w) / 2) * j;
-        temp.rotation.y = Math.PI / 2;
+        temp.position.z = ((dim - w) / 2) * i;
+        temp.position.x = ((dim - w) / 2) * j;
+        temp.rotation.z = Math.PI / 2;
 
         this.lookBlockMesh.add(temp);
       }
@@ -784,13 +824,23 @@ class Controls extends EventDispatcher {
       for (let j = -1; j <= 1; j += 2) {
         const temp = side.clone();
 
-        temp.position.z = ((dim - w) / 2) * i;
-        temp.position.x = ((dim - w) / 2) * j;
-        temp.rotation.z = Math.PI / 2;
+        temp.position.x = ((dim - w) / 2) * i;
+        temp.position.y = ((dim - w) / 2) * j;
+        temp.rotation.y = Math.PI / 2;
 
         this.lookBlockMesh.add(temp);
       }
     }
+
+    const offset = new Vector3(
+      0.5 * world.params.dimension,
+      0.5 * world.params.dimension,
+      0.5 * world.params.dimension
+    );
+
+    this.lookBlockMesh.children.forEach((child) => {
+      child.position.add(offset);
+    });
 
     this.lookBlockMesh.frustumCulled = false;
     this.lookBlockMesh.renderOrder = 1000000;
@@ -834,6 +884,11 @@ class Controls extends EventDispatcher {
           yRotation,
         } = this.targetBlock;
         const { dimension } = this.client.world.params;
+
+        if (this.client.world.getVoxelByVoxel(vx, vy, vz) !== 0) {
+          return;
+        }
+
         const blockAABB = new AABB(
           vx,
           vy,
@@ -941,7 +996,8 @@ class Controls extends EventDispatcher {
     );
 
     // Pointing at air.
-    if (this.client.world.getVoxelByVoxel(...newLookBlock) === 0) {
+    const newLookingID = this.client.world.getVoxelByVoxel(...newLookBlock);
+    if (newLookingID === 0) {
       disableLookBlock();
       return;
     }
@@ -949,16 +1005,21 @@ class Controls extends EventDispatcher {
     this.lookBlockMesh.visible = true;
 
     const [lbx, lby, lbz] = newLookBlock;
+
     this.lookBlockMesh.position.lerp(
-      new Vector3(
-        lbx * dimension + 0.5 * dimension,
-        lby * dimension + 0.5 * dimension,
-        lbz * dimension + 0.5 * dimension
-      ),
+      new Vector3(lbx * dimension, lby * dimension, lbz * dimension),
       lookBlockLerp
     );
 
+    const oldLookingID = this.lookBlock
+      ? world.getVoxelByVoxel(...this.lookBlock)
+      : false;
+
     this.lookBlock = newLookBlock;
+
+    if (this.lookBlock && oldLookingID !== newLookingID) {
+      this.setupLookBlock();
+    }
 
     // target block is look block summed with the normal
     const rotation =

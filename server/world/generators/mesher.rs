@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use itertools::izip;
+use log::info;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{

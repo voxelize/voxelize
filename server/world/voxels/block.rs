@@ -1,5 +1,6 @@
 use std::{f32, fmt};
 
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::AABB;
@@ -596,12 +597,16 @@ impl BlockBuilder {
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         let mut sum_volume = 0.0;
+        let mut area = 0.0;
 
         self.aabbs.iter().for_each(|aabb| {
+            let aabb_area = aabb.width() * aabb.depth();
+            area = if area > aabb_area { area } else { aabb_area };
             sum_volume += aabb.width() * aabb.height() * aabb.depth();
         });
 
         let is_full_block = (sum_volume - 1.0).abs() < f32::EPSILON;
+        let is_sun_blocking = area >= 1.0;
 
         Block {
             id: self.id,
