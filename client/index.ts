@@ -46,7 +46,7 @@ type ClientParams = {
 
 class Client extends EventEmitter {
   public id = "";
-  public name = "test";
+  public username = "test";
 
   public network: Network | undefined;
 
@@ -179,7 +179,10 @@ class Client extends EventEmitter {
 
     this.network.send({
       type: "JOIN",
-      text: world,
+      json: {
+        world,
+        username: this.username,
+      },
     });
 
     this.reset();
@@ -207,8 +210,8 @@ class Client extends EventEmitter {
     this.emit("leave");
   };
 
-  setName = (name: string) => {
-    this.name = name || " ";
+  setUsername = (username: string) => {
+    this.username = username || " ";
   };
 
   reset = () => {

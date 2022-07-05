@@ -16,10 +16,10 @@ class Peer {
 
   public connected = false;
 
-  public name = "testtesttest";
+  public username = "testtesttest";
   public newPosition: Vector3;
   public newQuaternion: Quaternion;
-  public nameMesh: NameTag;
+  public usernameMesh: NameTag;
 
   constructor(public id: string, public params: PeerParams) {
     const { fontFace, headDimension, headColor } = params;
@@ -29,19 +29,19 @@ class Peer {
     this.newPosition = this.head.mesh.position;
     this.newQuaternion = this.head.mesh.quaternion;
 
-    this.nameMesh = new NameTag(this.name, {
+    this.usernameMesh = new NameTag(this.username, {
       fontFace,
       fontSize: headDimension / 3,
       backgroundColor: "#00000077",
       yOffset: headDimension,
     });
 
-    this.head.mesh.add(this.nameMesh);
+    this.head.mesh.add(this.usernameMesh);
   }
 
-  set = (name: string, position: Vector3, quaternion: Quaternion) => {
-    this.name = name;
-    this.nameMesh.text = name;
+  set = (username: string, position: Vector3, quaternion: Quaternion) => {
+    this.username = username;
+    this.usernameMesh.text = username;
     this.newPosition = position;
     this.newQuaternion = quaternion;
   };
@@ -53,7 +53,7 @@ class Peer {
     this.head.mesh.quaternion.slerp(this.newQuaternion, lerpFactor);
 
     if (camPos) {
-      this.nameMesh.visible =
+      this.usernameMesh.visible =
         this.head.mesh.position.distanceTo(camPos) < maxNameDistance;
     }
   };

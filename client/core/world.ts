@@ -111,7 +111,7 @@ class World {
         count: 16,
         scale: 0.08,
         width: 8,
-        height: 1,
+        height: 3,
         dimensions: [20, 20, 20],
         speedFactor: 8,
         lerpFactor: 0.3,

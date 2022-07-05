@@ -34,7 +34,7 @@ impl<'a> System<'a> for BroadcastPeersSystem {
         {
             peers.push(PeerProtocol {
                 id: id.0.to_owned(),
-                name: name.0.to_owned(),
+                username: name.0.to_owned(),
                 position: Some(position.0.to_owned()),
                 direction: Some(direction.0.to_owned()),
             });

@@ -528,7 +528,7 @@ class Chat {
       type: "CHAT",
       chat: {
         type: "PLAYER",
-        sender: this.client.name,
+        sender: this.client.username,
         body: value.startsWith(commandSymbol)
           ? `COMMAND: ${value.substring(1)}`
           : value,

@@ -31,7 +31,7 @@ message Vector3 {
 
 message Peer {
   string id = 1;
-  string name = 2;
+  string username = 2;
   Vector3 position = 3;
   Vector3 direction = 4;
 }

@@ -11,6 +11,9 @@ pub struct Client {
     /// The client's ID on the voxelize server.
     pub id: String,
 
+    /// The username of the client.
+    pub username: String,
+
     /// The entity that represents this client in the ECS world.
     pub entity: Entity,
 

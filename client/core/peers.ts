@@ -167,7 +167,7 @@ class Peers extends Map<string, Peer> {
   };
 
   update = () => {
-    const { name, controls, network, id } = this.client;
+    const { username, controls, network, id } = this.client;
 
     const { body } = controls;
     const [px, py, pz] = body.getPosition();
@@ -178,7 +178,7 @@ class Peers extends Map<string, Peer> {
       peers: [
         {
           id,
-          name,
+          username,
           position: {
             x: px,
             y: py,

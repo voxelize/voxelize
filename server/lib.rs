@@ -8,11 +8,14 @@ mod world;
 use actix::{Actor, Addr};
 use actix_cors::Cors;
 use actix_files::{Files, NamedFile};
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Result};
+use actix_web::{
+    web::{self, Query},
+    App, Error, HttpRequest, HttpResponse, HttpServer, Result,
+};
 use actix_web_actors::ws;
 use log::info;
 
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 pub use common::*;
 pub use libs::*;

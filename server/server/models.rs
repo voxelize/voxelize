@@ -83,7 +83,7 @@ pub struct ChunkProtocol {
 #[derive(Debug, Clone, Default)]
 pub struct PeerProtocol {
     pub id: String,
-    pub name: String,
+    pub username: String,
     pub position: Option<Vec3<f32>>,
     pub direction: Option<Vec3<f32>>,
 }
@@ -196,7 +196,7 @@ impl MessageBuilder {
                 .into_iter()
                 .map(|peer| protocols::Peer {
                     id: peer.id,
-                    name: peer.name,
+                    username: peer.username,
                     position: vec3_to_vector3(&peer.position),
                     direction: vec3_to_vector3(&peer.direction),
                 })

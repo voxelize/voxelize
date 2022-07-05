@@ -10,7 +10,7 @@ pub struct AddrComp(pub Recipient<EncodedMessage>);
 
 impl AddrComp {
     /// Create a component of an endpoint to a client's connection.
-    pub fn new(endpoint: &Recipient<EncodedMessage>) -> Self {
-        Self(endpoint.to_owned())
+    pub fn new(addr: &Recipient<EncodedMessage>) -> Self {
+        Self(addr.to_owned())
     }
 }

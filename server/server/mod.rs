@@ -10,6 +10,7 @@ use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::HashMap;
 use log::{info, warn};
 use nanoid::nanoid;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::AddWorldError,
@@ -18,6 +19,12 @@ use crate::{
 
 pub use models::*;
 pub use session::*;
+
+#[derive(Serialize, Deserialize)]
+struct OnJoinRequest {
+    world: String,
+    username: String,
+}
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.
@@ -109,19 +116,24 @@ impl Server {
     /// Handler for client's message.
     pub fn on_request(&mut self, id: &str, data: Message) {
         if data.r#type == MessageType::Join as i32 {
+            let json: OnJoinRequest = serde_json::from_str(&data.json)
+                .expect("`on_join` error. Could not read JSON string.");
+
             if !self.lost_sessions.contains_key(id) {
-                warn!("Client at {} is already in world: {}", id, data.text);
+                warn!("Client at {} is already in world: {}", id, json.world);
                 return;
             }
 
-            if let Some(world) = self.worlds.get_mut(&data.text) {
+            if let Some(world) = self.worlds.get_mut(&json.world) {
                 let addr = self.lost_sessions.remove(id).unwrap();
 
-                world.add_client(id, &addr);
-                self.connections
-                    .insert(id.to_owned(), (addr, data.text.to_owned()));
+                info!(
+                    "Client at {} joined the server to world: {}",
+                    id, json.world
+                );
 
-                info!("Client at {} joined the server to world: {}", id, data.text);
+                world.add_client(id, &json.username, &addr);
+                self.connections.insert(id.to_owned(), (addr, json.world));
 
                 return;
             }

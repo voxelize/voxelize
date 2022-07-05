@@ -343,7 +343,7 @@ export const App = () => {
           setJoined(false);
         });
 
-        setName(client.current.name);
+        setName(client.current.username);
       }
 
       joinOrResume(false);
@@ -352,7 +352,7 @@ export const App = () => {
 
   useEffect(() => {
     if (client.current) {
-      client.current.setName(name);
+      client.current.setUsername(name);
     }
   }, [name]);
 

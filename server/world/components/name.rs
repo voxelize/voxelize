@@ -5,7 +5,7 @@ use specs::{Component, VecStorage};
 pub struct NameComp(pub String);
 
 impl NameComp {
-    pub fn new(id: &str) -> Self {
-        Self(id.to_owned())
+    pub fn new(name: &str) -> Self {
+        Self(name.to_owned())
     }
 }

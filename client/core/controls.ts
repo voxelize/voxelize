@@ -268,7 +268,7 @@ const defaultParams: ControlsParams = {
   reachDistance: 32,
   initialPosition: [0, 80, 10],
   rotationLerp: 0.9,
-  positionLerp: 0.9,
+  positionLerp: 1.0,
 
   bodyWidth: 0.8,
   bodyHeight: 1.8,

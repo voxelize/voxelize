@@ -210,7 +210,7 @@ impl World {
     }
 
     /// Add a client to the world by an ID and an Actix actor address.
-    pub fn add_client(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
+    pub fn add_client(&mut self, id: &str, username: &str, addr: &Recipient<EncodedMessage>) {
         let config = self.config().get_init_config();
         let mut json = HashMap::new();
 
@@ -237,7 +237,7 @@ impl World {
             .create_entity()
             .with(ClientFlag::default())
             .with(IDComp::new(id))
-            .with(NameComp::new("testtesttest"))
+            .with(NameComp::new(username))
             .with(AddrComp::new(addr))
             .with(ChunkRequestsComp::default())
             .with(CurrentChunkComp::default())
@@ -252,6 +252,7 @@ impl World {
             Client {
                 id: id.to_owned(),
                 entity: ent,
+                username: username.to_owned(),
                 addr: addr.to_owned(),
             },
         );
@@ -486,14 +487,14 @@ impl World {
             let Peer {
                 direction,
                 position,
-                name,
+                username,
                 ..
             } = peer;
 
             {
                 let mut names = self.write_component::<NameComp>();
                 if let Some(n) = names.get_mut(client_ent) {
-                    n.0 = name;
+                    n.0 = username.to_owned();
                 }
             }
 
@@ -535,6 +536,10 @@ impl World {
                 if let Some(d) = directions.get_mut(client_ent) {
                     d.0.set(direction.x, direction.y, direction.z);
                 }
+            }
+
+            if let Some(client) = self.clients_mut().get_mut(client_id) {
+                client.username = username;
             }
         })
     }
