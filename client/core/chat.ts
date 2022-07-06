@@ -58,6 +58,11 @@ type ChatParams = {
   helpText: string;
 
   /**
+   * A text message that is sent to the client frontend-only when a command they're trying is not within their permission.
+   */
+  permissionText: string;
+
+  /**
    * Height of the chat input. Defaults to `29px`.
    */
   inputHeight: CSSMeasurement;
@@ -95,6 +100,7 @@ const defaultParams: ChatParams = {
   connectionMessage: "Connected to world! Try /help",
   disconnectionMessage: "World disconnected. Reconnecting...",
   helpText: HELP_TEXT,
+  permissionText: "Sorry, but you do not have permissions to this command!",
   commandSymbol: "/",
 };
 
@@ -497,7 +503,7 @@ class Chat {
 
   private handleEnter = () => {
     const value = this.inputValue;
-    const { commandSymbol, helpText } = this.params;
+    const { commandSymbol, helpText, permissionText } = this.params;
 
     if (value.split(" ").filter((ele) => ele).length === 0) return;
 
@@ -515,6 +521,14 @@ class Chat {
         .filter(Boolean);
       const trigger = words.shift();
       const rest = words.join(" ");
+
+      const allowedCommands = this.client.permission.commands;
+      if (allowedCommands !== "*" && !allowedCommands.includes(trigger)) {
+        this.add({
+          type: "ERROR",
+          body: permissionText,
+        });
+      }
 
       const process = this.commands.get(trigger);
 

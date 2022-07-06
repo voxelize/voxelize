@@ -849,7 +849,7 @@ class Controls extends EventDispatcher {
   };
 
   private setupListeners = () => {
-    const { inputs, world } = this.client;
+    const { inputs, world, permission } = this.client;
 
     this.connect();
 
@@ -911,37 +911,41 @@ class Controls extends EventDispatcher {
       "in-game"
     );
 
-    const toggleFly = () => {
-      if (!this.ghostMode) {
-        const isFlying = this.body.gravityMultiplier === 0;
+    if (permission.canFly) {
+      const toggleFly = () => {
+        if (!this.ghostMode) {
+          const isFlying = this.body.gravityMultiplier === 0;
 
-        if (!isFlying) {
-          this.body.applyImpulse([0, 8, 0]);
+          if (!isFlying) {
+            this.body.applyImpulse([0, 8, 0]);
+          }
+
+          setTimeout(() => {
+            this.body.gravityMultiplier = isFlying ? 1 : 0;
+          }, 100);
         }
+      };
+      inputs.bind("f", toggleFly, "in-game");
 
-        setTimeout(() => {
-          this.body.gravityMultiplier = isFlying ? 1 : 0;
-        }, 100);
-      }
-    };
-    inputs.bind("f", toggleFly, "in-game");
+      let lastSpace = -1;
+      inputs.bind(
+        "space",
+        () => {
+          let now = performance.now();
+          if (now - lastSpace < 250) {
+            toggleFly();
+            now = 0;
+          }
+          lastSpace = now;
+        },
+        "in-game",
+        { occasion: "keyup" }
+      );
+    }
 
-    let lastSpace = -1;
-    inputs.bind(
-      "space",
-      () => {
-        let now = performance.now();
-        if (now - lastSpace < 250) {
-          toggleFly();
-          now = 0;
-        }
-        lastSpace = now;
-      },
-      "in-game",
-      { occasion: "keyup" }
-    );
-
-    inputs.bind("g", this.toggleGhostMode, "in-game");
+    if (permission.canGhost) {
+      inputs.bind("g", this.toggleGhostMode, "in-game");
+    }
   };
 
   private updateLookBlock = () => {

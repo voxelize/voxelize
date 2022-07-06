@@ -120,6 +120,30 @@ class Camera {
       this.threeCamera.aspect = client.rendering.aspectRatio;
       this.threeCamera.updateProjectionMatrix();
     });
+
+    client.on("ready", () => {
+      client.inputs.bind(
+        "v",
+        () => {
+          this.setZoom(3);
+        },
+        "in-game",
+        {
+          occasion: "keydown",
+        }
+      );
+
+      client.inputs.bind(
+        "v",
+        () => {
+          this.setZoom(1);
+        },
+        "in-game",
+        {
+          occasion: "keyup",
+        }
+      );
+    });
   }
 
   /**

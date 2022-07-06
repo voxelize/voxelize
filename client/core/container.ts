@@ -130,6 +130,10 @@ class Container {
       position: "relative",
       fontFamily: `"Fira Mono", monospace`,
     });
+
+    client.on("ready", () => {
+      client.inputs.bind("k", client.container.toggleFullScreen, "*");
+    });
   }
 
   /**

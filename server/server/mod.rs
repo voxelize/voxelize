@@ -281,6 +281,10 @@ impl Handler<Connect> for Server {
             msg.id.unwrap()
         };
 
+        if self.lost_sessions.contains_key(&id) {
+            return MessageResult(nanoid!());
+        }
+
         self.lost_sessions.insert(id.to_owned(), msg.addr);
 
         // send id back

@@ -228,6 +228,12 @@ class Network {
         } = event;
 
         if (id) {
+          if (this.client.id && this.client.id !== id) {
+            throw new Error(
+              "Something went wrong with IDs! Better check if you're passing two same ID's to the same Voxelize server."
+            );
+          }
+
           this.client.id = id;
         }
 

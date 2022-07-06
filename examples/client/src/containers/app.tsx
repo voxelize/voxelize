@@ -189,11 +189,21 @@ export const App = () => {
   useEffect(() => {
     if (container.current) {
       if (!client.current) {
-        client.current = new Client({
-          container: {
-            domElement: container.current,
+        client.current = new Client(
+          {
+            container: {
+              domElement: container.current,
+            },
           },
-        });
+          {
+            canChat: true,
+            canDebug: true,
+            canFly: true,
+            canGhost: true,
+            canUpdate: true,
+            commands: "*",
+          }
+        );
 
         client.current.entities.registerEntity("Box", Box);
 

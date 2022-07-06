@@ -121,7 +121,7 @@ class Peers extends Map<string, Peer> {
 
     if (instance) {
       const {
-        name,
+        username,
         position: { x: px, y: py, z: pz },
         direction: { x: dx, y: dy, z: dz },
       } = peer;
@@ -147,7 +147,7 @@ class Peers extends Map<string, Peer> {
 
       const quaternion = updateQuaternion()();
 
-      instance.set(name, position, quaternion);
+      instance.set(username, position, quaternion);
     }
   };
 

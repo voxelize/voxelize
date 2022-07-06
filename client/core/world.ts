@@ -217,6 +217,8 @@ class World {
   };
 
   setServerVoxels = (updates: BlockUpdate[]) => {
+    if (!this.client.permission.canUpdate) return;
+
     this.chunks.toUpdate.push(
       ...updates.filter(
         (update) => update.vy >= 0 && update.vy < this.params.maxHeight

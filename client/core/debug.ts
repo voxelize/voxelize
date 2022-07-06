@@ -23,7 +23,7 @@ type DebugParams = {
 };
 
 const defaultParams: DebugParams = {
-  onByDefault: true,
+  onByDefault: false,
 };
 
 /**
@@ -77,7 +77,6 @@ class Debug {
     params: Partial<DebugParams> = { ...defaultParams }
   ) {
     this.client = client;
-    this.gui = new Pane({ title: "Voxelize Debug Panel" });
 
     let setup = false;
 
@@ -87,12 +86,6 @@ class Debug {
       setup = true;
 
       client.inputs.bind("j", this.toggle, "*");
-
-      // detach tweakpane from it's default parent
-      const parentElement = this.gui.element;
-      if (parentElement) {
-        parentElement.parentNode?.removeChild(parentElement);
-      }
 
       this.makeDOM();
       this.setupAll();
@@ -107,11 +100,9 @@ class Debug {
 
     // wait till texture to be loaded
     client.on("registry-loaded", () => {
-      this.makeAtlasTest();
-    });
-
-    client.on("initialized", () => {
-      this.setupInputs();
+      if (client.permission.canDebug) {
+        this.makeAtlasTest();
+      }
     });
   }
 
@@ -139,8 +130,11 @@ class Debug {
     const newDisplay = display === "none" ? "inline" : "none";
 
     this.dataWrapper.style.display = newDisplay;
-    this.gui.element.style.display = newDisplay;
     this.stats.dom.style.display = newDisplay;
+
+    if (this.gui?.element) {
+      this.gui.element.style.display = newDisplay;
+    }
 
     this.group.visible = !this.group.visible;
   };
@@ -255,13 +249,6 @@ class Debug {
       zIndex: "1000000000000",
     });
 
-    DOMUtils.applyStyles(this.gui.element, {
-      position: "fixed",
-      top: "10px",
-      right: "10px",
-      zIndex: "1000000000000",
-    });
-
     this.stats = Stats();
     this.stats.dom.parentNode?.removeChild(this.stats.dom);
 
@@ -277,7 +264,10 @@ class Debug {
   private mount = () => {
     const { domElement } = this.client.container;
     domElement.appendChild(this.dataWrapper);
-    domElement.appendChild(this.gui.element);
+
+    if (this.gui?.element) {
+      domElement.appendChild(this.gui.element);
+    }
   };
 
   private makeAtlasTest = () => {
@@ -317,63 +307,90 @@ class Debug {
   };
 
   private setupAll = () => {
-    const { network, controls, world, rendering, physics, settings } =
-      this.client;
+    const {
+      network,
+      controls,
+      world,
+      rendering,
+      physics,
+      settings,
+      permission,
+    } = this.client;
 
-    const registryFolder = this.gui.addFolder({ title: "Registry" });
-    registryFolder.addButton({ title: "atlas test" }).on("click", () => {
-      if (!this.atlasTest) return;
-      this.atlasTest.visible = !this.atlasTest.visible;
-    });
+    if (permission.canDebug) {
+      this.gui = new Pane({ title: "Voxelize Debug Panel" });
 
-    const worldFolder = this.gui.addFolder({ title: "World", expanded: false });
-    worldFolder.addButton({ title: "remesh chunk" }).on("click", () => {
-      const currChunk = ChunkUtils.mapVoxelPosToChunkPos(
-        controls.voxel,
-        world.params.chunkSize
-      );
-      network.send({
-        type: "DEBUG",
-        json: {
-          method: "remesh",
-          data: {
-            cx: currChunk[0],
-            cz: currChunk[1],
+      DOMUtils.applyStyles(this.gui.element, {
+        position: "fixed",
+        top: "10px",
+        right: "10px",
+        zIndex: "1000000000000",
+      });
+
+      // detach tweakpane from it's default parent
+      const parentElement = this.gui.element;
+      if (parentElement) {
+        parentElement.parentNode?.removeChild(parentElement);
+      }
+
+      const registryFolder = this.gui.addFolder({ title: "Registry" });
+      registryFolder.addButton({ title: "atlas test" }).on("click", () => {
+        if (!this.atlasTest) return;
+        this.atlasTest.visible = !this.atlasTest.visible;
+      });
+
+      const worldFolder = this.gui.addFolder({
+        title: "World",
+        expanded: false,
+      });
+      worldFolder.addButton({ title: "remesh chunk" }).on("click", () => {
+        const currChunk = ChunkUtils.mapVoxelPosToChunkPos(
+          controls.voxel,
+          world.params.chunkSize
+        );
+        network.send({
+          type: "DEBUG",
+          json: {
+            method: "remesh",
+            data: {
+              cx: currChunk[0],
+              cz: currChunk[1],
+            },
           },
-        },
+        });
       });
-    });
-    worldFolder.addInput(world.sky.uMiddleColor, "value", {
-      color: { type: "float" },
-    });
-
-    const controlsFolder = this.gui.addFolder({
-      title: "Controls",
-      expanded: false,
-    });
-    controlsFolder.addInput(controls.params, "flyForce", {
-      min: 10,
-      max: 200,
-      step: 10,
-    });
-
-    const settingsObj = {
-      renderRadius: settings.getRenderRadius(),
-    };
-
-    const settingsFolder = this.gui.addFolder({
-      title: "Settings",
-      expanded: true,
-    });
-    settingsFolder
-      .addInput(settingsObj, "renderRadius", {
-        min: 2,
-        max: 20,
-        step: 1.0,
-      })
-      .on("change", ({ value }) => {
-        settings.setRenderRadius(value);
+      worldFolder.addInput(world.sky.uMiddleColor, "value", {
+        color: { type: "float" },
       });
+
+      const controlsFolder = this.gui.addFolder({
+        title: "Controls",
+        expanded: false,
+      });
+      controlsFolder.addInput(controls.params, "flyForce", {
+        min: 10,
+        max: 200,
+        step: 10,
+      });
+
+      const settingsObj = {
+        renderRadius: settings.getRenderRadius(),
+      };
+
+      const settingsFolder = this.gui.addFolder({
+        title: "Settings",
+        expanded: true,
+      });
+      settingsFolder
+        .addInput(settingsObj, "renderRadius", {
+          min: 2,
+          max: 20,
+          step: 1.0,
+        })
+        .on("change", ({ value }) => {
+          settings.setRenderRadius(value);
+        });
+    }
 
     this.displayTitle(`Voxelize ${"__buildVersion__"}`);
     this.displayNewline();
@@ -414,116 +431,6 @@ class Debug {
 
     this.displayNewline();
     this.dataWrapper.insertBefore(this.stats.dom, this.dataWrapper.firstChild);
-  };
-
-  private setupInputs = () => {
-    const { inputs, camera, world, registry, controls } = this.client;
-
-    inputs.bind(
-      "l",
-      () => {
-        world.reset();
-      },
-      "in-game"
-    );
-
-    inputs.bind(
-      "v",
-      () => {
-        camera.setZoom(3);
-      },
-      "in-game",
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "v",
-      () => {
-        camera.setZoom(1);
-      },
-      "in-game",
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      "x",
-      () => {
-        if (!controls.lookBlock) return;
-
-        const radius = 3;
-
-        const changes = [];
-        const [vx, vy, vz] = controls.lookBlock;
-
-        for (let x = -radius; x <= radius; x++) {
-          for (let z = -radius; z <= radius; z++) {
-            for (let y = -radius; y <= radius; y++) {
-              if (x ** 2 + y ** 2 + z ** 2 > radius ** 2) continue;
-              changes.push({ vx: vx + x, vy: vy + y, vz: vz + z, type: 0 });
-            }
-          }
-        }
-
-        world.setServerVoxels(changes);
-      },
-      "in-game"
-    );
-
-    inputs.bind(
-      "z",
-      () => {
-        if (!controls.lookBlock) return;
-
-        const radius = 3;
-
-        const id = registry.getBlockByName("Dirt").id;
-        const [vx, vy, vz] = controls.lookBlock;
-        const changes = [];
-
-        for (let x = -radius; x <= radius; x++) {
-          for (let z = -radius; z <= radius; z++) {
-            for (let y = -radius; y <= radius; y++) {
-              if (x ** 2 + y ** 2 + z ** 2 > radius ** 2) continue;
-              changes.push({ vx: vx + x, vy: vy + y, vz: vz + z, type: id });
-            }
-          }
-        }
-
-        world.setServerVoxels(changes);
-      },
-      "in-game"
-    );
-
-    inputs.bind(
-      "m",
-      () => {
-        if (!controls.lookBlock) return;
-
-        const height = 5;
-
-        const id = registry.getBlockByName("Dirt").id;
-        const [vx, vy, vz] = controls.lookBlock;
-        const changes = [];
-
-        for (let y = vy; y <= vy + height; y++) {
-          changes.push({ vx, vy: y, vz, type: id });
-        }
-
-        changes.push({ vx: vx + 1, vy: vy + height, vz, type: id });
-        changes.push({ vx: vx + 2, vy: vy + height, vz, type: id });
-        changes.push({ vx: vx + 1, vy: vy + height, vz: vz + 1, type: id });
-        changes.push({ vx: vx + 1, vy: vy + height - 1, vz: vz + 1, type: id });
-        changes.push({ vx: vx + 1, vy: vy + height, vz: vz - 1, type: id });
-        changes.push({ vx: vx + 1, vy: vy + height - 1, vz: vz - 1, type: id });
-
-        world.setServerVoxels(changes);
-      },
-      "in-game"
-    );
   };
 }
 

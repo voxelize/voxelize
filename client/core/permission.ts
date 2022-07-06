@@ -2,27 +2,36 @@ class Permission {
   /**
    * Whether or not can this client place/break blocks. Defaults to false.
    */
-  public canUpdate = false;
+  public readonly canUpdate: boolean = false;
 
   /**
    * Whether or not can this client fly. Defaults to false.
    */
-  public canFly = false;
+  public readonly canFly: boolean = false;
 
   /**
    * Whether or not can this client go to ghost mode. Defaults to false.
    */
-  public canGhost = false;
+  public readonly canGhost: boolean = false;
 
   /**
    * Whether or not can this client view the debug screens. Defaults to false.
    */
-  public canDebug = false;
+  public readonly canDebug: boolean = false;
 
   /**
    * Whether or not can this client chat. Default is true.
    */
-  public canChat = true;
+  public readonly canChat: boolean = true;
 
-  public commands = [];
+  /**
+   * The list of commands that this client can use, client-side only.
+   */
+  public readonly commands: string | string[] = ["help"];
+
+  constructor(permission: Partial<Permission> = {}) {
+    Object.keys(permission).forEach((key) => (this[key] = permission[key]));
+  }
 }
+
+export { Permission };

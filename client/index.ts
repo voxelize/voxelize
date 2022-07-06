@@ -21,6 +21,7 @@ import {
   Particles,
   Peers,
   PeersParams,
+  Permission,
   Physics,
   Registry,
   RegistryParams,
@@ -45,8 +46,8 @@ type ClientParams = {
 };
 
 class Client extends EventEmitter {
-  public id = "test";
-  public username = "test";
+  public id = "";
+  public username;
 
   public network: Network | undefined;
 
@@ -69,6 +70,8 @@ class Client extends EventEmitter {
   public particles: Particles;
   public chat: Chat;
 
+  public permission: Permission;
+
   public joined = false;
   public loaded = false;
   public ready = false;
@@ -77,8 +80,10 @@ class Client extends EventEmitter {
 
   private animationFrame: number;
 
-  constructor(params: ClientParams = {}) {
+  constructor(params: ClientParams = {}, permission: Partial<Permission> = {}) {
     super();
+
+    this.permission = new Permission(permission);
 
     const {
       container,
@@ -110,6 +115,14 @@ class Client extends EventEmitter {
     this.settings = new Settings(this);
     this.physics = new Physics(this);
     this.particles = new Particles(this);
+
+    // Randomly set an ID to this client.
+    const MAX = 10000;
+    let index = Math.floor(Math.random() * MAX).toString();
+    index =
+      new Array(MAX.toString().length - index.length).fill("0").join("") +
+      index;
+    this.username = `Guest ${index}`;
 
     // all members has been initialized
     this.emit("initialized");
