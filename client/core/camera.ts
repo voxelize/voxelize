@@ -121,7 +121,7 @@ class Camera {
       this.threeCamera.updateProjectionMatrix();
     });
 
-    client.on("ready", () => {
+    client.on("initialized", () => {
       client.inputs.bind(
         "v",
         () => {

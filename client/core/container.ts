@@ -131,7 +131,7 @@ class Container {
       fontFamily: `"Fira Mono", monospace`,
     });
 
-    client.on("ready", () => {
+    client.on("initialized", () => {
       client.inputs.bind("k", client.container.toggleFullScreen, "*");
     });
   }
