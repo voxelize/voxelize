@@ -128,15 +128,17 @@ impl Server {
             }
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
-                let addr = self.lost_sessions.remove(id).unwrap();
+                if let Some(addr) = self.lost_sessions.remove(id) {
+                    info!(
+                        "Client at {} joined the server to world: {}",
+                        id, json.world
+                    );
 
-                info!(
-                    "Client at {} joined the server to world: {}",
-                    id, json.world
-                );
-
-                world.add_client(id, &json.username, &addr);
-                self.connections.insert(id.to_owned(), (addr, json.world));
+                    world.add_client(id, &json.username, &addr);
+                    self.connections.insert(id.to_owned(), (addr, json.world));
+                } else {
+                    info!("Something went wrong with joining. Maybe you called .join twice on the client?");
+                }
 
                 return;
             }
