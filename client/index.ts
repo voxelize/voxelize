@@ -133,9 +133,11 @@ class Client extends EventEmitter {
   connect = async ({
     serverURL,
     reconnectTimeout,
+    secret,
   }: {
     serverURL?: string;
     reconnectTimeout?: number;
+    secret?: string;
   }) => {
     if (!serverURL) {
       throw new Error("Server URL undefined, cannot connect.");
@@ -146,6 +148,7 @@ class Client extends EventEmitter {
     const network = new Network(this, {
       reconnectTimeout,
       serverURL,
+      secret,
     });
     this.network = network;
 

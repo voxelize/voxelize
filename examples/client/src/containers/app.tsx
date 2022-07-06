@@ -329,6 +329,7 @@ export const App = () => {
         client.current.ecs.addSystem(new UpdateBoxSystem());
 
         client.current?.connect({
+          secret: "test",
           serverURL: BACKEND_SERVER,
           reconnectTimeout: 5000,
         });

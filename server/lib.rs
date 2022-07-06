@@ -40,11 +40,11 @@ async fn ws_route(
         let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
 
         if let Some(client_secret) = params.get("secret") {
-            warn!(
-                "An attempt to join with a wrong secret was made: {}",
-                client_secret
-            );
             if *client_secret != secret.as_deref().unwrap() {
+                warn!(
+                    "An attempt to join with a wrong secret was made: {}",
+                    client_secret
+                );
                 return Err(error.into());
             }
         } else {
