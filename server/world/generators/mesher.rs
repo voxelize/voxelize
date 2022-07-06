@@ -228,9 +228,10 @@ impl Mesher {
                                 let pos_y = pos[1] + vy as f32;
                                 let pos_z = pos[2] + vz as f32;
 
-                                positions.push(pos_x - min_x as f32);
-                                positions.push(pos_y);
-                                positions.push(pos_z - min_z as f32);
+                                let scale = if !is_full_block { 0.0001 } else { 0.0 };
+                                positions.push(pos_x - min_x as f32 - dir[0] as f32 * scale);
+                                positions.push(pos_y - dir[1] as f32 * scale);
+                                positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
 
                                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                                 uvs.push(uv[1] * (end_v - start_v) + start_v);
@@ -240,9 +241,27 @@ impl Mesher {
                                 let dy = pos[1].round() as i32;
                                 let dz = pos[2].round() as i32;
 
-                                let dx = if dx == 0 { -1 } else { 1 };
-                                let dy = if dy == 0 { -1 } else { 1 };
-                                let dz = if dz == 0 { -1 } else { 1 };
+                                let dx = if dx == 0 {
+                                    -1
+                                } else if dx == 1 {
+                                    1
+                                } else {
+                                    0
+                                };
+                                let dy = if dy == 0 {
+                                    -1
+                                } else if dy == 1 {
+                                    1
+                                } else {
+                                    0
+                                };
+                                let dz = if dz == 0 {
+                                    -1
+                                } else if dz == 1 {
+                                    1
+                                } else {
+                                    0
+                                };
 
                                 let mut sum_sunlight = vec![];
                                 let mut sum_red_lights = vec![];
