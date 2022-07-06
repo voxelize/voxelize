@@ -15,5 +15,6 @@ export * from "./chunks";
 export * from "./image-voxelizer";
 export * from "./cull";
 export * from "./clouds";
+export * from "./trigger";
 
 export { default as ECS } from "./ecs";

@@ -105,14 +105,10 @@ class ChunkUtils {
    * Map world position to voxel position.
    *
    * @param {Coords3} worldPos
-   * @param {number} dimension
    * @returns {Coords3}
    */
-  public static mapWorldPosToVoxelPos = (
-    worldPos: Coords3,
-    dimension: number
-  ): Coords3 => {
-    return ChunkUtils.scaleCoordsF(worldPos, 1 / dimension);
+  public static mapWorldPosToVoxelPos = (worldPos: Coords3): Coords3 => {
+    return ChunkUtils.scaleCoordsF(worldPos, 1);
   };
 }
 

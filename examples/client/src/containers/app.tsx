@@ -12,6 +12,7 @@ import {
   EntityFlag,
   ImageVoxelizer,
   BlockUpdate,
+  Trigger,
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -52,6 +53,7 @@ import MarbleImage from "../assets/own/marble.png";
 import SlateImage from "../assets/own/slate.png";
 import AndesiteImage from "../assets/own/andesite.png";
 import OakPlanksImage from "../assets/own/oak_planks.png";
+import { AABB } from "@voxelize/voxel-aabb";
 
 const GameWrapper = styled.div`
   background: black;

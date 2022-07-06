@@ -78,6 +78,8 @@ class Client extends EventEmitter {
 
   public connectionPromise: Promise<boolean> | null = null;
 
+  public userData: { [key: string]: any } = {};
+
   private animationFrame: number;
 
   constructor(params: ClientParams = {}, permission: Partial<Permission> = {}) {

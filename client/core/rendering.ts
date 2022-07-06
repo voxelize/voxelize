@@ -159,10 +159,10 @@ class Rendering {
    * @param distance - The maximum distance that the fog fully fogs up.
    */
   setFogDistance = (distance: number) => {
-    const { chunkSize, dimension } = this.client.world.params;
+    const { chunkSize } = this.client.world.params;
 
-    this.uFogNear.value = distance * 0.5 * chunkSize * dimension;
-    this.uFogFar.value = distance * chunkSize * dimension;
+    this.uFogNear.value = distance * 0.5 * chunkSize;
+    this.uFogFar.value = distance * chunkSize;
   };
 
   /**

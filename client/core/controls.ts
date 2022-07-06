@@ -737,10 +737,7 @@ class Controls extends EventDispatcher {
    * The voxel coordinates that the client is on.
    */
   get voxel() {
-    return ChunkUtils.mapWorldPosToVoxelPos(
-      this.position,
-      this.client.world.params.dimension
-    );
+    return ChunkUtils.mapWorldPosToVoxelPos(this.position);
   }
 
   /**
@@ -819,11 +816,7 @@ class Controls extends EventDispatcher {
       }
     }
 
-    const offset = new Vector3(
-      0.5 * world.params.dimension,
-      0.5 * world.params.dimension,
-      0.5 * world.params.dimension
-    );
+    const offset = new Vector3(0.5, 0.5, 0.5);
 
     this.lookBlockMesh.children.forEach((child) => {
       child.position.add(offset);
@@ -870,20 +863,12 @@ class Controls extends EventDispatcher {
           rotation,
           yRotation,
         } = this.targetBlock;
-        const { dimension } = this.client.world.params;
 
         if (this.client.world.getVoxelByVoxel(vx, vy, vz) !== 0) {
           return;
         }
 
-        const blockAABB = new AABB(
-          vx,
-          vy,
-          vz,
-          vx + dimension,
-          vy + dimension,
-          vz + dimension
-        );
+        const blockAABB = new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1);
 
         if (!this.body.aabb.intersects(blockAABB)) {
           world.setServerVoxel(
@@ -948,7 +933,7 @@ class Controls extends EventDispatcher {
     }
 
     const { world, camera, registry } = this.client;
-    const { dimension, maxHeight } = world.params;
+    const { maxHeight } = world.params;
     const { reachDistance, lookBlockScale } = this.params;
 
     const camDir = new Vector3();
@@ -969,7 +954,7 @@ class Controls extends EventDispatcher {
       },
       [camPos.x, camPos.y, camPos.z],
       [camDir.x, camDir.y, camDir.z],
-      reachDistance * dimension
+      reachDistance
     );
 
     // No target.
@@ -981,10 +966,7 @@ class Controls extends EventDispatcher {
     const { voxel, normal } = result;
 
     const [nx, ny, nz] = normal;
-    const newLookBlock = ChunkUtils.mapWorldPosToVoxelPos(
-      <Coords3>voxel,
-      world.params.dimension
-    );
+    const newLookBlock = ChunkUtils.mapWorldPosToVoxelPos(<Coords3>voxel);
 
     // Pointing at air.
     const newLookingID = this.client.world.getVoxelByVoxel(...newLookBlock);
@@ -1009,11 +991,7 @@ class Controls extends EventDispatcher {
       }
 
       const [vx, vy, vz] = this.lookBlock;
-      union.translate([
-        vx * world.params.dimension,
-        vy * world.params.dimension,
-        vz * world.params.dimension,
-      ]);
+      union.translate([vx, vy, vz]);
 
       let { width, height, depth } = union;
 

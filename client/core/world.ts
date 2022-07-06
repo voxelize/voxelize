@@ -12,6 +12,7 @@ import {
   drawSun,
   Clouds,
   CloudsParams,
+  Trigger,
 } from "../libs";
 import { Coords2, Coords3, PartialRecord, BlockUpdate } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
@@ -45,7 +46,6 @@ type WorldParams = WorldInitParams & {
   chunkSize: number;
   maxHeight: number;
   maxLightLevel: number;
-  dimension: number;
   minChunk: [number, number];
   maxChunk: [number, number];
 
@@ -70,6 +70,8 @@ class World {
   public uSunlightIntensity = { value: 1 };
 
   public blockCache = new Map<string, number>();
+
+  public triggers: Trigger[] = [];
 
   constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
     const { skyDimension, skyFaces, clouds } = (params = {
@@ -120,7 +122,7 @@ class World {
         falloff: 0.9,
         seed: -1,
         ...(typeof clouds === "object" ? clouds : {}),
-        worldHeight: this.params.maxHeight * this.params.dimension,
+        worldHeight: this.params.maxHeight,
         uFogColor: this.sky.uMiddleColor,
         uFogNear: this.client.rendering.uFogNear,
         uFogFar: this.client.rendering.uFogFar,
@@ -159,11 +161,10 @@ class World {
    *
    * @memberof World
    */
-  setParams = (data: Omit<WorldParams, "dimension">) => {
+  setParams = (data: WorldParams) => {
     this.params = {
       ...this.params,
       ...data,
-      dimension: 1,
     };
 
     // initialize the physics engine with server provided parameters.
@@ -202,7 +203,7 @@ class World {
   };
 
   getVoxelByWorld = (wx: number, wy: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz], 1);
+    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
     return this.getVoxelByVoxel(...voxel);
   };
 
@@ -396,17 +397,29 @@ class World {
     return Math.abs(angle) < (Math.PI * 3) / 5;
   };
 
+  addTrigger = (trigger: Trigger) => {
+    this.triggers.push(trigger);
+    this.client.rendering.scene.add(trigger.mesh);
+  };
+
   update = (() => {
     let count = 0;
 
     return () => {
       count++;
 
+      this.triggers.forEach((trigger) => {
+        const clientAABB = this.client.controls.body.aabb;
+        if (clientAABB.intersects(trigger.aabb)) {
+          trigger.onTrigger?.();
+        }
+      });
+
       const { position } = this.client.controls;
-      const { dimension, chunkSize, maxUpdatesPerTick } = this.params;
+      const { chunkSize, maxUpdatesPerTick } = this.params;
 
       const coords = ChunkUtils.mapVoxelPosToChunkPos(
-        ChunkUtils.mapWorldPosToVoxelPos(position as Coords3, dimension),
+        ChunkUtils.mapWorldPosToVoxelPos(position as Coords3),
         chunkSize
       );
 
