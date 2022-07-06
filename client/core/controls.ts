@@ -396,6 +396,9 @@ class Controls extends EventDispatcher {
 
   private newPosition = new Vector3();
 
+  private newLookBlockScale = new Vector3();
+  private newLookBlockPosition = new Vector3();
+
   /**
    * Construct a Voxelize controls.
    *
@@ -461,6 +464,15 @@ class Controls extends EventDispatcher {
   update = () => {
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
     this.object.position.lerp(this.newPosition, this.params.positionLerp);
+
+    this.lookBlockMesh.scale.lerp(
+      this.newLookBlockScale,
+      this.params.lookBlockLerp
+    );
+    this.lookBlockMesh.position.lerp(
+      this.newLookBlockPosition,
+      this.params.lookBlockLerp
+    );
 
     this.moveRigidBody();
     this.updateRigidBody();
@@ -760,31 +772,6 @@ class Controls extends EventDispatcher {
     const { lookBlockScale, lookBlockColor } = this.params;
     const { rendering, world } = this.client;
 
-    if (this.lookBlockMesh) {
-      const { lookingAt } = this;
-
-      if (lookingAt) {
-        const { aabbs } = lookingAt;
-        if (!aabbs.length) return;
-
-        let union: AABB = aabbs[0];
-
-        for (let i = 1; i < aabbs.length; i++) {
-          union = union.union(aabbs[i]);
-        }
-
-        let { width, height, depth } = union;
-
-        width *= lookBlockScale;
-        height *= lookBlockScale;
-        depth *= lookBlockScale;
-
-        this.lookBlockMesh.scale.set(width, height, depth);
-      }
-
-      return;
-    }
-
     this.lookBlockMesh = new Group();
 
     const mat = new MeshBasicMaterial({
@@ -962,7 +949,7 @@ class Controls extends EventDispatcher {
 
     const { world, camera, registry } = this.client;
     const { dimension, maxHeight } = world.params;
-    const { reachDistance, lookBlockLerp } = this.params;
+    const { reachDistance, lookBlockScale } = this.params;
 
     const camDir = new Vector3();
     const camPos = this.object.position;
@@ -1007,22 +994,35 @@ class Controls extends EventDispatcher {
     }
 
     this.lookBlockMesh.visible = true;
-
-    const [lbx, lby, lbz] = newLookBlock;
-
-    this.lookBlockMesh.position.lerp(
-      new Vector3(lbx * dimension, lby * dimension, lbz * dimension),
-      lookBlockLerp
-    );
-
-    const oldLookingID = this.lookBlock
-      ? world.getVoxelByVoxel(...this.lookBlock)
-      : false;
-
     this.lookBlock = newLookBlock;
 
-    if (this.lookBlock && oldLookingID !== newLookingID) {
-      this.setupLookBlock();
+    const { lookingAt } = this;
+
+    if (lookingAt) {
+      const { aabbs } = lookingAt;
+      if (!aabbs.length) return;
+
+      let union: AABB = aabbs[0].clone();
+
+      for (let i = 1; i < aabbs.length; i++) {
+        union = union.union(aabbs[i]);
+      }
+
+      const [vx, vy, vz] = this.lookBlock;
+      union.translate([
+        vx * world.params.dimension,
+        vy * world.params.dimension,
+        vz * world.params.dimension,
+      ]);
+
+      let { width, height, depth } = union;
+
+      width *= lookBlockScale;
+      height *= lookBlockScale;
+      depth *= lookBlockScale;
+
+      this.newLookBlockScale.set(width, height, depth);
+      this.newLookBlockPosition.set(union.minX, union.minY, union.minZ);
     }
 
     // target block is look block summed with the normal

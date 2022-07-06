@@ -243,6 +243,8 @@ export const App = () => {
           { name: "Slate", sides: all, data: SlateImage },
           { name: "Andesite", sides: all, data: AndesiteImage },
           { name: "Oak Planks", sides: all, data: OakPlanksImage },
+          { name: "Oak Slab Top", sides: all, data: OakPlanksImage },
+          { name: "Oak Slab Bottom", sides: all, data: OakPlanksImage },
         ]);
 
         client.current.chat.addCommand(

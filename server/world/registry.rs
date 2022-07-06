@@ -131,6 +131,10 @@ impl Registry {
             block.id = next_available;
         }
 
+        if self.blocks_by_id.contains_key(&block.id) {
+            panic!("Duplicated key: {}-{}", block.name, block.id);
+        }
+
         self.record_block(&block);
     }
 
