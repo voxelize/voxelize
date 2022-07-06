@@ -26,6 +26,7 @@ export type Block = {
   isPlantable: boolean;
   isSolid: boolean;
   isTransparent: boolean;
+  isFullBlock: boolean;
   transparentStandalone: boolean;
   faces: {
     corners: { pos: number[]; uv: [] }[];
@@ -33,27 +34,6 @@ export type Block = {
     name: string;
   }[];
   aabbs: AABB[];
-};
-
-export const defaultBlock: Block = {
-  id: 0,
-  name: "",
-  rotatable: false,
-  yRotatable: false,
-  isEmpty: false,
-  isSolid: true,
-  isFluid: false,
-  isTransparent: false,
-  isLight: false,
-  isBlock: true,
-  isPlant: false,
-  isPlantable: false,
-  redLightLevel: 0,
-  greenLightLevel: 0,
-  blueLightLevel: 0,
-  transparentStandalone: false,
-  faces: [],
-  aabbs: [],
 };
 
 export type TextureRange = {

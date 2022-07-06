@@ -1,5 +1,4 @@
 import { Client } from "..";
-import { Registry } from "../core";
 import { Coords3, BlockUpdate } from "../types";
 
 /**
@@ -36,7 +35,7 @@ type ImageVoxelizerParams = {
 const defaultParams: ImageVoxelizerParams = {
   width: 64,
   height: 64,
-  lockedRatio: false,
+  lockedRatio: true,
   orientation: "x",
 };
 
@@ -120,15 +119,14 @@ class ImageVoxelizer {
 
     ranges.forEach(({ startU, startV, endU, endV }, name) => {
       const block = client.registry.getBlockByTextureName(name);
-      if (block.isTransparent) {
+
+      if (block.isTransparent || !block.isFullBlock) {
         return;
       }
 
       if (
-        name.endsWith("bottom") ||
-        name.endsWith("top") ||
         ["px", "py", "pz", "nx", "ny", "nz"].filter((key) => name.endsWith(key))
-          .length > 0
+          .length === 0
       ) {
         return;
       }
