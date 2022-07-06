@@ -63,7 +63,6 @@ async fn main() -> std::io::Result<()> {
         .port(4000)
         .serve("./examples/client/build")
         .registry(&setup_registry())
-        .secret("balls")
         .build();
 
     server
