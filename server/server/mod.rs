@@ -21,7 +21,7 @@ pub use models::*;
 pub use session::*;
 
 #[derive(Serialize, Deserialize)]
-struct OnJoinRequest {
+pub struct OnJoinRequest {
     world: String,
     username: String,
 }
@@ -225,6 +225,7 @@ impl Server {
 #[derive(ActixMessage)]
 #[rtype(result = "String")]
 pub struct Connect {
+    pub id: Option<String>,
     pub addr: Recipient<EncodedMessage>,
 }
 
@@ -274,7 +275,12 @@ impl Handler<Connect> for Server {
         // self.send_message("Main", "Someone joined", 0);
 
         // register session with random id
-        let id = nanoid!();
+        let id = if msg.id.is_none() {
+            nanoid!()
+        } else {
+            msg.id.unwrap()
+        };
+
         self.lost_sessions.insert(id.to_owned(), msg.addr);
 
         // send id back

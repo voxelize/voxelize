@@ -111,6 +111,7 @@ class Network {
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
     this.socket.searchParams.set("secret", this.params.secret || "");
+    this.socket.searchParams.set("client_id", this.client.id || "");
   }
 
   /**

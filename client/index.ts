@@ -45,7 +45,7 @@ type ClientParams = {
 };
 
 class Client extends EventEmitter {
-  public id = "";
+  public id = "test";
   public username = "test";
 
   public network: Network | undefined;
@@ -208,6 +208,10 @@ class Client extends EventEmitter {
     this.stop();
 
     this.emit("leave");
+  };
+
+  setID = (id: string) => {
+    this.id = id || "";
   };
 
   setUsername = (username: string) => {

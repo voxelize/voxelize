@@ -4,7 +4,10 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use log::info;
 
-use crate::{server::models, ClientMessage, Connect, Disconnect, EncodedMessage, Server};
+use crate::{
+    server::models, ClientMessage, Connect, Disconnect, EncodedMessage, MessageType, OnJoinRequest,
+    Server,
+};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -80,6 +83,11 @@ impl Actor for WsSession {
         let addr = ctx.address();
         self.addr
             .send(Connect {
+                id: if self.id.is_empty() {
+                    None
+                } else {
+                    Some(self.id.to_owned())
+                },
                 addr: addr.recipient(),
             })
             .into_actor(self)

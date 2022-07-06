@@ -53,9 +53,15 @@ async fn ws_route(
         }
     }
 
+    let id = if let Some(id) = params.get("client_id") {
+        id.to_owned()
+    } else {
+        "".to_owned()
+    };
+
     ws::start(
         server::WsSession {
-            id: "".to_owned(),
+            id,
             hb: Instant::now(),
             name: None,
             addr: srv.get_ref().clone(),
