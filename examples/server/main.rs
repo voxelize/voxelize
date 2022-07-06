@@ -1,5 +1,6 @@
 use std::process;
 
+use log::info;
 use nanoid::nanoid;
 use registry::setup_registry;
 use specs::{
@@ -7,9 +8,9 @@ use specs::{
     WriteStorage,
 };
 use voxelize::{
-    CurrentChunkComp, ETypeComp, EntityFlag, FlatlandStage, HeadingComp, IDComp, InteractorComp,
-    MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Stats, TargetComp, Voxelize,
-    WorldConfig, AABB,
+    CollisionsComp, CurrentChunkComp, ETypeComp, EntityFlag, FlatlandStage, HeadingComp, IDComp,
+    InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Stats,
+    TargetComp, Voxelize, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -35,16 +36,19 @@ impl<'a> System<'a> for UpdateBoxSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         ReadStorage<'a, BoxFlag>,
+        ReadStorage<'a, CollisionsComp>,
         WriteStorage<'a, RigidBodyComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (stats, flag, mut bodies) = data;
+        let (stats, flag, collisions, mut bodies) = data;
 
-        for (body, _) in (&mut bodies, &flag).join() {
-            // body.0.apply_impulse(0.0, 0.0, -0.01);
+        for (collision, body, _) in (&collisions, &mut bodies, &flag).join() {
+            // if !collision.0.is_empty() {
+            // body.0.apply_impulse(0.0, 10.0, 0.0);
+            // }
         }
     }
 }
@@ -52,7 +56,7 @@ impl<'a> System<'a> for UpdateBoxSystem {
 fn get_dispatcher(
     builder: DispatcherBuilder<'static, 'static>,
 ) -> DispatcherBuilder<'static, 'static> {
-    builder.with(UpdateBoxSystem, "update-box", &[])
+    builder.with(UpdateBoxSystem, "update-box", &["physics"])
 }
 
 #[actix_web::main]
@@ -102,8 +106,8 @@ async fn main() -> std::io::Result<()> {
     world3.ecs_mut().register::<BoxFlag>();
     world3.set_dispatcher(get_dispatcher);
 
-    let body_handle1 = world3.physics_mut().register(&test_body);
-    let body_handle2 = world3.physics_mut().register(&test_body);
+    let interactor1 = world3.physics_mut().register(&test_body);
+    let interactor2 = world3.physics_mut().register(&test_body);
 
     world3
         .ecs_mut()
@@ -116,8 +120,9 @@ async fn main() -> std::io::Result<()> {
         .with(HeadingComp::new(0.0, 0.0, 0.0))
         .with(MetadataComp::new())
         .with(RigidBodyComp::new(&test_body))
-        .with(InteractorComp::new(body_handle1))
+        .with(InteractorComp::new(interactor1))
         .with(CurrentChunkComp::default())
+        .with(CollisionsComp::new())
         .with(BoxFlag)
         .build();
 
@@ -132,8 +137,9 @@ async fn main() -> std::io::Result<()> {
         .with(HeadingComp::new(0.0, 0.0, 0.0))
         .with(MetadataComp::new())
         .with(RigidBodyComp::new(&test_body))
-        .with(InteractorComp::new(body_handle2))
+        .with(InteractorComp::new(interactor2))
         .with(CurrentChunkComp::default())
+        .with(CollisionsComp::new())
         .with(BoxFlag)
         .build();
 

@@ -1,5 +1,6 @@
 mod addr;
 mod chunk_requests;
+mod collisions;
 mod current_chunk;
 mod direction;
 mod etype;
@@ -15,6 +16,7 @@ mod target;
 
 pub use addr::AddrComp;
 pub use chunk_requests::ChunkRequestsComp;
+pub use collisions::*;
 pub use current_chunk::CurrentChunkComp;
 pub use direction::DirectionComp;
 pub use etype::ETypeComp;

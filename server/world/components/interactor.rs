@@ -1,14 +1,22 @@
-use rapier3d::prelude::RigidBodyHandle;
+use rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 use specs::{Component, VecStorage};
 
 /// What makes an entity physical in Voxelize.
 #[derive(Default, Component)]
 #[storage(VecStorage)]
-pub struct InteractorComp(pub RigidBodyHandle);
+pub struct InteractorComp(pub RigidBodyHandle, pub ColliderHandle);
 
 impl InteractorComp {
     /// Create a new interactor component.
-    pub fn new(body_handle: RigidBodyHandle) -> Self {
-        Self(body_handle)
+    pub fn new(data: (RigidBodyHandle, ColliderHandle)) -> Self {
+        Self(data.0, data.1)
+    }
+
+    pub fn body_handle(&self) -> &RigidBodyHandle {
+        &self.0
+    }
+
+    pub fn collider_handle(&self) -> &ColliderHandle {
+        &self.1
     }
 }

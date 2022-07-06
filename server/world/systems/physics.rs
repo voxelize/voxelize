@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use hashbrown::HashMap;
 use log::info;
-use rapier3d::prelude::{vector, Isometry, RigidBodySet};
-use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use rapier3d::prelude::CollisionEvent;
+use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     world::{
@@ -13,13 +14,14 @@ use crate::{
         voxels::{Chunks, VoxelAccess},
         WorldConfig,
     },
-    ClientFlag, InteractorComp, Vec3,
+    ClientFlag, CollisionsComp, InteractorComp, Vec3,
 };
 
 pub struct PhysicsSystem;
 
 impl<'a> System<'a> for PhysicsSystem {
     type SystemData = (
+        Entities<'a>,
         ReadExpect<'a, Stats>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
@@ -28,6 +30,7 @@ impl<'a> System<'a> for PhysicsSystem {
         ReadStorage<'a, CurrentChunkComp>,
         ReadStorage<'a, InteractorComp>,
         ReadStorage<'a, ClientFlag>,
+        WriteStorage<'a, CollisionsComp>,
         WriteStorage<'a, RigidBodyComp>,
         WriteStorage<'a, PositionComp>,
     );
@@ -37,6 +40,7 @@ impl<'a> System<'a> for PhysicsSystem {
         use specs::{Join, ParJoin};
 
         let (
+            entities,
             stats,
             registry,
             config,
@@ -45,13 +49,17 @@ impl<'a> System<'a> for PhysicsSystem {
             curr_chunks,
             interactors,
             client_flag,
+            mut collisions,
             mut bodies,
             mut positions,
         ) = data;
 
         let get_voxel = |vx: i32, vy: i32, vz: i32| chunks.get_voxel(vx, vy, vz);
+        let mut collision_map = HashMap::new();
 
-        for (curr_chunk, interactor, body, position, _) in (
+        // Tick the voxel physics of all entities (non-clients).
+        for (ent, curr_chunk, interactor, body, position, _) in (
+            &entities,
             &curr_chunks,
             &interactors,
             &mut bodies,
@@ -70,19 +78,69 @@ impl<'a> System<'a> for PhysicsSystem {
             let Vec3(px, py, pz) = body_pos;
 
             position.0.set(px, py, pz);
-            physics.move_rapier_body(&interactor.0, &body_pos);
+            physics.move_rapier_body(interactor.body_handle(), &body_pos);
+            collision_map.insert(interactor.collider_handle().clone(), ent);
         }
 
-        (&interactors, &positions, &client_flag)
+        // Move the clients' rigid bodies to their positions
+        (&entities, &interactors, &positions, &client_flag)
             .join()
-            .for_each(|(interactor, position, _)| {
-                physics.move_rapier_body(&interactor.0, &position.0);
+            .for_each(|(ent, interactor, position, _)| {
+                physics.move_rapier_body(interactor.body_handle(), &position.0);
+                collision_map.insert(interactor.collider_handle().clone(), ent);
             });
 
-        physics.step(stats.delta);
+        // Tick the rapier physics engine, and add the collisions to individual entities.
+        physics
+            .step(stats.delta)
+            .into_iter()
+            .for_each(|event| match event {
+                CollisionEvent::Started(ch1, ch2, _) => {
+                    let ent1 = if let Some(ent) = collision_map.get(&ch1) {
+                        ent
+                    } else {
+                        return;
+                    };
+                    let ent2 = if let Some(ent) = collision_map.get(&ch2) {
+                        ent
+                    } else {
+                        return;
+                    };
+
+                    if let Some(collision_comp) = collisions.get_mut(*ent1) {
+                        collision_comp.0.push((event, *ent2))
+                    }
+                    if let Some(collision_comp) = collisions.get_mut(*ent2) {
+                        collision_comp.0.push((event, *ent1))
+                    }
+                }
+                CollisionEvent::Stopped(ch1, ch2, _) => {
+                    let ent1 = if let Some(ent) = collision_map.get(&ch1) {
+                        ent
+                    } else {
+                        return;
+                    };
+                    let ent2 = if let Some(ent) = collision_map.get(&ch2) {
+                        ent
+                    } else {
+                        return;
+                    };
+
+                    if let Some(collision_comp) = collisions.get_mut(*ent1) {
+                        collision_comp.0.push((event, *ent2))
+                    }
+                    if let Some(collision_comp) = collisions.get_mut(*ent2) {
+                        collision_comp.0.push((event, *ent1))
+                    }
+                }
+            });
 
         let physics = Arc::new(physics);
         let chunks = Arc::new(chunks);
+
+        if config.collision_repulsion <= f32::EPSILON {
+            return;
+        }
 
         // Collision detection, push bodies away from one another.
         (&curr_chunks, &mut bodies, &interactors, !&client_flag)

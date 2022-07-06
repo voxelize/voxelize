@@ -1,6 +1,7 @@
 mod clients;
 mod components;
 mod config;
+mod events;
 mod generators;
 mod messages;
 mod physics;
@@ -39,13 +40,14 @@ use super::common::ClientFilter;
 use self::systems::{
     BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem, ChunkMeshingSystem,
     ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem,
-    ChunkUpdatingSystem, CurrentChunkSystem, EntityMetaSystem, PhysicsSystem, SearchSystem,
-    UpdateStatsSystem,
+    ChunkUpdatingSystem, ClearCollisionsSystem, CurrentChunkSystem, EntityMetaSystem,
+    PhysicsSystem, SearchSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
 pub use components::*;
 pub use config::*;
+pub use events::*;
 pub use generators::*;
 pub use messages::*;
 pub use physics::*;
@@ -147,6 +149,7 @@ impl World {
         ecs.register::<RigidBodyComp>();
         ecs.register::<AddrComp>();
         ecs.register::<InteractorComp>();
+        ecs.register::<CollisionsComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -162,6 +165,7 @@ impl World {
         ecs.insert(MessageQueue::new());
         ecs.insert(Stats::new());
         ecs.insert(Physics::new());
+        ecs.insert(Events::new());
 
         Self {
             id,
@@ -230,7 +234,7 @@ impl World {
 
         let body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.8, 1.8, 0.8)).build();
 
-        let body_handle = self.physics_mut().register(&body);
+        let interactor = self.physics_mut().register(&body);
 
         let ent = self
             .ecs
@@ -244,7 +248,8 @@ impl World {
             .with(PositionComp::default())
             .with(DirectionComp::default())
             .with(RigidBodyComp::new(&body))
-            .with(InteractorComp::new(body_handle))
+            .with(InteractorComp::new(interactor))
+            .with(CollisionsComp::new())
             .build();
 
         self.clients_mut().insert(
@@ -449,15 +454,20 @@ impl World {
             )
             .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
             .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
-            .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"]);
+            .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
+            .with(PhysicsSystem, "physics", &["update-stats"]);
 
         let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder
-            .with(PhysicsSystem, "physics", &["update-stats"])
             .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
             .with(BroadcastPeersSystem, "broadcast-peers", &[])
-            .with(BroadcastSystem, "broadcast", &["broadcast-entities"]);
+            .with(BroadcastSystem, "broadcast", &["broadcast-entities"])
+            .with(
+                ClearCollisionsSystem,
+                "clear-collisions",
+                &["broadcast-entities"],
+            );
 
         let mut dispatcher = builder.build();
         dispatcher.dispatch(&self.ecs);

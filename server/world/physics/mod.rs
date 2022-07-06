@@ -1,27 +1,26 @@
-use log::info;
+use hashbrown::HashMap;
 use rapier3d::prelude::{
-    vector, BroadPhase, CCDSolver, Collider, ColliderBuilder, ColliderHandle, ColliderSet,
-    ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase,
-    PhysicsPipeline, RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
-    RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
+    vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
+    ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
+    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBody as RapierBody,
+    RigidBodyBuilder as RapierBodyBuilder, RigidBodyHandle as RapierBodyHandle,
+    RigidBodySet as RapierBodySet,
 };
+use specs::Entity;
 
-use crate::{approx_equals, InteractorComp, Vec3};
+use crate::{approx_equals, Vec3};
 
 use super::{registry::Registry, WorldConfig};
 
 mod aabb;
-mod collision;
 mod rigidbody;
 mod sweep;
 
 pub use aabb::*;
-pub use collision::*;
 pub use rigidbody::*;
 pub use sweep::*;
 
 pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> u32;
-
 #[derive(Default)]
 pub struct Physics {
     body_set: RapierBodySet,
@@ -41,8 +40,11 @@ impl Physics {
         Self::default()
     }
 
-    pub fn step(&mut self, dt: f32) {
+    pub fn step(&mut self, dt: f32) -> Vec<CollisionEvent> {
         self.integration_parameters.dt = dt;
+
+        let (collision_send, collision_recv) = crossbeam_channel::unbounded();
+        let event_handler = ChannelEventCollector::new(collision_send);
 
         self.pipeline.step(
             &vector![0.0, 0.0, 0.0],
@@ -56,11 +58,20 @@ impl Physics {
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
             &(),
-            &(),
-        )
+            &event_handler,
+        );
+
+        let mut collisions = vec![];
+
+        while let Ok(collision_event) = collision_recv.try_recv() {
+            // Handle the collision event.
+            collisions.push(collision_event);
+        }
+
+        collisions
     }
 
-    pub fn register(&mut self, body: &RigidBody) -> RapierBodyHandle {
+    pub fn register(&mut self, body: &RigidBody) -> (RapierBodyHandle, ColliderHandle) {
         let Vec3(px, py, pz) = body.get_position();
 
         let rapier_body = RapierBodyBuilder::dynamic()
@@ -69,16 +80,20 @@ impl Physics {
             .gravity_scale(0.0)
             .lock_rotations()
             .build();
-        let collider = ColliderBuilder::capsule_y(
+        let mut collider = ColliderBuilder::capsule_y(
             body.aabb.height() / 2.0,
             (body.aabb.width() / 2.0).min(body.aabb.depth() / 2.0),
-        );
+        )
+        .build();
+
+        collider.set_active_events(ActiveEvents::COLLISION_EVENTS);
 
         let body_handle = self.body_set.insert(rapier_body);
-        self.collider_set
-            .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
+        let collider_handle =
+            self.collider_set
+                .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
 
-        body_handle
+        (body_handle, collider_handle)
     }
 
     pub fn get(&self, body_handle: &RapierBodyHandle) -> &RapierBody {

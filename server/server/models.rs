@@ -113,6 +113,12 @@ pub struct ChatMessageProtocol {
     pub body: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct EventProtocol {
+    pub name: String,
+    pub payload: String,
+}
+
 /// Builder for a protocol buffer message.
 #[derive(Default)]
 pub struct MessageBuilder {
