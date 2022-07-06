@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/client",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "umd": "dist/voxelize.min.js",
