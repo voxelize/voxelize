@@ -10,12 +10,13 @@ use actix_cors::Cors;
 use actix_files::{Files, NamedFile};
 use actix_web::{
     web::{self, Query},
-    App, Error, HttpRequest, HttpResponse, HttpServer, Result,
+    App, Error, HttpRequest, HttpResponse, HttpServer, ResponseError, Result,
 };
 use actix_web_actors::ws;
-use log::info;
+use hashbrown::HashMap;
+use log::{info, warn};
 
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 
 pub use common::*;
 pub use libs::*;
@@ -32,7 +33,26 @@ async fn ws_route(
     req: HttpRequest,
     stream: web::Payload,
     srv: web::Data<Addr<Server>>,
+    secret: web::Data<Option<String>>,
+    params: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
+    if !secret.is_none() {
+        let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
+
+        if let Some(client_secret) = params.get("secret") {
+            warn!(
+                "An attempt to join with a wrong secret was made: {}",
+                client_secret
+            );
+            if *client_secret != secret.as_deref().unwrap() {
+                return Err(error.into());
+            }
+        } else {
+            warn!("An attempt to join with no secret key was made.");
+            return Err(error.into());
+        }
+    }
+
     ws::start(
         server::WsSession {
             id: "".to_owned(),
@@ -76,6 +96,7 @@ impl Voxelize {
         let addr = server.addr.to_owned();
         let port = server.port.to_owned();
         let serve = server.serve.to_owned();
+        let secret = server.secret.to_owned();
 
         let server_addr = server.start();
 
@@ -83,10 +104,12 @@ impl Voxelize {
 
         let srv = HttpServer::new(move || {
             let serve = serve.to_owned();
+            let secret = secret.to_owned();
             let cors = Cors::permissive();
 
             App::new()
                 .wrap(cors)
+                .app_data(web::Data::new(secret))
                 .app_data(web::Data::new(server_addr.clone()))
                 .app_data(web::Data::new(Config {
                     serve: serve.to_owned(),

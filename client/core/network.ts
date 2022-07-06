@@ -1,4 +1,4 @@
-import URL from "domurl";
+import DOMUrl from "domurl";
 import * as fflate from "fflate";
 import DecodeWorker from "web-worker:./workers/decode-worker";
 
@@ -32,6 +32,11 @@ type NetworkParams = {
    * On disconnection, the timeout to attempt to reconnect. Defaults to 5000.
    */
   reconnectTimeout: number;
+
+  /**
+   * The secret to joining a server.
+   */
+  secret?: string;
 };
 
 /**
@@ -60,7 +65,7 @@ class Network {
    * A {@link https://github.com/Mikhus/domurl | domurl Url instance} constructed with `network.params.serverURL`,
    * representing a HTTP connection URL to the server.
    */
-  public url: URL<{
+  public url: DOMUrl<{
     [key: string]: any;
   }>;
 
@@ -70,12 +75,10 @@ class Network {
   public world: string;
 
   /**
-   * A {@link https://github.com/Mikhus/domurl | domurl Url instance} constructed with `network.params.serverURL`,
+   * A native URL instance constructed with `network.params.serverURL`,
    * representing a WebSocket connection URL to the server.
    */
-  public socket: URL<{
-    [key: string]: any;
-  }>;
+  public socket: URL;
 
   /**
    * Whether or not the network connection is established.
@@ -97,14 +100,17 @@ class Network {
     this.client = client;
     this.params = params;
 
-    this.url = new URL(this.params.serverURL);
+    this.url = new DOMUrl(this.params.serverURL);
     this.url.protocol = this.url.protocol.replace(/ws/, "http");
     this.url.hash = "";
 
-    this.socket = new URL(this.params.serverURL);
+    const socketURL = new DOMUrl(this.params.serverURL);
+    socketURL.path = "/ws/";
+
+    this.socket = new URL(socketURL.toString());
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
-    this.socket.path = "/ws/";
+    this.socket.searchParams.set("secret", this.params.secret || "");
   }
 
   /**

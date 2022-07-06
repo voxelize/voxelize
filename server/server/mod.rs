@@ -44,6 +44,9 @@ pub struct Server {
     /// Interval to tick the server at.
     pub interval: u64,
 
+    /// A secret to join the server.
+    pub secret: Option<String>,
+
     /// A map of all the worlds.
     worlds: HashMap<String, World>,
 
@@ -312,6 +315,7 @@ pub struct ServerBuilder {
     addr: String,
     serve: String,
     interval: u64,
+    secret: Option<String>,
     registry: Option<Registry>,
 }
 
@@ -323,6 +327,7 @@ impl ServerBuilder {
             addr: DEFAULT_ADDR.to_owned(),
             serve: DEFAULT_SERVE.to_owned(),
             interval: DEFAULT_INTERVAL,
+            secret: None,
             registry: None,
         }
     }
@@ -351,6 +356,12 @@ impl ServerBuilder {
         self
     }
 
+    /// Configure the secret for the server to be able to join.
+    pub fn secret(mut self, secret: &str) -> Self {
+        self.secret = Some(secret.to_owned());
+        self
+    }
+
     /// Configure the block registry of the server. Once a registry is configured, mutating it wouldn't
     /// change the server's block list.
     pub fn registry(mut self, registry: &Registry) -> Self {
@@ -368,6 +379,7 @@ impl ServerBuilder {
             addr: self.addr,
             serve: self.serve,
             interval: self.interval,
+            secret: self.secret,
 
             registry,
 
