@@ -126,14 +126,15 @@ class Debug {
    * Toggle debug visually, both UI and in-game elements.
    */
   toggle = () => {
-    const display = this.dataWrapper.style.display;
-    const newDisplay = display === "none" ? "inline" : "none";
+    const visibility = this.dataWrapper.style.visibility;
+    const newVisibility =
+      visibility === "visible" || visibility === "" ? "hidden" : "visible";
 
-    this.dataWrapper.style.display = newDisplay;
-    this.stats.dom.style.display = newDisplay;
+    this.dataWrapper.style.visibility = newVisibility;
+    this.stats.dom.style.visibility = newVisibility;
 
     if (this.gui?.element) {
-      this.gui.element.style.display = newDisplay;
+      this.gui.element.style.visibility = newVisibility;
     }
 
     this.group.visible = !this.group.visible;
