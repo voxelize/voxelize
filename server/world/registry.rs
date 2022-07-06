@@ -60,7 +60,7 @@ impl Registry {
             .build();
 
         let mut instance = Self::default();
-        instance.register_block(&air);
+        instance.record_block(&air);
 
         instance
     }
@@ -116,7 +116,21 @@ impl Registry {
     /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
     pub fn register_block(&mut self, block: &Block) {
         let mut block = block.to_owned();
-        block.id = self.blocks_by_name.len() as u32;
+
+        if block.id == 0 {
+            let mut next_available = 1;
+
+            loop {
+                if self.blocks_by_id.contains_key(&next_available) {
+                    next_available += 1;
+                } else {
+                    break;
+                }
+            }
+
+            block.id = next_available;
+        }
+
         self.record_block(&block);
     }
 

@@ -481,6 +481,12 @@ impl BlockBuilder {
         }
     }
 
+    /// Configure the ID of the block. Default would be the next available ID.
+    pub fn id(mut self, id: u32) -> Self {
+        self.id = id;
+        self
+    }
+
     /// Configure whether or not this block is rotatable. Default is false.
     pub fn rotatable(mut self, rotatable: bool) -> Self {
         self.rotatable = rotatable;
