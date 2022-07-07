@@ -492,7 +492,7 @@ impl World {
         }
 
         self.load_entities();
-        self.preload();
+        // self.preload();
     }
 
     /// Tick of the world, run every 16ms.
