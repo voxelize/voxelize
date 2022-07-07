@@ -1,27 +1,27 @@
 use std::sync::Arc;
 
 use log::info;
-use specs::{ReadExpect, ReadStorage, System, WriteExpect};
+use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{Chunks, ETypeComp, IDComp, MetadataComp, SaveLoad, Stats, WorldConfig};
+use crate::{ETypeComp, Entities, IDComp, MetadataComp, Stats, WorldConfig};
 
-pub struct EntitySavingSystem;
+pub struct EntitiesSavingSystem;
 
-impl<'a> System<'a> for EntitySavingSystem {
+impl<'a> System<'a> for EntitiesSavingSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         ReadExpect<'a, WorldConfig>,
-        ReadExpect<'a, SaveLoad>,
+        ReadExpect<'a, Entities>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
-        ReadStorage<'a, MetadataComp>,
+        WriteStorage<'a, MetadataComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, config, saveload, ids, etypes, metadatas) = data;
+        let (stats, config, entities, ids, etypes, mut metadatas) = data;
 
         if !config.saving {
             return;
@@ -31,12 +31,16 @@ impl<'a> System<'a> for EntitySavingSystem {
             return;
         }
 
-        let saveload = Arc::new(saveload);
+        let entities = Arc::new(entities);
 
-        (&ids, &etypes, &metadatas)
+        (&ids, &etypes, &mut metadatas)
             .par_join()
             .for_each(|(id, etype, metadata)| {
-                saveload.save(id, etype, metadata);
+                let (_, updated) = metadata.to_cached_str();
+
+                if updated {
+                    entities.save(id, etype, metadata);
+                }
             });
     }
 }

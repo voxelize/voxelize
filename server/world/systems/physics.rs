@@ -159,9 +159,9 @@ impl<'a> System<'a> for PhysicsSystem {
                 let dy = after.y - py;
                 let dz = after.z - pz;
 
-                let dx = if dx.abs() < 0.0001 { 0.0 } else { dx };
-                let dy = if dy.abs() < 0.0001 { 0.0 } else { dy };
-                let dz = if dz.abs() < 0.0001 { 0.0 } else { dz };
+                let dx = if dx.abs() < 0.001 { 0.0 } else { dx };
+                let dy = if dy.abs() < 0.001 { 0.0 } else { dy };
+                let dz = if dz.abs() < 0.001 { 0.0 } else { dz };
 
                 let len = (dx * dx + dy * dy + dz * dz).sqrt();
 

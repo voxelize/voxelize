@@ -1,13 +1,19 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::{json, Value};
 use specs::{Component, VecStorage};
 
 /// A list of chunks that the entity is requesting to generate.
 #[derive(Debug, Default, Component, Serialize, Deserialize)]
 #[storage(VecStorage)]
-pub struct MetadataComp(pub HashMap<String, Value>);
+pub struct MetadataComp {
+    pub map: HashMap<String, Value>,
+
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    cache: String,
+}
 
 impl MetadataComp {
     /// Create a component of a new list of chunk requests.
@@ -16,28 +22,47 @@ impl MetadataComp {
     }
 
     /// Set a component's metadata
-    pub fn set(&mut self, component: &str, value: Value) {
+    pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let component = component.to_owned();
+        let value = json!(data);
 
-        if self.0.contains_key(&component) {
-            self.0.remove(&component);
+        if self.map.contains_key(&component) {
+            self.map.remove(&component);
         }
 
-        self.0.insert(component, value);
+        self.map.insert(component, value);
     }
 
     /// Get a component's metadata
-    pub fn get(&self, component: &str) -> Option<&Value> {
-        self.0.get(component)
+    pub fn get<T: Component + DeserializeOwned>(&self, component: &str) -> Option<T> {
+        if let Some(component) = self.map.get(component) {
+            return Some(serde_json::from_value(component.to_owned()).unwrap());
+        }
+
+        None
     }
 
-    /// Convert metadata to JSON string
-    pub fn to_json_string(&self) -> String {
-        serde_json::to_string(&self.0).unwrap()
+    /// Convert metadata to JSON string, also caches is current state.
+    pub fn to_cached_str(&mut self) -> (String, bool) {
+        let mut updated = false;
+        let j = self.to_string();
+
+        if self.cache != j {
+            updated = true;
+        }
+
+        self.cache = j.clone();
+
+        (j, updated)
+    }
+
+    /// Get a clean JSON string with no side-effects.
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(&self.map).unwrap()
     }
 
     /// Reset this metadata
     pub fn reset(&mut self) {
-        self.0.clear();
+        self.map.clear();
     }
 }

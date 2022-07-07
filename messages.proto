@@ -74,7 +74,7 @@ message Message {
     LOAD = 6;
     UNLOAD = 7;
     UPDATE = 8;
-    DEBUG = 9;
+    METHOD = 9;
     CHAT = 10;
   }
 

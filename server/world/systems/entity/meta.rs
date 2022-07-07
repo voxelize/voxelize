@@ -1,5 +1,3 @@
-use log::info;
-use serde_json::json;
 use specs::{ReadStorage, System, WriteStorage};
 
 use crate::world::components::{EntityFlag, HeadingComp, MetadataComp, PositionComp, TargetComp};
@@ -24,19 +22,19 @@ impl<'a> System<'a> for EntityMetaSystem {
         (&positions, &mut metadatas, &flag)
             .par_join()
             .for_each(|(position, metadata, _)| {
-                metadata.set("position", json!(position.0));
+                metadata.set("position", position);
             });
 
         (&headings, &mut metadatas, &flag)
             .par_join()
             .for_each(|(heading, metadata, _)| {
-                metadata.set("heading", json!(heading.0));
+                metadata.set("heading", heading);
             });
 
         (&targets, &mut metadatas, &flag)
             .par_join()
             .for_each(|(target, metadata, _)| {
-                metadata.set("target", json!(target.0));
+                metadata.set("target", target);
             });
     }
 }

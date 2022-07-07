@@ -7,12 +7,6 @@ use crate::{
     EncodedMessage,
 };
 
-mod entities;
-mod peers;
-
-pub use entities::BroadcastEntitiesSystem;
-pub use peers::BroadcastPeersSystem;
-
 pub struct BroadcastSystem;
 
 impl<'a> System<'a> for BroadcastSystem {

@@ -507,6 +507,9 @@ class Chat {
 
     if (value.split(" ").filter((ele) => ele).length === 0) return;
 
+    this.history.add(value);
+    this.history.reset();
+
     const { network } = this.client;
 
     if (value === `${commandSymbol}help`) {
@@ -548,13 +551,11 @@ class Chat {
           : value,
       },
     });
-
-    this.history.add(value);
-    this.history.reset();
   };
 
   private handleUp = () => {
     const previous = this.history.previous();
+    console.log(previous);
     if (previous) this.inputValue = previous;
   };
 

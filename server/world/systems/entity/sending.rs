@@ -1,4 +1,3 @@
-use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -6,9 +5,9 @@ use crate::{
     MessageType, MetadataComp, Stats,
 };
 
-pub struct BroadcastEntitiesSystem;
+pub struct EntitiesSendingSystem;
 
-impl<'a> System<'a> for BroadcastEntitiesSystem {
+impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueue>,
@@ -29,10 +28,16 @@ impl<'a> System<'a> for BroadcastEntitiesSystem {
 
         let mut entities = vec![];
         for (id, etype, metadata, _) in (&ids, &etypes, &mut metadatas, &flag).join() {
+            let (json_str, updated) = metadata.to_cached_str();
+
+            if !updated {
+                continue;
+            }
+
             entities.push(EntityProtocol {
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
-                metadata: Some(metadata.to_json_string()),
+                metadata: Some(json_str),
             });
 
             metadata.reset();

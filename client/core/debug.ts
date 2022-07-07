@@ -344,19 +344,12 @@ class Debug {
         title: "World",
         expanded: false,
       });
-      worldFolder.addButton({ title: "remesh chunk" }).on("click", () => {
-        const currChunk = ChunkUtils.mapVoxelPosToChunkPos(
-          controls.voxel,
-          world.params.chunkSize
-        );
+      worldFolder.addButton({ title: "spawn" }).on("click", () => {
         network.send({
-          type: "DEBUG",
+          type: "METHOD",
           json: {
-            method: "remesh",
-            data: {
-              cx: currChunk[0],
-              cz: currChunk[1],
-            },
+            method: "spawn",
+            data: controls.position,
           },
         });
       });

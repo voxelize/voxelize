@@ -1,12 +1,12 @@
 mod clients;
 mod components;
 mod config;
+mod entities;
 mod events;
 mod generators;
 mod messages;
 mod physics;
 mod registry;
-mod saveload;
 mod search;
 mod stats;
 mod systems;
@@ -16,44 +16,45 @@ mod voxels;
 
 use actix::Recipient;
 use hashbrown::HashMap;
-use log::info;
+use log::{info, warn};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
     world::EntitiesRes,
-    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Read, ReadStorage,
+    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, Read, ReadStorage,
     World as ECSWorld, WorldExt, WriteStorage,
 };
 use std::env;
+use std::fs::{self, File};
 use std::path::PathBuf;
 
 use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType},
-    EncodedMessage, PeerProtocol, Vec2, Vec3,
+    EncodedMessage, EntityProtocol, PeerProtocol, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
 
 use self::systems::{
-    BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem, ChunkMeshingSystem,
-    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem,
-    ChunkUpdatingSystem, ClearCollisionsSystem, CurrentChunkSystem, EntityMetaSystem,
-    EntitySavingSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
+    BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem, ChunkRequestsSystem,
+    ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem, ClearCollisionsSystem,
+    CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem,
+    PeersSendingSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
 pub use components::*;
 pub use config::*;
+pub use entities::*;
 pub use events::*;
 pub use generators::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
-pub use saveload::*;
 pub use search::*;
 pub use stats::*;
 pub use types::*;
@@ -64,6 +65,8 @@ pub type ModifyDispatch =
     fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;
 
 pub type IntervalFunctions = Vec<(dyn FnMut(&mut World), u64)>;
+
+pub type MethodFunction = fn(&str, Value, &mut World) -> ();
 
 /// A voxelize world.
 #[derive(Default)]
@@ -80,7 +83,11 @@ pub struct World {
     /// Entity component system world.
     ecs: ECSWorld,
 
+    /// The modifier of the ECS dispatcher.
     dispatcher: Option<ModifyDispatch>,
+
+    /// The handler for `Method`s.
+    method_handle: Option<MethodFunction>,
 }
 
 fn get_default_dispatcher(
@@ -100,7 +107,7 @@ struct OnUnloadRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-struct OnDebugRequest {
+struct OnMethodRequest {
     method: String,
     data: Value,
 }
@@ -170,7 +177,7 @@ impl World {
         ecs.insert(Events::new());
 
         if config.saving {
-            ecs.insert(SaveLoad::new(&config.save_dir));
+            ecs.insert(Entities::new(&config.save_dir));
         }
 
         Self {
@@ -181,6 +188,7 @@ impl World {
             ecs,
 
             dispatcher: Some(get_default_dispatcher),
+            method_handle: None,
         }
     }
 
@@ -216,7 +224,7 @@ impl World {
 
     /// Read an entity by ID in the ECS world.
     pub fn get_entity(&self, ent_id: u32) -> Entity {
-        self.entities().entity(ent_id)
+        self.ecs.entities().entity(ent_id)
     }
 
     /// Add a client to the world by an ID and an Actix actor address.
@@ -229,6 +237,7 @@ impl World {
         json.insert("ranges".to_owned(), json!(self.registry().ranges));
         json.insert("params".to_owned(), json!(config));
 
+        /* ------------------------ Loading other the clients ----------------------- */
         let mut peers = vec![];
 
         self.clients().keys().for_each(|key| {
@@ -237,6 +246,27 @@ impl World {
                 ..Default::default()
             })
         });
+
+        /* -------------------------- Loading all entities -------------------------- */
+        let ids = self.read_component::<IDComp>();
+        let etypes = self.read_component::<ETypeComp>();
+        let metadatas = self.read_component::<MetadataComp>();
+
+        let mut entities = vec![];
+
+        for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
+            let j_str = metadata.to_string();
+
+            entities.push(EntityProtocol {
+                id: id.0.to_owned(),
+                r#type: etype.0.to_owned(),
+                metadata: Some(j_str),
+            });
+        }
+
+        drop(ids);
+        drop(etypes);
+        drop(metadatas);
 
         let body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.8, 1.8, 0.8)).build();
 
@@ -271,6 +301,7 @@ impl World {
         let init_message = Message::new(&MessageType::Init)
             .json(&serde_json::to_string(&json).unwrap())
             .peers(&peers)
+            .entities(&entities)
             .build();
 
         self.send(addr, &init_message);
@@ -304,6 +335,10 @@ impl World {
         self.dispatcher = Some(dispatch);
     }
 
+    pub fn set_method_handle(&mut self, handle: MethodFunction) {
+        self.method_handle = Some(handle);
+    }
+
     /// Handler for protobuf requests from clients.
     pub fn on_request(&mut self, client_id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
@@ -312,7 +347,7 @@ impl World {
             MessageType::Peer => self.on_peer(client_id, data),
             MessageType::Load => self.on_load(client_id, data),
             MessageType::Unload => self.on_unload(client_id, data),
-            MessageType::Debug => self.on_debug(client_id, data),
+            MessageType::Method => self.on_method(client_id, data),
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
             _ => {
@@ -344,6 +379,16 @@ impl World {
     /// Access a mutable clients map in the ECS world.
     pub fn clients_mut(&mut self) -> FetchMut<Clients> {
         self.write_resource::<Clients>()
+    }
+
+    /// Access all entities metadata save-load manager.
+    pub fn entities(&self) -> Fetch<Entities> {
+        self.read_resource::<Entities>()
+    }
+
+    /// Access a mutable entities metadata save-load manager.
+    pub fn entities_mut(&mut self) -> FetchMut<Entities> {
+        self.write_resource::<Entities>()
     }
 
     /// Access the registry in the ECS world.
@@ -399,17 +444,6 @@ impl World {
         self.write_resource::<Pipeline>()
     }
 
-    /// Access all entities in this ECS world.
-    pub fn entities(&self) -> Read<EntitiesRes> {
-        self.ecs.entities()
-    }
-
-    /// Access and mutate all entities in this ECS world.
-    pub fn entities_mut(&mut self) -> FetchMut<EntitiesRes> {
-        assert!(!self.started, "Cannot change ECS after world has started.");
-        self.ecs.entities_mut()
-    }
-
     /// Set an interval to do something every X ticks.
     pub fn set_interval(&mut self, func: &(dyn FnOnce(&mut World) + Sync + Send), interval: usize) {
         // self.write_resource::<IntervalFunctions>()
@@ -426,6 +460,20 @@ impl World {
             .with(MetadataComp::new())
             .with(CurrentChunkComp::default())
             .with(CollisionsComp::new())
+    }
+
+    /// Spawn an entity of type at a location.
+    pub fn spawn_entity(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
+        let loader = if let Some(loader) = self.entities_mut().get_loader(etype) {
+            loader
+        } else {
+            return None;
+        };
+
+        let ent = loader(nanoid!(), etype.to_owned(), MetadataComp::default(), self).build();
+        set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
+
+        Some(ent)
     }
 
     /// Check if this world is empty.
@@ -449,11 +497,34 @@ impl World {
         }
 
         if self.config().saving {
-            let saveload = self.read_resource::<SaveLoad>();
-            let folder = saveload.folder.to_owned();
-            let loaders = saveload.loaders.to_owned();
-            drop(saveload);
-            SaveLoad::load(self, &folder, &loaders);
+            // TODO: THIS FEELS HACKY
+
+            let paths = fs::read_dir(self.entities().folder.clone()).unwrap();
+            let loaders = self.entities().loaders.to_owned();
+
+            for path in paths {
+                let path = path.unwrap().path();
+
+                if let Ok(entity_data) = File::open(&path) {
+                    let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
+                    let mut data: HashMap<String, Value> = serde_json::from_reader(entity_data)
+                        .unwrap_or_else(|_| panic!("Could not load entity file: {:?}", path));
+                    let etype: String = serde_json::from_value(data.remove("etype").unwrap())
+                        .unwrap_or_else(|_| {
+                            panic!("EType filed does not exist on file: {:?}", path)
+                        });
+                    let metadata: MetadataComp =
+                        serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
+                            |_| panic!("Metadata filed does not exist on file: {:?}", path),
+                        );
+
+                    if let Some(loader) = loaders.get(&etype) {
+                        loader(id, etype, metadata, self).build();
+                    } else {
+                        fs::remove_file(path).expect("Unable to remove entity file...");
+                    }
+                }
+            }
         }
     }
 
@@ -487,32 +558,26 @@ impl World {
         let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder
-            .with(EntitySavingSystem, "entity-saving", &["entity-meta"])
+            .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
             .with(
-                BroadcastEntitiesSystem,
-                "broadcast-entities",
-                &["entity-saving"],
+                EntitiesSendingSystem,
+                "entities-sending",
+                &["entities-saving"],
             )
-            .with(BroadcastPeersSystem, "broadcast-peers", &[])
-            .with(BroadcastSystem, "broadcast", &["broadcast-entities"])
+            .with(PeersSendingSystem, "peers-sending", &[])
+            .with(
+                BroadcastSystem,
+                "broadcast",
+                &["entities-sending", "peers-sending", "chunk-sending"],
+            )
             .with(
                 ClearCollisionsSystem,
                 "clear-collisions",
-                &["broadcast-entities"],
+                &["entities-sending"],
             );
 
         let mut dispatcher = builder.build();
         dispatcher.dispatch(&self.ecs);
-
-        // {
-        //     let chunks = self.chunks();
-        //     info!(
-        //         "to_remesh: {:?}, to_send: {:?}, to_update: {:?}",
-        //         chunks.to_remesh.len(),
-        //         chunks.to_send.len(),
-        //         chunks.to_update.len()
-        //     )
-        // }
 
         self.ecs.maintain();
     }
@@ -655,25 +720,20 @@ impl World {
         });
     }
 
-    /// Handler for `Debug` type messages.
-    fn on_debug(&mut self, _: &str, data: Message) {
-        let json: OnDebugRequest = serde_json::from_str(&data.json)
-            .expect("`on_debug` error. Could not read JSON string.");
-
-        let mut chunks = self.chunks_mut();
-
-        if json.method.to_lowercase() == "remesh" {
-            let x = json.data["cx"].as_i64().unwrap() as i32;
-            let z = json.data["cz"].as_i64().unwrap() as i32;
-
-            let coords = Vec2(x, z);
-
-            if chunks.is_within_world(&coords) && !chunks.to_remesh.contains(&coords) {
-                chunks.to_remesh.push_front(coords);
-            }
-        } else {
-            info!("Received unknown debug method of {}", json.method);
+    /// Handler for `Method` type messages.
+    fn on_method(&mut self, _: &str, data: Message) {
+        if self.method_handle.is_none() {
+            warn!("`Method` type messages received, but no method handler set.");
+            return;
         }
+
+        let handle = self.method_handle.unwrap();
+
+        let json: OnMethodRequest = serde_json::from_str(&data.json)
+            .expect("`on_method` error. Could not read JSON string.");
+        let method = json.method.to_lowercase();
+
+        handle(&method, json.data, self);
     }
 
     /// Handler for `Chat` type messages.

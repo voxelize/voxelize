@@ -220,6 +220,14 @@ class Network {
   private onEvent = (event: any) => {
     const { type } = event;
 
+    const { entities } = event;
+
+    if (entities && entities.length) {
+      entities.forEach((entity: any) => {
+        this.client.entities.onEvent(entity);
+      });
+    }
+
     switch (type) {
       case "INIT": {
         const {
@@ -280,13 +288,6 @@ class Network {
           this.client.peers.updatePeer(peer);
         });
 
-        break;
-      }
-      case "ENTITY": {
-        const { entities } = event;
-        entities.forEach((entity: any) => {
-          this.client.entities.onEvent(entity);
-        });
         break;
       }
       case "LOAD": {

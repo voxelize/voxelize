@@ -6,9 +6,9 @@ use crate::{
     PeerProtocol, PositionComp, Stats,
 };
 
-pub struct BroadcastPeersSystem;
+pub struct PeersSendingSystem;
 
-impl<'a> System<'a> for BroadcastPeersSystem {
+impl<'a> System<'a> for PeersSendingSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueue>,
