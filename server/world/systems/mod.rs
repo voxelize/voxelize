@@ -1,7 +1,7 @@
 mod broadcast;
 mod chunk;
 mod collisions;
-mod entity_meta;
+mod entity;
 mod physics;
 mod search;
 mod stats;
@@ -9,7 +9,7 @@ mod stats;
 pub use broadcast::{BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem};
 pub use chunk::*;
 pub use collisions::*;
-pub use entity_meta::EntityMetaSystem;
+pub use entity::*;
 pub use physics::PhysicsSystem;
 pub use search::SearchSystem;
 pub use stats::UpdateStatsSystem;

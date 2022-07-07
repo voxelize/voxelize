@@ -1,16 +1,18 @@
-use std::process;
+use std::{fmt::Write, process};
 
+use hashbrown::HashMap;
 use log::info;
 use nanoid::nanoid;
 use registry::setup_registry;
+use serde_json::json;
 use specs::{
-    Builder, Component, DispatcherBuilder, NullStorage, ReadExpect, ReadStorage, System, WorldExt,
-    WriteStorage,
+    Builder, Component, DispatcherBuilder, EntityBuilder, NullStorage, ReadExpect, ReadStorage,
+    System, SystemData, WorldExt, WriteStorage,
 };
 use voxelize::{
     CollisionsComp, CurrentChunkComp, ETypeComp, EntityFlag, FlatlandStage, HeadingComp, IDComp,
-    InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Stats,
-    TargetComp, Voxelize, WorldConfig, AABB,
+    InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp, SaveLoad, Server, Stats,
+    TargetComp, Voxelize, World, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -57,6 +59,36 @@ fn get_dispatcher(
     builder: DispatcherBuilder<'static, 'static>,
 ) -> DispatcherBuilder<'static, 'static> {
     builder.with(UpdateBoxSystem, "update-box", &["physics"])
+}
+
+fn load_box(id: String, etype: String, metadata: MetadataComp, world: &mut World) -> EntityBuilder {
+    let mut test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();
+    let interactor1 = world.physics_mut().register(&test_body);
+
+    let base = world.create_entity(&id, &etype);
+
+    if let Some(position) = metadata.get("position") {
+        let position: PositionComp = serde_json::from_value(position.to_owned()).unwrap();
+        let mut storage: WriteStorage<PositionComp> = SystemData::fetch(&base.world);
+        test_body.set_position(position.0 .0, position.0 .1, position.0 .2);
+        storage.insert(base.entity, position).unwrap();
+    }
+
+    if let Some(target) = metadata.get("target") {
+        let target: TargetComp = serde_json::from_value(target.to_owned()).unwrap();
+        let mut storage: WriteStorage<TargetComp> = SystemData::fetch(&base.world);
+        storage.insert(base.entity, target).unwrap();
+    }
+
+    if let Some(heading) = metadata.get("heading") {
+        let heading: HeadingComp = serde_json::from_value(heading.to_owned()).unwrap();
+        let mut storage: WriteStorage<HeadingComp> = SystemData::fetch(&base.world);
+        storage.insert(base.entity, heading).unwrap();
+    }
+
+    base.with(RigidBodyComp::new(&test_body))
+        .with(InteractorComp::new(interactor1))
+        .with(BoxFlag)
 }
 
 #[actix_web::main]
@@ -106,43 +138,33 @@ async fn main() -> std::io::Result<()> {
 
     world3.ecs_mut().register::<BoxFlag>();
     world3.set_dispatcher(get_dispatcher);
+    world3
+        .ecs_mut()
+        .write_resource::<SaveLoad>()
+        .add_loader("box", load_box);
 
     let interactor1 = world3.physics_mut().register(&test_body);
     let interactor2 = world3.physics_mut().register(&test_body);
 
-    world3
-        .ecs_mut()
-        .create_entity()
-        .with(EntityFlag::default())
-        .with(ETypeComp::new("Box"))
-        .with(IDComp::new(&nanoid!()))
-        .with(PositionComp::new(1.0, 80.0, 0.0))
-        .with(TargetComp::new(0.0, 0.0, 0.0))
-        .with(HeadingComp::new(0.0, 0.0, 0.0))
-        .with(MetadataComp::new())
-        .with(RigidBodyComp::new(&test_body))
-        .with(InteractorComp::new(interactor1))
-        .with(CurrentChunkComp::default())
-        .with(CollisionsComp::new())
-        .with(BoxFlag)
-        .build();
+    // world3
+    //     .create_entity(&nanoid!(), "Box")
+    //     .with(PositionComp::new(1.0, 80.0, 0.0))
+    //     .with(TargetComp::new(0.0, 0.0, 0.0))
+    //     .with(HeadingComp::new(0.0, 0.0, 0.0))
+    //     .with(RigidBodyComp::new(&test_body))
+    //     .with(InteractorComp::new(interactor1))
+    //     .with(BoxFlag)
+    //     .build();
 
-    world3
-        .ecs_mut()
-        .create_entity()
-        .with(EntityFlag::default())
-        .with(ETypeComp::new("Box"))
-        .with(IDComp::new(&nanoid!()))
-        .with(PositionComp::new(-1.0, 80.0, 0.0))
-        .with(TargetComp::new(0.0, 0.0, 0.0))
-        .with(HeadingComp::new(0.0, 0.0, 0.0))
-        .with(MetadataComp::new())
-        .with(RigidBodyComp::new(&test_body))
-        .with(InteractorComp::new(interactor2))
-        .with(CurrentChunkComp::default())
-        .with(CollisionsComp::new())
-        .with(BoxFlag)
-        .build();
+    // world3
+    //     .create_entity(&nanoid!(), "Box")
+    //     .with(PositionComp::new(-1.0, 80.0, 0.0))
+    //     .with(TargetComp::new(0.0, 0.0, 0.0))
+    //     .with(HeadingComp::new(0.0, 0.0, 0.0))
+    //     .with(RigidBodyComp::new(&test_body))
+    //     .with(InteractorComp::new(interactor2))
+    //     .with(BoxFlag)
+    //     .build();
 
     Voxelize::run(server).await
 }

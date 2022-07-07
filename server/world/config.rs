@@ -112,6 +112,9 @@ pub struct WorldConfig {
 
     /// Path to save all the saved chunks. Needs `save` to be true to be used.
     pub save_dir: String,
+
+    /// Saving interval.
+    pub save_interval: usize,
 }
 
 impl WorldConfig {
@@ -167,6 +170,7 @@ const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 const DEFAULT_COLLISION_REPULSION: f32 = 0.3;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
+const DEFAULT_SAVE_INTERVAL: usize = 300;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -193,6 +197,7 @@ pub struct WorldConfigBuilder {
     terrain: NoiseParams,
     saving: bool,
     save_dir: String,
+    save_interval: usize,
 }
 
 impl WorldConfigBuilder {
@@ -221,6 +226,7 @@ impl WorldConfigBuilder {
             collision_repulsion: DEFAULT_COLLISION_REPULSION,
             saving: DEFAULT_SAVING,
             save_dir: DEFAULT_SAVE_DIR.to_owned(),
+            save_interval: DEFAULT_SAVE_INTERVAL,
             terrain: NoiseParams::default(),
         }
     }
@@ -334,6 +340,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the saving interval of the world.
+    pub fn save_interval(mut self, save_interval: usize) -> Self {
+        self.save_interval = save_interval.to_owned();
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -373,6 +385,7 @@ impl WorldConfigBuilder {
             terrain: self.terrain,
             saving: self.saving,
             save_dir: self.save_dir,
+            save_interval: self.save_interval,
         }
     }
 }

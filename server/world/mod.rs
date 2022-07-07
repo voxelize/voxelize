@@ -6,6 +6,7 @@ mod generators;
 mod messages;
 mod physics;
 mod registry;
+mod saveload;
 mod search;
 mod stats;
 mod systems;
@@ -22,8 +23,8 @@ use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
     world::EntitiesRes,
-    Builder, Component, DispatcherBuilder, Entity, Read, ReadStorage, World as ECSWorld, WorldExt,
-    WriteStorage,
+    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Read, ReadStorage,
+    World as ECSWorld, WorldExt, WriteStorage,
 };
 use std::env;
 use std::path::PathBuf;
@@ -41,7 +42,7 @@ use self::systems::{
     BroadcastEntitiesSystem, BroadcastPeersSystem, BroadcastSystem, ChunkMeshingSystem,
     ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem,
     ChunkUpdatingSystem, ClearCollisionsSystem, CurrentChunkSystem, EntityMetaSystem,
-    PhysicsSystem, SearchSystem, UpdateStatsSystem,
+    EntitySavingSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -52,6 +53,7 @@ pub use generators::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
+pub use saveload::*;
 pub use search::*;
 pub use stats::*;
 pub use types::*;
@@ -166,6 +168,10 @@ impl World {
         ecs.insert(Stats::new());
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
+
+        if config.saving {
+            ecs.insert(SaveLoad::new(&config.save_dir));
+        }
 
         Self {
             id,
@@ -410,6 +416,18 @@ impl World {
         //     .push((Arc::new(func.to_owned()), interval));
     }
 
+    /// Create a basic entity ready to be added more.
+    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+        self.ecs_mut()
+            .create_entity()
+            .with(IDComp::new(id))
+            .with(EntityFlag::default())
+            .with(ETypeComp::new(etype))
+            .with(MetadataComp::new())
+            .with(CurrentChunkComp::default())
+            .with(CollisionsComp::new())
+    }
+
     /// Check if this world is empty.
     pub fn is_empty(&self) -> bool {
         let clients = self.read_resource::<Clients>();
@@ -419,6 +437,7 @@ impl World {
     /// Prepare to start.
     pub fn prepare(&mut self) {
         use specs::Join;
+
         for (position, body) in (
             &self.ecs.read_storage::<PositionComp>(),
             &mut self.ecs.write_storage::<RigidBodyComp>(),
@@ -427,6 +446,14 @@ impl World {
         {
             body.0
                 .set_position(position.0 .0, position.0 .1, position.0 .2);
+        }
+
+        if self.config().saving {
+            let saveload = self.read_resource::<SaveLoad>();
+            let folder = saveload.folder.to_owned();
+            let loaders = saveload.loaders.to_owned();
+            drop(saveload);
+            SaveLoad::load(self, &folder, &loaders);
         }
     }
 
@@ -460,7 +487,12 @@ impl World {
         let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder
-            .with(BroadcastEntitiesSystem, "broadcast-entities", &[])
+            .with(EntitySavingSystem, "entity-saving", &["entity-meta"])
+            .with(
+                BroadcastEntitiesSystem,
+                "broadcast-entities",
+                &["entity-saving"],
+            )
             .with(BroadcastPeersSystem, "broadcast-peers", &[])
             .with(BroadcastSystem, "broadcast", &["broadcast-entities"])
             .with(

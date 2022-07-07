@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use specs::{Component, VecStorage};
 
 use crate::Vec3;
 
 /// The direction this entity is positioned.
-#[derive(Default, Component)]
+#[derive(Debug, Default, Component, Serialize, Deserialize)]
 #[storage(VecStorage)]
 pub struct TargetComp(pub Vec3<f32>);
 

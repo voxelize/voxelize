@@ -5,7 +5,7 @@ use serde_json::Value;
 use specs::{Component, VecStorage};
 
 /// A list of chunks that the entity is requesting to generate.
-#[derive(Default, Component, Serialize, Deserialize)]
+#[derive(Debug, Default, Component, Serialize, Deserialize)]
 #[storage(VecStorage)]
 pub struct MetadataComp(pub HashMap<String, Value>);
 
@@ -24,6 +24,11 @@ impl MetadataComp {
         }
 
         self.0.insert(component, value);
+    }
+
+    /// Get a component's metadata
+    pub fn get(&self, component: &str) -> Option<&Value> {
+        self.0.get(component)
     }
 
     /// Convert metadata to JSON string
