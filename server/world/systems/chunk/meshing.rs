@@ -36,8 +36,6 @@ impl<'a> System<'a> for ChunkMeshingSystem {
         let mut count = 0;
 
         while count < config.max_chunks_per_tick {
-            count += 1;
-
             if let Some(coords) = chunks.to_remesh.pop_front() {
                 let mut ready = true;
 
@@ -82,6 +80,8 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                     ready = false;
                     break;
                 }
+
+                count += 1;
 
                 if !ready {
                     if !chunks.to_remesh.contains(&coords) {

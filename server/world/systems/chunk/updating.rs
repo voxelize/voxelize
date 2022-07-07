@@ -70,7 +70,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             }
 
             if !chunks.is_chunk_ready(&coords) {
-                chunks.to_update.push_back((voxel, raw));
                 continue;
             }
 

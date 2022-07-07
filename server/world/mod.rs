@@ -166,6 +166,7 @@ impl World {
         ecs.insert(Chunks::new(config));
         ecs.insert(SeededNoise::new(config.seed));
         ecs.insert(SeededTerrain::new(config.seed, &config.terrain));
+        ecs.insert(Entities::new(&config.save_dir));
         ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());
@@ -175,10 +176,6 @@ impl World {
         ecs.insert(Stats::new());
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
-
-        if config.saving {
-            ecs.insert(Entities::new(&config.save_dir));
-        }
 
         Self {
             id,
@@ -484,8 +481,6 @@ impl World {
 
     /// Prepare to start.
     pub fn prepare(&mut self) {
-        use specs::Join;
-
         for (position, body) in (
             &self.ecs.read_storage::<PositionComp>(),
             &mut self.ecs.write_storage::<RigidBodyComp>(),
@@ -496,36 +491,8 @@ impl World {
                 .set_position(position.0 .0, position.0 .1, position.0 .2);
         }
 
-        if self.config().saving {
-            // TODO: THIS FEELS HACKY
-
-            let paths = fs::read_dir(self.entities().folder.clone()).unwrap();
-            let loaders = self.entities().loaders.to_owned();
-
-            for path in paths {
-                let path = path.unwrap().path();
-
-                if let Ok(entity_data) = File::open(&path) {
-                    let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let mut data: HashMap<String, Value> = serde_json::from_reader(entity_data)
-                        .unwrap_or_else(|_| panic!("Could not load entity file: {:?}", path));
-                    let etype: String = serde_json::from_value(data.remove("etype").unwrap())
-                        .unwrap_or_else(|_| {
-                            panic!("EType filed does not exist on file: {:?}", path)
-                        });
-                    let metadata: MetadataComp =
-                        serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
-                            |_| panic!("Metadata filed does not exist on file: {:?}", path),
-                        );
-
-                    if let Some(loader) = loaders.get(&etype) {
-                        loader(id, etype, metadata, self).build();
-                    } else {
-                        fs::remove_file(path).expect("Unable to remove entity file...");
-                    }
-                }
-            }
-        }
+        self.load_entities();
+        self.preload();
     }
 
     /// Tick of the world, run every 16ms.
@@ -756,5 +723,67 @@ impl World {
                 self.broadcast(data, ClientFilter::All);
             }
         }
+    }
+
+    /// Load existing entities.
+    fn load_entities(&mut self) {
+        if self.config().saving {
+            // TODO: THIS FEELS HACKY
+
+            let paths = fs::read_dir(self.entities().folder.clone()).unwrap();
+            let loaders = self.entities().loaders.to_owned();
+
+            for path in paths {
+                let path = path.unwrap().path();
+
+                if let Ok(entity_data) = File::open(&path) {
+                    let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
+                    let mut data: HashMap<String, Value> = serde_json::from_reader(entity_data)
+                        .unwrap_or_else(|_| panic!("Could not load entity file: {:?}", path));
+                    let etype: String = serde_json::from_value(data.remove("etype").unwrap())
+                        .unwrap_or_else(|_| {
+                            panic!("EType filed does not exist on file: {:?}", path)
+                        });
+                    let metadata: MetadataComp =
+                        serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
+                            |_| panic!("Metadata filed does not exist on file: {:?}", path),
+                        );
+
+                    if let Some(loader) = loaders.get(&etype) {
+                        loader(id, etype, metadata, self).build();
+                    } else {
+                        fs::remove_file(path).expect("Unable to remove entity file...");
+                    }
+                }
+            }
+        }
+    }
+
+    fn preload(&mut self) {
+        let config = (*self.config()).to_owned();
+        let radius = config.preload_radius as i32;
+
+        let mut count = 0;
+        for cx in -radius..=radius {
+            for cz in -radius..=radius {
+                let new_chunk = Chunk::new(
+                    &nanoid!(),
+                    cx,
+                    cz,
+                    &ChunkParams {
+                        max_height: config.max_height,
+                        sub_chunks: config.sub_chunks,
+                        size: config.chunk_size,
+                    },
+                );
+
+                count += 1;
+
+                self.pipeline_mut().postpone(&new_chunk.coords, 0);
+                self.chunks_mut().add(new_chunk);
+            }
+        }
+
+        info!("Preloaded {:?} chunks for world \"{}\"", count, self.name);
     }
 }

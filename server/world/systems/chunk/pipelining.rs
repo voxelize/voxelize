@@ -61,8 +61,6 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
         let mut processed = 0;
 
         while processed < max_per_tick {
-            processed += 1;
-
             if pipeline.is_empty() {
                 break;
             }
@@ -188,6 +186,8 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             } else {
                 processes.push((chunk, None, index));
             }
+
+            processed += 1;
         }
 
         // This part goes through all block changes (chunk coords -> list of changes) and see

@@ -36,8 +36,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 && count < config.max_chunks_per_tick
                 && to_send.len() < config.max_response_per_tick
             {
-                count += 1;
-
                 let coords = request.pending.pop_front().unwrap();
 
                 if !chunks.is_within_world(&coords) {
@@ -75,6 +73,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                     request.pending.insert(coords);
                 }
+
+                count += 1;
             }
         }
 
