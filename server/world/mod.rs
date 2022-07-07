@@ -766,6 +766,10 @@ impl World {
         let mut count = 0;
         for cx in -radius..=radius {
             for cz in -radius..=radius {
+                if !self.chunks().is_within_world(&Vec2(cx, cz)) {
+                    continue;
+                }
+
                 let new_chunk = Chunk::new(
                     &nanoid!(),
                     cx,
