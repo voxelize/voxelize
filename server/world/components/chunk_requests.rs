@@ -1,4 +1,5 @@
 use linked_hash_set::LinkedHashSet;
+use rayon::slice::ParallelSliceMut;
 use specs::{Component, VecStorage};
 
 use crate::Vec2;
@@ -40,7 +41,7 @@ impl ChunkRequestsComp {
 
         let mut pendings: Vec<Vec2<i32>> = self.pending.clone().into_iter().collect();
 
-        pendings.sort_by(|c1, c2| {
+        pendings.par_sort_by(|c1, c2| {
             let dist1 = (c1.0 - cx).pow(2) + (c1.1 - cz).pow(2);
             let dist2 = (c2.0 - cx).pow(2) + (c2.1 - cz).pow(2);
             dist1.cmp(&dist2)

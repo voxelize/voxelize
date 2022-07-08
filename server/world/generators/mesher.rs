@@ -4,7 +4,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use itertools::izip;
 use log::info;
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     Block, BlockFace, BlockRotation, Chunk, CornerData, Geometry, LightUtils, MeshProtocol,
@@ -70,7 +70,7 @@ impl Mesher {
 
         self.pool.spawn(move || {
             let chunks: Vec<Chunk> = processes
-                .into_iter()
+                .into_par_iter()
                 .map(|(mut chunk, mut space)| {
                     if chunk.meshes.is_none() {
                         let min = space.min.to_owned();
@@ -93,28 +93,38 @@ impl Mesher {
                     let blocks_per_sub_chunk =
                         (space.params.max_height / space.params.sub_chunks) as i32;
 
-                    sub_chunks.into_iter().for_each(|level| {
-                        let level = level as i32;
+                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                    sub_chunks
+                        .into_par_iter()
+                        .map(|level| {
+                            let level = level as i32;
 
-                        let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
-                        let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
+                            let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                            let max =
+                                Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                        if chunk.meshes.is_none() {
-                            chunk.meshes = Some(HashMap::new());
-                        }
+                            let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
+                            let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
 
-                        chunk.meshes.as_mut().unwrap().insert(
-                            level as u32,
-                            MeshProtocol {
-                                level,
-                                opaque,
-                                transparent,
-                            },
-                        );
-                    });
+                            (opaque, transparent, level)
+                        })
+                        .collect::<Vec<(Option<Geometry>, Option<Geometry>, i32)>>()
+                        .into_iter()
+                        .for_each(|(opaque, transparent, level)| {
+                            if chunk.meshes.is_none() {
+                                chunk.meshes = Some(HashMap::new());
+                            }
+
+                            chunk.meshes.as_mut().unwrap().insert(
+                                level as u32,
+                                MeshProtocol {
+                                    level,
+                                    opaque,
+                                    transparent,
+                                },
+                            );
+                        });
 
                     chunk
                 })

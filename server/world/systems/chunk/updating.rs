@@ -2,10 +2,11 @@ use std::{collections::VecDeque, time::Instant};
 
 use hashbrown::HashMap;
 use log::info;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    Block, BlockUtils, ChunkUtils, Chunks, ClientFilter, LightColor, LightNode, Lights,
+    Block, BlockUtils, ChunkUtils, Chunks, ClientFilter, Geometry, LightColor, LightNode, Lights,
     MeshProtocol, Mesher, Message, MessageQueue, MessageType, Registry, UpdateProtocol, Vec2, Vec3,
     VoxelAccess, WorldConfig,
 };
@@ -350,28 +351,37 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 let blocks_per_sub_chunk =
                     (space.params.max_height / space.params.sub_chunks) as i32;
 
-                chunk.updated_levels.iter().for_each(|&level| {
-                    let level = level as i32;
+                let sub_chunks: Vec<_> = chunk.updated_levels.clone().into_iter().collect();
 
-                    let min = Vec3(min_x, level * blocks_per_sub_chunk, min_z);
-                    let max = Vec3(max_x, (level + 1) * blocks_per_sub_chunk, max_z);
+                sub_chunks
+                    .into_par_iter()
+                    .map(|level| {
+                        let level = level as i32;
 
-                    let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
-                    let transparent = Mesher::mesh_space(&min, &max, &space, &registry, true);
+                        let min = Vec3(min_x, level * blocks_per_sub_chunk, min_z);
+                        let max = Vec3(max_x, (level + 1) * blocks_per_sub_chunk, max_z);
 
-                    if chunk.meshes.is_none() {
-                        chunk.meshes = Some(HashMap::new());
-                    }
+                        let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
+                        let transparent = Mesher::mesh_space(&min, &max, &space, &registry, true);
 
-                    chunk.meshes.as_mut().unwrap().insert(
-                        level as u32,
-                        MeshProtocol {
-                            level,
-                            opaque,
-                            transparent,
-                        },
-                    );
-                });
+                        (opaque, transparent, level)
+                    })
+                    .collect::<Vec<(Option<Geometry>, Option<Geometry>, i32)>>()
+                    .into_iter()
+                    .for_each(|(opaque, transparent, level)| {
+                        if chunk.meshes.is_none() {
+                            chunk.meshes = Some(HashMap::new());
+                        }
+
+                        chunk.meshes.as_mut().unwrap().insert(
+                            level as u32,
+                            MeshProtocol {
+                                level,
+                                opaque,
+                                transparent,
+                            },
+                        );
+                    });
 
                 if config.saving {
                     chunks.to_save.push_back(coords.clone());
