@@ -28,6 +28,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut entities = vec![];
         for (id, etype, metadata, _) in (&ids, &etypes, &mut metadatas, &flag).join() {
+            if metadata.is_empty() {
+                continue;
+            }
+
             let (json_str, updated) = metadata.to_cached_str();
 
             if !updated {

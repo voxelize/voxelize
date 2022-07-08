@@ -252,6 +252,10 @@ impl World {
         let mut entities = vec![];
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
+            if metadata.is_empty() {
+                continue;
+            }
+
             let j_str = metadata.to_string();
 
             entities.push(EntityProtocol {

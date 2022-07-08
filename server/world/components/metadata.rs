@@ -61,6 +61,11 @@ impl MetadataComp {
         serde_json::to_string(&self.map).unwrap()
     }
 
+    /// Is the metadata empty?
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
     /// Reset this metadata
     pub fn reset(&mut self) {
         self.map.clear();

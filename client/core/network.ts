@@ -218,9 +218,7 @@ class Network {
   }
 
   private onEvent = (event: any) => {
-    const { type } = event;
-
-    const { entities } = event;
+    const { type, entities } = event;
 
     if (entities && entities.length) {
       entities.forEach((entity: any) => {
