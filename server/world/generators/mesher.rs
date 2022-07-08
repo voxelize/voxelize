@@ -261,21 +261,21 @@ impl Mesher {
                                 let dy = pos[1].round() as i32;
                                 let dz = pos[2].round() as i32;
 
-                                let dx = if self_transparent {
+                                let dx = if !is_opaque {
                                     0
                                 } else if dx == 0 {
                                     -1
                                 } else {
                                     1
                                 };
-                                let dy = if self_transparent {
+                                let dy = if !is_opaque {
                                     0
                                 } else if dy == 0 {
                                     -1
                                 } else {
                                     1
                                 };
-                                let dz = if self_transparent {
+                                let dz = if !is_opaque {
                                     0
                                 } else if dz == 0 {
                                     -1
