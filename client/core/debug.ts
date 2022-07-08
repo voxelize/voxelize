@@ -428,6 +428,6 @@ class Debug {
   };
 }
 
-export type { Formatter };
+export type { Formatter, DebugParams };
 
 export { Debug };

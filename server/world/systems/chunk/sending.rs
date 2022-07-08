@@ -37,18 +37,18 @@ impl<'a> System<'a> for ChunkSendingSystem {
                         .for_each(|[mesh, data]| {
                             let mut messages = vec![];
 
-                            if mesh {
-                                if r#type == MessageType::Load {
-                                    messages.push(
-                                        Message::new(&r#type)
-                                            .chunks(&[chunk.to_model(
-                                                mesh,
-                                                data,
-                                                0..(config.sub_chunks as u32),
-                                            )])
-                                            .build(),
-                                    )
-                                } else {
+                            if r#type == MessageType::Load {
+                                messages.push(
+                                    Message::new(&r#type)
+                                        .chunks(&[chunk.to_model(
+                                            mesh,
+                                            data,
+                                            0..(config.sub_chunks as u32),
+                                        )])
+                                        .build(),
+                                )
+                            } else {
+                                if mesh {
                                     chunk
                                         .updated_levels
                                         .to_owned()
@@ -63,7 +63,14 @@ impl<'a> System<'a> for ChunkSendingSystem {
                                                     .build(),
                                             );
                                         });
+
                                     chunk.updated_levels.clear();
+                                } else {
+                                    messages.push(
+                                        Message::new(&r#type)
+                                            .chunks(&[chunk.to_model(false, true, 0..0)])
+                                            .build(),
+                                    )
                                 }
                             }
 

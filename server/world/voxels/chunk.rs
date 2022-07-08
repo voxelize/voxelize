@@ -102,19 +102,21 @@ impl Chunk {
     pub fn to_model(&self, mesh: bool, data: bool, levels: Range<u32>) -> ChunkProtocol {
         let mut meshes = vec![];
 
-        if self.meshes.is_some() {
-            levels.for_each(|level| {
-                if let Some(mesh) = self.meshes.as_ref().unwrap().get(&level) {
-                    meshes.push(mesh.to_owned());
-                }
-            });
+        if mesh {
+            if self.meshes.is_some() {
+                levels.for_each(|level| {
+                    if let Some(mesh) = self.meshes.as_ref().unwrap().get(&level) {
+                        meshes.push(mesh.to_owned());
+                    }
+                });
+            }
         }
 
         ChunkProtocol {
             x: self.coords.0,
             z: self.coords.1,
             id: self.id.clone(),
-            meshes: if mesh { meshes } else { vec![] },
+            meshes,
             voxels: if data {
                 Some(self.voxels.to_owned())
             } else {

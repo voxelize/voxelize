@@ -52,10 +52,11 @@ impl Registry {
     /// Create a registry instance. By default, the "Air" block is registered at ID of 0.
     pub fn new() -> Self {
         let air = Block::new("Air")
-            .is_solid(false)
             .is_block(false)
             .is_empty(true)
-            .is_transparent(true)
+            .is_x_transparent(true)
+            .is_y_transparent(true)
+            .is_z_transparent(true)
             .aabbs(&[])
             .build();
 
@@ -160,16 +161,6 @@ impl Registry {
             .unwrap_or_else(|| panic!("Block name not found: {name}"))
     }
 
-    /// Get block transparency by id.
-    pub fn get_transparency_by_id(&self, id: u32) -> bool {
-        self.get_block_by_id(id).is_transparent
-    }
-
-    /// Get block transparency by name.
-    pub fn get_transparency_by_name(&self, name: &str) -> bool {
-        self.get_block_by_name(name).is_transparent
-    }
-
     /// Get block fluidity by id.
     pub fn get_fluiditiy_by_id(&self, id: u32) -> bool {
         self.get_block_by_id(id).is_fluid
@@ -180,14 +171,14 @@ impl Registry {
         self.get_block_by_name(name).is_fluid
     }
 
-    /// Get block solidity by id.
-    pub fn get_solidity_by_id(&self, id: u32) -> bool {
-        self.get_block_by_id(id).is_solid
+    /// Get block opacity by id.
+    pub fn get_opacity_by_id(&self, id: u32) -> bool {
+        self.get_block_by_id(id).is_opaque
     }
 
-    /// Get block solidity by name.
-    pub fn get_solidity_by_name(&self, name: &str) -> bool {
-        self.get_block_by_name(name).is_solid
+    /// Get block opacity by name.
+    pub fn get_opacity_by_name(&self, name: &str) -> bool {
+        self.get_block_by_name(name).is_opaque
     }
 
     /// Get block emptiness by id.
@@ -254,15 +245,6 @@ impl Registry {
         }
 
         type_map
-    }
-
-    /// Get solids that can be treated as empty's.
-    pub fn get_passable_solids(&self) -> Vec<u32> {
-        self.blocks_by_id
-            .iter()
-            .filter(|&(_, b)| !b.is_solid && (b.is_block || b.is_plant))
-            .map(|(id, _)| *id)
-            .collect()
     }
 
     /// Logic for checking max height, returning true if id counts as valid max height.

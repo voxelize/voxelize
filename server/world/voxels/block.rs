@@ -674,11 +674,8 @@ pub struct Block {
     /// Is the block a type of plant?
     pub is_plant: bool,
 
-    /// Is the block a solid?
-    pub is_solid: bool,
-
-    /// Is the block transparent and see-through?
-    pub is_transparent: bool,
+    /// Is the block opaque?
+    pub is_opaque: bool,
 
     /// Red-light level of the block.
     pub red_light_level: u32,
@@ -701,8 +698,26 @@ pub struct Block {
     /// Bounding boxes of this block.
     pub aabbs: Vec<AABB>,
 
-    /// Is the block a full block.
-    pub is_full_block: bool,
+    /// Is the block overall see-through? Opacity equals 0.1 or something?
+    pub is_see_through: bool,
+
+    /// Is the block transparent looking from the positive x-axis.
+    pub is_px_transparent: bool,
+
+    /// Is the block transparent looking from the negative x-axis.
+    pub is_nx_transparent: bool,
+
+    /// Is the block transparent looking from the positive y-axis.
+    pub is_py_transparent: bool,
+
+    /// Is the block transparent looking from the negative y-axis.
+    pub is_ny_transparent: bool,
+
+    /// Is the block transparent looking from the positive z-axis.
+    pub is_pz_transparent: bool,
+
+    /// Is the block transparent looking from the negative z-axis.
+    pub is_nz_transparent: bool,
 }
 
 impl Block {
@@ -711,6 +726,7 @@ impl Block {
     }
 }
 
+#[derive(Default)]
 pub struct BlockBuilder {
     id: u32,
     name: String,
@@ -721,8 +737,7 @@ pub struct BlockBuilder {
     is_fluid: bool,
     is_light: bool,
     is_plant: bool,
-    is_solid: bool,
-    is_transparent: bool,
+    is_opaque: bool,
     red_light_level: u32,
     green_light_level: u32,
     blue_light_level: u32,
@@ -730,30 +745,25 @@ pub struct BlockBuilder {
     transparent_standalone: bool,
     faces: Vec<BlockFace>,
     aabbs: Vec<AABB>,
+    is_see_through: bool,
+    is_px_transparent: bool,
+    is_py_transparent: bool,
+    is_pz_transparent: bool,
+    is_nx_transparent: bool,
+    is_ny_transparent: bool,
+    is_nz_transparent: bool,
 }
 
 impl BlockBuilder {
     /// Create a block builder with default values.
     pub fn new(name: &str) -> Self {
         Self {
-            id: 0,
             name: name.to_owned(),
-            rotatable: false,
-            y_rotatable: false,
             is_block: true,
-            is_empty: false,
-            is_fluid: false,
-            is_light: false,
-            is_plant: false,
-            is_solid: true,
-            is_transparent: false,
-            red_light_level: 0,
-            green_light_level: 0,
-            blue_light_level: 0,
-            is_plantable: false,
-            transparent_standalone: false,
+            is_opaque: true,
             faces: BlockFace::six_faces(),
             aabbs: vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)],
+            ..Default::default()
         }
     }
 
@@ -806,18 +816,6 @@ impl BlockBuilder {
     /// Configure whether or not this block is a plant. Default is false.
     pub fn is_plant(mut self, is_plant: bool) -> Self {
         self.is_plant = is_plant;
-        self
-    }
-
-    /// Configure whether or not this block is a solid. Default is true.
-    pub fn is_solid(mut self, is_solid: bool) -> Self {
-        self.is_solid = is_solid;
-        self
-    }
-
-    /// Configure whether or not this block is transparent. Default is false.
-    pub fn is_transparent(mut self, is_transparent: bool) -> Self {
-        self.is_transparent = is_transparent;
         self
     }
 
@@ -880,6 +878,69 @@ impl BlockBuilder {
         self
     }
 
+    /// Is this block a see-through block? Should it be sorted to the transparent meshes?
+    pub fn is_see_through(mut self, is_see_through: bool) -> Self {
+        self.is_see_through = is_see_through;
+        self
+    }
+
+    /// Configure whether or not this block is transparent on the x-axis. Default is false.
+    pub fn is_x_transparent(mut self, is_x_transparent: bool) -> Self {
+        self.is_px_transparent = is_x_transparent;
+        self.is_nx_transparent = is_x_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent on the y-axis. Default is false.
+    pub fn is_y_transparent(mut self, is_y_transparent: bool) -> Self {
+        self.is_py_transparent = is_y_transparent;
+        self.is_ny_transparent = is_y_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent on the z-axis. Default is false.
+    pub fn is_z_transparent(mut self, is_z_transparent: bool) -> Self {
+        self.is_pz_transparent = is_z_transparent;
+        self.is_nz_transparent = is_z_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent looking from the positive x-axis. Default is false.
+    pub fn is_px_transparent(mut self, is_px_transparent: bool) -> Self {
+        self.is_px_transparent = is_px_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent looking from the positive y-axis. Default is false.    
+    pub fn is_py_transparent(mut self, is_py_transparent: bool) -> Self {
+        self.is_py_transparent = is_py_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent looking from the positive z-axis. Default is false.
+    pub fn is_pz_transparent(mut self, is_pz_transparent: bool) -> Self {
+        self.is_pz_transparent = is_pz_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent looking from the negative x-axis. Default is false.
+    pub fn is_nx_transparent(mut self, is_nx_transparent: bool) -> Self {
+        self.is_nx_transparent = is_nx_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent looking from the negative y-axis. Default is false.    
+    pub fn is_ny_transparent(mut self, is_ny_transparent: bool) -> Self {
+        self.is_ny_transparent = is_ny_transparent;
+        self
+    }
+
+    /// Configure whether or not this block is transparent looking from the negative z-axis. Default is false.
+    pub fn is_nz_transparent(mut self, is_nz_transparent: bool) -> Self {
+        self.is_nz_transparent = is_nz_transparent;
+        self
+    }
+
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         let mut sum_volume = 0.0;
@@ -904,8 +965,12 @@ impl BlockBuilder {
             is_fluid: self.is_fluid,
             is_light: self.is_light,
             is_plant: self.is_plant,
-            is_solid: self.is_solid,
-            is_transparent: self.is_transparent,
+            is_opaque: !self.is_px_transparent
+                && !self.is_py_transparent
+                && !self.is_pz_transparent
+                && !self.is_nx_transparent
+                && !self.is_ny_transparent
+                && !self.is_nz_transparent,
             red_light_level: self.red_light_level,
             green_light_level: self.green_light_level,
             blue_light_level: self.blue_light_level,
@@ -913,7 +978,13 @@ impl BlockBuilder {
             transparent_standalone: self.transparent_standalone,
             faces: self.faces,
             aabbs: self.aabbs,
-            is_full_block,
+            is_see_through: self.is_see_through,
+            is_px_transparent: self.is_px_transparent,
+            is_py_transparent: self.is_py_transparent,
+            is_pz_transparent: self.is_pz_transparent,
+            is_nx_transparent: self.is_nx_transparent,
+            is_ny_transparent: self.is_ny_transparent,
+            is_nz_transparent: self.is_nz_transparent,
         }
     }
 }

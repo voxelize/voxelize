@@ -22,8 +22,15 @@ pub struct LightNode {
     pub level: u32,
 }
 
+const RED: LightColor = LightColor::Red;
+const GREEN: LightColor = LightColor::Green;
+const BLUE: LightColor = LightColor::Blue;
+const SUNLIGHT: LightColor = LightColor::Sunlight;
+
 /// A set of utility functions to simulate global illumination in a Voxelize world.
 pub struct Lights;
+
+// TODO: RIGHT NOW, A TOP SLAB WILL STILL LET LIGHT TRAVEL INTO A BOTTOM SLAB...
 
 impl Lights {
     /// Propagate a specific queue of `LightNode`s in a depth-first-search fashion. If the propagation
@@ -56,8 +63,10 @@ impl Lights {
             let [vx, vy, vz] = voxel;
 
             if level == 0 {
-                break;
+                continue;
             }
+
+            let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
                 let nvy = vy + oy;
@@ -72,6 +81,7 @@ impl Lights {
                 let Vec2(ncx, ncz) =
                     ChunkUtils::map_voxel_to_chunk(nvx, nvy, nvz, config.chunk_size);
 
+                // If neighbor is out of this chunk, or if voxel is out of the specified range, continue to next neighbor.
                 if ncx < start_cx
                     || ncz < start_cz
                     || ncx > end_cx
@@ -98,9 +108,12 @@ impl Lights {
                         1
                     };
                 let next_voxel = [nvx, nvy, nvz];
-                let block_type = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
+                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
 
-                if !block_type.is_transparent
+                // To not continue:
+                // (1) Light cannot be flooded from source block to neighbor.
+                // (2) Neighbor light level is greater or equal to self.
+                if !Lights::can_enter(source_block, n_block, ox, oy, oz)
                     || (if is_sunlight {
                         space.get_sunlight(nvx, nvy, nvz)
                     } else {
@@ -168,8 +181,14 @@ impl Lights {
 
                 let nvx = vx + ox;
                 let nvz = vz + oz;
-                let n_voxel = [nvx, nvy, nvz];
+                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
 
+                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
+                if !Lights::can_enter_into(n_block, ox, oy, oz) {
+                    continue;
+                }
+
+                let n_voxel = [nvx, nvy, nvz];
                 let nl = if is_sunlight {
                     space.get_sunlight(nvx, nvy, nvz)
                 } else {
@@ -197,7 +216,11 @@ impl Lights {
                     } else {
                         space.set_torch_light(nvx, nvy, nvz, 0, color);
                     }
-                } else if nl >= level && (!is_sunlight || oy != -1 || nl > level) {
+                } else if if is_sunlight && oy == -1 {
+                    nl > level
+                } else {
+                    nl >= level
+                } {
                     fill.push_back(LightNode {
                         voxel: n_voxel,
                         level: nl,
@@ -209,7 +232,6 @@ impl Lights {
         Lights::flood_light(space, fill, color, registry, config, None, None);
     }
 
-    /// Propagate a space and return the light data of the center chunk.
     pub fn propagate(
         space: &mut dyn VoxelAccess,
         min: &Vec3<i32>,
@@ -229,11 +251,6 @@ impl Lights {
         let mut blue_light_queue = VecDeque::<LightNode>::new();
         let mut sunlight_queue = VecDeque::<LightNode>::new();
 
-        const RED: LightColor = LightColor::Red;
-        const GREEN: LightColor = LightColor::Green;
-        const BLUE: LightColor = LightColor::Blue;
-        const SUNLIGHT: LightColor = LightColor::Sunlight;
-
         let Vec3(start_x, _, start_z) = min;
         let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
 
@@ -249,26 +266,45 @@ impl Lights {
 
                     let id = space.get_voxel(x + start_x, y, z + start_z);
                     let &Block {
-                        is_transparent,
+                        is_px_transparent,
+                        is_py_transparent,
+                        is_pz_transparent,
+                        is_nx_transparent,
+                        is_nz_transparent,
+                        is_opaque,
                         is_light,
                         red_light_level,
                         green_light_level,
                         blue_light_level,
-                        is_full_block,
                         ..
                     } = registry.get_block_by_id(id);
 
-                    if is_transparent || !is_full_block {
-                        space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
+                    // If the block is opaque and sunlight cannot traverse. Keep in mind this field is
+                    // generated by the negated & of all 3 axis transparencies.
+                    if is_opaque {
+                        mask[index] = 0;
+                    } else {
+                        // If sunlight just hasn't reached here yet. To get to here, either one of the is_(axis)_transparent is true.
+                        // This means if sunlight can actually travel down to here.
+                        if mask[index] != 0 && is_py_transparent {
+                            space.set_sunlight(x + start_x, y, z + start_z, max_light_level);
+                        }
+                        // Sunlight has reached a block above here already. Check to see if light can travel from sideways, propagate if can.
+                        else {
+                            mask[index] = 0;
 
-                        if mask[index] == 0 {
-                            if (x > 0 && mask[(x - 1 + z * shape.2) as usize] == max_light_level)
+                            if (x > 0
+                                && mask[(x - 1 + z * shape.2) as usize] == max_light_level
+                                && is_px_transparent)
                                 || (x < shape.0 - 1
-                                    && mask[(x + 1 + z * shape.2) as usize] == max_light_level)
+                                    && mask[(x + 1 + z * shape.2) as usize] == max_light_level
+                                    && is_nx_transparent)
                                 || (z > 0
-                                    && mask[(x + (z - 1) * shape.2) as usize] == max_light_level)
+                                    && mask[(x + (z - 1) * shape.2) as usize] == max_light_level
+                                    && is_pz_transparent)
                                 || (z < shape.2 - 1
-                                    && mask[(x + (z + 1) * shape.2) as usize] == max_light_level)
+                                    && mask[(x + (z + 1) * shape.2) as usize] == max_light_level
+                                    && is_nz_transparent)
                             {
                                 space.set_sunlight(
                                     x + start_x,
@@ -282,8 +318,6 @@ impl Lights {
                                 });
                             }
                         }
-                    } else {
-                        mask[index] = 0;
                     }
 
                     if is_light {
@@ -365,106 +399,73 @@ impl Lights {
 
         space.get_lights(center.0, center.1).unwrap().to_owned()
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    fn make_test_chunk(height: i32) -> Chunk {
-        let mut chunk = Chunk::new(
-            "test",
-            0,
-            0,
-            &ChunkParams {
-                max_height: 64,
-                sub_chunks: 4,
-                size: 16,
-            },
-        );
-
-        let Vec3(min_x, _, min_z) = chunk.min;
-        let Vec3(max_x, _, max_z) = chunk.max;
-
-        for vx in min_x..max_x {
-            for vz in min_z..max_z {
-                for vy in 0..height {
-                    chunk.set_voxel(vx, vy, vz, 1);
-                }
-            }
+    /// Check to see if light can go "into" one block, disregarding the source.
+    pub fn can_enter_into(target: &Block, dx: i32, dy: i32, dz: i32) -> bool {
+        if (dx + dy + dz).abs() != 1 {
+            panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
         }
 
-        for vy in height..=height * 2 {
-            chunk.set_voxel(5, vy, 5, 1);
+        // Going into the NX of the target.
+        if dx == 1 {
+            return target.is_nx_transparent;
         }
 
-        chunk.set_voxel(6, height * 2, 5, 1);
-        chunk.set_voxel(7, height * 2, 5, 1);
-        chunk.set_voxel(6, height * 2, 6, 1);
-        chunk.set_voxel(6, height * 2 - 1, 6, 1);
-        chunk.set_voxel(6, height * 2, 4, 1);
-        chunk.set_voxel(6, height * 2 - 1, 4, 1);
+        // Going into the PX of the target.
+        if dx == -1 {
+            return target.is_px_transparent;
+        }
 
-        chunk
+        // Going into the NY of the target.
+        if dy == 1 {
+            return target.is_ny_transparent;
+        }
+
+        // Going into the PY of the target.
+        if dy == -1 {
+            return target.is_py_transparent;
+        }
+
+        // Going into the NZ of the target.
+        if dz == 1 {
+            return target.is_nz_transparent;
+        }
+
+        // Going into the PZ of the target.
+        target.is_pz_transparent
     }
 
-    fn make_test_registry() -> Registry {
-        let mut registry = Registry::new();
-        registry.register_block(&Block::new("Dirt").is_solid(true).build());
-        registry
-    }
-
-    fn make_test_config() -> WorldConfig {
-        WorldConfig::new()
-            .chunk_size(16)
-            .max_height(64)
-            .max_light_level(15)
-            .min_chunk([0, 0])
-            .max_chunk([0, 0])
-            .build()
-    }
-
-    #[test]
-    fn propagate_works() {
-        let height = 10;
-
-        let mut chunk = make_test_chunk(height);
-
-        let registry = make_test_registry();
-        let config = make_test_config();
-
-        let min = chunk.min.to_owned();
-        let coords = chunk.coords.to_owned();
-
-        let shape = &chunk.max - &chunk.min;
-        let shape = Vec3(shape.0 as usize, shape.1 as usize, shape.2 as usize);
-
-        Lights::propagate(&mut chunk, &min, &coords, &shape, &registry, &config);
-
-        for vy in 0..height {
-            assert!(chunk.get_sunlight(0, vy, 0) == 0);
+    /// Check to see if light can enter from one block to another.
+    pub fn can_enter(source: &Block, target: &Block, dx: i32, dy: i32, dz: i32) -> bool {
+        if (dx + dy + dz).abs() != 1 {
+            panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
         }
 
-        for vy in height..(config.max_height as i32) {
-            assert!(chunk.get_sunlight(0, vy, 0) == config.max_light_level);
+        // Going from PX of source to NX of target
+        if dx == 1 {
+            return source.is_px_transparent && target.is_nx_transparent;
         }
 
-        chunk.set_voxel(7, height * 2 - 1, 5, 1);
-        Lights::remove_light(
-            &mut chunk,
-            &Vec3(7, height * 2 - 1, 5),
-            &LightColor::Sunlight,
-            &config,
-            &registry,
-        );
+        // Going from NX of source to PX of target
+        if dx == -1 {
+            return source.is_nx_transparent && target.is_px_transparent;
+        }
 
-        println!(
-            "6 {} 5: {} {}",
-            height * 2 - 1,
-            chunk.get_sunlight(6, height * 2 - 1, 5),
-            chunk.get_voxel(6, height * 2 - 1, 5)
-        );
-        assert!(chunk.get_sunlight(6, height * 2 - 2, 5) == 13);
-        assert!(chunk.get_sunlight(6, height * 2 - 1, 5) == 12);
+        // Going from PY of source to NY of target
+        if dy == 1 {
+            return source.is_py_transparent && target.is_ny_transparent;
+        }
+
+        // Going from NY of source to PY of target
+        if dy == -1 {
+            return source.is_ny_transparent && target.is_py_transparent;
+        }
+
+        // Going from PZ of source to NZ of target
+        if dz == 1 {
+            return source.is_pz_transparent && target.is_nz_transparent;
+        }
+        // Going from NZ of source to PZ of target
+        source.is_pz_transparent && target.is_nz_transparent
     }
 }

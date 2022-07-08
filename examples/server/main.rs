@@ -120,8 +120,8 @@ async fn main() -> std::io::Result<()> {
         .create_world(
             "world3",
             &WorldConfig::new()
-                .saving(true)
-                .save_dir("examples/server/worlds/world3")
+                // .saving(true)
+                // .save_dir("examples/server/worlds/world3")
                 .build(),
         )
         .expect("Could not create world2.");

@@ -190,7 +190,7 @@ pub fn sweep(
                 let id = get_voxel(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
 
-                if !block.is_solid {
+                if block.aabbs.is_empty() {
                     continue;
                 }
 

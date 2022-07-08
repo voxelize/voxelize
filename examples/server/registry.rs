@@ -17,18 +17,29 @@ pub fn setup_registry() -> Registry {
         Block::new("Oak Planks").id(40).build(),
         Block::new("Oak Slab Top")
             .id(41)
+            .is_py_transparent(false)
+            .is_ny_transparent(true)
+            .is_x_transparent(true)
+            .is_z_transparent(true)
             .faces(&BlockFace::top_slab_faces())
             .aabbs(&[AABB::new(0.0, 0.5, 0.0, 1.0, 1.0, 1.0)])
             .build(),
         Block::new("Oak Slab Bottom")
             .id(42)
+            .is_py_transparent(true)
+            .is_ny_transparent(false)
+            .is_x_transparent(true)
+            .is_z_transparent(true)
             .faces(&BlockFace::bottom_slab_faces())
             .aabbs(&[AABB::new(0.0, 0.0, 0.0, 1.0, 0.5, 1.0)])
             .build(),
         Block::new("Oak Log").id(43).rotatable(true).build(),
         Block::new("Oak Leaves")
             .id(44)
-            .is_transparent(true)
+            .is_x_transparent(true)
+            .is_y_transparent(true)
+            .is_z_transparent(true)
+            .is_see_through(true)
             .transparent_standalone(true)
             .build(),
         Block::new("Birch Log").id(46).rotatable(true).build(),
@@ -42,9 +53,11 @@ pub fn setup_registry() -> Registry {
         Block::new("Ivory Block").id(100).build(),
         Block::new("Water")
             .id(150)
-            .is_transparent(true)
+            .is_x_transparent(true)
+            .is_y_transparent(true)
+            .is_z_transparent(true)
+            .is_see_through(true)
             .is_fluid(true)
-            .is_solid(false)
             .aabbs(&[])
             .build(),
         Block::new("Lol").id(200).build(),

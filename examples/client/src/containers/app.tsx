@@ -196,6 +196,9 @@ export const App = () => {
             container: {
               domElement: container.current,
             },
+            debug: {
+              onByDefault: true,
+            },
           },
           {
             canChat: true,

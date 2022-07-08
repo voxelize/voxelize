@@ -176,8 +176,7 @@ impl Mesher {
                      uv_map: &HashMap<String, &UV>| {
                         let &Block {
                             is_fluid,
-                            is_transparent,
-                            is_full_block,
+                            is_opaque,
                             rotatable,
                             ..
                         } = block;
@@ -199,20 +198,31 @@ impl Mesher {
                         let nvy = vy + dir[1];
                         let nvz = vz + dir[2];
 
-                        let is_void = !space.contains(nvx, nvy, nvz);
                         let neighbor_id = space.get_voxel(nvx, nvy, nvz);
+                        let n_is_void = !space.contains(nvx, nvy, nvz);
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
-                        if is_void
-                            || (!is_full_block && !is_transparent)
-                            || (!n_block_type.is_full_block && !n_block_type.is_transparent)
-                            || ((n_block_type.is_transparent && !n_block_type.is_fluid)
-                                || (n_block_type.is_fluid && !is_fluid))
-                                && (!transparent
-                                    || n_block_type.is_empty
-                                    || neighbor_id != voxel_id
-                                    || (n_block_type.transparent_standalone
-                                        && (dir[0] + dir[1] + dir[2]) as i32 >= 1))
+                        // Negative because looking back at self.
+                        let self_transparent =
+                            Mesher::get_dir_transparency(block, -dir[0], -dir[1], -dir[2]);
+                        let neighbor_transparent =
+                            Mesher::get_dir_transparency(n_block_type, dir[0], dir[1], dir[2]);
+
+                        // (1) Neighbor is void
+                        // (2) Neighbor is empty
+                        // (3) Transparent standalone cases, such as leaves.
+                        // (4) Self is directionally transparent and neighbor isn't, vice versa (not fluid).
+                        // (5) Self is opaque and neighbor ain't, vice versa (not fluid).
+                        if n_is_void
+                            || n_block_type.is_empty
+                            || (transparent
+                                && neighbor_id == voxel_id
+                                && n_block_type.transparent_standalone
+                                && (dir[0] + dir[1] + dir[2]) as i32 >= 1)
+                            || !is_fluid
+                                && ((!(!self_transparent && !neighbor_transparent))
+                                    || ((is_opaque && !n_block_type.is_opaque)
+                                        || (!is_opaque && n_block_type.is_opaque)))
                         {
                             let UV {
                                 start_u,
@@ -238,10 +248,10 @@ impl Mesher {
                                 let pos_y = pos[1] + vy as f32;
                                 let pos_z = pos[2] + vz as f32;
 
-                                let scale = if !is_full_block { 0.0001 } else { 0.0 };
-                                positions.push(pos_x - min_x as f32 - dir[0] as f32 * scale);
-                                positions.push(pos_y - dir[1] as f32 * scale);
-                                positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
+                                let scale = if is_opaque { 0.0 } else { 0.0001 };
+                                positions.push(pos_x - min_x as f32 + dir[0] as f32 * scale);
+                                positions.push(pos_y + dir[1] as f32 * scale);
+                                positions.push(pos_z - min_z as f32 + dir[2] as f32 * scale);
 
                                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                                 uvs.push(uv[1] * (end_v - start_v) + start_v);
@@ -251,26 +261,26 @@ impl Mesher {
                                 let dy = pos[1].round() as i32;
                                 let dz = pos[2].round() as i32;
 
-                                let dx = if dx == 0 {
-                                    -1
-                                } else if dx == 1 {
-                                    1
-                                } else {
+                                let dx = if self_transparent {
                                     0
+                                } else if dx == 0 {
+                                    -1
+                                } else {
+                                    1
                                 };
-                                let dy = if dy == 0 {
-                                    -1
-                                } else if dy == 1 {
-                                    1
-                                } else {
+                                let dy = if self_transparent {
                                     0
+                                } else if dy == 0 {
+                                    -1
+                                } else {
+                                    1
                                 };
-                                let dz = if dz == 0 {
-                                    -1
-                                } else if dz == 1 {
-                                    1
-                                } else {
+                                let dz = if self_transparent {
                                     0
+                                } else if dz == 0 {
+                                    -1
+                                } else {
+                                    1
                                 };
 
                                 let mut sum_sunlight = vec![];
@@ -280,20 +290,18 @@ impl Mesher {
 
                                 let b011 =
                                     get_block_by_voxel(vx, vy + dy, vz + dz, space, registry);
-                                let b011 = b011.is_transparent || !b011.is_full_block;
+                                let b011 = !b011.is_opaque;
                                 let b101 =
                                     get_block_by_voxel(vx + dx, vy, vz + dz, space, registry);
-                                let b101 = b101.is_transparent || !b101.is_full_block;
+                                let b101 = !b101.is_opaque;
                                 let b110 =
                                     get_block_by_voxel(vx + dx, vy + dy, vz, space, registry);
-                                let b110 = b110.is_transparent || !b110.is_full_block;
+                                let b110 = !b110.is_opaque;
                                 let b111 =
                                     get_block_by_voxel(vx + dx, vy + dy, vz + dz, space, registry);
-                                let b111 = b111.is_transparent || !b111.is_full_block;
+                                let b111 = !b111.is_opaque;
 
-                                if is_transparent {
-                                    face_aos.push(3)
-                                } else if dir[0].abs() == 1 {
+                                if dir[0].abs() == 1 {
                                     face_aos.push(vertex_ao(b110, b101, b111));
                                 } else if dir[1].abs() == 1 {
                                     face_aos.push(vertex_ao(b110, b011, b111));
@@ -301,30 +309,7 @@ impl Mesher {
                                     face_aos.push(vertex_ao(b011, b101, b111));
                                 }
 
-                                if is_transparent {
-                                    let [dx, dy, dz] = dir;
-
-                                    sum_sunlight.push(space.get_sunlight(
-                                        vx + dx,
-                                        vy + dy,
-                                        vz + dz,
-                                    ));
-                                    sum_red_lights.push(space.get_raw_light(
-                                        vx + dx,
-                                        vy + dy,
-                                        vz + dz,
-                                    ));
-                                    sum_green_lights.push(space.get_green_light(
-                                        vx + dx,
-                                        vy + dy,
-                                        vz + dz,
-                                    ));
-                                    sum_blue_lights.push(space.get_blue_light(
-                                        vx + dx,
-                                        vy + dy,
-                                        vz + dz,
-                                    ));
-                                } else {
+                                if is_opaque {
                                     // Loop through all 8 neighbors of this vertex.
                                     for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
                                         for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
@@ -341,9 +326,7 @@ impl Mesher {
                                                         registry,
                                                     );
 
-                                                    if !facing.is_transparent
-                                                        && facing.is_full_block
-                                                    {
+                                                    if facing.is_opaque {
                                                         continue;
                                                     }
                                                 }
@@ -372,12 +355,9 @@ impl Mesher {
                                                         registry,
                                                     );
 
-                                                    if (!diagonal_yz.is_transparent
-                                                        && diagonal_yz.is_full_block)
-                                                        && (!diagonal_xz.is_transparent
-                                                            && diagonal_xz.is_full_block)
-                                                        && (!diagonal_xy.is_transparent
-                                                            && diagonal_xy.is_full_block)
+                                                    if diagonal_yz.is_opaque
+                                                        && diagonal_xz.is_opaque
+                                                        && diagonal_xy.is_opaque
                                                     {
                                                         continue;
                                                     }
@@ -391,8 +371,7 @@ impl Mesher {
                                                     registry,
                                                 );
 
-                                                let is_transparent = diagonal4.is_transparent
-                                                    || !diagonal4.is_full_block;
+                                                let is_transparent = !diagonal4.is_opaque;
 
                                                 if is_transparent {
                                                     sum_sunlight.push(space.get_sunlight(
@@ -419,6 +398,27 @@ impl Mesher {
                                             }
                                         }
                                     }
+                                } else {
+                                    sum_sunlight.push(space.get_sunlight(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                    sum_red_lights.push(space.get_raw_light(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                    sum_green_lights.push(space.get_green_light(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
+                                    sum_blue_lights.push(space.get_blue_light(
+                                        vx + dx,
+                                        vy + dy,
+                                        vz + dz,
+                                    ));
                                 }
 
                                 four_sunlights.push(
@@ -547,15 +547,15 @@ impl Mesher {
                     let block = registry.get_block_by_id(voxel_id);
 
                     let Block {
-                        is_transparent,
+                        is_see_through,
                         is_block,
                         ..
                     } = block.to_owned();
 
                     if if transparent {
-                        is_transparent
+                        is_see_through
                     } else {
-                        !is_transparent
+                        !is_see_through
                     } {
                         if is_block {
                             let Block { faces, .. } = block.to_owned();
@@ -581,5 +581,39 @@ impl Mesher {
             uvs,
             lights,
         })
+    }
+
+    fn get_dir_transparency(block: &Block, dx: i32, dy: i32, dz: i32) -> bool {
+        let &Block {
+            is_px_transparent,
+            is_py_transparent,
+            is_pz_transparent,
+            is_nx_transparent,
+            is_ny_transparent,
+            is_nz_transparent,
+            ..
+        } = block;
+
+        if dx == 1 {
+            return is_nx_transparent;
+        }
+
+        if dx == -1 {
+            return is_px_transparent;
+        }
+
+        if dy == 1 {
+            return is_ny_transparent;
+        }
+
+        if dy == -1 {
+            return is_py_transparent;
+        }
+
+        if dz == 1 {
+            return is_nz_transparent;
+        }
+
+        return is_pz_transparent;
     }
 }

@@ -13,6 +13,7 @@ import {
   Controls,
   ControlsParams,
   Debug,
+  DebugParams,
   Entities,
   EntitiesParams,
   Inputs,
@@ -34,6 +35,7 @@ import {
 import { ECS } from "./libs";
 
 type ClientParams = {
+  debug?: Partial<DebugParams>;
   container?: Partial<ContainerParams>;
   rendering?: Partial<RenderingParams>;
   camera?: Partial<CameraParams>;
@@ -97,12 +99,13 @@ class Client extends EventEmitter {
       registry,
       world,
       chat,
+      debug,
     } = params;
 
     this.ecs = new ECS();
 
-    this.debug = new Debug(this);
     this.loader = new Loader(this);
+    this.debug = new Debug(this, debug);
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
     this.world = new World(this, world);

@@ -311,12 +311,6 @@ class Network {
       case "UPDATE": {
         const { updates, chunks } = event;
 
-        if (chunks) {
-          chunks.forEach((chunk) => {
-            this.client.world.handleServerChunk(chunk, true);
-          });
-        }
-
         if (updates) {
           const particleUpdates = updates
             .filter(({ voxel }) => {
@@ -351,6 +345,12 @@ class Network {
 
           this.client.particles.addBreakParticles(particleUpdates, {
             count: particleUpdates.length > 3 ? 10 : 24,
+          });
+        }
+
+        if (chunks) {
+          chunks.forEach((chunk) => {
+            this.client.world.handleServerChunk(chunk, true);
           });
         }
 
