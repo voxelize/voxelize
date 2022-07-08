@@ -160,9 +160,11 @@ class Network {
         this.client.peers.reset();
 
         // fire reconnection every "reconnectTimeout" ms
-        this.reconnection = setTimeout(() => {
-          this.connect();
-        }, this.params.reconnectTimeout);
+        if (this.params.reconnectTimeout) {
+          this.reconnection = setTimeout(() => {
+            this.connect();
+          }, this.params.reconnectTimeout);
+        }
       };
 
       this.ws = ws;
