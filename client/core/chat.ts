@@ -98,7 +98,7 @@ const defaultParams: ChatParams = {
   borderRadius: "4px",
   disappearTimeout: 2000,
   connectionMessage: "Connected to world! Try /help",
-  disconnectionMessage: "World disconnected. Reconnecting...",
+  disconnectionMessage: "World disconnected...",
   helpText: HELP_TEXT,
   permissionText: "Sorry, but you do not have permissions to this command!",
   commandSymbol: "/",
