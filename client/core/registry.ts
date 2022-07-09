@@ -93,7 +93,7 @@ class Registry {
   /**
    * The minimum sunlight for each block rendered.
    */
-  public minLightUniform = { value: 0.05 };
+  public minLightUniform = { value: 0.2 };
 
   /**
    * The shared material instances for chunks.

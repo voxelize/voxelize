@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFace, Registry, AABB};
+use voxelize::{Block, BlockFace, CornerData, Registry, AABB};
 
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
@@ -22,8 +22,8 @@ pub fn setup_registry() -> Registry {
             .is_x_transparent(true)
             .is_z_transparent(true)
             .rotatable(true)
-            .faces(&BlockFace::top_slab_faces())
-            .aabbs(&[AABB::new(0.0, 0.5, 0.0, 1.0, 1.0, 1.0)])
+            .faces(&BlockFace::six_faces().scale_y(0.5).offset_y(0.5).build())
+            .aabbs(&[AABB::new().scale_y(0.5).offset_y(0.5).build()])
             .build(),
         Block::new("Oak Slab Bottom")
             .id(42)
@@ -31,8 +31,8 @@ pub fn setup_registry() -> Registry {
             .is_ny_transparent(false)
             .is_x_transparent(true)
             .is_z_transparent(true)
-            .faces(&BlockFace::bottom_slab_faces())
-            .aabbs(&[AABB::new(0.0, 0.0, 0.0, 1.0, 0.5, 1.0)])
+            .faces(&BlockFace::six_faces().scale_y(0.5).build())
+            .aabbs(&[AABB::new().scale_y(0.5).build()])
             .build(),
         Block::new("Oak Log").id(43).rotatable(true).build(),
         Block::new("Oak Leaves")
@@ -42,6 +42,27 @@ pub fn setup_registry() -> Registry {
             .is_z_transparent(true)
             .is_see_through(true)
             .transparent_standalone(true)
+            .build(),
+        Block::new("Oak Pole")
+            .id(45)
+            .is_x_transparent(true)
+            .is_y_transparent(true)
+            .is_z_transparent(true)
+            .rotatable(true)
+            .faces(
+                &BlockFace::six_faces()
+                    .scale_x(0.4)
+                    .offset_x(0.3)
+                    .scale_z(0.4)
+                    .offset_z(0.3)
+                    .build(),
+            )
+            .aabbs(&[AABB::new()
+                .scale_x(0.4)
+                .offset_x(0.3)
+                .scale_z(0.4)
+                .offset_z(0.3)
+                .build()])
             .build(),
         Block::new("Birch Log").id(46).rotatable(true).build(),
         Block::new("Marble").id(60).build(),

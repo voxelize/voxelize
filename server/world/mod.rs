@@ -22,7 +22,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
-    world::EntitiesRes,
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, Read, ReadStorage,
     World as ECSWorld, WorldExt, WriteStorage,
 };
@@ -269,7 +268,8 @@ impl World {
         drop(etypes);
         drop(metadatas);
 
-        let body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.8, 1.8, 0.8)).build();
+        let body =
+            RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
 
         let interactor = self.physics_mut().register(&body);
 

@@ -62,7 +62,8 @@ fn get_dispatcher(
 }
 
 fn load_box(id: String, etype: String, metadata: MetadataComp, world: &mut World) -> EntityBuilder {
-    let mut test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();
+    let mut test_body =
+        RigidBody::new(&AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build()).build();
     let interactor1 = world.physics_mut().register(&test_body);
 
     let position = metadata.get::<PositionComp>("position").unwrap_or_default();

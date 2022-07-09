@@ -169,14 +169,14 @@ impl BlockRotation {
         let mut max = [aabb.max_x, aabb.max_y, aabb.max_z];
         self.rotate_node(&mut min, translate);
         self.rotate_node(&mut max, translate);
-        AABB::new(
-            min[0].min(max[0]),
-            min[1].min(max[1]),
-            min[2].min(max[2]),
-            max[0].max(min[0]),
-            max[1].max(min[1]),
-            max[2].max(min[2]),
-        )
+        AABB {
+            min_x: min[0].min(max[0]),
+            min_y: min[1].min(max[1]),
+            min_z: min[2].min(max[2]),
+            max_x: max[0].max(min[0]),
+            max_y: max[1].max(min[1]),
+            max_z: max[2].max(min[2]),
+        }
     }
 
     /// Rotate transparency, let math do the work.
@@ -272,417 +272,308 @@ pub struct BlockFace {
 }
 
 impl BlockFace {
-    pub fn six_faces() -> Vec<BlockFace> {
+    /// Create and customize a six-faced block face data.
+    pub fn six_faces() -> SixFacesBuilder {
+        SixFacesBuilder::new()
+    }
+}
+
+pub struct SixFacesBuilder {
+    scale_x: f32,
+    scale_y: f32,
+    scale_z: f32,
+    offset_x: f32,
+    offset_y: f32,
+    offset_z: f32,
+    uv_scale_x: f32,
+    uv_scale_y: f32,
+    uv_offset_x: f32,
+    uv_offset_y: f32,
+    prefix: String,
+    suffix: String,
+    concat: String,
+}
+
+impl SixFacesBuilder {
+    /// Create a new six-faced block faces data builder.
+    pub fn new() -> Self {
+        Self {
+            scale_x: 1.0,
+            scale_y: 1.0,
+            scale_z: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            offset_z: 0.0,
+            uv_scale_x: 1.0,
+            uv_scale_y: 1.0,
+            uv_offset_x: 0.0,
+            uv_offset_y: 0.0,
+            prefix: "".to_owned(),
+            suffix: "".to_owned(),
+            concat: "".to_owned(),
+        }
+    }
+
+    /// Configure the x scale of this six faces.
+    pub fn scale_x(mut self, scale_x: f32) -> Self {
+        self.scale_x = scale_x;
+        self
+    }
+
+    /// Configure the y scale of this six faces.
+    pub fn scale_y(mut self, scale_y: f32) -> Self {
+        self.scale_y = scale_y;
+        self
+    }
+
+    /// Configure the z scale of this six faces.
+    pub fn scale_z(mut self, scale_z: f32) -> Self {
+        self.scale_z = scale_z;
+        self
+    }
+
+    /// Configure the x offset of this six faces.
+    pub fn offset_x(mut self, offset_x: f32) -> Self {
+        self.offset_x = offset_x;
+        self
+    }
+
+    /// Configure the y offset of this six faces.
+    pub fn offset_y(mut self, offset_y: f32) -> Self {
+        self.offset_y = offset_y;
+        self
+    }
+
+    /// Configure the z offset of this six faces.
+    pub fn offset_z(mut self, offset_z: f32) -> Self {
+        self.offset_z = offset_z;
+        self
+    }
+
+    /// Configure the UV x scale of this six faces.
+    pub fn uv_scale_x(mut self, uv_scale_x: f32) -> Self {
+        self.uv_scale_x = uv_scale_x;
+        self
+    }
+
+    /// Configure the UV y scale of this six faces.
+    pub fn uv_scale_y(mut self, uv_scale_y: f32) -> Self {
+        self.uv_scale_y = uv_scale_y;
+        self
+    }
+
+    /// Configure the UV x offset of the six faces.
+    pub fn uv_offset_x(mut self, uv_offset_x: f32) -> Self {
+        self.uv_offset_x = uv_offset_x;
+        self
+    }
+
+    /// Configure the UV y offset of the six faces.
+    pub fn uv_offset_y(mut self, uv_offset_y: f32) -> Self {
+        self.uv_offset_y = uv_offset_y;
+        self
+    }
+
+    /// Configure the prefix to be appended to each face name.
+    pub fn prefix(mut self, prefix: &str) -> Self {
+        self.prefix = prefix.to_owned();
+        self
+    }
+
+    /// Configure the suffix to be added in front of each face name.
+    pub fn suffix(mut self, suffix: &str) -> Self {
+        self.suffix = suffix.to_owned();
+        self
+    }
+
+    /// Configure the concat between the prefix, face name, and suffix.
+    pub fn concat(mut self, concat: &str) -> Self {
+        self.concat = concat.to_owned();
+        self
+    }
+
+    /// Create the six faces of a block.
+    pub fn build(self) -> Vec<BlockFace> {
+        let Self {
+            offset_x,
+            offset_y,
+            offset_z,
+            uv_offset_x,
+            uv_offset_y,
+            scale_x,
+            scale_y,
+            scale_z,
+            uv_scale_x,
+            uv_scale_y,
+            prefix,
+            suffix,
+            concat,
+        } = self;
+
         vec![
             BlockFace {
-                name: "nx".to_owned(),
+                name: format!("{prefix}{concat}nx{concat}{suffix}"),
                 dir: [-1, 0, 0],
                 corners: [
                     CornerData {
-                        pos: [0.0, 1.0, 0.0],
-                        uv: [0.0, 1.0],
+                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [uv_offset_x, 1.0 * uv_scale_y + uv_offset_y],
                     },
                     CornerData {
-                        pos: [0.0, 0.0, 0.0],
-                        uv: [0.0, 0.0],
+                        pos: [offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [0.0, 1.0, 1.0],
-                        uv: [1.0, 1.0],
+                        pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
                     },
                     CornerData {
-                        pos: [0.0, 0.0, 1.0],
-                        uv: [1.0, 0.0],
+                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
                     },
                 ],
             },
             BlockFace {
-                name: "px".to_owned(),
+                name: format!("{prefix}{concat}px{concat}{suffix}"),
                 dir: [1, 0, 0],
                 corners: [
                     CornerData {
-                        pos: [1.0, 1.0, 1.0],
-                        uv: [0.0, 1.0],
+                        pos: [
+                            1.0 * scale_x + offset_x,
+                            1.0 * scale_y + offset_y,
+                            1.0 * scale_z + offset_z,
+                        ],
+                        uv: [uv_offset_x, 1.0 * uv_scale_y + uv_offset_y],
                     },
                     CornerData {
-                        pos: [1.0, 0.0, 1.0],
-                        uv: [0.0, 0.0],
+                        pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [1.0, 1.0, 0.0],
-                        uv: [1.0, 1.0],
+                        pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
                     },
                     CornerData {
-                        pos: [1.0, 0.0, 0.0],
-                        uv: [1.0, 0.0],
+                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
                     },
                 ],
             },
             BlockFace {
-                name: "ny".to_owned(),
+                name: format!("{prefix}{concat}ny{concat}{suffix}"),
                 dir: [0, -1, 0],
                 corners: [
                     CornerData {
-                        pos: [1.0, 0.0, 1.0],
-                        uv: [1.0, 0.0],
+                        pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [0.0, 0.0, 1.0],
-                        uv: [0.0, 0.0],
+                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [1.0, 0.0, 0.0],
-                        uv: [1.0, 1.0],
+                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
                     },
                     CornerData {
-                        pos: [0.0, 0.0, 0.0],
-                        uv: [0.0, 1.0],
+                        pos: [offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y],
                     },
                 ],
             },
             BlockFace {
-                name: "py".to_owned(),
+                name: format!("{prefix}{concat}py{concat}{suffix}"),
                 dir: [0, 1, 0],
                 corners: [
                     CornerData {
-                        pos: [0.0, 1.0, 1.0],
-                        uv: [1.0, 1.0],
+                        pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
                     },
                     CornerData {
-                        pos: [1.0, 1.0, 1.0],
-                        uv: [0.0, 1.0],
+                        pos: [
+                            1.0 * scale_x + offset_x,
+                            1.0 * scale_y + offset_y,
+                            1.0 * scale_z + offset_z,
+                        ],
+                        uv: [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y],
                     },
                     CornerData {
-                        pos: [0.0, 1.0, 0.0],
-                        uv: [1.0, 0.0],
+                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [1.0, 1.0, 0.0],
-                        uv: [0.0, 0.0],
+                        pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
                     },
                 ],
             },
             BlockFace {
-                name: "nz".to_owned(),
+                name: format!("{prefix}{concat}nz{concat}{suffix}"),
                 dir: [0, 0, -1],
                 corners: [
                     CornerData {
-                        pos: [1.0, 0.0, 0.0],
-                        uv: [0.0, 0.0],
+                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [0.0, 0.0, 0.0],
-                        uv: [1.0, 0.0],
+                        pos: [offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [1.0, 1.0, 0.0],
-                        uv: [0.0, 1.0],
+                        pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y],
                     },
                     CornerData {
-                        pos: [0.0, 1.0, 0.0],
-                        uv: [1.0, 1.0],
+                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
                     },
                 ],
             },
             BlockFace {
-                name: "pz".to_owned(),
+                name: format!("{prefix}{concat}pz{concat}{suffix}"),
                 dir: [0, 0, 1],
                 corners: [
                     CornerData {
-                        pos: [0.0, 0.0, 1.0],
-                        uv: [0.0, 0.0],
+                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [1.0, 0.0, 1.0],
-                        uv: [1.0, 0.0],
+                        pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
                     },
                     CornerData {
-                        pos: [0.0, 1.0, 1.0],
-                        uv: [0.0, 1.0],
+                        pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y],
                     },
                     CornerData {
-                        pos: [1.0, 1.0, 1.0],
-                        uv: [1.0, 1.0],
+                        pos: [
+                            1.0 * scale_x + offset_x,
+                            1.0 * scale_y + offset_y,
+                            1.0 * scale_z + offset_z,
+                        ],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
                     },
                 ],
             },
         ]
-    }
-
-    pub fn bottom_slab_faces() -> Vec<BlockFace> {
-        [
-            BlockFace {
-                name: "nx".to_owned(),
-                dir: [-1, 0, 0],
-                corners: [
-                    CornerData {
-                        pos: [0.0, 0.5, 0.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.0, 0.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 1.0],
-                        uv: [1.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.0, 1.0],
-                        uv: [1.0, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "px".to_owned(),
-                dir: [1, 0, 0],
-                corners: [
-                    CornerData {
-                        pos: [1.0, 0.5, 1.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.0, 1.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 0.0],
-                        uv: [1.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.0, 0.0],
-                        uv: [1.0, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "ny".to_owned(),
-                dir: [0, -1, 0],
-                corners: [
-                    CornerData {
-                        pos: [1.0, 0.0, 1.0],
-                        uv: [1.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.0, 1.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.0, 0.0],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.0, 0.0],
-                        uv: [0.0, 1.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "py".to_owned(),
-                dir: [0, 1, 0],
-                corners: [
-                    CornerData {
-                        pos: [0.0, 0.5, 1.0],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 1.0],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 0.0],
-                        uv: [1.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 0.0],
-                        uv: [0.0, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "nz".to_owned(),
-                dir: [0, 0, -1],
-                corners: [
-                    CornerData {
-                        pos: [1.0, 0.0, 0.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.0, 0.0],
-                        uv: [1.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 0.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 0.0],
-                        uv: [1.0, 0.5],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "pz".to_owned(),
-                dir: [0, 0, 1],
-                corners: [
-                    CornerData {
-                        pos: [0.0, 0.0, 1.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.0, 1.0],
-                        uv: [1.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 1.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 1.0],
-                        uv: [1.0, 0.5],
-                    },
-                ],
-            },
-        ]
-        .to_vec()
-    }
-
-    pub fn top_slab_faces() -> Vec<BlockFace> {
-        [
-            BlockFace {
-                name: "nx".to_owned(),
-                dir: [-1, 0, 0],
-                corners: [
-                    CornerData {
-                        pos: [0.0, 1.0, 0.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 0.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [0.0, 1.0, 1.0],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 1.0],
-                        uv: [1.0, 0.5],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "px".to_owned(),
-                dir: [1, 0, 0],
-                corners: [
-                    CornerData {
-                        pos: [1.0, 1.0, 1.0],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 1.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [1.0, 1.0, 0.0],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 0.0],
-                        uv: [1.0, 0.5],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "ny".to_owned(),
-                dir: [0, -1, 0],
-                corners: [
-                    CornerData {
-                        pos: [1.0, 0.5, 1.0],
-                        uv: [1.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 1.0],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 0.0],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 0.0],
-                        uv: [0.0, 1.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "py".to_owned(),
-                dir: [0, 1, 0],
-                corners: [
-                    CornerData {
-                        pos: [0.0, 1.0, 1.0],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 1.0, 1.0],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 1.0, 0.0],
-                        uv: [1.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 1.0, 0.0],
-                        uv: [0.0, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "nz".to_owned(),
-                dir: [0, 0, -1],
-                corners: [
-                    CornerData {
-                        pos: [1.0, 0.5, 0.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [0.0, 0.5, 0.0],
-                        uv: [1.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [1.0, 1.0, 0.0],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [0.0, 1.0, 0.0],
-                        uv: [1.0, 1.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: "pz".to_owned(),
-                dir: [0, 0, 1],
-                corners: [
-                    CornerData {
-                        pos: [0.0, 0.5, 1.0],
-                        uv: [0.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [1.0, 0.5, 1.0],
-                        uv: [1.0, 0.5],
-                    },
-                    CornerData {
-                        pos: [0.0, 1.0, 1.0],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [1.0, 1.0, 1.0],
-                        uv: [1.0, 1.0],
-                    },
-                ],
-            },
-        ]
-        .to_vec()
     }
 }
 
@@ -813,8 +704,8 @@ impl BlockBuilder {
         Self {
             name: name.to_owned(),
             is_block: true,
-            faces: BlockFace::six_faces(),
-            aabbs: vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)],
+            faces: BlockFace::six_faces().build(),
+            aabbs: vec![AABB::new().build()],
             ..Default::default()
         }
     }

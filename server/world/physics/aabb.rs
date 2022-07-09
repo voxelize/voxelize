@@ -20,15 +20,8 @@ pub struct AABB {
 
 impl AABB {
     /// Create a new axis-aligned bounding box.
-    pub fn new(min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> Self {
-        Self {
-            min_x,
-            min_y,
-            min_z,
-            max_x,
-            max_y,
-            max_z,
-        }
+    pub fn new() -> AABBBuilder {
+        AABBBuilder::new()
     }
 
     /// The width of this AABB, max_x - min_x.
@@ -84,5 +77,76 @@ impl AABB {
         self.max_x = other.max_x;
         self.max_y = other.max_y;
         self.max_z = other.max_z;
+    }
+}
+
+pub struct AABBBuilder {
+    scale_x: f32,
+    scale_y: f32,
+    scale_z: f32,
+    offset_x: f32,
+    offset_y: f32,
+    offset_z: f32,
+}
+
+impl AABBBuilder {
+    /// Instantiate a new AABB builder to build a custom AABB from a 1x1x1 cube.
+    pub fn new() -> Self {
+        Self {
+            scale_x: 1.0,
+            scale_y: 1.0,
+            scale_z: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            offset_z: 0.0,
+        }
+    }
+
+    /// Configure the x scale of this six faces.
+    pub fn scale_x(mut self, scale_x: f32) -> Self {
+        self.scale_x = scale_x;
+        self
+    }
+
+    /// Configure the y scale of this six faces.
+    pub fn scale_y(mut self, scale_y: f32) -> Self {
+        self.scale_y = scale_y;
+        self
+    }
+
+    /// Configure the z scale of this six faces.
+    pub fn scale_z(mut self, scale_z: f32) -> Self {
+        self.scale_z = scale_z;
+        self
+    }
+
+    /// Configure the x offset of this six faces.
+    pub fn offset_x(mut self, offset_x: f32) -> Self {
+        self.offset_x = offset_x;
+        self
+    }
+
+    /// Configure the y offset of this six faces.
+    pub fn offset_y(mut self, offset_y: f32) -> Self {
+        self.offset_y = offset_y;
+        self
+    }
+
+    /// Configure the z offset of this six faces.
+    pub fn offset_z(mut self, offset_z: f32) -> Self {
+        self.offset_z = offset_z;
+        self
+    }
+
+    /// Build an AABB instance out of this builder.
+    pub fn build(self) -> AABB {
+        AABB {
+            min_x: self.offset_x,
+            min_y: self.offset_y,
+            min_z: self.offset_z,
+            max_x: self.offset_x + self.scale_x,
+            max_y: self.offset_y + self.scale_y,
+            max_z: self.offset_z + self.scale_z,
+        }
     }
 }
