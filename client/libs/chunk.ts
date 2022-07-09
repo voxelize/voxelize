@@ -179,15 +179,13 @@ class Chunk {
   };
 
   setRawValue = (vx: number, vy: number, vz: number, val: number) => {
-    this.assert(vx, vy, vz);
-
+    if (!this.contains(vx, vy, vz)) return 0;
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.voxels.set(lx, ly, lz, val);
   };
 
   setRawLight = (vx: number, vy: number, vz: number, level: number) => {
-    this.assert(vx, vy, vz);
-
+    if (!this.contains(vx, vy, vz)) return 0;
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.lights.set(lx, ly, lz, level);
   };
@@ -203,7 +201,7 @@ class Chunk {
   };
 
   getVoxelRotation = (vx: number, vy: number, vz: number) => {
-    this.assert(vx, vy, vz);
+    if (!this.contains(vx, vy, vz)) return 0;
     return BlockUtils.extractRotation(this.getRawValue(vx, vy, vz));
   };
 
@@ -221,7 +219,7 @@ class Chunk {
   };
 
   getVoxelStage = (vx: number, vy: number, vz: number) => {
-    this.assert(vx, vy, vz);
+    if (!this.contains(vx, vy, vz)) return 0;
     return BlockUtils.extractStage(this.getRawValue(vx, vy, vz));
   };
 
@@ -241,7 +239,9 @@ class Chunk {
   };
 
   setRedLight = (vx: number, vy: number, vz: number, level: number) => {
-    this.assert(vx, vy, vz);
+    if (!this.contains(vx, vy, vz)) {
+      return 0;
+    }
 
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.setLocalRedLight(lx, ly, lz, level);
@@ -257,7 +257,9 @@ class Chunk {
   };
 
   setGreenLight = (vx: number, vy: number, vz: number, level: number) => {
-    this.assert(vx, vy, vz);
+    if (!this.contains(vx, vy, vz)) {
+      return 0;
+    }
 
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.setLocalGreenLight(lx, ly, lz, level);
@@ -273,7 +275,9 @@ class Chunk {
   };
 
   setBlueLight = (vx: number, vy: number, vz: number, level: number) => {
-    this.assert(vx, vy, vz);
+    if (!this.contains(vx, vy, vz)) {
+      return 0;
+    }
 
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.setLocalBlueLight(lx, ly, lz, level);
@@ -321,7 +325,9 @@ class Chunk {
   };
 
   setSunlight = (vx: number, vy: number, vz: number, level: number) => {
-    this.assert(vx, vy, vz);
+    if (!this.contains(vx, vy, vz)) {
+      return 0;
+    }
 
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
     return this.setLocalSunlight(lx, ly, lz, level);
@@ -430,12 +436,6 @@ class Chunk {
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
 
     return lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size;
-  };
-
-  private assert = (vx: number, vy: number, vz: number) => {
-    if (!this.contains(vx, vy, vz)) {
-      throw new Error(`Chunk voxel out of bounds for chunk: ${this.coords}`);
-    }
   };
 }
 

@@ -54,7 +54,12 @@ impl<'a> System<'a> for PhysicsSystem {
             mut positions,
         ) = data;
 
-        let get_voxel = |vx: i32, vy: i32, vz: i32| chunks.get_voxel(vx, vy, vz);
+        let get_voxel = |vx: i32, vy: i32, vz: i32| {
+            (
+                chunks.get_voxel(vx, vy, vz),
+                chunks.get_voxel_rotation(vx, vy, vz),
+            )
+        };
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).

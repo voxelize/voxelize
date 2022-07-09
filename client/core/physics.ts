@@ -62,8 +62,11 @@ class Physics {
     this.core = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
         const id = this.client.world.getVoxelByVoxel(vx, vy, vz);
+        const rotation = this.client.world.getVoxelRotationByVoxel(vx, vy, vz);
         const { aabbs } = this.client.registry.getBlockById(id);
-        return aabbs;
+        return aabbs.map((aabb) =>
+          rotation.rotateAABB(aabb).translate([vx, vy, vz])
+        );
       },
       (vx: number, vy: number, vz: number) => {
         const id = this.client.world.getVoxelByVoxel(vx, vy, vz);

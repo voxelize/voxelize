@@ -120,8 +120,8 @@ async fn main() -> std::io::Result<()> {
         .create_world(
             "world3",
             &WorldConfig::new()
-                // .saving(true)
-                // .save_dir("examples/server/worlds/world3")
+                .saving(true)
+                .save_dir("examples/server/worlds/world3")
                 .build(),
         )
         .expect("Could not create world2.");
@@ -131,35 +131,10 @@ async fn main() -> std::io::Result<()> {
         pipeline.add_stage(FlatlandStage::new(70, 2, 1, 3));
     }
 
-    let test_body = RigidBody::new(&AABB::new(0.0, 0.0, 0.0, 0.5, 0.5, 0.5)).build();
-
     world3.ecs_mut().register::<BoxFlag>();
     world3.set_dispatcher(get_dispatcher);
     world3.entities_mut().add_loader("box", load_box);
     world3.set_method_handle(method_handle);
-
-    let interactor1 = world3.physics_mut().register(&test_body);
-    let interactor2 = world3.physics_mut().register(&test_body);
-
-    // world3
-    //     .create_entity(&nanoid!(), "Box")
-    //     .with(PositionComp::new(1.0, 80.0, 0.0))
-    //     .with(TargetComp::new(0.0, 0.0, 0.0))
-    //     .with(HeadingComp::new(0.0, 0.0, 0.0))
-    //     .with(RigidBodyComp::new(&test_body))
-    //     .with(InteractorComp::new(interactor1))
-    //     .with(BoxFlag)
-    //     .build();
-
-    // world3
-    //     .create_entity(&nanoid!(), "Box")
-    //     .with(PositionComp::new(-1.0, 80.0, 0.0))
-    //     .with(TargetComp::new(0.0, 0.0, 0.0))
-    //     .with(HeadingComp::new(0.0, 0.0, 0.0))
-    //     .with(RigidBodyComp::new(&test_body))
-    //     .with(InteractorComp::new(interactor2))
-    //     .with(BoxFlag)
-    //     .build();
 
     Voxelize::run(server).await
 }

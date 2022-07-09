@@ -1164,10 +1164,10 @@
     typescript "^4.6.4"
     vitest "^0.10.4"
 
-"@voxelize/voxel-physics-engine@^1.1.23":
-  version "1.1.23"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.1.23.tgz#4376c4ef8913b116a973a30217c90f25c4080e95"
-  integrity sha512-FEoTXdjOWYBADxOnE4IvNzKuZgemSN8KEC6j2Xc7eByAryfGHt5SZFBWRgm1s6gFHYmQOpJr8VY85R2vRCjXvg==
+"@voxelize/voxel-physics-engine@^1.1.24":
+  version "1.1.24"
+  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.1.24.tgz#6fd75ade2e04761ca3931973196f608f82bfb519"
+  integrity sha512-KUYBAPN2Zo7FCaWrc8NDty+43rRYabz404pPC4f+ZKLDgldoBm52bD2lohZT2mqyvbSaHoNh2CDjMJ+nEON6rw==
   dependencies:
     "@voxelize/voxel-aabb" "^1.0.0"
     tsup "^5.12.7"

@@ -229,7 +229,7 @@ class World {
 
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
-    if (!chunk) throw new Error("Rotation not obtainable.");
+    if (!chunk) return new BlockRotation(0, 0);
     return chunk.getVoxelRotation(vx, vy, vz);
   };
 
@@ -242,7 +242,7 @@ class World {
 
   getVoxelStageByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
-    if (!chunk) throw new Error("Stage not obtainable.");
+    if (!chunk) return 0;
     return chunk.getVoxelStage(vx, vy, vz);
   };
 

@@ -1,3 +1,5 @@
+import { AABB } from "@voxelize/voxel-aabb";
+
 import { Coords3 } from "../types";
 
 const PY_ROTATION = 0;
@@ -136,7 +138,7 @@ class BlockRotation {
     return [value, yDecoded];
   };
 
-  rotate = (node: Coords3, translate: boolean) => {
+  public rotateNode = (node: Coords3, translate = true) => {
     switch (this.value) {
       case BlockRotation.PX: {
         if (this.yRotation !== 0) {
@@ -196,51 +198,43 @@ class BlockRotation {
     }
   };
 
-  public rotateInv = (node: Coords3, translate: boolean) => {
-    switch (this.value) {
-      case BlockRotation.PX: {
-        new BlockRotation(BlockRotation.NX, this.yRotation).rotate(
-          node,
-          translate
-        );
-        break;
-      }
-      case BlockRotation.NX: {
-        new BlockRotation(BlockRotation.PX, this.yRotation).rotate(
-          node,
-          translate
-        );
-        break;
-      }
-      case BlockRotation.PY: {
-        new BlockRotation(BlockRotation.NY, this.yRotation).rotate(
-          node,
-          translate
-        );
-        break;
-      }
-      case BlockRotation.NY: {
-        new BlockRotation(BlockRotation.PY, this.yRotation).rotate(
-          node,
-          translate
-        );
-        break;
-      }
-      case BlockRotation.PZ: {
-        new BlockRotation(BlockRotation.NZ, this.yRotation).rotate(
-          node,
-          translate
-        );
-        break;
-      }
-      case BlockRotation.NZ: {
-        new BlockRotation(BlockRotation.PZ, this.yRotation).rotate(
-          node,
-          translate
-        );
-        break;
-      }
-    }
+  public rotateAABB = (aabb: AABB, translate = true) => {
+    const min = [aabb.minX, aabb.minY, aabb.minZ] as Coords3;
+    const max = [aabb.maxX, aabb.maxY, aabb.maxZ] as Coords3;
+
+    this.rotateNode(min, translate);
+    this.rotateNode(max, translate);
+
+    const EPSILON = 0.0001;
+    const justify = (num: number) => (num < EPSILON ? 0 : num);
+
+    min[0] = justify(min[0]);
+    min[1] = justify(min[1]);
+    min[2] = justify(min[2]);
+    max[0] = justify(max[0]);
+    max[1] = justify(max[1]);
+    max[2] = justify(max[2]);
+
+    const realMin = [
+      Math.min(min[0], max[0]),
+      Math.min(min[1], max[1]),
+      Math.min(min[2], max[2]),
+    ];
+
+    const realMax = [
+      Math.max(min[0], max[0]),
+      Math.max(min[1], max[1]),
+      Math.max(min[2], max[2]),
+    ];
+
+    return new AABB(
+      realMin[0],
+      realMin[1],
+      realMin[2],
+      realMax[0],
+      realMax[1],
+      realMax[2]
+    );
   };
 
   // Reference:

@@ -97,7 +97,7 @@ impl BlockRotation {
     }
 
     /// Rotate a 3D position with this block rotation.
-    pub fn rotate(&self, node: &mut [f32; 3], translate: bool) {
+    pub fn rotate_node(&self, node: &mut [f32; 3], translate: bool) {
         match self {
             BlockRotation::PX(rot) => {
                 if *rot != 0 {
@@ -163,16 +163,20 @@ impl BlockRotation {
         }
     }
 
-    /// Rotate the inverse of this block rotation on a 3D position.
-    pub fn rotate_inv(&self, node: &mut [f32; 3], translate: bool) {
-        match self {
-            BlockRotation::PX(rot) => BlockRotation::NX(*rot).rotate(node, translate),
-            BlockRotation::NX(rot) => BlockRotation::PX(*rot).rotate(node, translate),
-            BlockRotation::PY(rot) => BlockRotation::NY(*rot).rotate(node, translate),
-            BlockRotation::NY(rot) => BlockRotation::PY(*rot).rotate(node, translate),
-            BlockRotation::PZ(rot) => BlockRotation::NZ(*rot).rotate(node, translate),
-            BlockRotation::NZ(rot) => BlockRotation::PZ(*rot).rotate(node, translate),
-        }
+    /// Rotate an AABB.
+    pub fn rotate_aabb(&self, aabb: &AABB, translate: bool) -> AABB {
+        let mut min = [aabb.min_x, aabb.min_y, aabb.min_z];
+        let mut max = [aabb.max_x, aabb.max_y, aabb.max_z];
+        self.rotate_node(&mut min, translate);
+        self.rotate_node(&mut max, translate);
+        AABB::new(
+            min[0].min(max[0]),
+            min[1].min(max[1]),
+            min[2].min(max[2]),
+            max[0].max(min[0]),
+            max[1].max(min[1]),
+            max[2].max(min[2]),
+        )
     }
 
     // Learned from

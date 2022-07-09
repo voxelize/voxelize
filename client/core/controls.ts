@@ -948,9 +948,10 @@ class Controls extends EventDispatcher {
         }
 
         const id = world.getVoxelByVoxel(x, y, z);
+        const rotation = world.getVoxelRotationByVoxel(x, y, z);
         const { aabbs, isFluid } = registry.getBlockById(id);
 
-        return isFluid ? [] : aabbs;
+        return isFluid ? [] : aabbs.map((aabb) => rotation.rotateAABB(aabb));
       },
       [camPos.x, camPos.y, camPos.z],
       [camDir.x, camDir.y, camDir.z],
@@ -980,14 +981,18 @@ class Controls extends EventDispatcher {
 
     const { lookingAt } = this;
 
-    if (lookingAt) {
+    if (lookingAt && this.lookBlock) {
       const { aabbs } = lookingAt;
       if (!aabbs.length) return;
 
-      let union: AABB = aabbs[0].clone();
+      const rotation = this.client.world.getVoxelRotationByVoxel(
+        ...this.lookBlock
+      );
+
+      let union: AABB = rotation.rotateAABB(aabbs[0]);
 
       for (let i = 1; i < aabbs.length; i++) {
-        union = union.union(aabbs[i]);
+        union = rotation.rotateAABB(union.union(aabbs[i]));
       }
 
       const [vx, vy, vz] = this.lookBlock;

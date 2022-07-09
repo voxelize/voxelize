@@ -21,6 +21,7 @@ pub fn setup_registry() -> Registry {
             .is_ny_transparent(true)
             .is_x_transparent(true)
             .is_z_transparent(true)
+            .rotatable(true)
             .faces(&BlockFace::top_slab_faces())
             .aabbs(&[AABB::new(0.0, 0.5, 0.0, 1.0, 1.0, 1.0)])
             .build(),

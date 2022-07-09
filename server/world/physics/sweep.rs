@@ -187,7 +187,7 @@ pub fn sweep(
     for vx in (min_x as i32)..=(max_x as i32) {
         for vz in (min_z as i32)..=(max_z as i32) {
             for vy in (min_y as i32)..=(max_y as i32) {
-                let id = get_voxel(vx, vy, vz);
+                let (id, rotation) = get_voxel(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
 
                 if block.aabbs.is_empty() {
@@ -195,7 +195,7 @@ pub fn sweep(
                 }
 
                 block.aabbs.iter().for_each(|aabb| {
-                    let mut block_aabb = aabb.clone();
+                    let mut block_aabb = rotation.rotate_aabb(aabb, true);
                     block_aabb.translate(vx as f32, vy as f32, vz as f32);
                     let result = sweep_aabb(target, &block_aabb, &velocity);
 

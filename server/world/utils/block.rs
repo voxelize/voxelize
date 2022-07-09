@@ -87,11 +87,11 @@ mod tests {
 
         // default rotation at PY
         let mut point = [0.0, 1.0, 0.0];
-        rotation.rotate(&mut point, false);
+        rotation.rotate_node(&mut point, false);
         compare(point, [1.0, 0.0, 0.0]);
 
         point = [0.0, 0.0, 1.0];
-        rotation.rotate(&mut point, false);
+        rotation.rotate_node(&mut point, false);
         compare(point, [0.0, 0.0, 1.0]);
     }
 

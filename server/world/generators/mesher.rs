@@ -185,7 +185,7 @@ impl Mesher {
                         let mut dir = [dir[0] as f32, dir[1] as f32, dir[2] as f32];
 
                         if rotatable {
-                            rotation.rotate(&mut dir, false);
+                            rotation.rotate_node(&mut dir, false);
                         }
 
                         let dir = [
@@ -241,7 +241,7 @@ impl Mesher {
 
                             for CornerData { mut pos, uv } in corners.iter() {
                                 if rotatable {
-                                    rotation.rotate(&mut pos, true);
+                                    rotation.rotate_node(&mut pos, true);
                                 }
 
                                 let pos_x = pos[0] + vx as f32;

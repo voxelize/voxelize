@@ -8,7 +8,7 @@ use rapier3d::prelude::{
 };
 use specs::Entity;
 
-use crate::{approx_equals, Vec3};
+use crate::{approx_equals, BlockRotation, Vec3};
 
 use super::{registry::Registry, WorldConfig};
 
@@ -20,7 +20,7 @@ pub use aabb::*;
 pub use rigidbody::*;
 pub use sweep::*;
 
-pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> u32;
+pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> (u32, BlockRotation);
 #[derive(Default)]
 pub struct Physics {
     body_set: RapierBodySet,
@@ -314,7 +314,7 @@ impl Physics {
         let y1 = aabb.max_y.floor() as i32;
 
         let test_fluid = |vx: i32, vy: i32, vz: i32| -> bool {
-            let id = get_voxel(vx, vy, vz);
+            let (id, _) = get_voxel(vx, vy, vz);
             let block = registry.get_block_by_id(id);
             block.is_fluid
         };
