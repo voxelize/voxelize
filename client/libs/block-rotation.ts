@@ -1,4 +1,4 @@
-import { AABB } from "@voxelize/voxel-aabb";
+import { AABB } from "@voxelize/aabb";
 
 import { Coords3 } from "../types";
 

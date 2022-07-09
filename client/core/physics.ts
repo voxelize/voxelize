@@ -3,13 +3,13 @@ import {
   EngineOptions,
   BodyOptions,
   RigidBody,
-} from "@voxelize/voxel-physics-engine";
+} from "@voxelize/physics-engine";
 
 import { Client } from "..";
 import { ChunkUtils } from "../utils";
 
 /**
- * A **built-in** physics engine for Voxelize using [@voxelize/voxel-physics-engine](https://github.com/shaoruu/voxel-physics-engine).
+ * A **built-in** physics engine for Voxelize using [@voxelize/physics-engine](https://github.com/shaoruu/voxel-physics-engine).
  *
  * @category Core
  */

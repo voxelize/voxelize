@@ -1,6 +1,6 @@
-import { AABB } from "@voxelize/voxel-aabb";
-import { RigidBody } from "@voxelize/voxel-physics-engine";
-import { raycast } from "@voxelize/voxel-raycast";
+import { AABB } from "@voxelize/aabb";
+import { RigidBody } from "@voxelize/physics-engine";
+import { raycast } from "@voxelize/raycast";
 import {
   Euler,
   EventDispatcher,

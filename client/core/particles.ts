@@ -1,6 +1,6 @@
 import { Tween } from "@tweenjs/tween.js";
-import { AABB } from "@voxelize/voxel-aabb";
-import { RigidBody } from "@voxelize/voxel-physics-engine";
+import { AABB } from "@voxelize/aabb";
+import { RigidBody } from "@voxelize/physics-engine";
 import {
   BufferGeometry,
   Float32BufferAttribute,
