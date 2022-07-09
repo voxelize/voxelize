@@ -201,7 +201,7 @@ class Chunk {
   };
 
   getVoxelRotation = (vx: number, vy: number, vz: number) => {
-    if (!this.contains(vx, vy, vz)) return 0;
+    if (!this.contains(vx, vy, vz)) return new BlockRotation(0, 0);
     return BlockUtils.extractRotation(this.getRawValue(vx, vy, vz));
   };
 
