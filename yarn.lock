@@ -1155,31 +1155,40 @@
     "@typescript-eslint/types" "5.21.0"
     eslint-visitor-keys "^3.0.0"
 
+"@voxelize/aabb@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@voxelize/aabb/-/aabb-1.0.0.tgz#bdce9f5c66eb8bcbf9746579ac8889d626d1820e"
+  integrity sha512-V1d2KtXrK62rHQj2pH9K8ZAc0Jxg/HsuBqt2CHGMDKVQ1uYKpGx77+3O8Qc6OeK7zQSiTt45MXoKgFo0qoqjoA==
+  dependencies:
+    tsup "^5.12.7"
+    typescript "^4.6.4"
+    vitest "^0.10.4"
+
+"@voxelize/physics-engine@^1.1.24":
+  version "1.1.25"
+  resolved "https://registry.yarnpkg.com/@voxelize/physics-engine/-/physics-engine-1.1.25.tgz#315683d59437b85750c4ff0e5178542f7d8633b7"
+  integrity sha512-pLiQEmz73HEmFUHibkXhHCoWWVMqz2QmGFc82P43319b+W3LcFf1X3WvcpnvFXIL1eFQ1G30Q7WKDK2uj9Aswg==
+  dependencies:
+    "@voxelize/voxel-aabb" "^1.0.0"
+    tsup "^5.12.7"
+    typescript "^4.6.4"
+    vitest "^0.10.4"
+
+"@voxelize/raycast@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@voxelize/raycast/-/raycast-1.0.5.tgz#573c1c53e316fdf4e91f7f636ef766b2f3b093f9"
+  integrity sha512-2rwA+Ss5Iux7+sxyopHIcF+biKT8OLoa90I/nEB9xaqLKREkwmaSG9/BUYEhZJPEhgl5kvVRfZi2j4kSTrz+FQ==
+  dependencies:
+    "@voxelize/voxel-aabb" "^1.0.0"
+    tsup "^5.12.7"
+    typescript "^4.6.4"
+    vitest "^0.10.4"
+
 "@voxelize/voxel-aabb@^1.0.0":
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/@voxelize/voxel-aabb/-/voxel-aabb-1.0.0.tgz#4c30dd70d6f84c9983f24bdff6680dcae7486ec0"
   integrity sha512-1C51JIve2wbwN7pcfOVV/7aMew+h0EmybXtdhVH2O2LH1gxggjv6rWZLRKoApcN24mThltK55t3CkQKchh4a0A==
   dependencies:
-    tsup "^5.12.7"
-    typescript "^4.6.4"
-    vitest "^0.10.4"
-
-"@voxelize/voxel-physics-engine@^1.1.24":
-  version "1.1.24"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-physics-engine/-/voxel-physics-engine-1.1.24.tgz#6fd75ade2e04761ca3931973196f608f82bfb519"
-  integrity sha512-KUYBAPN2Zo7FCaWrc8NDty+43rRYabz404pPC4f+ZKLDgldoBm52bD2lohZT2mqyvbSaHoNh2CDjMJ+nEON6rw==
-  dependencies:
-    "@voxelize/voxel-aabb" "^1.0.0"
-    tsup "^5.12.7"
-    typescript "^4.6.4"
-    vitest "^0.10.4"
-
-"@voxelize/voxel-raycast@^1.0.5":
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-raycast/-/voxel-raycast-1.0.5.tgz#d0107d0370792a1671c9ea98b7427ef6da904154"
-  integrity sha512-OvTUV3IPbxyzaTdk6dcwv47jQpvT7UHw5O3Q435XxvMpLQuUS0BZBmS020u2KE60FFeeG3JHonsigJBRQFssiw==
-  dependencies:
-    "@voxelize/voxel-aabb" "^1.0.0"
     tsup "^5.12.7"
     typescript "^4.6.4"
     vitest "^0.10.4"

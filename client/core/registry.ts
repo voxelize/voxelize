@@ -267,24 +267,6 @@ class Registry {
   };
 
   /**
-   * Get the transparency of the block by name.
-   *
-   * @param name - The name of the block to get.
-   */
-  getTransparencyByName = (name: string) => {
-    return this.getBlockByName(name)?.isTransparent;
-  };
-
-  /**
-   * Get the transparency of the block by ID.
-   *
-   * @param id - The ID of the block to get.
-   */
-  getTransparencyById = (id: number) => {
-    return this.getBlockById(id)?.isTransparent;
-  };
-
-  /**
    * Get the fluidity of the block by name.
    *
    * @param name - The name of the block to get.
@@ -300,24 +282,6 @@ class Registry {
    */
   getFluidityById = (id: number) => {
     return this.getBlockById(id)?.isFluid;
-  };
-
-  /**
-   * Get the solidity of the block by name.
-   *
-   * @param name - The name of the block to get.
-   */
-  getSolidityByName = (name: string) => {
-    return this.getBlockByName(name)?.isSolid;
-  };
-
-  /**
-   * Get the solidity of the block by ID.
-   *
-   * @param id - The ID of the block to get.
-   */
-  getSolidityById = (id: number) => {
-    return this.getBlockById(id)?.isSolid;
   };
 
   /**

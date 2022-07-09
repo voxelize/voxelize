@@ -53,7 +53,7 @@ import MarbleImage from "../assets/own/marble.png";
 import SlateImage from "../assets/own/slate.png";
 import AndesiteImage from "../assets/own/andesite.png";
 import OakPlanksImage from "../assets/own/oak_planks.png";
-import { AABB } from "@voxelize/voxel-aabb";
+import LolImage from "../assets/lol.jpeg";
 
 const GameWrapper = styled.div`
   background: black;
@@ -199,6 +199,9 @@ export const App = () => {
             debug: {
               onByDefault: true,
             },
+            registry: {
+              dimension: 64,
+            },
           },
           {
             canChat: true,
@@ -218,6 +221,7 @@ export const App = () => {
         client.current.registry.applyTexturesByNames([
           { name: "Dirt", sides: all, data: DirtImage },
           { name: "Lol", sides: all, data: new Color("#8479E1") },
+          { name: "Lol", sides: ["py"], data: LolImage },
           { name: "Marble", sides: all, data: MarbleImage },
           { name: "Orange Concrete", sides: all, data: OrangeConcreteImage },
           { name: "Blue Concrete", sides: all, data: BlueConcrete },

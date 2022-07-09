@@ -290,15 +290,6 @@ class World {
     return this.client.registry.getBlockById(voxel);
   };
 
-  getWalkableByVoxel = (vx: number, vy: number, vz: number) => {
-    const block = this.getBlockByVoxel(vx, vy, vz);
-    return !block.isSolid || block.isPlant;
-  };
-
-  getSolidityByVoxel = (vx: number, vy: number, vz: number) => {
-    return this.getVoxelByVoxel(vx, vy, vz) !== 0;
-  };
-
   getFluidityByVoxel = (vx: number, vy: number, vz: number) => {
     return false;
   };
@@ -331,19 +322,6 @@ class World {
     if (c && d) neighborChunks.push([cx + 1, cz + 1]);
 
     return neighborChunks;
-  };
-
-  getStandableVoxel = (vx: number, vy: number, vz: number) => {
-    while (true) {
-      if (vy === 0 || this.getWalkableByVoxel(vx, vy, vz)) {
-        vy -= 1;
-      } else {
-        break;
-      }
-    }
-
-    vy += 1;
-    return [vx, vy, vz] as Coords3;
   };
 
   all = () => {

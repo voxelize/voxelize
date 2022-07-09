@@ -120,7 +120,7 @@ class ImageVoxelizer {
     ranges.forEach(({ startU, startV, endU, endV }, name) => {
       const block = client.registry.getBlockByTextureName(name);
 
-      if (block.isTransparent || !block.isFullBlock) {
+      if (!block.isOpaque) {
         return;
       }
 

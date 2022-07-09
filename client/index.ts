@@ -49,7 +49,7 @@ type ClientParams = {
 
 class Client extends EventEmitter {
   public id = "";
-  public username;
+  public username: string;
 
   public network: Network | undefined;
 

@@ -137,7 +137,7 @@ class Network {
       ws.binaryType = "arraybuffer";
       // custom Protobuf event sending
       ws.sendEvent = (event: any) => {
-        ws.send(Network.encode(event));
+        ws.send(Network.encodeSync(event));
       };
       ws.onopen = () => {
         this.connected = true;
@@ -375,7 +375,7 @@ class Network {
     return message;
   };
 
-  static encode(message: any) {
+  static encodeSync(message: any) {
     if (message.json) {
       message.json = JSON.stringify(message.json);
     }

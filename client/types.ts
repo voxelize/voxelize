@@ -24,9 +24,13 @@ export type Block = {
   isLight: boolean;
   isPlant: boolean;
   isPlantable: boolean;
-  isSolid: boolean;
-  isTransparent: boolean;
-  isFullBlock: boolean;
+  isOpaque: boolean;
+  isPxTransparent: boolean;
+  isNxTransparent: boolean;
+  isPyTransparent: boolean;
+  isNyTransparent: boolean;
+  isPzTransparent: boolean;
+  isNzTransparent: boolean;
   transparentStandalone: boolean;
   faces: {
     corners: { pos: number[]; uv: [] }[];

@@ -82,7 +82,14 @@ pub fn setup_registry() -> Registry {
             .is_fluid(true)
             .aabbs(&[])
             .build(),
-        Block::new("Lol").id(200).build(),
+        Block::new("Lol")
+            .id(200)
+            .faces(&BlockFace::six_faces().scale_y(0.2).offset_y(0.4).build())
+            .aabbs(&[AABB::new().scale_y(0.2).offset_y(0.4).build()])
+            .rotatable(true)
+            .is_x_transparent(true)
+            .is_z_transparent(true)
+            .build(),
         Block::new("Color").id(201).build(),
         Block::new("Color2").id(202).build(),
     ]);
