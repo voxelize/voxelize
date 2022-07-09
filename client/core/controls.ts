@@ -876,7 +876,7 @@ class Controls extends EventDispatcher {
             vy,
             vz,
             this.client.registry.getBlockByName(this.hand).id,
-            BlockRotation.encode(rotation, yRotation)
+            rotation ? BlockRotation.encode(rotation, yRotation) : null
           );
         }
       },
@@ -995,8 +995,7 @@ class Controls extends EventDispatcher {
         union = rotation.rotateAABB(union.union(aabbs[i]));
       }
 
-      const [vx, vy, vz] = this.lookBlock;
-      union.translate([vx, vy, vz]);
+      union.translate(this.lookBlock);
 
       let { width, height, depth } = union;
 
@@ -1030,7 +1029,7 @@ class Controls extends EventDispatcher {
         this.lookBlock[1] + ny,
         this.lookBlock[2] + nz,
       ],
-      rotation,
+      rotation: lookingAt.rotatable ? rotation : undefined,
       yRotation: 0,
     };
   };

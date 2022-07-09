@@ -203,10 +203,16 @@ impl Mesher {
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
                         // Negative because looking back at self.
-                        let self_transparent =
-                            Mesher::get_dir_transparency(block, -dir[0], -dir[1], -dir[2]);
-                        let neighbor_transparent =
-                            Mesher::get_dir_transparency(n_block_type, dir[0], dir[1], dir[2]);
+                        let self_transparent = Mesher::get_dir_transparency(
+                            block, -dir[0], -dir[1], -dir[2], rotation,
+                        );
+                        let neighbor_transparent = Mesher::get_dir_transparency(
+                            n_block_type,
+                            dir[0],
+                            dir[1],
+                            dir[2],
+                            rotation,
+                        );
 
                         // (1) Neighbor is void
                         // (2) Neighbor is empty
@@ -249,9 +255,9 @@ impl Mesher {
                                 let pos_z = pos[2] + vz as f32;
 
                                 let scale = if is_opaque { 0.0 } else { 0.0001 };
-                                positions.push(pos_x - min_x as f32 + dir[0] as f32 * scale);
-                                positions.push(pos_y + dir[1] as f32 * scale);
-                                positions.push(pos_z - min_z as f32 + dir[2] as f32 * scale);
+                                positions.push(pos_x - min_x as f32 - dir[0] as f32 * scale);
+                                positions.push(pos_y - dir[1] as f32 * scale);
+                                positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
 
                                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                                 uvs.push(uv[1] * (end_v - start_v) + start_v);
@@ -583,37 +589,35 @@ impl Mesher {
         })
     }
 
-    fn get_dir_transparency(block: &Block, dx: i32, dy: i32, dz: i32) -> bool {
-        let &Block {
-            is_px_transparent,
-            is_py_transparent,
-            is_pz_transparent,
-            is_nx_transparent,
-            is_ny_transparent,
-            is_nz_transparent,
-            ..
-        } = block;
+    fn get_dir_transparency(
+        block: &Block,
+        dx: i32,
+        dy: i32,
+        dz: i32,
+        rotation: &BlockRotation,
+    ) -> bool {
+        let [px, py, pz, nx, ny, nz] = block.get_rotated_transparency(rotation);
 
         if dx == 1 {
-            return is_nx_transparent;
+            return nx;
         }
 
         if dx == -1 {
-            return is_px_transparent;
+            return px;
         }
 
         if dy == 1 {
-            return is_ny_transparent;
+            return ny;
         }
 
         if dy == -1 {
-            return is_py_transparent;
+            return py;
         }
 
         if dz == 1 {
-            return is_nz_transparent;
+            return nz;
         }
 
-        return is_pz_transparent;
+        return pz;
     }
 }

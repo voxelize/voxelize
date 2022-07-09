@@ -477,6 +477,10 @@ class World {
                   chunk.getVoxel(vx, vy, vz)
                 );
                 chunk.setVoxel(vx, vy, vz, type);
+
+                if (update.rotation) {
+                  chunk.setVoxelRotation(vx, vy, vz, update.rotation);
+                }
               }
 
               let raw = 0;

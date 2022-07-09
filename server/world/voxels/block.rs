@@ -179,6 +179,45 @@ impl BlockRotation {
         )
     }
 
+    /// Rotate transparency, let math do the work.
+    pub fn rotate_transparency(&self, [px, py, pz, nx, ny, nz]: [bool; 6]) -> [bool; 6] {
+        // `n` stands for node.
+        let mut npx = [1.0, 0.0, 0.0];
+        let mut npy = [0.0, 1.0, 0.0];
+        let mut npz = [0.0, 0.0, 1.0];
+        let mut nnx = [-1.0, 0.0, 0.0];
+        let mut nny = [0.0, -1.0, 0.0];
+        let mut nnz = [0.0, 0.0, -1.0];
+
+        self.rotate_node(&mut npx, false);
+        self.rotate_node(&mut npy, false);
+        self.rotate_node(&mut npz, false);
+        self.rotate_node(&mut nnx, false);
+        self.rotate_node(&mut nny, false);
+        self.rotate_node(&mut nnz, false);
+
+        let r: Vec<bool> = [npx, npy, npz, nnx, nny, nnz]
+            .into_iter()
+            .map(|n| {
+                if n[0].round() == 1.0 {
+                    px
+                } else if n[1].round() == 1.0 {
+                    py
+                } else if n[2].round() == 1.0 {
+                    pz
+                } else if n[0].round() == -1.0 {
+                    nx
+                } else if n[1].round() == -1.0 {
+                    ny
+                } else {
+                    nz
+                }
+            })
+            .collect();
+
+        [r[0], r[1], r[2], r[3], r[4], r[5]]
+    }
+
     // Learned from
     // https://www.khanacademy.org/computer-programming/cube-rotated-around-x-y-and-z/4930679668473856
 
@@ -728,6 +767,17 @@ impl Block {
     pub fn new(name: &str) -> BlockBuilder {
         BlockBuilder::new(name)
     }
+
+    pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
+        rotation.rotate_transparency([
+            self.is_px_transparent,
+            self.is_py_transparent,
+            self.is_pz_transparent,
+            self.is_nx_transparent,
+            self.is_ny_transparent,
+            self.is_nz_transparent,
+        ])
+    }
 }
 
 #[derive(Default)]
@@ -741,7 +791,6 @@ pub struct BlockBuilder {
     is_fluid: bool,
     is_light: bool,
     is_plant: bool,
-    is_opaque: bool,
     red_light_level: u32,
     green_light_level: u32,
     blue_light_level: u32,
@@ -764,7 +813,6 @@ impl BlockBuilder {
         Self {
             name: name.to_owned(),
             is_block: true,
-            is_opaque: true,
             faces: BlockFace::six_faces(),
             aabbs: vec![AABB::new(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)],
             ..Default::default()
@@ -947,18 +995,6 @@ impl BlockBuilder {
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
-        let mut sum_volume = 0.0;
-        let mut area = 0.0;
-
-        self.aabbs.iter().for_each(|aabb| {
-            let aabb_area = aabb.width() * aabb.depth();
-            area = if area > aabb_area { area } else { aabb_area };
-            sum_volume += aabb.width() * aabb.height() * aabb.depth();
-        });
-
-        let is_full_block = (sum_volume - 1.0).abs() < f32::EPSILON;
-        let is_sun_blocking = area >= 1.0;
-
         Block {
             id: self.id,
             name: self.name,

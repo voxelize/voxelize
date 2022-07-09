@@ -67,6 +67,8 @@ impl Lights {
             }
 
             let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
+            let source_transparency =
+                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz));
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
                 let nvy = vy + oy;
@@ -109,11 +111,13 @@ impl Lights {
                     };
                 let next_voxel = [nvx, nvy, nvz];
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
+                let n_transparency =
+                    n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
 
                 // To not continue:
                 // (1) Light cannot be flooded from source block to neighbor.
                 // (2) Neighbor light level is greater or equal to self.
-                if !Lights::can_enter(source_block, n_block, ox, oy, oz)
+                if !Lights::can_enter(&source_transparency, &n_transparency, ox, oy, oz)
                     || (if is_sunlight {
                         space.get_sunlight(nvx, nvy, nvz)
                     } else {
@@ -182,9 +186,11 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
+                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
+                let n_transparency = n_block.get_rotated_transparency(&rotation);
 
                 // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
-                if !Lights::can_enter_into(n_block, ox, oy, oz) {
+                if !Lights::can_enter_into(&n_transparency, ox, oy, oz) {
                     continue;
                 }
 
@@ -270,6 +276,7 @@ impl Lights {
                         is_py_transparent,
                         is_pz_transparent,
                         is_nx_transparent,
+                        is_ny_transparent,
                         is_nz_transparent,
                         is_opaque,
                         is_light,
@@ -284,9 +291,20 @@ impl Lights {
                     if is_opaque {
                         mask[index] = 0;
                     } else {
+                        let [px, py, pz, nx, _, nz] = space
+                            .get_voxel_rotation(x + start_x, y, z + start_z)
+                            .rotate_transparency([
+                                is_px_transparent,
+                                is_py_transparent,
+                                is_pz_transparent,
+                                is_nx_transparent,
+                                is_ny_transparent,
+                                is_nz_transparent,
+                            ]);
+
                         // If sunlight just hasn't reached here yet. To get to here, either one of the is_(axis)_transparent is true.
                         // This means if sunlight can actually travel down to here.
-                        if mask[index] != 0 && is_py_transparent {
+                        if mask[index] != 0 && py {
                             space.set_sunlight(x + start_x, y, z + start_z, max_light_level);
                         }
                         // Sunlight has reached a block above here already. Check to see if light can travel from sideways, propagate if can.
@@ -295,16 +313,16 @@ impl Lights {
 
                             if (x > 0
                                 && mask[(x - 1 + z * shape.2) as usize] == max_light_level
-                                && is_px_transparent)
+                                && px)
                                 || (x < shape.0 - 1
                                     && mask[(x + 1 + z * shape.2) as usize] == max_light_level
-                                    && is_nx_transparent)
+                                    && nx)
                                 || (z > 0
                                     && mask[(x + (z - 1) * shape.2) as usize] == max_light_level
-                                    && is_pz_transparent)
+                                    && pz)
                                 || (z < shape.2 - 1
                                     && mask[(x + (z + 1) * shape.2) as usize] == max_light_level
-                                    && is_nz_transparent)
+                                    && nz)
                             {
                                 space.set_sunlight(
                                     x + start_x,
@@ -401,71 +419,77 @@ impl Lights {
     }
 
     /// Check to see if light can go "into" one block, disregarding the source.
-    pub fn can_enter_into(target: &Block, dx: i32, dy: i32, dz: i32) -> bool {
+    pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
         if (dx + dy + dz).abs() != 1 {
             panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
         }
 
+        let &[px, py, pz, nx, ny, nz] = target;
+
         // Going into the NX of the target.
         if dx == 1 {
-            return target.is_nx_transparent;
+            return nx;
         }
 
         // Going into the PX of the target.
         if dx == -1 {
-            return target.is_px_transparent;
+            return px;
         }
 
         // Going into the NY of the target.
         if dy == 1 {
-            return target.is_ny_transparent;
+            return ny;
         }
 
         // Going into the PY of the target.
         if dy == -1 {
-            return target.is_py_transparent;
+            return py;
         }
 
         // Going into the NZ of the target.
         if dz == 1 {
-            return target.is_nz_transparent;
+            return nz;
         }
 
         // Going into the PZ of the target.
-        target.is_pz_transparent
+        pz
     }
 
     /// Check to see if light can enter from one block to another.
-    pub fn can_enter(source: &Block, target: &Block, dx: i32, dy: i32, dz: i32) -> bool {
+    pub fn can_enter(source: &[bool; 6], target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
         if (dx + dy + dz).abs() != 1 {
             panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
         }
 
+        let &[spx, spy, spz, snx, sny, snz] = source;
+        let &[tpx, tpy, tpz, tnx, tny, tnz] = target;
+
         // Going from PX of source to NX of target
         if dx == 1 {
-            return source.is_px_transparent && target.is_nx_transparent;
+            return spx && tnx;
         }
 
         // Going from NX of source to PX of target
         if dx == -1 {
-            return source.is_nx_transparent && target.is_px_transparent;
+            return snx && tpx;
         }
 
         // Going from PY of source to NY of target
         if dy == 1 {
-            return source.is_py_transparent && target.is_ny_transparent;
+            return spy && tny;
         }
 
         // Going from NY of source to PY of target
         if dy == -1 {
-            return source.is_ny_transparent && target.is_py_transparent;
+            return sny && tpy;
         }
 
         // Going from PZ of source to NZ of target
         if dz == 1 {
-            return source.is_pz_transparent && target.is_nz_transparent;
+            return spz && tnz;
         }
+
         // Going from NZ of source to PZ of target
-        source.is_pz_transparent && target.is_nz_transparent
+        snz && tpz
     }
 }

@@ -91,6 +91,20 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             let current_type = registry.get_block_by_id(current_id);
             let updated_type = registry.get_block_by_id(updated_id);
 
+            let current_transparency = current_type.get_rotated_transparency(&rotation);
+            let updated_transparency = if updated_type.rotatable {
+                updated_type.get_rotated_transparency(&rotation)
+            } else {
+                [
+                    updated_type.is_px_transparent,
+                    updated_type.is_py_transparent,
+                    updated_type.is_pz_transparent,
+                    updated_type.is_nx_transparent,
+                    updated_type.is_ny_transparent,
+                    updated_type.is_nz_transparent,
+                ]
+            };
+
             chunks.set_voxel(vx, vy, vz, updated_id);
 
             if updated_type.rotatable {
@@ -152,10 +166,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     let nvz = vz + oz;
 
                     let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
+                    let n_transparency =
+                        n_block.get_rotated_transparency(&chunks.get_voxel_rotation(nvx, nvy, nvz));
 
                     // See if light could originally go from source to neighbor, but not in the updated block. If not, move on.
-                    if !(Lights::can_enter(current_type, n_block, ox, oy, oz)
-                        && !Lights::can_enter(updated_type, n_block, ox, oy, oz))
+                    if !(Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
+                        && !Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz))
                     {
                         return;
                     }
@@ -243,11 +259,14 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     let nvz = vz + oz;
 
                     let n_block = registry.get_block_by_id(chunks.get_voxel(nvx, nvy, nvz));
+                    let n_transparency =
+                        n_block.get_rotated_transparency(&chunks.get_voxel_rotation(nvx, nvy, nvz));
+
                     let n_voxel = [nvx, nvy, nvz];
 
                     // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
-                    if !(!Lights::can_enter(current_type, n_block, ox, oy, oz)
-                        && Lights::can_enter(updated_type, n_block, ox, oy, oz))
+                    if !(!Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
+                        && Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz))
                     {
                         return;
                     }
