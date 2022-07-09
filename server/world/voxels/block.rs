@@ -181,33 +181,24 @@ impl BlockRotation {
 
     /// Rotate transparency, let math do the work.
     pub fn rotate_transparency(&self, [px, py, pz, nx, ny, nz]: [bool; 6]) -> [bool; 6] {
-        // `n` stands for node.
-        let mut npx = [1.0, 0.0, 0.0];
-        let mut npy = [0.0, 1.0, 0.0];
-        let mut npz = [0.0, 0.0, 1.0];
-        let mut nnx = [-1.0, 0.0, 0.0];
-        let mut nny = [0.0, -1.0, 0.0];
-        let mut nnz = [0.0, 0.0, -1.0];
+        let mut positive = [1.0, 2.0, 3.0];
+        let mut negative = [4.0, 5.0, 6.0];
 
-        self.rotate_node(&mut npx, false);
-        self.rotate_node(&mut npy, false);
-        self.rotate_node(&mut npz, false);
-        self.rotate_node(&mut nnx, false);
-        self.rotate_node(&mut nny, false);
-        self.rotate_node(&mut nnz, false);
+        self.rotate_node(&mut positive, false);
+        self.rotate_node(&mut negative, false);
 
-        let r: Vec<bool> = [npx, npy, npz, nnx, nny, nnz]
+        let p: Vec<bool> = positive
             .into_iter()
             .map(|n| {
-                if n[0].round() == 1.0 {
+                if n == 1.0 {
                     px
-                } else if n[1].round() == 1.0 {
+                } else if n == 2.0 {
                     py
-                } else if n[2].round() == 1.0 {
+                } else if n == 3.0 {
                     pz
-                } else if n[0].round() == -1.0 {
+                } else if n == 4.0 {
                     nx
-                } else if n[1].round() == -1.0 {
+                } else if n == 5.0 {
                     ny
                 } else {
                     nz
@@ -215,7 +206,26 @@ impl BlockRotation {
             })
             .collect();
 
-        [r[0], r[1], r[2], r[3], r[4], r[5]]
+        let n: Vec<bool> = negative
+            .into_iter()
+            .map(|n| {
+                if n == 1.0 {
+                    px
+                } else if n == 2.0 {
+                    py
+                } else if n == 3.0 {
+                    pz
+                } else if n == 4.0 {
+                    nx
+                } else if n == 5.0 {
+                    ny
+                } else {
+                    nz
+                }
+            })
+            .collect();
+
+        [p[0], p[1], p[2], n[0], n[1], n[2]]
     }
 
     // Learned from
