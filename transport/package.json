@@ -13,7 +13,7 @@
     "clean": "rimraf ./dist",
     "compile": "rollup -c rollup.config.js",
     "build": "yarn run clean && yarn run compile && yarn run types",
-    "types": "tsc --emitDeclarationOnly --outDir ./dist -p tsconfig.json --declaration --allowJs",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "prepublishOnly": "yarn run build",
     "demo": "node example/index.js",
     "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",

@@ -204,7 +204,7 @@ export const App = () => {
               onByDefault: true,
             },
             registry: {
-              dimension: 64,
+              dimension: 32,
             },
           },
           {

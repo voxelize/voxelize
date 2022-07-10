@@ -218,8 +218,8 @@ class Particles {
     geometry.setAttribute("lights", new Float32BufferAttribute(lights, 4));
     geometry.attributes.uv.needsUpdate = true;
 
-    const { dimension } = this.client.registry.params;
     const countPerSide = this.client.registry.perSide;
+    const margin = this.client.registry.atlas.margin;
 
     const material = new ShaderMaterial({
       uniforms: {
@@ -232,8 +232,13 @@ class Particles {
         },
         uRepeat: {
           value: new Vector2(
-            1 / countPerSide - (0.1 / dimension) * 2,
-            1 / countPerSide - (0.1 / dimension) * 2
+            // 1/countPerSide
+            1 / countPerSide - margin * 2,
+            1 / countPerSide - margin * 2
+            // 1 / countPerSide - (0.1 / dimension) * 2,
+            // 1 / countPerSide - (0.1 / dimension) * 2
+            // 0,
+            // 0
           ),
         },
         uScale: {

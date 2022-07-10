@@ -22,6 +22,7 @@ class TextureAtlas {
   public material: MeshBasicMaterial;
   public dataURLs: Map<string, string> = new Map();
   public canvas = document.createElement("canvas");
+  public margin = 0;
 
   static create = (
     textureMap: Map<string, Texture | Color>,
@@ -119,6 +120,7 @@ class TextureAtlas {
     atlas.texture.magFilter = NearestFilter;
     atlas.texture.generateMipmaps = false;
     atlas.texture.needsUpdate = true;
+    atlas.margin = margin / canvasWidth;
 
     atlas.material = new MeshBasicMaterial({
       map: atlas.texture,
