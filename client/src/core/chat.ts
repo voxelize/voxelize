@@ -167,7 +167,7 @@ class Chat {
     input: HTMLInputElement;
   };
 
-  private disappearTimer: number;
+  private disappearTimer: any;
   private commands: Map<string, CommandProcessor> = new Map();
 
   /**

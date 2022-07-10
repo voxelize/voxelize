@@ -1,10 +1,10 @@
+import { protocol } from "@voxelize/transport/src/protocol";
 import DOMUrl from "domurl";
 import * as fflate from "fflate";
 import DecodeWorker from "web-worker:./workers/decode-worker";
 
 import { Client } from "..";
 import { WorkerPool } from "../libs/worker-pool";
-import { protocol } from "../protocol";
 import { ChunkUtils } from "../utils";
 
 const { Message } = protocol;
