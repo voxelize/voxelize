@@ -1,7 +1,6 @@
 use hashbrown::HashMap;
-use log::info;
-use serde_json::{json, Value};
-use specs::{Builder, Entity, EntityBuilder, Join, World as ECSWorld, WorldExt};
+use serde_json::json;
+use specs::{Entity, EntityBuilder, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -20,11 +19,13 @@ pub struct Entities {
 }
 
 impl Entities {
-    pub fn new(directory: &str) -> Self {
+    pub fn new(saving: bool, directory: &str) -> Self {
         let mut folder = PathBuf::from(&directory);
         folder.push("entities");
 
-        fs::create_dir_all(&folder).expect("Unable to create entities directory...");
+        if saving {
+            fs::create_dir_all(&folder).expect("Unable to create entities directory...");
+        }
 
         Self {
             folder,

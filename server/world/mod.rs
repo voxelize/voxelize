@@ -165,7 +165,7 @@ impl World {
         ecs.insert(Chunks::new(config));
         ecs.insert(SeededNoise::new(config.seed));
         ecs.insert(SeededTerrain::new(config.seed, &config.terrain));
-        ecs.insert(Entities::new(&config.save_dir));
+        ecs.insert(Entities::new(config.saving, &config.save_dir));
         ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());
