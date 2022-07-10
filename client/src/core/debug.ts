@@ -316,6 +316,7 @@ class Debug {
       physics,
       settings,
       permission,
+      entities,
     } = this.client;
 
     if (permission.canDebug) {
@@ -408,6 +409,7 @@ class Debug {
       "geometries"
     );
     this.registerDisplay("Rigid body count", physics.bodies, "length");
+    this.registerDisplay("Entity count", entities, "size");
     this.registerDisplay(
       "Working network workers",
       network,

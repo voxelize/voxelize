@@ -202,18 +202,6 @@ impl Mesher {
                         let n_is_void = !space.contains(nvx, nvy, nvz);
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
-                        // Negative because looking back at self.
-                        let self_transparent = Mesher::get_dir_transparency(
-                            block, -dir[0], -dir[1], -dir[2], rotation,
-                        );
-                        let neighbor_transparent = Mesher::get_dir_transparency(
-                            n_block_type,
-                            dir[0],
-                            dir[1],
-                            dir[2],
-                            rotation,
-                        );
-
                         // (1) Neighbor is void
                         // (2) Neighbor is empty
                         // (3) Transparent standalone cases, such as leaves.
@@ -226,7 +214,7 @@ impl Mesher {
                                 && n_block_type.transparent_standalone
                                 && (dir[0] + dir[1] + dir[2]) as i32 >= 1)
                             || !is_fluid
-                                && ((!(!self_transparent && !neighbor_transparent))
+                                && ((!is_opaque && !n_block_type.is_opaque)
                                     || ((is_opaque && !n_block_type.is_opaque)
                                         || (!is_opaque && n_block_type.is_opaque)))
                         {

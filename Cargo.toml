@@ -10,6 +10,8 @@ exclude = [
   "tsconfig.*",
   "yarn.lock",
   "*.js",
+  "*.ts",
+  "transport",
 ]
 license = "MIT"
 name = "voxelize"
@@ -43,6 +45,7 @@ nanoid = "0.4.0"
 noise = "0.7.0"
 num = "0.4.0"
 prost = "0.10.0"
+rand = "0.8.5"
 rapier3d = {version = "0.13.0", features = ["simd-stable"]}
 rayon = "1.5.2"
 serde = {version = "1.0.136", features = ["derive"]}

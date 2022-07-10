@@ -9,3 +9,4 @@ examples/server/worlds/world3/*
 
 client/protocol/index.*
 Cargo.lock
+.vscode

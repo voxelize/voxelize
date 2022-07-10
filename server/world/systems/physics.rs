@@ -54,43 +54,36 @@ impl<'a> System<'a> for PhysicsSystem {
             mut positions,
         ) = data;
 
+        let chunks = Arc::new(chunks);
+
         let get_voxel = |vx: i32, vy: i32, vz: i32| {
             (
                 chunks.get_voxel(vx, vy, vz),
                 chunks.get_voxel_rotation(vx, vy, vz),
             )
         };
+
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).
-        for (ent, curr_chunk, interactor, body, position, _) in (
-            &entities,
-            &curr_chunks,
-            &interactors,
-            &mut bodies,
-            &mut positions,
-            !&client_flag,
-        )
-            .join()
-        {
-            if !chunks.is_chunk_ready(&curr_chunk.coords) {
-                continue;
-            }
+        (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
+            .par_join()
+            .for_each(|(curr_chunk, body, position, _)| {
+                if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                    return;
+                }
 
-            Physics::iterate_body(&mut body.0, stats.delta, &get_voxel, &registry, &config);
+                Physics::iterate_body(&mut body.0, stats.delta, &get_voxel, &registry, &config);
 
-            let body_pos = body.0.get_position();
-            let Vec3(px, py, pz) = body_pos;
-
-            position.0.set(px, py, pz);
-            physics.move_rapier_body(interactor.body_handle(), &body_pos);
-            collision_map.insert(interactor.collider_handle().clone(), ent);
-        }
+                let body_pos = body.0.get_position();
+                let Vec3(px, py, pz) = body_pos;
+                position.0.set(px, py, pz);
+            });
 
         // Move the clients' rigid bodies to their positions
-        (&entities, &interactors, &positions, &client_flag)
+        (&entities, &interactors, &positions)
             .join()
-            .for_each(|(ent, interactor, position, _)| {
+            .for_each(|(ent, interactor, position)| {
                 physics.move_rapier_body(interactor.body_handle(), &position.0);
                 collision_map.insert(interactor.collider_handle().clone(), ent);
             });
@@ -139,9 +132,6 @@ impl<'a> System<'a> for PhysicsSystem {
                     }
                 }
             });
-
-        let physics = Arc::new(physics);
-        let chunks = Arc::new(chunks);
 
         if config.collision_repulsion <= f32::EPSILON {
             return;

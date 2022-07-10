@@ -13,7 +13,7 @@
     "dev:ts": "cd client && yarn run dev",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn && yarn demo",
-    "demo:rs": "cross-env RUST_BACKTRACE=full cargo watch -w examples/server -w server -x \"run --release --example demo\"",
+    "demo:rs": "cross-env RUST_BACKTRACE=1 RUSTFLAGS=\"-g\" cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "lint": "eslint --fix --ext js,ts,tsx .",
     "docs": "yarn run docs:start",
     "docs:start": "cd docs && rimraf docs/docs/api && yarn && yarn run start",

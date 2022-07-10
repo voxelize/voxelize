@@ -1,4 +1,6 @@
+use crossbeam_channel::{Receiver, Sender};
 use hashbrown::HashMap;
+use nalgebra::Vector3;
 use rapier3d::prelude::{
     vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
     ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
@@ -21,7 +23,7 @@ pub use rigidbody::*;
 pub use sweep::*;
 
 pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> (u32, BlockRotation);
-#[derive(Default)]
+
 pub struct Physics {
     body_set: RapierBodySet,
     collider_set: ColliderSet,
@@ -33,21 +35,38 @@ pub struct Physics {
     impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
+    collision_recv: Receiver<CollisionEvent>,
+    event_handler: ChannelEventCollector,
+gravity: Vector3<f32>
 }
 
 impl Physics {
     pub fn new() -> Self {
-        Self::default()
+        let (collision_send, collision_recv) = crossbeam_channel::unbounded();
+        let event_handler = ChannelEventCollector::new(collision_send);
+
+        Self {
+            collision_recv,
+            body_set: RapierBodySet::default(),
+            broad_phase: BroadPhase::default(),
+            ccd_solver: CCDSolver::default(),
+            collider_set: ColliderSet::default(),
+            impulse_joint_set: ImpulseJointSet::default(),
+            integration_parameters: IntegrationParameters::default(),
+            island_manager: IslandManager::default(),
+            multibody_joint_set: MultibodyJointSet::default(),
+            narrow_phase: NarrowPhase::default(),
+            pipeline: PhysicsPipeline::default(),
+            event_handler,
+            gravity: vector![0.0, 0.0, 0.0]
+        }
     }
 
     pub fn step(&mut self, dt: f32) -> Vec<CollisionEvent> {
         self.integration_parameters.dt = dt;
 
-        let (collision_send, collision_recv) = crossbeam_channel::unbounded();
-        let event_handler = ChannelEventCollector::new(collision_send);
-
         self.pipeline.step(
-            &vector![0.0, 0.0, 0.0],
+            &self.gravity,
             &self.integration_parameters,
             &mut self.island_manager,
             &mut self.broad_phase,
@@ -58,12 +77,12 @@ impl Physics {
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
             &(),
-            &event_handler,
+            &self.event_handler,
         );
 
         let mut collisions = vec![];
 
-        while let Ok(collision_event) = collision_recv.try_recv() {
+        while let Ok(collision_event) = self.collision_recv.try_recv() {
             // Handle the collision event.
             collisions.push(collision_event);
         }

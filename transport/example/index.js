@@ -9,11 +9,13 @@ transport.on("connectFailed", function (error) {
 transport.on("connect", function (connection) {
   console.log("WebSocket Client Connected");
 
-  transport.send({
-    type: "TRANSPORT",
-    text: "world3",
-    json: [0, 80, 0],
-  });
+  setInterval(() => {
+    transport.send({
+      type: "TRANSPORT",
+      text: "world3",
+      json: [0, 80, 0],
+    });
+  }, 100);
 
   connection.on("error", function (error) {
     console.log(`Connection Error: ${error.toString()}`);

@@ -92,6 +92,14 @@ pub fn setup_registry() -> Registry {
             .build(),
         Block::new("Color").id(201).build(),
         Block::new("Color2").id(202).build(),
+        Block::new("ChoGe")
+            .id(300)
+            .faces(&BlockFace::six_faces().scale_x(0.2).offset_x(0.4).build())
+            .aabbs(&[AABB::new().scale_x(0.2).offset_x(0.4).build()])
+            // .rotatable(true)
+            .is_x_transparent(true)
+            .is_z_transparent(true)
+            .build(),
     ]);
 
     registry

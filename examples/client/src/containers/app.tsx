@@ -54,6 +54,7 @@ import SlateImage from "../assets/own/slate.png";
 import AndesiteImage from "../assets/own/andesite.png";
 import OakPlanksImage from "../assets/own/oak_planks.png";
 import LolImage from "../assets/lol.jpeg";
+import ChoGeImage from "../assets/lol.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -112,15 +113,18 @@ if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
 const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 
 class Box extends BaseEntity {
-  public geometry: BoxBufferGeometry;
-  public material: MeshNormalMaterial;
+  public static geometry: BoxBufferGeometry;
+  public static material: MeshNormalMaterial;
 
   constructor() {
     super();
 
-    this.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
-    this.material = new MeshNormalMaterial();
-    this.mesh = new Mesh(this.geometry, this.material);
+    if (!Box.geometry) {
+      Box.geometry = new BoxBufferGeometry(0.5, 0.5, 0.5);
+      Box.material = new MeshNormalMaterial();
+    }
+
+    this.mesh = new Mesh(Box.geometry, Box.material);
 
     const nameTag = new NameTag("BOX", {
       backgroundColor: "#00000077",
@@ -254,6 +258,7 @@ export const App = () => {
           { name: "Oak Planks", sides: all, data: OakPlanksImage },
           { name: "Oak Slab Top", sides: all, data: OakPlanksImage },
           { name: "Oak Slab Bottom", sides: all, data: OakPlanksImage },
+          { name: "ChoGe", sides: ["px", "nx"], data: ChoGeImage },
         ]);
 
         client.current.chat.addCommand(
