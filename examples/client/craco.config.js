@@ -8,7 +8,7 @@ module.exports = {
   eslint: { enable: false },
   webpack: {
     alias: {
-      "@voxelize/client": path.resolve("../../dist"),
+      "@voxelize/client": path.resolve("../../client/dist"),
     },
     stats: "errors-only",
     configure: (config) => {

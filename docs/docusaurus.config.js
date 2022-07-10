@@ -133,7 +133,7 @@ const config = {
     [
       "docusaurus-plugin-typedoc",
       {
-        entryPoints: ["../client/index.ts"],
+        entryPoints: ["../client/src/index.ts"],
         tsconfig: "../tsconfig.json",
         excludePrivate: true,
         excludeProtected: true,

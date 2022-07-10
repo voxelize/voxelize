@@ -15,7 +15,7 @@ const globals = {
 };
 
 export default {
-  input: "client/index.ts",
+  input: "src/index.ts",
   output: [
     {
       file: packageJson.module,

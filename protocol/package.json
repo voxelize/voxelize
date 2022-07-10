@@ -1,0 +1,8 @@
+{
+  "name": "@voxelize/protocol",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts"
+}
