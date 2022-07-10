@@ -10,7 +10,7 @@ use actix_cors::Cors;
 use actix_files::{Files, NamedFile};
 use actix_web::{
     web::{self, Query},
-    App, Error, HttpRequest, HttpResponse, HttpServer, ResponseError, Result,
+    App, Error, HttpRequest, HttpResponse, HttpServer, Result,
 };
 use actix_web_actors::ws;
 use hashbrown::HashMap;
@@ -59,11 +59,18 @@ async fn ws_route(
         "".to_owned()
     };
 
+    let is_transport = params.contains_key("is_transport");
+
+    if is_transport {
+        info!("A new transport server has connected.");
+    }
+
     ws::start(
         server::WsSession {
             id,
             hb: Instant::now(),
             name: None,
+            is_transport,
             addr: srv.get_ref().clone(),
         },
         &req,

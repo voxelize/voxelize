@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFace, CornerData, Registry, AABB};
+use voxelize::{Block, BlockFace, Registry, AABB};
 
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();

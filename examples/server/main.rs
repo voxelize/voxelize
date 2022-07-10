@@ -89,6 +89,14 @@ fn method_handle(method: &str, value: Value, world: &mut World) {
     }
 }
 
+fn transport_handle(value: Value, world: &mut World) {
+    let position: Vec3<f32> = serde_json::from_value(value).expect("Can't understand position.");
+    info!("Spawning box at: {:?}", position);
+    if world.spawn_entity("box", &position).is_none() {
+        warn!("Failed to spawn box entity!");
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     handle_ctrlc();
@@ -136,6 +144,7 @@ async fn main() -> std::io::Result<()> {
     world3.set_dispatcher(get_dispatcher);
     world3.entities_mut().add_loader("box", load_box);
     world3.set_method_handle(method_handle);
+    world3.set_transport_handle(transport_handle);
 
     Voxelize::run(server).await
 }

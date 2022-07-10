@@ -76,6 +76,7 @@ message Message {
     UPDATE = 8;
     METHOD = 9;
     CHAT = 10;
+    TRANSPORT = 11;
   }
 
   Type type = 1;

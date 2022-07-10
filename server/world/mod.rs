@@ -67,6 +67,8 @@ pub type IntervalFunctions = Vec<(dyn FnMut(&mut World), u64)>;
 
 pub type MethodFunction = fn(&str, Value, &mut World) -> ();
 
+pub type TransportFunction = fn(Value, &mut World) -> ();
+
 /// A voxelize world.
 #[derive(Default)]
 pub struct World {
@@ -87,6 +89,9 @@ pub struct World {
 
     /// The handler for `Method`s.
     method_handle: Option<MethodFunction>,
+
+    /// The handler for `Transport`s.
+    transport_handle: Option<TransportFunction>,
 }
 
 fn get_default_dispatcher(
@@ -185,6 +190,7 @@ impl World {
 
             dispatcher: Some(get_default_dispatcher),
             method_handle: None,
+            transport_handle: None,
         }
     }
 
@@ -340,6 +346,10 @@ impl World {
         self.method_handle = Some(handle);
     }
 
+    pub fn set_transport_handle(&mut self, handle: TransportFunction) {
+        self.transport_handle = Some(handle);
+    }
+
     /// Handler for protobuf requests from clients.
     pub fn on_request(&mut self, client_id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
@@ -351,6 +361,17 @@ impl World {
             MessageType::Method => self.on_method(client_id, data),
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
+            MessageType::Transport => {
+                if let Some(transport_handle) = self.transport_handle {
+                    transport_handle(
+                        serde_json::from_str(&data.json)
+                            .expect("Something went wrong with the transport JSON value."),
+                        self,
+                    );
+                } else {
+                    warn!("Transport calls are being called, but no transport handlers set!");
+                }
+            }
             _ => {
                 info!("Received message of unknown type: {:?}", msg_type);
             }

@@ -221,7 +221,7 @@ class Client extends EventEmitter {
 
     this.network.send({
       type: "LEAVE",
-      text: this.network?.world,
+      world: this.network?.world,
     });
 
     this.stop();

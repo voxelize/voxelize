@@ -4,10 +4,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use log::info;
 
-use crate::{
-    server::models, ClientMessage, Connect, Disconnect, EncodedMessage, MessageType, OnJoinRequest,
-    Server,
-};
+use crate::{server::models, ClientMessage, Connect, Disconnect, EncodedMessage, Server};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -26,6 +23,9 @@ pub struct WsSession {
 
     /// peer name
     pub name: Option<String>,
+
+    /// Is this WS session a TS transport?
+    pub is_transport: bool,
 
     /// Chat server
     pub addr: Addr<Server>,
@@ -88,6 +88,7 @@ impl Actor for WsSession {
                 } else {
                     Some(self.id.to_owned())
                 },
+                is_transport: self.is_transport,
                 addr: addr.recipient(),
             })
             .into_actor(self)

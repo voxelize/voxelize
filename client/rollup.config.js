@@ -69,7 +69,7 @@ export default {
     }),
     swc({
       sourceMaps: true,
-      tsconfig: "./tsconfig.build.json",
+      tsconfig: "./tsconfig.json",
     }),
     glslify(),
     ...(process.env.ROLLUP_WATCH ? [] : [terser()]),

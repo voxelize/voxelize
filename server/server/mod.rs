@@ -56,6 +56,9 @@ pub struct Server {
     /// Session IDs and addresses who haven't connected to a world.
     lost_sessions: HashMap<String, Recipient<EncodedMessage>>,
 
+    /// Transport sessions, not connect to any particular world.
+    transport_sessions: HashMap<String, Recipient<EncodedMessage>>,
+
     /// What world each client ID is connected to, client ID <-> world ID.
     connections: HashMap<String, (Recipient<EncodedMessage>, String)>,
 }
@@ -118,7 +121,19 @@ impl Server {
 
     /// Handler for client's message.
     pub fn on_request(&mut self, id: &str, data: Message) {
-        if data.r#type == MessageType::Join as i32 {
+        if data.r#type == MessageType::Transport as i32 {
+            if !self.transport_sessions.contains_key(id) {
+                warn!("Someone who isn't a transport server is attempting to transport.");
+                return;
+            }
+
+            if let Some(world) = self.get_world_mut(&data.text) {
+                world.on_request(id, data);
+                return;
+            } else {
+                warn!("Transport message did not have a world. Use the 'text' field.")
+            }
+        } else if data.r#type == MessageType::Join as i32 {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
 
@@ -228,6 +243,7 @@ impl Server {
 #[rtype(result = "String")]
 pub struct Connect {
     pub id: Option<String>,
+    pub is_transport: bool,
     pub addr: Recipient<EncodedMessage>,
 }
 
@@ -283,6 +299,11 @@ impl Handler<Connect> for Server {
             msg.id.unwrap()
         };
 
+        if msg.is_transport {
+            self.transport_sessions.insert(id.to_owned(), msg.addr);
+            return MessageResult(id);
+        }
+
         if self.lost_sessions.contains_key(&id) {
             return MessageResult(nanoid!());
         }
@@ -304,6 +325,9 @@ impl Handler<Disconnect> for Server {
                 world.remove_client(&msg.id);
             }
         }
+
+        self.lost_sessions.remove(&msg.id);
+        self.transport_sessions.remove(&msg.id);
     }
 }
 
@@ -399,6 +423,7 @@ impl ServerBuilder {
 
             connections: HashMap::default(),
             lost_sessions: HashMap::default(),
+            transport_sessions: HashMap::default(),
             worlds: HashMap::default(),
         }
     }

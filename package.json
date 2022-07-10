@@ -5,7 +5,7 @@
   "workspaces": [
     "client",
     "docs",
-    "protocol"
+    "transport"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"dev:rs\" \"dev:ts\"",
@@ -15,9 +15,6 @@
     "demo:ts": "cd examples/client && yarn && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=full cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "lint": "eslint --fix --ext js,ts,tsx .",
-    "proto:ts": "pbts -o client/protocol/index.d.ts client/protocol/index.js",
-    "proto:js": "pbjs -t static-module -w commonjs -o client/protocol/index.js messages.proto",
-    "proto": "yarn run proto:js && yarn run proto:ts",
     "docs": "yarn run docs:start",
     "docs:start": "cd docs && rimraf docs/docs/api && yarn && yarn run start",
     "docs:build": "cd docs && yarn && yarn run build",
@@ -46,7 +43,6 @@
     "npm-run-all": "^4.1.5",
     "peer": "^0.6.1",
     "prettier": "^2.5.1",
-    "protobufjs": "^6.11.2",
     "rimraf": "^3.0.2",
     "rollup": "^2.67.0",
     "rollup-plugin-glslify": "^1.2.1",
