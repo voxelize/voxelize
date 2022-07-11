@@ -520,10 +520,6 @@ impl World {
         let ent = loader(nanoid!(), etype.to_owned(), MetadataComp::default(), self).build();
         set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
 
-        if let Some(body) = self.write_component::<RigidBodyComp>().get_mut(ent.clone()) {
-            let mut range = rand::thread_rng();
-        }
-
         Some(ent)
     }
 

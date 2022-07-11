@@ -5,12 +5,12 @@ use registry::setup_registry;
 use serde_json::{json, Value};
 use specs::{
     Builder, Component, DispatcherBuilder, EntityBuilder, NullStorage, ReadExpect, ReadStorage,
-    System, WorldExt, WriteStorage,
+    System, WorldExt, WriteExpect, WriteStorage,
 };
 use voxelize::{
-    ClientFilter, CollisionsComp, Event, FlatlandStage, HeadingComp, InteractorComp, MetadataComp,
-    PositionComp, RigidBody, RigidBodyComp, Server, Stats, TargetComp, Vec2, Vec3, Voxelize, World,
-    WorldConfig, AABB,
+    ClientFilter, ClientFlag, CollisionsComp, Event, Events, FlatlandStage, HeadingComp, IDComp,
+    InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Stats,
+    TargetComp, Vec2, Vec3, Voxelize, World, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -34,8 +34,10 @@ struct UpdateBoxSystem;
 
 impl<'a> System<'a> for UpdateBoxSystem {
     type SystemData = (
-        ReadExpect<'a, Stats>,
+        WriteExpect<'a, Events>,
         ReadStorage<'a, BoxFlag>,
+        ReadStorage<'a, ClientFlag>,
+        ReadStorage<'a, IDComp>,
         ReadStorage<'a, CollisionsComp>,
         WriteStorage<'a, RigidBodyComp>,
     );
@@ -43,12 +45,21 @@ impl<'a> System<'a> for UpdateBoxSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (stats, flag, collisions, mut bodies) = data;
+        let (mut events, box_flag, client_flag, ids, collisions, mut bodies) = data;
 
-        for (collision, body, _) in (&collisions, &mut bodies, &flag).join() {
-            // if !collision.0.is_empty() {
-            // body.0.apply_impulse(0.0, 10.0, 0.0);
-            // }
+        for (collision, id, _) in (&collisions, &ids, &client_flag).join() {
+            if !collision.0.is_empty() {
+                let (_, entity) = collision.0[0];
+                if let Some(_) = box_flag.get(entity) {
+                    events.dispatch(
+                        Event::new("TELEPORT")
+                            .payload([0.0, 90.0, 0.0] as [f32; 3])
+                            .filter(ClientFilter::Direct(id.0.clone()))
+                            .location(Vec2(0, 0))
+                            .build(),
+                    )
+                }
+            }
         }
     }
 }
