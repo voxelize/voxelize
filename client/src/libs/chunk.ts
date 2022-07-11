@@ -121,6 +121,9 @@ class Chunk {
   public voxels: NdArray<Uint32Array>;
   public lights: NdArray<Uint32Array>;
 
+  // ms
+  public static SUB_MESHING_INTERVAL = 100;
+
   constructor(
     public id: string,
     x: number,
@@ -151,9 +154,19 @@ class Chunk {
     if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
 
     if (meshes) {
-      meshes.forEach((meshData) => {
+      const keepMeshing = (index = 0) => {
+        const meshData = meshes[index];
+        if (!meshData) return;
         this.mesh.set(meshData, materials);
-      });
+        if (index + 1 < meshes.length) {
+          const timeout = setTimeout(() => {
+            keepMeshing(index + 1);
+            clearTimeout(timeout);
+          }, Chunk.SUB_MESHING_INTERVAL);
+        }
+      };
+
+      keepMeshing();
     }
   };
 
