@@ -3,6 +3,7 @@ use std::io::{Cursor, Write};
 use actix::Message as ActixMessage;
 use libflate::zlib::Encoder;
 use prost::Message as ProstMesssage;
+use serde_json::Value;
 
 use crate::libs::{Ndarray, Vec3};
 
@@ -131,6 +132,7 @@ pub struct MessageBuilder {
 
     peers: Option<Vec<PeerProtocol>>,
     entities: Option<Vec<EntityProtocol>>,
+    events: Option<Vec<EventProtocol>>,
     chunks: Option<Vec<ChunkProtocol>>,
     updates: Option<Vec<UpdateProtocol>>,
 }
@@ -166,6 +168,12 @@ impl MessageBuilder {
     /// Configure the entities data of the protocol.
     pub fn entities(mut self, entities: &[EntityProtocol]) -> Self {
         self.entities = Some(entities.to_vec());
+        self
+    }
+
+    /// Configure the set of events to send in this message.
+    pub fn events(mut self, events: &[EventProtocol]) -> Self {
+        self.events = Some(events.to_vec());
         self
     }
 
@@ -218,6 +226,16 @@ impl MessageBuilder {
                     metadata: entity.metadata.unwrap_or_default(),
                 })
                 .collect();
+        }
+
+        if let Some(events) = self.events {
+            message.events = events
+                .into_iter()
+                .map(|event| protocols::Event {
+                    name: event.name,
+                    payload: event.payload,
+                })
+                .collect()
         }
 
         if let Some(chunks) = self.chunks {

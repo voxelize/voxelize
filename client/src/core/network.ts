@@ -313,7 +313,7 @@ class Network {
       case "UPDATE": {
         const { updates, chunks } = event;
 
-        if (updates) {
+        if (updates && updates.length) {
           const particleUpdates = updates
             .filter(({ voxel }) => {
               return voxel === 0;
@@ -350,13 +350,22 @@ class Network {
           });
         }
 
-        if (chunks) {
+        if (chunks && chunks.length) {
           chunks.forEach((chunk) => {
             this.client.world.handleServerChunk(chunk, true);
           });
         }
 
         break;
+      }
+      case "EVENT": {
+        const { events } = event;
+
+        if (events && events.length) {
+          events.forEach((e: any) => {
+            this.client.events.handle(e.name, e.payload);
+          });
+        }
       }
     }
   };

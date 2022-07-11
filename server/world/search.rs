@@ -59,7 +59,20 @@ impl Search {
             .expect("Unable to construct tree.");
     }
 
-    pub fn within(&self, point: &Vec3<f32>, from: &Entity, radius: f32) -> Vec<(f32, &Entity)> {
+    pub fn within(&self, point: &Vec3<f32>, radius: f32) -> Vec<(f32, &Entity)> {
+        self.all
+            .within(&[point.0, point.1, point.2], radius, &squared_euclidean)
+            .expect("Unable to search tree.")
+            .into_iter()
+            .collect::<Vec<_>>()
+    }
+
+    pub fn within_entity(
+        &self,
+        point: &Vec3<f32>,
+        from: &Entity,
+        radius: f32,
+    ) -> Vec<(f32, &Entity)> {
         self.all
             .within(&[point.0, point.1, point.2], radius, &squared_euclidean)
             .expect("Unable to search tree.")
@@ -69,59 +82,8 @@ impl Search {
     }
 
     pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
-        let mut results = self
-            .all
+        self.all
             .nearest(&[point.0, point.1, point.2], count + 1, &squared_euclidean)
-            .expect("Unable to search tree.");
-
-        if !results.is_empty() {
-            results.remove(0);
-        }
-
-        results
-    }
-
-    pub fn search_client(
-        &self,
-        point: &Vec3<f32>,
-        count: usize,
-        is_client: bool,
-    ) -> Vec<(f32, &Entity)> {
-        let mut results = self
-            .clients
-            .nearest(
-                &[point.0, point.1, point.2],
-                count + if is_client { 1 } else { 0 },
-                &squared_euclidean,
-            )
-            .expect("Unable to search tree.");
-
-        if is_client && !results.is_empty() {
-            results.remove(0);
-        }
-
-        results
-    }
-
-    pub fn search_entity(
-        &self,
-        point: &Vec3<f32>,
-        count: usize,
-        is_entity: bool,
-    ) -> Vec<(f32, &Entity)> {
-        let mut results = self
-            .entities
-            .nearest(
-                &[point.0, point.1, point.2],
-                count + if is_entity { 1 } else { 0 },
-                &squared_euclidean,
-            )
-            .expect("Unable to search tree.");
-
-        if is_entity && !results.is_empty() {
-            results.remove(0);
-        }
-
-        results
+            .expect("Unable to search tree.")
     }
 }

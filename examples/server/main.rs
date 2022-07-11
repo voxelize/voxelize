@@ -1,18 +1,16 @@
-use std::{fmt::Write, process};
+use std::process;
 
-use hashbrown::HashMap;
 use log::{info, warn};
-use nanoid::nanoid;
 use registry::setup_registry;
 use serde_json::{json, Value};
 use specs::{
     Builder, Component, DispatcherBuilder, EntityBuilder, NullStorage, ReadExpect, ReadStorage,
-    System, SystemData, WorldExt, WriteStorage,
+    System, WorldExt, WriteStorage,
 };
 use voxelize::{
-    CollisionsComp, CurrentChunkComp, ETypeComp, EntityFlag, FlatlandStage, HeadingComp, IDComp,
-    InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Stats,
-    TargetComp, Vec3, Voxelize, World, WorldConfig, AABB,
+    ClientFilter, CollisionsComp, Event, FlatlandStage, HeadingComp, InteractorComp, MetadataComp,
+    PositionComp, RigidBody, RigidBodyComp, Server, Stats, TargetComp, Vec2, Vec3, Voxelize, World,
+    WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -91,10 +89,27 @@ fn method_handle(method: &str, value: Value, world: &mut World) {
 
 fn transport_handle(value: Value, world: &mut World) {
     let position: Vec3<f32> = serde_json::from_value(value).expect("Can't understand position.");
-    info!("Spawning box at: {:?}", position);
-    if world.spawn_entity("box", &position).is_none() {
-        warn!("Failed to spawn box entity!");
-    }
+
+    // info!("Spawning box at: {:?}", position);
+    // if world.spawn_entity("box", &position).is_none() {
+    //     warn!("Failed to spawn box entity!");
+    // }
+
+    let ids: Vec<String> = world
+        .clients()
+        .iter()
+        .map(|(id, _)| id.to_owned())
+        .collect();
+
+    let mut events = world.events_mut();
+
+    events.dispatch(
+        Event::new("TELEPORT")
+            .payload(position)
+            .filter(ClientFilter::Include(ids))
+            .location(Vec2(0, 0))
+            .build(),
+    );
 }
 
 #[actix_web::main]

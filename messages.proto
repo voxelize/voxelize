@@ -42,6 +42,11 @@ message Entity {
   string metadata = 6;
 }
 
+message Event {
+  string name = 1;
+  string payload = 2;
+}
+
 message Update {
   int32 vx = 1;
   int32 vy = 2;
@@ -77,6 +82,7 @@ message Message {
     METHOD = 9;
     CHAT = 10;
     TRANSPORT = 11;
+    EVENT = 12;
   }
 
   Type type = 1;
@@ -88,5 +94,6 @@ message Message {
   repeated Peer peers = 5;
   repeated Entity entities = 6;
   repeated Chunk chunks = 7;
-  repeated Update updates = 8;
+  repeated Event events = 8;
+  repeated Update updates = 9;
 }

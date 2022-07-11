@@ -1,4 +1,5 @@
 /// A filter for clients, used for specific broadcasting.
+#[derive(Clone)]
 pub enum ClientFilter {
     All,
     Direct(String),

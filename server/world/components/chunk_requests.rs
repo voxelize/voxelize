@@ -52,6 +52,11 @@ impl ChunkRequestsComp {
         self.pending = list;
     }
 
+    /// Check to see if this chunk request is interested in a chunk.
+    pub fn is_interested(&self, coords: &Vec2<i32>) -> bool {
+        self.loaded.contains(coords)
+    }
+
     /// Check to see if this client has requested or loaded a chunk.
     pub fn has(&self, coords: &Vec2<i32>) -> bool {
         self.pending.contains(coords) || self.loaded.contains(coords)

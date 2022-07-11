@@ -17,6 +17,9 @@ use crate::{
     ClientFlag, CollisionsComp, InteractorComp, Vec3,
 };
 
+use rand::{distributions::Uniform, Rng};
+
+#[derive(Default)]
 pub struct PhysicsSystem;
 
 impl<'a> System<'a> for PhysicsSystem {
@@ -139,7 +142,7 @@ impl<'a> System<'a> for PhysicsSystem {
 
         // Collision detection, push bodies away from one another.
         (&curr_chunks, &mut bodies, &interactors, !&client_flag)
-            .par_join()
+            .join()
             .for_each(|(curr_chunk, body, interactor, _)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
                     return;
@@ -164,9 +167,18 @@ impl<'a> System<'a> for PhysicsSystem {
                     return;
                 }
 
-                let dx = dx / len;
+                let mut dx = dx / len;
                 let dy = dy / len;
-                let dz = dz / len;
+                let mut dz = dz / len;
+
+                let mut rng = rand::thread_rng();
+                let range = Uniform::new(-10.0, 10.0);
+
+                // If only dy movements, add a little bias to eliminate stack overflow.
+                if dx.abs() < 0.001 && dz.abs() < 0.001 {
+                    dx = rng.sample(&range) / 1000.0;
+                    dz = rng.sample(&range) / 1000.0;
+                }
 
                 body.0.apply_impulse(
                     (dx * config.collision_repulsion).min(3.0),

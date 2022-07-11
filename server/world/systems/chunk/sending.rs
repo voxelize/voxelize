@@ -76,7 +76,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
 
                             // See if each request is interested in this chunk update.
                             for (id, request) in (&ids, &requests).join() {
-                                if request.loaded.contains(&coords) {
+                                if request.is_interested(&coords) {
                                     messages.iter().for_each(|message| {
                                         queue.push((
                                             message.clone(),

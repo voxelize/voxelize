@@ -340,6 +340,11 @@ export const App = () => {
 
         client.current.ecs.addSystem(new UpdateBoxSystem());
 
+        client.current.events.on("TELEPORT", (payload) => {
+          const [x, y, z] = payload;
+          client.current?.controls.setPosition(x, y, z);
+        });
+
         client.current?.connect({
           secret: "test",
           serverURL: BACKEND_SERVER,

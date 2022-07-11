@@ -326,8 +326,11 @@ impl Handler<Disconnect> for Server {
             }
         }
 
+        if let Some(_) = self.transport_sessions.remove(&msg.id) {
+            info!("A transport server connection has ended.")
+        }
+
         self.lost_sessions.remove(&msg.id);
-        self.transport_sessions.remove(&msg.id);
     }
 }
 

@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
-    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, Read, ReadStorage,
+    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage,
     World as ECSWorld, WorldExt, WriteStorage,
 };
 use std::env;
@@ -43,7 +43,7 @@ use self::systems::{
     BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem, ChunkRequestsSystem,
     ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem, ClearCollisionsSystem,
     CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem,
-    PeersSendingSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
+    EventsBroadcastSystem, PeersSendingSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -225,9 +225,13 @@ impl World {
         self.ecs.write_component::<T>()
     }
 
-    /// Read an entity by ID in the ECS world.
-    pub fn get_entity(&self, ent_id: u32) -> Entity {
-        self.ecs.entities().entity(ent_id)
+    /// Get an ID from IDComp from an entity
+    pub fn get_id(&self, entity: Entity) -> String {
+        if let Some(id) = self.read_component::<IDComp>().get(entity) {
+            id.0.to_owned()
+        } else {
+            panic!("Something went wrong! An entity does not have an `IDComp` attached!");
+        }
     }
 
     /// Add a client to the world by an ID and an Actix actor address.
@@ -439,6 +443,26 @@ impl World {
         self.write_resource::<Physics>()
     }
 
+    /// Access the event queue in the ECS world.
+    pub fn events(&self) -> Fetch<Events> {
+        self.read_resource::<Events>()
+    }
+
+    /// Access the mutable events queue in the ECS world.
+    pub fn events_mut(&mut self) -> FetchMut<Events> {
+        self.write_resource::<Events>()
+    }
+
+    /// Access the search tree in the ECS world.
+    pub fn search(&self) -> Fetch<Search> {
+        self.read_resource::<Search>()
+    }
+
+    /// Access the mutable search tree in the ECS world.
+    pub fn search_mut(&mut self) -> FetchMut<Search> {
+        self.write_resource::<Search>()
+    }
+
     /// Access the terrain of the ECS world.
     pub fn terrain(&self) -> Fetch<SeededTerrain> {
         self.read_resource::<SeededTerrain>()
@@ -498,12 +522,6 @@ impl World {
 
         if let Some(body) = self.write_component::<RigidBodyComp>().get_mut(ent.clone()) {
             let mut range = rand::thread_rng();
-
-            body.0.apply_impulse(
-                range.gen_range(-0.02..0.02),
-                range.gen_range(-0.02..0.02),
-                range.gen_range(-0.02..0.02),
-            )
         }
 
         Some(ent)
@@ -577,6 +595,11 @@ impl World {
                 ClearCollisionsSystem,
                 "clear-collisions",
                 &["entities-sending"],
+            )
+            .with(
+                EventsBroadcastSystem,
+                "events-broadcasting",
+                &["chunk-requests", "broadcast"],
             );
 
         let mut dispatcher = builder.build();
