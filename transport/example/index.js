@@ -25,7 +25,8 @@ transport.on("connect", function (connection) {
 
   connection.on("message", function (message) {
     if (message.type === "binary") {
-      console.log(`Received: '${message.binaryData}'`);
+      const decoded = Transport.decodeSync(message.binaryData);
+      console.log(decoded.type);
     }
   });
 });

@@ -236,6 +236,79 @@ impl World {
 
     /// Add a client to the world by an ID and an Actix actor address.
     pub fn add_client(&mut self, id: &str, username: &str, addr: &Recipient<EncodedMessage>) {
+        let init_message = self.generate_init_message(id);
+
+        let body =
+            RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
+
+        let interactor = self.physics_mut().register(&body);
+
+        let ent = self
+            .ecs
+            .create_entity()
+            .with(ClientFlag::default())
+            .with(IDComp::new(id))
+            .with(NameComp::new(username))
+            .with(AddrComp::new(addr))
+            .with(ChunkRequestsComp::default())
+            .with(CurrentChunkComp::default())
+            .with(PositionComp::default())
+            .with(DirectionComp::default())
+            .with(RigidBodyComp::new(&body))
+            .with(InteractorComp::new(interactor))
+            .with(CollisionsComp::new())
+            .build();
+
+        self.clients_mut().insert(
+            id.to_owned(),
+            Client {
+                id: id.to_owned(),
+                entity: ent,
+                username: username.to_owned(),
+                addr: addr.to_owned(),
+            },
+        );
+
+        self.send(addr, &init_message);
+
+        let join_message = Message::new(&MessageType::Join).text(id).build();
+        self.broadcast(join_message, ClientFilter::All);
+    }
+
+    /// Remove a client from the world by endpoint.
+    pub fn remove_client(&mut self, id: &str) {
+        let removed = self.clients_mut().remove(id);
+
+        if let Some(client) = removed {
+            {
+                let entities = self.ecs.entities();
+
+                entities.delete(client.entity).unwrap_or_else(|_| {
+                    panic!(
+                        "Something went wrong with deleting this client: {}",
+                        client.id
+                    )
+                });
+            }
+
+            let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
+            self.broadcast(leave_message, ClientFilter::All);
+        }
+    }
+
+    pub fn set_dispatcher(&mut self, dispatch: ModifyDispatch) {
+        self.dispatcher = Some(dispatch);
+    }
+
+    pub fn set_method_handle(&mut self, handle: MethodFunction) {
+        self.method_handle = Some(handle);
+    }
+
+    pub fn set_transport_handle(&mut self, handle: TransportFunction) {
+        self.transport_handle = Some(handle);
+    }
+
+    pub fn generate_init_message(&self, id: &str) -> Message {
         let config = self.config().get_init_config();
         let mut json = HashMap::new();
 
@@ -279,80 +352,11 @@ impl World {
         drop(etypes);
         drop(metadatas);
 
-        let body =
-            RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
-
-        let interactor = self.physics_mut().register(&body);
-
-        let ent = self
-            .ecs
-            .create_entity()
-            .with(ClientFlag::default())
-            .with(IDComp::new(id))
-            .with(NameComp::new(username))
-            .with(AddrComp::new(addr))
-            .with(ChunkRequestsComp::default())
-            .with(CurrentChunkComp::default())
-            .with(PositionComp::default())
-            .with(DirectionComp::default())
-            .with(RigidBodyComp::new(&body))
-            .with(InteractorComp::new(interactor))
-            .with(CollisionsComp::new())
-            .build();
-
-        self.clients_mut().insert(
-            id.to_owned(),
-            Client {
-                id: id.to_owned(),
-                entity: ent,
-                username: username.to_owned(),
-                addr: addr.to_owned(),
-            },
-        );
-
-        let init_message = Message::new(&MessageType::Init)
+        Message::new(&MessageType::Init)
             .json(&serde_json::to_string(&json).unwrap())
             .peers(&peers)
             .entities(&entities)
-            .build();
-
-        self.send(addr, &init_message);
-
-        let join_message = Message::new(&MessageType::Join).text(id).build();
-        self.broadcast(join_message, ClientFilter::All);
-    }
-
-    /// Remove a client from the world by endpoint.
-    pub fn remove_client(&mut self, id: &str) {
-        let removed = self.clients_mut().remove(id);
-
-        if let Some(client) = removed {
-            {
-                let entities = self.ecs.entities();
-
-                entities.delete(client.entity).unwrap_or_else(|_| {
-                    panic!(
-                        "Something went wrong with deleting this client: {}",
-                        client.id
-                    )
-                });
-            }
-
-            let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
-            self.broadcast(leave_message, ClientFilter::All);
-        }
-    }
-
-    pub fn set_dispatcher(&mut self, dispatch: ModifyDispatch) {
-        self.dispatcher = Some(dispatch);
-    }
-
-    pub fn set_method_handle(&mut self, handle: MethodFunction) {
-        self.method_handle = Some(handle);
-    }
-
-    pub fn set_transport_handle(&mut self, handle: TransportFunction) {
-        self.transport_handle = Some(handle);
+            .build()
     }
 
     /// Handler for protobuf requests from clients.

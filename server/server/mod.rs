@@ -300,7 +300,15 @@ impl Handler<Connect> for Server {
         };
 
         if msg.is_transport {
+            // Send init messages of the worlds to the transport.
+            self.worlds.values().for_each(|world| {
+                msg.addr.do_send(EncodedMessage(encode_message(
+                    &world.generate_init_message(&id),
+                )));
+            });
+
             self.transport_sessions.insert(id.to_owned(), msg.addr);
+
             return MessageResult(id);
         }
 
