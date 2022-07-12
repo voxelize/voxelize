@@ -5,20 +5,21 @@ use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
     encode_message, ChunkRequestsComp, ClientFilter, Clients, EncodedMessage, Event, EventProtocol,
-    Events, Message, MessageType, Vec2,
+    Events, Message, MessageType, Transports, Vec2,
 };
 
 pub struct EventsBroadcastSystem;
 
 impl<'a> System<'a> for EventsBroadcastSystem {
     type SystemData = (
+        ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
         WriteExpect<'a, Events>,
         ReadStorage<'a, ChunkRequestsComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (clients, mut events, requests) = data;
+        let (transports, clients, mut events, requests) = data;
 
         if events.queue.is_empty() {
             return;
@@ -43,6 +44,7 @@ impl<'a> System<'a> for EventsBroadcastSystem {
 
         // ID to a set of events, serialized.
         let mut dispatch_map: HashMap<String, Vec<EventProtocol>> = HashMap::new();
+        let mut transports_map: Vec<EventProtocol> = vec![];
 
         events.queue.drain(..).for_each(|event| {
             let Event {
@@ -53,6 +55,10 @@ impl<'a> System<'a> for EventsBroadcastSystem {
             } = event;
 
             let serialized = serialize_payload(name, payload);
+
+            if !transports.is_empty() {
+                transports_map.push(serialized.to_owned());
+            }
 
             // Checks if location is required, otherwise just sends.
             let mut send_to_id = |id: &str| {
@@ -132,5 +138,13 @@ impl<'a> System<'a> for EventsBroadcastSystem {
 
             client.addr.do_send(encoded);
         });
+
+        if !transports.is_empty() {
+            let message = Message::new(&MessageType::Event)
+                .events(&transports_map)
+                .build();
+            let encoded = EncodedMessage(encode_message(&message));
+            transports.values().for_each(|r| r.do_send(encoded.clone()));
+        }
     }
 }

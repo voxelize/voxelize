@@ -70,6 +70,8 @@ pub type MethodFunction = fn(&str, Value, &mut World) -> ();
 
 pub type TransportFunction = fn(Value, &mut World) -> ();
 
+pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
+
 /// A voxelize world.
 #[derive(Default)]
 pub struct World {
@@ -181,6 +183,7 @@ impl World {
         ecs.insert(Stats::new());
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
+        ecs.insert(Transports::new());
 
         Self {
             id,
@@ -232,6 +235,19 @@ impl World {
         } else {
             panic!("Something went wrong! An entity does not have an `IDComp` attached!");
         }
+    }
+
+    /// Add a transport address to this world.
+    pub fn add_transport(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
+        let init_message = self.generate_init_message(id);
+        self.send(addr, &init_message);
+        self.write_resource::<Transports>()
+            .insert(id.to_owned(), addr.to_owned());
+    }
+
+    /// Remove a transport address from this world.
+    pub fn remove_transport(&mut self, id: &str) {
+        self.write_resource::<Transports>().remove(id);
     }
 
     /// Add a client to the world by an ID and an Actix actor address.

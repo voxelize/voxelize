@@ -189,19 +189,6 @@ impl Server {
         }
     }
 
-    /// Handler for client leaving.
-    pub fn on_leave(&mut self, client_id: &str) {
-        if let Some((_, world_name)) = self.connections.remove(client_id) {
-            if let Some(world) = self.get_world_mut(&world_name) {
-                world.remove_client(client_id);
-            }
-        }
-
-        info!("Client at {} left the server.", client_id);
-
-        self.lost_sessions.remove(client_id);
-    }
-
     /// Prepare all worlds on the server to start.
     pub fn prepare(&mut self) {
         for world in self.worlds.values_mut() {
@@ -301,11 +288,9 @@ impl Handler<Connect> for Server {
 
         if msg.is_transport {
             // Send init messages of the worlds to the transport.
-            self.worlds.values().for_each(|world| {
-                msg.addr.do_send(EncodedMessage(encode_message(
-                    &world.generate_init_message(&id),
-                )));
-            });
+            self.worlds
+                .values_mut()
+                .for_each(|world| world.add_transport(&id, &msg.addr));
 
             self.transport_sessions.insert(id.to_owned(), msg.addr);
 
@@ -335,6 +320,10 @@ impl Handler<Disconnect> for Server {
         }
 
         if let Some(_) = self.transport_sessions.remove(&msg.id) {
+            self.worlds.values_mut().for_each(|world| {
+                world.remove_transport(&msg.id);
+            });
+
             info!("A transport server connection has ended.")
         }
 
