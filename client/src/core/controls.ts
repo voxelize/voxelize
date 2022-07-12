@@ -233,6 +233,11 @@ type ControlsParams = {
   sprintFactor: number;
 
   /**
+   * The factor to the movement speed when crouch is applied. Defaults to `0.6`.
+   */
+  crouchFactor: number;
+
+  /**
    * The factor applied to the movements of the client in air, such as while half-jump. Defaults to `0.7`.
    */
   airMoveMult: number;
@@ -287,6 +292,7 @@ const defaultParams: ControlsParams = {
   flyInertia: 6,
 
   sprintFactor: 1.4,
+  crouchFactor: 0.6,
   airMoveMult: 0.7,
   jumpImpulse: 8,
   jumpForce: 1,
@@ -1105,6 +1111,7 @@ class Controls extends EventDispatcher {
       jumpImpulse,
       maxSpeed,
       sprintFactor,
+      crouchFactor,
       moveForce,
       airMoveMult,
       responsiveness,
@@ -1158,7 +1165,7 @@ class Controls extends EventDispatcher {
         let speed = maxSpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
-        // if (state.crouch) speed *= state.crouchMoveMult
+        if (this.state.crouching) speed *= crouchFactor;
         m[2] = speed;
 
         // rotate move vector to entity's heading
@@ -1222,7 +1229,7 @@ class Controls extends EventDispatcher {
         let speed = flySpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
-        // if (state.crouch) speed *= state.crouchMoveMult
+        if (this.state.crouching) speed *= crouchFactor;
         m[2] = speed;
 
         // rotate move vector to entity's heading
