@@ -992,7 +992,8 @@ class Controls extends EventDispatcher {
       let union: AABB = rotation.rotateAABB(aabbs[0]);
 
       for (let i = 1; i < aabbs.length; i++) {
-        union = rotation.rotateAABB(union.union(aabbs[i]));
+        const aabb = rotation.rotateAABB(aabbs[i]);
+        union = union.union(aabb);
       }
 
       union.translate(this.lookBlock);

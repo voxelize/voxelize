@@ -24,7 +24,6 @@ use super::{
 struct ChunkFileData {
     id: String,
     voxels: String,
-    lights: String,
     height_map: String,
 }
 
@@ -94,7 +93,6 @@ impl Chunks {
             let ChunkFileData {
                 id,
                 voxels,
-                lights,
                 height_map,
             } = data;
 
@@ -119,7 +117,6 @@ impl Chunks {
                 },
             );
 
-            chunk.lights.data = decode_base64(lights);
             chunk.voxels.data = decode_base64(voxels);
             chunk.height_map.data = decode_base64(height_map);
             chunk.stage = None;
@@ -157,7 +154,6 @@ impl Chunks {
 
         let data = ChunkFileData {
             id: chunk.id.to_owned(),
-            lights: to_base_64(&chunk.lights.data),
             voxels: to_base_64(&chunk.voxels.data),
             height_map: to_base_64(&chunk.height_map.data),
         };

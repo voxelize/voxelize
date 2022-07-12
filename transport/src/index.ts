@@ -13,6 +13,8 @@ const { Message } = protocol;
 export class Transport extends WebSocket {
   public connection: WebSocketConnection;
 
+  public static MessageTypes = Message.Type;
+
   constructor() {
     super();
 

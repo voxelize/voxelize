@@ -259,6 +259,16 @@ export const App = () => {
           { name: "Oak Slab Top", sides: all, data: OakPlanksImage },
           { name: "Oak Slab Bottom", sides: all, data: OakPlanksImage },
           { name: "ChoGe", sides: ["px", "nx"], data: ChoGeImage },
+          {
+            name: "Mushroom",
+            sides: all.map((name) => "bottom-" + name + "-"),
+            data: new Color("#A27B5C"),
+          },
+          {
+            name: "Mushroom",
+            sides: all.map((name) => "top-" + name + "-"),
+            data: new Color("#E4DCCF"),
+          },
         ]);
 
         client.current.chat.addCommand(

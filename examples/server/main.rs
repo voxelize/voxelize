@@ -50,7 +50,7 @@ impl<'a> System<'a> for UpdateBoxSystem {
         for (collision, id, _) in (&collisions, &ids, &client_flag).join() {
             if !collision.0.is_empty() {
                 let (_, entity) = collision.0[0];
-                if let Some(_) = box_flag.get(entity) {
+                if let Some(_) = box_flag.get(entity.clone()) {
                     events.dispatch(
                         Event::new("TELEPORT")
                             .payload([0.0, 90.0, 0.0] as [f32; 3])
@@ -58,6 +58,9 @@ impl<'a> System<'a> for UpdateBoxSystem {
                             .location(Vec2(0, 0))
                             .build(),
                     )
+                    // if let Some(body) = bodies.get_mut(entity) {
+                    //     body.0.apply_impulse(0.0, 30.0, 0.0);
+                    // }
                 }
             }
         }
@@ -101,26 +104,26 @@ fn method_handle(method: &str, value: Value, world: &mut World) {
 fn transport_handle(value: Value, world: &mut World) {
     let position: Vec3<f32> = serde_json::from_value(value).expect("Can't understand position.");
 
-    // info!("Spawning box at: {:?}", position);
-    // if world.spawn_entity("box", &position).is_none() {
-    //     warn!("Failed to spawn box entity!");
-    // }
+    info!("Spawning box at: {:?}", position);
+    if world.spawn_entity("box", &position).is_none() {
+        warn!("Failed to spawn box entity!");
+    }
 
-    let ids: Vec<String> = world
-        .clients()
-        .iter()
-        .map(|(id, _)| id.to_owned())
-        .collect();
+    // let ids: Vec<String> = world
+    //     .clients()
+    //     .iter()
+    //     .map(|(id, _)| id.to_owned())
+    //     .collect();
 
-    let mut events = world.events_mut();
+    // let mut events = world.events_mut();
 
-    events.dispatch(
-        Event::new("TELEPORT")
-            .payload(position)
-            .filter(ClientFilter::Include(ids))
-            .location(Vec2(0, 0))
-            .build(),
-    );
+    // events.dispatch(
+    //     Event::new("TELEPORT")
+    //         .payload(position)
+    //         .filter(ClientFilter::Include(ids))
+    //         .location(Vec2(0, 0))
+    //         .build(),
+    // );
 }
 
 #[actix_web::main]

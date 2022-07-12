@@ -3,6 +3,29 @@ use voxelize::{Block, BlockFace, Registry, AABB};
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
 
+    let mut root = BlockFace::six_faces()
+        .scale_x(0.3)
+        .offset_x(0.35)
+        .scale_z(0.3)
+        .offset_z(0.35)
+        .scale_y(0.2)
+        .prefix("bottom")
+        .concat("-")
+        .build();
+
+    root.append(
+        &mut BlockFace::six_faces()
+            .scale_x(0.4)
+            .offset_x(0.3)
+            .scale_z(0.4)
+            .offset_z(0.3)
+            .scale_y(0.3)
+            .offset_y(0.2)
+            .prefix("top")
+            .concat("-")
+            .build(),
+    );
+
     registry.register_blocks(&[
         Block::new("Dirt").id(1).is_plantable(true).build(),
         Block::new("Stone").id(2).build(),
@@ -99,6 +122,31 @@ pub fn setup_registry() -> Registry {
             // .rotatable(true)
             .is_x_transparent(true)
             .is_z_transparent(true)
+            .build(),
+        Block::new("Mushroom")
+            .id(400)
+            .faces(&root)
+            .aabbs(&[
+                AABB::new()
+                    .scale_x(0.3)
+                    .offset_x(0.35)
+                    .scale_z(0.3)
+                    .offset_z(0.35)
+                    .scale_y(0.2)
+                    .build(),
+                AABB::new()
+                    .scale_x(0.4)
+                    .offset_x(0.3)
+                    .scale_z(0.4)
+                    .offset_z(0.3)
+                    .scale_y(0.3)
+                    .offset_y(0.2)
+                    .build(),
+            ])
+            .is_x_transparent(true)
+            .is_y_transparent(true)
+            .is_z_transparent(true)
+            .rotatable(true)
             .build(),
     ]);
 
