@@ -26,9 +26,9 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::{env, hash::Hash};
 
 use crate::{
     encode_message,
@@ -67,9 +67,7 @@ pub type ModifyDispatch =
 
 pub type IntervalFunctions = Vec<(dyn FnMut(&mut World), u64)>;
 
-pub type MethodFunction = fn(&str, Value, &mut World) -> ();
-
-pub type TransportFunction = fn(Value, &mut World) -> ();
+pub type CustomFunction = fn(Value, &mut World);
 
 pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
 
@@ -98,10 +96,10 @@ pub struct World {
     dispatcher: Option<ModifyDispatch>,
 
     /// The handler for `Method`s.
-    method_handle: Option<MethodFunction>,
+    method_handles: HashMap<String, CustomFunction>,
 
     /// The handler for `Transport`s.
-    transport_handle: Option<TransportFunction>,
+    transport_handle: Option<CustomFunction>,
 }
 
 fn get_default_dispatcher(
@@ -198,7 +196,7 @@ impl World {
             ecs,
 
             dispatcher: Some(get_default_dispatcher),
-            method_handle: None,
+            method_handles: HashMap::default(),
             transport_handle: None,
         }
     }
@@ -325,11 +323,11 @@ impl World {
         self.dispatcher = Some(dispatch);
     }
 
-    pub fn set_method_handle(&mut self, handle: MethodFunction) {
-        self.method_handle = Some(handle);
+    pub fn set_method_handle(&mut self, method: &str, handle: CustomFunction) {
+        self.method_handles.insert(method.to_lowercase(), handle);
     }
 
-    pub fn set_transport_handle(&mut self, handle: TransportFunction) {
+    pub fn set_transport_handle(&mut self, handle: CustomFunction) {
         self.transport_handle = Some(handle);
     }
 
@@ -762,18 +760,18 @@ impl World {
 
     /// Handler for `Method` type messages.
     fn on_method(&mut self, _: &str, data: Message) {
-        if self.method_handle.is_none() {
-            warn!("`Method` type messages received, but no method handler set.");
-            return;
-        }
-
-        let handle = self.method_handle.unwrap();
-
         let json: OnMethodRequest = serde_json::from_str(&data.json)
             .expect("`on_method` error. Could not read JSON string.");
         let method = json.method.to_lowercase();
 
-        handle(&method, json.data, self);
+        if !self.method_handles.contains_key(&method) {
+            warn!("`Method` type messages received, but no method handler set.");
+            return;
+        }
+
+        let handle = self.method_handles.get(&method).unwrap().to_owned();
+
+        handle(json.data, self);
     }
 
     /// Handler for `Chat` type messages.

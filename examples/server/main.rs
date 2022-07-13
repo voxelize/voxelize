@@ -89,13 +89,10 @@ fn load_box(id: String, etype: String, metadata: MetadataComp, world: &mut World
         .with(BoxFlag)
 }
 
-fn method_handle(method: &str, value: Value, world: &mut World) {
-    if method == "spawn" {
-        let position: Vec3<f32> =
-            serde_json::from_value(value).expect("Can't understand position.");
-        if world.spawn_entity("box", &position).is_none() {
-            warn!("Failed to spawn box entity!");
-        }
+fn spawn_handle(value: Value, world: &mut World) {
+    let position: Vec3<f32> = serde_json::from_value(value).expect("Can't understand position.");
+    if world.spawn_entity("box", &position).is_none() {
+        warn!("Failed to spawn box entity!");
     }
 }
 
@@ -170,7 +167,7 @@ async fn main() -> std::io::Result<()> {
     world3.ecs_mut().register::<BoxFlag>();
     world3.set_dispatcher(get_dispatcher);
     world3.entities_mut().add_loader("box", load_box);
-    world3.set_method_handle(method_handle);
+    world3.set_method_handle("spawn", spawn_handle);
     world3.set_transport_handle(transport_handle);
 
     Voxelize::run(server).await

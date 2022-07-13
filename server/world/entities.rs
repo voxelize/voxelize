@@ -38,7 +38,13 @@ impl Entities {
     }
 
     pub fn get_loader(&mut self, etype: &str) -> Option<CreateEntity> {
-        self.loaders.to_owned().remove(&etype.to_lowercase())
+        let lower = etype.to_lowercase();
+
+        if !self.loaders.contains_key(&lower) {
+            return None;
+        }
+
+        Some(self.loaders.get(&lower).unwrap().to_owned())
     }
 
     pub fn save(&self, id: &IDComp, etype: &ETypeComp, metadata: &MetadataComp) {
