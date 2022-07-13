@@ -55,6 +55,16 @@ class Debug {
    */
   public dataWrapper: HTMLDivElement;
 
+  /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
   private dataEntries: {
     ele: HTMLParagraphElement;
     obj?: any;
@@ -112,6 +122,8 @@ class Debug {
    * @hidden
    */
   update = () => {
+    this.onBeforeUpdate?.();
+
     // loop through all data entries, and get their latest updated values
     for (const { ele, title, attribute, obj, formatter } of this.dataEntries) {
       const newValue = obj && attribute ? obj[attribute] : "";
@@ -120,6 +132,8 @@ class Debug {
 
     // fps update
     this.stats.update();
+
+    this.onAfterUpdate?.();
   };
 
   /**

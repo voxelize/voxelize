@@ -134,6 +134,16 @@ class Particles {
   public groups: ParticleGroup[] = [];
 
   /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
+  /**
    * Initialize a Voxelize particle manager.
    *
    * @hidden
@@ -279,9 +289,13 @@ class Particles {
    * @hidden
    */
   update = () => {
+    this.onBeforeUpdate?.();
+
     this.groups.forEach((g) => {
       g.params.update(g);
     });
+
+    this.onAfterUpdate?.();
   };
 
   private removeGroup(group: ParticleGroup, animate = true) {

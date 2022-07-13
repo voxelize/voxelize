@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Vector3, MathUtils } from "three";
+import { PerspectiveCamera, Vector3, MathUtils, AudioListener } from "three";
 
 import { Client } from "..";
 
@@ -81,6 +81,21 @@ class Camera {
    * The inner ThreeJS perspective camera instance.
    */
   public threeCamera: PerspectiveCamera;
+
+  /**
+   * An audio listener attached to the camera to play music.
+   */
+  public listener: AudioListener;
+
+  /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
 
   private newZoom: number;
   private newFOV: number;
@@ -170,6 +185,8 @@ class Camera {
    * @hidden
    */
   update = () => {
+    this.onBeforeUpdate?.();
+
     if (this.newFOV !== this.threeCamera.fov) {
       this.threeCamera.fov = MathUtils.lerp(
         this.threeCamera.fov,
@@ -190,6 +207,27 @@ class Camera {
 
     this.threeCamera.updateMatrix();
     this.threeCamera.updateMatrixWorld();
+
+    this.onAfterUpdate?.();
+  };
+
+  /**
+   * Setup the audio listener.
+   *
+   * @internal
+   * @hidden
+   */
+  setupListener = () => {
+    if (this.listener) return;
+
+    // initialize the audio listener
+    this.listener = new AudioListener();
+
+    // add the audio listener to the camera
+    this.threeCamera.add(this.listener);
+
+    // Load all audios
+    this.client.loader.loadAudios();
   };
 }
 

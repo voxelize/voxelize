@@ -181,6 +181,16 @@ class Entities extends Map<string, BaseEntity> {
    */
   public params: EntitiesParams;
 
+  /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
   private knownTypes: Map<string, NewEntity> = new Map();
 
   /**
@@ -268,7 +278,9 @@ class Entities extends Map<string, BaseEntity> {
    * @hidden
    */
   update = () => {
+    this.onBeforeUpdate?.();
     // TODO
+    this.onAfterUpdate?.();
   };
 
   private removeEntity = (entity: BaseEntity) => {

@@ -45,6 +45,16 @@ class Clock {
    */
   public delta: number;
 
+  /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
   private lastFrameTime: number;
 
   /**
@@ -70,12 +80,16 @@ class Clock {
    * @hidden
    */
   update = () => {
+    this.onBeforeUpdate?.();
+
     const now = Date.now();
     this.delta = Math.min(
       (now - this.lastFrameTime) / 1000,
       this.params.maxDelta
     );
     this.lastFrameTime = now;
+
+    this.onAfterUpdate?.();
   };
 }
 

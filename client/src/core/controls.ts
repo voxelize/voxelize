@@ -334,11 +334,6 @@ class Controls extends EventDispatcher {
   public isLocked = false;
 
   /**
-   * The type of block that the player is currently holding. Defaults to whatever the block of ID 1 is.
-   */
-  public hand = "";
-
-  /**
    * The physical rigid body of the client, dimensions described by:
    * - `params.bodyWidth`
    * - `params.bodyHeight`
@@ -374,6 +369,16 @@ class Controls extends EventDispatcher {
     rotation: PY_ROTATION,
     yRotation: 0,
   };
+
+  /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
 
   private lookBlockMesh: Group;
 
@@ -446,8 +451,6 @@ class Controls extends EventDispatcher {
         stepHeight: 0.5,
       });
 
-      this.hand = client.registry.getBlockById(1)?.name;
-
       this.setPosition(...this.params.initialPosition);
     });
 
@@ -462,6 +465,8 @@ class Controls extends EventDispatcher {
    * @hidden
    */
   update = () => {
+    this.onBeforeUpdate?.();
+
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
     this.object.position.lerp(this.newPosition, this.params.positionLerp);
 
@@ -477,6 +482,8 @@ class Controls extends EventDispatcher {
     this.moveRigidBody();
     this.updateRigidBody();
     this.updateLookBlock();
+
+    this.onAfterUpdate?.();
   };
 
   /**
@@ -767,7 +774,7 @@ class Controls extends EventDispatcher {
 
   private setupLookBlock = () => {
     const { lookBlockScale, lookBlockColor } = this.params;
-    const { rendering, world } = this.client;
+    const { rendering } = this.client;
 
     this.lookBlockMesh = new Group();
 
@@ -832,56 +839,6 @@ class Controls extends EventDispatcher {
     const { inputs, world, permission } = this.client;
 
     this.connect();
-
-    inputs.click(
-      "left",
-      () => {
-        if (!this.lookBlock) return;
-        const [vx, vy, vz] = this.lookBlock;
-        world.setServerVoxel(vx, vy, vz, 0);
-      },
-      "in-game"
-    );
-
-    inputs.click(
-      "middle",
-      () => {
-        if (!this.lookBlock) return;
-        const [vx, vy, vz] = this.lookBlock;
-        const block = world.getBlockByVoxel(vx, vy, vz);
-        this.hand = block.name;
-      },
-      "in-game"
-    );
-
-    inputs.click(
-      "right",
-      () => {
-        if (!this.targetBlock) return;
-        const {
-          voxel: [vx, vy, vz],
-          rotation,
-          yRotation,
-        } = this.targetBlock;
-
-        if (this.client.world.getVoxelByVoxel(vx, vy, vz) !== 0) {
-          return;
-        }
-
-        const blockAABB = new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1);
-
-        if (!this.body.aabb.intersects(blockAABB)) {
-          world.setServerVoxel(
-            vx,
-            vy,
-            vz,
-            this.client.registry.getBlockByName(this.hand).id,
-            rotation ? BlockRotation.encode(rotation, yRotation) : null
-          );
-        }
-      },
-      "in-game"
-    );
 
     if (permission.canFly) {
       const toggleFly = () => {
@@ -1347,7 +1304,8 @@ class Controls extends EventDispatcher {
   };
 
   private onMouseMove = (event: MouseEvent) => {
-    if (this.isLocked === false) return;
+    if (this.isLocked === false || this.client.inputs.namespace !== "in-game")
+      return;
 
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
@@ -1368,6 +1326,8 @@ class Controls extends EventDispatcher {
   };
 
   private onPointerlockChange = () => {
+    this.client.camera.setupListener();
+
     if (
       this.client.container.domElement.ownerDocument.pointerLockElement ===
       this.client.container.domElement

@@ -202,17 +202,13 @@ impl Mesher {
                         let n_is_void = !space.contains(nvx, nvy, nvz);
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
-                        // (1) Neighbor is void
-                        // (2) Neighbor is empty
-                        // (3) Transparent standalone cases, such as leaves.
-                        // (4) Self is directionally transparent and neighbor isn't, vice versa (not fluid).
-                        // (5) Self is opaque and neighbor ain't, vice versa (not fluid).
                         if n_is_void
                             || n_block_type.is_empty
                             || (transparent
                                 && neighbor_id == voxel_id
                                 && n_block_type.transparent_standalone
                                 && (dir[0] + dir[1] + dir[2]) as i32 >= 1)
+                            || (is_fluid && !is_opaque)
                             || !is_fluid
                                 && ((!is_opaque && !n_block_type.is_opaque)
                                     || ((is_opaque && !n_block_type.is_opaque)

@@ -73,6 +73,16 @@ class World {
 
   public triggers: Trigger[] = [];
 
+  /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
   constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
     const { skyDimension, skyFaces, clouds } = (params = {
       ...defaultParams,
@@ -218,8 +228,6 @@ class World {
   };
 
   setServerVoxels = (updates: BlockUpdate[]) => {
-    if (!this.client.permission.canUpdate) return;
-
     this.chunks.toUpdate.push(
       ...updates.filter(
         (update) => update.vy >= 0 && update.vy < this.params.maxHeight
@@ -375,6 +383,22 @@ class World {
     return Math.abs(angle) < (Math.PI * 3) / 5;
   };
 
+  canPlace = (vx: number, vy: number, vz: number, type: number) => {
+    const current = this.getBlockByVoxel(vx, vy, vz);
+
+    return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
+
+    // const updated = this.client.registry.getBlockById(type);
+
+    // for (const cAABB of current.aabbs) {
+    //   for (const uAABB of updated.aabbs) {
+    //     if (cAABB.intersects(uAABB)) {
+    //       return false;
+    //     }
+    //   }
+    // }
+  };
+
   addTrigger = (trigger: Trigger) => {
     this.triggers.push(trigger);
     this.client.rendering.scene.add(trigger.mesh);
@@ -384,6 +408,8 @@ class World {
     let count = 0;
 
     return () => {
+      this.onBeforeUpdate?.();
+
       count++;
 
       this.triggers.forEach((trigger) => {
@@ -476,6 +502,8 @@ class World {
           });
         }
       }
+
+      this.onAfterUpdate?.();
     };
   })();
 

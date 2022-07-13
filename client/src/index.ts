@@ -31,6 +31,7 @@ import {
   Settings,
   World,
   WorldInitParams,
+  Sounds,
 } from "./core";
 import { Events } from "./core/events";
 import { ECS } from "./libs";
@@ -72,6 +73,7 @@ class Client extends EventEmitter {
   public physics: Physics;
   public particles: Particles;
   public events: Events;
+  public sounds: Sounds;
   public chat: Chat;
 
   public permission: Permission;
@@ -123,6 +125,7 @@ class Client extends EventEmitter {
     this.physics = new Physics(this);
     this.particles = new Particles(this);
     this.events = new Events(this);
+    this.sounds = new Sounds(this);
 
     // Randomly set an ID to this client.
     const MAX = 10000;

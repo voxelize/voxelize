@@ -25,6 +25,16 @@ class Physics {
   public core: PhysicsEngine;
 
   /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
+  /**
    * Construct a Voxelize physics engine.
    *
    * @hidden
@@ -85,6 +95,8 @@ class Physics {
   update = () => {
     if (!this.core) return;
 
+    this.onBeforeUpdate?.();
+
     const { controls, world } = this.client;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
@@ -99,6 +111,8 @@ class Physics {
 
     const dt = this.client.clock.delta;
     this.core.update(dt);
+
+    this.onAfterUpdate?.();
   };
 
   /**

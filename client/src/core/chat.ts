@@ -238,12 +238,31 @@ class Chat {
    * @param trigger - The text to trigger the command, needs to be one single word without spaces.
    * @param process - The process run when this command is triggered.
    */
-  addCommand = (trigger: string, process: CommandProcessor) => {
+  addCommand = (
+    trigger: string,
+    process: CommandProcessor,
+    aliases: string[] = []
+  ) => {
+    if (this.commands.has(trigger)) {
+      throw new Error(`Command trigger already taken: ${trigger}`);
+    }
+
     if (trigger.split(" ").length > 1) {
       throw new Error("Command trigger must be one word.");
     }
 
     this.commands.set(trigger, process);
+
+    for (const alias of aliases) {
+      if (this.commands.has(alias)) {
+        console.warn(
+          `Command alias for "${trigger}", "${alias}" ignored as already taken.`
+        );
+        continue;
+      }
+
+      this.commands.set(alias, process);
+    }
   };
 
   /**

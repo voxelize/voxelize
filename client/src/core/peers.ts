@@ -59,6 +59,16 @@ class Peers extends Map<string, Peer> {
   public params: PeerParams;
 
   /**
+   * A function called before every update per tick.
+   */
+  public onBeforeUpdate?: () => void;
+
+  /**
+   * A function called after every update per tick.
+   */
+  public onAfterUpdate?: () => void;
+
+  /**
    * Initialize a Peers manager for Voxelize.
    *
    * @hidden
@@ -167,6 +177,8 @@ class Peers extends Map<string, Peer> {
   };
 
   update = () => {
+    this.onBeforeUpdate?.();
+
     const { username, controls, network, id } = this.client;
 
     const { body } = controls;
@@ -198,6 +210,8 @@ class Peers extends Map<string, Peer> {
     this.forEach((peer) => {
       peer.update();
     });
+
+    this.onAfterUpdate?.();
   };
 }
 

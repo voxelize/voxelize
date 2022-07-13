@@ -3,9 +3,7 @@
     "baseUrl": ".",
 
     "paths": {
-      "@voxelize/client": ["../../client/dist"],
-      "@components/*": ["./src/components/*"],
-      "@containers/*": ["./src/containers/*"]
+      "@voxelize/client": ["../../client/dist"]
     }
   }
 }

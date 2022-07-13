@@ -76,10 +76,32 @@ export type MESSAGE_TYPE = "ERROR" | "SERVER" | "PLAYER" | "INFO";
  */
 export type CSSMeasurement = `${number}${string}`;
 
+/**
+ * A block update to make on the server.
+ */
 export type BlockUpdate = {
+  /**
+   * The voxel x-coordinate.
+   */
   vx: number;
+
+  /**
+   * The voxel y-coordinate.
+   */
   vy: number;
+
+  /**
+   * The voxel z-coordinate.
+   */
   vz: number;
+
+  /**
+   * The voxel type.
+   */
   type: number;
+
+  /**
+   * The optional rotation of the updated block.
+   */
   rotation?: BlockRotation;
 };

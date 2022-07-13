@@ -17,3 +17,4 @@ export * from "./particles";
 export * from "./chat";
 export * from "./loader";
 export * from "./permission";
+export * from "./sounds";

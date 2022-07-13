@@ -1,4 +1,11 @@
-import { LoadingManager, Texture, TextureLoader } from "three";
+import {
+  AudioLoader,
+  LoadingManager,
+  Texture,
+  TextureLoader,
+  Audio,
+  PositionalAudio,
+} from "three";
 
 import { Client } from "..";
 
@@ -19,13 +26,20 @@ class Loader {
   public textures = new Map<string, Texture>();
 
   /**
+   * A map of all audios loaded by Voxelize.
+   */
+  public audioBuffers = new Map<string, AudioBuffer>();
+
+  /**
    * The progress at which Loader has loaded, zero to one.
    */
   public progress = 0;
 
   private manager = new LoadingManager();
   private textureLoader = new TextureLoader(this.manager);
-  private promises = new Map<string, Promise<void>>();
+  private texturePromises = new Map<string, Promise<void>>();
+  private audioLoader = new AudioLoader(this.manager);
+  private audioCallbacks = new Map<string, () => Promise<AudioBuffer>>();
 
   /**
    * Construct a Voxelize loader.
@@ -50,12 +64,12 @@ class Loader {
       throw new Error("Cannot add texture after client has started!");
     }
 
-    this.promises.set(
+    this.texturePromises.set(
       source,
       new Promise((resolve) => {
         this.textureLoader.load(source, (texture) => {
           this.textures.set(source, texture);
-          this.promises.delete(source);
+          this.texturePromises.delete(source);
 
           resolve();
         });
@@ -73,12 +87,67 @@ class Loader {
   };
 
   /**
-   * Load all loader promises.
+   * Add an audio source to load from. Must be called before `client.connect`. Keep in mind this
+   * only loads the audio buffer. The `Sound` or `PositionalSound` instances need to be constructed in separated.
+   *
+   * @param source - The source to the audio file to load from.
+   */
+  addAudioSource = (source: string) => {
+    if (this.client.ready) {
+      throw new Error("Cannot add audio after client has started!");
+    }
+
+    const callback = async () => {
+      return new Promise<AudioBuffer>((resolve) => {
+        this.audioLoader.load(source, (buffer) => {
+          resolve(buffer);
+        });
+      });
+    };
+
+    this.audioCallbacks.set(source, callback);
+  };
+
+  /**
+   * Get the loaded audio buffer with this function.
+   *
+   * @param source - The source to the audio file loaded from.
+   */
+  getAudioBuffer = (source: string) => {
+    return this.audioBuffers.get(source);
+  };
+
+  /**
+   * Load all texture loader promises.
    *
    * @hidden
    */
-  load = async () => {
-    await Promise.all(Array.from(this.promises.values()));
+  loadTextures = async () => {
+    await Promise.all(Array.from(this.texturePromises.values()));
+
+    this.texturePromises.clear();
+
+    if (this.audioCallbacks.size === 0) {
+      this.client.loaded = true;
+    }
+  };
+
+  /**
+   * Load all audio loader callbacks.
+   *
+   * @hidden
+   */
+  loadAudios = async () => {
+    for (const [source, callback] of this.audioCallbacks) {
+      const buffer = await callback();
+      this.audioBuffers.set(source, buffer);
+    }
+
+    this.audioCallbacks.clear();
+
+    if (this.texturePromises.size === 0) {
+      this.client.loaded = true;
+    }
   };
 }
 

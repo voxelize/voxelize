@@ -256,7 +256,7 @@ class Network {
           });
         }
 
-        this.client.loader.load().then(() => {
+        this.client.loader.loadTextures().then(() => {
           if (blocks && ranges) {
             this.client.registry.load(blocks, ranges);
           }

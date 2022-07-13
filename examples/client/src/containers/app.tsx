@@ -1,5 +1,5 @@
-import { Button } from "@components/button";
-import { Input } from "@components/input";
+import { Button } from "../components/button";
+import { Input } from "../components/input";
 import {
   Client,
   BaseEntity,
@@ -13,6 +13,7 @@ import {
   ImageVoxelizer,
   BlockUpdate,
   Trigger,
+  BlockRotation,
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -22,6 +23,8 @@ import {
   Mesh,
   Vector3,
   Color,
+  Audio,
+  PositionalAudio,
 } from "three";
 
 import LogoImage from "../assets/tree_transparent.svg";
@@ -55,6 +58,9 @@ import AndesiteImage from "../assets/own/andesite.png";
 import OakPlanksImage from "../assets/own/oak_planks.png";
 import LolImage from "../assets/lol.jpeg";
 import ChoGeImage from "../assets/lol.png";
+
+import PlopSound from "../assets/plop.ogg";
+import WalkingSound from "../assets/walking.wav";
 
 const GameWrapper = styled.div`
   background: black;
@@ -182,7 +188,7 @@ class UpdateBoxSystem extends System {
   }
 }
 
-export const App = () => {
+const App = () => {
   const [world, setWorld] = useState("world3");
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
@@ -195,7 +201,7 @@ export const App = () => {
   useEffect(() => {
     if (container.current) {
       if (!client.current) {
-        client.current = new Client(
+        const newClient = new Client(
           {
             container: {
               domElement: container.current,
@@ -212,17 +218,16 @@ export const App = () => {
             canDebug: true,
             canFly: true,
             canGhost: true,
-            canUpdate: true,
             commands: "*",
           }
         );
 
-        client.current.entities.registerEntity("Box", Box);
+        newClient.entities.registerEntity("Box", Box);
 
         const all = ["px", "nx", "py", "ny", "pz", "nz"];
         const side = ["px", "nx", "pz", "nz"];
 
-        client.current.registry.applyTexturesByNames([
+        newClient.registry.applyTexturesByNames([
           { name: "Dirt", sides: all, data: DirtImage },
           { name: "Lol", sides: all, data: new Color("#8479E1") },
           { name: "Lol", sides: ["py"], data: LolImage },
@@ -271,47 +276,41 @@ export const App = () => {
           },
         ]);
 
-        client.current.chat.addCommand(
-          "image-voxelize",
-          ImageVoxelizer.commander
-        );
+        newClient.chat.addCommand("image-voxelize", ImageVoxelizer.commander);
 
-        client.current.chat.addCommand(
-          "hand",
-          (rest: string, client: Client) => {
-            const block = client.registry.getBlockByName(rest.trim());
+        newClient.chat.addCommand("hand", (rest: string, client: Client) => {
+          const block = client.registry.getBlockByName(rest.trim());
 
-            if (block) {
-              client.controls.hand = block.name;
-              client.chat.add({
-                type: "INFO",
-                body: "Client is now holding: " + block.name,
-              });
-            } else {
-              const id = parseInt(rest, 10);
+          if (block) {
+            hand = block.name;
+            client.chat.add({
+              type: "INFO",
+              body: "Client is now holding: " + block.name,
+            });
+          } else {
+            const id = parseInt(rest, 10);
 
-              if (!isNaN(id)) {
-                const block = client.registry.getBlockById(id);
+            if (!isNaN(id)) {
+              const block = client.registry.getBlockById(id);
 
-                if (block) {
-                  client.controls.hand = block.name;
-                  client.chat.add({
-                    type: "INFO",
-                    body: "Client is now holding: " + block.name,
-                  });
-                  return;
-                }
+              if (block) {
+                hand = block.name;
+                client.chat.add({
+                  type: "INFO",
+                  body: "Client is now holding: " + block.name,
+                });
+                return;
               }
-
-              client.chat.add({
-                type: "ERROR",
-                body: "Unknown block: " + rest,
-              });
             }
-          }
-        );
 
-        client.current.chat.addCommand("blocks", (_, client: Client) => {
+            client.chat.add({
+              type: "ERROR",
+              body: "Unknown block: " + rest,
+            });
+          }
+        });
+
+        newClient.chat.addCommand("blocks", (_, client: Client) => {
           const list: any[] = [];
 
           client.registry.blocksById.forEach((block, id) => {
@@ -328,7 +327,109 @@ export const App = () => {
           });
         });
 
-        client.current.chat.addCommand("allblocks", (_, client: Client) => {
+        newClient.sounds.register("plop", PlopSound);
+        newClient.sounds.register("walking", WalkingSound);
+
+        newClient.chat.addCommand("sound", () => {
+          if (!client.current) return;
+
+          const { sounds } = client.current;
+
+          const sound = sounds.make("plop");
+          sound.setVolume(3);
+          sound.play();
+        });
+
+        newClient.inputs.click(
+          "left",
+          () => {
+            if (!newClient.controls.lookBlock) return;
+            const [vx, vy, vz] = newClient.controls.lookBlock;
+            newClient.world.setServerVoxel(vx, vy, vz, 0);
+            newClient.sounds.make("plop").play();
+          },
+          "in-game"
+        );
+
+        let hand = "";
+
+        newClient.inputs.click(
+          "middle",
+          () => {
+            if (!newClient.controls.lookBlock) return;
+            const [vx, vy, vz] = newClient.controls.lookBlock;
+            const block = newClient.world.getBlockByVoxel(vx, vy, vz);
+            hand = block.name;
+          },
+          "in-game"
+        );
+
+        newClient.inputs.click(
+          "right",
+          () => {
+            if (!hand) {
+              return;
+            }
+
+            const { targetBlock } = newClient.controls;
+
+            if (!targetBlock) return;
+            const {
+              voxel: [vx, vy, vz],
+              rotation,
+              yRotation,
+            } = targetBlock;
+
+            const id = newClient.registry.getBlockByName(hand).id;
+
+            if (!newClient.world.canPlace(vx, vy, vz, id)) {
+              return;
+            }
+
+            const updated = newClient.registry.getBlockById(id);
+            for (const blockAABB of updated.aabbs) {
+              if (
+                newClient.controls.body.aabb.intersects(
+                  blockAABB.clone().translate([vx, vy, vz])
+                )
+              ) {
+                return;
+              }
+            }
+
+            newClient.sounds.make("plop").play();
+
+            newClient.world.setServerVoxel(
+              vx,
+              vy,
+              vz,
+              newClient.registry.getBlockByName(hand).id,
+              rotation ? BlockRotation.encode(rotation, yRotation) : undefined
+            );
+          },
+          "in-game"
+        );
+
+        let sound: Audio | PositionalAudio;
+        newClient.controls.onAfterUpdate = () => {
+          if (!sound) {
+            sound = newClient.sounds.make("walking", { loop: true });
+            sound.setVolume(0.3);
+          }
+
+          if (
+            newClient.controls.state.running &&
+            newClient.controls.body.atRestY === -1
+          ) {
+            if (!sound.isPlaying) {
+              sound.play();
+            }
+          } else {
+            sound.pause();
+          }
+        };
+
+        newClient.chat.addCommand("allblocks", (_, client: Client) => {
           const list: any[] = [];
 
           client.registry.blocksById.forEach((block, id) => {
@@ -348,44 +449,45 @@ export const App = () => {
           client.world.setServerVoxels(updates);
         });
 
-        client.current.ecs.addSystem(new UpdateBoxSystem());
+        newClient.ecs.addSystem(new UpdateBoxSystem());
 
-        client.current.events.on("TELEPORT", (payload) => {
+        newClient.events.on("TELEPORT", (payload) => {
           const [x, y, z] = payload;
           client.current?.controls.setPosition(x, y, z);
         });
 
-        client.current?.connect({
+        newClient?.connect({
           secret: "test",
           serverURL: BACKEND_SERVER,
           reconnectTimeout: 5000,
         });
 
-        client.current.on("unlock", () => {
+        newClient.on("unlock", () => {
           setLocked(false);
         });
 
-        client.current.on("lock", () => {
+        newClient.on("lock", () => {
           setLocked(true);
         });
 
-        client.current.on("chat-enabled", () => {
+        newClient.on("chat-enabled", () => {
           setChatEnabled(true);
         });
 
-        client.current.on("chat-disabled", () => {
+        newClient.on("chat-disabled", () => {
           setChatEnabled(false);
         });
 
-        client.current.on("join", () => {
+        newClient.on("join", () => {
           setJoined(true);
         });
 
-        client.current.on("leave", () => {
+        newClient.on("leave", () => {
           setJoined(false);
         });
 
-        setName(client.current.username);
+        setName(newClient.username);
+        client.current = newClient;
       }
 
       joinOrResume(false);
@@ -469,3 +571,5 @@ export const App = () => {
     </GameWrapper>
   );
 };
+
+export default App;

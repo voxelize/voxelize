@@ -1,8 +1,5 @@
 class Permission {
-  /**
-   * Whether or not can this client place/break blocks. Defaults to false.
-   */
-  public readonly canUpdate: boolean = false;
+  [key: string]: any;
 
   /**
    * Whether or not can this client fly. Defaults to false.
