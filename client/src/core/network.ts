@@ -251,7 +251,7 @@ class Network {
 
         if (peers) {
           peers.forEach((peer: any) => {
-            if (peer.id === this.client.id) return;
+            if (!this.client.id || peer.id === this.client.id) return;
             this.client.peers.updatePeer(peer);
           });
         }
@@ -285,6 +285,7 @@ class Network {
 
         peers.forEach((peer: any) => {
           if (
+            !this.client.id ||
             peer.id === this.client.id ||
             peer.metadata.username === this.client.username
           )

@@ -313,6 +313,8 @@ impl World {
                 });
             }
 
+            self.ecs.maintain();
+
             let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
             self.broadcast(leave_message, ClientFilter::All);
             info!("Client at {} left the world: {}", id, self.name);
@@ -348,9 +350,9 @@ impl World {
 
         let mut peers = vec![];
 
-        for (id, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
+        for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
             peers.push(PeerProtocol {
-                id: id.0.to_owned(),
+                id: pid.0.to_owned(),
                 username: name.0.to_owned(),
                 metadata: metadata.to_string(),
             })

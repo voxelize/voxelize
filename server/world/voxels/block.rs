@@ -837,6 +837,17 @@ impl BlockBuilder {
         self
     }
 
+    /// Configure whether or not this block is transparent on all x,y,z axis.
+    pub fn is_transparent(mut self, is_transparent: bool) -> Self {
+        self.is_px_transparent = is_transparent;
+        self.is_py_transparent = is_transparent;
+        self.is_pz_transparent = is_transparent;
+        self.is_nx_transparent = is_transparent;
+        self.is_ny_transparent = is_transparent;
+        self.is_nz_transparent = is_transparent;
+        self
+    }
+
     /// Configure whether or not this block is transparent on the x-axis. Default is false.
     pub fn is_x_transparent(mut self, is_x_transparent: bool) -> Self {
         self.is_px_transparent = is_x_transparent;

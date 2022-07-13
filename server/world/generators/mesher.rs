@@ -177,6 +177,7 @@ impl Mesher {
                         let &Block {
                             is_fluid,
                             is_opaque,
+                            is_see_through,
                             rotatable,
                             ..
                         } = block;
@@ -273,7 +274,9 @@ impl Mesher {
                                     get_block_by_voxel(vx + dx, vy + dy, vz + dz, space, registry);
                                 let b111 = !b111.is_opaque;
 
-                                if dir[0].abs() == 1 {
+                                if is_see_through {
+                                    face_aos.push(3);
+                                } else if dir[0].abs() == 1 {
                                     face_aos.push(vertex_ao(b110, b101, b111));
                                 } else if dir[1].abs() == 1 {
                                     face_aos.push(vertex_ao(b110, b011, b111));
@@ -281,118 +284,126 @@ impl Mesher {
                                     face_aos.push(vertex_ao(b011, b101, b111));
                                 }
 
-                                // Loop through all 8 neighbors of this vertex.
-                                for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
-                                    for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
-                                        for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
-                                            // The block that we're checking is on the side that the face is facing, so
-                                            // check if the diagonal block would be blocking this block's potential light.
-                                            // Perpendicular check done by crossing the vectors.
-                                            if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                                                let facing = get_block_by_voxel(
-                                                    vx + ddx * dir[0],
-                                                    vy + ddy * dir[1],
-                                                    vz + ddz * dir[2],
-                                                    space,
-                                                    registry,
-                                                );
+                                if is_see_through {
+                                    four_sunlights.push(space.get_sunlight(vx, vy, vz) as i32);
+                                    four_red_lights.push(space.get_red_light(vx, vy, vz) as i32);
+                                    four_green_lights
+                                        .push(space.get_green_light(vx, vy, vz) as i32);
+                                    four_blue_lights.push(space.get_blue_light(vx, vy, vz) as i32);
+                                } else {
+                                    // Loop through all 8 neighbors of this vertex.
+                                    for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
+                                        for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
+                                            for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
+                                                // The block that we're checking is on the side that the face is facing, so
+                                                // check if the diagonal block would be blocking this block's potential light.
+                                                // Perpendicular check done by crossing the vectors.
+                                                if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
+                                                    let facing = get_block_by_voxel(
+                                                        vx + ddx * dir[0],
+                                                        vy + ddy * dir[1],
+                                                        vz + ddz * dir[2],
+                                                        space,
+                                                        registry,
+                                                    );
 
-                                                if facing.is_opaque {
-                                                    continue;
+                                                    if facing.is_opaque {
+                                                        continue;
+                                                    }
                                                 }
-                                            }
 
-                                            // Diagonal light leaking fix.
-                                            if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                                                let diagonal_yz = get_block_by_voxel(
-                                                    vx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                    space,
-                                                    registry,
-                                                );
-                                                let diagonal_xz = get_block_by_voxel(
-                                                    vx + ddx,
-                                                    vy,
-                                                    vz + ddz,
-                                                    space,
-                                                    registry,
-                                                );
-                                                let diagonal_xy = get_block_by_voxel(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz,
-                                                    space,
-                                                    registry,
-                                                );
+                                                // Diagonal light leaking fix.
+                                                if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                                                    let diagonal_yz = get_block_by_voxel(
+                                                        vx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                        space,
+                                                        registry,
+                                                    );
+                                                    let diagonal_xz = get_block_by_voxel(
+                                                        vx + ddx,
+                                                        vy,
+                                                        vz + ddz,
+                                                        space,
+                                                        registry,
+                                                    );
+                                                    let diagonal_xy = get_block_by_voxel(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz,
+                                                        space,
+                                                        registry,
+                                                    );
 
-                                                if diagonal_yz.is_opaque
-                                                    && diagonal_xz.is_opaque
-                                                    && diagonal_xy.is_opaque
-                                                {
-                                                    continue;
+                                                    if diagonal_yz.is_opaque
+                                                        && diagonal_xz.is_opaque
+                                                        && diagonal_xy.is_opaque
+                                                    {
+                                                        continue;
+                                                    }
                                                 }
-                                            }
 
-                                            let diagonal4 = get_block_by_voxel(
-                                                vx + ddx,
-                                                vy + ddy,
-                                                vz + ddz,
-                                                space,
-                                                registry,
-                                            );
+                                                let diagonal4 = get_block_by_voxel(
+                                                    vx + ddx,
+                                                    vy + ddy,
+                                                    vz + ddz,
+                                                    space,
+                                                    registry,
+                                                );
 
-                                            let is_transparent = !diagonal4.is_opaque;
+                                                let is_transparent = !diagonal4.is_opaque;
 
-                                            if is_transparent {
-                                                sum_sunlight.push(space.get_sunlight(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
-                                                sum_red_lights.push(space.get_red_light(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
-                                                sum_green_lights.push(space.get_green_light(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
-                                                sum_blue_lights.push(space.get_blue_light(
-                                                    vx + ddx,
-                                                    vy + ddy,
-                                                    vz + ddz,
-                                                ));
+                                                if is_transparent {
+                                                    sum_sunlight.push(space.get_sunlight(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                    sum_red_lights.push(space.get_red_light(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                    sum_green_lights.push(space.get_green_light(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                    sum_blue_lights.push(space.get_blue_light(
+                                                        vx + ddx,
+                                                        vy + ddy,
+                                                        vz + ddz,
+                                                    ));
+                                                }
                                             }
                                         }
                                     }
+
+                                    four_sunlights.push(
+                                        (sum_sunlight.iter().sum::<u32>() as f32
+                                            / sum_sunlight.len() as f32)
+                                            as i32,
+                                    );
+
+                                    four_red_lights.push(
+                                        (sum_red_lights.iter().sum::<u32>() as f32
+                                            / sum_red_lights.len() as f32)
+                                            as i32,
+                                    );
+
+                                    four_green_lights.push(
+                                        (sum_green_lights.iter().sum::<u32>() as f32
+                                            / sum_green_lights.len() as f32)
+                                            as i32,
+                                    );
+
+                                    four_blue_lights.push(
+                                        (sum_blue_lights.iter().sum::<u32>() as f32
+                                            / sum_blue_lights.len() as f32)
+                                            as i32,
+                                    );
                                 }
-
-                                four_sunlights.push(
-                                    (sum_sunlight.iter().sum::<u32>() as f32
-                                        / sum_sunlight.len() as f32)
-                                        as i32,
-                                );
-
-                                four_red_lights.push(
-                                    (sum_red_lights.iter().sum::<u32>() as f32
-                                        / sum_red_lights.len() as f32)
-                                        as i32,
-                                );
-
-                                four_green_lights.push(
-                                    (sum_green_lights.iter().sum::<u32>() as f32
-                                        / sum_green_lights.len() as f32)
-                                        as i32,
-                                );
-
-                                four_blue_lights.push(
-                                    (sum_blue_lights.iter().sum::<u32>() as f32
-                                        / sum_blue_lights.len() as f32)
-                                        as i32,
-                                );
                             }
 
                             let a_rt = four_red_lights[0];

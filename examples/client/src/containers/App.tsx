@@ -58,6 +58,7 @@ import AndesiteImage from "../assets/own/andesite.png";
 import OakPlanksImage from "../assets/own/oak_planks.png";
 import LolImage from "../assets/lol.jpeg";
 import ChoGeImage from "../assets/lol.png";
+import GlassImage from "../assets/own/glass.png";
 
 import PlopSound from "../assets/plop.ogg";
 import WalkingSound from "../assets/walking.wav";
@@ -266,6 +267,7 @@ const App = () => {
           { name: "Oak Slab Top", sides: all, data: OakPlanksImage },
           { name: "Oak Slab Bottom", sides: all, data: OakPlanksImage },
           { name: "ChoGe", sides: ["px", "nx"], data: ChoGeImage },
+          { name: "Glass", sides: all, data: GlassImage },
           {
             name: "Mushroom",
             sides: all.map((name) => "bottom-" + name + "-"),

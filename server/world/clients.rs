@@ -6,7 +6,7 @@ use specs::Entity;
 use crate::EncodedMessage;
 
 /// A client of the server.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Client {
     /// The client's ID on the voxelize server.
     pub id: String,

@@ -98,12 +98,15 @@ pub fn setup_registry() -> Registry {
         Block::new("Ivory Block").id(100).build(),
         Block::new("Water")
             .id(150)
-            .is_x_transparent(true)
-            .is_y_transparent(true)
-            .is_z_transparent(true)
+            .is_transparent(true)
             .is_see_through(true)
             .is_fluid(true)
             .aabbs(&[])
+            .build(),
+        Block::new("Glass")
+            .id(160)
+            .is_transparent(true)
+            .is_see_through(true)
             .build(),
         Block::new("Lol")
             .id(200)
@@ -143,9 +146,7 @@ pub fn setup_registry() -> Registry {
                     .offset_y(0.2)
                     .build(),
             ])
-            .is_x_transparent(true)
-            .is_y_transparent(true)
-            .is_z_transparent(true)
+            .is_transparent(true)
             .rotatable(true)
             .build(),
     ]);
