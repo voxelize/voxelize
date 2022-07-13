@@ -3,6 +3,7 @@ use std::io::{Cursor, Write};
 use actix::Message as ActixMessage;
 use libflate::zlib::Encoder;
 use prost::Message as ProstMesssage;
+use serde_json::json;
 
 use crate::libs::{Ndarray, Vec3};
 
@@ -84,8 +85,7 @@ pub struct ChunkProtocol {
 pub struct PeerProtocol {
     pub id: String,
     pub username: String,
-    pub position: Option<Vec3<f32>>,
-    pub direction: Option<Vec3<f32>>,
+    pub metadata: String,
 }
 
 /// Protobuf buffer compatible update data structure.
@@ -210,8 +210,7 @@ impl MessageBuilder {
                 .map(|peer| protocols::Peer {
                     id: peer.id,
                     username: peer.username,
-                    position: vec3_to_vector3(&peer.position),
-                    direction: vec3_to_vector3(&peer.direction),
+                    metadata: peer.metadata,
                 })
                 .collect();
         }

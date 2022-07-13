@@ -2,15 +2,15 @@ use std::process;
 
 use log::{info, warn};
 use registry::setup_registry;
-use serde_json::{json, Value};
+use serde_json::Value;
 use specs::{
-    Builder, Component, DispatcherBuilder, EntityBuilder, NullStorage, ReadExpect, ReadStorage,
-    System, WorldExt, WriteExpect, WriteStorage,
+    Builder, Component, DispatcherBuilder, EntityBuilder, NullStorage, ReadStorage, System,
+    WorldExt, WriteExpect, WriteStorage,
 };
 use voxelize::{
-    ClientFilter, ClientFlag, CollisionsComp, Event, Events, FlatlandStage, HeadingComp, IDComp,
-    InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Stats,
-    TargetComp, Vec2, Vec3, Voxelize, World, WorldConfig, AABB,
+    ClientFilter, ClientFlag, CollisionsComp, Event, Events, FlatlandStage, IDComp, InteractorComp,
+    MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Vec2, Vec3, Voxelize, World,
+    WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -84,8 +84,6 @@ fn load_box(id: String, etype: String, metadata: MetadataComp, world: &mut World
     world
         .create_entity(&id, &etype)
         .with(position)
-        .with(metadata.get::<TargetComp>("target").unwrap_or_default())
-        .with(metadata.get::<HeadingComp>("heading").unwrap_or_default())
         .with(RigidBodyComp::new(&test_body))
         .with(InteractorComp::new(interactor1))
         .with(BoxFlag)

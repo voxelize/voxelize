@@ -222,6 +222,8 @@ const App = () => {
           }
         );
 
+        client.current = newClient;
+
         newClient.entities.registerEntity("Box", Box);
 
         const all = ["px", "nx", "py", "ny", "pz", "nz"];
@@ -331,11 +333,11 @@ const App = () => {
         newClient.sounds.register("walking", WalkingSound);
 
         newClient.chat.addCommand("sound", () => {
-          if (!client.current) return;
-
-          const { sounds } = client.current;
+          const { sounds } = newClient;
 
           const sound = sounds.make("plop");
+          if (!sound) return;
+
           sound.setVolume(3);
           sound.play();
         });
@@ -346,12 +348,12 @@ const App = () => {
             if (!newClient.controls.lookBlock) return;
             const [vx, vy, vz] = newClient.controls.lookBlock;
             newClient.world.setServerVoxel(vx, vy, vz, 0);
-            newClient.sounds.make("plop").play();
+            newClient.sounds.make("plop")?.play();
           },
           "in-game"
         );
 
-        let hand = "";
+        let hand = "Stone";
 
         newClient.inputs.click(
           "middle",
@@ -397,7 +399,7 @@ const App = () => {
               }
             }
 
-            newClient.sounds.make("plop").play();
+            newClient.sounds.make("plop")?.play();
 
             newClient.world.setServerVoxel(
               vx,
@@ -414,6 +416,8 @@ const App = () => {
         newClient.controls.onAfterUpdate = () => {
           if (!sound) {
             sound = newClient.sounds.make("walking", { loop: true });
+            if (!sound) return;
+
             sound.setVolume(0.3);
           }
 
@@ -453,7 +457,7 @@ const App = () => {
 
         newClient.events.on("TELEPORT", (payload) => {
           const [x, y, z] = payload;
-          client.current?.controls.setPosition(x, y, z);
+          newClient?.controls.setPosition(x, y, z);
         });
 
         newClient?.connect({
@@ -487,10 +491,9 @@ const App = () => {
         });
 
         setName(newClient.username);
-        client.current = newClient;
-      }
 
-      joinOrResume(false);
+        joinOrResume(false);
+      }
     }
   }, []);
 

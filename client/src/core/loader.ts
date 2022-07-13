@@ -126,10 +126,6 @@ class Loader {
     await Promise.all(Array.from(this.texturePromises.values()));
 
     this.texturePromises.clear();
-
-    if (this.audioCallbacks.size === 0) {
-      this.client.loaded = true;
-    }
   };
 
   /**
@@ -144,10 +140,6 @@ class Loader {
     }
 
     this.audioCallbacks.clear();
-
-    if (this.texturePromises.size === 0) {
-      this.client.loaded = true;
-    }
   };
 }
 

@@ -45,7 +45,6 @@ class Sounds {
     const buffer = this.client.loader.getAudioBuffer(source);
 
     if (!buffer) {
-      console.error(`Audio with name "${name}" was not found.`);
       return;
     }
 

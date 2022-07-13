@@ -129,10 +129,11 @@ impl Server {
 
             if let Some(world) = self.get_world_mut(&data.text) {
                 world.on_request(id, data);
-                return;
             } else {
-                warn!("Transport message did not have a world. Use the 'text' field.")
+                warn!("Transport message did not have a world. Use the 'text' field.");
             }
+
+            return;
         } else if data.r#type == MessageType::Join as i32 {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
@@ -144,11 +145,6 @@ impl Server {
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
                 if let Some(addr) = self.lost_sessions.remove(id) {
-                    info!(
-                        "Client at {} joined the server to world: {}",
-                        id, json.world
-                    );
-
                     world.add_client(id, &json.username, &addr);
                     self.connections.insert(id.to_owned(), (addr, json.world));
                 } else {
@@ -170,11 +166,9 @@ impl Server {
                 self.lost_sessions.insert(id.to_owned(), addr);
 
                 world.remove_client(id);
-
-                info!("Client at {} joined the server to world: {}", id, data.text);
-
-                return;
             }
+
+            return;
         }
 
         let connection = self.connections.get(id);

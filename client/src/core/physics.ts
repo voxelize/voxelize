@@ -110,7 +110,7 @@ class Physics {
     }
 
     const dt = this.client.clock.delta;
-    this.core.update(dt);
+    this.core.update(Math.min(dt, 0.02));
 
     this.onAfterUpdate?.();
   };

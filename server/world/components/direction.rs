@@ -1,9 +1,10 @@
+use serde::Serialize;
 use specs::{Component, VecStorage};
 
 use crate::Vec3;
 
 /// The direction this entity is looking at.
-#[derive(Default, Component)]
+#[derive(Default, Component, Serialize)]
 #[storage(VecStorage)]
 pub struct DirectionComp(pub Vec3<f32>);
 

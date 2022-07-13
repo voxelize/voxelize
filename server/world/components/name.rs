@@ -1,6 +1,7 @@
+use serde::Serialize;
 use specs::{Component, VecStorage};
 
-#[derive(Default, Component)]
+#[derive(Default, Component, Serialize)]
 #[storage(VecStorage)]
 pub struct NameComp(pub String);
 

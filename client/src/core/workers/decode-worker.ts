@@ -22,9 +22,19 @@ self.addEventListener("message", (e) => {
   }
 
   if (message.entities) {
-    message.entities.forEach(
-      (entity) => (entity.metadata = JSON.parse(entity.metadata))
-    );
+    message.entities.forEach((entity) => {
+      if (entity.metadata) {
+        entity.metadata = JSON.parse(entity.metadata);
+      }
+    });
+  }
+
+  if (message.peers) {
+    message.peers.forEach((peer) => {
+      if (peer.metadata) {
+        peer.metadata = JSON.parse(peer.metadata);
+      }
+    });
   }
 
   if (message.chunks) {

@@ -149,6 +149,15 @@ export class Transport extends WebSocket {
         }
       });
     }
+    if (message.peers) {
+      message.peers.forEach((peer) => {
+        try {
+          peer.metadata = JSON.parse(peer.metadata);
+        } catch (e) {
+          // do nothing
+        }
+      });
+    }
     return message;
   };
 
@@ -160,6 +169,11 @@ export class Transport extends WebSocket {
     if (message.entities) {
       message.entities.forEach(
         (entity) => (entity.metadata = JSON.stringify(entity.metadata))
+      );
+    }
+    if (message.peers) {
+      message.peers.forEach(
+        (peer) => (peer.metadata = JSON.stringify(peer.metadata))
       );
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();

@@ -200,6 +200,7 @@ class Registry {
     }
 
     this.client.emit("registry-loaded");
+    this.client.loaded = true;
   };
 
   /**

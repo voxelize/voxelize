@@ -32,8 +32,7 @@ message Vector3 {
 message Peer {
   string id = 1;
   string username = 2;
-  Vector3 position = 3;
-  Vector3 direction = 4;
+  string metadata = 3;
 }
 
 message Entity {

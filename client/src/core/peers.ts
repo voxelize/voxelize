@@ -117,6 +117,8 @@ class Peers extends Map<string, Peer> {
     scene.add(peer.mesh);
 
     this.set(id, peer);
+
+    return peer;
   };
 
   /**
@@ -127,13 +129,15 @@ class Peers extends Map<string, Peer> {
    */
   updatePeer = (peer: any) => {
     const { id } = peer;
-    const instance = this.get(id);
+    const instance = this.get(id) || this.addPeer(id);
 
     if (instance) {
       const {
         username,
-        position: { x: px, y: py, z: pz },
-        direction: { x: dx, y: dy, z: dz },
+        metadata: {
+          position: [px, py, pz],
+          direction: [dx, dy, dz],
+        },
       } = peer;
 
       const { bodyHeight, eyeHeight } = this.client.controls.params;
@@ -191,15 +195,9 @@ class Peers extends Map<string, Peer> {
         {
           id,
           username,
-          position: {
-            x: px,
-            y: py,
-            z: pz,
-          },
-          direction: {
-            x: dx,
-            y: dy,
-            z: dz,
+          metadata: {
+            position: [px, py, pz],
+            direction: [dx, dy, dz],
           },
         },
       ],

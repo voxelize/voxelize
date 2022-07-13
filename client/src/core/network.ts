@@ -252,7 +252,7 @@ class Network {
         if (peers) {
           peers.forEach((peer: any) => {
             if (peer.id === this.client.id) return;
-            this.client.peers.addPeer(peer.id);
+            this.client.peers.updatePeer(peer);
           });
         }
 
@@ -284,7 +284,12 @@ class Network {
         const { peers } = event;
 
         peers.forEach((peer: any) => {
-          if (peer.id === this.client.id) return;
+          if (
+            peer.id === this.client.id ||
+            peer.metadata.username === this.client.username
+          )
+            return;
+
           this.client.peers.updatePeer(peer);
         });
 
@@ -381,6 +386,26 @@ class Network {
     if (message.json) {
       message.json = JSON.parse(message.json);
     }
+    if (message.entities) {
+      message.entities.forEach((entity) => {
+        try {
+          entity.metadata = JSON.parse(entity.metadata);
+        } catch (e) {
+          // do nothing
+        }
+      });
+    }
+    if (message.peers) {
+      message.peers.forEach((peer) => {
+        if (peer.metadata) {
+          try {
+            peer.metadata = JSON.parse(peer.metadata);
+          } catch (e) {
+            console.log(peer.metadata);
+          }
+        }
+      });
+    }
     return message;
   };
 
@@ -392,6 +417,11 @@ class Network {
     if (message.entities) {
       message.entities.forEach(
         (entity) => (entity.metadata = JSON.stringify(entity.metadata))
+      );
+    }
+    if (message.peers) {
+      message.peers.forEach(
+        (peer) => (peer.metadata = JSON.stringify(peer.metadata))
       );
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();

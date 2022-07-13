@@ -43,7 +43,8 @@ use self::systems::{
     BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem, ChunkRequestsSystem,
     ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem, ClearCollisionsSystem,
     CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem,
-    EventsBroadcastSystem, PeersSendingSystem, PhysicsSystem, SearchSystem, UpdateStatsSystem,
+    EventsBroadcastSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem, SearchSystem,
+    UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -71,6 +72,12 @@ pub type MethodFunction = fn(&str, Value, &mut World) -> ();
 pub type TransportFunction = fn(Value, &mut World) -> ();
 
 pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PeerUpdate {
+    position: Option<Vec3<f32>>,
+    direction: Option<Vec3<f32>>,
+}
 
 /// A voxelize world.
 #[derive(Default)]
@@ -159,9 +166,7 @@ impl World {
         ecs.register::<ClientFlag>();
         ecs.register::<EntityFlag>();
         ecs.register::<ETypeComp>();
-        ecs.register::<HeadingComp>();
         ecs.register::<MetadataComp>();
-        ecs.register::<TargetComp>();
         ecs.register::<RigidBodyComp>();
         ecs.register::<AddrComp>();
         ecs.register::<InteractorComp>();
@@ -268,6 +273,7 @@ impl World {
             .with(AddrComp::new(addr))
             .with(ChunkRequestsComp::default())
             .with(CurrentChunkComp::default())
+            .with(MetadataComp::default())
             .with(PositionComp::default())
             .with(DirectionComp::default())
             .with(RigidBodyComp::new(&body))
@@ -289,6 +295,8 @@ impl World {
 
         let join_message = Message::new(&MessageType::Join).text(id).build();
         self.broadcast(join_message, ClientFilter::All);
+
+        info!("Client at {} joined the server to world: {}", id, self.name);
     }
 
     /// Remove a client from the world by endpoint.
@@ -309,6 +317,7 @@ impl World {
 
             let leave_message = Message::new(&MessageType::Leave).text(&client.id).build();
             self.broadcast(leave_message, ClientFilter::All);
+            info!("Client at {} left the world: {}", id, self.name);
         }
     }
 
@@ -334,17 +343,22 @@ impl World {
         json.insert("params".to_owned(), json!(config));
 
         /* ------------------------ Loading other the clients ----------------------- */
+        let ids = self.read_component::<IDComp>();
+        let flags = self.read_component::<ClientFlag>();
+        let names = self.read_component::<NameComp>();
+        let metadatas = self.read_component::<MetadataComp>();
+
         let mut peers = vec![];
 
-        self.clients().keys().for_each(|key| {
+        for (id, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
             peers.push(PeerProtocol {
-                id: key.to_owned(),
-                ..Default::default()
+                id: id.0.to_owned(),
+                username: name.0.to_owned(),
+                metadata: metadata.to_string(),
             })
-        });
+        }
 
         /* -------------------------- Loading all entities -------------------------- */
-        let ids = self.read_component::<IDComp>();
         let etypes = self.read_component::<ETypeComp>();
         let metadatas = self.read_component::<MetadataComp>();
 
@@ -578,7 +592,8 @@ impl World {
         let builder = DispatcherBuilder::new()
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityMetaSystem, "entity-meta", &[])
-            .with(SearchSystem, "search", &["entity-meta"])
+            .with(PeersMetaSystem, "peers-meta", &[])
+            .with(SearchSystem, "search", &["entity-meta", "peers-meta"])
             .with(CurrentChunkSystem, "current-chunking", &[])
             .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
             .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
@@ -601,7 +616,7 @@ impl World {
                 "entities-sending",
                 &["entities-saving"],
             )
-            .with(PeersSendingSystem, "peers-sending", &[])
+            .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
             .with(
                 BroadcastSystem,
                 "broadcast",
@@ -634,11 +649,11 @@ impl World {
 
         data.peers.into_iter().for_each(|peer| {
             let Peer {
-                direction,
-                position,
-                username,
-                ..
+                metadata, username, ..
             } = peer;
+
+            let metadata: PeerUpdate =
+                serde_json::from_str(&metadata).expect("Could not parse peer update.");
 
             {
                 let mut names = self.write_component::<NameComp>();
@@ -647,43 +662,26 @@ impl World {
                 }
             }
 
-            if let Some(position) = position {
+            if let Some(position) = metadata.position {
                 {
                     let mut positions = self.write_component::<PositionComp>();
                     if let Some(p) = positions.get_mut(client_ent) {
-                        p.0.set(position.x, position.y, position.z);
+                        p.0.set(position.0, position.1, position.2);
                     }
                 }
 
                 {
                     let mut bodies = self.write_component::<RigidBodyComp>();
                     if let Some(b) = bodies.get_mut(client_ent) {
-                        b.0.set_position(position.x, position.y, position.z);
-                    }
-                }
-
-                {
-                    let interactors = self.read_component::<InteractorComp>();
-
-                    let handle = if let Some(i) = interactors.get(client_ent) {
-                        Some(i.0.clone())
-                    } else {
-                        None
-                    };
-
-                    drop(interactors);
-
-                    if let Some(handle) = handle {
-                        self.physics_mut()
-                            .move_rapier_body(&handle, &Vec3(position.x, position.y, position.z));
+                        b.0.set_position(position.0, position.1, position.2);
                     }
                 }
             }
 
-            if let Some(direction) = direction {
+            if let Some(direction) = metadata.direction {
                 let mut directions = self.write_component::<DirectionComp>();
                 if let Some(d) = directions.get_mut(client_ent) {
-                    d.0.set(direction.x, direction.y, direction.z);
+                    d.0.set(direction.0, direction.1, direction.2);
                 }
             }
 
