@@ -264,6 +264,8 @@ class Client extends EventEmitter {
   };
 
   private animate = () => {
+    this.rendering.render();
+
     if (
       !this.network.connected ||
       !this.joined ||
@@ -285,8 +287,6 @@ class Client extends EventEmitter {
     this.debug.update();
     this.particles.update();
     this.physics.update();
-
-    this.rendering.render();
   };
 }
 
