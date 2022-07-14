@@ -1,7 +1,79 @@
 import { Matrix4, Vector3, Quaternion } from "three";
 
 import { Client } from "..";
-import { Peer, PeerParams } from "../libs";
+import { Head, NameTag } from "../libs";
+
+type PeerParams = {
+  lerpFactor: number;
+  headColor: string;
+  headDimension: number;
+  maxNameDistance: number;
+  fontFace: string;
+};
+
+const defaultPeerParams: PeerParams = {
+  lerpFactor: 0.6,
+  headColor: "#94d0cc",
+  headDimension: 0.4,
+  maxNameDistance: 50,
+  fontFace: `monospace`,
+};
+
+class Peer {
+  public head: Head;
+  public params: PeerParams;
+
+  public connected = false;
+
+  public username = "testtesttest";
+  public newPosition: Vector3;
+  public newQuaternion: Quaternion;
+  public usernameMesh: NameTag;
+
+  constructor(public id: string, params: Partial<PeerParams> = {}) {
+    const { fontFace, headDimension, headColor } = (this.params = {
+      ...defaultPeerParams,
+      ...params,
+    });
+
+    this.head = new Head({ headDimension, headColor });
+
+    this.newPosition = this.head.mesh.position;
+    this.newQuaternion = this.head.mesh.quaternion;
+
+    this.usernameMesh = new NameTag(this.username, {
+      fontFace,
+      fontSize: headDimension / 3,
+      backgroundColor: "#00000077",
+      yOffset: headDimension,
+    });
+
+    this.head.mesh.add(this.usernameMesh);
+  }
+
+  set = (username: string, position: Vector3, quaternion: Quaternion) => {
+    this.username = username;
+    this.usernameMesh.text = username;
+    this.newPosition = position;
+    this.newQuaternion = quaternion;
+  };
+
+  update = (camPos?: Vector3) => {
+    const { lerpFactor, maxNameDistance } = this.params;
+
+    this.head.mesh.position.lerp(this.newPosition, lerpFactor);
+    this.head.mesh.quaternion.slerp(this.newQuaternion, lerpFactor);
+
+    if (camPos) {
+      this.usernameMesh.visible =
+        this.head.mesh.position.distanceTo(camPos) < maxNameDistance;
+    }
+  };
+
+  get mesh() {
+    return this.head.mesh;
+  }
+}
 
 /**
  * Parameters to initialize the {@link Peers} manager for Voxelize.
@@ -11,16 +83,6 @@ type PeersParams = {
    * The interpolation factor between each peer update. Defaults to 0.6.
    */
   lerpFactor: number;
-
-  /**
-   * The background color of the peer head mesh. Defaults to `#94d0cc`.
-   */
-  headColor: string;
-
-  /**
-   * The dimension of the peer head mesh. Defaults to 0.4.
-   */
-  headDimension: number;
 
   /**
    * The maximum distance, in blocks, at which the peer's nametag will still be rendered. Defaults to 50 voxels.
@@ -35,8 +97,6 @@ type PeersParams = {
 
 const defaultParams: PeersParams = {
   lerpFactor: 0.6,
-  headColor: "#94d0cc",
-  headDimension: 0.4,
   maxNameDistance: 50,
   fontFace: `monospace`,
 };
@@ -56,7 +116,12 @@ class Peers extends Map<string, Peer> {
   /**
    * Parameters to initialize the Peers manager.
    */
-  public params: PeerParams;
+  public params: PeersParams;
+
+  /**
+   * The prototype for the peer entity.
+   */
+  public prototype: new (id: string, ...args: any) => Peer = Peer;
 
   /**
    * A function called before every update per tick.
@@ -76,12 +141,12 @@ class Peers extends Map<string, Peer> {
   constructor(client: Client, params: Partial<PeersParams> = {}) {
     super();
 
-    this.client = client;
-
     this.params = {
       ...defaultParams,
       ...params,
     };
+
+    this.client = client;
   }
 
   /**
@@ -97,23 +162,22 @@ class Peers extends Map<string, Peer> {
   };
 
   /**
-   * Add a Voxelize peer, initializing its mesh and network connection.
+   * Add a Voxelize peer, initializing its mesh.
    *
-   * @internal
-   * @hidden
+   * @param id - ID of the new peer.
    */
   addPeer = (id: string) => {
-    const { headColor, headDimension, lerpFactor, maxNameDistance, fontFace } =
-      this.params;
+    if (!this.client.id || id === this.client.id) return;
+
+    const { lerpFactor, maxNameDistance, fontFace } = this.params;
     const { scene } = this.client.rendering;
 
-    const peer = new Peer(id, {
-      headColor,
-      headDimension,
+    const peer = new this.prototype(id, {
       lerpFactor,
       maxNameDistance,
       fontFace,
     });
+
     scene.add(peer.mesh);
 
     this.set(id, peer);
@@ -128,6 +192,12 @@ class Peers extends Map<string, Peer> {
    * @hidden
    */
   updatePeer = (peer: any) => {
+    if (peer.metadata.username === this.client.username) {
+      return;
+    }
+
+    console.log(peer);
+
     const { id } = peer;
     const instance = this.get(id) || this.addPeer(id);
 
@@ -146,7 +216,7 @@ class Peers extends Map<string, Peer> {
 
       // using closure to reuse objects
       // reference: https://stackoverflow.com/questions/32849600/direction-vector-to-a-rotation-three-js
-      const updateQuaternion = () => {
+      const updateQuaternion = (() => {
         const m = new Matrix4();
         const q = new Quaternion();
         const zero = new Vector3(0, 0, 0);
@@ -157,9 +227,9 @@ class Peers extends Map<string, Peer> {
             m.lookAt(new Vector3(dx, dy, dz), zero, one)
           );
         };
-      };
+      })();
 
-      const quaternion = updateQuaternion()();
+      const quaternion = updateQuaternion();
 
       instance.set(username, position, quaternion);
     }
@@ -213,6 +283,6 @@ class Peers extends Map<string, Peer> {
   };
 }
 
-export type { PeersParams };
+export type { PeerParams, PeersParams };
 
-export { Peers };
+export { Peer, Peers };

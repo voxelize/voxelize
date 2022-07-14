@@ -2,15 +2,16 @@ use std::process;
 
 use log::{info, warn};
 use registry::setup_registry;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specs::{
-    Builder, Component, DispatcherBuilder, EntityBuilder, NullStorage, ReadStorage, System,
+    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, NullStorage, ReadStorage, System,
     WorldExt, WriteExpect, WriteStorage,
 };
 use voxelize::{
-    ClientFilter, ClientFlag, CollisionsComp, Event, Events, FlatlandStage, IDComp, InteractorComp,
-    MetadataComp, PositionComp, RigidBody, RigidBodyComp, Server, Vec2, Vec3, Voxelize, World,
-    WorldConfig, AABB,
+    default_client_parser, AnimationComp, ClientFilter, ClientFlag, CollisionsComp, Event, Events,
+    FlatlandStage, IDComp, InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp,
+    Server, Vec2, Vec3, Voxelize, World, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -121,6 +122,28 @@ fn transport_handle(value: Value, world: &mut World) {
     // );
 }
 
+fn client_modifier(ent: Entity, world: &mut World) {
+    world.add(ent, AnimationComp::default());
+}
+
+#[derive(Deserialize, Default)]
+struct ClientAnimation {
+    animation: Option<String>,
+}
+
+fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
+    default_client_parser(metadata, ent.to_owned(), world);
+
+    let metadata = serde_json::from_str::<ClientAnimation>(metadata).unwrap_or_default();
+
+    if let Some(new_anim) = metadata.animation {
+        let mut animations = world.write_component::<AnimationComp>();
+        if let Some(animation) = animations.get_mut(ent) {
+            animation.0 = Some(new_anim);
+        }
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     handle_ctrlc();
@@ -169,6 +192,8 @@ async fn main() -> std::io::Result<()> {
     world3.entities_mut().add_loader("box", load_box);
     world3.set_method_handle("spawn", spawn_handle);
     world3.set_transport_handle(transport_handle);
+    world3.set_client_modifier(client_modifier);
+    world3.set_client_parser(client_parser);
 
     Voxelize::run(server).await
 }

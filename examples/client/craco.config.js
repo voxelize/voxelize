@@ -28,6 +28,11 @@ module.exports = {
       tsRule.include = undefined;
       tsRule.exclude = /node_modules/;
 
+      config.module.rules.push({
+        test: /\.(gltf)$/i,
+        type: "asset",
+      });
+
       return config;
     },
     plugins: {

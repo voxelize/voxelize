@@ -1,4 +1,5 @@
 mod addr;
+mod animation;
 mod chunk_requests;
 mod collisions;
 mod current_chunk;
@@ -13,6 +14,7 @@ mod position;
 mod rigidbody;
 
 pub use addr::AddrComp;
+pub use animation::*;
 pub use chunk_requests::ChunkRequestsComp;
 pub use collisions::*;
 pub use current_chunk::CurrentChunkComp;

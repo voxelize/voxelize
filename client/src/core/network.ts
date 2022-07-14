@@ -114,6 +114,20 @@ class Network {
     this.socket.searchParams.set("client_id", this.client.id || "");
   }
 
+  onInit?: (event: any) => void;
+  onJoin?: (event: any) => void;
+  onLeave?: (event: any) => void;
+  onError?: (event: any) => void;
+  onPeer?: (event: any) => void;
+  onEntity?: (event: any) => void;
+  onLoad?: (event: any) => void;
+  onUnload?: (event: any) => void;
+  onUpdate?: (event: any) => void;
+  onMethod?: (event: any) => void;
+  onChat?: (event: any) => void;
+  onTransport?: (event: any) => void;
+  onEvent?: (event: any) => void;
+
   /**
    * Used internally in `client.connect` to connect to the Voxelize backend.
    *
@@ -150,7 +164,7 @@ class Network {
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
         this.decode(new Uint8Array(data)).then((data) => {
-          this.onEvent(data);
+          this.onMessage(data);
           this.client.emit("network-event", data);
         });
       };
@@ -219,19 +233,40 @@ class Network {
     return this.pool.workingCount;
   }
 
-  private onEvent = (event: any) => {
-    const { type, entities } = event;
+  private onMessage = (event: any) => {
+    const { type, entities, peers } = event;
 
-    if (entities && entities.length) {
-      entities.forEach((entity: any) => {
-        this.client.entities.onEvent(entity);
-      });
+    const events = {
+      INIT: this.onInit,
+      JOIN: this.onJoin,
+      LEAVE: this.onLeave,
+      ERROR: this.onError,
+      PEER: this.onPeer,
+      ENTITY: this.onEntity,
+      load: this.onLoad,
+      unload: this.onUnload,
+      update: this.onUpdate,
+      method: this.onMethod,
+      chat: this.onChat,
+      transport: this.onTransport,
+      event: this.onEvent,
+    };
+
+    if (events[type]) {
+      if (type === "INIT") {
+        console.warn(
+          "Overwriting the INIT function may cause a lot of unknown behaviors!"
+        );
+      }
+
+      events[type](event);
+
+      return;
     }
 
     switch (type) {
       case "INIT": {
         const {
-          peers,
           json: { blocks, ranges, id, params },
         } = event;
 
@@ -249,14 +284,7 @@ class Network {
           this.client.world.setParams(params);
         }
 
-        if (peers) {
-          peers.forEach((peer: any) => {
-            if (!this.client.id || peer.id === this.client.id) return;
-            this.client.peers.updatePeer(peer);
-          });
-        }
-
-        this.client.loader.loadTextures().then(() => {
+        this.client.loader.load().then(() => {
           if (blocks && ranges) {
             this.client.registry.load(blocks, ranges);
           }
@@ -277,22 +305,6 @@ class Network {
       case "LEAVE": {
         const { text: id } = event;
         this.client.peers.removePeer(id);
-
-        break;
-      }
-      case "PEER": {
-        const { peers } = event;
-
-        peers.forEach((peer: any) => {
-          if (
-            !this.client.id ||
-            peer.id === this.client.id ||
-            peer.metadata.username === this.client.username
-          )
-            return;
-
-          this.client.peers.updatePeer(peer);
-        });
 
         break;
       }
@@ -373,6 +385,19 @@ class Network {
           });
         }
       }
+    }
+
+    if (entities && entities.length) {
+      entities.forEach((entity: any) => {
+        this.client.entities.onEvent(entity);
+      });
+    }
+
+    if (peers) {
+      peers.forEach((peer: any) => {
+        if (!this.client.id || peer.id === this.client.id) return;
+        this.client.peers.updatePeer(peer);
+      });
     }
   };
 

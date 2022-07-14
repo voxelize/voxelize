@@ -1,3 +1,4 @@
+mod animation;
 mod broadcast;
 mod chunk;
 mod collisions;
@@ -8,6 +9,7 @@ mod physics;
 mod search;
 mod stats;
 
+pub use animation::*;
 pub use broadcast::*;
 pub use chunk::*;
 pub use collisions::*;

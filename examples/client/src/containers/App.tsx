@@ -14,6 +14,7 @@ import {
   BlockUpdate,
   Trigger,
   BlockRotation,
+  Peer,
 } from "@voxelize/client";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -25,6 +26,10 @@ import {
   Color,
   Audio,
   PositionalAudio,
+  MeshStandardMaterial,
+  MeshBasicMaterial,
+  AmbientLight,
+  AnimationMixer,
 } from "three";
 
 import LogoImage from "../assets/tree_transparent.svg";
@@ -62,6 +67,8 @@ import GlassImage from "../assets/own/glass.png";
 
 import PlopSound from "../assets/plop.ogg";
 import WalkingSound from "../assets/walking.wav";
+
+import CharacterGLTF from "../assets/mvp-prototype2.gltf";
 
 const GameWrapper = styled.div`
   background: black;
@@ -188,6 +195,12 @@ class UpdateBoxSystem extends System {
     );
   }
 }
+
+// class CustomPeer extends Peer {
+//   constructor() {
+//     super();
+//   }
+// }
 
 const App = () => {
   const [world, setWorld] = useState("world3");
@@ -455,12 +468,56 @@ const App = () => {
           client.world.setServerVoxels(updates);
         });
 
+        newClient.rendering.scene.add(new AmbientLight("white", 1));
+
+        newClient.chat.addCommand("model-test", (_, client: Client) => {
+          const model = client.loader.getGLTFModel(CharacterGLTF);
+          // model.children.forEach((child) => {
+          //   const actual = child.children[0] as Mesh;
+          //   const { map } = actual.material as MeshStandardMaterial;
+          //   const overwriteMaterial = new MeshBasicMaterial({ map });
+          //   actual.material = overwriteMaterial;
+          // });
+          // console.log(model);
+          client.rendering.scene.add(model);
+        });
+
         newClient.ecs.addSystem(new UpdateBoxSystem());
 
         newClient.events.on("TELEPORT", (payload) => {
           const [x, y, z] = payload;
           newClient?.controls.setPosition(x, y, z);
         });
+
+        let mixer: AnimationMixer;
+        const animationActions: THREE.AnimationAction[] = [];
+        let activeAction: THREE.AnimationAction;
+        let lastAction: THREE.AnimationAction;
+        newClient.loader.addGLTFModel(CharacterGLTF, (gltf) => {
+          mixer = new AnimationMixer(gltf.scene);
+
+          const animationAction = mixer.clipAction((gltf as any).animations[0]);
+
+          // animationActions.push(animationAction);
+          // activeAction = animationActions[0];
+          // activeAction.play();
+        });
+
+        const setAction = (toAction: THREE.AnimationAction) => {
+          if (toAction !== activeAction) {
+            lastAction = activeAction;
+            activeAction = toAction;
+            //lastAction.stop()
+            lastAction.fadeOut(1);
+            activeAction.reset();
+            activeAction.fadeIn(1);
+            activeAction.play();
+          }
+        };
+
+        newClient.controls.onAfterUpdate = () => {
+          if (mixer) mixer.update(newClient.clock.delta);
+        };
 
         newClient?.connect({
           secret: "test",

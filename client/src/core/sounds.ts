@@ -31,7 +31,7 @@ class Sounds {
   }
 
   register = (name: string, source: string) => {
-    this.client.loader.addAudioSource(source);
+    this.client.loader.addAudioBuffer(source);
     this.sourceMap.set(name, source);
   };
 

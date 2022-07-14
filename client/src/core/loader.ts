@@ -3,9 +3,9 @@ import {
   LoadingManager,
   Texture,
   TextureLoader,
-  Audio,
-  PositionalAudio,
+  Group,
 } from "three";
+import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
 import { Client } from "..";
 
@@ -26,6 +26,11 @@ class Loader {
   public textures = new Map<string, Texture>();
 
   /**
+   * A map of all GLTF models loaded by Voxelize.
+   */
+  public gltfModels = new Map<string, Group>();
+
+  /**
    * A map of all audios loaded by Voxelize.
    */
   public audioBuffers = new Map<string, AudioBuffer>();
@@ -37,8 +42,10 @@ class Loader {
 
   private manager = new LoadingManager();
   private textureLoader = new TextureLoader(this.manager);
-  private texturePromises = new Map<string, Promise<void>>();
   private audioLoader = new AudioLoader(this.manager);
+  private gltfLoader = new GLTFLoader(this.manager);
+
+  private assetPromises = new Map<string, Promise<void>>();
   private audioCallbacks = new Map<string, () => Promise<AudioBuffer>>();
 
   /**
@@ -59,17 +66,19 @@ class Loader {
    *
    * @param source - The source to the texture file to load from.
    */
-  addTexture = (source: string) => {
+  addTexture = (source: string, onLoaded?: (texture: Texture) => void) => {
     if (this.client.ready) {
       throw new Error("Cannot add texture after client has started!");
     }
 
-    this.texturePromises.set(
+    this.assetPromises.set(
       source,
       new Promise((resolve) => {
         this.textureLoader.load(source, (texture) => {
           this.textures.set(source, texture);
-          this.texturePromises.delete(source);
+          this.assetPromises.delete(source);
+
+          onLoaded?.(texture);
 
           resolve();
         });
@@ -87,12 +96,49 @@ class Loader {
   };
 
   /**
-   * Add an audio source to load from. Must be called before `client.connect`. Keep in mind this
+   * Add a GLTF source to load from. Must be called before `client.connect`.
+   *
+   * @param source - The source to the GLTF file to load from.
+   */
+  addGLTFModel = (source: string, onLoaded?: (gltf: GLTF) => void) => {
+    if (this.client.ready) {
+      throw new Error("Cannot add GLTF model after client has started!");
+    }
+
+    this.assetPromises.set(
+      source,
+      new Promise((resolve) => {
+        this.gltfLoader.load(source, (gltf) => {
+          this.gltfModels.set(source, gltf.scene);
+          this.assetPromises.delete(source);
+
+          onLoaded?.(gltf);
+
+          resolve();
+        });
+      })
+    );
+  };
+
+  /**
+   * Get the loaded GLTF model with this function.
+   *
+   * @param source - The source to the GLTF model loaded from.
+   */
+  getGLTFModel = (source: string) => {
+    return this.gltfModels.get(source);
+  };
+
+  /**
+   * Add an audio buffer to load. Must be called before `client.connect`. Keep in mind this
    * only loads the audio buffer. The `Sound` or `PositionalSound` instances need to be constructed in separated.
    *
    * @param source - The source to the audio file to load from.
    */
-  addAudioSource = (source: string) => {
+  addAudioBuffer = (
+    source: string,
+    onLoaded?: (buffer: AudioBuffer) => void
+  ) => {
     if (this.client.ready) {
       throw new Error("Cannot add audio after client has started!");
     }
@@ -100,6 +146,8 @@ class Loader {
     const callback = async () => {
       return new Promise<AudioBuffer>((resolve) => {
         this.audioLoader.load(source, (buffer) => {
+          onLoaded?.(buffer);
+
           resolve(buffer);
         });
       });
@@ -118,14 +166,14 @@ class Loader {
   };
 
   /**
-   * Load all texture loader promises.
+   * Load all assets other than the textures.
    *
    * @hidden
    */
-  loadTextures = async () => {
-    await Promise.all(Array.from(this.texturePromises.values()));
+  load = async () => {
+    await Promise.all(Array.from(this.assetPromises.values()));
 
-    this.texturePromises.clear();
+    this.assetPromises.clear();
   };
 
   /**

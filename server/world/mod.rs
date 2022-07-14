@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
     shred::{Fetch, FetchMut, Resource},
-    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage,
+    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
 use std::fs::{self, File};
@@ -40,11 +40,11 @@ use crate::{
 use super::common::ClientFilter;
 
 use self::systems::{
-    BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem, ChunkRequestsSystem,
-    ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem, ClearCollisionsSystem,
-    CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem,
-    EventsBroadcastSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem, SearchSystem,
-    UpdateStatsSystem,
+    AnimationMetaSystem, BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem,
+    ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem,
+    ClearCollisionsSystem, CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem,
+    EntityMetaSystem, EventsBroadcastSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem,
+    SearchSystem, UpdateStatsSystem,
 };
 
 pub use clients::*;
@@ -65,11 +65,40 @@ pub use voxels::*;
 pub type ModifyDispatch =
     fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;
 
-pub type IntervalFunctions = Vec<(dyn FnMut(&mut World), u64)>;
+pub type CustomFunction<T> = fn(T, &mut World);
 
-pub type CustomFunction = fn(Value, &mut World);
+pub type ClientParser = fn(&str, Entity, &mut World);
 
 pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
+
+/// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
+pub fn default_client_parser(metadata: &str, client_ent: Entity, world: &mut World) {
+    let metadata: PeerUpdate =
+        serde_json::from_str(metadata).expect("Could not parse peer update.");
+
+    if let Some(position) = metadata.position {
+        {
+            let mut positions = world.write_component::<PositionComp>();
+            if let Some(p) = positions.get_mut(client_ent) {
+                p.0.set(position.0, position.1, position.2);
+            }
+        }
+
+        {
+            let mut bodies = world.write_component::<RigidBodyComp>();
+            if let Some(b) = bodies.get_mut(client_ent) {
+                b.0.set_position(position.0, position.1, position.2);
+            }
+        }
+    }
+
+    if let Some(direction) = metadata.direction {
+        let mut directions = world.write_component::<DirectionComp>();
+        if let Some(d) = directions.get_mut(client_ent) {
+            d.0.set(direction.0, direction.1, direction.2);
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PeerUpdate {
@@ -95,11 +124,17 @@ pub struct World {
     /// The modifier of the ECS dispatcher.
     dispatcher: Option<ModifyDispatch>,
 
+    /// The modifier of any new client.
+    client_modifier: Option<CustomFunction<Entity>>,
+
+    /// The metadata parser for clients.
+    client_parser: Option<ClientParser>,
+
     /// The handler for `Method`s.
-    method_handles: HashMap<String, CustomFunction>,
+    method_handles: HashMap<String, CustomFunction<Value>>,
 
     /// The handler for `Transport`s.
-    transport_handle: Option<CustomFunction>,
+    transport_handle: Option<CustomFunction<Value>>,
 }
 
 fn get_default_dispatcher(
@@ -169,6 +204,7 @@ impl World {
         ecs.register::<AddrComp>();
         ecs.register::<InteractorComp>();
         ecs.register::<CollisionsComp>();
+        ecs.register::<AnimationComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -197,6 +233,8 @@ impl World {
 
             dispatcher: Some(get_default_dispatcher),
             method_handles: HashMap::default(),
+            client_parser: Some(default_client_parser),
+            client_modifier: None,
             transport_handle: None,
         }
     }
@@ -209,6 +247,18 @@ impl World {
     /// Get a mutable reference to the ECS world.
     pub fn ecs_mut(&mut self) -> &mut ECSWorld {
         &mut self.ecs
+    }
+
+    /// Insert a component into an entity.
+    pub fn add<T: Component>(&mut self, e: Entity, c: T) {
+        let mut storage: WriteStorage<T> = SystemData::fetch(self.ecs());
+        storage.insert(e, c).unwrap();
+    }
+
+    /// Remove a component type from an entity.
+    pub fn remove<T: Component>(&mut self, e: Entity) {
+        let mut storage: WriteStorage<T> = SystemData::fetch(self.ecs());
+        storage.remove(e);
     }
 
     /// Read an ECS resource generically.
@@ -279,6 +329,10 @@ impl World {
             .with(CollisionsComp::new())
             .build();
 
+        if let Some(modifier) = self.client_modifier.to_owned() {
+            modifier(ent, self);
+        }
+
         self.clients_mut().insert(
             id.to_owned(),
             Client {
@@ -325,11 +379,19 @@ impl World {
         self.dispatcher = Some(dispatch);
     }
 
-    pub fn set_method_handle(&mut self, method: &str, handle: CustomFunction) {
+    pub fn set_client_modifier(&mut self, modifier: CustomFunction<Entity>) {
+        self.client_modifier = Some(modifier);
+    }
+
+    pub fn set_client_parser(&mut self, parser: ClientParser) {
+        self.client_parser = Some(parser);
+    }
+
+    pub fn set_method_handle(&mut self, method: &str, handle: CustomFunction<Value>) {
         self.method_handles.insert(method.to_lowercase(), handle);
     }
 
-    pub fn set_transport_handle(&mut self, handle: CustomFunction) {
+    pub fn set_transport_handle(&mut self, handle: CustomFunction<Value>) {
         self.transport_handle = Some(handle);
     }
 
@@ -525,12 +587,6 @@ impl World {
         self.write_resource::<Pipeline>()
     }
 
-    /// Set an interval to do something every X ticks.
-    pub fn set_interval(&mut self, func: &(dyn FnOnce(&mut World) + Sync + Send), interval: usize) {
-        // self.write_resource::<IntervalFunctions>()
-        //     .push((Arc::new(func.to_owned()), interval));
-    }
-
     /// Create a basic entity ready to be added more.
     pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
         self.ecs_mut()
@@ -593,6 +649,7 @@ impl World {
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntityMetaSystem, "entity-meta", &[])
             .with(PeersMetaSystem, "peers-meta", &[])
+            .with(AnimationMetaSystem, "animation-meta", &[])
             .with(SearchSystem, "search", &["entity-meta", "peers-meta"])
             .with(CurrentChunkSystem, "current-chunking", &[])
             .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
@@ -610,13 +667,21 @@ impl World {
         let builder = self.dispatcher.unwrap()(builder);
 
         let builder = builder
-            .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
+            .with(
+                EntitiesSavingSystem,
+                "entities-saving",
+                &["entity-meta", "animation-meta"],
+            )
             .with(
                 EntitiesSendingSystem,
                 "entities-sending",
                 &["entities-saving"],
             )
-            .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+            .with(
+                PeersSendingSystem,
+                "peers-sending",
+                &["peers-meta", "animation-meta"],
+            )
             .with(
                 BroadcastSystem,
                 "broadcast",
@@ -652,9 +717,6 @@ impl World {
                 metadata, username, ..
             } = peer;
 
-            let metadata: PeerUpdate =
-                serde_json::from_str(&metadata).expect("Could not parse peer update.");
-
             {
                 let mut names = self.write_component::<NameComp>();
                 if let Some(n) = names.get_mut(client_ent) {
@@ -662,28 +724,7 @@ impl World {
                 }
             }
 
-            if let Some(position) = metadata.position {
-                {
-                    let mut positions = self.write_component::<PositionComp>();
-                    if let Some(p) = positions.get_mut(client_ent) {
-                        p.0.set(position.0, position.1, position.2);
-                    }
-                }
-
-                {
-                    let mut bodies = self.write_component::<RigidBodyComp>();
-                    if let Some(b) = bodies.get_mut(client_ent) {
-                        b.0.set_position(position.0, position.1, position.2);
-                    }
-                }
-            }
-
-            if let Some(direction) = metadata.direction {
-                let mut directions = self.write_component::<DirectionComp>();
-                if let Some(d) = directions.get_mut(client_ent) {
-                    d.0.set(direction.0, direction.1, direction.2);
-                }
-            }
+            self.client_parser.unwrap()(&metadata, client_ent, self);
 
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 client.username = username;
