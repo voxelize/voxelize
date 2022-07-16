@@ -4,7 +4,7 @@ import {
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
-import { Color, Scene, WebGLRenderer } from "three";
+import { Color, FogExp2, Scene, WebGLRenderer } from "three";
 
 import { Client } from "..";
 
@@ -54,36 +54,6 @@ class Rendering {
   public composer: EffectComposer;
 
   /**
-   * The GLSL uniform for the color of the fog, in other words the color objects fade into when afar.
-   */
-  public uFogColor: {
-    /**
-     * A ThreeJS `Color` instance, GLSL-compatible.
-     */
-    value: Color;
-  };
-
-  /**
-   * The GLSL uniform for the near distance that the fog starts fogging up.
-   */
-  public uFogNear: {
-    /**
-     * The actual fog near distance, in world units.
-     */
-    value: number;
-  };
-
-  /**
-   * The GLSL uniform for the near distance that the fog fogs up fully.
-   */
-  public uFogFar: {
-    /**
-     * The actual fog far distance, in world units.
-     */
-    value: number;
-  };
-
-  /**
    * COnstruct a rendering pipeline for Voxelize.
    *
    * @hidden
@@ -98,6 +68,7 @@ class Rendering {
 
     // three.js scene
     this.scene = new Scene();
+    this.scene.fog = new FogExp2("#000000");
 
     const canvas = this.client.container.canvas;
     let context: WebGL2RenderingContext | WebGLRenderingContext;
@@ -127,16 +98,7 @@ class Rendering {
       this.composer.addPass(new RenderPass(this.scene, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
-      this.uFogColor = client.world.sky.uMiddleColor;
-      this.uFogNear = { value: 0 };
-      this.uFogFar = { value: 0 };
-
       this.adjustRenderer();
-    });
-
-    client.on("ready", () => {
-      const renderRadius = client.settings.getRenderRadius();
-      this.setFogDistance(renderRadius);
     });
   }
 
@@ -151,18 +113,6 @@ class Rendering {
 
     this.renderer.setSize(width, height);
     this.composer.setSize(width, height);
-  };
-
-  /**
-   * Set the farthest distance for the fog. Fog starts fogging up 50% from the farthest.
-   *
-   * @param distance - The maximum distance that the fog fully fogs up.
-   */
-  setFogDistance = (distance: number) => {
-    const { chunkSize } = this.client.world.params;
-
-    this.uFogNear.value = distance * 0.5 * chunkSize;
-    this.uFogFar.value = distance * chunkSize;
   };
 
   /**

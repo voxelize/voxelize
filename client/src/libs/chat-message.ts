@@ -1,4 +1,3 @@
-import { MESSAGE_TYPE } from "../types";
 import { DOMUtils } from "../utils";
 
 type ChatMessageParams = {
@@ -16,7 +15,7 @@ class ChatMessage {
   public body = document.createElement("p");
 
   constructor(
-    public type: MESSAGE_TYPE,
+    public type: string,
     sender?: string,
     body?: string,
     params: ChatMessageParams = {}

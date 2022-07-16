@@ -1,7 +1,11 @@
+import { MessageProtocol } from "@voxelize/transport/src/types";
+
 import { Client } from "..";
 import { ChatHistory, ChatMessage } from "../libs";
 import { CSSMeasurement, MESSAGE_TYPE } from "../types";
 import { DOMUtils } from "../utils";
+
+import { NetIntercept } from "./network";
 
 const HELP_TEXT = `
 Basic controls of the game:
@@ -121,7 +125,7 @@ type CommandProcessor = (rest: string, client: Client) => void;
  *
  * @category Core
  */
-class Chat {
+class Chat implements NetIntercept {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -207,6 +211,16 @@ class Chat {
     this.history = new ChatHistory(this.gui.input);
   }
 
+  onMessage = (message: MessageProtocol) => {
+    if (message.type !== "CHAT") return;
+
+    const { chat } = message;
+
+    if (chat) {
+      this.add(chat);
+    }
+  };
+
   /**
    * Add a message to the chat.
    *
@@ -215,7 +229,7 @@ class Chat {
    * @param data.sender - The name of the sender.
    * @param data.body - The body text of the message.
    */
-  add = (data: { type: MESSAGE_TYPE; sender?: string; body?: string }) => {
+  add = (data: { type: string; sender?: string; body?: string }) => {
     const { type, sender, body } = data;
     const { messagesWidth } = this.params;
 

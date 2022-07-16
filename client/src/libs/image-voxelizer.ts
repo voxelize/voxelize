@@ -83,9 +83,9 @@ class ImageVoxelizer {
     console.log(`Starting to voxelize image: ${file}`);
 
     const {
-      ranges,
+      registry: { ranges },
       atlas: { canvas },
-    } = client.registry;
+    } = client.world;
 
     const getPixelAt = (
       context: CanvasRenderingContext2D,
@@ -118,7 +118,7 @@ class ImageVoxelizer {
     const metrics = new Map<string, [number, number, number, number]>();
 
     ranges.forEach(({ startU, startV, endU, endV }, name) => {
-      const block = client.registry.getBlockByTextureName(name);
+      const block = client.world.getBlockByTextureName(name);
 
       if (!block.isOpaque) {
         return;
@@ -229,7 +229,7 @@ class ImageVoxelizer {
             const { r, g, b, a } = getPixelAt(context, x, y);
 
             const closest = getClosest([r, g, b, a]);
-            const block = client.registry.getBlockByTextureName(closest);
+            const block = client.world.getBlockByTextureName(closest);
 
             updates.push({
               vx: orientation === "z" ? baseX : baseX - width / 2 + x,

@@ -836,7 +836,7 @@ class Controls extends EventDispatcher {
   };
 
   private setupListeners = () => {
-    const { inputs, world, permission } = this.client;
+    const { inputs, permission } = this.client;
 
     this.connect();
 
@@ -889,7 +889,7 @@ class Controls extends EventDispatcher {
       return;
     }
 
-    const { world, camera, registry } = this.client;
+    const { world, camera } = this.client;
     const { maxHeight } = world.params;
     const { reachDistance, lookBlockScale } = this.params;
 
@@ -906,7 +906,7 @@ class Controls extends EventDispatcher {
 
         const id = world.getVoxelByVoxel(x, y, z);
         const rotation = world.getVoxelRotationByVoxel(x, y, z);
-        const { aabbs, isFluid } = registry.getBlockById(id);
+        const { aabbs, isFluid } = world.getBlockById(id);
 
         return isFluid ? [] : aabbs.map((aabb) => rotation.rotateAABB(aabb));
       },

@@ -67,7 +67,7 @@ import StoneImage from "./assets/stone.png";
 
 // ...
 
-client.registry.applyTexturesByNames([
+client.world.applyTexturesByNames([
   { name: "Dirt", side: "all", data: DirtImage },
   { name: "Stone", side: "all", data: StoneImage },
 ]);

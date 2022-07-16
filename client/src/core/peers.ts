@@ -1,7 +1,10 @@
+import { MessageProtocol } from "@voxelize/transport/src/types";
 import { Matrix4, Vector3, Quaternion } from "three";
 
 import { Client } from "..";
 import { Head, NameTag } from "../libs";
+
+import { NetIntercept } from "./network";
 
 type PeerParams = {
   lerpFactor: number;
@@ -107,7 +110,7 @@ const defaultParams: PeersParams = {
  * @noInheritDoc
  * @category Core
  */
-class Peers extends Map<string, Peer> {
+class Peers extends Map<string, Peer> implements NetIntercept {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -148,6 +151,34 @@ class Peers extends Map<string, Peer> {
 
     this.client = client;
   }
+
+  onMessage = (message: MessageProtocol) => {
+    switch (message.type) {
+      case "JOIN": {
+        const { text: id } = message;
+        if (!this.client.id || this.client.id === id) return;
+        this.addPeer(id);
+        break;
+      }
+      case "LEAVE": {
+        const { text: id } = message;
+        this.removePeer(id);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+
+    const { peers } = message;
+
+    if (peers) {
+      peers.forEach((peer: any) => {
+        if (!this.client.id || peer.id === this.client.id) return;
+        this.client.peers.updatePeer(peer);
+      });
+    }
+  };
 
   /**
    * Reset the peers map.

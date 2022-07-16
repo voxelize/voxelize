@@ -1,3 +1,4 @@
+import { MessageProtocol } from "@voxelize/transport/src/types";
 import { Object3D, Vector3 } from "three";
 
 import { Client } from "..";
@@ -13,6 +14,7 @@ import {
   TargetComponent,
   TypeComponent,
 } from "./comps";
+import { NetIntercept } from "./network";
 
 /**
  * Creating a new {@link BaseEntity}.
@@ -170,7 +172,7 @@ class BaseEntity extends Entity {
  *
  * @noInheritDoc
  */
-class Entities extends Map<string, BaseEntity> {
+class Entities extends Map<string, BaseEntity> implements NetIntercept {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -210,6 +212,16 @@ class Entities extends Map<string, BaseEntity> {
 
     BaseEntity.LERP_FACTOR = lerpFactor;
   }
+
+  onMessage = (message: MessageProtocol) => {
+    const { entities } = message;
+
+    if (entities && entities.length) {
+      entities.forEach((entity: any) => {
+        this.client.entities.onEvent(entity);
+      });
+    }
+  };
 
   /**
    * Network handler for Voxelize entities.

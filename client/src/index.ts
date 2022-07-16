@@ -24,14 +24,12 @@ import {
   PeersParams,
   Permission,
   Physics,
-  Registry,
-  RegistryParams,
   Rendering,
   RenderingParams,
   Settings,
   World,
-  WorldInitParams,
   Sounds,
+  WorldClientParams,
 } from "./core";
 import { Events } from "./core/events";
 import { ECS } from "./libs";
@@ -44,8 +42,7 @@ type ClientParams = {
   peers?: Partial<PeersParams>;
   entities?: Partial<EntitiesParams>;
   controls?: Partial<ControlsParams>;
-  registry?: Partial<RegistryParams>;
-  world?: Partial<WorldInitParams>;
+  world?: Partial<WorldClientParams>;
   chat?: Partial<ChatParams>;
 };
 
@@ -68,7 +65,6 @@ class Client extends EventEmitter {
   public world: World;
   public peers: Peers;
   public entities: Entities;
-  public registry: Registry;
   public settings: Settings;
   public physics: Physics;
   public particles: Particles;
@@ -100,7 +96,6 @@ class Client extends EventEmitter {
       peers,
       entities,
       controls,
-      registry,
       world,
       chat,
       debug,
@@ -117,7 +112,6 @@ class Client extends EventEmitter {
     this.peers = new Peers(this, peers);
     this.entities = new Entities(this, entities);
     this.controls = new Controls(this, controls);
-    this.registry = new Registry(this, registry);
     this.chat = new Chat(this, chat);
     this.inputs = new Inputs(this);
     this.clock = new Clock(this);
@@ -158,6 +152,14 @@ class Client extends EventEmitter {
       secret,
     });
     this.network = network;
+
+    // Register default network interceptors
+    this.network
+      .cover(this.world)
+      .cover(this.entities)
+      .cover(this.peers)
+      .cover(this.chat)
+      .cover(this.events);
 
     this.connectionPromise = new Promise<boolean>((resolve) => {
       network

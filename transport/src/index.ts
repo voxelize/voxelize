@@ -7,6 +7,9 @@ import {
 } from "websocket";
 
 import { protocol } from "./protocol";
+import { MessageProtocol } from "./types";
+
+export * from "./types";
 
 const { Message } = protocol;
 
@@ -19,19 +22,19 @@ export class Transport extends WebSocket {
     super();
   }
 
-  onInit?: (event: any) => void;
-  onJoin?: (event: any) => void;
-  onLeave?: (event: any) => void;
-  onError?: (event: any) => void;
-  onPeer?: (event: any) => void;
-  onEntity?: (event: any) => void;
-  onLoad?: (event: any) => void;
-  onUnload?: (event: any) => void;
-  onUpdate?: (event: any) => void;
-  onMethod?: (event: any) => void;
-  onChat?: (event: any) => void;
-  onTransport?: (event: any) => void;
-  onEvent?: (event: any) => void;
+  onInit?: (event: MessageProtocol) => void;
+  onJoin?: (event: MessageProtocol) => void;
+  onLeave?: (event: MessageProtocol) => void;
+  onError?: (event: MessageProtocol) => void;
+  onPeer?: (event: MessageProtocol) => void;
+  onEntity?: (event: MessageProtocol) => void;
+  onLoad?: (event: MessageProtocol) => void;
+  onUnload?: (event: MessageProtocol) => void;
+  onUpdate?: (event: MessageProtocol) => void;
+  onMethod?: (event: MessageProtocol) => void;
+  onChat?: (event: MessageProtocol) => void;
+  onTransport?: (event: MessageProtocol) => void;
+  onEvent?: (event: MessageProtocol) => void;
 
   connect = async (address: string, secret: string) => {
     const q = url.parse(address, true);
@@ -67,12 +70,12 @@ export class Transport extends WebSocket {
     });
   };
 
-  send = (event: any) => {
+  send = (event: MessageProtocol) => {
     if (!this.connection) return;
     this.connection.sendBytes(Buffer.from(Transport.encodeSync(event)));
   };
 
-  private onMessage = (event: any) => {
+  private onMessage = (event: MessageProtocol) => {
     switch (event.type) {
       case "INIT": {
         this.onInit?.(event);
@@ -158,7 +161,7 @@ export class Transport extends WebSocket {
         }
       });
     }
-    return message;
+    return message as any as MessageProtocol;
   };
 
   static encodeSync(message: any) {

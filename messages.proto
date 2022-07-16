@@ -55,14 +55,7 @@ message Update {
 }
 
 message ChatMessage {
-  enum Type {
-    ERROR = 0;
-    SERVER = 1;
-    PLAYER = 2;
-    INFO = 3;
-  }
-
-  Type type = 1;
+  string type = 1;
   string sender = 2;
   string body = 3;
 }

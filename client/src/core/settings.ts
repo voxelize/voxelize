@@ -22,7 +22,7 @@ class Settings {
 
     client.on("ready", () => {
       this.listen("renderRadius", (client, value) => {
-        client.rendering.setFogDistance(value as number);
+        client.world.setFogDistance(value as number);
       });
     });
   }

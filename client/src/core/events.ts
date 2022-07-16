@@ -1,4 +1,8 @@
+import { MessageProtocol } from "@voxelize/transport/src/types";
+
 import { Client } from "..";
+
+import { NetIntercept } from "./network";
 
 /**
  * A Voxelize event.
@@ -24,7 +28,7 @@ type EventHandler = (payload: any | null) => void;
  * A **built-in** manager for the events sent from the Voxelize server. Keep in
  * mind that one event can only have one listener!
  */
-class Events extends Map<string, EventHandler> {
+class Events extends Map<string, EventHandler> implements NetIntercept {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -35,6 +39,20 @@ class Events extends Map<string, EventHandler> {
 
     this.client = client;
   }
+
+  onMessage = (message: MessageProtocol) => {
+    switch (message.type) {
+      case "EVENT": {
+        const { events } = message;
+
+        events.forEach((e: any) => {
+          this.handle(e.name, e.payload);
+        });
+
+        return;
+      }
+    }
+  };
 
   /**
    * Synonym for {@link on}, adds a listener to a Voxelize server event.

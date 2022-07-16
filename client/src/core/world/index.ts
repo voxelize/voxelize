@@ -1,25 +1,51 @@
-import { Color, Vector3 } from "three";
+import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import {
+  Color,
+  DoubleSide,
+  ShaderLib,
+  ShaderMaterial,
+  Texture,
+  UniformsUtils,
+  Vector3,
+  Vector4,
+} from "three";
 
-import { Client } from "..";
+import { Client } from "../..";
 import {
   BlockRotation,
   Sky,
   Chunk,
   Chunks,
-  ServerChunk,
   ArtFunction,
   BoxSides,
   drawSun,
   Clouds,
   CloudsParams,
-  Trigger,
-} from "../libs";
-import { Coords2, Coords3, PartialRecord, BlockUpdate } from "../types";
-import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../utils";
+  TextureAtlas,
+} from "../../libs";
+import {
+  Coords2,
+  Coords3,
+  PartialRecord,
+  BlockUpdate,
+  Block,
+  TextureRange,
+} from "../../types";
+import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
+import { NetIntercept } from "../network";
 
-type SkyFace = ArtFunction | Color | string | null;
+import { Registry, TextureData } from "./registry";
 
-type WorldInitParams = {
+export type SkyFace = ArtFunction | Color | string | null;
+
+/**
+ * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
+ */
+export type CustomShaderMaterial = ShaderMaterial & {
+  map: Texture;
+};
+
+export type WorldClientParams = {
   skyDimension: number;
   inViewRadius: number;
   maxRequestsPerTick: number;
@@ -28,20 +54,10 @@ type WorldInitParams = {
   maxAddsPerTick: number;
   skyFaces: PartialRecord<BoxSides, SkyFace>;
   clouds: Partial<CloudsParams> | boolean;
+  textureDimension: number;
 };
 
-const defaultParams: WorldInitParams = {
-  skyDimension: 1000,
-  inViewRadius: 5,
-  maxRequestsPerTick: 2,
-  maxProcessesPerTick: 2,
-  maxUpdatesPerTick: 1000,
-  maxAddsPerTick: 2,
-  skyFaces: { top: drawSun },
-  clouds: true,
-};
-
-type WorldParams = WorldInitParams & {
+export type WorldServerParams = {
   subChunks: number;
   chunkSize: number;
   maxHeight: number;
@@ -56,10 +72,24 @@ type WorldParams = WorldInitParams & {
   fluidDensity: number;
 };
 
+const defaultParams: WorldClientParams = {
+  skyDimension: 1000,
+  inViewRadius: 5,
+  maxRequestsPerTick: 2,
+  maxProcessesPerTick: 2,
+  maxUpdatesPerTick: 1000,
+  maxAddsPerTick: 2,
+  skyFaces: { top: drawSun },
+  clouds: true,
+  textureDimension: 8,
+};
+
+export type WorldParams = WorldClientParams & WorldServerParams;
+
 /**
  * @category Core
  */
-class World {
+export class World implements NetIntercept {
   // @ts-ignore
   public params: WorldParams = {};
 
@@ -67,11 +97,68 @@ class World {
   public clouds: Clouds;
   public chunks: Chunks;
 
-  public uSunlightIntensity = { value: 1 };
+  /**
+   * The generated texture atlas built from all registered block textures.
+   */
+  public atlas: TextureAtlas;
+
+  public uniforms: {
+    fogColor: {
+      value: Color;
+    };
+    fogNear: {
+      value: number;
+    };
+    fogFar: {
+      value: number;
+    };
+    atlas: {
+      value: Texture | null;
+    };
+    ao: {
+      value: Vector4;
+    };
+    minLight: {
+      value: number;
+    };
+    sunlight: {
+      value: number;
+    };
+  } = {
+    fogColor: {
+      value: new Color("#fff"),
+    },
+    fogNear: {
+      value: 100,
+    },
+    fogFar: {
+      value: 200,
+    },
+    atlas: {
+      value: null,
+    },
+    ao: {
+      value: new Vector4(100.0, 170.0, 210.0, 255.0),
+    },
+    minLight: {
+      value: 0.2,
+    },
+    sunlight: {
+      value: 1,
+    },
+  };
 
   public blockCache = new Map<string, number>();
 
-  public triggers: Trigger[] = [];
+  public registry: Registry;
+
+  /**
+   * The shared material instances for chunks.
+   */
+  public materials: {
+    opaque?: CustomShaderMaterial;
+    transparent?: CustomShaderMaterial;
+  } = {};
 
   /**
    * A function called before every update per tick.
@@ -83,19 +170,21 @@ class World {
    */
   public onAfterUpdate?: () => void;
 
-  constructor(public client: Client, params: Partial<WorldInitParams> = {}) {
+  constructor(public client: Client, params: Partial<WorldClientParams> = {}) {
     const { skyDimension, skyFaces, clouds } = (params = {
       ...defaultParams,
       ...params,
     });
 
     this.chunks = new Chunks();
+    this.registry = new Registry();
 
-    Object.keys(params).forEach((key) => {
-      this.params[key] = params[key];
-    });
+    this.params = {
+      ...this.params,
+      ...params,
+    };
 
-    Object.values((skyFace) => {
+    Object.values(skyFaces).forEach((skyFace) => {
       if (typeof skyFace === "string") {
         client.loader.addTexture(skyFace);
       }
@@ -104,6 +193,9 @@ class World {
     this.sky = new Sky(skyDimension);
 
     client.once("ready", () => {
+      const renderRadius = client.settings.getRenderRadius();
+      this.setFogDistance(renderRadius);
+
       Object.entries(skyFaces).forEach(([side, skyFace]) => {
         if (typeof skyFace === "string") {
           const texture = client.loader.getTexture(skyFace);
@@ -134,8 +226,8 @@ class World {
         ...(typeof clouds === "object" ? clouds : {}),
         worldHeight: this.params.maxHeight,
         uFogColor: this.sky.uMiddleColor,
-        uFogNear: this.client.rendering.uFogNear,
-        uFogFar: this.client.rendering.uFogFar,
+        uFogNear: this.uniforms.fogNear,
+        uFogFar: this.uniforms.fogFar,
       });
 
       this.clouds.initialize().then(() => {
@@ -143,6 +235,96 @@ class World {
       });
     });
   }
+
+  onMessage = (
+    message: MessageProtocol<{
+      blocks: Block[];
+      ranges: { [key: string]: TextureRange };
+      params: WorldServerParams;
+    }>
+  ) => {
+    switch (message.type) {
+      case "INIT": {
+        const {
+          json: { blocks, ranges, params },
+        } = message;
+
+        this.setParams(params);
+        this.registry.load(blocks, ranges);
+        this.loadAtlas();
+
+        this.client.emit("ready");
+        this.client.ready = true;
+
+        return;
+      }
+      case "LOAD": {
+        const { chunks } = message;
+
+        chunks.forEach((chunk) => {
+          this.handleServerChunk(chunk);
+        });
+
+        return;
+      }
+      case "UPDATE": {
+        const { updates, chunks } = message;
+
+        if (updates && updates.length) {
+          const particleUpdates = updates
+            .filter(({ voxel }) => {
+              return voxel === 0;
+            })
+            .map(({ vx, vy, vz }) => {
+              const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+              let original = this.blockCache.get(name);
+
+              if (original === undefined)
+                original = this.getVoxelByVoxel(vx, vy, vz);
+
+              const result = {
+                voxel: [vx, vy, vz] as Coords3,
+                type: original,
+              };
+
+              this.blockCache.delete(name);
+
+              return result;
+            });
+
+          updates.forEach((update) => {
+            const { vx, vy, vz, voxel, light } = update;
+            const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
+
+            if (chunk) {
+              chunk.setRawValue(vx, vy, vz, voxel || 0);
+              chunk.setRawLight(vx, vy, vz, light || 0);
+            }
+          });
+
+          this.client.particles.addBreakParticles(particleUpdates, {
+            count: particleUpdates.length > 3 ? 10 : 24,
+          });
+
+          if (updates && updates.length) {
+            this.client.particles.addBreakParticles(particleUpdates, {
+              count: particleUpdates.length > 3 ? 10 : 24,
+            });
+          }
+        }
+
+        if (chunks && chunks.length) {
+          chunks.forEach((chunk) => {
+            this.handleServerChunk(chunk, true);
+          });
+        }
+
+        return;
+      }
+      default:
+        break;
+    }
+  };
 
   reset = () => {
     const { scene } = this.client.rendering;
@@ -166,12 +348,78 @@ class World {
   };
 
   /**
+   * Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
+   *
+   * @param textures - List of data to load into the game before the game starts.
+   */
+  applyTexturesByNames = (textures: TextureData[]) => {
+    textures.forEach((texture) => {
+      this.applyTextureByName(texture);
+    });
+  };
+
+  /**
+   * Apply a texture onto a face/side of a block.
+   *
+   * @param texture - The data of the texture and where the texture is applying to.
+   */
+  applyTextureByName = (texture: TextureData) => {
+    const { data } = texture;
+
+    // Offload texture loading to the loader for the loading screen
+    if (typeof data === "string") {
+      this.client.loader.addTexture(data);
+    }
+
+    this.registry.applyTextureByName(texture);
+  };
+
+  /**
+   * Get the block information by its name.
+   *
+   * @param name - The name of the block to get.
+   */
+  getBlockByName = (name: string) => {
+    return this.registry.getBlockByName(name);
+  };
+
+  /**
+   * Get the block information by its ID.
+   *
+   * @param id - The ID of the block to get.
+   */
+  getBlockById = (id: number) => {
+    return this.registry.getBlockById(id);
+  };
+
+  /**
+   * Reverse engineer to get the block information from a texture name.
+   *
+   * @param textureName - The texture name that the block has.
+   */
+  getBlockByTextureName = (textureName: string) => {
+    return this.registry.getBlockByTextureName(textureName);
+  };
+
+  /**
+   * Get the UV for the block type.
+   *
+   * @param id - The ID of the block type.
+   *
+   * @hidden
+   * @internal
+   */
+  getUV = (id: number): { [key: string]: [any[][], number] } => {
+    return this.registry.getUV(id);
+  };
+
+  /**
    * Applies the server settings onto this world.
    * Caution: do not call this after game started!
    *
    * @memberof World
    */
-  setParams = (data: WorldParams) => {
+  setParams = (data: WorldServerParams) => {
     this.params = {
       ...this.params,
       ...data,
@@ -179,6 +427,18 @@ class World {
 
     // initialize the physics engine with server provided parameters.
     this.client.physics.initialize(this.params);
+  };
+
+  /**
+   * Set the farthest distance for the fog. Fog starts fogging up 50% from the farthest.
+   *
+   * @param distance - The maximum distance that the fog fully fogs up.
+   */
+  setFogDistance = (distance: number) => {
+    const { chunkSize } = this.params;
+
+    this.uniforms.fogNear.value = distance * 0.5 * chunkSize;
+    this.uniforms.fogFar.value = distance * chunkSize;
   };
 
   getChunk = (cx: number, cz: number) => {
@@ -189,7 +449,7 @@ class World {
     return this.chunks.get(name);
   };
 
-  handleServerChunk = (data: ServerChunk, urgent = false) => {
+  handleServerChunk = (data: ChunkProtocol, urgent = false) => {
     if (urgent) {
       this.meshChunk(data);
     } else {
@@ -295,69 +555,11 @@ class World {
 
   getBlockByVoxel = (vx: number, vy: number, vz: number) => {
     const voxel = this.getVoxelByVoxel(vx, vy, vz);
-    return this.client.registry.getBlockById(voxel);
-  };
-
-  getFluidityByVoxel = (vx: number, vy: number, vz: number) => {
-    return false;
-  };
-
-  getNeighborChunkCoords = (vx: number, vy: number, vz: number) => {
-    const { chunkSize } = this.params;
-    const neighborChunks: Coords2[] = [];
-
-    const [cx, cz] = ChunkUtils.mapVoxelPosToChunkPos([vx, vy, vz], chunkSize);
-    const [lx, , lz] = ChunkUtils.mapVoxelPosToChunkLocalPos(
-      [vx, vy, vz],
-      chunkSize
-    );
-
-    const a = lx <= 0;
-    const b = lz <= 0;
-    const c = lx >= chunkSize - 1;
-    const d = lz >= chunkSize - 1;
-
-    // direct neighbors
-    if (a) neighborChunks.push([cx - 1, cz]);
-    if (b) neighborChunks.push([cx, cz - 1]);
-    if (c) neighborChunks.push([cx + 1, cz]);
-    if (d) neighborChunks.push([cx, cz + 1]);
-
-    // side-to-side neighbors
-    if (a && b) neighborChunks.push([cx - 1, cz - 1]);
-    if (a && d) neighborChunks.push([cx - 1, cz + 1]);
-    if (b && c) neighborChunks.push([cx + 1, cz - 1]);
-    if (c && d) neighborChunks.push([cx + 1, cz + 1]);
-
-    return neighborChunks;
-  };
-
-  all = () => {
-    return Array.from(this.chunks.values());
-  };
-
-  raw = (name: string) => {
-    return this.chunks.get(name);
-  };
-
-  checkSurrounded = (cx: number, cz: number, r: number) => {
-    for (let x = -r; x <= r; x++) {
-      for (let z = -r; z <= r; z++) {
-        if (x === 0 && z === 0) {
-          continue;
-        }
-
-        if (!this.raw(ChunkUtils.getChunkName([cx + x, cz + z]))) {
-          return false;
-        }
-      }
-    }
-
-    return true;
+    return this.registry.getBlockById(voxel);
   };
 
   isWithinWorld = (cx: number, cz: number) => {
-    const { minChunk, maxChunk } = this.client.world.params;
+    const { minChunk, maxChunk } = this.params;
 
     return (
       cx >= minChunk[0] &&
@@ -387,21 +589,6 @@ class World {
     const current = this.getBlockByVoxel(vx, vy, vz);
 
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
-
-    // const updated = this.client.registry.getBlockById(type);
-
-    // for (const cAABB of current.aabbs) {
-    //   for (const uAABB of updated.aabbs) {
-    //     if (cAABB.intersects(uAABB)) {
-    //       return false;
-    //     }
-    //   }
-    // }
-  };
-
-  addTrigger = (trigger: Trigger) => {
-    this.triggers.push(trigger);
-    this.client.rendering.scene.add(trigger.mesh);
   };
 
   update = (() => {
@@ -411,13 +598,6 @@ class World {
       this.onBeforeUpdate?.();
 
       count++;
-
-      this.triggers.forEach((trigger) => {
-        const clientAABB = this.client.controls.body.aabb;
-        if (clientAABB.intersects(trigger.aabb)) {
-          trigger.onTrigger?.();
-        }
-      });
 
       const { position } = this.client.controls;
       const { chunkSize, maxUpdatesPerTick } = this.params;
@@ -607,7 +787,7 @@ class World {
     });
   };
 
-  private meshChunk = (data: ServerChunk) => {
+  private meshChunk = (data: ChunkProtocol) => {
     const { x, z, id } = data;
 
     let chunk = this.getChunk(x, z);
@@ -624,9 +804,7 @@ class World {
       this.chunks.set(chunk.name, chunk);
     }
 
-    const { materials } = this.client.registry;
-
-    chunk.build(data, materials);
+    chunk.build(data, this.materials);
     this.chunks.requested.delete(chunk.name);
   };
 
@@ -669,8 +847,155 @@ class World {
       });
     }
   };
+
+  private loadAtlas = () => {
+    if (this.atlas && this.atlas.texture) {
+      this.atlas.texture.dispose();
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                             Generating Texture                             */
+    /* -------------------------------------------------------------------------- */
+    const { textureDimension } = this.params;
+
+    const { sources, ranges } = this.registry;
+
+    Array.from(ranges.keys()).forEach((key) => {
+      if (!sources.has(key)) {
+        sources.set(key, null);
+      }
+    });
+
+    const textures = new Map();
+    Array.from(sources.entries()).forEach(([sideName, source]) => {
+      textures.set(
+        sideName,
+        source instanceof Color ? source : this.client.loader.getTexture(source)
+      );
+    });
+
+    this.atlas = TextureAtlas.create(textures, ranges, {
+      countPerSide: this.registry.perSide,
+      dimension: textureDimension,
+    });
+
+    this.uniforms.atlas.value = this.atlas.texture;
+
+    if (this.materials.opaque) {
+      this.materials.opaque.map = this.atlas.texture;
+    } else {
+      this.materials.opaque = this.makeShaderMaterial();
+    }
+
+    if (this.materials.transparent) {
+      this.materials.transparent.map = this.atlas.texture;
+    } else {
+      const mat = this.makeShaderMaterial();
+      mat.side = DoubleSide;
+      mat.transparent = true;
+      mat.alphaTest = 0.1;
+      this.materials.transparent = mat;
+    }
+
+    this.client.emit("registry-loaded");
+    this.client.loaded = true;
+  };
+
+  private makeShaderMaterial = () => {
+    const material = new ShaderMaterial({
+      vertexColors: true,
+      fragmentShader: ShaderLib.basic.fragmentShader
+        .replace(
+          "#include <common>",
+          `
+#include <common>
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+uniform float uSunlightIntensity;
+uniform float uMinLight;
+varying float vAO;
+varying vec4 vLight; 
+varying vec4 vWorldPosition;
+`
+        )
+        .replace(
+          "#include <envmap_fragment>",
+          `
+#include <envmap_fragment>
+float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinLight, 1.0);
+float scale = 1.0;
+outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
+outgoingLight *= 0.88 * vAO;
+`
+        )
+        .replace(
+          "#include <fog_fragment>",
+          `
+vec3 fogOrigin = cameraPosition;
+float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
+
+// float depth = gl_FragCoord.z / gl_FragCoord.w;
+float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+`
+        ),
+      vertexShader: ShaderLib.basic.vertexShader
+        .replace(
+          "#include <common>",
+          `
+attribute int light;
+varying float vAO;
+varying vec4 vLight;
+varying vec4 vWorldPosition;
+uniform vec4 uAOTable;
+vec4 unpackLight(int l) {
+  float r = float((l >> 8) & 0xF) / 15.0;
+  float g = float((l >> 4) & 0xF) / 15.0;
+  float b = float(l & 0xF) / 15.0;
+  float s = float((l >> 12) & 0xF) / 15.0;
+  return vec4(r, g, b, s);
 }
+#include <common>
+`
+        )
+        .replace(
+          "#include <color_vertex>",
+          `
+#include <color_vertex>
+int ao = light >> 16;
+vAO = ((ao == 0) ? uAOTable.x :
+    (ao == 1) ? uAOTable.y :
+    (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
+vLight = unpackLight(light & ((1 << 16) - 1));
+`
+        )
+        .replace(
+          "#include <worldpos_vertex>",
+          `
+vec4 worldPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  worldPosition = instanceMatrix * worldPosition;
+#endif
+worldPosition = modelMatrix * worldPosition;
+vWorldPosition = worldPosition;
+`
+        ),
 
-export type { WorldInitParams };
+      uniforms: {
+        ...UniformsUtils.clone(ShaderLib.basic.uniforms),
+        map: this.uniforms.atlas,
+        uSunlightIntensity: this.uniforms.sunlight,
+        uAOTable: this.uniforms.ao,
+        uMinLight: this.uniforms.minLight,
+        uFogNear: this.uniforms.fogNear,
+        uFogFar: this.uniforms.fogFar,
+        uFogColor: this.sky.uMiddleColor,
+      },
+    }) as CustomShaderMaterial;
 
-export { World };
+    material.map = this.uniforms.atlas.value;
+
+    return material;
+  };
+}

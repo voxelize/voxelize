@@ -192,7 +192,7 @@ class Particles {
       const blue = this.client.world.getTorchLightByVoxel(x, y, z, "BLUE") / 15;
       const sun = this.client.world.getSunlightByVoxel(x, y, z) / 15;
 
-      const typeUVObj = this.client.registry.getUV(type);
+      const typeUVObj = this.client.world.getUV(type);
       const typeUVArr = [];
 
       Object.values(typeUVObj).forEach((uv) => {
@@ -228,12 +228,12 @@ class Particles {
     geometry.setAttribute("lights", new Float32BufferAttribute(lights, 4));
     geometry.attributes.uv.needsUpdate = true;
 
-    const countPerSide = this.client.registry.perSide;
-    const margin = this.client.registry.atlas.margin;
+    const countPerSide = this.client.world.registry.perSide;
+    const margin = this.client.world.atlas.margin;
 
     const material = new ShaderMaterial({
       uniforms: {
-        uTexture: { value: this.client.registry.atlasUniform.value },
+        uTexture: { value: this.client.world.uniforms.atlas.value },
         uPointSize: {
           value:
             (window.innerHeight /
@@ -242,19 +242,14 @@ class Particles {
         },
         uRepeat: {
           value: new Vector2(
-            // 1/countPerSide
             1 / countPerSide - margin * 2,
             1 / countPerSide - margin * 2
-            // 1 / countPerSide - (0.1 / dimension) * 2,
-            // 1 / countPerSide - (0.1 / dimension) * 2
-            // 0,
-            // 0
           ),
         },
         uScale: {
           value: 1,
         },
-        uSunlightIntensity: this.client.world.uSunlightIntensity,
+        uSunlightIntensity: this.client.world.uniforms.sunlight,
       },
       vertexShader: ParticlesVertexShader,
       fragmentShader: ParticlesFragmentShader,

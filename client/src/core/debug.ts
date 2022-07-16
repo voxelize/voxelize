@@ -286,7 +286,7 @@ class Debug {
   };
 
   private makeAtlasTest = () => {
-    const atlas = this.client.registry.atlas;
+    const atlas = this.client.world.atlas;
     const { countPerSide, dimension } = atlas.params;
     const width = countPerSide * dimension;
     const planeWidth = width * 0.1;
@@ -306,17 +306,19 @@ class Debug {
       })
     );
 
-    this.client.registry.ranges.forEach(({ startU, endV, endU }, name) => {
-      const tag = new NameTag(name, {
-        fontSize: planeWidth * (endU - startU) * 0.1,
-      });
-      tag.position.set(
-        -planeWidth / 2 + ((endU - startU) / 2 + startU) * planeWidth,
-        planeWidth - (1 - endV) * planeWidth - planeWidth / 2,
-        0
-      );
-      this.atlasTest.add(tag);
-    });
+    this.client.world.registry.ranges.forEach(
+      ({ startU, endV, endU }, name) => {
+        const tag = new NameTag(name, {
+          fontSize: planeWidth * (endU - startU) * 0.1,
+        });
+        tag.position.set(
+          -planeWidth / 2 + ((endU - startU) / 2 + startU) * planeWidth,
+          planeWidth - (1 - endV) * planeWidth - planeWidth / 2,
+          0
+        );
+        this.atlasTest.add(tag);
+      }
+    );
 
     this.group.add(this.atlasTest);
   };

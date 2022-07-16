@@ -1,3 +1,4 @@
+import { ChunkProtocol, MeshProtocol } from "@voxelize/transport/src/types";
 import ndarray, { NdArray } from "ndarray";
 import {
   BufferAttribute,
@@ -9,11 +10,10 @@ import {
 } from "three";
 
 import { OPAQUE_RENDER_ORDER, TRANSPARENT_RENDER_ORDER } from "../common";
-import { Coords2, Coords3, ServerMesh } from "../types";
+import { Coords2, Coords3 } from "../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
 
 import { BlockRotation } from "./block-rotation";
-import { ServerChunk } from "./chunks";
 
 type ChunkParams = {
   size: number;
@@ -30,7 +30,7 @@ class ChunkMesh extends Group {
   }
 
   set = (
-    meshData: ServerMesh,
+    meshData: MeshProtocol,
     materials: { opaque?: Material; transparent?: Material }
   ) => {
     let { level } = meshData;
@@ -145,7 +145,7 @@ class Chunk {
   }
 
   build = (
-    data: ServerChunk,
+    data: ChunkProtocol,
     materials: { opaque?: Material; transparent?: Material }
   ) => {
     const { meshes, lights, voxels } = data;
