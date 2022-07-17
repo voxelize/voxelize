@@ -4,7 +4,7 @@ import {
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
-import { Color, FogExp2, Scene, WebGLRenderer } from "three";
+import { Color, FogExp2, WebGLRenderer } from "three";
 
 import { Client } from "..";
 
@@ -39,11 +39,6 @@ class Rendering {
   public params: RenderingParams;
 
   /**
-   * A ThreeJS `Scene` instance holding all ThreeJS-renderable objects.
-   */
-  public scene: Scene;
-
-  /**
    * The ThreeJS `WebGLRenderer` used to render Voxelize.
    */
   public renderer: WebGLRenderer;
@@ -65,10 +60,6 @@ class Rendering {
       ...defaultParams,
       ...params,
     });
-
-    // three.js scene
-    this.scene = new Scene();
-    this.scene.fog = new FogExp2("#000000");
 
     const canvas = this.client.container.canvas;
     let context: WebGL2RenderingContext | WebGLRenderingContext;
@@ -95,7 +86,7 @@ class Rendering {
     client.on("initialized", () => {
       const camera = client.camera.threeCamera;
 
-      this.composer.addPass(new RenderPass(this.scene, camera));
+      this.composer.addPass(new RenderPass(this.client.world, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
       this.adjustRenderer();

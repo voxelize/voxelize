@@ -810,23 +810,6 @@ impl BlockBuilder {
 
     /// Configure the bounding boxes that the block has. Default is `vec![]`.
     pub fn aabbs(mut self, aabbs: &[AABB]) -> Self {
-        aabbs.iter().for_each(|aabb| {
-            if aabb.min_x < 0.0
-                || aabb.min_x > 1.0
-                || aabb.min_y < 0.0
-                || aabb.min_y > 1.0
-                || aabb.min_z < 0.0
-                || aabb.min_z > 1.0
-                || aabb.max_x < 0.0
-                || aabb.max_x > 1.0
-                || aabb.max_y < 0.0
-                || aabb.max_y > 1.0
-                || aabb.max_z < 0.0
-                || aabb.max_z > 1.0
-            {
-                panic!("Please keep AABB coordinates between 0,0,0 and 1,1,1.");
-            }
-        });
         self.aabbs = aabbs.to_vec();
         self
     }

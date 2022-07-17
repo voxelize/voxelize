@@ -7,9 +7,9 @@ import {
   SphereGeometry,
 } from "three";
 
-import { DOMUtils } from "../utils";
+import { CanvasBox } from "../../libs/canvas-box";
+import { DOMUtils } from "../../utils";
 
-import { CanvasBox } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
 

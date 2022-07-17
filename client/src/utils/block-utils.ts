@@ -1,4 +1,4 @@
-import { BlockRotation } from "../libs/block-rotation";
+import { BlockRotation } from "../core/world/block";
 
 const ROTATION_MASK = 0xfff0ffff;
 const Y_ROTATION_MASK = 0xff0fffff;

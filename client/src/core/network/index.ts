@@ -1,3 +1,5 @@
+import { EventEmitter } from "events";
+
 import { protocol } from "@voxelize/transport/src/protocol";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
@@ -5,7 +7,6 @@ import DecodeWorker from "web-worker:./workers/decode-worker";
 
 import { Client } from "../..";
 import { WorkerPool } from "../../libs/worker-pool";
-import { ChunkUtils } from "../../utils";
 
 import { NetIntercept } from "./intercept";
 
@@ -49,7 +50,7 @@ type NetworkParams = {
  *
  * @category Core
  */
-class Network {
+class Network extends EventEmitter {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -95,7 +96,7 @@ class Network {
   public connected = false;
 
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
-    maxWorker: (window.navigator.hardwareConcurrency || 4) * 2,
+    maxWorker: window.navigator.hardwareConcurrency || 4,
   });
 
   private reconnection: any;
@@ -106,6 +107,8 @@ class Network {
    * @hidden
    */
   constructor(client: Client, params: NetworkParams) {
+    super();
+
     this.client = client;
     this.params = params;
 
@@ -140,7 +143,7 @@ class Network {
       }
     }
 
-    return new Promise<void>((resolve) => {
+    return new Promise<Network>((resolve) => {
       // initialize a websocket connection to socket
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
@@ -154,7 +157,7 @@ class Network {
 
         clearTimeout(this.reconnection);
 
-        resolve();
+        resolve(this);
       };
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
@@ -166,7 +169,6 @@ class Network {
       ws.onclose = () => {
         this.connected = false;
         this.client.emit("disconnected");
-        this.client.peers.reset();
 
         // fire reconnection every "reconnectTimeout" ms
         if (this.params.reconnectTimeout) {
@@ -241,11 +243,18 @@ class Network {
       }
 
       await this.client.loader.load();
+
+      this.client.loaded = true;
     }
 
     this.intercepts.forEach((intercept) => {
       intercept.onMessage(message);
     });
+
+    if (type === "INIT") {
+      this.client.emit("ready");
+      this.client.ready = true;
+    }
   };
 
   private static encodeSync(message: any) {

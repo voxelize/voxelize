@@ -46,6 +46,11 @@ class Clock {
   public delta: number;
 
   /**
+   * The N'th tick since the game has started.
+   */
+  public tick = 0;
+
+  /**
    * A function called before every update per tick.
    */
   public onBeforeUpdate?: () => void;
@@ -81,6 +86,8 @@ class Clock {
    */
   update = () => {
     this.onBeforeUpdate?.();
+
+    this.tick++;
 
     const now = Date.now();
     this.delta = Math.min(

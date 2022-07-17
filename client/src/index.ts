@@ -15,13 +15,11 @@ import {
   Debug,
   DebugParams,
   Entities,
-  EntitiesParams,
   Inputs,
   Loader,
   Network,
   Particles,
   Peers,
-  PeersParams,
   Permission,
   Physics,
   Rendering,
@@ -39,8 +37,6 @@ type ClientParams = {
   container?: Partial<ContainerParams>;
   rendering?: Partial<RenderingParams>;
   camera?: Partial<CameraParams>;
-  peers?: Partial<PeersParams>;
-  entities?: Partial<EntitiesParams>;
   controls?: Partial<ControlsParams>;
   world?: Partial<WorldClientParams>;
   chat?: Partial<ChatParams>;
@@ -63,8 +59,8 @@ class Client extends EventEmitter {
   public controls: Controls;
   public camera: Camera;
   public world: World;
-  public peers: Peers;
-  public entities: Entities;
+  public peers: Peers<any>;
+  public entities: Entities<any>;
   public settings: Settings;
   public physics: Physics;
   public particles: Particles;
@@ -89,17 +85,8 @@ class Client extends EventEmitter {
 
     this.permission = new Permission(permission);
 
-    const {
-      container,
-      rendering,
-      camera,
-      peers,
-      entities,
-      controls,
-      world,
-      chat,
-      debug,
-    } = params;
+    const { container, rendering, camera, controls, world, chat, debug } =
+      params;
 
     this.ecs = new ECS();
 
@@ -109,8 +96,8 @@ class Client extends EventEmitter {
     this.rendering = new Rendering(this, rendering);
     this.world = new World(this, world);
     this.camera = new Camera(this, camera);
-    this.peers = new Peers(this, peers);
-    this.entities = new Entities(this, entities);
+    this.peers = new Peers(this);
+    this.entities = new Entities(this);
     this.controls = new Controls(this, controls);
     this.chat = new Chat(this, chat);
     this.inputs = new Inputs(this);
@@ -176,8 +163,6 @@ class Client extends EventEmitter {
   };
 
   disconnect = async () => {
-    this.peers.reset();
-
     if (this.network) {
       if (this.joined) {
         this.leave();
@@ -223,8 +208,6 @@ class Client extends EventEmitter {
       return;
     }
 
-    this.peers.reset();
-
     this.joined = false;
 
     this.network.send({
@@ -246,10 +229,8 @@ class Client extends EventEmitter {
   };
 
   reset = () => {
-    this.entities.reset();
     this.world.reset();
     this.controls.reset();
-    this.peers.reset();
   };
 
   private run = () => {
@@ -282,7 +263,6 @@ class Client extends EventEmitter {
     this.world.update();
     this.ecs.update();
     this.clock.update();
-    this.entities.update();
     this.peers.update();
     this.debug.update();
     this.particles.update();

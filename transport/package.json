@@ -9,7 +9,7 @@
     "./dist"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -w\" \"types --preserveWatchOutput\"",
+    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
     "compile": "rollup -c rollup.config.js",
     "build": "yarn run clean && yarn run compile && yarn run types",

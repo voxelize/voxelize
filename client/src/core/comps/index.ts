@@ -1,6 +1,4 @@
 export * from "./position";
-export * from "./heading";
-export * from "./target";
 export * from "./mesh";
 export * from "./flags";
 export * from "./id";

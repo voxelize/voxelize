@@ -9,7 +9,7 @@ import {
   Color,
 } from "three";
 
-import { TextureRange } from "../types";
+import { TextureRange } from "./registry";
 
 type TextureAtlasParams = {
   countPerSide: number;

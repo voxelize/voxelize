@@ -149,6 +149,20 @@ pub fn setup_registry() -> Registry {
             .is_transparent(true)
             .rotatable(true)
             .build(),
+        Block::new("Biggie")
+            .id(500)
+            .faces(
+                &BlockFace::six_faces()
+                    .scale_x(4.0)
+                    .scale_y(2.0)
+                    .scale_z(0.1)
+                    .offset_x(-1.5)
+                    .build(),
+            )
+            .aabbs(&[AABB::new().offset_x(0.4).scale_x(0.2).scale_z(0.1).build()])
+            .rotatable(true)
+            .is_transparent(true)
+            .build(),
     ]);
 
     registry

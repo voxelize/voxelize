@@ -1,7 +1,8 @@
 import { ChunkProtocol } from "@voxelize/transport/src/types";
 
-import { BlockUpdate, Coords2 } from "../types";
+import { Coords2 } from "../../types";
 
+import { BlockUpdate } from "./block";
 import { Chunk } from "./chunk";
 
 class Chunks extends Map<string, Chunk> {

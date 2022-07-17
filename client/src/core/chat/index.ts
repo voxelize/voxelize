@@ -1,11 +1,15 @@
 import { MessageProtocol } from "@voxelize/transport/src/types";
 
-import { Client } from "..";
-import { ChatHistory, ChatMessage } from "../libs";
-import { CSSMeasurement, MESSAGE_TYPE } from "../types";
-import { DOMUtils } from "../utils";
+import { Client } from "../..";
+import { CSSMeasurement } from "../../types";
+import { DOMUtils } from "../../utils";
+import { NetIntercept } from "../network";
 
-import { NetIntercept } from "./network";
+import { ChatHistory } from "./chat-history";
+import { ChatMessage } from "./chat-message";
+
+export * from "./chat-history";
+export * from "./chat-message";
 
 const HELP_TEXT = `
 Basic controls of the game:
@@ -25,7 +29,7 @@ Basic controls of the game:
 /**
  * Parameters to initialize the Voxelize {@link Chat}.
  */
-type ChatParams = {
+export type ChatParams = {
   /**
    * Alignment of the chat. Defaults to `left`.
    */
@@ -111,7 +115,7 @@ const defaultParams: ChatParams = {
 /**
  * A process that gets run when a command is triggered.
  */
-type CommandProcessor = (rest: string, client: Client) => void;
+export type CommandProcessor = (rest: string, client: Client) => void;
 
 /**
  * The **built-in** chat of the Voxelize engine. Handles the networking of sending messages, and displaying
@@ -125,7 +129,7 @@ type CommandProcessor = (rest: string, client: Client) => void;
  *
  * @category Core
  */
-class Chat implements NetIntercept {
+export class Chat implements NetIntercept {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -597,7 +601,3 @@ class Chat implements NetIntercept {
     if (next) this.inputValue = next;
   };
 }
-
-export type { ChatParams };
-
-export { Chat };

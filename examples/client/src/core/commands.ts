@@ -69,6 +69,6 @@ export function setupCommands(client: Client) {
       updates.push({ vx: vx + x, vy, vz, type: id });
     }
 
-    client.world.setServerVoxels(updates);
+    client.world.updateVoxels(updates);
   });
 }

@@ -1,6 +1,66 @@
 import { AABB } from "@voxelize/aabb";
 
-import { Coords3 } from "../types";
+import { Coords3 } from "../../types";
+
+export type Block = {
+  id: number;
+  name: string;
+  redLightLevel: number;
+  greenLightLevel: number;
+  blueLightLevel: number;
+  rotatable: boolean;
+  yRotatable: boolean;
+  isBlock: boolean;
+  isEmpty: boolean;
+  isFluid: boolean;
+  isLight: boolean;
+  isPlant: boolean;
+  isPlantable: boolean;
+  isOpaque: boolean;
+  isPxTransparent: boolean;
+  isNxTransparent: boolean;
+  isPyTransparent: boolean;
+  isNyTransparent: boolean;
+  isPzTransparent: boolean;
+  isNzTransparent: boolean;
+  transparentStandalone: boolean;
+  faces: {
+    corners: { pos: number[]; uv: [] }[];
+    dir: number[];
+    name: string;
+  }[];
+  aabbs: AABB[];
+};
+
+/**
+ * A block update to make on the server.
+ */
+export type BlockUpdate = {
+  /**
+   * The voxel x-coordinate.
+   */
+  vx: number;
+
+  /**
+   * The voxel y-coordinate.
+   */
+  vy: number;
+
+  /**
+   * The voxel z-coordinate.
+   */
+  vz: number;
+
+  /**
+   * The voxel type.
+   */
+  type: number;
+
+  /**
+   * The optional rotation of the updated block.
+   */
+  rotation?: BlockRotation;
+};
 
 const PY_ROTATION = 0;
 const NY_ROTATION = 1;
@@ -25,7 +85,7 @@ const PI_2 = Math.PI / 2.0;
  * 6 possible rotations: (px, nx, py, ny, pz, nz)
  * Default rotation is PY
  */
-class BlockRotation {
+export class BlockRotation {
   static PX = 0;
   static NX = 1;
   static PY = 2;
@@ -270,5 +330,3 @@ class BlockRotation {
     node[1] = y * cosTheta + x * sinTheta;
   };
 }
-
-export { BlockRotation };

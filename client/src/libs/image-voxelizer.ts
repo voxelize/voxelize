@@ -1,5 +1,6 @@
 import { Client } from "..";
-import { Coords3, BlockUpdate } from "../types";
+import { BlockUpdate } from "../core/world/block";
+import { Coords3 } from "../types";
 
 /**
  * Parameters to process an image voxelization.
@@ -71,7 +72,7 @@ class ImageVoxelizer {
 
     const updates = await ImageVoxelizer.process(file, fullParams, client);
 
-    client.world.setServerVoxels(updates);
+    client.world.updateVoxels(updates);
     client.chat.add({ type: "INFO", body: `Image voxelization done: ${file}` });
   };
 

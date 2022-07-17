@@ -2,7 +2,7 @@ use std::process;
 
 use log::{info, warn};
 use registry::setup_registry;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, NullStorage, ReadStorage, System,

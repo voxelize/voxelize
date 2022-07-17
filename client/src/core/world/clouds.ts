@@ -12,12 +12,12 @@ import {
 } from "three";
 import CloudWorker from "web-worker:./workers/clouds-worker.ts";
 
-import { Coords3 } from "../types";
+import { WorkerPool } from "../../libs/worker-pool";
+import { Coords3 } from "../../types";
 
 import { cull } from "./cull";
 import CloudsFragmentShader from "./shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "./shaders/clouds/vertex.glsl";
-import { WorkerPool } from "./worker-pool";
 
 type CloudsParams = {
   scale: number;
@@ -56,9 +56,10 @@ class Clouds {
   private zOffset = 0;
   private cloudGroup = new Group();
   private locatedCell = [0, 0];
+  private newPosition = new Vector3();
 
   private pool = new WorkerPool(CloudWorker, {
-    maxWorker: 6,
+    maxWorker: 2,
   });
 
   constructor(public params: CloudsParams) {
@@ -118,11 +119,10 @@ class Clouds {
   move = (delta: number, position: Vector3) => {
     if (!this.initialized) return;
 
-    const { lerpFactor, speedFactor, count, dimensions } = this.params;
+    const { speedFactor, count, dimensions } = this.params;
 
-    const newPosition = this.mesh.position.clone();
-    newPosition.z -= speedFactor * delta;
-    this.mesh.position.lerp(newPosition, lerpFactor);
+    this.newPosition = this.mesh.position.clone();
+    this.newPosition.z -= speedFactor * delta;
 
     const locatedCell = [
       Math.floor((position.x - this.mesh.position.x) / (count * dimensions[0])),
@@ -146,6 +146,10 @@ class Clouds {
 
       this.locatedCell = locatedCell;
     }
+  };
+
+  update = () => {
+    this.mesh.position.lerp(this.newPosition, this.params.lerpFactor);
   };
 
   get mesh() {

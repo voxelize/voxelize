@@ -101,17 +101,10 @@ class Debug {
       this.setupAll();
       this.mount();
 
-      client.rendering.scene.add(this.group);
+      client.world.add(this.group);
 
       if (!params.onByDefault) {
         this.toggle();
-      }
-    });
-
-    // wait till texture to be loaded
-    client.on("registry-loaded", () => {
-      if (client.permission.canDebug) {
-        this.makeAtlasTest();
       }
     });
   }
@@ -123,6 +116,10 @@ class Debug {
    */
   update = () => {
     this.onBeforeUpdate?.();
+
+    if (!this.group.visible) {
+      return;
+    }
 
     // loop through all data entries, and get their latest updated values
     for (const { ele, title, attribute, obj, formatter } of this.dataEntries) {
@@ -353,7 +350,9 @@ class Debug {
 
       const registryFolder = this.gui.addFolder({ title: "Registry" });
       registryFolder.addButton({ title: "atlas test" }).on("click", () => {
-        if (!this.atlasTest) return;
+        if (!this.atlasTest) {
+          this.makeAtlasTest();
+        }
         this.atlasTest.visible = !this.atlasTest.visible;
       });
 
@@ -413,7 +412,7 @@ class Debug {
     this.registerDisplay("Light", this, "light");
     this.registerDisplay("Chunk to request", world.chunks.toRequest, "length");
     this.registerDisplay("Chunk requested", world.chunks.requested, "size");
-    this.registerDisplay("Scene objects", rendering.scene.children, "length");
+    this.registerDisplay("Scene objects", world.children, "length");
     this.registerDisplay(
       "Textures in memory",
       rendering.renderer.info.memory,

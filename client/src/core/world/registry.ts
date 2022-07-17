@@ -1,7 +1,14 @@
 import { AABB } from "@voxelize/aabb";
 import { Color } from "three";
 
-import { Block, TextureRange } from "../../types";
+import { Block } from "./block";
+
+export type TextureRange = {
+  startU: number;
+  endU: number;
+  startV: number;
+  endV: number;
+};
 
 /**
  * Data passed to {@link applyTextureByName} or {@link applyTexturesByNames} to load a block texture.

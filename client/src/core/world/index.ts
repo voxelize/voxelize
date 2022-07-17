@@ -2,6 +2,7 @@ import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import {
   Color,
   DoubleSide,
+  Scene,
   ShaderLib,
   ShaderMaterial,
   Texture,
@@ -11,30 +12,27 @@ import {
 } from "three";
 
 import { Client } from "../..";
-import {
-  BlockRotation,
-  Sky,
-  Chunk,
-  Chunks,
-  ArtFunction,
-  BoxSides,
-  drawSun,
-  Clouds,
-  CloudsParams,
-  TextureAtlas,
-} from "../../libs";
-import {
-  Coords2,
-  Coords3,
-  PartialRecord,
-  BlockUpdate,
-  Block,
-  TextureRange,
-} from "../../types";
+import { ArtFunction, BoxSides } from "../../libs";
+import { Coords2, Coords3, PartialRecord } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 import { NetIntercept } from "../network";
 
-import { Registry, TextureData } from "./registry";
+import { TextureAtlas } from "./atlas";
+import { Block, BlockRotation, BlockUpdate } from "./block";
+import { Chunk } from "./chunk";
+import { Chunks } from "./chunks";
+import { Clouds, CloudsParams } from "./clouds";
+import { Registry, TextureData, TextureRange } from "./registry";
+import { drawSun, Sky } from "./sky";
+
+export * from "./atlas";
+export * from "./block";
+export * from "./chunk";
+export * from "./chunks";
+export * from "./clouds";
+export * from "./cull";
+export * from "./registry";
+export * from "./sky";
 
 export type SkyFace = ArtFunction | Color | string | null;
 
@@ -89,7 +87,7 @@ export type WorldParams = WorldClientParams & WorldServerParams;
 /**
  * @category Core
  */
-export class World implements NetIntercept {
+export class World extends Scene implements NetIntercept {
   // @ts-ignore
   public params: WorldParams = {};
 
@@ -171,7 +169,9 @@ export class World implements NetIntercept {
   public onAfterUpdate?: () => void;
 
   constructor(public client: Client, params: Partial<WorldClientParams> = {}) {
-    const { skyDimension, skyFaces, clouds } = (params = {
+    super();
+
+    const { skyDimension, skyFaces } = (params = {
       ...defaultParams,
       ...params,
     });
@@ -191,49 +191,6 @@ export class World implements NetIntercept {
     });
 
     this.sky = new Sky(skyDimension);
-
-    client.once("ready", () => {
-      const renderRadius = client.settings.getRenderRadius();
-      this.setFogDistance(renderRadius);
-
-      Object.entries(skyFaces).forEach(([side, skyFace]) => {
-        if (typeof skyFace === "string") {
-          const texture = client.loader.getTexture(skyFace);
-          if (texture) {
-            this.sky.box.paint(side as BoxSides, texture);
-          }
-        } else if (skyFace) {
-          this.sky.box.paint(side as BoxSides, skyFace);
-        }
-      });
-
-      client.rendering.scene.add(this.sky.mesh);
-
-      this.clouds = new Clouds({
-        alpha: 0.8,
-        color: "#fff",
-        count: 16,
-        scale: 0.08,
-        width: 8,
-        height: 3,
-        dimensions: [20, 20, 20],
-        speedFactor: 8,
-        lerpFactor: 0.3,
-        threshold: 0.05,
-        octaves: 5,
-        falloff: 0.9,
-        seed: -1,
-        ...(typeof clouds === "object" ? clouds : {}),
-        worldHeight: this.params.maxHeight,
-        uFogColor: this.sky.uMiddleColor,
-        uFogNear: this.uniforms.fogNear,
-        uFogFar: this.uniforms.fogFar,
-      });
-
-      this.clouds.initialize().then(() => {
-        client.rendering.scene.add(this.clouds.mesh);
-      });
-    });
   }
 
   onMessage = (
@@ -249,12 +206,11 @@ export class World implements NetIntercept {
           json: { blocks, ranges, params },
         } = message;
 
-        this.setParams(params);
         this.registry.load(blocks, ranges);
-        this.loadAtlas();
 
-        this.client.emit("ready");
-        this.client.ready = true;
+        this.setParams(params);
+        this.loadAtlas();
+        this.setupSkyCloud();
 
         return;
       }
@@ -294,7 +250,7 @@ export class World implements NetIntercept {
 
           updates.forEach((update) => {
             const { vx, vy, vz, voxel, light } = update;
-            const chunk = this.client.world.getChunkByVoxel(vx, vy, vz);
+            const chunk = this.getChunkByVoxel(vx, vy, vz);
 
             if (chunk) {
               chunk.setRawValue(vx, vy, vz, voxel || 0);
@@ -327,10 +283,8 @@ export class World implements NetIntercept {
   };
 
   reset = () => {
-    const { scene } = this.client.rendering;
-
     this.chunks.forEach((chunk) => {
-      chunk.removeFromScene(scene);
+      chunk.removeFromScene(this);
       chunk.dispose();
     });
     this.chunks.clear();
@@ -441,20 +395,30 @@ export class World implements NetIntercept {
     this.uniforms.fogFar.value = distance * chunkSize;
   };
 
+  updateVoxel = (
+    vx: number,
+    vy: number,
+    vz: number,
+    type: number,
+    rotation?: BlockRotation
+  ) => {
+    this.updateVoxels([{ vx, vy, vz, type, rotation }]);
+  };
+
+  updateVoxels = (updates: BlockUpdate[]) => {
+    this.chunks.toUpdate.push(
+      ...updates.filter(
+        (update) => update.vy >= 0 && update.vy < this.params.maxHeight
+      )
+    );
+  };
+
   getChunk = (cx: number, cz: number) => {
     return this.getChunkByName(ChunkUtils.getChunkName([cx, cz]));
   };
 
   getChunkByName = (name: string) => {
     return this.chunks.get(name);
-  };
-
-  handleServerChunk = (data: ChunkProtocol, urgent = false) => {
-    if (urgent) {
-      this.meshChunk(data);
-    } else {
-      this.chunks.toProcess.push(data);
-    }
   };
 
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
@@ -477,36 +441,11 @@ export class World implements NetIntercept {
     return this.getVoxelByVoxel(...voxel);
   };
 
-  setServerVoxel = (
-    vx: number,
-    vy: number,
-    vz: number,
-    type: number,
-    rotation?: BlockRotation
-  ) => {
-    this.setServerVoxels([{ vx, vy, vz, type, rotation }]);
-  };
-
-  setServerVoxels = (updates: BlockUpdate[]) => {
-    this.chunks.toUpdate.push(
-      ...updates.filter(
-        (update) => update.vy >= 0 && update.vy < this.params.maxHeight
-      )
-    );
-  };
-
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return new BlockRotation(0, 0);
     return chunk.getVoxelRotation(vx, vy, vz);
   };
-
-  setVoxelRotationByVoxel: (
-    vx: number,
-    vy: number,
-    vz: number,
-    rotation: number
-  ) => number;
 
   getVoxelStageByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
@@ -514,25 +453,11 @@ export class World implements NetIntercept {
     return chunk.getVoxelStage(vx, vy, vz);
   };
 
-  setVoxelStageByVoxel: (
-    vx: number,
-    vy: number,
-    vz: number,
-    stage: number
-  ) => number;
-
   getSunlightByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getSunlight(vx, vy, vz);
   };
-
-  setSunlightByVoxel: (
-    vx: number,
-    vy: number,
-    vz: number,
-    level: number
-  ) => void;
 
   getTorchLightByVoxel = (
     vx: number,
@@ -544,14 +469,6 @@ export class World implements NetIntercept {
     if (!chunk) return 0;
     return chunk.getTorchLight(vx, vy, vz, color);
   };
-
-  setTorchLightByVoxel: (
-    vx: number,
-    vy: number,
-    vz: number,
-    level: number,
-    color: LightColor
-  ) => void;
 
   getBlockByVoxel = (vx: number, vy: number, vz: number) => {
     const voxel = this.getVoxelByVoxel(vx, vy, vz);
@@ -591,101 +508,153 @@ export class World implements NetIntercept {
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
   };
 
-  update = (() => {
-    let count = 0;
+  update = () => {
+    this.onBeforeUpdate?.();
 
-    return () => {
-      this.onBeforeUpdate?.();
+    this.calculateCurrChunk();
 
-      count++;
+    const { tick } = this.client.clock;
+    if (tick % 2 === 0) {
+      this.surroundChunks();
+    } else if (tick % 3 === 0) {
+      this.meshChunks();
+    }
 
-      const { position } = this.client.controls;
-      const { chunkSize, maxUpdatesPerTick } = this.params;
+    this.addChunks();
+    this.requestChunks();
+    this.maintainChunks();
 
-      const coords = ChunkUtils.mapVoxelPosToChunkPos(
-        ChunkUtils.mapWorldPosToVoxelPos(position as Coords3),
-        chunkSize
+    this.updateSkyClouds();
+    this.emitServerUpdates();
+
+    this.onAfterUpdate?.();
+  };
+
+  private calculateCurrChunk = () => {
+    const { position } = this.client.controls;
+    const { chunkSize } = this.params;
+
+    const coords = ChunkUtils.mapVoxelPosToChunkPos(
+      ChunkUtils.mapWorldPosToVoxelPos(position as Coords3),
+      chunkSize
+    );
+
+    // check if player chunk changed.
+    if (
+      !this.chunks.currentChunk ||
+      this.chunks.currentChunk[0] !== coords[0] ||
+      this.chunks.currentChunk[1] !== coords[1]
+    ) {
+      this.chunks.currentChunk = coords;
+    }
+  };
+
+  private setupSkyCloud = () => {
+    // Avoid setting up twice.
+    if (this.clouds) return;
+
+    const { skyFaces, clouds } = this.params;
+
+    const renderRadius = this.client.settings.getRenderRadius();
+    this.setFogDistance(renderRadius);
+
+    Object.entries(skyFaces).forEach(([side, skyFace]) => {
+      if (typeof skyFace === "string") {
+        const texture = this.client.loader.getTexture(skyFace);
+        if (texture) {
+          this.sky.box.paint(side as BoxSides, texture);
+        }
+      } else if (skyFace) {
+        this.sky.box.paint(side as BoxSides, skyFace);
+      }
+    });
+
+    this.add(this.sky.mesh);
+
+    this.clouds = new Clouds({
+      alpha: 0.8,
+      color: "#fff",
+      count: 16,
+      scale: 0.08,
+      width: 8,
+      height: 3,
+      dimensions: [20, 20, 20],
+      speedFactor: 8,
+      lerpFactor: 0.3,
+      threshold: 0.05,
+      octaves: 5,
+      falloff: 0.9,
+      seed: -1,
+      ...(typeof clouds === "object" ? clouds : {}),
+      worldHeight: this.params.maxHeight,
+      uFogColor: this.sky.uMiddleColor,
+      uFogNear: this.uniforms.fogNear,
+      uFogFar: this.uniforms.fogFar,
+    });
+
+    this.clouds.initialize().then(() => {
+      this.add(this.clouds.mesh);
+    });
+  };
+
+  private updateSkyClouds = () => {
+    const [px, py, pz] = this.client.controls.position;
+    this.sky.mesh.position.set(px, py, pz);
+
+    if (this.clouds && this.clouds.initialized) {
+      this.clouds.move(
+        this.client.clock.delta,
+        this.client.controls.object.position
+      );
+    }
+
+    this.clouds.update();
+  };
+
+  private emitServerUpdates = () => {
+    // Update server voxels
+    if (this.chunks.toUpdate.length >= 0) {
+      const updates = this.chunks.toUpdate.splice(
+        0,
+        this.params.maxUpdatesPerTick
       );
 
-      // check if player chunk changed.
-      if (
-        !this.chunks.currentChunk ||
-        this.chunks.currentChunk[0] !== coords[0] ||
-        this.chunks.currentChunk[1] !== coords[1]
-      ) {
-        this.chunks.currentChunk = coords;
-      }
+      if (updates.length) {
+        this.client.network.send({
+          type: "UPDATE",
+          updates: updates.map((update) => {
+            const { type, vx, vy, vz } = update;
 
-      if (count % 2 === 0) {
-        this.surroundChunks();
-      } else if (count % 3 === 0) {
-        this.meshChunks();
-        count = 0;
-      }
+            const chunk = this.getChunkByVoxel(vx, vy, vz);
 
-      this.addChunks();
-      this.requestChunks();
-      this.maintainChunks();
-
-      this.chunks.forEach((chunk) => {
-        if (chunk.mesh && !chunk.mesh.isEmpty) {
-          chunk.mesh.visible = this.isChunkInView(...chunk.coords);
-        }
-      });
-
-      const [px, py, pz] = this.client.controls.position;
-      this.sky.mesh.position.set(px, py, pz);
-
-      if (this.clouds && this.clouds.initialized) {
-        this.clouds.move(
-          this.client.clock.delta,
-          this.client.controls.object.position
-        );
-      }
-
-      // Update server voxels
-      if (this.chunks.toUpdate.length >= 0) {
-        const updates = this.chunks.toUpdate.splice(0, maxUpdatesPerTick);
-
-        if (updates.length) {
-          this.client.network.send({
-            type: "UPDATE",
-            updates: updates.map((update) => {
-              const { type, vx, vy, vz } = update;
-
-              const chunk = this.getChunkByVoxel(vx, vy, vz);
-
-              if (chunk) {
-                this.blockCache.set(
-                  ChunkUtils.getVoxelName([vx, vy, vz]),
-                  chunk.getVoxel(vx, vy, vz)
-                );
-                chunk.setVoxel(vx, vy, vz, type);
-
-                if (update.rotation) {
-                  chunk.setVoxelRotation(vx, vy, vz, update.rotation);
-                }
-              }
-
-              let raw = 0;
-              raw = BlockUtils.insertId(raw, update.type);
+            if (chunk) {
+              this.blockCache.set(
+                ChunkUtils.getVoxelName([vx, vy, vz]),
+                chunk.getVoxel(vx, vy, vz)
+              );
+              chunk.setVoxel(vx, vy, vz, type);
 
               if (update.rotation) {
-                raw = BlockUtils.insertRotation(raw, update.rotation);
+                chunk.setVoxelRotation(vx, vy, vz, update.rotation);
               }
+            }
 
-              return {
-                ...update,
-                voxel: raw,
-              };
-            }),
-          });
-        }
+            let raw = 0;
+            raw = BlockUtils.insertId(raw, update.type);
+
+            if (update.rotation) {
+              raw = BlockUtils.insertRotation(raw, update.rotation);
+            }
+
+            return {
+              ...update,
+              voxel: raw,
+            };
+          }),
+        });
       }
-
-      this.onAfterUpdate?.();
-    };
-  })();
+    }
+  };
 
   private surroundChunks = () => {
     const [cx, cz] = this.chunks.currentChunk;
@@ -814,12 +783,13 @@ export class World implements NetIntercept {
     toAdd.forEach((name) => {
       const chunk = this.chunks.get(name);
       if (chunk) {
-        chunk.addToScene(this.client.rendering.scene);
+        chunk.addToScene(this);
       }
     });
   };
 
-  // if the chunk is too far away, remove from scene.
+  // If the chunk is too far away, remove from scene. If chunk is not in the view,
+  // make it invisible to the client.
   private maintainChunks = () => {
     const { chunkSize } = this.params;
     const renderRadius = this.client.settings.getRenderRadius();
@@ -832,7 +802,7 @@ export class World implements NetIntercept {
 
       if (dist > deleteDistance) {
         chunk.dispose();
-        chunk.removeFromScene(this.client.rendering.scene);
+        chunk.removeFromScene(this);
         this.chunks.delete(chunk.name);
         deleted.push(chunk.coords);
       }
@@ -846,6 +816,12 @@ export class World implements NetIntercept {
         },
       });
     }
+
+    this.chunks.forEach((chunk) => {
+      if (chunk.mesh && !chunk.mesh.isEmpty) {
+        chunk.mesh.visible = this.isChunkInView(...chunk.coords);
+      }
+    });
   };
 
   private loadAtlas = () => {
@@ -896,9 +872,14 @@ export class World implements NetIntercept {
       mat.alphaTest = 0.1;
       this.materials.transparent = mat;
     }
+  };
 
-    this.client.emit("registry-loaded");
-    this.client.loaded = true;
+  private handleServerChunk = (data: ChunkProtocol, urgent = false) => {
+    if (urgent) {
+      this.meshChunk(data);
+    } else {
+      this.chunks.toProcess.push(data);
+    }
   };
 
   private makeShaderMaterial = () => {

@@ -1,4 +1,4 @@
-class ChatHistory {
+export class ChatHistory {
   public messages: string[] = [];
   public cursor = -1;
 
@@ -41,5 +41,3 @@ class ChatHistory {
     this.cursor = -1;
   };
 }
-
-export { ChatHistory };

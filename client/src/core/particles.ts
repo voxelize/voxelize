@@ -261,7 +261,7 @@ class Particles {
 
     const points = new Points(geometry, material);
     points.renderOrder = TRANSPARENT_RENDER_ORDER;
-    this.client.rendering.scene.add(points);
+    this.client.world.add(points);
 
     const group = {
       mesh: points,
@@ -294,7 +294,7 @@ class Particles {
   };
 
   private removeGroup(group: ParticleGroup, animate = true) {
-    const { physics, rendering } = this.client;
+    const { physics, world } = this.client;
 
     const index = this.groups.indexOf(group);
     if (index > -1) {
@@ -312,11 +312,11 @@ class Particles {
         )
           .to({ value: 0 }, params.fadeTimeout)
           .onComplete(() => {
-            rendering.scene.remove(mesh);
+            world.remove(mesh);
           })
           .start();
       } else {
-        rendering.scene.remove(mesh);
+        world.remove(mesh);
       }
     }
   }

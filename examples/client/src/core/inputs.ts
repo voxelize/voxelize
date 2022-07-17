@@ -6,13 +6,11 @@ export function setupInputs(client: Client) {
     () => {
       if (!client.controls.lookBlock) return;
       const [vx, vy, vz] = client.controls.lookBlock;
-      client.world.setServerVoxel(vx, vy, vz, 0);
+      client.world.updateVoxel(vx, vy, vz, 0);
       client.sounds.make("plop")?.play();
     },
     "in-game"
   );
-
-  let hand = "Stone";
 
   client.inputs.click(
     "middle",
@@ -20,7 +18,7 @@ export function setupInputs(client: Client) {
       if (!client.controls.lookBlock) return;
       const [vx, vy, vz] = client.controls.lookBlock;
       const block = client.world.getBlockByVoxel(vx, vy, vz);
-      hand = block.name;
+      window.hand = block.name;
     },
     "in-game"
   );
@@ -28,7 +26,7 @@ export function setupInputs(client: Client) {
   client.inputs.click(
     "right",
     () => {
-      if (!hand) {
+      if (!window.hand) {
         return;
       }
 
@@ -41,7 +39,7 @@ export function setupInputs(client: Client) {
         yRotation,
       } = targetBlock;
 
-      const id = client.world.getBlockByName(hand).id;
+      const id = client.world.getBlockByName(window.hand).id;
 
       if (!client.world.canPlace(vx, vy, vz, id)) {
         return;
@@ -60,11 +58,11 @@ export function setupInputs(client: Client) {
 
       client.sounds.make("plop")?.play();
 
-      client.world.setServerVoxel(
+      client.world.updateVoxel(
         vx,
         vy,
         vz,
-        client.world.getBlockByName(hand).id,
+        client.world.getBlockByName(window.hand).id,
         rotation ? BlockRotation.encode(rotation, yRotation) : undefined
       );
     },

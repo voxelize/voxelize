@@ -32,6 +32,9 @@ export function setupClient(domElement: HTMLDivElement) {
       world: {
         textureDimension: 128,
       },
+      chat: {
+        align: "center",
+      },
     },
     {
       canChat: true,

@@ -1,6 +1,6 @@
-import { DOMUtils } from "../utils";
+import { DOMUtils } from "../../utils";
 
-type ChatMessageParams = {
+export type ChatMessageParams = {
   width?: `${number}${string}`;
   color?: string;
 };
@@ -9,7 +9,7 @@ const defaultParams: ChatMessageParams = {
   width: "40vw",
 };
 
-class ChatMessage {
+export class ChatMessage {
   public wrapper = document.createElement("li");
   public sender = document.createElement("p");
   public body = document.createElement("p");
@@ -38,6 +38,12 @@ class ChatMessage {
       fontSize: "14px",
       color: "white",
     });
+
+    if (this.sender) {
+      DOMUtils.applyStyles(this.body, {
+        marginLeft: "8px",
+      });
+    }
 
     DOMUtils.applyStyles(this.sender, {
       width: "fit-content",
@@ -84,5 +90,3 @@ class ChatMessage {
     this.wrapper.appendChild(this.body);
   }
 }
-
-export { ChatMessage };

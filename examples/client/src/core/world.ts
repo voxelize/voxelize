@@ -28,6 +28,7 @@ import OakPlanksImage from "../assets/own/oak_planks.png";
 import LolImage from "../assets/lol.jpeg";
 import ChoGeImage from "../assets/lol.png";
 import GlassImage from "../assets/own/glass.png";
+import TechnoImage from "../assets/techno.png";
 
 import { Client } from "@voxelize/client";
 import { Color } from "three";
@@ -84,5 +85,7 @@ export function setupWorld(client: Client) {
       sides: all.map((name) => "top-" + name + "-"),
       data: new Color("#E4DCCF"),
     },
+    { name: "Biggie", sides: all, data: new Color("#2C3639") },
+    { name: "Biggie", sides: ["pz"], data: TechnoImage },
   ]);
 }

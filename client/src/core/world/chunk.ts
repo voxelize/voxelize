@@ -9,11 +9,11 @@ import {
   Scene,
 } from "three";
 
-import { OPAQUE_RENDER_ORDER, TRANSPARENT_RENDER_ORDER } from "../common";
-import { Coords2, Coords3 } from "../types";
-import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../utils";
+import { OPAQUE_RENDER_ORDER, TRANSPARENT_RENDER_ORDER } from "../../common";
+import { Coords2, Coords3 } from "../../types";
+import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../../utils";
 
-import { BlockRotation } from "./block-rotation";
+import { BlockRotation } from "./block";
 
 type ChunkParams = {
   size: number;

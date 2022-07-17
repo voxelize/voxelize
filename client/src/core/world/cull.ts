@@ -1,9 +1,8 @@
 import { NdArray } from "ndarray";
 import CullWorker from "web-worker:./workers/cull-worker.ts";
 
-import { Coords3 } from "../types";
-
-import { WorkerPool } from "./worker-pool";
+import { WorkerPool } from "../../libs/worker-pool";
+import { Coords3 } from "../../types";
 
 export type MeshResultType = {
   positions: Float32Array;
@@ -20,7 +19,7 @@ export type CullOptionsType = {
 };
 
 const cullPool = new WorkerPool(CullWorker, {
-  maxWorker: 6,
+  maxWorker: 2,
 });
 
 async function cull(

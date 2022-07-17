@@ -14,7 +14,7 @@ type ClickType = "left" | "middle" | "right";
  * - `menu`: Keys registered otherwise will be fired.
  * - `*`: Keys will be fired no matter what.
  */
-type InputNamespace = "in-game" | "chat" | "inventory" | "menu" | "*";
+type InputNamespace = "in-game" | "chat" | "inventory" | "menu" | "*" | string;
 
 /**
  * The occasion that the input should be fired.
@@ -64,6 +64,13 @@ class Inputs {
 
   private unbinds = new Map<string, () => void>();
   private mouseUnbinds: (() => void)[] = [];
+  private knownNamespaces: Set<InputNamespace> = new Set([
+    "in-game",
+    "chat",
+    "inventory",
+    "menu",
+    "*",
+  ]);
 
   /**
    * Construct a Voxelize inputs instance.
@@ -170,16 +177,18 @@ class Inputs {
     });
   };
 
+  addNamespace = (namespace: InputNamespace) => {
+    this.knownNamespaces.add(namespace);
+  };
+
   /**
    * Set the namespace of the inputs instance, also checks if the namespace is valid.
    *
    * @param namespace - The namespace to set to.
    */
   setNamespace = (namespace: InputNamespace) => {
-    if (!["*", "in-game", "chat", "menu"].includes(namespace)) {
-      throw new Error(
-        `Set namespace to unknown namespace: ${namespace}. Known namespaces are: chat, in-game, menu, *.`
-      );
+    if (!this.knownNamespaces.has(namespace)) {
+      throw new Error(`Set namespace to unknown namespace: ${namespace}.`);
     }
 
     this.namespace = namespace;

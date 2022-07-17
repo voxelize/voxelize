@@ -14,7 +14,6 @@ import {
 } from "three";
 
 import { Client } from "..";
-import { BlockRotation } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -233,6 +232,11 @@ type ControlsParams = {
   sprintFactor: number;
 
   /**
+   * Sprint factor would be on always.
+   */
+  alwaysSprint: boolean;
+
+  /**
    * The factor applied to the movements of the client in air, such as while half-jump. Defaults to `0.7`.
    */
   airMoveMult: number;
@@ -287,6 +291,7 @@ const defaultParams: ControlsParams = {
   flyInertia: 6,
 
   sprintFactor: 1.4,
+  alwaysSprint: false,
   airMoveMult: 0.7,
   jumpImpulse: 8,
   jumpForce: 1,
@@ -421,7 +426,7 @@ class Controls extends EventDispatcher {
     });
 
     this.object.add(client.camera.threeCamera);
-    client.rendering.scene.add(this.object);
+    client.world.add(this.object);
 
     client.on("initialized", () => {
       this.setupListeners();
@@ -774,7 +779,7 @@ class Controls extends EventDispatcher {
 
   private setupLookBlock = () => {
     const { lookBlockScale, lookBlockColor } = this.params;
-    const { rendering } = this.client;
+    const { world } = this.client;
 
     this.lookBlockMesh = new Group();
 
@@ -832,7 +837,7 @@ class Controls extends EventDispatcher {
     this.lookBlockMesh.frustumCulled = false;
     this.lookBlockMesh.renderOrder = 1000000;
 
-    rendering.scene.add(this.lookBlockMesh);
+    world.add(this.lookBlockMesh);
   };
 
   private setupListeners = () => {
@@ -1044,7 +1049,7 @@ class Controls extends EventDispatcher {
     state.crouching = down;
 
     // apply sprint state change
-    state.sprinting = sprint;
+    state.sprinting = this.params.alwaysSprint ? true : sprint;
 
     // means landed, no more fly
     if (!this.ghostMode) {
