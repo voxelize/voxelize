@@ -34,8 +34,6 @@ class Events extends Map<string, EventHandler> implements NetIntercept {
    */
   public client: Client;
 
-  public packets: MessageProtocol[] = [];
-
   constructor(client: Client) {
     super();
 
