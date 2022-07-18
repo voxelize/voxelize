@@ -182,6 +182,18 @@ class Network extends EventEmitter {
     });
   };
 
+  flush = () => {
+    this.intercepts.forEach((intercept) => {
+      if (intercept.packets) {
+        intercept.packets
+          .splice(0, intercept.packets.length)
+          .forEach((packet) => {
+            this.send(packet);
+          });
+      }
+    });
+  };
+
   cover = (intercept: NetIntercept) => {
     if (typeof intercept.onMessage !== "function") {
       throw new Error(

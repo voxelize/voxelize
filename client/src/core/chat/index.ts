@@ -175,6 +175,8 @@ export class Chat implements NetIntercept {
     input: HTMLInputElement;
   };
 
+  public packets: MessageProtocol[] = [];
+
   private disappearTimer: any;
   private commands: Map<string, CommandProcessor> = new Map();
 

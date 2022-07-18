@@ -12,11 +12,11 @@ import {
   Vector4,
 } from "three";
 
-import { Client } from "../..";
 import { ArtFunction, BoxSides } from "../../libs";
 import { Coords2, Coords3, PartialRecord } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
-import { NetIntercept } from "../network";
+import { Loader } from "../loader";
+import { NetIntercept, Network } from "../network";
 
 import { TextureAtlas } from "./atlas";
 import { Block, BlockRotation, BlockUpdate } from "./block";
@@ -53,6 +53,7 @@ export type WorldClientParams = {
   maxAddsPerTick: number;
   skyFaces: PartialRecord<BoxSides, SkyFace>;
   clouds: Partial<CloudsParams> | boolean;
+  defaultRenderRadius: number;
   textureDimension: number;
 };
 
@@ -80,6 +81,7 @@ const defaultParams: WorldClientParams = {
   maxAddsPerTick: 2,
   skyFaces: { top: drawSun },
   clouds: true,
+  defaultRenderRadius: 8,
   textureDimension: 8,
 };
 
@@ -171,10 +173,16 @@ export class World extends Scene implements NetIntercept {
    */
   public onAfterUpdate?: () => void;
 
-  constructor(public client: Client, params: Partial<WorldClientParams> = {}) {
+  public packets: MessageProtocol[] = [];
+
+  private _renderRadius = 8;
+
+  private callTick = 0;
+
+  constructor(public loader: Loader, params: Partial<WorldClientParams> = {}) {
     super();
 
-    const { skyDimension, skyFaces } = (params = {
+    const { skyDimension, skyFaces, defaultRenderRadius } = (params = {
       ...defaultParams,
       ...params,
     });
@@ -189,11 +197,12 @@ export class World extends Scene implements NetIntercept {
 
     Object.values(skyFaces).forEach((skyFace) => {
       if (typeof skyFace === "string") {
-        client.loader.addTexture(skyFace);
+        loader.addTexture(skyFace);
       }
     });
 
     this.sky = new Sky(skyDimension);
+    this.renderRadius = defaultRenderRadius;
   }
 
   onMessage = (
@@ -233,27 +242,6 @@ export class World extends Scene implements NetIntercept {
         const { updates, chunks } = message;
 
         if (updates && updates.length) {
-          const particleUpdates = updates
-            .filter(({ voxel }) => {
-              return voxel === 0;
-            })
-            .map(({ vx, vy, vz }) => {
-              const name = ChunkUtils.getVoxelName([vx, vy, vz]);
-              let original = this.blockCache.get(name);
-
-              if (original === undefined)
-                original = this.getVoxelByVoxel(vx, vy, vz);
-
-              const result = {
-                voxel: [vx, vy, vz] as Coords3,
-                type: original,
-              };
-
-              this.blockCache.delete(name);
-
-              return result;
-            });
-
           updates.forEach((update) => {
             const { vx, vy, vz, voxel, light } = update;
             const chunk = this.getChunkByVoxel(vx, vy, vz);
@@ -263,16 +251,6 @@ export class World extends Scene implements NetIntercept {
               chunk.setRawLight(vx, vy, vz, light || 0);
             }
           });
-
-          this.client.particles.addBreakParticles(particleUpdates, {
-            count: particleUpdates.length > 3 ? 10 : 24,
-          });
-
-          if (updates && updates.length) {
-            this.client.particles.addBreakParticles(particleUpdates, {
-              count: particleUpdates.length > 3 ? 10 : 24,
-            });
-          }
         }
 
         if (chunks && chunks.length) {
@@ -328,7 +306,7 @@ export class World extends Scene implements NetIntercept {
 
     // Offload texture loading to the loader for the loading screen
     if (typeof data === "string") {
-      this.client.loader.addTexture(data);
+      this.loader.addTexture(data);
     }
 
     this.registry.applyTextureByName(texture);
@@ -489,17 +467,15 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
-  isChunkInView = (cx: number, cz: number) => {
-    const [pcx, pcz] = this.client.controls.chunk;
+  isChunkInView = (cx: number, cz: number, dx: number, dz: number) => {
+    const [pcx, pcz] = this.chunks.currentChunk;
 
     if ((pcx - cx) ** 2 + (pcz - cz) ** 2 <= this.params.inViewRadius ** 2) {
       return true;
     }
 
-    const { x, z } = this.client.controls.getDirection();
-
     const vec1 = new Vector3(cz - pcz, cx - pcx, 0);
-    const vec2 = new Vector3(z, x, 0);
+    const vec2 = new Vector3(dz, dx, 0);
     const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
 
     return Math.abs(angle) < (Math.PI * 3) / 5;
@@ -511,32 +487,38 @@ export class World extends Scene implements NetIntercept {
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
   };
 
-  update = (delta: number) => {
-    this.onBeforeUpdate?.();
+  update = (center: Coords3, direction: Coords2, delta: number) => {
+    this.calculateCurrChunk(center);
 
-    this.calculateCurrChunk();
-
-    const { tick } = this.client.clock;
-    if (tick % 2 === 0) {
-      this.surroundChunks();
-    } else if (tick % 3 === 0) {
+    if (this.callTick % 2 === 0) {
+      this.surroundChunks(direction);
+    } else if (this.callTick % 3 === 0) {
       this.meshChunks();
     }
 
     this.addChunks();
     this.requestChunks();
-    this.maintainChunks();
 
-    this.updateSkyClouds();
+    this.maintainChunks(center, direction);
+
+    this.updateSkyClouds(center, delta);
     this.emitServerUpdates();
 
     this.updatePhysics(delta);
 
-    this.onAfterUpdate?.();
+    this.callTick++;
   };
 
-  private calculateCurrChunk = () => {
-    const { position } = this.client.controls;
+  get renderRadius() {
+    return this._renderRadius;
+  }
+
+  set renderRadius(radius: number) {
+    this._renderRadius = radius;
+    this.setFogDistance(radius);
+  }
+
+  private calculateCurrChunk = (position: Coords3) => {
     const { chunkSize } = this.params;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
@@ -560,12 +542,11 @@ export class World extends Scene implements NetIntercept {
 
     const { skyFaces, clouds } = this.params;
 
-    const renderRadius = this.client.settings.getRenderRadius();
-    this.setFogDistance(renderRadius);
+    this.setFogDistance(this.renderRadius);
 
     Object.entries(skyFaces).forEach(([side, skyFace]) => {
       if (typeof skyFace === "string") {
-        const texture = this.client.loader.getTexture(skyFace);
+        const texture = this.loader.getTexture(skyFace);
         if (texture) {
           this.sky.box.paint(side as BoxSides, texture);
         }
@@ -602,15 +583,12 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
-  private updateSkyClouds = () => {
-    const [px, py, pz] = this.client.controls.position;
+  private updateSkyClouds = (position: Coords3, delta: number) => {
+    const [px, py, pz] = position;
     this.sky.mesh.position.set(px, py, pz);
 
     if (this.clouds && this.clouds.initialized) {
-      this.clouds.move(
-        this.client.clock.delta,
-        this.client.controls.object.position
-      );
+      this.clouds.move(delta, new Vector3(...position));
     }
 
     this.clouds.update();
@@ -625,7 +603,7 @@ export class World extends Scene implements NetIntercept {
       );
 
       if (updates.length) {
-        this.client.network.send({
+        this.packets.push({
           type: "UPDATE",
           updates: updates.map((update) => {
             const { type, vx, vy, vz } = update;
@@ -661,20 +639,19 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
-  private surroundChunks = () => {
+  private surroundChunks = (direction: Coords2) => {
     const [cx, cz] = this.chunks.currentChunk;
-    const renderRadius = this.client.settings.getRenderRadius();
 
     (() => {
       const now = performance.now();
-      for (let x = -renderRadius; x <= renderRadius; x++) {
-        for (let z = -renderRadius; z <= renderRadius; z++) {
+      for (let x = -this.renderRadius; x <= this.renderRadius; x++) {
+        for (let z = -this.renderRadius; z <= this.renderRadius; z++) {
           // Stop process if it's taking too long.
           if (performance.now() - now >= 1.5) {
             return;
           }
 
-          if (x ** 2 + z ** 2 >= renderRadius ** 2) continue;
+          if (x ** 2 + z ** 2 >= this.renderRadius ** 2) continue;
 
           if (!this.isWithinWorld(cx + x, cz + z)) {
             continue;
@@ -686,7 +663,7 @@ export class World extends Scene implements NetIntercept {
             continue;
           }
 
-          if (!this.isChunkInView(cx + x, cz + z)) {
+          if (!this.isChunkInView(cx + x, cz + z, ...direction)) {
             continue;
           }
 
@@ -715,8 +692,8 @@ export class World extends Scene implements NetIntercept {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
       const [cx2, cz2] = ChunkUtils.parseChunkName(b);
 
-      if (!this.isChunkInView(cx1, cz1)) return -1;
-      if (!this.isChunkInView(cx2, cz2)) return 1;
+      if (!this.isChunkInView(cx1, cz1, ...direction)) return -1;
+      if (!this.isChunkInView(cx2, cz2, ...direction)) return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -727,8 +704,8 @@ export class World extends Scene implements NetIntercept {
       const { x: cx1, z: cz1 } = a;
       const { x: cx2, z: cz2 } = b;
 
-      if (!this.isChunkInView(cx1, cz1)) return -1;
-      if (!this.isChunkInView(cx2, cz2)) return 1;
+      if (!this.isChunkInView(cx1, cz1, ...direction)) return -1;
+      if (!this.isChunkInView(cx2, cz2, ...direction)) return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -788,7 +765,7 @@ export class World extends Scene implements NetIntercept {
 
     toRequest.forEach((name) => this.chunks.requested.add(name));
 
-    this.client.network.send({
+    this.packets.push({
       type: "LOAD",
       json: {
         chunks: toRequest.map((name) => ChunkUtils.parseChunkName(name)),
@@ -839,15 +816,14 @@ export class World extends Scene implements NetIntercept {
 
   // If the chunk is too far away, remove from scene. If chunk is not in the view,
   // make it invisible to the client.
-  private maintainChunks = () => {
+  private maintainChunks = (position: Coords3, direction: Coords2) => {
     const { chunkSize } = this.params;
-    const renderRadius = this.client.settings.getRenderRadius();
 
-    const deleteDistance = renderRadius * chunkSize * 1.414;
+    const deleteDistance = this.renderRadius * chunkSize * 1.414;
     const deleted: Coords2[] = [];
 
     for (const chunk of this.chunks.values()) {
-      const dist = chunk.distTo(...this.client.controls.voxel);
+      const dist = chunk.distTo(...position);
 
       if (dist > deleteDistance) {
         chunk.dispose();
@@ -858,7 +834,7 @@ export class World extends Scene implements NetIntercept {
     }
 
     if (deleted.length) {
-      this.client.network.send({
+      this.packets.push({
         type: "UNLOAD",
         json: {
           chunks: deleted,
@@ -868,7 +844,7 @@ export class World extends Scene implements NetIntercept {
 
     this.chunks.forEach((chunk) => {
       if (chunk.mesh && !chunk.mesh.isEmpty) {
-        chunk.mesh.visible = this.isChunkInView(...chunk.coords);
+        chunk.mesh.visible = this.isChunkInView(...chunk.coords, ...direction);
       }
     });
   };
@@ -895,7 +871,7 @@ export class World extends Scene implements NetIntercept {
     Array.from(sources.entries()).forEach(([sideName, source]) => {
       textures.set(
         sideName,
-        source instanceof Color ? source : this.client.loader.getTexture(source)
+        source instanceof Color ? source : this.loader.getTexture(source)
       );
     });
 
