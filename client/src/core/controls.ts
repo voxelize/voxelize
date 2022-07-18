@@ -604,7 +604,6 @@ class Controls extends EventEmitter {
    * @param callback - Callback to be run once done.
    */
   lock = (container: Container, callback?: () => void) => {
-    console.log("hello");
     container.domElement.requestPointerLock();
 
     if (callback) {
@@ -1377,13 +1376,11 @@ class Controls extends EventEmitter {
   };
 
   private onLock = (inputs: Inputs) => {
-    console.log("lock");
     this.emit("lock");
     inputs.setNamespace("in-game");
   };
 
   private onUnlock = (inputs: Inputs) => {
-    console.log("unlock");
     this.emit("unlock");
     inputs.setNamespace("menu");
   };
