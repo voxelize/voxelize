@@ -435,7 +435,7 @@ class Controls extends EventDispatcher {
     client.on("ready", () => {
       this.setupLookBlock();
 
-      this.body = client.physics.addBody({
+      this.body = client.world.physics.addBody({
         aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
         onStep: (newAABB) => {
           const { positionLerp, jumpImpulse } = this.params;

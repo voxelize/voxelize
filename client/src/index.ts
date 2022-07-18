@@ -21,7 +21,6 @@ import {
   Particles,
   Peers,
   Permission,
-  Physics,
   Rendering,
   RenderingParams,
   Settings,
@@ -62,7 +61,6 @@ class Client extends EventEmitter {
   public peers: Peers<any>;
   public entities: Entities<any>;
   public settings: Settings;
-  public physics: Physics;
   public particles: Particles;
   public events: Events;
   public sounds: Sounds;
@@ -103,7 +101,6 @@ class Client extends EventEmitter {
     this.inputs = new Inputs(this);
     this.clock = new Clock(this);
     this.settings = new Settings(this);
-    this.physics = new Physics(this);
     this.particles = new Particles(this);
     this.events = new Events(this);
     this.sounds = new Sounds(this);
@@ -258,15 +255,16 @@ class Client extends EventEmitter {
 
     TWEEN.update();
 
+    const delta = this.clock.delta;
+
     this.camera.update();
     this.controls.update();
-    this.world.update();
+    this.world.update(delta);
     this.ecs.update();
     this.clock.update();
     this.peers.update();
     this.debug.update();
     this.particles.update();
-    this.physics.update();
 
     this.rendering.render();
   };

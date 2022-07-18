@@ -12,7 +12,6 @@ export * from "./entities";
 export * from "./world/registry";
 export * from "./comps";
 export * from "./settings";
-export * from "./physics";
 export * from "./particles";
 export * from "./chat";
 export * from "./loader";

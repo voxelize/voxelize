@@ -326,7 +326,6 @@ class Debug {
       controls,
       world,
       rendering,
-      physics,
       settings,
       permission,
       entities,
@@ -423,7 +422,7 @@ class Debug {
       rendering.renderer.info.memory,
       "geometries"
     );
-    this.registerDisplay("Rigid body count", physics.bodies, "length");
+    // this.registerDisplay("Rigid body count", physics.bodies, "length");
     this.registerDisplay("Entity count", entities, "size");
     this.registerDisplay(
       "Working network workers",
