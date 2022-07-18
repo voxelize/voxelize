@@ -92,7 +92,7 @@ class Client extends EventEmitter {
     this.debug = new Debug(this, debug);
     this.container = new Container(this, container);
     this.rendering = new Rendering(this, rendering);
-    this.world = new World(this, world);
+    this.world = new World(this.loader, world);
     this.camera = new Camera(this, camera);
     this.peers = new Peers(this);
     this.entities = new Entities(this);
@@ -259,12 +259,18 @@ class Client extends EventEmitter {
 
     this.camera.update();
     this.controls.update();
-    this.world.update(delta);
+
+    const { x, z } = this.controls.getDirection();
+
+    this.world.update(this.controls.position, [x, z], delta);
+
     this.ecs.update();
     this.clock.update();
     this.peers.update();
     this.debug.update();
     this.particles.update();
+
+    this.network.flush();
 
     this.rendering.render();
   };

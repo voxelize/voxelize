@@ -15,6 +15,8 @@ class Entities<T> implements NetIntercept {
    */
   public client: Client;
 
+  public packets: MessageProtocol<any, any, T>[] = [];
+
   /**
    * Construct a Voxelize entities map.
    *

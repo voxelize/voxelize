@@ -41,8 +41,8 @@ export type UpdateProtocol = {
   vx: number;
   vy: number;
   vz: number;
-  voxel: number;
-  light: number;
+  voxel?: number;
+  light?: number;
 };
 
 export type ChatProtocol = {
