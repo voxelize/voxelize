@@ -1,6 +1,7 @@
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
+import { MessageProtocol } from "@voxelize/transport/src/types";
 import {
   Euler,
   EventDispatcher,
@@ -16,6 +17,9 @@ import {
 import { Client } from "..";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
+
+import { Camera } from "./camera";
+import { World } from "./world";
 
 const _changeEvent = { type: "change" };
 const _lockEvent = { type: "lock" };
@@ -314,9 +318,14 @@ const defaultParams: ControlsParams = {
  */
 class Controls extends EventDispatcher {
   /**
-   * Reference linking back to the Voxelize client instance.
+   * Reference linking back to the Voxelize camera instance.
    */
-  public client: Client;
+  public camera: Camera;
+
+  /**
+   * Reference linking back to the Voxelize world instance.
+   */
+  public world: World;
 
   /**
    * Parameters to initialize the Voxelize controls.
@@ -414,10 +423,15 @@ class Controls extends EventDispatcher {
    *
    * @hidden
    */
-  constructor(client: Client, options: Partial<ControlsParams> = {}) {
+  constructor(
+    camera: Camera,
+    world: World,
+    options: Partial<ControlsParams> = {}
+  ) {
     super();
 
-    this.client = client;
+    this.camera = camera;
+    this.world = world;
     this.state = defaultControlState;
 
     const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
@@ -425,44 +439,64 @@ class Controls extends EventDispatcher {
       ...options,
     });
 
-    this.object.add(client.camera);
-    client.world.add(this.object);
+    this.object.add(this.camera);
+    this.world.add(this.object);
+  }
 
+  onMessage = (message: MessageProtocol<any, any, any>) => {
+    switch (message.type) {
+      case "INIT": {
+        this.setupListeners();
+
+        return;
+      }
+      case "READY": {
+        this.setupLookBlock();
+
+        this.body = client.physics.addBody({
+          aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
+          onStep: (newAABB) => {
+            const { positionLerp, jumpImpulse } = this.params;
+
+            const blockHeight = newAABB.minY - this.body.aabb.minY;
+            if (blockHeight >= 1) {
+              this.body.applyImpulse([0, jumpImpulse * blockHeight * 0.5, 0]);
+            }
+
+            this.params.positionLerp = 0.6;
+            this.body.aabb = newAABB.clone();
+
+            const stepInterval = setInterval(() => {
+              this.params.positionLerp = positionLerp;
+              clearInterval(stepInterval);
+            }, 500);
+          },
+          stepHeight: 0.5,
+        });
+
+        this.setPosition(...this.params.initialPosition);
+
+        return;
+      }
+    }
+  };
+
+  /**
+   * Set up event listeners
+   *
+   * @hidden
+   */
+  setUpEventListeners = () => {
     client.on("initialized", () => {
       this.setupListeners();
     });
 
-    client.on("ready", () => {
-      this.setupLookBlock();
-
-      this.body = client.physics.addBody({
-        aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
-        onStep: (newAABB) => {
-          const { positionLerp, jumpImpulse } = this.params;
-
-          const blockHeight = newAABB.minY - this.body.aabb.minY;
-          if (blockHeight >= 1) {
-            this.body.applyImpulse([0, jumpImpulse * blockHeight * 0.5, 0]);
-          }
-
-          this.params.positionLerp = 0.6;
-          this.body.aabb = newAABB.clone();
-
-          const stepInterval = setInterval(() => {
-            this.params.positionLerp = positionLerp;
-            clearInterval(stepInterval);
-          }, 500);
-        },
-        stepHeight: 0.5,
-      });
-
-      this.setPosition(...this.params.initialPosition);
-    });
+    client.on("ready", () => {});
 
     client.on("chat-enabled", () => {
       this.resetMovements();
     });
-  }
+  };
 
   /**
    * Update for the camera of the game.
