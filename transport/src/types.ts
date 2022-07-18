@@ -54,6 +54,7 @@ export type ChatProtocol = {
 export type MessageProtocol<T = any, Peer = any, Entity = any, Event = any> = {
   type:
     | "INIT"
+    | "READY"
     | "JOIN"
     | "LEAVE"
     | "ERROR"
@@ -66,14 +67,14 @@ export type MessageProtocol<T = any, Peer = any, Entity = any, Event = any> = {
     | "CHAT"
     | "TRANSPORT"
     | "EVENT";
-  json: T;
-  text: string;
+  json?: T;
+  text?: string;
 
-  chat: ChatProtocol;
+  chat?: ChatProtocol;
 
-  peers: PeerProtocol<Peer>[];
-  entities: EntityProtocol<Entity>[];
-  chunks: ChunkProtocol[];
-  events: EventProtocol<Event>[];
-  updates: UpdateProtocol[];
+  peers?: PeerProtocol<Peer>[];
+  entities?: EntityProtocol<Entity>[];
+  chunks?: ChunkProtocol[];
+  events?: EventProtocol<Event>[];
+  updates?: UpdateProtocol[];
 };
