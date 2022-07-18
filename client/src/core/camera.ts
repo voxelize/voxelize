@@ -66,7 +66,7 @@ const defaultParams: CameraParams = {
  *
  * @category Core
  */
-class Camera {
+class Camera extends PerspectiveCamera {
   /**
    * Reference linking back to the Voxelize client instance.
    */
@@ -76,11 +76,6 @@ class Camera {
    * Parameters to initialize the Voxelize camera.
    */
   public params: CameraParams;
-
-  /**
-   * The inner ThreeJS perspective camera instance.
-   */
-  public threeCamera: PerspectiveCamera;
 
   /**
    * An audio listener attached to the camera to play music.
@@ -106,6 +101,13 @@ class Camera {
    * @hidden
    */
   constructor(client: Client, params: Partial<CameraParams> = {}) {
+    super(
+      params.fov || defaultParams.fov,
+      client.rendering.aspectRatio,
+      params.near || defaultParams.near,
+      params.far || defaultParams.far
+    );
+
     this.client = client;
 
     const { fov, near, far } = (this.params = {
@@ -116,24 +118,16 @@ class Camera {
     this.newFOV = fov;
     this.newZoom = 1;
 
-    // three.js camera
-    this.threeCamera = new PerspectiveCamera(
-      fov,
-      this.client.rendering.aspectRatio,
-      near,
-      far
-    );
-
     // initialize camera position
-    this.threeCamera.lookAt(new Vector3(0, 0, 0));
+    this.lookAt(new Vector3(0, 0, 0));
 
     // listen to resize, and adjust accordingly
     // ? should move to it's own logic for all event listeners?
     window.addEventListener("resize", () => {
       client.rendering.adjustRenderer();
 
-      this.threeCamera.aspect = client.rendering.aspectRatio;
-      this.threeCamera.updateProjectionMatrix();
+      this.aspect = client.rendering.aspectRatio;
+      this.updateProjectionMatrix();
     });
 
     client.on("initialized", () => {
@@ -187,26 +181,22 @@ class Camera {
   update = () => {
     this.onBeforeUpdate?.();
 
-    if (this.newFOV !== this.threeCamera.fov) {
-      this.threeCamera.fov = MathUtils.lerp(
-        this.threeCamera.fov,
-        this.newFOV,
-        this.params.lerpFactor
-      );
-      this.threeCamera.updateProjectionMatrix();
+    if (this.newFOV !== this.fov) {
+      this.fov = MathUtils.lerp(this.fov, this.newFOV, this.params.lerpFactor);
+      this.updateProjectionMatrix();
     }
 
-    if (this.newZoom !== this.threeCamera.zoom) {
-      this.threeCamera.zoom = MathUtils.lerp(
-        this.threeCamera.zoom,
+    if (this.newZoom !== this.zoom) {
+      this.zoom = MathUtils.lerp(
+        this.zoom,
         this.newZoom,
         this.params.lerpFactor
       );
-      this.threeCamera.updateProjectionMatrix();
+      this.updateProjectionMatrix();
     }
 
-    this.threeCamera.updateMatrix();
-    this.threeCamera.updateMatrixWorld();
+    this.updateMatrix();
+    this.updateMatrixWorld();
 
     this.onAfterUpdate?.();
   };
@@ -224,7 +214,7 @@ class Camera {
     this.listener = new AudioListener();
 
     // add the audio listener to the camera
-    this.threeCamera.add(this.listener);
+    this.add(this.listener);
 
     // Load all audios
     this.client.loader.loadAudios();

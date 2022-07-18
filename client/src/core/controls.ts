@@ -425,7 +425,7 @@ class Controls extends EventDispatcher {
       ...options,
     });
 
-    this.object.add(client.camera.threeCamera);
+    this.object.add(client.camera);
     client.world.add(this.object);
 
     client.on("initialized", () => {
@@ -900,7 +900,7 @@ class Controls extends EventDispatcher {
 
     const camDir = new Vector3();
     const camPos = this.object.position;
-    camera.threeCamera.getWorldDirection(camDir);
+    camera.getWorldDirection(camDir);
     camDir.normalize();
 
     const result = raycast(

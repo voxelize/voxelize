@@ -84,7 +84,7 @@ class Rendering {
     this.composer = new EffectComposer(this.renderer);
 
     client.on("initialized", () => {
-      const camera = client.camera.threeCamera;
+      const camera = client.camera;
 
       this.composer.addPass(new RenderPass(this.client.world, camera));
       this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
