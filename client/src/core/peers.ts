@@ -17,8 +17,6 @@ class Peers<T> implements NetIntercept {
    */
   public client: Client;
 
-  public packets: MessageProtocol<any, T>[] = [];
-
   /**
    * Initialize a Peers manager for Voxelize.
    *
