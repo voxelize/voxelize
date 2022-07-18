@@ -21,7 +21,6 @@ import {
   Particles,
   Peers,
   Permission,
-  Physics,
   Rendering,
   RenderingParams,
   Settings,
@@ -62,7 +61,6 @@ class Client extends EventEmitter {
   public peers: Peers<any>;
   public entities: Entities<any>;
   public settings: Settings;
-  public physics: Physics;
   public particles: Particles;
   public events: Events;
   public sounds: Sounds;
@@ -98,15 +96,15 @@ class Client extends EventEmitter {
     this.camera = new Camera(this, camera);
     this.peers = new Peers(this);
     this.entities = new Entities(this);
-    this.controls = new Controls(this, controls);
     this.chat = new Chat(this, chat);
     this.inputs = new Inputs(this);
     this.clock = new Clock(this);
     this.settings = new Settings(this);
-    this.physics = new Physics(this);
     this.particles = new Particles(this);
     this.events = new Events(this);
     this.sounds = new Sounds(this);
+    this.controls = new Controls(this.camera, this.world, controls);
+    this.controls.setupListeners(this.container, this.inputs, this.permission);
 
     // Randomly set an ID to this client.
     const MAX = 10000;
@@ -146,7 +144,8 @@ class Client extends EventEmitter {
       .cover(this.entities)
       .cover(this.peers)
       .cover(this.chat)
-      .cover(this.events);
+      .cover(this.events)
+      .cover(this.controls);
 
     this.connectionPromise = new Promise<boolean>((resolve) => {
       network
@@ -258,15 +257,16 @@ class Client extends EventEmitter {
 
     TWEEN.update();
 
+    const delta = this.clock.delta;
+
     this.camera.update();
-    this.controls.update();
-    this.world.update();
+    this.controls.update(delta);
+    this.world.update(delta);
     this.ecs.update();
     this.clock.update();
     this.peers.update();
     this.debug.update();
     this.particles.update();
-    this.physics.update();
 
     this.rendering.render();
   };

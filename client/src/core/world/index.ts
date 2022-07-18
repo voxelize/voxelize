@@ -1,3 +1,4 @@
+import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import {
   Color,
@@ -94,6 +95,8 @@ export class World extends Scene implements NetIntercept {
   public sky: Sky;
   public clouds: Clouds;
   public chunks: Chunks;
+
+  public physics: PhysicsEngine;
 
   /**
    * The generated texture atlas built from all registered block textures.
@@ -209,8 +212,11 @@ export class World extends Scene implements NetIntercept {
         this.registry.load(blocks, ranges);
 
         this.setParams(params);
+
         this.loadAtlas();
+
         this.setupSkyCloud();
+        this.setupPhysics();
 
         return;
       }
@@ -378,9 +384,6 @@ export class World extends Scene implements NetIntercept {
       ...this.params,
       ...data,
     };
-
-    // initialize the physics engine with server provided parameters.
-    this.client.physics.initialize(this.params);
   };
 
   /**
@@ -508,7 +511,7 @@ export class World extends Scene implements NetIntercept {
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
   };
 
-  update = () => {
+  update = (delta: number) => {
     this.onBeforeUpdate?.();
 
     this.calculateCurrChunk();
@@ -526,6 +529,8 @@ export class World extends Scene implements NetIntercept {
 
     this.updateSkyClouds();
     this.emitServerUpdates();
+
+    this.updatePhysics(delta);
 
     this.onAfterUpdate?.();
   };
@@ -728,6 +733,50 @@ export class World extends Scene implements NetIntercept {
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
       );
+    });
+  };
+
+  private setupPhysics = () => {
+    // initialize the physics engine with server provided parameters.
+    this.physics = new PhysicsEngine(
+      (vx: number, vy: number, vz: number) => {
+        const id = this.getVoxelByVoxel(vx, vy, vz);
+        const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
+        const { aabbs } = this.getBlockById(id);
+        return aabbs.map((aabb) =>
+          rotation.rotateAABB(aabb).translate([vx, vy, vz])
+        );
+      },
+      (vx: number, vy: number, vz: number) => {
+        const id = this.getVoxelByVoxel(vx, vy, vz);
+        const { isFluid } = this.getBlockById(id);
+        return isFluid;
+      },
+      this.params
+    );
+  };
+
+  private updatePhysics = (delta: number) => {
+    if (!this.physics) return;
+
+    const noGravity =
+      this.params.gravity[0] ** 2 +
+        this.params.gravity[1] ** 2 +
+        this.params.gravity[2] ** 2 <
+      0.01;
+
+    this.physics.bodies.forEach((body) => {
+      const coords = ChunkUtils.mapVoxelPosToChunkPos(
+        body.getPosition() as Coords3,
+        this.params.chunkSize
+      );
+      const chunk = this.getChunkByVoxel(...(body.getPosition() as Coords3));
+
+      if ((!chunk || !chunk.isReady) && this.isWithinWorld(...coords)) {
+        return;
+      }
+
+      this.physics.iterateBody(body, delta, noGravity);
     });
   };
 

@@ -200,7 +200,7 @@ class Particles {
       });
 
       for (let i = 0; i < count; i++) {
-        const body = this.client.physics.addBody({
+        const body = this.client.world.physics.addBody({
           aabb: new AABB(0, 0, 0, 0, 0.1, 0),
           gravityMultiplier: gravity ? 1 : 0,
           restitution: 0.3,
@@ -294,7 +294,7 @@ class Particles {
   };
 
   private removeGroup(group: ParticleGroup, animate = true) {
-    const { physics, world } = this.client;
+    const { world } = this.client;
 
     const index = this.groups.indexOf(group);
     if (index > -1) {
@@ -302,7 +302,7 @@ class Particles {
       const { mesh, bodies, params } = group;
 
       bodies.forEach((body) => {
-        physics.removeBody(body);
+        world.physics.removeBody(body);
       });
 
       if (animate) {

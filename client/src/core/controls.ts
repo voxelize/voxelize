@@ -1,10 +1,11 @@
+import { EventEmitter } from "events";
+
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import {
   Euler,
-  EventDispatcher,
   Vector3,
   Group,
   Mesh,
@@ -14,16 +15,14 @@ import {
   Quaternion,
 } from "three";
 
-import { Client } from "..";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
 import { Camera } from "./camera";
+import { Container } from "./container";
+import { Inputs } from "./inputs";
+import { Permission } from "./permission";
 import { World } from "./world";
-
-const _changeEvent = { type: "change" };
-const _lockEvent = { type: "lock" };
-const _unlockEvent = { type: "unlock" };
 
 const PI_2 = Math.PI / 2;
 
@@ -316,7 +315,7 @@ const defaultParams: ControlsParams = {
  * @noInheritDoc
  * @category Core
  */
-class Controls extends EventDispatcher {
+class Controls extends EventEmitter {
   /**
    * Reference linking back to the Voxelize camera instance.
    */
@@ -434,10 +433,10 @@ class Controls extends EventDispatcher {
     this.world = world;
     this.state = defaultControlState;
 
-    const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
+    this.params = {
       ...defaultParams,
       ...options,
-    });
+    };
 
     this.object.add(this.camera);
     this.world.add(this.object);
@@ -445,15 +444,11 @@ class Controls extends EventDispatcher {
 
   onMessage = (message: MessageProtocol<any, any, any>) => {
     switch (message.type) {
-      case "INIT": {
-        this.setupListeners();
-
-        return;
-      }
       case "READY": {
         this.setupLookBlock();
+        const { bodyWidth, bodyHeight, bodyDepth } = this.params;
 
-        this.body = client.physics.addBody({
+        this.body = this.world.physics.addBody({
           aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
           onStep: (newAABB) => {
             const { positionLerp, jumpImpulse } = this.params;
@@ -482,28 +477,11 @@ class Controls extends EventDispatcher {
   };
 
   /**
-   * Set up event listeners
-   *
-   * @hidden
-   */
-  setUpEventListeners = () => {
-    client.on("initialized", () => {
-      this.setupListeners();
-    });
-
-    client.on("ready", () => {});
-
-    client.on("chat-enabled", () => {
-      this.resetMovements();
-    });
-  };
-
-  /**
    * Update for the camera of the game.
    *
    * @hidden
    */
-  update = () => {
+  update = (delta: number) => {
     this.onBeforeUpdate?.();
 
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
@@ -519,7 +497,7 @@ class Controls extends EventDispatcher {
     );
 
     this.moveRigidBody();
-    this.updateRigidBody();
+    this.updateRigidBody(delta);
     this.updateLookBlock();
 
     this.onAfterUpdate?.();
@@ -535,31 +513,35 @@ class Controls extends EventDispatcher {
    *
    * @hidden
    */
-  connect = () => {
-    this.client.container.domElement.addEventListener(
-      "mousemove",
-      this.onMouseMove
-    );
-    this.client.container.domElement.ownerDocument.addEventListener(
+  connect = (container: Container, inputs: Inputs) => {
+    container.domElement.addEventListener("mousemove", (event: MouseEvent) => {
+      this.onMouseMove(event, inputs);
+    });
+    container.domElement.ownerDocument.addEventListener(
       "pointerlockchange",
-      this.onPointerlockChange
+      () => {
+        this.onPointerlockChange(container, inputs);
+      }
     );
-    this.client.container.domElement.ownerDocument.addEventListener(
+    container.domElement.ownerDocument.addEventListener(
       "pointerlockerror",
       this.onPointerlockError
     );
 
-    this.client.container.canvas.addEventListener(
-      "click",
-      this.onCanvasClick,
+    document.addEventListener(
+      "keydown",
+      (event: KeyboardEvent) => {
+        this.onKeyDown(event, inputs);
+      },
       false
     );
-
-    document.addEventListener("keydown", this.onKeyDown, false);
-    document.addEventListener("keyup", this.onKeyUp, false);
-
-    this.addEventListener("lock", this.onLock);
-    this.addEventListener("unlock", this.onUnlock);
+    document.addEventListener(
+      "keyup",
+      (event: KeyboardEvent) => {
+        this.onKeyUp(event, inputs);
+      },
+      false
+    );
   };
 
   /**
@@ -572,31 +554,38 @@ class Controls extends EventDispatcher {
    *
    * @hidden
    */
-  disconnect = () => {
-    this.client.container.domElement.removeEventListener(
+  disconnect = (container: Container, inputs: Inputs) => {
+    container.domElement.removeEventListener(
       "mousemove",
-      this.onMouseMove
+      (event: MouseEvent) => {
+        this.onMouseMove(event, inputs);
+      }
     );
-    this.client.container.domElement.ownerDocument.removeEventListener(
+    container.domElement.ownerDocument.removeEventListener(
       "pointerlockchange",
-      this.onPointerlockChange
+      () => {
+        this.onPointerlockChange(container, inputs);
+      }
     );
-    this.client.container.domElement.ownerDocument.removeEventListener(
+    container.domElement.ownerDocument.removeEventListener(
       "pointerlockerror",
       this.onPointerlockError
     );
 
-    this.client.container.canvas.removeEventListener(
-      "click",
-      this.onCanvasClick,
+    document.removeEventListener(
+      "keydown",
+      (event: KeyboardEvent) => {
+        this.onKeyDown(event, inputs);
+      },
       false
     );
-
-    document.removeEventListener("keydown", this.onKeyDown, false);
-    document.removeEventListener("keyup", this.onKeyUp, false);
-
-    this.removeEventListener("lock", this.onLock);
-    this.removeEventListener("unlock", this.onUnlock);
+    document.removeEventListener(
+      "keyup",
+      (event: KeyboardEvent) => {
+        this.onKeyUp(event, inputs);
+      },
+      false
+    );
   };
 
   /**
@@ -614,8 +603,9 @@ class Controls extends EventDispatcher {
    *
    * @param callback - Callback to be run once done.
    */
-  lock = (callback?: () => void) => {
-    this.client.container.domElement.requestPointerLock();
+  lock = (container: Container, callback?: () => void) => {
+    console.log("hello");
+    container.domElement.requestPointerLock();
 
     if (callback) {
       this.lockCallback = callback;
@@ -628,8 +618,8 @@ class Controls extends EventDispatcher {
    *
    * @param callback - Callback to be run once done.
    */
-  unlock = (callback?: () => void) => {
-    this.client.container.domElement.ownerDocument.exitPointerLock();
+  unlock = (container: Container, callback?: () => void) => {
+    container.domElement.ownerDocument.exitPointerLock();
 
     if (callback) {
       this.unlockCallback = callback;
@@ -730,8 +720,8 @@ class Controls extends EventDispatcher {
    * @internal
    * @hidden
    */
-  dispose = () => {
-    this.disconnect();
+  dispose = (container: Container, inputs: Inputs) => {
+    this.disconnect(container, inputs);
   };
 
   /**
@@ -792,7 +782,7 @@ class Controls extends EventDispatcher {
   get chunk() {
     return ChunkUtils.mapVoxelPosToChunkPos(
       this.voxel,
-      this.client.world.params.chunkSize
+      this.world.params.chunkSize
     );
   }
 
@@ -801,7 +791,7 @@ class Controls extends EventDispatcher {
    */
   get lookingAt() {
     if (this.lookBlock) {
-      return this.client.world.getBlockByVoxel(
+      return this.world.getBlockByVoxel(
         this.lookBlock[0],
         this.lookBlock[1],
         this.lookBlock[2]
@@ -813,7 +803,6 @@ class Controls extends EventDispatcher {
 
   private setupLookBlock = () => {
     const { lookBlockScale, lookBlockColor } = this.params;
-    const { world } = this.client;
 
     this.lookBlockMesh = new Group();
 
@@ -871,13 +860,15 @@ class Controls extends EventDispatcher {
     this.lookBlockMesh.frustumCulled = false;
     this.lookBlockMesh.renderOrder = 1000000;
 
-    world.add(this.lookBlockMesh);
+    this.world.add(this.lookBlockMesh);
   };
 
-  private setupListeners = () => {
-    const { inputs, permission } = this.client;
-
-    this.connect();
+  setupListeners = (
+    container: Container,
+    inputs: Inputs,
+    permission: Permission
+  ) => {
+    this.connect(container, inputs);
 
     if (permission.canFly) {
       const toggleFly = () => {
@@ -928,13 +919,12 @@ class Controls extends EventDispatcher {
       return;
     }
 
-    const { world, camera } = this.client;
-    const { maxHeight } = world.params;
+    const { maxHeight } = this.world.params;
     const { reachDistance, lookBlockScale } = this.params;
 
     const camDir = new Vector3();
     const camPos = this.object.position;
-    camera.getWorldDirection(camDir);
+    this.camera.getWorldDirection(camDir);
     camDir.normalize();
 
     const result = raycast(
@@ -943,9 +933,9 @@ class Controls extends EventDispatcher {
           return [];
         }
 
-        const id = world.getVoxelByVoxel(x, y, z);
-        const rotation = world.getVoxelRotationByVoxel(x, y, z);
-        const { aabbs, isFluid } = world.getBlockById(id);
+        const id = this.world.getVoxelByVoxel(x, y, z);
+        const rotation = this.world.getVoxelRotationByVoxel(x, y, z);
+        const { aabbs, isFluid } = this.world.getBlockById(id);
 
         return isFluid ? [] : aabbs.map((aabb) => rotation.rotateAABB(aabb));
       },
@@ -966,7 +956,7 @@ class Controls extends EventDispatcher {
     const newLookBlock = ChunkUtils.mapWorldPosToVoxelPos(<Coords3>voxel);
 
     // Pointing at air.
-    const newLookingID = this.client.world.getVoxelByVoxel(...newLookBlock);
+    const newLookingID = this.world.getVoxelByVoxel(...newLookBlock);
     if (newLookingID === 0) {
       disableLookBlock();
       return;
@@ -981,9 +971,7 @@ class Controls extends EventDispatcher {
       const { aabbs } = lookingAt;
       if (!aabbs.length) return;
 
-      const rotation = this.client.world.getVoxelRotationByVoxel(
-        ...this.lookBlock
-      );
+      const rotation = this.world.getVoxelRotationByVoxel(...this.lookBlock);
 
       let union: AABB = rotation.rotateAABB(aabbs[0]);
 
@@ -1093,7 +1081,7 @@ class Controls extends EventDispatcher {
     }
   };
 
-  private updateRigidBody = () => {
+  private updateRigidBody = (dt: number) => {
     const {
       airJumps,
       jumpForce,
@@ -1111,8 +1099,6 @@ class Controls extends EventDispatcher {
       flyForce,
       flySpeed,
     } = this.params;
-
-    const { delta: dt } = this.client.clock;
 
     if (this.body.gravityMultiplier) {
       // jumping
@@ -1268,9 +1254,9 @@ class Controls extends EventDispatcher {
     this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
   };
 
-  private onKeyDown = ({ code }: KeyboardEvent) => {
+  private onKeyDown = ({ code }: KeyboardEvent, inputs: Inputs) => {
     if (!this.isLocked) return;
-    if (this.client.inputs.namespace !== "in-game") return;
+    if (inputs.namespace !== "in-game") return;
 
     switch (code) {
       case "KeyR":
@@ -1307,9 +1293,9 @@ class Controls extends EventDispatcher {
     }
   };
 
-  private onKeyUp = ({ code }: KeyboardEvent) => {
+  private onKeyUp = ({ code }: KeyboardEvent, inputs: Inputs) => {
     if (!this.isLocked) return;
-    if (this.client.inputs.namespace !== "in-game") return;
+    if (inputs.namespace !== "in-game") return;
 
     switch (code) {
       case "ArrowUp":
@@ -1342,9 +1328,8 @@ class Controls extends EventDispatcher {
     }
   };
 
-  private onMouseMove = (event: MouseEvent) => {
-    if (this.isLocked === false || this.client.inputs.namespace !== "in-game")
-      return;
+  private onMouseMove = (event: MouseEvent, inputs: Inputs) => {
+    if (this.isLocked === false || inputs.namespace !== "in-game") return;
 
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
@@ -1360,18 +1345,16 @@ class Controls extends EventDispatcher {
     );
 
     this.quaternion.setFromEuler(this.euler);
-
-    this.dispatchEvent(_changeEvent);
   };
 
-  private onPointerlockChange = () => {
-    this.client.camera.setupListener();
+  private onPointerlockChange = (container: Container, inputs: Inputs) => {
+    this.camera.setupListener();
 
     if (
-      this.client.container.domElement.ownerDocument.pointerLockElement ===
-      this.client.container.domElement
+      container.domElement.ownerDocument.pointerLockElement ===
+      container.domElement
     ) {
-      this.dispatchEvent(_lockEvent);
+      this.onLock(inputs);
 
       if (this.lockCallback) {
         this.lockCallback();
@@ -1379,7 +1362,7 @@ class Controls extends EventDispatcher {
 
       this.isLocked = true;
     } else {
-      this.dispatchEvent(_unlockEvent);
+      this.onUnlock(inputs);
 
       if (this.unlockCallback) {
         this.unlockCallback();
@@ -1393,24 +1376,16 @@ class Controls extends EventDispatcher {
     console.error("THREE.PointerLockControls: Unable to use Pointer Lock API");
   };
 
-  private onCanvasClick = () => {
-    if (this.client.network?.connected) {
-      if (this.client.chat.enabled) {
-        this.client.chat.focusInput();
-      } else {
-        this.lock();
-      }
-    }
+  private onLock = (inputs: Inputs) => {
+    console.log("lock");
+    this.emit("lock");
+    inputs.setNamespace("in-game");
   };
 
-  private onLock = () => {
-    this.client.emit("lock");
-    this.client.inputs.setNamespace("in-game");
-  };
-
-  private onUnlock = () => {
-    this.client.emit("unlock");
-    this.client.inputs.setNamespace(this.client.chat.enabled ? "chat" : "menu");
+  private onUnlock = (inputs: Inputs) => {
+    console.log("unlock");
+    this.emit("unlock");
+    inputs.setNamespace("menu");
   };
 }
 

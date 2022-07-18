@@ -74,11 +74,11 @@ const App = () => {
 
         client.current = newClient;
 
-        newClient.on("unlock", () => {
+        newClient.controls.on("unlock", () => {
           setLocked(false);
         });
 
-        newClient.on("lock", () => {
+        newClient.controls.on("lock", () => {
           setLocked(true);
         });
 
@@ -116,7 +116,7 @@ const App = () => {
 
     if (joined) {
       if (lock) {
-        client.current.controls.lock();
+        client.current.controls.lock(client.current.container);
       }
       return;
     }
@@ -126,7 +126,7 @@ const App = () => {
 
       if (success) {
         if (lock) {
-          client.current?.controls.lock();
+          client.current?.controls.lock(client.current.container);
         }
       } else {
         setError("World not found.");

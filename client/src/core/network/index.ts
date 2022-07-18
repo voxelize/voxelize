@@ -253,6 +253,11 @@ class Network extends EventEmitter {
 
     if (type === "INIT") {
       this.client.emit("ready");
+
+      this.intercepts.forEach((intercept) => {
+        intercept.onMessage({ type: "READY" });
+      });
+
       this.client.ready = true;
     }
   };
