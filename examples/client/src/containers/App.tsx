@@ -180,32 +180,11 @@ const App = () => {
               renderer.render(world, camera);
             };
 
-            // joinOrResume(false);
             animate();
           });
         });
     }
   }, [domRef, canvasRef]);
-
-  const joinOrResume = (lock = true) => {
-    if (!networkRef.current || !controlsRef.current) return;
-
-    if (joined) {
-      if (lock) {
-        controlsRef.current.lock();
-      }
-      return;
-    }
-
-    if (!networkRef.current.joined) {
-      networkRef.current?.join(world);
-    }
-  };
-
-  const leave = () => {
-    if (!networkRef.current) return;
-    networkRef.current.leave();
-  };
 
   return (
     <GameWrapper ref={domRef}>
