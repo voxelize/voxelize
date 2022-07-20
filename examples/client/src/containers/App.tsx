@@ -1,11 +1,7 @@
-import { Button } from "../components/button";
-import { Input } from "../components/input";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
-
-import LogoImage from "../assets/tree_transparent.svg";
 
 import { setupWorld } from "src/core/world";
 
@@ -23,45 +19,6 @@ const GameCanvas = styled.canvas`
   position: absolute;
   width: 100%;
   height: 100%;
-`;
-
-const ControlsWrapper = styled.div`
-  position: fixed;
-  width: 100vw;
-  height: 100vh;
-  background: #00000022;
-  z-index: 100000;
-
-  & > div {
-    backdrop-filter: blur(2px);
-    padding: 32px 48px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 16px;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    z-index: 1000;
-    transform: translate(-50%, -50%);
-    background: #fff2f911;
-    border-radius: 4px;
-  }
-
-  & img {
-    width: 60px;
-  }
-
-  & h3 {
-    color: #eee;
-    margin-bottom: 12px;
-  }
-
-  & .error {
-    font-size: 0.8rem;
-    color: red;
-  }
 `;
 
 let BACKEND_SERVER_INSTANCE = new URL(window.location.href);
