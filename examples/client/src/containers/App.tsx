@@ -36,7 +36,10 @@ const App = () => {
   useEffect(() => {
     if (domRef.current && canvasRef.current) {
       const clock = new VOXELIZE.Clock();
-      const world = new VOXELIZE.World({ textureDimension: 128 });
+      const world = new VOXELIZE.World({
+        textureDimension: 128,
+        clouds: false,
+      });
 
       const camera = new THREE.PerspectiveCamera(
         90,

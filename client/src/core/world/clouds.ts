@@ -45,7 +45,7 @@ type CloudsParams = {
   };
 };
 
-class Clouds {
+class Clouds extends Group {
   public array: NdArray;
   public material: ShaderMaterial;
   public initialized = false;
@@ -54,7 +54,6 @@ class Clouds {
 
   private xOffset = 0;
   private zOffset = 0;
-  private cloudGroup = new Group();
   private locatedCell = [0, 0];
   private newPosition = new Vector3();
 
@@ -63,6 +62,8 @@ class Clouds {
   });
 
   constructor(public params: CloudsParams) {
+    super();
+
     const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.params;
 
     if (seed === -1) {
@@ -96,7 +97,7 @@ class Clouds {
 
       for (let z = 0; z < width; z++) {
         const cell = await this.makeCell(x, z);
-        this.cloudGroup.add(cell);
+        this.add(cell);
         arr.push(cell);
       }
 
@@ -121,12 +122,12 @@ class Clouds {
 
     const { speedFactor, count, dimensions } = this.params;
 
-    this.newPosition = this.mesh.position.clone();
+    this.newPosition = this.position.clone();
     this.newPosition.z -= speedFactor * delta;
 
     const locatedCell = [
-      Math.floor((position.x - this.mesh.position.x) / (count * dimensions[0])),
-      Math.floor((position.z - this.mesh.position.z) / (count * dimensions[2])),
+      Math.floor((position.x - this.position.x) / (count * dimensions[0])),
+      Math.floor((position.z - this.position.z) / (count * dimensions[2])),
     ];
 
     if (
@@ -149,12 +150,8 @@ class Clouds {
   };
 
   update = () => {
-    this.mesh.position.lerp(this.newPosition, this.params.lerpFactor);
+    this.position.lerp(this.newPosition, this.params.lerpFactor);
   };
-
-  get mesh() {
-    return this.cloudGroup;
-  }
 
   private shiftX = async (direction = 1) => {
     const { width } = this.params;

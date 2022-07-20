@@ -545,42 +545,43 @@ export class World extends Scene implements NetIntercept {
       }
     });
 
-    this.add(this.sky.mesh);
+    this.add(this.sky);
 
-    this.clouds = new Clouds({
-      alpha: 0.8,
-      color: "#fff",
-      count: 16,
-      scale: 0.08,
-      width: 8,
-      height: 3,
-      dimensions: [20, 20, 20],
-      speedFactor: 8,
-      lerpFactor: 0.3,
-      threshold: 0.05,
-      octaves: 5,
-      falloff: 0.9,
-      seed: -1,
-      ...(typeof clouds === "object" ? clouds : {}),
-      worldHeight: this.params.maxHeight,
-      uFogColor: this.sky.uMiddleColor,
-      uFogNear: this.uniforms.fogNear,
-      uFogFar: this.uniforms.fogFar,
-    });
+    if (clouds !== false) {
+      this.clouds = new Clouds({
+        alpha: 0.8,
+        color: "#fff",
+        count: 16,
+        scale: 0.08,
+        width: 8,
+        height: 3,
+        dimensions: [20, 20, 20],
+        speedFactor: 8,
+        lerpFactor: 0.3,
+        threshold: 0.05,
+        octaves: 5,
+        falloff: 0.9,
+        seed: -1,
+        ...(typeof clouds === "object" ? clouds : {}),
+        worldHeight: this.params.maxHeight,
+        uFogColor: this.sky.uMiddleColor,
+        uFogNear: this.uniforms.fogNear,
+        uFogFar: this.uniforms.fogFar,
+      });
 
-    this.clouds.initialize().then(() => {
-      this.add(this.clouds.mesh);
-    });
+      this.clouds.initialize().then(() => {
+        this.add(this.clouds);
+      });
+    }
   };
 
   private updateSkyClouds = (position: Vector3, delta: number) => {
-    this.sky.mesh.position.copy(position);
+    this.sky.position.copy(position);
 
     if (this.clouds && this.clouds.initialized) {
       this.clouds.move(delta, position);
+      this.clouds.update();
     }
-
-    this.clouds.update();
   };
 
   private emitServerUpdates = () => {

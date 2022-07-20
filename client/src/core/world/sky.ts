@@ -127,10 +127,8 @@ export function drawSun(
   context.restore();
 }
 
-class Sky {
+class Sky extends Group {
   public box: CanvasBox;
-
-  public mesh = new Group();
 
   public uTopColor: {
     value: Color;
@@ -147,6 +145,8 @@ class Sky {
   private newBottomColor: Color;
 
   constructor(public dimension: number) {
+    super();
+
     this.createSkyShading();
     this.createSkyBox();
   }
@@ -186,7 +186,7 @@ class Sky {
     });
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
 
-    this.mesh.add(shadingMesh);
+    this.add(shadingMesh);
   };
 
   private createSkyBox = () => {
@@ -202,7 +202,7 @@ class Sky {
     meshes.frustumCulled = false;
     meshes.renderOrder = -1;
 
-    this.mesh.add(meshes);
+    this.add(meshes);
   };
 }
 

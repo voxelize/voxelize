@@ -10,15 +10,22 @@ import { NetIntercept } from "./network";
  * @category Core
  */
 class Peers<T> implements NetIntercept {
+  ownID = "";
+
   onPeerJoin: (id: string) => void;
   onPeerUpdate: (peer: PeerProtocol<T>) => void;
   onPeerLeave: (id: string) => void;
 
-  onMessage = (message: MessageProtocol<any, T>) => {
+  onMessage = (message: MessageProtocol<{ id: string }, T>) => {
     switch (message.type) {
+      case "INIT": {
+        const { id } = message.json;
+        this.ownID = id;
+        break;
+      }
       case "JOIN": {
         const { text: id } = message;
-        // if (!this.client.id || this.client.id === id) return;
+        if (!this.ownID || this.ownID === id) return;
         this.onPeerJoin?.(id);
         break;
       }
@@ -36,7 +43,7 @@ class Peers<T> implements NetIntercept {
 
     if (peers) {
       peers.forEach((peer: any) => {
-        // if (!this.client.id || peer.id === this.client.id) return;
+        if (!this.ownID || peer.id === this.ownID) return;
         this.onPeerUpdate?.(peer);
       });
     }
