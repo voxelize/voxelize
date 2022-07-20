@@ -4,9 +4,11 @@ import {
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
-import { Color, FogExp2, WebGLRenderer } from "three";
+import { Color, WebGLRenderer } from "three";
 
-import { Client } from "..";
+import { Camera } from "./camera";
+import { Container } from "./container";
+import { World } from "./world";
 
 /**
  * Parameters to initialize the rendering pipeline.
@@ -28,10 +30,7 @@ const defaultParams: RenderingParams = {
  * @category Core
  */
 class Rendering {
-  /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
+  public container: Container;
 
   /**
    * Parameters to initialize the Voxelize rendering pipeline.
@@ -53,15 +52,15 @@ class Rendering {
    *
    * @hidden
    */
-  constructor(client: Client, params: Partial<RenderingParams> = {}) {
-    this.client = client;
-
+  constructor(container: Container, params: Partial<RenderingParams> = {}) {
     const { clearColor } = (this.params = {
       ...defaultParams,
       ...params,
     });
 
-    const canvas = this.client.container.canvas;
+    this.container = container;
+
+    const canvas = this.container.canvas;
     let context: WebGL2RenderingContext | WebGLRenderingContext;
     try {
       if (window.WebGL2RenderingContext) {
@@ -82,15 +81,6 @@ class Rendering {
 
     // composer
     this.composer = new EffectComposer(this.renderer);
-
-    client.on("initialized", () => {
-      const camera = client.camera;
-
-      this.composer.addPass(new RenderPass(this.client.world, camera));
-      this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
-
-      this.adjustRenderer();
-    });
   }
 
   /**
@@ -98,7 +88,7 @@ class Rendering {
    * aspect ratio and renderer size.
    */
   adjustRenderer = () => {
-    const { width, height } = this.renderSize;
+    const { width, height } = this.container.renderSize;
 
     if (width === 0 || height === 0) return;
 
@@ -112,37 +102,16 @@ class Rendering {
    * @internal
    * @hidden
    */
-  render = () => {
-    if (this.composer.passes.length) {
-      this.composer.render();
+  render = (world: World, camera: Camera) => {
+    if (!this.composer.passes.length) {
+      this.composer.addPass(new RenderPass(world, camera));
+      this.composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+
+      this.adjustRenderer();
     }
+
+    this.composer.render();
   };
-
-  /**
-   * The size of the Voxelize containing DOM element (offsetWidth and offsetHeight).
-   */
-  get renderSize() {
-    const { offsetWidth, offsetHeight } = this.client.container.domElement;
-    return {
-      /**
-       * The offset width of the DOM container.
-       */
-      width: offsetWidth,
-
-      /**
-       * The offset height of the DOM container.
-       */
-      height: offsetHeight,
-    };
-  }
-
-  /**
-   * The aspect ratio of the renderer, based on the `renderSize`.
-   */
-  get aspectRatio() {
-    const { width, height } = this.renderSize;
-    return width / height;
-  }
 }
 
 export type { RenderingParams };

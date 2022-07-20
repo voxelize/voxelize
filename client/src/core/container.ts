@@ -1,4 +1,3 @@
-import { Client } from "..";
 import { DOMUtils } from "../utils";
 
 /**
@@ -41,11 +40,6 @@ const defaultParams: ContainerParams = {
  */
 class Container {
   /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
-  /**
    * Parameters to initialize the Voxelize container.
    */
   public params: ContainerParams;
@@ -73,9 +67,7 @@ class Container {
    *
    * @hidden
    */
-  constructor(client: Client, params: Partial<ContainerParams> = {}) {
-    this.client = client;
-
+  constructor(params: Partial<ContainerParams> = {}) {
     const { domElement, canvas, crosshairStyles } = (this.params = {
       ...defaultParams,
       ...params,
@@ -130,10 +122,6 @@ class Container {
       position: "relative",
       fontFamily: `"Fira Mono", monospace`,
     });
-
-    client.on("initialized", () => {
-      client.inputs.bind("k", client.container.toggleFullScreen, "*");
-    });
   }
 
   /**
@@ -186,6 +174,33 @@ class Container {
   hideCrosshair = () => {
     this.crosshair.style.display = "none";
   };
+
+  /**
+   * The size of the Voxelize containing DOM element (offsetWidth and offsetHeight).
+   */
+  get renderSize() {
+    const { offsetWidth, offsetHeight } = this.domElement;
+
+    return {
+      /**
+       * The offset width of the DOM container.
+       */
+      width: offsetWidth,
+
+      /**
+       * The offset height of the DOM container.
+       */
+      height: offsetHeight,
+    };
+  }
+
+  /**
+   * The aspect ratio of the renderer, based on the `renderSize`.
+   */
+  get aspectRatio() {
+    const { width, height } = this.renderSize;
+    return width / height;
+  }
 }
 
 export type { ContainerParams };

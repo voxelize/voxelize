@@ -1,8 +1,6 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
 import { Matrix4, Vector3, Quaternion } from "three";
 
-import { Client } from "..";
-
 import { NetIntercept } from "./network";
 
 /**
@@ -12,20 +10,6 @@ import { NetIntercept } from "./network";
  * @category Core
  */
 class Peers<T> implements NetIntercept {
-  /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
-  /**
-   * Initialize a Peers manager for Voxelize.
-   *
-   * @hidden
-   */
-  constructor(client: Client) {
-    this.client = client;
-  }
-
   onPeerJoin: (id: string) => void;
   onPeerUpdate: (peer: PeerProtocol<T>) => void;
   onPeerLeave: (id: string) => void;
@@ -34,7 +18,7 @@ class Peers<T> implements NetIntercept {
     switch (message.type) {
       case "JOIN": {
         const { text: id } = message;
-        if (!this.client.id || this.client.id === id) return;
+        // if (!this.client.id || this.client.id === id) return;
         this.onPeerJoin?.(id);
         break;
       }
@@ -52,34 +36,31 @@ class Peers<T> implements NetIntercept {
 
     if (peers) {
       peers.forEach((peer: any) => {
-        if (!this.client.id || peer.id === this.client.id) return;
+        // if (!this.client.id || peer.id === this.client.id) return;
         this.onPeerUpdate?.(peer);
       });
     }
   };
 
   update = () => {
-    const { username, controls, network, id } = this.client;
-
-    const { body } = controls;
-    const [px, py, pz] = body.getPosition();
-    const { x: dx, y: dy, z: dz } = controls.getDirection();
-
-    const event = {
-      type: "PEER",
-      peers: [
-        {
-          id,
-          username,
-          metadata: {
-            position: [px, py, pz],
-            direction: [dx, dy, dz],
-          },
-        },
-      ],
-    };
-
-    network.send(event);
+    // const { username, controls, network, id } = this.client;
+    // const { body } = controls;
+    // const [px, py, pz] = body.getPosition();
+    // const { x: dx, y: dy, z: dz } = controls.getDirection();
+    // const event = {
+    //   type: "PEER",
+    //   peers: [
+    //     {
+    //       id,
+    //       username,
+    //       metadata: {
+    //         position: [px, py, pz],
+    //         direction: [dx, dy, dz],
+    //       },
+    //     },
+    //   ],
+    // };
+    // network.send(event);
   };
 
   static directionToQuaternion = (dx: number, dy: number, dz: number) => {

@@ -30,14 +30,14 @@ import ChoGeImage from "../assets/lol.png";
 import GlassImage from "../assets/own/glass.png";
 import TechnoImage from "../assets/techno.png";
 
-import { Client } from "@voxelize/client";
+import { World } from "@voxelize/client";
 import { Color } from "three";
 
-export function setupWorld(client: Client) {
+export function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
-  client.world.applyTexturesByNames([
+  world.applyTexturesByNames([
     { name: "Dirt", sides: all, data: DirtImage },
     { name: "Lol", sides: all, data: new Color("#8479E1") },
     { name: "Lol", sides: ["py"], data: LolImage },

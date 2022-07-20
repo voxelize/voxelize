@@ -1,7 +1,5 @@
 import { PerspectiveCamera, Vector3, MathUtils, AudioListener } from "three";
 
-import { Client } from "..";
-
 /**
  * Parameters to initialize the Voxelize {@link Camera}.
  */
@@ -25,6 +23,8 @@ type CameraParams = {
    * Lerp factor of camera FOV/zoom change. Defaults to `0.7`.
    */
   lerpFactor: number;
+
+  aspectRatio: number;
 };
 
 const defaultParams: CameraParams = {
@@ -32,6 +32,7 @@ const defaultParams: CameraParams = {
   near: 0.1,
   far: 2000,
   lerpFactor: 0.7,
+  aspectRatio: 1,
 };
 
 /**
@@ -68,11 +69,6 @@ const defaultParams: CameraParams = {
  */
 class Camera extends PerspectiveCamera {
   /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
-  /**
    * Parameters to initialize the Voxelize camera.
    */
   public params: CameraParams;
@@ -100,17 +96,15 @@ class Camera extends PerspectiveCamera {
    *
    * @hidden
    */
-  constructor(client: Client, params: Partial<CameraParams> = {}) {
+  constructor(params: Partial<CameraParams> = {}) {
     super(
       params.fov || defaultParams.fov,
-      client.rendering.aspectRatio,
+      params.aspectRatio || defaultParams.aspectRatio,
       params.near || defaultParams.near,
       params.far || defaultParams.far
     );
 
-    this.client = client;
-
-    const { fov, near, far } = (this.params = {
+    const { fov } = (this.params = {
       ...defaultParams,
       ...params,
     });
@@ -121,38 +115,12 @@ class Camera extends PerspectiveCamera {
     // initialize camera position
     this.lookAt(new Vector3(0, 0, 0));
 
-    // listen to resize, and adjust accordingly
-    // ? should move to it's own logic for all event listeners?
-    window.addEventListener("resize", () => {
-      client.rendering.adjustRenderer();
+    const listenerCallback = () => {
+      this.setupListener();
+      window.removeEventListener("click", listenerCallback);
+    };
 
-      this.aspect = client.rendering.aspectRatio;
-      this.updateProjectionMatrix();
-    });
-
-    client.on("initialized", () => {
-      client.inputs.bind(
-        "v",
-        () => {
-          this.setZoom(3);
-        },
-        "in-game",
-        {
-          occasion: "keydown",
-        }
-      );
-
-      client.inputs.bind(
-        "v",
-        () => {
-          this.setZoom(1);
-        },
-        "in-game",
-        {
-          occasion: "keyup",
-        }
-      );
-    });
+    window.addEventListener("click", listenerCallback);
   }
 
   /**
@@ -215,9 +183,6 @@ class Camera extends PerspectiveCamera {
 
     // add the audio listener to the camera
     this.add(this.listener);
-
-    // Load all audios
-    this.client.loader.loadAudios();
   };
 }
 

@@ -20,8 +20,6 @@ import { ChunkUtils } from "../utils";
 
 import { Camera } from "./camera";
 import { Container } from "./container";
-import { Inputs } from "./inputs";
-import { Permission } from "./permission";
 import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
@@ -56,7 +54,7 @@ function rotateY(a: number[], b: number[], c: number) {
 /**
  * The state of which a Voxelize {@link Controls} is in.
  */
-type ControlState = {
+type RigidControlState = {
   /**
    * In radians, the heading y-rotation of the client. Defaults to `0`.
    */
@@ -98,7 +96,7 @@ type ControlState = {
   currentJumpTime: number;
 };
 
-const defaultControlState: ControlState = {
+const defaultControlState: RigidControlState = {
   heading: 0,
   running: false,
   jumping: false,
@@ -113,7 +111,7 @@ const defaultControlState: ControlState = {
 /**
  * Parameters to initialize the Voxelize {@link Controls}.
  */
-type ControlsParams = {
+type RigidControlsParams = {
   /**
    * The mouse sensitivity. Defaults to `100`.
    */
@@ -265,7 +263,7 @@ type ControlsParams = {
   airJumps: number;
 };
 
-const defaultParams: ControlsParams = {
+const defaultParams: RigidControlsParams = {
   sensitivity: 100,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
@@ -315,21 +313,26 @@ const defaultParams: ControlsParams = {
  * @noInheritDoc
  * @category Core
  */
-class Controls extends EventEmitter {
+class RigidControls extends EventEmitter {
   /**
-   * Reference linking back to the Voxelize camera instance.
+   * Reference linking to the Voxelize camera instance.
    */
   public camera: Camera;
 
   /**
-   * Reference linking back to the Voxelize world instance.
+   * Reference linking to the Voxelize world instance.
    */
   public world: World;
 
   /**
+   * Reference linking to the Voxelize container instance.
+   */
+  public container: Container;
+
+  /**
    * Parameters to initialize the Voxelize controls.
    */
-  public params: ControlsParams;
+  public params: RigidControlsParams;
 
   /**
    * A THREE.JS object, parent to the camera for pointerlock controls.
@@ -339,7 +342,7 @@ class Controls extends EventEmitter {
   /**
    * The state of the control, indicating things like whether or not the client is running.
    */
-  public state: ControlState;
+  public state: RigidControlState;
 
   /**
    * Flag indicating whether pointerlock controls have control over the cursor.
@@ -425,12 +428,14 @@ class Controls extends EventEmitter {
   constructor(
     camera: Camera,
     world: World,
-    options: Partial<ControlsParams> = {}
+    container: Container,
+    options: Partial<RigidControlsParams> = {}
   ) {
     super();
 
     this.camera = camera;
     this.world = world;
+    this.container = container;
     this.state = defaultControlState;
 
     this.params = {
@@ -440,6 +445,8 @@ class Controls extends EventEmitter {
 
     this.object.add(this.camera);
     this.world.add(this.object);
+
+    this.connect();
   }
 
   onMessage = (message: MessageProtocol<any, any, any>) => {
@@ -513,17 +520,20 @@ class Controls extends EventEmitter {
    *
    * @hidden
    */
-  connect = (container: Container, inputs: Inputs) => {
-    container.domElement.addEventListener("mousemove", (event: MouseEvent) => {
-      this.onMouseMove(event, inputs);
-    });
-    container.domElement.ownerDocument.addEventListener(
-      "pointerlockchange",
-      () => {
-        this.onPointerlockChange(container, inputs);
+  connect = () => {
+    this.container.domElement.addEventListener(
+      "mousemove",
+      (event: MouseEvent) => {
+        this.onMouseMove(event);
       }
     );
-    container.domElement.ownerDocument.addEventListener(
+    this.container.domElement.ownerDocument.addEventListener(
+      "pointerlockchange",
+      () => {
+        this.onPointerlockChange();
+      }
+    );
+    this.container.domElement.ownerDocument.addEventListener(
       "pointerlockerror",
       this.onPointerlockError
     );
@@ -531,14 +541,14 @@ class Controls extends EventEmitter {
     document.addEventListener(
       "keydown",
       (event: KeyboardEvent) => {
-        this.onKeyDown(event, inputs);
+        this.onKeyDown(event);
       },
       false
     );
     document.addEventListener(
       "keyup",
       (event: KeyboardEvent) => {
-        this.onKeyUp(event, inputs);
+        this.onKeyUp(event);
       },
       false
     );
@@ -554,20 +564,20 @@ class Controls extends EventEmitter {
    *
    * @hidden
    */
-  disconnect = (container: Container, inputs: Inputs) => {
-    container.domElement.removeEventListener(
+  disconnect = () => {
+    this.container.domElement.removeEventListener(
       "mousemove",
       (event: MouseEvent) => {
-        this.onMouseMove(event, inputs);
+        this.onMouseMove(event);
       }
     );
-    container.domElement.ownerDocument.removeEventListener(
+    this.container.domElement.ownerDocument.removeEventListener(
       "pointerlockchange",
       () => {
-        this.onPointerlockChange(container, inputs);
+        this.onPointerlockChange();
       }
     );
-    container.domElement.ownerDocument.removeEventListener(
+    this.container.domElement.ownerDocument.removeEventListener(
       "pointerlockerror",
       this.onPointerlockError
     );
@@ -575,14 +585,14 @@ class Controls extends EventEmitter {
     document.removeEventListener(
       "keydown",
       (event: KeyboardEvent) => {
-        this.onKeyDown(event, inputs);
+        this.onKeyDown(event);
       },
       false
     );
     document.removeEventListener(
       "keyup",
       (event: KeyboardEvent) => {
-        this.onKeyUp(event, inputs);
+        this.onKeyUp(event);
       },
       false
     );
@@ -603,8 +613,8 @@ class Controls extends EventEmitter {
    *
    * @param callback - Callback to be run once done.
    */
-  lock = (container: Container, callback?: () => void) => {
-    container.domElement.requestPointerLock();
+  lock = (callback?: () => void) => {
+    this.container.domElement.requestPointerLock();
 
     if (callback) {
       this.lockCallback = callback;
@@ -617,8 +627,8 @@ class Controls extends EventEmitter {
    *
    * @param callback - Callback to be run once done.
    */
-  unlock = (container: Container, callback?: () => void) => {
-    container.domElement.ownerDocument.exitPointerLock();
+  unlock = (callback?: () => void) => {
+    this.container.domElement.ownerDocument.exitPointerLock();
 
     if (callback) {
       this.unlockCallback = callback;
@@ -719,8 +729,8 @@ class Controls extends EventEmitter {
    * @internal
    * @hidden
    */
-  dispose = (container: Container, inputs: Inputs) => {
-    this.disconnect(container, inputs);
+  dispose = () => {
+    this.disconnect();
   };
 
   /**
@@ -860,50 +870,6 @@ class Controls extends EventEmitter {
     this.lookBlockMesh.renderOrder = 1000000;
 
     this.world.add(this.lookBlockMesh);
-  };
-
-  setupListeners = (
-    container: Container,
-    inputs: Inputs,
-    permission: Permission
-  ) => {
-    this.connect(container, inputs);
-
-    if (permission.canFly) {
-      const toggleFly = () => {
-        if (!this.ghostMode) {
-          const isFlying = this.body.gravityMultiplier === 0;
-
-          if (!isFlying) {
-            this.body.applyImpulse([0, 8, 0]);
-          }
-
-          setTimeout(() => {
-            this.body.gravityMultiplier = isFlying ? 1 : 0;
-          }, 100);
-        }
-      };
-      inputs.bind("f", toggleFly, "in-game");
-
-      let lastSpace = -1;
-      inputs.bind(
-        "space",
-        () => {
-          let now = performance.now();
-          if (now - lastSpace < 250) {
-            toggleFly();
-            now = 0;
-          }
-          lastSpace = now;
-        },
-        "in-game",
-        { occasion: "keyup" }
-      );
-    }
-
-    if (permission.canGhost) {
-      inputs.bind("g", this.toggleGhostMode, "in-game");
-    }
   };
 
   private updateLookBlock = () => {
@@ -1253,9 +1219,8 @@ class Controls extends EventEmitter {
     this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
   };
 
-  private onKeyDown = ({ code }: KeyboardEvent, inputs: Inputs) => {
+  private onKeyDown = ({ code }: KeyboardEvent) => {
     if (!this.isLocked) return;
-    if (inputs.namespace !== "in-game") return;
 
     switch (code) {
       case "KeyR":
@@ -1292,9 +1257,8 @@ class Controls extends EventEmitter {
     }
   };
 
-  private onKeyUp = ({ code }: KeyboardEvent, inputs: Inputs) => {
+  private onKeyUp = ({ code }: KeyboardEvent) => {
     if (!this.isLocked) return;
-    if (inputs.namespace !== "in-game") return;
 
     switch (code) {
       case "ArrowUp":
@@ -1327,8 +1291,8 @@ class Controls extends EventEmitter {
     }
   };
 
-  private onMouseMove = (event: MouseEvent, inputs: Inputs) => {
-    if (this.isLocked === false || inputs.namespace !== "in-game") return;
+  private onMouseMove = (event: MouseEvent) => {
+    if (this.isLocked === false) return;
 
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
@@ -1346,14 +1310,12 @@ class Controls extends EventEmitter {
     this.quaternion.setFromEuler(this.euler);
   };
 
-  private onPointerlockChange = (container: Container, inputs: Inputs) => {
-    this.camera.setupListener();
-
+  private onPointerlockChange = () => {
     if (
-      container.domElement.ownerDocument.pointerLockElement ===
-      container.domElement
+      this.container.domElement.ownerDocument.pointerLockElement ===
+      this.container.domElement
     ) {
-      this.onLock(inputs);
+      this.onLock();
 
       if (this.lockCallback) {
         this.lockCallback();
@@ -1361,7 +1323,7 @@ class Controls extends EventEmitter {
 
       this.isLocked = true;
     } else {
-      this.onUnlock(inputs);
+      this.onUnlock();
 
       if (this.unlockCallback) {
         this.unlockCallback();
@@ -1375,17 +1337,15 @@ class Controls extends EventEmitter {
     console.error("THREE.PointerLockControls: Unable to use Pointer Lock API");
   };
 
-  private onLock = (inputs: Inputs) => {
+  private onLock = () => {
     this.emit("lock");
-    inputs.setNamespace("in-game");
   };
 
-  private onUnlock = (inputs: Inputs) => {
+  private onUnlock = () => {
     this.emit("unlock");
-    inputs.setNamespace("menu");
   };
 }
 
-export type { ControlsParams, ControlState };
+export type { RigidControlsParams, RigidControlState };
 
-export { Controls };
+export { RigidControls };

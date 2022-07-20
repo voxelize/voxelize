@@ -1,7 +1,5 @@
 import { MessageProtocol } from "@voxelize/transport/src/types";
 
-import { Client } from "..";
-
 import { NetIntercept } from "./network";
 
 /**

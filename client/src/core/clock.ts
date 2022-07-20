@@ -1,5 +1,3 @@
-import { Client } from "..";
-
 /**
  * Parameters to initialize the Voxelize {@link Clock}.
  */
@@ -27,11 +25,6 @@ const defaultParams: ClockParams = {
  * @category Core
  */
 class Clock {
-  /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
   /**
    * Parameters to initialize the clock.
    */
@@ -67,9 +60,7 @@ class Clock {
    *
    * @hidden
    */
-  constructor(client: Client, params: Partial<ClockParams> = {}) {
-    this.client = client;
-
+  constructor(params: Partial<ClockParams> = {}) {
     this.params = {
       ...defaultParams,
       ...params,

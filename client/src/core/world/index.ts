@@ -16,7 +16,7 @@ import { ArtFunction, BoxSides } from "../../libs";
 import { Coords2, Coords3, PartialRecord } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 import { Loader } from "../loader";
-import { NetIntercept, Network } from "../network";
+import { NetIntercept } from "../network";
 
 import { TextureAtlas } from "./atlas";
 import { Block, BlockRotation, BlockUpdate } from "./block";
@@ -487,7 +487,7 @@ export class World extends Scene implements NetIntercept {
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
   };
 
-  update = (center: Coords3, direction: Coords2, delta: number) => {
+  update = (center: Coords3, delta: number, direction?: Coords2) => {
     this.calculateCurrChunk(center);
 
     if (this.callTick % 2 === 0) {
@@ -663,7 +663,7 @@ export class World extends Scene implements NetIntercept {
             continue;
           }
 
-          if (!this.isChunkInView(cx + x, cz + z, ...direction)) {
+          if (direction && !this.isChunkInView(cx + x, cz + z, ...direction)) {
             continue;
           }
 
@@ -692,8 +692,8 @@ export class World extends Scene implements NetIntercept {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
       const [cx2, cz2] = ChunkUtils.parseChunkName(b);
 
-      if (!this.isChunkInView(cx1, cz1, ...direction)) return -1;
-      if (!this.isChunkInView(cx2, cz2, ...direction)) return 1;
+      if (direction && !this.isChunkInView(cx1, cz1, ...direction)) return -1;
+      if (direction && !this.isChunkInView(cx2, cz2, ...direction)) return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -704,8 +704,8 @@ export class World extends Scene implements NetIntercept {
       const { x: cx1, z: cz1 } = a;
       const { x: cx2, z: cz2 } = b;
 
-      if (!this.isChunkInView(cx1, cz1, ...direction)) return -1;
-      if (!this.isChunkInView(cx2, cz2, ...direction)) return 1;
+      if (direction && !this.isChunkInView(cx1, cz1, ...direction)) return -1;
+      if (direction && !this.isChunkInView(cx2, cz2, ...direction)) return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -816,7 +816,7 @@ export class World extends Scene implements NetIntercept {
 
   // If the chunk is too far away, remove from scene. If chunk is not in the view,
   // make it invisible to the client.
-  private maintainChunks = (position: Coords3, direction: Coords2) => {
+  private maintainChunks = (position: Coords3, direction?: Coords2) => {
     const { chunkSize } = this.params;
 
     const deleteDistance = this.renderRadius * chunkSize * 1.414;
@@ -842,11 +842,16 @@ export class World extends Scene implements NetIntercept {
       });
     }
 
-    this.chunks.forEach((chunk) => {
-      if (chunk.mesh && !chunk.mesh.isEmpty) {
-        chunk.mesh.visible = this.isChunkInView(...chunk.coords, ...direction);
-      }
-    });
+    if (direction) {
+      this.chunks.forEach((chunk) => {
+        if (chunk.mesh && !chunk.mesh.isEmpty) {
+          chunk.mesh.visible = this.isChunkInView(
+            ...chunk.coords,
+            ...direction
+          );
+        }
+      });
+    }
   };
 
   private loadAtlas = () => {

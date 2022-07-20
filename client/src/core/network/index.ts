@@ -5,7 +5,6 @@ import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
 import DecodeWorker from "web-worker:./workers/decode-worker";
 
-import { Client } from "../..";
 import { WorkerPool } from "../../libs/worker-pool";
 
 import { NetIntercept } from "./intercept";
@@ -36,12 +35,17 @@ type NetworkParams = {
   /**
    * On disconnection, the timeout to attempt to reconnect. Defaults to 5000.
    */
-  reconnectTimeout: number;
+  reconnectTimeout?: number;
 
   /**
    * The secret to joining a server.
    */
   secret?: string;
+};
+
+type ClientInfo = {
+  id: string;
+  username: string;
 };
 
 /**
@@ -54,7 +58,13 @@ class Network extends EventEmitter {
   /**
    * Reference linking back to the Voxelize client instance.
    */
-  public client: Client;
+  public clientInfo: {
+    id: string;
+    username: string;
+  } = {
+    id: "",
+    username: "",
+  };
 
   /**
    * The interceptions to network events.
@@ -94,22 +104,21 @@ class Network extends EventEmitter {
    * Whether or not the network connection is established.
    */
   public connected = false;
+  public joined = false;
 
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
   });
 
   private reconnection: any;
+  private joinResolve: (value: Network) => void = null;
 
   /**
-   * Construct a built in Voxelize Network instance.
+   * Used internally in `client.connect` to connect to the Voxelize backend.
    *
    * @hidden
    */
-  constructor(client: Client, params: NetworkParams) {
-    super();
-
-    this.client = client;
+  connect = async (params: NetworkParams) => {
     this.params = params;
 
     this.url = new DOMUrl(this.params.serverURL);
@@ -123,15 +132,15 @@ class Network extends EventEmitter {
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
     this.socket.searchParams.set("secret", this.params.secret || "");
-    this.socket.searchParams.set("client_id", this.client.id || "");
-  }
+    this.socket.searchParams.set("client_id", this.clientInfo.id || "");
 
-  /**
-   * Used internally in `client.connect` to connect to the Voxelize backend.
-   *
-   * @hidden
-   */
-  connect = async () => {
+    const MAX = 10000;
+    let index = Math.floor(Math.random() * MAX).toString();
+    index =
+      new Array(MAX.toString().length - index.length).fill("0").join("") +
+      index;
+    this.clientInfo.username = `Guest ${index}`;
+
     // if websocket connection already exists, disconnect it
     if (this.ws) {
       this.ws.onclose = null;
@@ -153,7 +162,7 @@ class Network extends EventEmitter {
       };
       ws.onopen = () => {
         this.connected = true;
-        this.client.emit("connected");
+        this.emit("connected");
 
         clearTimeout(this.reconnection);
 
@@ -163,23 +172,61 @@ class Network extends EventEmitter {
       ws.onmessage = ({ data }) => {
         this.decode(new Uint8Array(data)).then((data) => {
           this.onMessage(data);
-          this.client.emit("network-event", data);
+          this.emit("network-event", data);
         });
       };
       ws.onclose = () => {
         this.connected = false;
-        this.client.emit("disconnected");
+        this.emit("disconnected");
 
         // fire reconnection every "reconnectTimeout" ms
         if (this.params.reconnectTimeout) {
           this.reconnection = setTimeout(() => {
-            this.connect();
+            this.connect(params);
           }, this.params.reconnectTimeout);
         }
       };
 
       this.ws = ws;
     });
+  };
+
+  join = async (world: string) => {
+    if (this.joined) {
+      this.leave();
+    }
+
+    this.joined = true;
+    this.world = world;
+
+    this.send({
+      type: "JOIN",
+      json: {
+        world,
+        username: this.clientInfo.username,
+      },
+    });
+
+    this.emit("join");
+
+    return new Promise<Network>((resolve) => {
+      this.joinResolve = resolve;
+    });
+  };
+
+  leave = () => {
+    if (!this.joined) {
+      return;
+    }
+
+    this.joined = false;
+
+    this.send({
+      type: "LEAVE",
+      text: this.world,
+    });
+
+    this.emit("leave");
   };
 
   flush = () => {
@@ -216,7 +263,7 @@ class Network extends EventEmitter {
     this.ws.onmessage = null;
     this.ws.close();
 
-    this.client.emit("disconnected");
+    this.emit("disconnected");
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
@@ -232,6 +279,14 @@ class Network extends EventEmitter {
     this.ws.sendEvent(event);
   };
 
+  setID = (id: string) => {
+    this.clientInfo.id = id || "";
+  };
+
+  setUsername = (username: string) => {
+    this.clientInfo.username = username || " ";
+  };
+
   /**
    * The number of active workers decoding network packets.
    */
@@ -244,19 +299,16 @@ class Network extends EventEmitter {
 
     if (type === "INIT") {
       const { id } = message.json;
+
       if (id) {
-        if (this.client.id && this.client.id !== id) {
+        if (this.clientInfo.id && this.clientInfo.id !== id) {
           throw new Error(
             "Something went wrong with IDs! Better check if you're passing two same ID's to the same Voxelize server."
           );
         }
 
-        this.client.id = id;
+        this.clientInfo.id = id;
       }
-
-      await this.client.loader.load();
-
-      this.client.loaded = true;
     }
 
     this.intercepts.forEach((intercept) => {
@@ -264,13 +316,15 @@ class Network extends EventEmitter {
     });
 
     if (type === "INIT") {
-      this.client.emit("ready");
-
       this.intercepts.forEach((intercept) => {
         intercept.onMessage({ type: "READY" });
       });
 
-      this.client.ready = true;
+      if (!this.joinResolve) {
+        throw new Error("Something went wrong with joining worlds...");
+      }
+
+      this.joinResolve(this);
     }
   };
 

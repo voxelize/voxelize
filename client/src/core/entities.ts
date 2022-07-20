@@ -1,7 +1,5 @@
 import { EntityProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 
-import { Client } from "..";
-
 import { NetIntercept } from "./network";
 
 /**
@@ -10,20 +8,6 @@ import { NetIntercept } from "./network";
  * @noInheritDoc
  */
 class Entities<T> implements NetIntercept {
-  /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
-  /**
-   * Construct a Voxelize entities map.
-   *
-   * @hidden
-   */
-  constructor(client: Client) {
-    this.client = client;
-  }
-
   onEntity: (entity: EntityProtocol<T>) => void;
 
   onMessage = (message: MessageProtocol<any, any, T>) => {

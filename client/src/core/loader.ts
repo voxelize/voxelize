@@ -7,19 +7,12 @@ import {
 } from "three";
 import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-import { Client } from "..";
-
 /**
  * A **built-in** loader for Voxelize.
  *
  * @category Core
  */
 class Loader {
-  /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
   /**
    * A map of all textures loaded by Voxelize.
    */
@@ -53,12 +46,17 @@ class Loader {
    *
    * @hidden
    */
-  constructor(client: Client) {
-    this.client = client;
-
+  constructor() {
     this.manager.onProgress = (_, loaded, total) => {
       this.progress = loaded / total;
     };
+
+    const listenerCallback = () => {
+      this.loadAudios();
+      window.removeEventListener("click", listenerCallback);
+    };
+
+    window.addEventListener("click", listenerCallback);
   }
 
   /**
@@ -67,10 +65,6 @@ class Loader {
    * @param source - The source to the texture file to load from.
    */
   addTexture = (source: string, onLoaded?: (texture: Texture) => void) => {
-    if (this.client.ready) {
-      throw new Error("Cannot add texture after client has started!");
-    }
-
     this.assetPromises.set(
       source,
       new Promise((resolve) => {
@@ -101,10 +95,6 @@ class Loader {
    * @param source - The source to the GLTF file to load from.
    */
   addGLTFModel = (source: string, onLoaded?: (gltf: GLTF) => void) => {
-    if (this.client.ready) {
-      throw new Error("Cannot add GLTF model after client has started!");
-    }
-
     this.assetPromises.set(
       source,
       new Promise((resolve) => {
@@ -139,10 +129,6 @@ class Loader {
     source: string,
     onLoaded?: (buffer: AudioBuffer) => void
   ) => {
-    if (this.client.ready) {
-      throw new Error("Cannot add audio after client has started!");
-    }
-
     const callback = async () => {
       return new Promise<AudioBuffer>((resolve) => {
         this.audioLoader.load(source, (buffer) => {
