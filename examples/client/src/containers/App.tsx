@@ -73,29 +73,16 @@ if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
 const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 
 const App = () => {
-  const [world, setWorld] = useState("world3");
-  const [name, setName] = useState("");
-  const [joined, setJoined] = useState(false);
-  const [error, setError] = useState("");
-  const [locked, setLocked] = useState(false);
-
   const domRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const networkRef = useRef<VOXELIZE.Network | null>(null);
-  const controlsRef = useRef<VOXELIZE.RigidControls | null>(null);
 
   useEffect(() => {
-    if (
-      domRef.current &&
-      canvasRef.current &&
-      !networkRef.current &&
-      !controlsRef.current
-    ) {
+    if (domRef.current && canvasRef.current) {
       const clock = new VOXELIZE.Clock();
       const world = new VOXELIZE.World({ textureDimension: 128 });
 
       const camera = new THREE.PerspectiveCamera(
-        80,
+        90,
         domRef.current.offsetWidth / domRef.current.offsetHeight,
         0.1,
         5000
@@ -119,30 +106,6 @@ const App = () => {
 
       const network = new VOXELIZE.Network();
 
-      if (!networkRef.current) {
-        networkRef.current = network;
-      }
-
-      if (!controlsRef.current) {
-        controlsRef.current = controls;
-      }
-
-      controls.on("unlock", () => {
-        setLocked(false);
-      });
-
-      controls.on("lock", () => {
-        setLocked(true);
-      });
-
-      network.on("join", () => {
-        setJoined(true);
-      });
-
-      network.on("leave", () => {
-        setJoined(false);
-      });
-
       setupWorld(world);
 
       window.addEventListener("resize", () => {
@@ -160,8 +123,6 @@ const App = () => {
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
           network.join("world3").then(() => {
-            setName(network.clientInfo.username);
-
             const animate = () => {
               requestAnimationFrame(animate);
 
