@@ -3,6 +3,7 @@ import { Input } from "../components/input";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import * as VOXELIZE from "@voxelize/client";
+import * as THREE from "three";
 
 import LogoImage from "../assets/tree_transparent.svg";
 
@@ -15,6 +16,13 @@ const GameWrapper = styled.div`
   height: 100vh;
   top: 0;
   left: 0;
+  overflow: hidden;
+`;
+
+const GameCanvas = styled.canvas`
+  position: absolute;
+  width: 100%;
+  height: 100%;
 `;
 
 const ControlsWrapper = styled.div`
@@ -72,24 +80,42 @@ const App = () => {
   const [locked, setLocked] = useState(false);
 
   const domRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const networkRef = useRef<VOXELIZE.Network | null>(null);
   const controlsRef = useRef<VOXELIZE.RigidControls | null>(null);
 
   useEffect(() => {
-    if (domRef.current && !networkRef.current && !controlsRef.current) {
+    if (
+      domRef.current &&
+      canvasRef.current &&
+      !networkRef.current &&
+      !controlsRef.current
+    ) {
       const clock = new VOXELIZE.Clock();
-      const loader = new VOXELIZE.Loader();
-      const world = new VOXELIZE.World(loader, { textureDimension: 128 });
-      const container = new VOXELIZE.Container({
-        domElement: domRef.current,
-      });
-      const camera = new VOXELIZE.Camera({
-        aspectRatio: container.aspectRatio,
-      });
-      const controls = new VOXELIZE.RigidControls(camera, world, container);
-      const rendering = new VOXELIZE.Rendering(container);
+      const world = new VOXELIZE.World({ textureDimension: 128 });
 
-      world.physics.bodies.push(controls.body);
+      const camera = new THREE.PerspectiveCamera(
+        80,
+        domRef.current.offsetWidth / domRef.current.offsetHeight,
+        0.1,
+        5000
+      );
+
+      const renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current,
+        antialias: true,
+      });
+      renderer.setSize(
+        renderer.domElement.offsetWidth,
+        renderer.domElement.offsetHeight
+      );
+      domRef.current.appendChild(renderer.domElement);
+
+      const controls = new VOXELIZE.RigidControls(
+        camera,
+        renderer.domElement,
+        world
+      );
 
       const network = new VOXELIZE.Network();
 
@@ -120,44 +146,46 @@ const App = () => {
       setupWorld(world);
 
       window.addEventListener("resize", () => {
-        const { aspectRatio } = container;
-        rendering.adjustRenderer();
-        camera.aspect = aspectRatio;
+        const width = domRef.current?.offsetWidth as number;
+        const height = domRef.current?.offsetHeight as number;
+
+        renderer.setSize(width, height);
+
+        camera.aspect = width / height;
         camera.updateProjectionMatrix();
       });
 
-      loader.load().then(() => {
-        network
-          .cover(world)
-          .connect({ serverURL: BACKEND_SERVER, secret: "test" })
-          .then((network) => {
-            network.join("world3").then(() => {
-              setName(network.clientInfo.username);
+      network
+        .cover(world)
+        .connect({ serverURL: BACKEND_SERVER, secret: "test" })
+        .then(() => {
+          network.join("world3").then(() => {
+            setName(network.clientInfo.username);
 
-              const animate = () => {
-                requestAnimationFrame(animate);
+            const animate = () => {
+              requestAnimationFrame(animate);
 
-                const center = controls.position;
-                const { x, z } = controls.getDirection();
+              controls.update(clock.delta);
 
-                camera.update();
-                controls.update(clock.delta);
-                world.update(center, clock.delta, [x, z]);
+              world.update(
+                camera.position,
+                clock.delta,
+                controls.getDirection()
+              );
 
-                network.flush();
+              network.flush();
 
-                clock.update();
+              clock.update();
 
-                rendering.render(world, camera);
-              };
+              renderer.render(world, camera);
+            };
 
-              // joinOrResume(false);
-              animate();
-            });
+            // joinOrResume(false);
+            animate();
           });
-      });
+        });
     }
-  }, [domRef]);
+  }, [domRef, canvasRef]);
 
   const joinOrResume = (lock = true) => {
     if (!networkRef.current || !controlsRef.current) return;
@@ -181,36 +209,7 @@ const App = () => {
 
   return (
     <GameWrapper ref={domRef}>
-      {!locked && (
-        <ControlsWrapper>
-          <div>
-            <img src={LogoImage} alt="logo" />
-            <h3>Voxelize Demo!</h3>
-            <Input
-              label="world"
-              value={world}
-              onChange={(e) => {
-                setWorld(e.target.value);
-                setError("");
-              }}
-              disabled={joined}
-            />
-            {joined && (
-              <Input
-                label="name"
-                onChange={(e) => setName(e.target.value)}
-                maxLength={16}
-                value={name}
-              />
-            )}
-            <Button onClick={() => joinOrResume()}>
-              {joined ? "resume" : "join"}
-            </Button>
-            {joined && <Button onClick={leave}>leave</Button>}
-            <span className="error">{error}</span>
-          </div>
-        </ControlsWrapper>
-      )}
+      <GameCanvas ref={canvasRef} />
     </GameWrapper>
   );
 };

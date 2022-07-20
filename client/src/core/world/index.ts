@@ -15,7 +15,6 @@ import {
 import { ArtFunction, BoxSides } from "../../libs";
 import { Coords2, Coords3, PartialRecord } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
-import { Loader } from "../loader";
 import { NetIntercept } from "../network";
 
 import { TextureAtlas } from "./atlas";
@@ -23,6 +22,7 @@ import { Block, BlockRotation, BlockUpdate } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Clouds, CloudsParams } from "./clouds";
+import { Loader } from "./loader";
 import { Registry, TextureData, TextureRange } from "./registry";
 import { drawSun, Sky } from "./sky";
 
@@ -165,11 +165,13 @@ export class World extends Scene implements NetIntercept {
 
   public packets: MessageProtocol[] = [];
 
+  public loader: Loader = new Loader();
+
   private _renderRadius = 8;
 
   private callTick = 0;
 
-  constructor(public loader: Loader, params: Partial<WorldClientParams> = {}) {
+  constructor(params: Partial<WorldClientParams> = {}) {
     super();
 
     const { skyDimension, skyFaces, defaultRenderRadius } = (params = {
@@ -187,7 +189,7 @@ export class World extends Scene implements NetIntercept {
 
     Object.values(skyFaces).forEach((skyFace) => {
       if (typeof skyFace === "string") {
-        loader.addTexture(skyFace);
+        this.loader.addTexture(skyFace);
       }
     });
 
@@ -213,9 +215,7 @@ export class World extends Scene implements NetIntercept {
         this.registry.load(blocks, ranges);
 
         this.setParams(params);
-
         this.loadAtlas();
-
         this.setupSkyCloud();
 
         return;
@@ -477,7 +477,7 @@ export class World extends Scene implements NetIntercept {
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
   };
 
-  update = (center: Coords3, delta: number, direction?: Coords2) => {
+  update = (center: Vector3, delta: number, direction?: Vector3) => {
     this.calculateCurrChunk(center);
 
     if (this.callTick % 2 === 0) {
@@ -508,11 +508,11 @@ export class World extends Scene implements NetIntercept {
     this.setFogDistance(radius);
   }
 
-  private calculateCurrChunk = (position: Coords3) => {
+  private calculateCurrChunk = (center: Vector3) => {
     const { chunkSize } = this.params;
 
     const coords = ChunkUtils.mapVoxelPosToChunkPos(
-      ChunkUtils.mapWorldPosToVoxelPos(position as Coords3),
+      ChunkUtils.mapWorldPosToVoxelPos([center.x, center.y, center.z]),
       chunkSize
     );
 
@@ -573,12 +573,11 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
-  private updateSkyClouds = (position: Coords3, delta: number) => {
-    const [px, py, pz] = position;
-    this.sky.mesh.position.set(px, py, pz);
+  private updateSkyClouds = (position: Vector3, delta: number) => {
+    this.sky.mesh.position.copy(position);
 
     if (this.clouds && this.clouds.initialized) {
-      this.clouds.move(delta, new Vector3(...position));
+      this.clouds.move(delta, position);
     }
 
     this.clouds.update();
@@ -629,7 +628,7 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
-  private surroundChunks = (direction: Coords2) => {
+  private surroundChunks = (direction?: Vector3) => {
     const [cx, cz] = this.chunks.currentChunk;
 
     (() => {
@@ -653,7 +652,10 @@ export class World extends Scene implements NetIntercept {
             continue;
           }
 
-          if (direction && !this.isChunkInView(cx + x, cz + z, ...direction)) {
+          if (
+            direction &&
+            !this.isChunkInView(cx + x, cz + z, direction.x, direction.z)
+          ) {
             continue;
           }
 
@@ -682,8 +684,10 @@ export class World extends Scene implements NetIntercept {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
       const [cx2, cz2] = ChunkUtils.parseChunkName(b);
 
-      if (direction && !this.isChunkInView(cx1, cz1, ...direction)) return -1;
-      if (direction && !this.isChunkInView(cx2, cz2, ...direction)) return 1;
+      if (direction && !this.isChunkInView(cx1, cz1, direction.x, direction.z))
+        return -1;
+      if (direction && !this.isChunkInView(cx2, cz2, direction.x, direction.z))
+        return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -694,8 +698,10 @@ export class World extends Scene implements NetIntercept {
       const { x: cx1, z: cz1 } = a;
       const { x: cx2, z: cz2 } = b;
 
-      if (direction && !this.isChunkInView(cx1, cz1, ...direction)) return -1;
-      if (direction && !this.isChunkInView(cx2, cz2, ...direction)) return 1;
+      if (direction && !this.isChunkInView(cx1, cz1, direction.x, direction.z))
+        return -1;
+      if (direction && !this.isChunkInView(cx2, cz2, direction.x, direction.z))
+        return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -806,14 +812,14 @@ export class World extends Scene implements NetIntercept {
 
   // If the chunk is too far away, remove from scene. If chunk is not in the view,
   // make it invisible to the client.
-  private maintainChunks = (position: Coords3, direction?: Coords2) => {
+  private maintainChunks = (center: Vector3, direction?: Vector3) => {
     const { chunkSize } = this.params;
 
     const deleteDistance = this.renderRadius * chunkSize * 1.414;
     const deleted: Coords2[] = [];
 
     for (const chunk of this.chunks.values()) {
-      const dist = chunk.distTo(...position);
+      const dist = chunk.distTo(center.x, center.y, center.z);
 
       if (dist > deleteDistance) {
         chunk.dispose();
@@ -837,7 +843,8 @@ export class World extends Scene implements NetIntercept {
         if (chunk.mesh && !chunk.mesh.isEmpty) {
           chunk.mesh.visible = this.isChunkInView(
             ...chunk.coords,
-            ...direction
+            direction.x,
+            direction.z
           );
         }
       });

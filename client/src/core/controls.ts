@@ -3,7 +3,6 @@ import { EventEmitter } from "events";
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
-import { MessageProtocol } from "@voxelize/transport/src/types";
 import {
   Euler,
   Vector3,
@@ -13,13 +12,12 @@ import {
   Color,
   BoxBufferGeometry,
   Quaternion,
+  PerspectiveCamera,
 } from "three";
 
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
-import { Camera } from "./camera";
-import { Container } from "./container";
 import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
@@ -317,17 +315,14 @@ class RigidControls extends EventEmitter {
   /**
    * Reference linking to the Voxelize camera instance.
    */
-  public camera: Camera;
+  public camera: PerspectiveCamera;
+
+  public domElement: HTMLElement;
 
   /**
    * Reference linking to the Voxelize world instance.
    */
   public world: World;
-
-  /**
-   * Reference linking to the Voxelize container instance.
-   */
-  public container: Container;
 
   /**
    * Parameters to initialize the Voxelize controls.
@@ -416,16 +411,16 @@ class RigidControls extends EventEmitter {
    * @hidden
    */
   constructor(
-    camera: Camera,
+    camera: PerspectiveCamera,
+    domElement: HTMLElement,
     world: World,
-    container: Container,
     options: Partial<RigidControlsParams> = {}
   ) {
     super();
 
     this.camera = camera;
     this.world = world;
-    this.container = container;
+    this.domElement = domElement;
     this.state = defaultControlState;
 
     const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
@@ -436,14 +431,9 @@ class RigidControls extends EventEmitter {
     this.object.add(this.camera);
     this.world.add(this.object);
 
-    this.body = new RigidBody(
-      new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
-      1,
-      1,
-      0,
-      1,
-      0.5,
-      (newAABB) => {
+    this.body = world.physics.addBody({
+      aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
+      onStep: (newAABB) => {
         const { positionLerp, jumpImpulse } = this.params;
 
         const blockHeight = newAABB.minY - this.body.aabb.minY;
@@ -458,8 +448,9 @@ class RigidControls extends EventEmitter {
           this.params.positionLerp = positionLerp;
           clearInterval(stepInterval);
         }, 500);
-      }
-    );
+      },
+      stepHeight: 0.5,
+    });
 
     this.setPosition(...this.params.initialPosition);
     this.setupLookBlock();
@@ -501,22 +492,18 @@ class RigidControls extends EventEmitter {
    * @hidden
    */
   connect = () => {
-    this.container.domElement.addEventListener(
-      "mousemove",
-      (event: MouseEvent) => {
-        this.onMouseMove(event);
-      }
-    );
-    this.container.domElement.ownerDocument.addEventListener(
-      "pointerlockchange",
-      () => {
-        this.onPointerlockChange();
-      }
-    );
-    this.container.domElement.ownerDocument.addEventListener(
+    this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
+      this.onMouseMove(event);
+    });
+    this.domElement.ownerDocument.addEventListener("pointerlockchange", () => {
+      this.onPointerlockChange();
+    });
+    this.domElement.ownerDocument.addEventListener(
       "pointerlockerror",
       this.onPointerlockError
     );
+
+    this.domElement.addEventListener("click", this.onDocumentClick);
 
     document.addEventListener(
       "keydown",
@@ -545,22 +532,21 @@ class RigidControls extends EventEmitter {
    * @hidden
    */
   disconnect = () => {
-    this.container.domElement.removeEventListener(
-      "mousemove",
-      (event: MouseEvent) => {
-        this.onMouseMove(event);
-      }
-    );
-    this.container.domElement.ownerDocument.removeEventListener(
+    this.domElement.removeEventListener("mousemove", (event: MouseEvent) => {
+      this.onMouseMove(event);
+    });
+    this.domElement.ownerDocument.removeEventListener(
       "pointerlockchange",
       () => {
         this.onPointerlockChange();
       }
     );
-    this.container.domElement.ownerDocument.removeEventListener(
+    this.domElement.ownerDocument.removeEventListener(
       "pointerlockerror",
       this.onPointerlockError
     );
+
+    this.domElement.removeEventListener("click", this.onDocumentClick);
 
     document.removeEventListener(
       "keydown",
@@ -594,7 +580,7 @@ class RigidControls extends EventEmitter {
    * @param callback - Callback to be run once done.
    */
   lock = (callback?: () => void) => {
-    this.container.domElement.requestPointerLock();
+    this.domElement.requestPointerLock();
 
     if (callback) {
       this.lockCallback = callback;
@@ -608,7 +594,7 @@ class RigidControls extends EventEmitter {
    * @param callback - Callback to be run once done.
    */
   unlock = (callback?: () => void) => {
-    this.container.domElement.ownerDocument.exitPointerLock();
+    this.domElement.ownerDocument.exitPointerLock();
 
     if (callback) {
       this.unlockCallback = callback;
@@ -665,7 +651,7 @@ class RigidControls extends EventEmitter {
    */
   toggleGhostMode = () => {
     const { aabb } = this.body;
-    const [px, py, pz] = this.position;
+    const [px, py, pz] = this.body.getPosition();
     const { bodyWidth, bodyHeight, bodyDepth } = this.params;
 
     if (this.ghostMode) {
@@ -752,17 +738,10 @@ class RigidControls extends EventEmitter {
   }
 
   /**
-   * The 3D position that the client is at.
-   */
-  get position() {
-    return this.body.getPosition() as Coords3;
-  }
-
-  /**
    * The voxel coordinates that the client is on.
    */
   get voxel() {
-    return ChunkUtils.mapWorldPosToVoxelPos(this.position);
+    return ChunkUtils.mapWorldPosToVoxelPos(this.body.getPosition() as Coords3);
   }
 
   /**
@@ -1291,10 +1270,7 @@ class RigidControls extends EventEmitter {
   };
 
   private onPointerlockChange = () => {
-    if (
-      this.container.domElement.ownerDocument.pointerLockElement ===
-      this.container.domElement
-    ) {
+    if (this.domElement.ownerDocument.pointerLockElement === this.domElement) {
       this.onLock();
 
       if (this.lockCallback) {
@@ -1315,6 +1291,11 @@ class RigidControls extends EventEmitter {
 
   private onPointerlockError = () => {
     console.error("THREE.PointerLockControls: Unable to use Pointer Lock API");
+  };
+
+  private onDocumentClick = () => {
+    if (this.isLocked) return;
+    this.lock();
   };
 
   private onLock = () => {
