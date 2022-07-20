@@ -1,6 +1,12 @@
 import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import * as VOXELIZE from "@voxelize/client";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
@@ -67,6 +73,11 @@ const App = () => {
         renderer.domElement.offsetWidth,
         renderer.domElement.offsetHeight
       );
+
+      const composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(world, camera));
+      composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+
       domRef.current.appendChild(renderer.domElement);
 
       const controls = new VOXELIZE.RigidControls(
@@ -112,7 +123,7 @@ const App = () => {
 
               clock.update();
 
-              renderer.render(world, camera);
+              composer.render();
             };
 
             animate();
