@@ -43,16 +43,6 @@ class Clock {
    */
   public tick = 0;
 
-  /**
-   * A function called before every update per tick.
-   */
-  public onBeforeUpdate?: () => void;
-
-  /**
-   * A function called after every update per tick.
-   */
-  public onAfterUpdate?: () => void;
-
   private lastFrameTime: number;
 
   /**
@@ -76,8 +66,6 @@ class Clock {
    * @hidden
    */
   update = () => {
-    this.onBeforeUpdate?.();
-
     this.tick++;
 
     const now = Date.now();
@@ -86,8 +74,6 @@ class Clock {
       this.params.maxDelta
     );
     this.lastFrameTime = now;
-
-    this.onAfterUpdate?.();
   };
 }
 

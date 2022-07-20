@@ -89,6 +89,8 @@ const App = () => {
       const controls = new VOXELIZE.RigidControls(camera, world, container);
       const rendering = new VOXELIZE.Rendering(container);
 
+      world.physics.bodies.push(controls.body);
+
       const network = new VOXELIZE.Network();
 
       if (!networkRef.current) {
@@ -127,7 +129,6 @@ const App = () => {
       loader.load().then(() => {
         network
           .cover(world)
-          .cover(controls)
           .connect({ serverURL: BACKEND_SERVER, secret: "test" })
           .then((network) => {
             network.join("world3").then(() => {

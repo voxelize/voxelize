@@ -386,16 +386,6 @@ class RigidControls extends EventEmitter {
     yRotation: 0,
   };
 
-  /**
-   * A function called before every update per tick.
-   */
-  public onBeforeUpdate?: () => void;
-
-  /**
-   * A function called after every update per tick.
-   */
-  public onAfterUpdate?: () => void;
-
   private lookBlockMesh: Group;
 
   private movements = {
@@ -438,50 +428,44 @@ class RigidControls extends EventEmitter {
     this.container = container;
     this.state = defaultControlState;
 
-    this.params = {
+    const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
       ...defaultParams,
       ...options,
-    };
+    });
 
     this.object.add(this.camera);
     this.world.add(this.object);
 
+    this.body = new RigidBody(
+      new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
+      1,
+      1,
+      0,
+      1,
+      0.5,
+      (newAABB) => {
+        const { positionLerp, jumpImpulse } = this.params;
+
+        const blockHeight = newAABB.minY - this.body.aabb.minY;
+        if (blockHeight >= 1) {
+          this.body.applyImpulse([0, jumpImpulse * blockHeight * 0.5, 0]);
+        }
+
+        this.params.positionLerp = 0.6;
+        this.body.aabb = newAABB.clone();
+
+        const stepInterval = setInterval(() => {
+          this.params.positionLerp = positionLerp;
+          clearInterval(stepInterval);
+        }, 500);
+      }
+    );
+
+    this.setPosition(...this.params.initialPosition);
+    this.setupLookBlock();
+
     this.connect();
   }
-
-  onMessage = (message: MessageProtocol<any, any, any>) => {
-    switch (message.type) {
-      case "READY": {
-        this.setupLookBlock();
-        const { bodyWidth, bodyHeight, bodyDepth } = this.params;
-
-        this.body = this.world.physics.addBody({
-          aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
-          onStep: (newAABB) => {
-            const { positionLerp, jumpImpulse } = this.params;
-
-            const blockHeight = newAABB.minY - this.body.aabb.minY;
-            if (blockHeight >= 1) {
-              this.body.applyImpulse([0, jumpImpulse * blockHeight * 0.5, 0]);
-            }
-
-            this.params.positionLerp = 0.6;
-            this.body.aabb = newAABB.clone();
-
-            const stepInterval = setInterval(() => {
-              this.params.positionLerp = positionLerp;
-              clearInterval(stepInterval);
-            }, 500);
-          },
-          stepHeight: 0.5,
-        });
-
-        this.setPosition(...this.params.initialPosition);
-
-        return;
-      }
-    }
-  };
 
   /**
    * Update for the camera of the game.
@@ -489,8 +473,6 @@ class RigidControls extends EventEmitter {
    * @hidden
    */
   update = (delta: number) => {
-    this.onBeforeUpdate?.();
-
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
     this.object.position.lerp(this.newPosition, this.params.positionLerp);
 
@@ -506,8 +488,6 @@ class RigidControls extends EventEmitter {
     this.moveRigidBody();
     this.updateRigidBody(delta);
     this.updateLookBlock();
-
-    this.onAfterUpdate?.();
   };
 
   /**

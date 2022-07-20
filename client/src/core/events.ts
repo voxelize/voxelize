@@ -27,17 +27,6 @@ type EventHandler = (payload: any | null) => void;
  * mind that one event can only have one listener!
  */
 class Events extends Map<string, EventHandler> implements NetIntercept {
-  /**
-   * Reference linking back to the Voxelize client instance.
-   */
-  public client: Client;
-
-  constructor(client: Client) {
-    super();
-
-    this.client = client;
-  }
-
   onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {

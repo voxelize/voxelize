@@ -163,16 +163,6 @@ export class World extends Scene implements NetIntercept {
     transparent?: CustomShaderMaterial;
   } = {};
 
-  /**
-   * A function called before every update per tick.
-   */
-  public onBeforeUpdate?: () => void;
-
-  /**
-   * A function called after every update per tick.
-   */
-  public onAfterUpdate?: () => void;
-
   public packets: MessageProtocol[] = [];
 
   private _renderRadius = 8;
@@ -203,6 +193,8 @@ export class World extends Scene implements NetIntercept {
 
     this.sky = new Sky(skyDimension);
     this.renderRadius = defaultRenderRadius;
+
+    this.setupPhysics();
   }
 
   onMessage = (
@@ -225,7 +217,6 @@ export class World extends Scene implements NetIntercept {
         this.loadAtlas();
 
         this.setupSkyCloud();
-        this.setupPhysics();
 
         return;
       }
@@ -358,10 +349,9 @@ export class World extends Scene implements NetIntercept {
    * @memberof World
    */
   setParams = (data: WorldServerParams) => {
-    this.params = {
-      ...this.params,
-      ...data,
-    };
+    Object.keys(data).forEach((key) => {
+      this.params[key] = data[key];
+    });
   };
 
   /**
@@ -734,7 +724,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   private updatePhysics = (delta: number) => {
-    if (!this.physics) return;
+    if (!this.physics || !this.params.gravity) return;
 
     const noGravity =
       this.params.gravity[0] ** 2 +
