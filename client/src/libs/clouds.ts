@@ -12,12 +12,12 @@ import {
 } from "three";
 import CloudWorker from "web-worker:./workers/clouds-worker.ts";
 
-import { WorkerPool } from "../../libs/worker-pool";
-import { Coords3 } from "../../types";
+import { Coords3 } from "../types";
 
 import { cull } from "./cull";
 import CloudsFragmentShader from "./shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "./shaders/clouds/vertex.glsl";
+import { WorkerPool } from "./worker-pool";
 
 type CloudsParams = {
   scale: number;
@@ -34,21 +34,39 @@ type CloudsParams = {
   count: number;
   octaves: number;
   falloff: number;
-  uFogNear: {
+  uFogNear?: {
     value: number;
   };
-  uFogFar: {
+  uFogFar?: {
     value: number;
   };
-  uFogColor: {
+  uFogColor?: {
     value: Color;
   };
+};
+
+const defaultParams: CloudsParams = {
+  alpha: 0.8,
+  color: "#fff",
+  count: 16,
+  scale: 0.08,
+  width: 8,
+  height: 3,
+  dimensions: [20, 20, 20],
+  speedFactor: 8,
+  lerpFactor: 0.3,
+  threshold: 0.05,
+  octaves: 5,
+  falloff: 0.9,
+  seed: -1,
+  worldHeight: 256,
 };
 
 class Clouds extends Group {
   public array: NdArray;
   public material: ShaderMaterial;
   public initialized = false;
+  public params: CloudsParams;
 
   public meshes: Mesh[][] = [];
 
@@ -61,8 +79,10 @@ class Clouds extends Group {
     maxWorker: 2,
   });
 
-  constructor(public params: CloudsParams) {
+  constructor(params: Partial<CloudsParams> = {}) {
     super();
+
+    this.params = { ...defaultParams, ...params };
 
     const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.params;
 
@@ -76,9 +96,9 @@ class Clouds extends Group {
       fragmentShader: CloudsFragmentShader,
       side: FrontSide,
       uniforms: {
-        uFogNear,
-        uFogFar,
-        uFogColor,
+        uFogNear: uFogNear || { value: 500 },
+        uFogFar: uFogFar || { value: 1000 },
+        uFogColor: uFogColor || { value: new Color("#fff") },
         uCloudColor: {
           value: new Color(color),
         },
@@ -87,6 +107,8 @@ class Clouds extends Group {
         },
       },
     });
+
+    this.initialize();
   }
 
   initialize = async () => {
@@ -149,7 +171,9 @@ class Clouds extends Group {
     }
   };
 
-  update = () => {
+  update = (delta: number, position: Vector3) => {
+    this.move(delta, position);
+
     this.position.lerp(this.newPosition, this.params.lerpFactor);
   };
 

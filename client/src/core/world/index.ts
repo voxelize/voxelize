@@ -21,19 +21,14 @@ import { TextureAtlas } from "./atlas";
 import { Block, BlockRotation, BlockUpdate } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
-import { Clouds, CloudsParams } from "./clouds";
 import { Loader } from "./loader";
 import { Registry, TextureData, TextureRange } from "./registry";
-import { drawSun, Sky } from "./sky";
 
 export * from "./atlas";
 export * from "./block";
 export * from "./chunk";
 export * from "./chunks";
-export * from "./clouds";
-export * from "./cull";
 export * from "./registry";
-export * from "./sky";
 
 export type SkyFace = ArtFunction | Color | string | null;
 
@@ -45,14 +40,11 @@ export type CustomShaderMaterial = ShaderMaterial & {
 };
 
 export type WorldClientParams = {
-  skyDimension: number;
   inViewRadius: number;
   maxRequestsPerTick: number;
   maxProcessesPerTick: number;
   maxUpdatesPerTick: number;
   maxAddsPerTick: number;
-  skyFaces: PartialRecord<BoxSides, SkyFace>;
-  clouds: Partial<CloudsParams> | boolean;
   defaultRenderRadius: number;
   textureDimension: number;
 };
@@ -73,14 +65,11 @@ export type WorldServerParams = {
 };
 
 const defaultParams: WorldClientParams = {
-  skyDimension: 1000,
   inViewRadius: 5,
   maxRequestsPerTick: 2,
   maxProcessesPerTick: 2,
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
-  skyFaces: { top: drawSun },
-  clouds: true,
   defaultRenderRadius: 8,
   textureDimension: 8,
 };
@@ -94,8 +83,6 @@ export class World extends Scene implements NetIntercept {
   // @ts-ignore
   public params: WorldParams = {};
 
-  public sky: Sky;
-  public clouds: Clouds;
   public chunks: Chunks;
 
   public physics: PhysicsEngine;
@@ -174,7 +161,7 @@ export class World extends Scene implements NetIntercept {
   constructor(params: Partial<WorldClientParams> = {}) {
     super();
 
-    const { skyDimension, skyFaces, defaultRenderRadius } = (params = {
+    const { defaultRenderRadius } = (params = {
       ...defaultParams,
       ...params,
     });
@@ -187,13 +174,6 @@ export class World extends Scene implements NetIntercept {
       ...params,
     };
 
-    Object.values(skyFaces).forEach((skyFace) => {
-      if (typeof skyFace === "string") {
-        this.loader.addTexture(skyFace);
-      }
-    });
-
-    this.sky = new Sky(skyDimension);
     this.renderRadius = defaultRenderRadius;
 
     this.setupPhysics();
@@ -216,7 +196,7 @@ export class World extends Scene implements NetIntercept {
 
         this.setParams(params);
         this.loadAtlas();
-        this.setupSkyCloud();
+        this.setFogDistance(this.renderRadius);
 
         return;
       }
@@ -268,10 +248,6 @@ export class World extends Scene implements NetIntercept {
     this.chunks.toRequest.length = 0;
     this.chunks.toProcess.length = 0;
     this.chunks.currentChunk = [0, 0];
-
-    if (this.clouds) {
-      this.clouds.reset();
-    }
 
     this.blockCache.clear();
   };
@@ -488,10 +464,8 @@ export class World extends Scene implements NetIntercept {
 
     this.addChunks();
     this.requestChunks();
-
     this.maintainChunks(center, direction);
 
-    this.updateSkyClouds(center, delta);
     this.emitServerUpdates();
 
     this.updatePhysics(delta);
@@ -523,64 +497,6 @@ export class World extends Scene implements NetIntercept {
       this.chunks.currentChunk[1] !== coords[1]
     ) {
       this.chunks.currentChunk = coords;
-    }
-  };
-
-  private setupSkyCloud = () => {
-    // Avoid setting up twice.
-    if (this.clouds) return;
-
-    const { skyFaces, clouds } = this.params;
-
-    this.setFogDistance(this.renderRadius);
-
-    Object.entries(skyFaces).forEach(([side, skyFace]) => {
-      if (typeof skyFace === "string") {
-        const texture = this.loader.getTexture(skyFace);
-        if (texture) {
-          this.sky.box.paint(side as BoxSides, texture);
-        }
-      } else if (skyFace) {
-        this.sky.box.paint(side as BoxSides, skyFace);
-      }
-    });
-
-    this.add(this.sky);
-
-    if (clouds !== false) {
-      this.clouds = new Clouds({
-        alpha: 0.8,
-        color: "#fff",
-        count: 16,
-        scale: 0.08,
-        width: 8,
-        height: 3,
-        dimensions: [20, 20, 20],
-        speedFactor: 8,
-        lerpFactor: 0.3,
-        threshold: 0.05,
-        octaves: 5,
-        falloff: 0.9,
-        seed: -1,
-        ...(typeof clouds === "object" ? clouds : {}),
-        worldHeight: this.params.maxHeight,
-        uFogColor: this.sky.uMiddleColor,
-        uFogNear: this.uniforms.fogNear,
-        uFogFar: this.uniforms.fogFar,
-      });
-
-      this.clouds.initialize().then(() => {
-        this.add(this.clouds);
-      });
-    }
-  };
-
-  private updateSkyClouds = (position: Vector3, delta: number) => {
-    this.sky.position.copy(position);
-
-    if (this.clouds && this.clouds.initialized) {
-      this.clouds.move(delta, position);
-      this.clouds.update();
     }
   };
 
@@ -999,7 +915,7 @@ vWorldPosition = worldPosition;
         uMinLight: this.uniforms.minLight,
         uFogNear: this.uniforms.fogNear,
         uFogFar: this.uniforms.fogFar,
-        uFogColor: this.sky.uMiddleColor,
+        uFogColor: this.uniforms.fogColor,
       },
     }) as CustomShaderMaterial;
 

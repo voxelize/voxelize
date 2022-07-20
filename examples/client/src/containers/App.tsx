@@ -32,14 +32,25 @@ const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 const App = () => {
   const domRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const worldRef = useRef<VOXELIZE.World | null>(null);
 
   useEffect(() => {
-    if (domRef.current && canvasRef.current) {
+    if (domRef.current && canvasRef.current && !worldRef.current) {
       const clock = new VOXELIZE.Clock();
       const world = new VOXELIZE.World({
         textureDimension: 128,
-        clouds: false,
       });
+
+      const sky = new VOXELIZE.Sky(2000);
+      sky.box.paint("top", VOXELIZE.drawSun);
+      world.add(sky);
+
+      const clouds = new VOXELIZE.Clouds({
+        uFogColor: sky.uMiddleColor,
+      });
+      world.add(clouds);
+
+      world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
 
       const camera = new THREE.PerspectiveCamera(
         90,
@@ -88,6 +99,9 @@ const App = () => {
 
               controls.update(clock.delta);
 
+              clouds.update(clock.delta, camera.position);
+              sky.position.copy(camera.position);
+
               world.update(
                 camera.position,
                 clock.delta,
@@ -104,6 +118,8 @@ const App = () => {
             animate();
           });
         });
+
+      worldRef.current = world;
     }
   }, [domRef, canvasRef]);
 

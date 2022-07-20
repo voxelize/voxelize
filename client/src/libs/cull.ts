@@ -1,8 +1,9 @@
 import { NdArray } from "ndarray";
 import CullWorker from "web-worker:./workers/cull-worker.ts";
 
-import { WorkerPool } from "../../libs/worker-pool";
-import { Coords3 } from "../../types";
+import { Coords3 } from "../types";
+
+import { WorkerPool } from "./worker-pool";
 
 export type MeshResultType = {
   positions: Float32Array;
