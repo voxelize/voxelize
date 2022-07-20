@@ -121,7 +121,8 @@ impl Server {
 
     /// Handler for client's message.
     pub fn on_request(&mut self, id: &str, data: Message) {
-        if data.r#type == MessageType::Transport as i32 {
+        if data.r#type == MessageType::Transport as i32 || self.transport_sessions.contains_key(id)
+        {
             if !self.transport_sessions.contains_key(id) {
                 warn!("Someone who isn't a transport server is attempting to transport.");
                 return;
