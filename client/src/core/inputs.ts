@@ -6,30 +6,15 @@ import Mousetrap from "mousetrap";
 export type ClickType = "left" | "middle" | "right";
 
 /**
- * Different namespaces that the {@link Inputs} is in.
- * - `in-game`: Keys registered in-game will be fired.
- * - `chat`: Keys registered for the chat will be fired.
- * - `menu`: Keys registered otherwise will be fired.
- * - `*`: Keys will be fired no matter what.
- */
-export type InputNamespace =
-  | "in-game"
-  | "chat"
-  | "inventory"
-  | "menu"
-  | "*"
-  | string;
-
-/**
  * The occasion that the input should be fired.
  */
 export type InputOccasion = "keydown" | "keypress" | "keyup";
 
-type ClickCallbacks = { callback: () => void; namespace: InputNamespace }[];
+type ClickCallbacks = { callback: () => void; namespace: string }[];
 type ScrollCallbacks = {
   up: (delta?: number) => void;
   down: (delta?: number) => void;
-  namespace: InputNamespace;
+  namespace: string;
 }[];
 
 /**
@@ -50,12 +35,12 @@ type ScrollCallbacks = {
  *
  * @category Core
  */
-export class Inputs {
+export class Inputs<T extends string> {
   /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace for namespace checking.
    */
-  public namespace: InputNamespace = "menu";
+  public namespace: T;
 
   private combos: Map<string, string> = new Map();
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
@@ -63,13 +48,6 @@ export class Inputs {
 
   private unbinds = new Map<string, () => void>();
   private mouseUnbinds: (() => void)[] = [];
-  private knownNamespaces: Set<InputNamespace> = new Set([
-    "in-game",
-    "chat",
-    "inventory",
-    "menu",
-    "*",
-  ]);
 
   /**
    * Construct a Voxelize inputs instance.
@@ -100,11 +78,7 @@ export class Inputs {
    * @param callback - What to do when that button is clicked.
    * @param namespace - Which namespace should this event be fired?
    */
-  click = (
-    type: ClickType,
-    callback: () => void,
-    namespace: InputNamespace
-  ) => {
+  click = (type: ClickType, callback: () => void, namespace: T) => {
     this.clickCallbacks.get(type)?.push({ namespace, callback });
   };
 
@@ -118,7 +92,7 @@ export class Inputs {
   scroll = (
     up: (delta?: number) => void,
     down: (delta?: number) => void,
-    namespace: InputNamespace
+    namespace: T
   ) => {
     this.scrollCallbacks.push({ up, down, namespace });
   };
@@ -136,7 +110,7 @@ export class Inputs {
   bind = (
     name: string,
     callback: () => void,
-    namespace: InputNamespace,
+    namespace: T,
     specifics: { occasion?: InputOccasion; element?: HTMLElement } = {}
   ) => {
     const { occasion = "keydown", element } = specifics;
@@ -174,20 +148,12 @@ export class Inputs {
     });
   };
 
-  addNamespace = (namespace: InputNamespace) => {
-    this.knownNamespaces.add(namespace);
-  };
-
   /**
    * Set the namespace of the inputs instance, also checks if the namespace is valid.
    *
    * @param namespace - The namespace to set to.
    */
-  setNamespace = (namespace: InputNamespace) => {
-    if (!this.knownNamespaces.has(namespace)) {
-      throw new Error(`Set namespace to unknown namespace: ${namespace}.`);
-    }
-
+  setNamespace = (namespace: T) => {
     this.namespace = namespace;
   };
 

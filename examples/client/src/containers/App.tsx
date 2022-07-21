@@ -47,6 +47,9 @@ const App = () => {
         textureDimension: 128,
       });
       const chat = new VOXELIZE.Chat();
+      const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
+
+      inputs.setNamespace("menu");
 
       const sky = new VOXELIZE.Sky(2000);
       sky.box.paint("top", VOXELIZE.drawSun);
@@ -101,9 +104,31 @@ const App = () => {
         camera.updateProjectionMatrix();
       });
 
-      document.addEventListener("keydown", (e) => {
-        console.log(e.key);
+      controls.on("lock", () => {
+        inputs.setNamespace("in-game");
       });
+
+      inputs.bind(
+        "t",
+        () => {
+          controls.unlock(() => {
+            inputs.setNamespace("chat");
+          });
+        },
+        "in-game"
+      );
+
+      inputs.bind(
+        "esc",
+        () => {
+          controls.lock();
+        },
+        "chat",
+        {
+          // Need this so that ESC doesn't unlock the pointerlock.
+          occasion: "keyup",
+        }
+      );
 
       network
         .register(chat)
@@ -111,8 +136,6 @@ const App = () => {
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
           network.join("world3").then(() => {
-            chat.send({ type: "SERVER", body: "BRUH" });
-
             const animate = () => {
               requestAnimationFrame(animate);
 
