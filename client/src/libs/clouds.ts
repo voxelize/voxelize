@@ -171,7 +171,7 @@ export class Clouds extends Group {
     }
   };
 
-  update = (delta: number, position: Vector3) => {
+  update = (position: Vector3, delta: number) => {
     this.move(delta, position);
 
     this.position.lerp(this.newPosition, this.params.lerpFactor);

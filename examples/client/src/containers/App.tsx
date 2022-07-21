@@ -143,7 +143,7 @@ const App = () => {
 
               controls.update(delta);
 
-              clouds.update(delta, camera.position);
+              clouds.update(camera.position, delta);
               sky.position.copy(camera.position);
 
               world.update(camera.position, delta, controls.getDirection());

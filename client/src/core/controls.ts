@@ -1275,6 +1275,7 @@ export class RigidControls extends EventEmitter {
 
       if (this.lockCallback) {
         this.lockCallback();
+        this.lockCallback = undefined;
       }
 
       this.isLocked = true;
@@ -1283,6 +1284,7 @@ export class RigidControls extends EventEmitter {
 
       if (this.unlockCallback) {
         this.unlockCallback();
+        this.unlockCallback = undefined;
       }
 
       this.isLocked = false;
