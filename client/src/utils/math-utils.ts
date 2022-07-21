@@ -5,7 +5,7 @@ const TWO_PI = Math.PI * 2;
  *
  * @class MathUtils
  */
-class MathUtils {
+export class MathUtils {
   /**
    * Round a number to a certain digit
    *
@@ -23,5 +23,3 @@ class MathUtils {
     return angle - TWO_PI * Math.floor((angle + Math.PI) / TWO_PI);
   };
 }
-
-export { MathUtils };

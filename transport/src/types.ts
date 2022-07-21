@@ -47,7 +47,7 @@ export type UpdateProtocol = {
 
 export type ChatProtocol = {
   type: string;
-  sender: string;
+  sender?: string;
   body: string;
 };
 

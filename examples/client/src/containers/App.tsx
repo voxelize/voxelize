@@ -42,10 +42,11 @@ const App = () => {
 
   useEffect(() => {
     if (domRef.current && canvasRef.current && !worldRef.current) {
-      const clock = new VOXELIZE.Clock();
+      const clock = new THREE.Clock();
       const world = new VOXELIZE.World({
         textureDimension: 128,
       });
+      const chat = new VOXELIZE.Chat();
 
       const sky = new VOXELIZE.Sky(2000);
       sky.box.paint("top", VOXELIZE.drawSun);
@@ -100,28 +101,31 @@ const App = () => {
         camera.updateProjectionMatrix();
       });
 
+      document.addEventListener("keydown", (e) => {
+        console.log(e.key);
+      });
+
       network
-        .cover(world)
+        .register(chat)
+        .register(world)
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
           network.join("world3").then(() => {
+            chat.send({ type: "SERVER", body: "BRUH" });
+
             const animate = () => {
               requestAnimationFrame(animate);
 
-              controls.update(clock.delta);
+              const delta = clock.getDelta();
 
-              clouds.update(clock.delta, camera.position);
+              controls.update(delta);
+
+              clouds.update(delta, camera.position);
               sky.position.copy(camera.position);
 
-              world.update(
-                camera.position,
-                clock.delta,
-                controls.getDirection()
-              );
+              world.update(camera.position, delta, controls.getDirection());
 
               network.flush();
-
-              clock.update();
 
               composer.render();
             };

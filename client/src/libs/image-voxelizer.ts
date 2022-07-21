@@ -3,7 +3,7 @@ import { Coords3 } from "../types";
 /**
  * Parameters to process an image voxelization.
  */
-type ImageVoxelizerParams = {
+export type ImageVoxelizerParams = {
   /**
    * The width, in blocks, of the voxelized image. Defaults to `64`.
    */
@@ -38,7 +38,7 @@ const defaultParams: ImageVoxelizerParams = {
   orientation: "x",
 };
 
-class ImageVoxelizer {
+export class ImageVoxelizer {
   // static commander = async (rest: string, client: Client) => {
   //   const index = rest.indexOf("{") === -1 ? rest.length : rest.indexOf("{");
   //   let file = rest.substring(0, index).trim();
@@ -205,5 +205,3 @@ class ImageVoxelizer {
   //   });
   // };
 }
-
-export { ImageVoxelizer, ImageVoxelizerParams };

@@ -1,7 +1,7 @@
 import { NearestFilter } from "three";
 import SpriteText from "three-spritetext";
 
-class NameTag extends SpriteText {
+export class NameTag extends SpriteText {
   public mesh: SpriteText;
 
   constructor(
@@ -34,5 +34,3 @@ class NameTag extends SpriteText {
     }
   }
 }
-
-export { NameTag };

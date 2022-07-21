@@ -2,12 +2,12 @@ import { MeshBasicMaterial, DoubleSide } from "three";
 
 import { CanvasBox } from "./canvas-box";
 
-type HeadParams = {
+export type HeadParams = {
   headDimension: number;
   headColor: string;
 };
 
-class Head {
+export class Head {
   public box: CanvasBox;
 
   constructor(public params: HeadParams) {
@@ -107,5 +107,3 @@ class Head {
     return this.box.meshes;
   }
 }
-
-export { Head };

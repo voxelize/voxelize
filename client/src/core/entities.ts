@@ -7,7 +7,7 @@ import { NetIntercept } from "./network";
  *
  * @noInheritDoc
  */
-class Entities<T> implements NetIntercept {
+export class Entities<T> implements NetIntercept {
   onEntity: (entity: EntityProtocol<T>) => void;
 
   onMessage = (message: MessageProtocol<any, any, T>) => {
@@ -20,5 +20,3 @@ class Entities<T> implements NetIntercept {
     }
   };
 }
-
-export { Entities };

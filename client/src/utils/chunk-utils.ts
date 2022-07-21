@@ -2,7 +2,7 @@ import vec3 from "gl-vec3";
 
 import { Coords2, Coords3 } from "../types";
 
-class ChunkUtils {
+export class ChunkUtils {
   /**
    * Given a coordinate of a chunk, return the chunk representation.
    *
@@ -111,5 +111,3 @@ class ChunkUtils {
     return ChunkUtils.scaleCoordsF(worldPos, 1);
   };
 }
-
-export { ChunkUtils };

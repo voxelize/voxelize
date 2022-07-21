@@ -128,7 +128,7 @@ export function drawSun(
   context.restore();
 }
 
-class Sky extends Group {
+export class Sky extends Group {
   public box: CanvasBox;
 
   public uTopColor: {
@@ -206,5 +206,3 @@ class Sky extends Group {
     this.add(meshes);
   };
 }
-
-export { Sky };

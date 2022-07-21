@@ -9,7 +9,7 @@ import { NetIntercept } from "./network";
  * @noInheritDoc
  * @category Core
  */
-class Peers<T> implements NetIntercept {
+export class Peers<T> implements NetIntercept {
   ownID = "";
 
   onPeerJoin: (id: string) => void;
@@ -87,5 +87,3 @@ class Peers<T> implements NetIntercept {
     return updateQuaternion();
   };
 }
-
-export { Peers };

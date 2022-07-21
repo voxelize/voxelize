@@ -23,7 +23,7 @@ const cullPool = new WorkerPool(CullWorker, {
   maxWorker: 2,
 });
 
-async function cull(
+export async function cull(
   array: NdArray,
   options: CullOptionsType
 ): Promise<MeshResultType> {
@@ -48,5 +48,3 @@ async function cull(
     });
   });
 }
-
-export { cull };

@@ -5,7 +5,7 @@ import { NetIntercept } from "./network";
 /**
  * A Voxelize event.
  */
-type Event = {
+export type Event = {
   /**
    * The name to identify the event.
    */
@@ -20,13 +20,13 @@ type Event = {
 /**
  * The handler for an event sent from the Voxelize server.
  */
-type EventHandler = (payload: any | null) => void;
+export type EventHandler = (payload: any | null) => void;
 
 /**
  * A **built-in** manager for the events sent from the Voxelize server. Keep in
  * mind that one event can only have one listener!
  */
-class Events extends Map<string, EventHandler> implements NetIntercept {
+export class Events extends Map<string, EventHandler> implements NetIntercept {
   onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {
@@ -97,7 +97,3 @@ class Events extends Map<string, EventHandler> implements NetIntercept {
     handler(deserialized);
   };
 }
-
-export type { Event, EventHandler };
-
-export { Events };

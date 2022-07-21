@@ -52,7 +52,7 @@ function rotateY(a: number[], b: number[], c: number) {
 /**
  * The state of which a Voxelize {@link Controls} is in.
  */
-type RigidControlState = {
+export type RigidControlState = {
   /**
    * In radians, the heading y-rotation of the client. Defaults to `0`.
    */
@@ -109,7 +109,7 @@ const defaultControlState: RigidControlState = {
 /**
  * Parameters to initialize the Voxelize {@link Controls}.
  */
-type RigidControlsParams = {
+export type RigidControlsParams = {
   /**
    * The mouse sensitivity. Defaults to `100`.
    */
@@ -311,7 +311,7 @@ const defaultParams: RigidControlsParams = {
  * @noInheritDoc
  * @category Core
  */
-class RigidControls extends EventEmitter {
+export class RigidControls extends EventEmitter {
   /**
    * Reference linking to the Voxelize camera instance.
    */
@@ -1306,7 +1306,3 @@ class RigidControls extends EventEmitter {
     this.emit("unlock");
   };
 }
-
-export type { RigidControlsParams, RigidControlState };
-
-export { RigidControls };

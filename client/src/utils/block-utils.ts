@@ -12,7 +12,7 @@ const STAGE_MASK = 0xf0ffffff;
  * - `17 - 20 bit`: rotation (0x000F0000)
  * - `21 - 32 bit`: stage (0xFFF00000)
  */
-class BlockUtils {
+export class BlockUtils {
   static extractID = (voxel: number) => {
     return voxel & 0xffff;
   };
@@ -41,5 +41,3 @@ class BlockUtils {
     return (voxel & STAGE_MASK) | (stage << 24);
   };
 }
-
-export { BlockUtils };

@@ -1,4 +1,4 @@
-class LightUtils {
+export class LightUtils {
   static extractSunlight = (light: number) => {
     return (light >> 12) & 0xf;
   };
@@ -38,5 +38,3 @@ export const BlueLight = "BLUE";
 export const Sunlight = "SUNLIGHT";
 
 export type LightColor = "RED" | "GREEN" | "BLUE" | "SUNLIGHT";
-
-export { LightUtils };

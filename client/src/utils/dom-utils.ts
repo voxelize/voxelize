@@ -1,4 +1,4 @@
-class DOMUtils {
+export class DOMUtils {
   static applyStyles = (
     ele: HTMLElement | HTMLElement[] | undefined,
     style: Partial<CSSStyleDeclaration>
@@ -22,5 +22,3 @@ class DOMUtils {
     return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
   };
 }
-
-export { DOMUtils };

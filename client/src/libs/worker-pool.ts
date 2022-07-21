@@ -1,10 +1,10 @@
-type WorkerPoolJob = {
+export type WorkerPoolJob = {
   message: any;
   buffers?: ArrayBufferLike[];
   resolve: (value: any) => void;
 };
 
-type WorkerPoolParams = {
+export type WorkerPoolParams = {
   maxWorker: number;
 };
 
@@ -12,7 +12,7 @@ const defaultParams: WorkerPoolParams = {
   maxWorker: 8,
 };
 
-class WorkerPool {
+export class WorkerPool {
   public queue: WorkerPoolJob[] = [];
 
   static WORKING_COUNT = 0;
@@ -67,7 +67,3 @@ class WorkerPool {
     return this.workers.length - this.available.length;
   }
 }
-
-export type { WorkerPoolParams, WorkerPoolJob };
-
-export { WorkerPool };

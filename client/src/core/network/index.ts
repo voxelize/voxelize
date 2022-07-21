@@ -241,14 +241,16 @@ class Network extends EventEmitter {
     });
   };
 
-  cover = (intercept: NetIntercept) => {
-    if (typeof intercept.onMessage !== "function") {
-      throw new Error(
-        "Cannot intercept network events without the `.onMessage` function!"
-      );
-    }
+  register = (...intercepts: NetIntercept[]) => {
+    intercepts.forEach((intercept) => {
+      if (typeof intercept.onMessage !== "function") {
+        throw new Error(
+          "Cannot intercept network events without the `.onMessage` function!"
+        );
+      }
 
-    this.intercepts.push(intercept);
+      this.intercepts.push(intercept);
+    });
 
     return this;
   };

@@ -19,7 +19,7 @@ import CloudsFragmentShader from "./shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "./shaders/clouds/vertex.glsl";
 import { WorkerPool } from "./worker-pool";
 
-type CloudsParams = {
+export type CloudsParams = {
   scale: number;
   width: number;
   height: number;
@@ -62,7 +62,7 @@ const defaultParams: CloudsParams = {
   worldHeight: 256,
 };
 
-class Clouds extends Group {
+export class Clouds extends Group {
   public array: NdArray;
   public material: ShaderMaterial;
   public initialized = false;
@@ -293,7 +293,3 @@ class Clouds extends Group {
     return mesh;
   };
 }
-
-export type { CloudsParams };
-
-export { Clouds };

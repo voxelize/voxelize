@@ -12,7 +12,7 @@ import {
   Texture,
 } from "three";
 
-type CanvasBoxParams = {
+export type CanvasBoxParams = {
   gap: number; // gap between layers
   layers: number;
   width: number;
@@ -20,14 +20,14 @@ type CanvasBoxParams = {
   side: Side;
 };
 
-type ArtFunction = (
+export type ArtFunction = (
   context: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   width?: number,
   dimension?: number
 ) => void;
 
-type BoxSides =
+export type BoxSides =
   | "back"
   | "front"
   | "top"
@@ -37,7 +37,7 @@ type BoxSides =
   | "all"
   | "sides";
 
-const defaultParams: CanvasBoxParams = {
+export const defaultParams: CanvasBoxParams = {
   gap: 0,
   layers: 1,
   width: 8,
@@ -45,9 +45,9 @@ const defaultParams: CanvasBoxParams = {
   side: FrontSide,
 };
 
-const BOX_SIDES = ["back", "front", "top", "bottom", "left", "right"];
+export const BOX_SIDES = ["back", "front", "top", "bottom", "left", "right"];
 
-class Layer {
+export class BoxLayer {
   public geometry: BoxBufferGeometry;
   public materials: Map<string, MeshBasicMaterial> = new Map();
   public mesh: Mesh;
@@ -130,11 +130,11 @@ class Layer {
   };
 }
 
-class CanvasBox {
+export class CanvasBox {
   public params: CanvasBoxParams;
 
   public meshes = new Group();
-  public layers: Layer[] = [];
+  public layers: BoxLayer[] = [];
 
   constructor(params: Partial<CanvasBoxParams> = {}) {
     this.params = {
@@ -149,9 +149,9 @@ class CanvasBox {
     const { layers, gap, dimension, side, width } = this.params;
 
     for (let i = 0; i < layers; i++) {
-      const newLayer = new Layer(dimension + i * gap * 2, width, side);
-      this.layers.push(newLayer);
-      this.meshes.add(newLayer.mesh);
+      const newBoxLayer = new BoxLayer(dimension + i * gap * 2, width, side);
+      this.layers.push(newBoxLayer);
+      this.meshes.add(newBoxLayer.mesh);
     }
   };
 
@@ -186,7 +186,3 @@ class CanvasBox {
     return this.layers[0].materials;
   }
 }
-
-export type { CanvasBoxParams, BoxSides, ArtFunction };
-
-export { CanvasBox };
