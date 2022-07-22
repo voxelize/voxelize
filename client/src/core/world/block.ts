@@ -17,6 +17,7 @@ export type Block = {
   isPlant: boolean;
   isPlantable: boolean;
   isOpaque: boolean;
+  isSeeThrough: boolean;
   isPxTransparent: boolean;
   isNxTransparent: boolean;
   isPyTransparent: boolean;
@@ -25,7 +26,7 @@ export type Block = {
   isNzTransparent: boolean;
   transparentStandalone: boolean;
   faces: {
-    corners: { pos: number[]; uv: [] }[];
+    corners: { pos: number[]; uv: number[] }[];
     dir: number[];
     name: string;
   }[];
@@ -62,21 +63,40 @@ export type BlockUpdate = {
   rotation?: BlockRotation;
 };
 
-const PY_ROTATION = 0;
-const NY_ROTATION = 1;
-const PX_ROTATION = 2;
-const NX_ROTATION = 3;
-const PZ_ROTATION = 4;
-const NZ_ROTATION = 5;
+export const PY_ROTATION = 0;
+export const NY_ROTATION = 1;
+export const PX_ROTATION = 2;
+export const NX_ROTATION = 3;
+export const PZ_ROTATION = 4;
+export const NZ_ROTATION = 5;
 
-const Y_000_ROTATION = 0;
-const Y_045_ROTATION = 1;
-const Y_090_ROTATION = 2;
-const Y_135_ROTATION = 3;
-const Y_180_ROTATION = 4;
-const Y_225_ROTATION = 5;
-const Y_270_ROTATION = 6;
-const Y_315_ROTATION = 7;
+export const Y_000_ROTATION = 0;
+export const Y_045_ROTATION = 1;
+export const Y_090_ROTATION = 2;
+export const Y_135_ROTATION = 3;
+export const Y_180_ROTATION = 4;
+export const Y_225_ROTATION = 5;
+export const Y_270_ROTATION = 6;
+export const Y_315_ROTATION = 7;
+
+export const Y_ROT_MAP = [
+  [0, Y_000_ROTATION],
+  // [Math.PI / 4, Y_045_ROTATION],
+  [Math.PI / 2, Y_090_ROTATION],
+  // [(Math.PI * 3) / 4, Y_135_ROTATION],
+  [Math.PI, Y_180_ROTATION],
+  // [(Math.PI * 5) / 4, Y_225_ROTATION],
+  [(Math.PI * 3) / 2, Y_270_ROTATION],
+  // [(Math.PI * 7) / 4, Y_315_ROTATION],
+  // [-Math.PI / 4, Y_315_ROTATION],
+  [-Math.PI / 2, Y_270_ROTATION],
+  // [-(Math.PI * 3) / 4, Y_225_ROTATION],
+  [-Math.PI, Y_180_ROTATION],
+  // [-(Math.PI * 5) / 4, Y_135_ROTATION],
+  [(-Math.PI * 3) / 2, Y_090_ROTATION],
+  // [-(Math.PI * 7) / 4, Y_045_ROTATION],
+  [-Math.PI * 2, Y_000_ROTATION],
+];
 
 const PI = Math.PI;
 const PI_2 = Math.PI / 2.0;

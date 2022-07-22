@@ -1,8 +1,12 @@
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import {
+  BufferGeometry,
   Color,
   DoubleSide,
+  Float32BufferAttribute,
+  Mesh,
+  MeshBasicMaterial,
   Scene,
   ShaderLib,
   ShaderMaterial,
@@ -451,6 +455,51 @@ export class World extends Scene implements NetIntercept {
     const current = this.getBlockByVoxel(vx, vy, vz);
 
     return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
+  };
+
+  makeBlockMesh = (id: number) => {
+    const block = this.registry.getBlockById(id);
+    if (!block) return null;
+
+    const { faces, isSeeThrough } = block;
+
+    const geometry = new BufferGeometry();
+
+    const positions: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+
+    faces.forEach(({ corners, name }) => {
+      const ndx = Math.floor(positions.length / 3);
+      const { startU, endU, startV, endV } = this.registry.ranges.get(
+        this.registry.makeSideName(block.name, name)
+      );
+
+      corners.forEach(({ uv, pos }) => {
+        positions.push(...pos);
+        uvs.push(
+          uv[0] * (endU - startU) + startU,
+          uv[1] * (endV - startV) + startV
+        );
+      });
+
+      indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
+    });
+
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+    geometry.setIndex(indices);
+
+    const material = new MeshBasicMaterial({
+      transparent: isSeeThrough,
+      alphaTest: 0.3,
+      map: this.atlas.texture,
+    });
+
+    const mesh = new Mesh(geometry, material);
+    mesh.name = block.name;
+
+    return mesh;
   };
 
   update = (center: Vector3, delta: number, direction?: Vector3) => {

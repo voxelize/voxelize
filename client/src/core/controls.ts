@@ -16,18 +16,28 @@ import {
 } from "three";
 
 import { Coords3 } from "../types";
-import { ChunkUtils } from "../utils";
+import { ChunkUtils, MathUtils } from "../utils";
 
-import { World } from "./world";
+import {
+  NX_ROTATION,
+  NY_ROTATION,
+  NZ_ROTATION,
+  PX_ROTATION,
+  PY_ROTATION,
+  PZ_ROTATION,
+  World,
+  Y_000_ROTATION,
+  Y_045_ROTATION,
+  Y_090_ROTATION,
+  Y_135_ROTATION,
+  Y_180_ROTATION,
+  Y_225_ROTATION,
+  Y_270_ROTATION,
+  Y_315_ROTATION,
+  Y_ROT_MAP,
+} from "./world";
 
 const PI_2 = Math.PI / 2;
-
-const PY_ROTATION = 0;
-const NY_ROTATION = 1;
-const PX_ROTATION = 2;
-const NX_ROTATION = 3;
-const PZ_ROTATION = 4;
-const NZ_ROTATION = 5;
 
 function rotateY(a: number[], b: number[], c: number) {
   const bx = b[0];
@@ -916,6 +926,12 @@ export class RigidControls extends EventEmitter {
       this.newLookBlockPosition.set(union.minX, union.minY, union.minZ);
     }
 
+    const targetVoxel = [
+      this.lookBlock[0] + nx,
+      this.lookBlock[1] + ny,
+      this.lookBlock[2] + nz,
+    ] as Coords3;
+
     // target block is look block summed with the normal
     const rotation =
       nx !== 0
@@ -932,14 +948,31 @@ export class RigidControls extends EventEmitter {
           : NZ_ROTATION
         : 0;
 
+    // player's voxel position
+    const [vx, vy, vz] = this.voxel;
+
+    // target block's voxel position
+    const [tx, ty, tz] = targetVoxel;
+
+    // calculate angle between vx vz and tx tz
+    const angle =
+      vy >= ty ? Math.atan2(vz - tz, vx - tx) : Math.atan2(tz - vz, tx - vx);
+    const normalized = MathUtils.normalizeAngle(angle);
+
+    let min = Infinity;
+    let closest: number;
+
+    Y_ROT_MAP.forEach(([a, yRot]) => {
+      if (Math.abs(normalized - a) < min) {
+        min = Math.abs(normalized - a);
+        closest = yRot;
+      }
+    });
+
     this.targetBlock = {
-      voxel: [
-        this.lookBlock[0] + nx,
-        this.lookBlock[1] + ny,
-        this.lookBlock[2] + nz,
-      ],
+      voxel: targetVoxel,
       rotation: lookingAt.rotatable ? rotation : undefined,
-      yRotation: 0,
+      yRotation: lookingAt.rotatable ? closest : undefined,
     };
   };
 

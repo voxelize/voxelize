@@ -130,6 +130,46 @@ const App = () => {
         }
       );
 
+      inputs.click(
+        "left",
+        () => {
+          if (!controls.lookBlock) return;
+          const [vx, vy, vz] = controls.lookBlock;
+          world.updateVoxel(vx, vy, vz, 0);
+        },
+        "in-game"
+      );
+
+      let hand = "Stone";
+
+      inputs.click(
+        "middle",
+        () => {
+          if (!controls.lookBlock) return;
+          const [vx, vy, vz] = controls.lookBlock;
+          hand = world.getBlockByVoxel(vx, vy, vz).name;
+        },
+        "in-game"
+      );
+
+      inputs.click(
+        "right",
+        () => {
+          if (!controls.targetBlock) return;
+          const { rotation, voxel, yRotation } = controls.targetBlock;
+          console.log(rotation, yRotation);
+          const id = world.getBlockByName(hand).id;
+          world.updateVoxel(
+            ...voxel,
+            id,
+            rotation
+              ? VOXELIZE.BlockRotation.encode(rotation, yRotation)
+              : undefined
+          );
+        },
+        "in-game"
+      );
+
       network
         .register(chat)
         .register(world)

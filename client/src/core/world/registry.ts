@@ -231,6 +231,10 @@ class Registry {
     return {};
   };
 
+  makeSideName = (name: string, side: string) => {
+    return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
+  };
+
   /**
    * On the texture atlas, how many textures are on each side.
    */
@@ -255,10 +259,6 @@ class Registry {
     });
 
     return uvMap;
-  };
-
-  private makeSideName = (name: string, side: string) => {
-    return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
   private recordBlock = (block: Block) => {
