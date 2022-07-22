@@ -16,8 +16,8 @@ import {
   Vector4,
 } from "three";
 
-import { ArtFunction, BoxSides } from "../../libs";
-import { Coords2, Coords3, PartialRecord } from "../../types";
+import { ArtFunction } from "../../libs";
+import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 import { NetIntercept } from "../network";
 
