@@ -40,7 +40,7 @@ class TextureAtlas {
       }
     });
 
-    const offset = 1 / 64;
+    const offset = 1 / (countPerSide * 4);
 
     let margin = 1;
     let r = (margin / offset / countPerSide - 2 * margin) / dimension;
