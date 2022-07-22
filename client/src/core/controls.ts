@@ -151,6 +151,11 @@ export type RigidControlsParams = {
   lookBlockLerp: number;
 
   /**
+   * Allow client to look at blocks even in ghost mode. Defaults to `false`.
+   */
+  lookInGhostMode: boolean;
+
+  /**
    * The maximum distance a client can reach a block. Defaults to `32`.
    */
   reachDistance: number;
@@ -278,6 +283,7 @@ const defaultParams: RigidControlsParams = {
   lookBlockScale: 1.002,
   lookBlockLerp: 1,
   lookBlockColor: "black",
+  lookInGhostMode: false,
   reachDistance: 32,
   initialPosition: [0, 80, 10],
   rotationLerp: 0.9,
@@ -848,7 +854,7 @@ export class RigidControls extends EventEmitter {
       this.targetBlock = null;
     };
 
-    if (this.ghostMode) {
+    if (!this.params.lookInGhostMode && this.ghostMode) {
       disableLookBlock();
       return;
     }
@@ -948,31 +954,32 @@ export class RigidControls extends EventEmitter {
           : NZ_ROTATION
         : 0;
 
-    // player's voxel position
-    const [vx, vy, vz] = this.voxel;
+    // // player's voxel position
+    // const [vx, vy, vz] = this.voxel;
 
-    // target block's voxel position
-    const [tx, ty, tz] = targetVoxel;
+    // // target block's voxel position
+    // const [tx, ty, tz] = targetVoxel;
 
-    // calculate angle between vx vz and tx tz
-    const angle =
-      vy >= ty ? Math.atan2(vz - tz, vx - tx) : Math.atan2(tz - vz, tx - vx);
-    const normalized = MathUtils.normalizeAngle(angle);
+    // // calculate angle between vx vz and tx tz
+    // const angle =
+    //   vy >= ty ? Math.atan2(vz - tz, vx - tx) : Math.atan2(tz - vz, tx - vx);
+    // const normalized = MathUtils.normalizeAngle(angle);
 
-    let min = Infinity;
-    let closest: number;
+    // let min = Infinity;
+    // let closest: number;
 
-    Y_ROT_MAP.forEach(([a, yRot]) => {
-      if (Math.abs(normalized - a) < min) {
-        min = Math.abs(normalized - a);
-        closest = yRot;
-      }
-    });
+    // Y_ROT_MAP.forEach(([a, yRot]) => {
+    //   if (Math.abs(normalized - a) < min) {
+    //     min = Math.abs(normalized - a);
+    //     closest = yRot;
+    //   }
+    // });
 
     this.targetBlock = {
       voxel: targetVoxel,
       rotation: lookingAt.rotatable ? rotation : undefined,
-      yRotation: lookingAt.rotatable ? closest : undefined,
+      yRotation: 0,
+      // lookingAt.rotatable ? closest : undefined,
     };
   };
 
