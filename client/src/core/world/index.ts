@@ -225,6 +225,7 @@ export class World extends Scene implements NetIntercept {
             const newID = BlockUtils.extractID(voxel);
 
             if (oldID !== newID) {
+              console.log("setting cache cuz i received it", oldID);
               this.blockCache.set(ChunkUtils.getVoxelName([vx, vy, vz]), oldID);
             }
 
@@ -573,6 +574,10 @@ export class World extends Scene implements NetIntercept {
             const chunk = this.getChunkByVoxel(vx, vy, vz);
 
             if (chunk) {
+              console.log(
+                "setting cache cuz i changed it",
+                chunk.getVoxel(vx, vy, vz)
+              );
               this.blockCache.set(
                 ChunkUtils.getVoxelName([vx, vy, vz]),
                 chunk.getVoxel(vx, vy, vz)

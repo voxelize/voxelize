@@ -10,6 +10,7 @@ import {
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
+import { ChunkUtils } from "@voxelize/client";
 
 const GameWrapper = styled.div`
   background: black;
@@ -157,7 +158,6 @@ const App = () => {
         () => {
           if (!controls.targetBlock) return;
           const { rotation, voxel, yRotation } = controls.targetBlock;
-          console.log(rotation, yRotation);
           const id = world.getBlockByName(hand).id;
           world.updateVoxel(
             ...voxel,
@@ -173,6 +173,22 @@ const App = () => {
       network
         .register(chat)
         .register(world)
+        .register({
+          onMessage: (message) => {
+            if (message.type === "UPDATE") {
+              const { updates } = message;
+              if (!updates?.length) return;
+              updates?.forEach((update) => {
+                const { vx, vy, vz, voxel } = update;
+                console.log(
+                  world.blockCache.get(ChunkUtils.getVoxelName([vx, vy, vz])),
+                  "voxel",
+                  voxel
+                );
+              });
+            }
+          },
+        })
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
           network.join("world3").then(() => {
