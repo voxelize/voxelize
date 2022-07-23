@@ -221,10 +221,12 @@ export class World extends Scene implements NetIntercept {
             const { vx, vy, vz, voxel, light } = update;
             const chunk = this.getChunkByVoxel(vx, vy, vz);
 
-            this.blockCache.set(
-              ChunkUtils.getVoxelName([vx, vy, vz]),
-              BlockUtils.extractID(voxel)
-            );
+            const oldID = BlockUtils.extractID(chunk.getVoxel(vx, vy, vz));
+            const newID = BlockUtils.extractID(voxel);
+
+            if (oldID !== newID) {
+              this.blockCache.set(ChunkUtils.getVoxelName([vx, vy, vz]), oldID);
+            }
 
             if (chunk) {
               chunk.setRawValue(vx, vy, vz, voxel || 0);
