@@ -314,6 +314,11 @@ const defaultParams: RigidControlsParams = {
   airJumps: 0,
 };
 
+export declare interface RigidControls {
+  on(event: "lock", listener: () => void): this;
+  on(event: "unlock", listener: () => void): this;
+}
+
 /**
  * Inspired by THREE.JS's PointerLockControls, the **built-in** main control of the game
  * so that the player can move freely around the world.

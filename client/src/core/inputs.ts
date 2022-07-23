@@ -1,3 +1,5 @@
+import { EventEmitter } from "events";
+
 import Mousetrap from "mousetrap";
 
 /**
@@ -17,6 +19,10 @@ type ScrollCallbacks = {
   namespace: string;
 }[];
 
+export declare interface Inputs<T extends string> {
+  on(event: "namespace", listener: (namespace: string) => void): this;
+}
+
 /**
  * A **built-in** key-bind manager for Voxelize. Uses the [mousetrap](https://github.com/ccampbell/mousetrap)
  * library internally.
@@ -35,7 +41,7 @@ type ScrollCallbacks = {
  *
  * @category Core
  */
-export class Inputs<T extends string> {
+export class Inputs<T extends string> extends EventEmitter {
   /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace for namespace checking.
@@ -55,6 +61,8 @@ export class Inputs<T extends string> {
    * @hidden
    */
   constructor() {
+    super();
+
     this.add("forward", "w");
     this.add("backward", "s");
     this.add("left", "a");
@@ -155,6 +163,7 @@ export class Inputs<T extends string> {
    */
   setNamespace = (namespace: T) => {
     this.namespace = namespace;
+    this.emit("namespace", namespace);
   };
 
   /**
