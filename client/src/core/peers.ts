@@ -54,7 +54,8 @@ export class Peers<T> implements NetIntercept {
     if (peers) {
       peers.forEach((peer: any) => {
         if (!this.ownID || peer.id === this.ownID) return;
-        this.onPeerUpdate?.(peer);
+        if (message.type === "INIT") this.onPeerJoin?.(peer.id);
+        else this.onPeerUpdate?.(peer);
       });
     }
   };
