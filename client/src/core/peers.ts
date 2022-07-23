@@ -9,7 +9,9 @@ import { NetIntercept } from "./network";
  * @noInheritDoc
  * @category Core
  */
-export class Peers<T> implements NetIntercept {
+export class Peers<T = { direction: number[]; position: number[] }>
+  implements NetIntercept
+{
   public ownID = "";
   public ownUsername = "";
 
@@ -76,7 +78,7 @@ export class Peers<T> implements NetIntercept {
       metadata: {
         position: [px, py, pz],
         direction: [dx, dy, dz],
-      },
+      } as any as T,
     } as PeerProtocol<T>;
   };
 
