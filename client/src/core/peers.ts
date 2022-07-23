@@ -55,12 +55,12 @@ export class Peers<T> implements NetIntercept {
       peers.forEach((peer: any) => {
         if (!this.ownID || peer.id === this.ownID) return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id);
-        else this.onPeerUpdate?.(peer);
+        this.onPeerUpdate?.(peer);
       });
     }
   };
 
-  public update = () => {
+  public packInfo = () => {
     const {
       x: dx,
       y: dy,
@@ -70,18 +70,20 @@ export class Peers<T> implements NetIntercept {
       .normalize();
     const { x: px, y: py, z: pz } = this.object.position;
 
+    return {
+      id: this.ownID,
+      username: this.ownUsername,
+      metadata: {
+        position: [px, py, pz],
+        direction: [dx, dy, dz],
+      },
+    } as PeerProtocol<T>;
+  };
+
+  public update = () => {
     const event: MessageProtocol = {
       type: "PEER",
-      peers: [
-        {
-          id: this.ownID,
-          username: this.ownUsername,
-          metadata: {
-            position: [px, py, pz],
-            direction: [dx, dy, dz],
-          },
-        },
-      ],
+      peers: [this.packInfo()],
     };
 
     this.packets.push(event);
