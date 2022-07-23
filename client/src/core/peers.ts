@@ -1,5 +1,5 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
-import { Matrix4, Vector3, Quaternion } from "three";
+import { Matrix4, Vector3, Quaternion, Object3D } from "three";
 
 import { NetIntercept } from "./network";
 
@@ -10,13 +10,23 @@ import { NetIntercept } from "./network";
  * @category Core
  */
 export class Peers<T> implements NetIntercept {
-  ownID = "";
+  public ownID = "";
+  public ownUsername = "";
+
+  public packets: MessageProtocol<any, any, any, any>[] = [];
+
+  constructor(public object: Object3D) {}
 
   onPeerJoin: (id: string) => void;
   onPeerUpdate: (peer: PeerProtocol<T>) => void;
   onPeerLeave: (id: string) => void;
 
-  onMessage = (message: MessageProtocol<{ id: string }, T>) => {
+  onMessage = (
+    message: MessageProtocol<{ id: string }, T>,
+    { username }: { username: string }
+  ) => {
+    this.ownUsername = username;
+
     switch (message.type) {
       case "INIT": {
         const { id } = message.json;
@@ -50,28 +60,34 @@ export class Peers<T> implements NetIntercept {
   };
 
   update = () => {
-    // const { username, controls, network, id } = this.client;
-    // const { body } = controls;
-    // const [px, py, pz] = body.getPosition();
-    // const { x: dx, y: dy, z: dz } = controls.getDirection();
-    // const event = {
-    //   type: "PEER",
-    //   peers: [
-    //     {
-    //       id,
-    //       username,
-    //       metadata: {
-    //         position: [px, py, pz],
-    //         direction: [dx, dy, dz],
-    //       },
-    //     },
-    //   ],
-    // };
-    // network.send(event);
+    const {
+      x: dx,
+      y: dy,
+      z: dz,
+    } = new Vector3(0, 0, -1)
+      .applyQuaternion(this.object.quaternion)
+      .normalize();
+    const { x: px, y: py, z: pz } = this.object.position;
+
+    const event: MessageProtocol = {
+      type: "PEER",
+      peers: [
+        {
+          id: this.ownID,
+          username: this.ownUsername,
+          metadata: {
+            position: [px, py, pz],
+            direction: [dx, dy, dz],
+          },
+        },
+      ],
+    };
+
+    this.packets.push(event);
   };
 
   static directionToQuaternion = (dx: number, dy: number, dz: number) => {
-    const updateQuaternion = (() => {
+    const toQuaternion = (() => {
       const m = new Matrix4();
       const q = new Quaternion();
       const zero = new Vector3(0, 0, 0);
@@ -84,6 +100,6 @@ export class Peers<T> implements NetIntercept {
       };
     })();
 
-    return updateQuaternion();
+    return toQuaternion();
   };
 }

@@ -43,11 +43,6 @@ type NetworkParams = {
   secret?: string;
 };
 
-type ClientInfo = {
-  id: string;
-  username: string;
-};
-
 /**
  * A **built-in** network connector to the Voxelize backend. Establishes a WebSocket connection to the backend
  * server and handles the Protocol Buffer encoding and decoding.
@@ -314,14 +309,10 @@ class Network extends EventEmitter {
     }
 
     this.intercepts.forEach((intercept) => {
-      intercept.onMessage(message);
+      intercept.onMessage(message, this.clientInfo);
     });
 
     if (type === "INIT") {
-      this.intercepts.forEach((intercept) => {
-        intercept.onMessage({ type: "READY" });
-      });
-
       if (!this.joinResolve) {
         throw new Error("Something went wrong with joining worlds...");
       }

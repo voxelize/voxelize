@@ -54,7 +54,6 @@ export type ChatProtocol = {
 export type MessageProtocol<T = any, Peer = any, Entity = any, Event = any> = {
   type:
     | "INIT"
-    | "READY"
     | "JOIN"
     | "LEAVE"
     | "ERROR"
