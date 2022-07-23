@@ -17,11 +17,11 @@ export class Peers<T> implements NetIntercept {
 
   constructor(public object: Object3D) {}
 
-  onPeerJoin: (id: string) => void;
-  onPeerUpdate: (peer: PeerProtocol<T>) => void;
-  onPeerLeave: (id: string) => void;
+  public onPeerJoin: (id: string) => void;
+  public onPeerUpdate: (peer: PeerProtocol<T>) => void;
+  public onPeerLeave: (id: string) => void;
 
-  onMessage = (
+  public onMessage = (
     message: MessageProtocol<{ id: string }, T>,
     { username }: { username: string }
   ) => {
@@ -60,7 +60,7 @@ export class Peers<T> implements NetIntercept {
     }
   };
 
-  update = () => {
+  public update = () => {
     const {
       x: dx,
       y: dy,

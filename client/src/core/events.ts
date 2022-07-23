@@ -27,7 +27,7 @@ export type EventHandler = (payload: any | null) => void;
  * mind that one event can only have one listener!
  */
 export class Events extends Map<string, EventHandler> implements NetIntercept {
-  onMessage = (message: MessageProtocol) => {
+  public onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {
         const { events } = message;

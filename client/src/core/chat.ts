@@ -14,7 +14,7 @@ export class Chat implements NetIntercept {
 
   constructor(public commandSymbol = "/") {}
 
-  send = (chat: ChatProtocol) => {
+  public send = (chat: ChatProtocol) => {
     if (chat.body.startsWith(this.commandSymbol)) {
       const words = chat.body
         .substring(this.commandSymbol.length)
@@ -37,7 +37,7 @@ export class Chat implements NetIntercept {
     });
   };
 
-  onChat: (chat: ChatProtocol) => void;
+  public onChat: (chat: ChatProtocol) => void;
 
   /**
    * Add a command to the chat system. Commands are case sensitive.
@@ -45,7 +45,7 @@ export class Chat implements NetIntercept {
    * @param trigger - The text to trigger the command, needs to be one single word without spaces.
    * @param process - The process run when this command is triggered.
    */
-  addCommand = (
+  public addCommand = (
     trigger: string,
     process: CommandProcessor,
     aliases: string[] = []
@@ -77,11 +77,11 @@ export class Chat implements NetIntercept {
    *
    * @param trigger - The trigger to remove.
    */
-  removeCommand = (trigger: string) => {
+  public removeCommand = (trigger: string) => {
     return !!this.commands.delete(trigger);
   };
 
-  onMessage = (message: MessageProtocol) => {
+  public onMessage = (message: MessageProtocol) => {
     if (message.type !== "CHAT") return;
 
     const { chat } = message;

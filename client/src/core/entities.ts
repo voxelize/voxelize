@@ -8,9 +8,9 @@ import { NetIntercept } from "./network";
  * @noInheritDoc
  */
 export class Entities<T> implements NetIntercept {
-  onEntity: (entity: EntityProtocol<T>) => void;
+  public onEntity: (entity: EntityProtocol<T>) => void;
 
-  onMessage = (message: MessageProtocol<any, any, T>) => {
+  public onMessage = (message: MessageProtocol<any, any, T>) => {
     const { entities } = message;
 
     if (entities && entities.length) {
