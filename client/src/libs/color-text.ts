@@ -6,7 +6,7 @@ export class ColorText {
     const splitted = text
       .split(
         new RegExp(
-          `(${ColorText.SPLITTER}[^${ColorText.SPLITTER}]*${ColorText.SPLITTER})`
+          `(\\${ColorText.SPLITTER}[^\\${ColorText.SPLITTER}]*\\${ColorText.SPLITTER})`
         )
       )
       .filter(Boolean);

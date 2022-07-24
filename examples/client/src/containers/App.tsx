@@ -10,7 +10,13 @@ import {
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
-import { ChunkUtils, NameTag, Peers, SpriteText } from "@voxelize/client";
+import {
+  ChunkUtils,
+  ColorText,
+  NameTag,
+  Peers,
+  SpriteText,
+} from "@voxelize/client";
 import { sRGBEncoding } from "three";
 import TestImage from "../assets/cat.jpeg";
 
@@ -86,13 +92,6 @@ const App = () => {
       const composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(world, camera));
       composer.addPass(new EffectPass(camera, new SMAAEffect({})));
-
-      const nametag = new NameTag(
-        "∆#E6B325∆[VIP] ∆white∆LMAO\n∆cyan∆[MVP] ∆white∆BRUH",
-        { fontSize: 0.5 }
-      );
-      nametag.position.set(0, 75, 0);
-      world.add(nametag);
 
       domRef.current.appendChild(renderer.domElement);
 
@@ -190,6 +189,23 @@ const App = () => {
       world.loader.addTexture(TestImage, (texture) => {
         sky.box.paint("top", texture);
       });
+
+      ColorText.SPLITTER = "∆";
+
+      const nametag = new NameTag(
+        "$#E6B325$[VIP] $white$LMAO\n$cyan$[MVP] $white$BRUH",
+        { fontSize: 0.5 }
+      );
+      nametag.position.set(0, 75, 0);
+      world.add(nametag);
+
+      inputs.bind(
+        "p",
+        () => {
+          nametag.text = "∆#E6B325∆[VIP] ∆white∆HAHA\n∆cyan∆[MVP] ∆white∆BRUH";
+        },
+        "in-game"
+      );
 
       network
         .register(chat)
