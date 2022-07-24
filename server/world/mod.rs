@@ -601,7 +601,7 @@ impl World {
 
     /// Spawn an entity of type at a location.
     pub fn spawn_entity(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
-        let loader = if let Some(loader) = self.entities_mut().get_loader(etype) {
+        let loader = if let Some(loader) = self.entities_mut().get_loader(&etype.to_lowercase()) {
             loader
         } else {
             return None;
