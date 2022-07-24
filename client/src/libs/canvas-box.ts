@@ -103,15 +103,15 @@ export class BoxLayer {
       const material = this.materials.get(face);
       if (!material) continue;
 
+      const canvas = <HTMLCanvasElement>material.map?.image;
+      if (!canvas) continue;
+
+      const context = canvas.getContext("2d");
+      if (!context) continue;
+
       if (art instanceof Texture) {
-        material.map = art;
+        context.drawImage(art.image, 0, 0, this.dimension, this.dimension);
       } else {
-        const canvas = <HTMLCanvasElement>material.map?.image;
-        if (!canvas) continue;
-
-        const context = canvas.getContext("2d");
-        if (!context) continue;
-
         if (art instanceof Color) {
           context.save();
           context.fillStyle = `rgb(${art.r * 255},${art.g * 255},${

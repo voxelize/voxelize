@@ -10,7 +10,7 @@ import {
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
-import { ChunkUtils } from "@voxelize/client";
+import { ChunkUtils, Peers } from "@voxelize/client";
 
 const GameWrapper = styled.div`
   background: black;
@@ -170,25 +170,16 @@ const App = () => {
         "in-game"
       );
 
+      const peers = new Peers(controls.object);
+
+      peers.onPeerUpdate = (peer) => {
+        console.log(peer);
+      };
+
       network
         .register(chat)
         .register(world)
-        .register({
-          onMessage: (message) => {
-            if (message.type === "UPDATE") {
-              const { updates } = message;
-              if (!updates?.length) return;
-              updates?.forEach((update) => {
-                const { vx, vy, vz, voxel } = update;
-                console.log(
-                  world.blockCache.get(ChunkUtils.getVoxelName([vx, vy, vz])),
-                  "voxel",
-                  voxel
-                );
-              });
-            }
-          },
-        })
+        .register(peers)
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
           network.join("world3").then(() => {
@@ -197,6 +188,7 @@ const App = () => {
 
               const delta = clock.getDelta();
 
+              peers.update();
               controls.update(delta);
 
               clouds.update(camera.position, delta);

@@ -10,6 +10,7 @@ import {
   Scene,
   ShaderLib,
   ShaderMaterial,
+  sRGBEncoding,
   Texture,
   UniformsUtils,
   Vector3,
@@ -976,6 +977,8 @@ vWorldPosition = worldPosition;
     }) as CustomShaderMaterial;
 
     material.map = this.uniforms.atlas.value;
+    material.map.encoding = sRGBEncoding;
+    material.toneMapped = false;
 
     return material;
   };
