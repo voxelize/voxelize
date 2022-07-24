@@ -36,11 +36,7 @@ impl<'a> System<'a> for EntitiesSavingSystem {
         (&ids, &etypes, &mut metadatas)
             .par_join()
             .for_each(|(id, etype, metadata)| {
-                let (_, updated) = metadata.to_cached_str();
-
-                if updated {
-                    entities.save(id, etype, metadata);
-                }
+                entities.save(id, etype, metadata);
             });
     }
 }

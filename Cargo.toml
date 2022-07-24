@@ -15,7 +15,7 @@ exclude = [
 ]
 license = "MIT"
 name = "voxelize"
-version = "0.8.3"
+version = "0.8.4"
 
 [lib]
 name = "voxelize"

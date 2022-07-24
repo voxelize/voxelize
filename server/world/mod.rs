@@ -608,8 +608,7 @@ impl World {
 
     /// Check if this world is empty.
     pub fn is_empty(&self) -> bool {
-        let clients = self.read_resource::<Clients>();
-        clients.is_empty()
+        self.read_resource::<Clients>().is_empty() && self.read_resource::<Transports>().is_empty()
     }
 
     /// Prepare to start.
