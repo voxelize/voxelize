@@ -9,9 +9,13 @@ use specs::{
     WorldExt, WriteExpect, WriteStorage,
 };
 use voxelize::{
-    default_client_parser, AnimationComp, ClientFilter, ClientFlag, CollisionsComp, Event, Events,
-    FlatlandStage, IDComp, InteractorComp, MetadataComp, PositionComp, RigidBody, RigidBodyComp,
-    Server, Vec2, Vec3, Voxelize, World, WorldConfig, AABB,
+    default_client_parser, AnimationComp, AnimationMetaSystem, BroadcastSystem, ChunkMeshingSystem,
+    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem,
+    ChunkUpdatingSystem, ClearCollisionsSystem, ClientFilter, ClientFlag, CollisionsComp,
+    CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem, Event,
+    Events, EventsBroadcastSystem, FlatlandStage, IDComp, InteractorComp, MetadataComp,
+    PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, RigidBody, RigidBodyComp,
+    Server, UpdateStatsSystem, Vec2, Vec3, Voxelize, World, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -71,7 +75,45 @@ impl<'a> System<'a> for UpdateBoxSystem {
 fn get_dispatcher(
     builder: DispatcherBuilder<'static, 'static>,
 ) -> DispatcherBuilder<'static, 'static> {
-    builder.with(UpdateBoxSystem, "update-box", &["physics"])
+    builder
+        .with(UpdateStatsSystem, "update-stats", &[])
+        .with(EntityMetaSystem, "entity-meta", &[])
+        .with(PeersMetaSystem, "peers-meta", &[])
+        .with(CurrentChunkSystem, "current-chunking", &[])
+        .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
+        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
+        .with(
+            ChunkPipeliningSystem,
+            "chunk-pipelining",
+            &["chunk-requests"],
+        )
+        .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
+        .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
+        .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
+        .with(PhysicsSystem, "physics", &["update-stats"])
+        .with(UpdateBoxSystem, "update-box", &["physics"])
+        .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
+        .with(
+            EntitiesSendingSystem,
+            "entities-sending",
+            &["entities-saving"],
+        )
+        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+        .with(
+            BroadcastSystem,
+            "broadcast",
+            &["entities-sending", "peers-sending", "chunk-sending"],
+        )
+        .with(
+            ClearCollisionsSystem,
+            "clear-collisions",
+            &["entities-sending"],
+        )
+        .with(
+            EventsBroadcastSystem,
+            "events-broadcasting",
+            &["chunk-requests", "broadcast"],
+        )
 }
 
 fn load_box(id: String, etype: String, metadata: MetadataComp, world: &mut World) -> EntityBuilder {

@@ -39,14 +39,6 @@ use crate::{
 
 use super::common::ClientFilter;
 
-use self::systems::{
-    AnimationMetaSystem, BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem,
-    ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem,
-    ClearCollisionsSystem, CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem,
-    EntityMetaSystem, EventsBroadcastSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem,
-    SearchSystem, UpdateStatsSystem,
-};
-
 pub use clients::*;
 pub use components::*;
 pub use config::*;
@@ -58,6 +50,7 @@ pub use physics::*;
 pub use registry::*;
 pub use search::*;
 pub use stats::*;
+pub use systems::*;
 pub use types::*;
 pub use utils::*;
 pub use voxels::*;
@@ -645,60 +638,8 @@ impl World {
             return;
         }
 
-        let builder = DispatcherBuilder::new()
-            .with(UpdateStatsSystem, "update-stats", &[])
-            .with(EntityMetaSystem, "entity-meta", &[])
-            .with(PeersMetaSystem, "peers-meta", &[])
-            .with(AnimationMetaSystem, "animation-meta", &[])
-            .with(SearchSystem, "search", &["entity-meta", "peers-meta"])
-            .with(CurrentChunkSystem, "current-chunking", &[])
-            .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
-            .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
-            .with(
-                ChunkPipeliningSystem,
-                "chunk-pipelining",
-                &["chunk-requests"],
-            )
-            .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
-            .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
-            .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
-            .with(PhysicsSystem, "physics", &["update-stats"]);
-
-        let builder = self.dispatcher.unwrap()(builder);
-
-        let builder = builder
-            .with(
-                EntitiesSavingSystem,
-                "entities-saving",
-                &["entity-meta", "animation-meta"],
-            )
-            .with(
-                EntitiesSendingSystem,
-                "entities-sending",
-                &["entities-saving"],
-            )
-            .with(
-                PeersSendingSystem,
-                "peers-sending",
-                &["peers-meta", "animation-meta"],
-            )
-            .with(
-                BroadcastSystem,
-                "broadcast",
-                &["entities-sending", "peers-sending", "chunk-sending"],
-            )
-            .with(
-                ClearCollisionsSystem,
-                "clear-collisions",
-                &["entities-sending"],
-            )
-            .with(
-                EventsBroadcastSystem,
-                "events-broadcasting",
-                &["chunk-requests", "broadcast"],
-            );
-
-        let mut dispatcher = builder.build();
+        let builder = DispatcherBuilder::new();
+        let mut dispatcher = self.dispatcher.unwrap()(builder).build();
         dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
