@@ -1,4 +1,4 @@
-import { Color, MathUtils } from "three";
+import { Color, MathUtils, sRGBEncoding } from "three";
 import {
   BoxBufferGeometry,
   FrontSide,
@@ -79,12 +79,15 @@ export class BoxLayer {
       transparent: true,
     });
 
+    material.toneMapped = false;
+
     if (material.map) {
       material.map.magFilter = NearestFilter;
       material.map.minFilter = LinearMipMapLinearFilter;
       material.map.wrapS = RepeatWrapping;
       material.map.wrapT = RepeatWrapping;
       material.map.needsUpdate = true;
+      material.map.encoding = sRGBEncoding;
     }
 
     return material;
@@ -112,14 +115,14 @@ export class BoxLayer {
       context.imageSmoothingEnabled = false;
 
       if (art instanceof Texture) {
-        context.drawImage(art.image, 0, 0, this.dimension, this.dimension);
+        context.drawImage(art.image, 0, 0, this.width, this.width);
       } else {
         if (art instanceof Color) {
           context.save();
           context.fillStyle = `rgb(${art.r * 255},${art.g * 255},${
             art.b * 255
           })`;
-          context.fillRect(0, 0, this.dimension, this.dimension);
+          context.fillRect(0, 0, this.width, this.width);
           context.restore();
         } else {
           art(context, canvas, this.width, this.dimension);

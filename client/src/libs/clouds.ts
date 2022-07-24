@@ -108,6 +108,8 @@ export class Clouds extends Group {
       },
     });
 
+    this.material.toneMapped = false;
+
     this.initialize();
   }
 

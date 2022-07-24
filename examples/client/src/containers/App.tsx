@@ -11,6 +11,8 @@ import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
 import { ChunkUtils, Peers } from "@voxelize/client";
+import { sRGBEncoding } from "three";
+import TestImage from "../assets/cat.jpeg";
 
 const GameWrapper = styled.div`
   background: black;
@@ -59,7 +61,7 @@ const App = () => {
       const clouds = new VOXELIZE.Clouds({
         uFogColor: sky.uMiddleColor,
       });
-      world.add(clouds);
+      // world.add(clouds);
 
       world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
 
@@ -78,6 +80,8 @@ const App = () => {
         renderer.domElement.offsetWidth,
         renderer.domElement.offsetHeight
       );
+
+      renderer.outputEncoding = sRGBEncoding;
 
       const composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(world, camera));
@@ -175,6 +179,10 @@ const App = () => {
       peers.onPeerUpdate = (peer) => {
         console.log(peer);
       };
+
+      world.loader.addTexture(TestImage, (texture) => {
+        sky.box.paint("top", texture);
+      });
 
       network
         .register(chat)
