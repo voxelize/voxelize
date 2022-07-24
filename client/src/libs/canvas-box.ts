@@ -109,6 +109,8 @@ export class BoxLayer {
       const context = canvas.getContext("2d");
       if (!context) continue;
 
+      context.imageSmoothingEnabled = false;
+
       if (art instanceof Texture) {
         context.drawImage(art.image, 0, 0, this.dimension, this.dimension);
       } else {
