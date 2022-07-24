@@ -10675,11 +10675,6 @@ thenify-all@^1.0.0:
   dependencies:
     any-promise "^1.0.0"
 
-three-spritetext@^1.6.5:
-  version "1.6.5"
-  resolved "https://registry.yarnpkg.com/three-spritetext/-/three-spritetext-1.6.5.tgz#67d6f5ab985507a0687eccc7b27c112fa268b8f8"
-  integrity sha512-ttA1ce3tJz6OFojLGY3VjtqF9johetq50TztYcPFWqdEUrwPmej5XXcHahVyQGd88FHRDzJmW2rW3zSifUsdYA==
-
 throat@^6.0.1:
   version "6.0.1"
   resolved "https://registry.npmjs.org/throat/-/throat-6.0.1.tgz"

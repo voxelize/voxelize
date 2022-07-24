@@ -10,7 +10,7 @@ import {
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
-import { ChunkUtils, Peers } from "@voxelize/client";
+import { ChunkUtils, NameTag, Peers, SpriteText } from "@voxelize/client";
 import { sRGBEncoding } from "three";
 import TestImage from "../assets/cat.jpeg";
 
@@ -86,6 +86,13 @@ const App = () => {
       const composer = new EffectComposer(renderer);
       composer.addPass(new RenderPass(world, camera));
       composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+
+      const nametag = new NameTag(
+        "∆#E6B325∆[VIP] ∆white∆LMAO\n∆cyan∆[MVP] ∆white∆BRUH",
+        { fontSize: 0.5 }
+      );
+      nametag.position.set(0, 75, 0);
+      world.add(nametag);
 
       domRef.current.appendChild(renderer.domElement);
 

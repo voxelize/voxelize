@@ -1,5 +1,6 @@
 import { NearestFilter } from "three";
-import SpriteText from "three-spritetext";
+
+import { SpriteText } from "./sprite-text";
 
 export class NameTag extends SpriteText {
   public mesh: SpriteText;
