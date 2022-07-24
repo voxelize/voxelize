@@ -12,7 +12,9 @@ export class ColorText {
       .filter(Boolean);
 
     if (!splitted[0].includes(ColorText.SPLITTER)) {
-      splitted.unshift(`${ColorText.SPLITTER}black${ColorText.SPLITTER}`);
+      splitted.unshift(
+        `${ColorText.SPLITTER}${ColorText.DEFAULT_COLOR}${ColorText.SPLITTER}`
+      );
     }
 
     const result = [];
