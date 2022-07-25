@@ -51,6 +51,7 @@ export type WorldClientParams = {
   maxUpdatesPerTick: number;
   maxAddsPerTick: number;
   defaultRenderRadius: number;
+  defaultDeleteRadius: number;
   textureDimension: number;
 };
 
@@ -76,6 +77,7 @@ const defaultParams: WorldClientParams = {
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
   defaultRenderRadius: 8,
+  defaultDeleteRadius: 14,
   textureDimension: 8,
 };
 
@@ -780,9 +782,9 @@ export class World extends Scene implements NetIntercept {
   // If the chunk is too far away, remove from scene. If chunk is not in the view,
   // make it invisible to the client.
   private maintainChunks = (center: Vector3, direction?: Vector3) => {
-    const { chunkSize } = this.params;
+    const { chunkSize, defaultDeleteRadius } = this.params;
 
-    const deleteDistance = this.renderRadius * chunkSize * 1.414;
+    const deleteDistance = defaultDeleteRadius * chunkSize;
     const deleted: Coords2[] = [];
 
     for (const chunk of this.chunks.values()) {
