@@ -27,6 +27,8 @@ class ChunkMesh extends Group {
 
   constructor(public chunk: Chunk) {
     super();
+
+    this.frustumCulled = false;
   }
 
   set = (
