@@ -547,14 +547,7 @@ export class World extends Scene implements NetIntercept {
       chunkSize
     );
 
-    // check if player chunk changed.
-    if (
-      !this.chunks.currentChunk ||
-      this.chunks.currentChunk[0] !== coords[0] ||
-      this.chunks.currentChunk[1] !== coords[1]
-    ) {
-      this.chunks.currentChunk = coords;
-    }
+    this.chunks.currentChunk = coords;
   };
 
   private emitServerUpdates = () => {
@@ -647,7 +640,7 @@ export class World extends Scene implements NetIntercept {
             continue;
           }
 
-          if (!this.chunks.toAdd.includes(chunk.name)) {
+          if (!this.chunks.toAdd.includes(chunk.name) && !chunk.added) {
             this.chunks.toAdd.push(chunk.name);
           }
         }

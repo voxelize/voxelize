@@ -123,6 +123,8 @@ class Chunk {
   public voxels: NdArray<Uint32Array>;
   public lights: NdArray<Uint32Array>;
 
+  public added = false;
+
   // ms
   public static SUB_MESHING_INTERVAL = 100;
 
@@ -173,15 +175,13 @@ class Chunk {
   };
 
   addToScene = (scene: Scene) => {
-    if (this.mesh && !this.mesh.isEmpty && !this.mesh.parent) {
-      scene.add(this.mesh);
-    }
+    if (!this.added) scene.add(this.mesh);
+    this.added = true;
   };
 
   removeFromScene = (scene: Scene) => {
-    if (this.mesh && !this.mesh.isEmpty) {
-      scene.remove(this.mesh);
-    }
+    if (this.added) scene.remove(this.mesh);
+    this.added = false;
   };
 
   getRawValue = (vx: number, vy: number, vz: number) => {

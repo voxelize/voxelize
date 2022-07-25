@@ -98,7 +98,11 @@ const App = () => {
       const controls = new VOXELIZE.RigidControls(
         camera,
         renderer.domElement,
-        world
+        world,
+        {
+          lookInGhostMode: true,
+          initialPosition: [0, 20, 0],
+        }
       );
 
       const network = new VOXELIZE.Network();
@@ -186,11 +190,7 @@ const App = () => {
         console.log(peer);
       };
 
-      world.loader.addTexture(TestImage, (texture) => {
-        sky.box.paint("top", texture);
-      });
-
-      ColorText.SPLITTER = "∆";
+      ColorText.SPLITTER = "$";
 
       const nametag = new NameTag(
         "$#E6B325$[VIP] $white$LMAO\n$cyan$[MVP] $white$BRUH",
@@ -207,13 +207,59 @@ const App = () => {
         "in-game"
       );
 
+      inputs.bind(
+        "o",
+        () => {
+          console.log(controls.object.position);
+        },
+        "in-game"
+      );
+
+      inputs.bind(
+        "g",
+        () => {
+          controls.toggleGhostMode();
+        },
+        "in-game"
+      );
+
+      const toggleFly = () => {
+        if (!controls.ghostMode) {
+          const isFlying = controls.body.gravityMultiplier === 0;
+
+          if (!isFlying) {
+            controls.body.applyImpulse([0, 8, 0]);
+          }
+
+          setTimeout(() => {
+            controls.body.gravityMultiplier = isFlying ? 1 : 0;
+          }, 100);
+        }
+      };
+      inputs.bind("f", toggleFly, "in-game");
+
+      let lastSpace = -1;
+      inputs.bind(
+        "space",
+        () => {
+          let now = performance.now();
+          if (now - lastSpace < 250) {
+            toggleFly();
+            now = 0;
+          }
+          lastSpace = now;
+        },
+        "in-game",
+        { occasion: "keyup" }
+      );
+
       network
         .register(chat)
         .register(world)
         .register(peers)
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
-          network.join("world3").then(() => {
+          network.join("world2").then(() => {
             const animate = () => {
               requestAnimationFrame(animate);
 
@@ -225,7 +271,11 @@ const App = () => {
               clouds.update(camera.position, delta);
               sky.position.copy(camera.position);
 
-              world.update(camera.position, delta, controls.getDirection());
+              world.update(
+                controls.object.position,
+                delta,
+                controls.getDirection()
+              );
 
               network.flush();
 

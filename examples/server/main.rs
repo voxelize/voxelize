@@ -10,12 +10,12 @@ use specs::{
 };
 use voxelize::{
     default_client_parser, AnimationComp, AnimationMetaSystem, BroadcastSystem, ChunkMeshingSystem,
-    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem,
+    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem, ChunkStage,
     ChunkUpdatingSystem, ClearCollisionsSystem, ClientFilter, ClientFlag, CollisionsComp,
     CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem, Event,
     Events, EventsBroadcastSystem, FlatlandStage, IDComp, InteractorComp, MetadataComp,
     PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, RigidBody, RigidBodyComp,
-    Server, UpdateStatsSystem, Vec2, Vec3, Voxelize, World, WorldConfig, AABB,
+    Server, UpdateStatsSystem, Vec2, Vec3, VoxelAccess, Voxelize, World, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -91,7 +91,6 @@ fn get_dispatcher(
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
         .with(PhysicsSystem, "physics", &["update-stats"])
-        .with(UpdateBoxSystem, "update-box", &["physics"])
         .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
         .with(
             EntitiesSendingSystem,
@@ -186,6 +185,47 @@ fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
     }
 }
 
+const ISLAND_LIMIT: i32 = 1;
+const ISLAND_HEIGHT: i32 = 10;
+
+struct LimitedStage;
+
+impl ChunkStage for LimitedStage {
+    fn name(&self) -> String {
+        "Limited Stage".to_owned()
+    }
+
+    fn process(
+        &self,
+        mut chunk: voxelize::Chunk,
+        resources: voxelize::ResourceResults,
+        _: Option<voxelize::Space>,
+    ) -> voxelize::Chunk {
+        if chunk.coords.0 > ISLAND_LIMIT
+            || chunk.coords.1 > ISLAND_LIMIT
+            || chunk.coords.0 < -ISLAND_LIMIT
+            || chunk.coords.1 < -ISLAND_LIMIT
+        {
+            return chunk;
+        }
+
+        let id = resources.registry.unwrap().get_block_by_name("Stone").id;
+
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                for vy in 0..ISLAND_HEIGHT {
+                    chunk.set_voxel(vx, vy, vz, id);
+                }
+            }
+        }
+
+        chunk
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     handle_ctrlc();
@@ -202,16 +242,18 @@ async fn main() -> std::io::Result<()> {
         .expect("Could not create world1.");
 
     let config2 = WorldConfig::new()
-        .min_chunk([-1, -1])
-        .max_chunk([1, 1])
+        .min_chunk([-100, -100])
+        .max_chunk([100, 100])
         .build();
     let world2 = server
         .create_world("world2", &config2)
         .expect("Could not create world2.");
 
+    world2.set_dispatcher(get_dispatcher.clone());
+
     {
         let mut pipeline = world2.pipeline_mut();
-        pipeline.add_stage(FlatlandStage::new(10, 1, 2, 3));
+        pipeline.add_stage(LimitedStage);
     }
 
     let world3 = server
