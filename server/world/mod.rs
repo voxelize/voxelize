@@ -455,6 +455,9 @@ impl World {
             MessageType::Method => self.on_method(client_id, data),
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
+            MessageType::Event => self
+                .write_resource::<MessageQueue>()
+                .push((data, ClientFilter::All)),
             MessageType::Transport => {
                 if let Some(transport_handle) = self.transport_handle {
                     transport_handle(
