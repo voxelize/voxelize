@@ -101,7 +101,6 @@ const App = () => {
         world,
         {
           lookInGhostMode: true,
-          initialPosition: [0, 20, 0],
         }
       );
 
@@ -259,7 +258,7 @@ const App = () => {
         .register(peers)
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
-          network.join("world2").then(() => {
+          network.join("world3").then(() => {
             const animate = () => {
               requestAnimationFrame(animate);
 
