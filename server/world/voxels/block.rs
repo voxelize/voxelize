@@ -463,22 +463,22 @@ impl SixFacesBuilder {
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: [uv_offset_x, 1.0 * uv_scale_y + uv_offset_y],
+                        uv: [uv_offset_z, 1.0 * uv_scale_y + uv_offset_y],
                     },
                     CornerData {
                         pos: [offset_x, offset_y, offset_z],
-                        uv: [uv_offset_x, uv_offset_y],
+                        uv: [uv_offset_z, uv_offset_y],
                     },
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
                         uv: [
-                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_z + 1.0 * uv_scale_z,
                             uv_offset_y + 1.0 * uv_scale_y,
                         ],
                     },
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
+                        uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
                     },
                 ],
             },
@@ -492,22 +492,22 @@ impl SixFacesBuilder {
                             1.0 * scale_y + offset_y,
                             1.0 * scale_z + offset_z,
                         ],
-                        uv: [uv_offset_y, 1.0 * uv_scale_z + uv_offset_z],
+                        uv: [uv_offset_z, 1.0 * uv_scale_y + uv_offset_y],
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: [uv_offset_y, uv_offset_z],
+                        uv: [uv_offset_z, uv_offset_y],
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
                         uv: [
-                            uv_offset_y + 1.0 * uv_scale_y,
                             uv_offset_z + 1.0 * uv_scale_z,
+                            uv_offset_y + 1.0 * uv_scale_y,
                         ],
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
-                        uv: [uv_offset_y + 1.0 * uv_scale_y, uv_offset_z],
+                        uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
                     },
                 ],
             },

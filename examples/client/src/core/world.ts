@@ -29,6 +29,7 @@ import LolImage from "../assets/lol.jpeg";
 import ChoGeImage from "../assets/lol.png";
 import GlassImage from "../assets/own/glass.png";
 import TechnoImage from "../assets/techno.png";
+import TestImage from "../assets/cat.jpeg";
 
 import { World } from "@voxelize/client";
 import { Color } from "three";
@@ -59,6 +60,7 @@ export function setupWorld(world: World) {
     { name: "Oak Log", sides: ["py"], data: OakTopImage },
     { name: "Oak Log", sides: side, data: OakSideImage },
     { name: "Oak Log", sides: ["ny"], data: OakTopImage },
+    { name: "Oak Pole", sides: side, data: TestImage },
     { name: "Birch Log", sides: ["py"], data: BirchTopImage },
     { name: "Birch Log", sides: side, data: BirchSideImage },
     { name: "Birch Log", sides: ["ny"], data: BirchTopImage },

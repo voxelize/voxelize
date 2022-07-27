@@ -10,15 +10,8 @@ import {
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
-import {
-  ChunkUtils,
-  ColorText,
-  NameTag,
-  Peers,
-  SpriteText,
-} from "@voxelize/client";
+import { ColorText, NameTag, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
-import TestImage from "../assets/cat.jpeg";
 
 const GameWrapper = styled.div`
   background: black;
@@ -128,6 +121,14 @@ const App = () => {
           controls.unlock(() => {
             inputs.setNamespace("chat");
           });
+        },
+        "in-game"
+      );
+
+      inputs.bind(
+        "o",
+        () => {
+          console.log(controls.object.position);
         },
         "in-game"
       );

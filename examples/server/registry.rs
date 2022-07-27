@@ -78,6 +78,10 @@ pub fn setup_registry() -> Registry {
                     .offset_x(0.3)
                     .scale_z(0.4)
                     .offset_z(0.3)
+                    .uv_scale_x(0.4)
+                    .uv_scale_z(0.4)
+                    .uv_offset_x(0.3)
+                    .uv_offset_z(0.3)
                     .build(),
             )
             .aabbs(&[AABB::new()
