@@ -193,7 +193,9 @@ export class ImageVoxelizer {
           height
         );
         const updates: BlockUpdate[] = [];
-        const [baseX, baseY, baseZ] = position.toArray();
+        const [baseX, baseY, baseZ] = position
+          .toArray()
+          .map((n) => Math.floor(n));
         for (let x = 0; x < width; x++) {
           for (let y = 0; y < height; y++) {
             const { r, g, b, a } = getPixelAt(context, x, y);
