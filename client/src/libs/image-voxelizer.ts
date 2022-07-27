@@ -56,10 +56,13 @@ export class ImageVoxelizer {
       throw new Error("Image voxelizer could not parse parameters.");
     }
 
-    return {
-      ...defaultParams,
-      ...params,
-    } as ImageVoxelizerParams;
+    return [
+      imgURL,
+      {
+        ...defaultParams,
+        ...params,
+      } as ImageVoxelizerParams,
+    ];
   };
 
   static build = async (
