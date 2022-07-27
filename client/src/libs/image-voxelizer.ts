@@ -61,8 +61,8 @@ export class ImageVoxelizer {
       {
         ...defaultParams,
         ...params,
-      } as ImageVoxelizerParams,
-    ];
+      },
+    ] as [string, ImageVoxelizerParams];
   };
 
   static build = async (
