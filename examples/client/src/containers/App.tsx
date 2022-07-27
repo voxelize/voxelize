@@ -47,6 +47,7 @@ const App = () => {
       const clock = new THREE.Clock();
       const world = new VOXELIZE.World({
         textureDimension: 128,
+        maxProcessesPerTick: 16,
       });
       const chat = new VOXELIZE.Chat();
       const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
