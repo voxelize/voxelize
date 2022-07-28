@@ -149,7 +149,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@7798
+Map.\_\_@iterator@7804
 
 ___
 
@@ -277,7 +277,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@7847
+Map.\_\_@toStringTag@7853
 
 ___
 
@@ -287,7 +287,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@7840
+Map.\_\_@species@7846
 
 ## Constructors
 

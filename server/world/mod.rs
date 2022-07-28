@@ -627,7 +627,6 @@ impl World {
         }
 
         self.load_entities();
-        // self.preload();
     }
 
     /// Tick of the world, run every 16ms.
@@ -814,37 +813,5 @@ impl World {
                 }
             }
         }
-    }
-
-    fn preload(&mut self) {
-        let config = (*self.config()).to_owned();
-        let radius = config.preload_radius as i32;
-
-        let mut count = 0;
-        for cx in -radius..=radius {
-            for cz in -radius..=radius {
-                if !self.chunks().is_within_world(&Vec2(cx, cz)) {
-                    continue;
-                }
-
-                let new_chunk = Chunk::new(
-                    &nanoid!(),
-                    cx,
-                    cz,
-                    &ChunkParams {
-                        max_height: config.max_height,
-                        sub_chunks: config.sub_chunks,
-                        size: config.chunk_size,
-                    },
-                );
-
-                count += 1;
-
-                self.pipeline_mut().postpone(&new_chunk.coords, 0);
-                self.chunks_mut().add(new_chunk);
-            }
-        }
-
-        info!("Preloaded {:?} chunks for world \"{}\"", count, self.name);
     }
 }

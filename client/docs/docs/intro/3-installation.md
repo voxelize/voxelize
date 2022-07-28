@@ -16,7 +16,7 @@ The Voxelize server runs mainly on the [voxelize](https://crates.io/crates/voxel
 [dependencies]
 actix-web = "4"
 specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
-voxelize = "0.8.7"
+voxelize = "0.8.8"
 ```
 
 ## Client Setup
@@ -25,7 +25,7 @@ The client-side npm package of Voxelize is called [`@voxelize/client`](https://w
 
 ```json title="package.json"
 "dependencies": {
-  "@voxelize/client": "^1.3.35",
+  "@voxelize/client": "^1.3.36",
   "three": "^0.141.0"
 }
 ```

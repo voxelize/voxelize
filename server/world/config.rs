@@ -76,9 +76,6 @@ pub struct WorldConfig {
     /// Maximum chunks saved per tick.
     pub max_saves_per_tick: usize,
 
-    /// Radius of chunks around `0,0` to be preloaded. Default is 8 chunks.
-    pub preload_radius: u32,
-
     /// Water level of the voxelize world.
     pub water_level: usize,
 
@@ -160,7 +157,6 @@ const DEFAULT_MAX_UPDATES_PER_TICK: usize = 200;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 const DEFAULT_WATER_LEVEL: usize = 60;
-const DEFAULT_PRELOAD_RADIUS: u32 = 8;
 const DEFAULT_SEED: u32 = 123123123;
 const DEFAULT_GRAVITY: [f32; 3] = [0.0, -24.8, 0.0];
 const DEFAULT_MIN_BOUNCE_IMPULSE: f32 = 0.5;
@@ -186,7 +182,6 @@ pub struct WorldConfigBuilder {
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
     water_level: usize,
-    preload_radius: u32,
     seed: u32,
     gravity: [f32; 3],
     min_bounce_impulse: f32,
@@ -216,7 +211,6 @@ impl WorldConfigBuilder {
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
             water_level: DEFAULT_WATER_LEVEL,
-            preload_radius: DEFAULT_PRELOAD_RADIUS,
             seed: DEFAULT_SEED,
             air_drag: DEFAULT_AIR_DRAG,
             fluid_drag: DEFAULT_FLUID_DRAG,
@@ -304,12 +298,6 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the radius around `0,0` for the world to preload chunks in. Default is 8 chunks.
-    pub fn preload_radius(mut self, preload_radius: u32) -> Self {
-        self.preload_radius = preload_radius;
-        self
-    }
-
     /// Configure the seed of the world. Default is `123123123`.
     pub fn seed(mut self, seed: u32) -> Self {
         self.seed = seed;
@@ -372,7 +360,6 @@ impl WorldConfigBuilder {
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,
             water_level: self.water_level,
-            preload_radius: self.preload_radius,
             seed: self.seed,
             min_chunk: self.min_chunk,
             max_chunk: self.max_chunk,
