@@ -13,10 +13,11 @@ const config = {
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/tree_transparent.svg",
+  deploymentBranch: "gh-pages",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "shaoruu",
+  organizationName: "voxelize",
   projectName: "voxelize",
   trailingSlash: false,
 
