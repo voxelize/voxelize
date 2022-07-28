@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[5903],{7808:function(e){e.exports=JSON.parse('{"label":"facebook","permalink":"/voxelize/blog/tags/facebook","allTagsPath":"/voxelize/blog/tags","count":1}')}}]);
