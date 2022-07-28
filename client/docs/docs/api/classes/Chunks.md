@@ -142,7 +142,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@91
+Map.\_\_@iterator@7798
 
 ___
 
@@ -210,7 +210,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@140
+Map.\_\_@toStringTag@7847
 
 ___
 
@@ -220,7 +220,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@133
+Map.\_\_@species@7840
 
 ___
 
