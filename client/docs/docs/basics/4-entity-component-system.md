@@ -155,64 +155,10 @@ Developers can then write **systems** that operate on specific **components**. A
 
 In the Voxelize backend, each world has its own inner ECS world with no systems setup. Voxelize instead provides a lot of built-in systems to be added as custom features.
 
+Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/docs/tutorials/03_dispatcher.html) that runs [these set of systems](https://github.com/voxelize/voxelize/blob/463124562979e370131a7315e851ea7e6ef765f4/examples/server/main.rs#L75-L116):
+
+- `UpdateStatsSystem`
+	- Updates the `stats`
+
+
 In order to customize the system dispatcher of the Voxelize world, we need to use `world.set_dispatcher` and pass in a dispatcher modifier like this:
-
-```rust server/main.rs
-use specs::DispatcherBuilder;
-// highlight-start
-use voxelize::{
-    Block, BroadcastSystem, ChunkMeshingSystem, ChunkPipeliningSystem, ChunkRequestsSystem,
-    ChunkSavingSystem, ChunkSendingSystem, ChunkUpdatingSystem, ClearCollisionsSystem,
-    CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem,
-    EventsBroadcastSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem, Registry, Server,
-    UpdateStatsSystem, Voxelize, World, WorldConfig,
-};
-// highlight-end
-
-fn dispatcher(builder: DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static> {
-    builder
-        .with(UpdateStatsSystem, "update-stats", &[])
-        .with(EntityMetaSystem, "entity-meta", &[])
-        .with(PeersMetaSystem, "peers-meta", &[])
-        .with(CurrentChunkSystem, "current-chunking", &[])
-        .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
-        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
-        .with(
-            ChunkPipeliningSystem,
-            "chunk-pipelining",
-            &["chunk-requests"],
-        )
-        .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
-        .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
-        .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
-        .with(PhysicsSystem, "physics", &["update-stats"])
-        .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
-        .with(
-            EntitiesSendingSystem,
-            "entities-sending",
-            &["entities-saving"],
-        )
-        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
-        .with(
-            BroadcastSystem,
-            "broadcast",
-            &["entities-sending", "peers-sending", "chunk-sending"],
-        )
-        .with(
-            ClearCollisionsSystem,
-            "clear-collisions",
-            &["entities-sending"],
-        )
-        .with(
-            EventsBroadcastSystem,
-            "events-broadcasting",
-            &["chunk-requests", "broadcast"],
-        )
-}
-
-// ... Creating the Server/World
-
-world.set_dispatcher(dispatcher);
-
-// ... Running the server
-```

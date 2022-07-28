@@ -129,8 +129,8 @@ pub struct World {
     transport_handle: Option<CustomFunction<Value>>,
 }
 
-fn dispatcher(builder: DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static> {
-    builder
+fn dispatcher() -> DispatcherBuilder<'static, 'static> {
+    DispatcherBuilder::new()
         .with(UpdateStatsSystem, "update-stats", &[])
         .with(EntityMetaSystem, "entity-meta", &[])
         .with(PeersMetaSystem, "peers-meta", &[])
