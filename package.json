@@ -4,7 +4,6 @@
   "private": true,
   "workspaces": [
     "client",
-    "docs",
     "transport"
   ],
   "scripts": {
@@ -15,10 +14,7 @@
     "demo:ts": "cd examples/client && yarn && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "lint": "eslint --fix --ext js,ts,tsx .",
-    "docs": "yarn run docs:start",
-    "docs:start": "cd docs && rimraf docs/docs/api && yarn && yarn run start",
-    "docs:build": "cd docs && yarn && yarn run build",
-    "docs:deploy": "cd docs && yarn && yarn run deploy"
+    "docs": "cd client && yarn run docs"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",

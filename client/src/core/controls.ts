@@ -62,7 +62,7 @@ function rotateY(a: number[], b: number[], c: number) {
 /**
  * The state of which a Voxelize {@link Controls} is in.
  */
-export type RigidControlState = {
+type RigidControlState = {
   /**
    * In radians, the heading y-rotation of the client. Defaults to `0`.
    */
@@ -103,6 +103,8 @@ export type RigidControlState = {
    */
   currentJumpTime: number;
 };
+
+export type { RigidControlState };
 
 const defaultControlState: RigidControlState = {
   heading: 0,
