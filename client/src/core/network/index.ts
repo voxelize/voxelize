@@ -107,6 +107,7 @@ class Network extends EventEmitter {
 
   private reconnection: any;
   private joinResolve: (value: Network) => void = null;
+  private joinReject: (reason: string) => void = null;
 
   /**
    * Used internally in `client.connect` to connect to the Voxelize backend.
@@ -204,8 +205,9 @@ class Network extends EventEmitter {
 
     this.emit("join");
 
-    return new Promise<Network>((resolve) => {
+    return new Promise<Network>((resolve, reject) => {
       this.joinResolve = resolve;
+      this.joinReject = reject;
     });
   };
 
@@ -293,6 +295,13 @@ class Network extends EventEmitter {
 
   private onMessage = async (message: MessageProtocol) => {
     const { type } = message;
+
+    if (type === "ERROR") {
+      const { text } = message;
+      this.disconnect();
+      this.joinReject(text);
+      return;
+    }
 
     if (type === "INIT") {
       const { id } = message.json;

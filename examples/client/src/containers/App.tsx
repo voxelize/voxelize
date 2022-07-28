@@ -127,14 +127,6 @@ const App = () => {
       );
 
       inputs.bind(
-        "o",
-        () => {
-          console.log(controls.object.position);
-        },
-        "in-game"
-      );
-
-      inputs.bind(
         "esc",
         () => {
           controls.lock();
@@ -260,31 +252,36 @@ const App = () => {
         .register(peers)
         .connect({ serverURL: BACKEND_SERVER, secret: "test" })
         .then(() => {
-          network.join("world3").then(() => {
-            const animate = () => {
-              requestAnimationFrame(animate);
+          network
+            .join("world")
+            .then(() => {
+              const animate = () => {
+                requestAnimationFrame(animate);
 
-              const delta = clock.getDelta();
+                const delta = clock.getDelta();
 
-              peers.update();
-              controls.update(delta);
+                peers.update();
+                controls.update(delta);
 
-              clouds.update(camera.position, delta);
-              sky.position.copy(camera.position);
+                clouds.update(camera.position, delta);
+                sky.position.copy(camera.position);
 
-              world.update(
-                controls.object.position,
-                delta,
-                controls.getDirection()
-              );
+                world.update(
+                  controls.object.position,
+                  delta,
+                  controls.getDirection()
+                );
 
-              network.flush();
+                network.flush();
 
-              composer.render();
-            };
+                composer.render();
+              };
 
-            animate();
-          });
+              animate();
+            })
+            .catch((error) => {
+              console.error("Connection error: " + error);
+            });
         });
 
       worldRef.current = world;

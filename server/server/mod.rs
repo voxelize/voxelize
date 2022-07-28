@@ -120,47 +120,49 @@ impl Server {
     }
 
     /// Handler for client's message.
-    pub fn on_request(&mut self, id: &str, data: Message) {
+    pub fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
         if data.r#type == MessageType::Transport as i32 || self.transport_sessions.contains_key(id)
         {
             if !self.transport_sessions.contains_key(id) {
-                warn!("Someone who isn't a transport server is attempting to transport.");
-                return;
+                return Some(
+                    "Someone who isn't a transport server is attempting to transport.".to_owned(),
+                );
             }
 
             if let Some(world) = self.get_world_mut(&data.text) {
                 world.on_request(id, data);
-            } else {
-                warn!("Transport message did not have a world. Use the 'text' field.");
-            }
 
-            return;
+                return None;
+            } else {
+                return Some(
+                    "Transport message did not have a world. Use the 'text' field.".to_owned(),
+                );
+            }
         } else if data.r#type == MessageType::Join as i32 {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
 
             if !self.lost_sessions.contains_key(id) {
-                warn!("Client at {} is already in world: {}", id, json.world);
-                return;
+                return Some(format!(
+                    "Client at {} is already in world: {}",
+                    id, json.world
+                ));
             }
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
                 if let Some(addr) = self.lost_sessions.remove(id) {
                     world.add_client(id, &json.username, &addr);
                     self.connections.insert(id.to_owned(), (addr, json.world));
-                } else {
-                    info!("Something went wrong with joining. Maybe you called .join twice on the client?");
+                    return None;
                 }
 
-                return;
+                return Some("Something went wrong with joining. Maybe you called .join twice on the client?".to_owned());
             }
 
-            warn!(
+            return Some(format!(
                 "ID {} is attempting to connect to a non-existent world!",
                 id
-            );
-
-            return;
+            ));
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
                 let (addr, _) = self.connections.remove(id).unwrap();
@@ -169,12 +171,12 @@ impl Server {
                 world.remove_client(id);
             }
 
-            return;
+            return None;
         }
 
         let connection = self.connections.get(id);
         if connection.is_none() {
-            return;
+            return Some("You are not connected to a world!".to_owned());
         }
 
         let (_, world_name) = connection.unwrap().to_owned();
@@ -182,6 +184,8 @@ impl Server {
         if let Some(world) = self.get_world_mut(&world_name) {
             world.on_request(id, data);
         }
+
+        None
     }
 
     /// Prepare all worlds on the server to start.
@@ -242,7 +246,7 @@ pub struct Disconnect {
 
 /// Send message to specific world
 #[derive(ActixMessage)]
-#[rtype(result = "()")]
+#[rtype(result = "Option<String>")]
 pub struct ClientMessage {
     /// Id of the client session
     pub id: String,
@@ -328,10 +332,10 @@ impl Handler<Disconnect> for Server {
 
 /// Handler for Message message.
 impl Handler<ClientMessage> for Server {
-    type Result = ();
+    type Result = Option<String>;
 
-    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.on_request(&msg.id, msg.data);
+    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) -> Self::Result {
+        self.on_request(&msg.id, msg.data)
     }
 }
 

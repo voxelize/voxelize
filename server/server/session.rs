@@ -2,9 +2,12 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web_actors::ws;
-use log::info;
+use log::{info, warn};
 
-use crate::{server::models, ClientMessage, Connect, Disconnect, EncodedMessage, Server};
+use crate::{
+    server::models, ClientMessage, Connect, Disconnect, EncodedMessage, Message, MessageType,
+    Server,
+};
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -55,13 +58,6 @@ impl WsSession {
             }
 
             ctx.ping(b"");
-        });
-    }
-
-    fn on_request(&mut self, message: models::Message) {
-        self.addr.do_send(ClientMessage {
-            id: self.id.to_owned(),
-            data: message,
         });
     }
 }
@@ -121,6 +117,14 @@ impl Handler<EncodedMessage> for WsSession {
     }
 }
 
+impl Handler<Disconnect> for WsSession {
+    type Result = ();
+
+    fn handle(&mut self, _: Disconnect, ctx: &mut Self::Context) {
+        ctx.terminate();
+    }
+}
+
 /// WebSocket message handler
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
@@ -142,7 +146,28 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
             }
             ws::Message::Binary(bytes) => {
                 let message = models::decode_message(&bytes.to_vec()).unwrap();
-                self.on_request(message);
+                self.addr
+                    .send(ClientMessage {
+                        id: self.id.to_owned(),
+                        data: message,
+                    })
+                    .into_actor(self)
+                    .then(|res, _, ctx| {
+                        match res {
+                            Ok(res) => {
+                                if let Some(error_msg) = res {
+                                    warn!("Error: {}", error_msg);
+                                    ctx.binary(models::encode_message(
+                                        &Message::new(&MessageType::Error).text(&error_msg).build(),
+                                    ));
+                                    ctx.stop();
+                                }
+                            }
+                            _ => ctx.stop(),
+                        }
+                        fut::ready(())
+                    })
+                    .wait(ctx);
             }
             ws::Message::Close(reason) => {
                 ctx.close(reason);
