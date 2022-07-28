@@ -55,8 +55,7 @@ pub use types::*;
 pub use utils::*;
 pub use voxels::*;
 
-pub type ModifyDispatch =
-    fn(DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static>;
+pub type ModifyDispatch = fn() -> DispatcherBuilder<'static, 'static>;
 
 pub type CustomFunction<T> = fn(T, &mut World);
 
@@ -130,10 +129,45 @@ pub struct World {
     transport_handle: Option<CustomFunction<Value>>,
 }
 
-fn get_default_dispatcher(
-    builder: DispatcherBuilder<'static, 'static>,
-) -> DispatcherBuilder<'static, 'static> {
+fn dispatcher(builder: DispatcherBuilder<'static, 'static>) -> DispatcherBuilder<'static, 'static> {
     builder
+        .with(UpdateStatsSystem, "update-stats", &[])
+        .with(EntityMetaSystem, "entity-meta", &[])
+        .with(PeersMetaSystem, "peers-meta", &[])
+        .with(CurrentChunkSystem, "current-chunking", &[])
+        .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
+        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
+        .with(
+            ChunkPipeliningSystem,
+            "chunk-pipelining",
+            &["chunk-requests"],
+        )
+        .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
+        .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
+        .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
+        .with(PhysicsSystem, "physics", &["update-stats"])
+        .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
+        .with(
+            EntitiesSendingSystem,
+            "entities-sending",
+            &["entities-saving"],
+        )
+        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+        .with(
+            BroadcastSystem,
+            "broadcast",
+            &["entities-sending", "peers-sending", "chunk-sending"],
+        )
+        .with(
+            ClearCollisionsSystem,
+            "clear-collisions",
+            &["entities-sending"],
+        )
+        .with(
+            EventsBroadcastSystem,
+            "events-broadcasting",
+            &["chunk-requests", "broadcast"],
+        )
 }
 
 #[derive(Serialize, Deserialize)]
@@ -224,7 +258,7 @@ impl World {
 
             ecs,
 
-            dispatcher: Some(get_default_dispatcher),
+            dispatcher: Some(dispatcher),
             method_handles: HashMap::default(),
             client_parser: Some(default_client_parser),
             client_modifier: None,
@@ -639,8 +673,7 @@ impl World {
             return;
         }
 
-        let builder = DispatcherBuilder::new();
-        let mut dispatcher = self.dispatcher.unwrap()(builder).build();
+        let mut dispatcher = self.dispatcher.unwrap()().build();
         dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
