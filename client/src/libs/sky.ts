@@ -1,11 +1,10 @@
 import {
   BackSide,
   Color,
+  DodecahedronGeometry,
   Group,
   Mesh,
-  Object3D,
   ShaderMaterial,
-  SphereGeometry,
 } from "three";
 
 import { DOMUtils } from "../utils";
@@ -14,7 +13,7 @@ import { CanvasBox } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
 
-const STAR_COLORS = [
+export const STAR_COLORS = [
   "#FFFFFF",
   "#FFFFFF",
   "#FFFFFF",
@@ -29,7 +28,7 @@ const STAR_COLORS = [
   "#FF8585",
 ];
 
-const SKY_CONFIGS = {
+export const SKY_CONFIGS = {
   hours: {
     0: {
       color: {
@@ -55,7 +54,7 @@ const SKY_CONFIGS = {
       color: {
         top: new Color("#73A3FB"),
         middle: new Color("#B1CCFD"),
-        bottom: new Color("#222"),
+        bottom: new Color("#B1CCFD"),
       },
       skyOffset: 0,
       voidOffset: 1200,
@@ -169,7 +168,7 @@ export class Sky extends Group {
       value: new Color(bottom),
     };
 
-    const shadingGeometry = new SphereGeometry(this.dimension);
+    const shadingGeometry = new DodecahedronGeometry(this.dimension, 2);
     const shadingMaterial = new ShaderMaterial({
       uniforms: {
         uTopColor: this.uTopColor,
