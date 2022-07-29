@@ -16,7 +16,7 @@ The Voxelize server runs mainly on the [voxelize](https://crates.io/crates/voxel
 [dependencies]
 actix-web = "4"
 specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
-voxelize = "0.8.10"
+voxelize = "0.8.11"
 ```
 
 ## Client Setup

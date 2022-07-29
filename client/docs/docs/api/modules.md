@@ -155,7 +155,7 @@ ___
 
 ### defaultParams
 
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams)
+• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-4)
 
 ___
 
@@ -250,7 +250,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
 | `lookInGhostMode` | `boolean` | Allow client to look at blocks even in ghost mode. Defaults to `false`. |
 | `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-4) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
@@ -408,7 +408,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-4) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -463,7 +463,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams) & [`WorldServerParams`](modules.md#worldserverparams)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-4) & [`WorldServerParams`](modules.md#worldserverparams-4)
 
 ___
 
@@ -486,7 +486,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname) or [applyTexturesByNames](classes/World.md#applytexturesbynames) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-4) or [applyTexturesByNames](classes/World.md#applytexturesbynames-4) to load a block texture.
 
 #### Type declaration
 
@@ -569,7 +569,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3) |
+| `dimensions` | [`Coords3`](modules.md#coords3-4) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -610,11 +610,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3) |
-| `max` | [`Coords3`](modules.md#coords3) |
-| `realMin` | [`Coords3`](modules.md#coords3) |
-| `realMax` | [`Coords3`](modules.md#coords3) |
-| `dimensions` | [`Coords3`](modules.md#coords3) |
+| `min` | [`Coords3`](modules.md#coords3-4) |
+| `max` | [`Coords3`](modules.md#coords3-4) |
+| `realMin` | [`Coords3`](modules.md#coords3-4) |
+| `realMax` | [`Coords3`](modules.md#coords3-4) |
+| `dimensions` | [`Coords3`](modules.md#coords3-4) |
 
 ___
 
@@ -786,18 +786,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-4)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-4) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-4)\>
 
 ___
 

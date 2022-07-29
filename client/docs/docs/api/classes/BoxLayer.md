@@ -70,8 +70,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction) \| `Color` |
+| `side` | [`BoxSides`](../modules.md#boxsides-4) \| [`BoxSides`](../modules.md#boxsides-4)[] |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-4) \| `Color` |
 
 #### Returns
 

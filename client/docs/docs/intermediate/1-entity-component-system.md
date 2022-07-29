@@ -1,10 +1,10 @@
 ---
-sidebar_position: 4
+sidebar_position: 1
 ---
 
 # Entity Component System
 
-Now that we have a server running, it is time to learn about the entity component system of Voxelize. Voxelize servers run on the [Specs ECS crate](https://specs.amethyst.rs/docs/tutorials/). It is recommended to read through the Specs ECS tutorial before continuing.
+Voxelize servers run on the [Specs ECS crate](https://specs.amethyst.rs/docs/tutorials/). It is recommended to read through the Specs ECS tutorial before continuing.
 
 ## Components
 
@@ -152,59 +152,62 @@ world.ecs().insert(CustomResource { a: 1.0 }});
 
 ## Systems
 
-Developers can then write **systems** that operate on specific **components**. An example could be `PositionUpdateSystem` that operates on all entities with a `Position` and a `Velocity` component, and this system simply adds `Velocity` to `Position` to move the entity accordingly.
+Developers can then write **systems** that operate on specific **components**. An example could be a `PositionUpdateSystem` that operates on all entities with a `Position` and a `Velocity` component, and this system could simply add each entity's `Velocity` to `Position` to move the entity accordingly.
 
-In the Voxelize backend, each world has its own inner ECS world with no systems setup. Voxelize instead provides a lot of built-in systems to be added as custom features.
-
-Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/docs/tutorials/03_dispatcher.html) that runs [these set of systems](https://github.com/voxelize/voxelize/blob/463124562979e370131a7315e851ea7e6ef765f4/examples/server/main.rs#L75-L116):
+Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/docs/tutorials/03_dispatcher.html) that runs [these set of systems](https://github.com/voxelize/voxelize/blob/02d05e9baf07529df0d7ce5d9d4e4efc600ec6f7/server/world/mod.rs#L132-L171):
 
 - `UpdateStatsSystem`
-  - Should run at the start of the dispatcher
-  - Updates the `Stats` resources to the latest delta time, can be used by systems in the `PhysicsSystem`.
+  - **Should run at the start of the dispatcher**
+  - Updates the `Stats` resources to the latest delta time which can be used by systems in the `PhysicsSystem`.
 - `EntitiesMetaSystem`
-  - Should run at the start of the dispatcher
+  - **Should run at the start of the dispatcher**
   - Adds the `PositionComp` of all non-client entities into their respective `MetadataComp` to be sent to the client side.
 - `PeersMetaSystem`
-  - Should run at the start of the dispatcher
+  - **Should run at the start of the dispatcher**
   - Adds the `PositionComp`, `DirectionComp`, and `NameComp` into all client entities' `MetadataComp` to update peers.
 - `CurrentChunkSystem`
-  - Should run at the start of the dispatcher
+  - **Should run at the start of the dispatcher**
   - Calculates the current chunks of all entities.
 - `ChunkUpdatingSystem`
-  - Should be dependent on `CurrentChunkSystem`.
+  - **Should be dependent on `CurrentChunkSystem`.**
   - Handles the voxel updates by updating `config.max_updates_per_tick` of received updates per tick.
 - `ChunkRequestsSystem`
-  - Should be dependent on `CurrentChunkSystem`.
+  - **Should be dependent on `CurrentChunkSystem`.**
   - Queues all chunks from any `ChunkRequestComp` into the chunk pipeline to be processed.
   - Adds any chunks that are ready to `world.chunks().to_send` to be sent to the clients.
 - `ChunkPipeliningSystem`
-  - Should be dependent on `ChunkRequestsSystem`.
+  - **Should be dependent on `ChunkRequestsSystem`.**
   - Pushes `config.max_chunks_per_tick` of chunks per tick into a list of chunk phases to populate them with chunk data.
 - `ChunkMeshingSystem`
-  - Should be dependent on `ChunkPipelineSystem`.
+  - **Should be dependent on `ChunkUpdatingSystem` and `ChunkPipelineSystem`.**
   - Meshes `config.max_chunks_per_tick` of chunks per tick into `config.sub_chunks` amount of sub chunk 3D meshes.
 - `ChunkSendingSystem`
-  - Should be dependent on `ChunkPipeliningSystem`.
+  - **Should be dependent on `ChunkMeshingSystem`.**
   - Packs the chunks from `world.chunks().to_send` along with clients that had requested for those chunks into the `MessageQueue` resource.
 - `ChunkSavingSystem`
-  - Should be dependent on `ChunkPipeliningSystem`
+  - **Should be dependent on `ChunkMeshingSystem`**
   - Every `config.save_interval` ticks, saves the chunk data into `config.save_dir` if `config.saving` is set true.
 - `PhysicsSystem`
-  - Should be dependent on `UpdateStatsSystem`.
+  - **Should be dependent on `CurrentChunkSystem` and `UpdateStatsSystem`.**
   - Updates `RigidBodyComp` according to chunk data.
   - Calculates `CollisionsComp` through `InteractorComp` by calculating the physics collisions through [rapier physics](https://rapier.rs/).
 - `EntitiesSavingSystem`
-  - Should be dependent on `EntitiesMetaSystem` and any non-client metadata systems.
+  - **Should be dependent on `EntitiesMetaSystem` and any non-client metadata systems.**
   - Every `config.save_interval`, saves the entities data into `config.save_dir` if `config.saving` is set true.
 - `EntitiesSendingSystem`
-  - Should be dependent on `EntitiesMetaSystem` and **any non-client metadata systems**.
+  - **Should be dependent on `EntitiesMetaSystem` and **any non-client metadata systems**.**
   - If any entities have changed their metadata, the metadata is packed and pushed to the `MessageQueue` resource.
 - `PeersSendingSystem`
-  - Should be dependent on `PeersMetaSystem` and **any client metadata systems**.
+  - **Should be dependent on `PeersMetaSystem` and **any client metadata systems**.**
   - If any clients have changed their metadata, the metadata is packed and pushed to the `MessageQueue` resource.
 - `BroadcastSystem`
-  - Should be dependent on `EntitiesSendingSystem`, `PeersSendingSystem`, and `ChunkSendingSystem`.
+  - **Should be dependent on `EntitiesSendingSystem`, `PeersSendingSystem`, and `ChunkSendingSystem`.**
   - Actually sends the packed messages in the `MessageQueue` to the specified clients.
 - `ClearCollisionSystem`
-  - Should be dependent on `EntitiesSendingSystem`.
+  - **Should be dependent on `EntitiesSendingSystem` and `PeersSendingSystem`.**
   - Clears the collisions generated by `PhysicsSystem`.
+- `EventsSystem`
+  - **Should be dependent on `BroadcastSystem`.**
+  - Packs all events in the `Events` resource and send them to the specified clients.
+
+To customize the dispatcher, checkout [this tutorial](../intermediate/custom-systems).

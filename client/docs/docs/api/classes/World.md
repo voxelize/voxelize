@@ -20,7 +20,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams-4) = `{}`
 
 ___
 
@@ -91,8 +91,8 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-4) |
+| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-4) |
 
 ___
 
@@ -102,7 +102,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-4)
 
 ___
 
@@ -658,7 +658,7 @@ Scene.isScene
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams)\> |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-4)\> |
 
 #### Overrides
 
@@ -674,7 +674,7 @@ Scene.constructor
 
 | Name | Type |
 | :------ | :------ |
-| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block)[] ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange);  } ; `params`: [`WorldServerParams`](../modules.md#worldserverparams)  }, `any`, `any`, `any`\> |
+| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-4)[] ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-4);  } ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-4)  }, `any`, `any`, `any`\> |
 
 #### Returns
 
@@ -682,7 +682,7 @@ Scene.constructor
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-4)
 
 ___
 
@@ -706,7 +706,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-4)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -724,7 +724,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-4) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -734,7 +734,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-4)
 
 Get the block information by its name.
 
@@ -746,13 +746,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-4)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-4)
 
 Get the block information by its ID.
 
@@ -764,13 +764,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-4)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-4)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -782,7 +782,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-4)
 
 ___
 
@@ -799,7 +799,7 @@ Caution: do not call this after game started!
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`WorldServerParams`](../modules.md#worldserverparams) |
+| `data` | [`WorldServerParams`](../modules.md#worldserverparams-4) |
 
 #### Returns
 
@@ -853,7 +853,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate)[] |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-4)[] |
 
 #### Returns
 
@@ -1013,7 +1013,7 @@ ___
 | `vx` | `number` |
 | `vy` | `number` |
 | `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `color` | [`LightColor`](../modules.md#lightcolor-4) |
 
 #### Returns
 
@@ -1023,7 +1023,7 @@ ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-4)
 
 #### Parameters
 
@@ -1035,7 +1035,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-4)
 
 ___
 

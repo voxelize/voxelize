@@ -62,7 +62,7 @@ Register a new click event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype) | Which mouse button to register on. |
+| `type` | [`ClickType`](../modules.md#clicktype-4) | Which mouse button to register on. |
 | `callback` | () => `void` | What to do when that button is clicked. |
 | `namespace` | `T` | Which namespace should this event be fired? |
 
@@ -106,7 +106,7 @@ Register a key-bind event listener.
 | `callback` | () => `void` | What to do when the key/combo is pressed. |
 | `namespace` | `T` | The namespace in which the to fire this event. |
 | `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-4) | Which pressing occasion should the event be fired. Defaults to "keydown". |
 | `specifics.element?` | `HTMLElement` | Which element should the key binding be bound to. Defaults to "document". |
 
 #### Returns

@@ -113,7 +113,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3) | `undefined` |
+| `node` | [`Coords3`](../modules.md#coords3-4) | `undefined` |
 | `translate` | `boolean` | `true` |
 
 #### Returns

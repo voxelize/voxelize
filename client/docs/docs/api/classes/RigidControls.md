@@ -427,7 +427,7 @@ ___
 
 ### params
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams)
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-4)
 
 Parameters to initialize the Voxelize controls.
 
@@ -443,7 +443,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-4)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -470,7 +470,7 @@ ___
 
 ### lookBlock
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3)
+• **lookBlock**: [`Coords3`](../modules.md#coords3-4)
 
 The voxel at which the client is looking at.
 
@@ -486,7 +486,7 @@ The block that a client can potentially place at.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
+| `voxel` | [`Coords3`](../modules.md#coords3-4) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
 | `rotation` | `number` | The rotation of the block that may be placed. |
 | `yRotation` | `number` | The rotation on the y-axis of the block that may be placed. |
 
@@ -512,34 +512,34 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-4)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3)
+[`Coords3`](../modules.md#coords3-4)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-4)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2)
+[`Coords2`](../modules.md#coords2-4)
 
 ___
 
 ### lookingAt
 
-• `get` **lookingAt**(): [`Block`](../modules.md#block)
+• `get` **lookingAt**(): [`Block`](../modules.md#block-4)
 
 The block type that the client is looking at.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-4)
