@@ -2,9 +2,9 @@ use specs::{ReadStorage, System, WriteStorage};
 
 use crate::world::components::{EntityFlag, MetadataComp, PositionComp};
 
-pub struct EntityMetaSystem;
+pub struct EntitiesMetaSystem;
 
-impl<'a> System<'a> for EntityMetaSystem {
+impl<'a> System<'a> for EntitiesMetaSystem {
     type SystemData = (
         ReadStorage<'a, EntityFlag>,
         ReadStorage<'a, PositionComp>,

@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use log::info;
 use serde_json::Value;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
@@ -8,9 +7,9 @@ use crate::{
     Events, Message, MessageType, Transports, Vec2,
 };
 
-pub struct EventsBroadcastSystem;
+pub struct EventsSystem;
 
-impl<'a> System<'a> for EventsBroadcastSystem {
+impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,

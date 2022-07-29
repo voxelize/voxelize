@@ -45,6 +45,8 @@ Here are the properties that can be configured in a world config:
 	- The maximum amount of clients a world can hold.
 - `chunk_size` 
 	- The horizontal dimension of each chunk.
+- `sub_chunks`
+	- The amount of sub meshes each chunk.
 - `max_height` 
 	- The maximum height of the world, in other words the vertical dimension of each chunk.
 - `min_chunk` 
@@ -54,7 +56,9 @@ Here are the properties that can be configured in a world config:
 - `max_light_level` 
 	- The maximum level of light that can be propagated.
 - `max_updates_per_tick` 
-	- The maximum chunks to be processed per tick. Tweak if the server's too heavy.
+	- The maximum voxel updates to be processed per tick. 
+- `max_chunks_per_tick`
+	- The maxmimum chunks that can be processed per tick.
 - `max_response_per_tick` 
 	- The maximum chunk response per tick to prevent network bottle-necking.
 - `water_level` 

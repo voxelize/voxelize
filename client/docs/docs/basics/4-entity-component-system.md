@@ -56,7 +56,7 @@ The components below make an entity physical in the Voxelize world.
 ### Miscellaneous Components
 
 - `AddrComp`
-	- Client's Actix actor address.
+  - Client's Actix actor address.
 
 To register new components to the Voxelize world, we do the following:
 
@@ -84,13 +84,14 @@ let custom_entity = world
 
 :::info
 [`world.create_entity(<type name>)`](https://github.com/voxelize/voxelize/blob/6f372f38b9bac4c454f4106286dc5256df79cb82/server/world/mod.rs#L587-L596) calls `world.ecs().create_entity()` internally, and adds these components by default to integrate with Voxelize:
+
 - `IDComp`
 - `EntityFlag`
-- `ETypeComp` 
-- `MetadataComp` 
-- `CurrentChunkComp` 
+- `ETypeComp`
+- `MetadataComp`
+- `CurrentChunkComp`
 - `CollisionsComp`
-:::
+  :::
 
 ## Resources
 
@@ -98,46 +99,46 @@ Another building block of a Voxelize world is a set of **resources** built-in. R
 
 ### Informational
 
-These are the static resources that shouldn't be modified. 
+These are the static resources that shouldn't be modified.
 
 - `String`
-	- A string of the name of the world.
+  - A string of the name of the world.
 - [`WorldConfig`](https://docs.rs/voxelize/0.8.7/voxelize/struct.WorldConfig.html)
-	- The configurations of the world. Can be accessed through `world.config()`.
+  - The configurations of the world. Can be accessed through `world.config()`.
 
-### Managers 
+### Managers
 
-These are the structs that manage and pass around the data stored in the world. 
- 
+These are the structs that manage and pass around the data stored in the world.
+
 - [`Chunks`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Chunks.html)
-	- The chunking manager of the world.
+  - The chunking manager of the world.
 - [`Entities`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Entities.html)
-	- A manager that can handle the spawning and saving of entities.
+  - A manager that can handle the spawning and saving of entities.
 - [`Pipeline`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Pipeline.html)
-	- The chunking pipeline that takes care of generating chunks in parallel.
+  - The chunking pipeline that takes care of generating chunks in parallel.
 - [`Clients`](https://docs.rs/voxelize/0.8.7/voxelize/type.Clients.html)
-	- A hash map of all clients that has joined this world. 
+  - A hash map of all clients that has joined this world.
 - [`MessageQueue`](https://docs.rs/voxelize/0.8.7/voxelize/type.MessageQueue.html)
-	- A list of encoded protobuf messages that gets sent to the client each tick.
+  - A list of encoded protobuf messages that gets sent to the client each tick.
 - [`Events`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Events.html)
-	- Managing all events that can be emitted to the clients.
+  - Managing all events that can be emitted to the clients.
 
 The manager resources can be accessed through the world directly. For instance, `world.chunks()` or `world.chunks_mut()` or `world.clients_mut()`.
-	
+
 ### Utilities
 
 These are the utility resources that can be used as helpers.
 
 - [`Stats`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Stats.html)
-	- The world stats such as delta time.
+  - The world stats such as delta time.
 - [`Mesher`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Mesher.html)
-	- A manager that takes care of all the chunk 3D meshing in parallel.
+  - A manager that takes care of all the chunk 3D meshing in parallel.
 - [`Search`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Search.html)
-	- A 3-dimensional tree that has all the clients and entities to search for. 
+  - A 3-dimensional tree that has all the clients and entities to search for.
 - [`Terrain`](https://docs.rs/voxelize/0.8.7/voxelize/struct.SeededTerrain.html)
-	- A seeded terrain manager to generate terrain.
+  - A seeded terrain manager to generate terrain.
 - [`Noise`](https://docs.rs/voxelize/0.8.7/voxelize/struct.SeededNoise.html)
-	- A seeded noise manager to make 2D or 3D noise.
+  - A seeded noise manager to make 2D or 3D noise.
 
 You can add your own resources to the ECS world in order to be used in an ECS system too by doing so:
 
@@ -158,7 +159,52 @@ In the Voxelize backend, each world has its own inner ECS world with no systems 
 Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/docs/tutorials/03_dispatcher.html) that runs [these set of systems](https://github.com/voxelize/voxelize/blob/463124562979e370131a7315e851ea7e6ef765f4/examples/server/main.rs#L75-L116):
 
 - `UpdateStatsSystem`
-	- Updates the `stats`
-
-
-In order to customize the system dispatcher of the Voxelize world, we need to use `world.set_dispatcher` and pass in a dispatcher modifier like this:
+  - Should run at the start of the dispatcher
+  - Updates the `Stats` resources to the latest delta time, can be used by systems in the `PhysicsSystem`.
+- `EntitiesMetaSystem`
+  - Should run at the start of the dispatcher
+  - Adds the `PositionComp` of all non-client entities into their respective `MetadataComp` to be sent to the client side.
+- `PeersMetaSystem`
+  - Should run at the start of the dispatcher
+  - Adds the `PositionComp`, `DirectionComp`, and `NameComp` into all client entities' `MetadataComp` to update peers.
+- `CurrentChunkSystem`
+  - Should run at the start of the dispatcher
+  - Calculates the current chunks of all entities.
+- `ChunkUpdatingSystem`
+  - Should be dependent on `CurrentChunkSystem`.
+  - Handles the voxel updates by updating `config.max_updates_per_tick` of received updates per tick.
+- `ChunkRequestsSystem`
+  - Should be dependent on `CurrentChunkSystem`.
+  - Queues all chunks from any `ChunkRequestComp` into the chunk pipeline to be processed.
+  - Adds any chunks that are ready to `world.chunks().to_send` to be sent to the clients.
+- `ChunkPipeliningSystem`
+  - Should be dependent on `ChunkRequestsSystem`.
+  - Pushes `config.max_chunks_per_tick` of chunks per tick into a list of chunk phases to populate them with chunk data.
+- `ChunkMeshingSystem`
+  - Should be dependent on `ChunkPipelineSystem`.
+  - Meshes `config.max_chunks_per_tick` of chunks per tick into `config.sub_chunks` amount of sub chunk 3D meshes.
+- `ChunkSendingSystem`
+  - Should be dependent on `ChunkPipeliningSystem`.
+  - Packs the chunks from `world.chunks().to_send` along with clients that had requested for those chunks into the `MessageQueue` resource.
+- `ChunkSavingSystem`
+  - Should be dependent on `ChunkPipeliningSystem`
+  - Every `config.save_interval` ticks, saves the chunk data into `config.save_dir` if `config.saving` is set true.
+- `PhysicsSystem`
+  - Should be dependent on `UpdateStatsSystem`.
+  - Updates `RigidBodyComp` according to chunk data.
+  - Calculates `CollisionsComp` through `InteractorComp` by calculating the physics collisions through [rapier physics](https://rapier.rs/).
+- `EntitiesSavingSystem`
+  - Should be dependent on `EntitiesMetaSystem` and any non-client metadata systems.
+  - Every `config.save_interval`, saves the entities data into `config.save_dir` if `config.saving` is set true.
+- `EntitiesSendingSystem`
+  - Should be dependent on `EntitiesMetaSystem` and **any non-client metadata systems**.
+  - If any entities have changed their metadata, the metadata is packed and pushed to the `MessageQueue` resource.
+- `PeersSendingSystem`
+  - Should be dependent on `PeersMetaSystem` and **any client metadata systems**.
+  - If any clients have changed their metadata, the metadata is packed and pushed to the `MessageQueue` resource.
+- `BroadcastSystem`
+  - Should be dependent on `EntitiesSendingSystem`, `PeersSendingSystem`, and `ChunkSendingSystem`.
+  - Actually sends the packed messages in the `MessageQueue` to the specified clients.
+- `ClearCollisionSystem`
+  - Should be dependent on `EntitiesSendingSystem`.
+  - Clears the collisions generated by `PhysicsSystem`.

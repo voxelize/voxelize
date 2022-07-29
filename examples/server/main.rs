@@ -4,18 +4,11 @@ use log::{info, warn};
 use registry::setup_registry;
 use serde::Deserialize;
 use serde_json::Value;
-use specs::{
-    Builder, Component, DispatcherBuilder, Entity, EntityBuilder, NullStorage, ReadStorage, System,
-    WorldExt, WriteExpect, WriteStorage,
-};
+use specs::{Builder, Component, Entity, EntityBuilder, NullStorage, WorldExt};
 use voxelize::{
-    default_client_parser, AnimationComp, AnimationMetaSystem, BroadcastSystem, ChunkMeshingSystem,
-    ChunkPipeliningSystem, ChunkRequestsSystem, ChunkSavingSystem, ChunkSendingSystem, ChunkStage,
-    ChunkUpdatingSystem, ClearCollisionsSystem, ClientFilter, ClientFlag, CollisionsComp,
-    CurrentChunkSystem, EntitiesSavingSystem, EntitiesSendingSystem, EntityMetaSystem, Event,
-    Events, EventsBroadcastSystem, FlatlandStage, IDComp, InteractorComp, MetadataComp,
-    PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, RigidBody, RigidBodyComp,
-    Server, UpdateStatsSystem, Vec2, Vec3, VoxelAccess, Voxelize, World, WorldConfig, AABB,
+    default_client_parser, AnimationComp, ChunkStage, FlatlandStage, InteractorComp, MetadataComp,
+    PositionComp, RigidBody, RigidBodyComp, Server, Vec3, VoxelAccess, Voxelize, World,
+    WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -34,86 +27,6 @@ fn handle_ctrlc() {
 #[derive(Default, Component)]
 #[storage(NullStorage)]
 struct BoxFlag;
-
-struct UpdateBoxSystem;
-
-impl<'a> System<'a> for UpdateBoxSystem {
-    type SystemData = (
-        WriteExpect<'a, Events>,
-        ReadStorage<'a, BoxFlag>,
-        ReadStorage<'a, ClientFlag>,
-        ReadStorage<'a, IDComp>,
-        ReadStorage<'a, CollisionsComp>,
-        WriteStorage<'a, RigidBodyComp>,
-    );
-
-    fn run(&mut self, data: Self::SystemData) {
-        use specs::Join;
-
-        let (mut events, box_flag, client_flag, ids, collisions, mut bodies) = data;
-
-        for (collision, id, _) in (&collisions, &ids, &client_flag).join() {
-            if !collision.0.is_empty() {
-                let (_, entity) = collision.0[0];
-                if let Some(_) = box_flag.get(entity.clone()) {
-                    events.dispatch(
-                        Event::new("TELEPORT")
-                            .payload([0.0, 90.0, 0.0] as [f32; 3])
-                            .filter(ClientFilter::Direct(id.0.clone()))
-                            .location(Vec2(0, 0))
-                            .build(),
-                    )
-                    // if let Some(body) = bodies.get_mut(entity) {
-                    //     body.0.apply_impulse(0.0, 30.0, 0.0);
-                    // }
-                }
-            }
-        }
-    }
-}
-
-fn get_dispatcher(
-    builder: DispatcherBuilder<'static, 'static>,
-) -> DispatcherBuilder<'static, 'static> {
-    builder
-        .with(UpdateStatsSystem, "update-stats", &[])
-        .with(EntityMetaSystem, "entity-meta", &[])
-        .with(PeersMetaSystem, "peers-meta", &[])
-        .with(CurrentChunkSystem, "current-chunking", &[])
-        .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
-        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
-        .with(
-            ChunkPipeliningSystem,
-            "chunk-pipelining",
-            &["chunk-requests"],
-        )
-        .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
-        .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
-        .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
-        .with(PhysicsSystem, "physics", &["update-stats"])
-        .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
-        .with(
-            EntitiesSendingSystem,
-            "entities-sending",
-            &["entities-saving"],
-        )
-        .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
-        .with(
-            BroadcastSystem,
-            "broadcast",
-            &["entities-sending", "peers-sending", "chunk-sending"],
-        )
-        .with(
-            ClearCollisionsSystem,
-            "clear-collisions",
-            &["entities-sending"],
-        )
-        .with(
-            EventsBroadcastSystem,
-            "events-broadcasting",
-            &["chunk-requests", "broadcast"],
-        )
-}
 
 fn load_box(id: String, etype: String, metadata: MetadataComp, world: &mut World) -> EntityBuilder {
     let mut test_body =
@@ -249,8 +162,6 @@ async fn main() -> std::io::Result<()> {
         .create_world("world2", &config2)
         .expect("Could not create world2.");
 
-    world2.set_dispatcher(get_dispatcher.clone());
-
     {
         let mut pipeline = world2.pipeline_mut();
         pipeline.add_stage(LimitedStage);
@@ -272,7 +183,6 @@ async fn main() -> std::io::Result<()> {
     }
 
     world3.ecs_mut().register::<BoxFlag>();
-    world3.set_dispatcher(get_dispatcher);
     world3.entities_mut().add_loader("box", load_box);
     world3.set_method_handle("spawn", spawn_handle);
     world3.set_transport_handle(transport_handle);

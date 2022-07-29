@@ -132,25 +132,29 @@ pub struct World {
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
     DispatcherBuilder::new()
         .with(UpdateStatsSystem, "update-stats", &[])
-        .with(EntityMetaSystem, "entity-meta", &[])
+        .with(EntitiesMetaSystem, "entities-meta", &[])
         .with(PeersMetaSystem, "peers-meta", &[])
-        .with(CurrentChunkSystem, "current-chunking", &[])
-        .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunking"])
-        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunking"])
+        .with(CurrentChunkSystem, "current-chunk", &[])
+        .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
+        .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
         .with(
             ChunkPipeliningSystem,
             "chunk-pipelining",
             &["chunk-requests"],
         )
-        .with(ChunkMeshingSystem, "chunk-meshing", &["chunk-pipelining"])
+        .with(
+            ChunkMeshingSystem,
+            "chunk-meshing",
+            &["chunk-updating", "chunk-pipelining"],
+        )
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
-        .with(ChunkSavingSystem, "chunk-saving", &["chunk-pipelining"])
-        .with(PhysicsSystem, "physics", &["update-stats"])
-        .with(EntitiesSavingSystem, "entities-saving", &["entity-meta"])
+        .with(ChunkSavingSystem, "chunk-saving", &["chunk-meshing"])
+        .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
+        .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
         .with(
             EntitiesSendingSystem,
             "entities-sending",
-            &["entities-saving"],
+            &["entities-meta"],
         )
         .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
         .with(
@@ -161,13 +165,9 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(
             ClearCollisionsSystem,
             "clear-collisions",
-            &["entities-sending"],
+            &["entities-sending", "peers-sending"],
         )
-        .with(
-            EventsBroadcastSystem,
-            "events-broadcasting",
-            &["chunk-requests", "broadcast"],
-        )
+        .with(EventsSystem, "events", &["broadcast"])
 }
 
 #[derive(Serialize, Deserialize)]
