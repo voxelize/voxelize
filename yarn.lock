@@ -1249,10 +1249,10 @@
     typescript "^4.6.4"
     vitest "^0.10.4"
 
-"@voxelize/raycast@^1.0.5":
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/@voxelize/raycast/-/raycast-1.0.5.tgz#573c1c53e316fdf4e91f7f636ef766b2f3b093f9"
-  integrity sha512-2rwA+Ss5Iux7+sxyopHIcF+biKT8OLoa90I/nEB9xaqLKREkwmaSG9/BUYEhZJPEhgl5kvVRfZi2j4kSTrz+FQ==
+"@voxelize/raycast@^1.0.6":
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/@voxelize/raycast/-/raycast-1.0.6.tgz#71b702904745c157b30d3a9f52acb71702267a9c"
+  integrity sha512-40875nPr1ereRVGcfWh+AJ8zJY70LUPm4xsD1X2ErhDhH0UEW6Rn3JJTwc8QODNG30JXIfD24U5NoNS0l0E46A==
   dependencies:
     "@voxelize/voxel-aabb" "^1.0.0"
     tsup "^5.12.7"
