@@ -52,7 +52,14 @@ export class Inputs<T extends string> extends EventEmitter {
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
   private scrollCallbacks: ScrollCallbacks = [];
 
-  private unbinds = new Map<string, () => void>();
+  private keyBounds = new Map<
+    string,
+    {
+      unbind: () => void;
+      callback: () => void;
+      namespace: T;
+    }
+  >();
   private mouseUnbinds: (() => void)[] = [];
 
   /**
@@ -145,15 +152,58 @@ export class Inputs<T extends string> extends EventEmitter {
       occasion
     );
 
-    if (this.unbinds.get(combo + occasion)) {
-      console.warn(
-        `Re-registering "${combo}" listener... If this is not intended, wrap the listener initialization under the "initialized" event to only run once.`
+    if (this.keyBounds.get(combo + occasion)) {
+      console.error(
+        `${combo} is already bounded. Please unbind it before rebinding.`
       );
+      return;
     }
 
-    this.unbinds.set(combo + occasion, () => {
-      if (combo) mousetrap.unbind(combo, occasion);
+    this.keyBounds.set(combo + occasion, {
+      unbind: () => {
+        if (combo) mousetrap.unbind(combo, occasion);
+      },
+      callback,
+      namespace,
     });
+  };
+
+  unbind = (name: string, specifics: { occasion?: InputOccasion } = {}) => {
+    const { occasion = "keydown" } = specifics;
+    const combo = this.combos.get(name);
+
+    const bounds = this.keyBounds.get(combo + occasion);
+
+    if (bounds) {
+      const { unbind } = bounds;
+      unbind();
+      this.keyBounds.delete(combo + occasion);
+      return true;
+    }
+
+    return false;
+  };
+
+  remap = (
+    name: string,
+    newName: string,
+    specifics: { occasion?: InputOccasion } = {}
+  ) => {
+    const { occasion = "keydown" } = specifics;
+    const combo = this.combos.get(name);
+
+    const bounds = this.keyBounds.get(combo + occasion);
+
+    if (!bounds) {
+      console.error(`Key ${name} is not bound.`);
+      return;
+    }
+
+    const { unbind, callback, namespace } = bounds;
+
+    unbind();
+
+    this.bind(newName, callback, namespace, specifics);
   };
 
   /**
@@ -172,7 +222,7 @@ export class Inputs<T extends string> extends EventEmitter {
    * @internal
    */
   reset = () => {
-    this.unbinds.forEach((fn) => fn());
+    this.keyBounds.forEach((b) => b.unbind());
     this.mouseUnbinds.forEach((fn) => fn());
   };
 

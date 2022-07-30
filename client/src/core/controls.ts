@@ -641,6 +641,13 @@ export class RigidControls extends EventEmitter {
   };
 
   /**
+   * Return a reference of the position of the rigid controller.
+   */
+  getPosition = () => {
+    return this.object.position;
+  };
+
+  /**
    * Make the client look at a coordinate.
    *
    * @param x - X-coordinate to look at.

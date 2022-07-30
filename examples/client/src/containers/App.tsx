@@ -195,7 +195,17 @@ const App = () => {
       inputs.bind(
         "p",
         () => {
-          nametag.text = "∆#E6B325∆[VIP] ∆white∆HAHA\n∆cyan∆[MVP] ∆white∆BRUH";
+          nametag.text = `$#E6B325$[VIP] $white$HAHA${Math.floor(
+            Math.random() * 100
+          )}\n$cyan$[MVP] $white$BRUH`;
+        },
+        "in-game"
+      );
+
+      inputs.bind(
+        "k",
+        () => {
+          inputs.unbind("p");
         },
         "in-game"
       );

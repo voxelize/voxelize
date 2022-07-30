@@ -25,7 +25,7 @@ The client-side npm package of Voxelize is called [`@voxelize/client`](https://w
 
 ```json title="package.json"
 "dependencies": {
-  "@voxelize/client": "^1.3.36",
+  "@voxelize/client": "^1.3.38",
   "three": "^0.141.0"
 }
 ```
