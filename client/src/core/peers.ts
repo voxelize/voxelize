@@ -17,7 +17,10 @@ export class Peers<T = { direction: number[]; position: number[] }>
 
   public packets: MessageProtocol<any, any, any, any>[] = [];
 
-  constructor(public object: Object3D) {}
+  constructor(
+    public object: Object3D,
+    public params: { countSelf: boolean } = { countSelf: false }
+  ) {}
 
   public onPeerJoin: (id: string) => void;
   public onPeerUpdate: (peer: PeerProtocol<T>) => void;
@@ -37,7 +40,8 @@ export class Peers<T = { direction: number[]; position: number[] }>
       }
       case "JOIN": {
         const { text: id } = message;
-        if (!this.ownID || this.ownID === id) return;
+        if (!this.params.countSelf && (!this.ownID || this.ownID === id))
+          return;
         this.onPeerJoin?.(id);
         break;
       }
@@ -55,7 +59,8 @@ export class Peers<T = { direction: number[]; position: number[] }>
 
     if (peers) {
       peers.forEach((peer: any) => {
-        if (!this.ownID || peer.id === this.ownID) return;
+        if (!this.params.countSelf && (!this.ownID || peer.id === this.ownID))
+          return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id);
         this.onPeerUpdate?.(peer);
       });
