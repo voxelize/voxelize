@@ -127,9 +127,13 @@ export class Inputs<T extends string> extends EventEmitter {
     name: string,
     callback: () => void,
     namespace: T | "*",
-    specifics: { occasion?: InputOccasion; element?: HTMLElement } = {}
+    specifics: {
+      occasion?: InputOccasion;
+      element?: HTMLElement;
+      identifier?: string;
+    } = {}
   ) => {
-    const { occasion = "keydown", element } = specifics;
+    const { occasion = "keydown", element, identifier = "" } = specifics;
     let combo = this.combos.get(name);
 
     if (!combo) {
@@ -153,31 +157,38 @@ export class Inputs<T extends string> extends EventEmitter {
       occasion
     );
 
-    if (this.keyBounds.get(combo + occasion)) {
+    const key = combo + occasion + identifier;
+
+    if (this.keyBounds.get(key)) {
       throw new Error(
         `${combo} is already bounded. Please unbind it before rebinding.`
       );
     }
 
-    this.keyBounds.set(combo + occasion, {
+    this.keyBounds.set(key, {
       unbind: () => {
-        if (combo) mousetrap.unbind(combo, occasion);
+        if (combo) mousetrap.unbind(combo);
       },
       callback,
       namespace,
     });
   };
 
-  unbind = (name: string, specifics: { occasion?: InputOccasion } = {}) => {
-    const { occasion = "keydown" } = specifics;
-    const combo = this.combos.get(name);
+  unbind = (
+    name: string,
+    specifics: { occasion?: InputOccasion; identifier?: string } = {}
+  ) => {
+    const { occasion = "keydown", identifier = "" } = specifics;
 
-    const bounds = this.keyBounds.get(combo + occasion);
+    const combo = this.combos.get(name);
+    const key = combo + occasion + identifier;
+
+    const bounds = this.keyBounds.get(key);
 
     if (bounds) {
       const { unbind } = bounds;
       unbind();
-      this.keyBounds.delete(combo + occasion);
+      this.keyBounds.delete(key);
       return true;
     }
 
@@ -187,12 +198,14 @@ export class Inputs<T extends string> extends EventEmitter {
   remap = (
     name: string,
     newName: string,
-    specifics: { occasion?: InputOccasion } = {}
+    specifics: { occasion?: InputOccasion; identifier?: string } = {}
   ) => {
-    const { occasion = "keydown" } = specifics;
-    const combo = this.combos.get(name);
+    const { occasion = "keydown", identifier = "" } = specifics;
 
-    const bounds = this.keyBounds.get(combo + occasion);
+    const combo = this.combos.get(name);
+    const key = combo + occasion + identifier;
+
+    const bounds = this.keyBounds.get(key);
 
     if (!bounds) {
       throw new Error(`Key ${name} is not bound.`);
