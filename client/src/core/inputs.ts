@@ -62,6 +62,8 @@ export class Inputs<T extends string> extends EventEmitter {
   >();
   private mouseUnbinds: (() => void)[] = [];
 
+  private sharedMouseTrap = new Mousetrap(document.body);
+
   /**
    * Construct a Voxelize inputs instance.
    *
@@ -146,7 +148,11 @@ export class Inputs<T extends string> extends EventEmitter {
       }
     }
 
-    const mousetrap = element ? new Mousetrap(element) : Mousetrap;
+    const mousetrap = element
+      ? new Mousetrap(element)
+      : identifier
+      ? new Mousetrap(document.body)
+      : this.sharedMouseTrap;
 
     mousetrap.bind(
       combo,

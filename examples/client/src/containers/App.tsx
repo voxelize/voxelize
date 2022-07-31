@@ -238,6 +238,17 @@ const App = () => {
 
     controls.useInputs(inputs, "in-game");
 
+    inputs.bind(
+      "space",
+      () => {
+        console.log("BRUH");
+      },
+      "in-game",
+      {
+        identifier: "BRUH",
+      }
+    );
+
     const toggleFly = () => {
       if (!controls.ghostMode) {
         const isFlying = controls.body.gravityMultiplier === 0;
