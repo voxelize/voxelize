@@ -48,10 +48,9 @@ export class Inputs<T extends string> extends EventEmitter {
 
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
   private scrollCallbacks: ScrollCallbacks = [];
-  private keyDownCallbacks: Map<string, (e: KeyboardEvent) => void> = new Map();
-  private keyUpCallbacks: Map<string, (e: KeyboardEvent) => void> = new Map();
-  private keyPressCallbacks: Map<string, (e: KeyboardEvent) => void> =
-    new Map();
+  private keyDownCallbacks: Map<string, (() => void)[]> = new Map();
+  private keyUpCallbacks: Map<string, (() => void)[]> = new Map();
+  private keyPressCallbacks: Map<string, (() => void)[]> = new Map();
 
   private keyBounds = new Map<
     string,
@@ -137,15 +136,24 @@ export class Inputs<T extends string> extends EventEmitter {
 
     switch (occasion) {
       case "keydown": {
-        this.keyDownCallbacks.set(name, callback);
+        this.keyDownCallbacks.set(name, [
+          ...(this.keyDownCallbacks.get(name) || []),
+          callback,
+        ]);
         break;
       }
       case "keyup": {
-        this.keyUpCallbacks.set(name, callback);
+        this.keyUpCallbacks.set(name, [
+          ...(this.keyUpCallbacks.get(name) || []),
+          callback,
+        ]);
         break;
       }
       case "keypress": {
-        this.keyPressCallbacks.set(name, callback);
+        this.keyPressCallbacks.set(name, [
+          ...(this.keyPressCallbacks.get(name) || []),
+          callback,
+        ]);
         break;
       }
     }
@@ -154,20 +162,24 @@ export class Inputs<T extends string> extends EventEmitter {
 
     bounds[identifier] = {
       unbind: () => {
-        switch (occasion) {
-          case "keydown": {
-            this.keyDownCallbacks.delete(name);
-            break;
+        (
+          [
+            ["keydown", this.keyDownCallbacks],
+            ["keyup", this.keyUpCallbacks],
+            ["keypress", this.keyPressCallbacks],
+          ] as [string, Map<string, (() => void)[]>][]
+        ).forEach(([o, map]) => {
+          if (o !== occasion) return;
+
+          const callbacks = map.get(name);
+          if (callbacks) {
+            const index = callbacks.indexOf(callback);
+            if (index !== -1) callbacks.splice(index, 1);
           }
-          case "keyup": {
-            this.keyUpCallbacks.delete(name);
-            break;
-          }
-          case "keypress": {
-            this.keyPressCallbacks.delete(name);
-            break;
-          }
-        }
+
+          // Remove key from keydown callbacks if it is empty.
+          if (map.get(name)?.length === 0) map.delete(name);
+        });
 
         delete bounds[identifier];
       },
