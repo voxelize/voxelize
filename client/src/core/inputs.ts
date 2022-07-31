@@ -169,7 +169,7 @@ export class Inputs<T extends string> extends EventEmitter {
           }
         }
 
-        this.keyBounds.delete(name);
+        delete bounds[identifier];
       },
       callback,
       namespace,
