@@ -154,10 +154,9 @@ export class Inputs<T extends string> extends EventEmitter {
     );
 
     if (this.keyBounds.get(combo + occasion)) {
-      console.error(
+      throw new Error(
         `${combo} is already bounded. Please unbind it before rebinding.`
       );
-      return;
     }
 
     this.keyBounds.set(combo + occasion, {
@@ -196,8 +195,7 @@ export class Inputs<T extends string> extends EventEmitter {
     const bounds = this.keyBounds.get(combo + occasion);
 
     if (!bounds) {
-      console.error(`Key ${name} is not bound.`);
-      return;
+      throw new Error(`Key ${name} is not bound.`);
     }
 
     const { unbind, callback, namespace } = bounds;
