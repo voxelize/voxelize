@@ -118,6 +118,10 @@ const App = () => {
       inputs.setNamespace("in-game");
     });
 
+    controls.on("unlock", () => {
+      inputs.setNamespace("menu");
+    });
+
     inputs.bind(
       "t",
       () => {
@@ -129,7 +133,7 @@ const App = () => {
     );
 
     inputs.bind(
-      "esc",
+      "Escape",
       () => {
         controls.lock();
       },
@@ -177,6 +181,15 @@ const App = () => {
         );
       },
       "in-game"
+    );
+
+    inputs.bind(
+      " ",
+      () => {
+        console.log("M");
+      },
+      "in-game",
+      { identifier: "BRUH" }
     );
 
     const peers = new Peers(controls.object);

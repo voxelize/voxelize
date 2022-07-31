@@ -772,7 +772,7 @@ export class RigidControls extends EventEmitter {
     );
 
     inputs.bind(
-      "space",
+      " ",
       () => {
         this.movements.up = true;
       },
@@ -783,7 +783,7 @@ export class RigidControls extends EventEmitter {
     );
 
     inputs.bind(
-      "space",
+      " ",
       () => {
         this.movements.up = false;
       },

@@ -1,7 +1,5 @@
 import { EventEmitter } from "events";
 
-import Mousetrap from "mousetrap";
-
 /**
  * Three types of clicking for mouse input listening.
  */
@@ -48,21 +46,24 @@ export class Inputs<T extends string> extends EventEmitter {
    */
   public namespace: T | "*";
 
-  private combos: Map<string, string> = new Map();
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
   private scrollCallbacks: ScrollCallbacks = [];
+  private keyDownCallbacks: Map<string, (e: KeyboardEvent) => void> = new Map();
+  private keyUpCallbacks: Map<string, (e: KeyboardEvent) => void> = new Map();
+  private keyPressCallbacks: Map<string, (e: KeyboardEvent) => void> =
+    new Map();
 
   private keyBounds = new Map<
     string,
     {
-      unbind: () => void;
-      callback: () => void;
-      namespace: T | "*";
+      [key: string]: {
+        unbind: () => void;
+        callback: () => void;
+        namespace: T | "*";
+      };
     }
   >();
-  private mouseUnbinds: (() => void)[] = [];
-
-  private sharedMouseTrap = new Mousetrap(document.body);
+  private unbinds: (() => void)[] = [];
 
   /**
    * Construct a Voxelize inputs instance.
@@ -72,19 +73,7 @@ export class Inputs<T extends string> extends EventEmitter {
   constructor() {
     super();
 
-    this.add("forward", "w");
-    this.add("backward", "s");
-    this.add("left", "a");
-    this.add("right", "d");
-    this.add("space", "space");
-    this.add("dbl-space", "space space");
-    this.add("esc", "esc");
-    this.add("up", "up");
-    this.add("down", "down");
-    this.add("enter", "enter");
-    this.add("tab", "tab");
-    this.add("shift", "shift");
-
+    this.initKeyListener();
     this.initClickListener();
     this.initScrollListener();
   }
@@ -118,79 +107,88 @@ export class Inputs<T extends string> extends EventEmitter {
   /**
    * Register a key-bind event listener.
    *
-   * @param name - The name of the key or key combo to listen on.
+   * @param key - The key to listen on.
    * @param callback - What to do when the key/combo is pressed.
    * @param namespace - The namespace in which the to fire this event.
    * @param specifics - Used to specify in more details when/where the press occurs.
    * @param specifics.occasion - Which pressing occasion should the event be fired. Defaults to "keydown".
-   * @param specifics.element - Which element should the key binding be bound to. Defaults to "document".
+   * @param specifics.identifier - Whether or not should this be a special key event. Defaults to "".
    */
   bind = (
-    name: string,
+    key: string,
     callback: () => void,
     namespace: T | "*",
     specifics: {
       occasion?: InputOccasion;
-      element?: HTMLElement;
       identifier?: string;
     } = {}
   ) => {
-    const { occasion = "keydown", element, identifier = "" } = specifics;
-    let combo = this.combos.get(name);
+    key = this.modifyKey(key);
+    console.log(key);
 
-    if (!combo) {
-      if (name.length === 1) {
-        // single keys
-        this.add(name, name);
-        combo = name;
-      } else {
-        throw new Error(`Error registering input, combo ${name}: not found.`);
+    const { occasion = "keydown", identifier = "default" } = specifics;
+
+    const name = key + occasion;
+
+    const existing = this.keyBounds.get(name);
+    if (existing) {
+      if (existing[identifier])
+        throw new Error(`Error registering input, key ${key}: already bound.`);
+    }
+
+    switch (occasion) {
+      case "keydown": {
+        this.keyDownCallbacks.set(name, callback);
+        break;
+      }
+      case "keyup": {
+        this.keyUpCallbacks.set(name, callback);
+        break;
+      }
+      case "keypress": {
+        this.keyPressCallbacks.set(name, callback);
+        break;
       }
     }
 
-    const mousetrap = element
-      ? new Mousetrap(element)
-      : identifier
-      ? new Mousetrap(document.body)
-      : this.sharedMouseTrap;
+    const bounds = this.keyBounds.get(name) || {};
 
-    mousetrap.bind(
-      combo,
-      () => {
-        if (this.namespace === namespace || namespace === "*") callback();
-        return false;
-      },
-      occasion
-    );
-
-    const key = combo + occasion + identifier;
-
-    if (this.keyBounds.get(key)) {
-      throw new Error(
-        `${combo} is already bounded. Please unbind it before rebinding.`
-      );
-    }
-
-    this.keyBounds.set(key, {
+    bounds[identifier] = {
       unbind: () => {
-        if (combo) mousetrap.unbind(combo, occasion);
-        this.keyBounds.delete(key);
+        switch (occasion) {
+          case "keydown": {
+            this.keyDownCallbacks.delete(name);
+            break;
+          }
+          case "keyup": {
+            this.keyUpCallbacks.delete(name);
+            break;
+          }
+          case "keypress": {
+            this.keyPressCallbacks.delete(name);
+            break;
+          }
+        }
+
+        this.keyBounds.delete(name);
       },
       callback,
       namespace,
-    });
+    };
+
+    this.keyBounds.set(name, bounds);
   };
 
   unbind = (
-    name: string,
+    key: string,
     specifics: { occasion?: InputOccasion; identifier?: string } = {}
   ) => {
-    const { occasion = "keydown", identifier = "" } = specifics;
+    key = this.modifyKey(key);
 
-    const combo = this.combos.get(name);
-    const key = combo + occasion + identifier;
+    const { occasion = "keydown", identifier = "default" } = specifics;
 
-    const bounds = this.keyBounds.get(key);
+    const name = key + occasion;
+    const bounds = (this.keyBounds.get(name) || {})[identifier];
 
     if (bounds) {
       const { unbind } = bounds;
@@ -202,16 +200,16 @@ export class Inputs<T extends string> extends EventEmitter {
   };
 
   remap = (
-    name: string,
+    key: string,
     newName: string,
     specifics: { occasion?: InputOccasion; identifier?: string } = {}
   ) => {
-    const { occasion = "keydown", identifier = "" } = specifics;
+    key = this.modifyKey(key);
 
-    const combo = this.combos.get(name);
-    const key = combo + occasion + identifier;
+    const { occasion = "keydown", identifier = "default" } = specifics;
 
-    const bounds = this.keyBounds.get(key);
+    const name = key + occasion;
+    const bounds = (this.keyBounds.get(name) || {})[identifier];
 
     if (!bounds) {
       throw new Error(`Key ${name} is not bound.`);
@@ -220,7 +218,6 @@ export class Inputs<T extends string> extends EventEmitter {
     const { unbind, callback, namespace } = bounds;
 
     unbind();
-
     this.bind(newName, callback, namespace, specifics);
   };
 
@@ -240,8 +237,38 @@ export class Inputs<T extends string> extends EventEmitter {
    * @internal
    */
   reset = () => {
-    this.keyBounds.forEach((b) => b.unbind());
-    this.mouseUnbinds.forEach((fn) => fn());
+    this.keyBounds.forEach((b) => Object.values(b).forEach((e) => e.unbind()));
+    this.unbinds.forEach((fn) => fn());
+  };
+
+  private modifyKey = (key: string) => {
+    // Make first character upper case
+    return key.length > 1 ? key.charAt(0).toUpperCase() + key.slice(1) : key;
+  };
+
+  private initKeyListener = () => {
+    // Handle all three types of key events while checking namespace.
+    const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
+      const { key, code } = e;
+      const keyName = key || code;
+      const keyCombo = keyName + occasion;
+
+      const bounds = this.keyBounds.get(keyCombo);
+
+      if (bounds) {
+        Object.values(bounds).forEach((bound) => {
+          const { callback, namespace } = bound;
+
+          if (namespace === "*" || namespace === this.namespace) {
+            callback();
+          }
+        });
+      }
+    };
+
+    document.addEventListener("keydown", keyListener("keydown"));
+    document.addEventListener("keyup", keyListener("keyup"));
+    document.addEventListener("keypress", keyListener("keypress"));
   };
 
   private initClickListener = () => {
@@ -264,7 +291,7 @@ export class Inputs<T extends string> extends EventEmitter {
     };
 
     document.addEventListener("mousedown", listener, false);
-    this.mouseUnbinds.push(() =>
+    this.unbinds.push(() =>
       document.removeEventListener("mousedown", listener, false)
     );
   };
@@ -280,12 +307,6 @@ export class Inputs<T extends string> extends EventEmitter {
     };
 
     document.addEventListener("wheel", listener);
-    this.mouseUnbinds.push(() =>
-      document.removeEventListener("wheel", listener)
-    );
-  };
-
-  private add = (name: string, combo: string) => {
-    this.combos.set(name, combo);
+    this.unbinds.push(() => document.removeEventListener("wheel", listener));
   };
 }
