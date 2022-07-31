@@ -173,7 +173,7 @@ export class Inputs<T extends string> extends EventEmitter {
 
     this.keyBounds.set(key, {
       unbind: () => {
-        if (combo) mousetrap.unbind(combo);
+        if (combo) mousetrap.unbind(combo, occasion);
       },
       callback,
       namespace,

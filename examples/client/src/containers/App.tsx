@@ -205,14 +205,6 @@ const App = () => {
     );
 
     inputs.bind(
-      "k",
-      () => {
-        inputs.unbind("p");
-      },
-      "in-game"
-    );
-
-    inputs.bind(
       "o",
       () => {
         console.log(controls.object.position);
@@ -237,17 +229,6 @@ const App = () => {
     );
 
     controls.useInputs(inputs, "in-game");
-
-    inputs.bind(
-      "space",
-      () => {
-        console.log("BRUH");
-      },
-      "in-game",
-      {
-        identifier: "BRUH",
-      }
-    );
 
     const toggleFly = () => {
       if (!controls.ghostMode) {
