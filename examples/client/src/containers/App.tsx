@@ -43,268 +43,256 @@ const App = () => {
   const worldRef = useRef<VOXELIZE.World | null>(null);
 
   useEffect(() => {
-    if (domRef.current && canvasRef.current && !worldRef.current) {
-      const clock = new THREE.Clock();
-      const world = new VOXELIZE.World({
-        textureDimension: 128,
-        maxProcessesPerTick: 16,
-      });
-      const chat = new VOXELIZE.Chat();
-      const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
+    if (!domRef.current || !canvasRef.current) return;
+    if (worldRef.current) return;
 
-      inputs.setNamespace("menu");
+    const clock = new THREE.Clock();
+    const world = new VOXELIZE.World({
+      textureDimension: 128,
+      maxProcessesPerTick: 16,
+    });
+    const chat = new VOXELIZE.Chat();
+    const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-      const sky = new VOXELIZE.Sky(2000);
-      sky.box.paint("top", VOXELIZE.drawSun);
-      world.add(sky);
+    inputs.setNamespace("menu");
 
-      const clouds = new VOXELIZE.Clouds({
-        uFogColor: sky.uMiddleColor,
-      });
-      // world.add(clouds);
+    const sky = new VOXELIZE.Sky(2000);
+    sky.box.paint("top", VOXELIZE.drawSun);
+    world.add(sky);
 
-      world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
+    const clouds = new VOXELIZE.Clouds({
+      uFogColor: sky.uMiddleColor,
+    });
+    // world.add(clouds);
 
-      const camera = new THREE.PerspectiveCamera(
-        90,
-        domRef.current.offsetWidth / domRef.current.offsetHeight,
-        0.1,
-        5000
-      );
+    world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
 
-      const renderer = new THREE.WebGLRenderer({
-        canvas: canvasRef.current,
-        antialias: true,
-      });
-      renderer.setSize(
-        renderer.domElement.offsetWidth,
-        renderer.domElement.offsetHeight
-      );
+    const camera = new THREE.PerspectiveCamera(
+      90,
+      domRef.current.offsetWidth / domRef.current.offsetHeight,
+      0.1,
+      5000
+    );
 
-      renderer.outputEncoding = sRGBEncoding;
+    const renderer = new THREE.WebGLRenderer({
+      canvas: canvasRef.current,
+      antialias: true,
+    });
+    renderer.setSize(
+      renderer.domElement.offsetWidth,
+      renderer.domElement.offsetHeight
+    );
 
-      const composer = new EffectComposer(renderer);
-      composer.addPass(new RenderPass(world, camera));
-      composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+    renderer.outputEncoding = sRGBEncoding;
 
-      domRef.current.appendChild(renderer.domElement);
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(world, camera));
+    composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
-      const controls = new VOXELIZE.RigidControls(
-        camera,
-        renderer.domElement,
-        world,
-        {
-          lookInGhostMode: true,
-        }
-      );
+    domRef.current.appendChild(renderer.domElement);
 
-      const network = new VOXELIZE.Network();
+    const controls = new VOXELIZE.RigidControls(
+      camera,
+      renderer.domElement,
+      world,
+      {
+        lookInGhostMode: true,
+      }
+    );
 
-      setupWorld(world);
+    const network = new VOXELIZE.Network();
 
-      window.addEventListener("resize", () => {
-        const width = domRef.current?.offsetWidth as number;
-        const height = domRef.current?.offsetHeight as number;
+    setupWorld(world);
 
-        renderer.setSize(width, height);
+    window.addEventListener("resize", () => {
+      const width = domRef.current?.offsetWidth as number;
+      const height = domRef.current?.offsetHeight as number;
 
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      });
+      renderer.setSize(width, height);
 
-      controls.on("lock", () => {
-        inputs.setNamespace("in-game");
-      });
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    });
 
-      inputs.bind(
-        "t",
-        () => {
-          controls.unlock(() => {
-            inputs.setNamespace("chat");
-          });
-        },
-        "in-game"
-      );
+    controls.on("lock", () => {
+      inputs.setNamespace("in-game");
+    });
 
-      inputs.bind(
-        "esc",
-        () => {
-          controls.lock();
-        },
-        "chat",
-        {
-          // Need this so that ESC doesn't unlock the pointerlock.
-          occasion: "keyup",
-        }
-      );
-
-      inputs.click(
-        "left",
-        () => {
-          if (!controls.lookBlock) return;
-          const [vx, vy, vz] = controls.lookBlock;
-          world.updateVoxel(vx, vy, vz, 0);
-        },
-        "in-game"
-      );
-
-      let hand = "Stone";
-
-      inputs.click(
-        "middle",
-        () => {
-          if (!controls.lookBlock) return;
-          const [vx, vy, vz] = controls.lookBlock;
-          hand = world.getBlockByVoxel(vx, vy, vz).name;
-        },
-        "in-game"
-      );
-
-      inputs.click(
-        "right",
-        () => {
-          if (!controls.targetBlock) return;
-          const { rotation, voxel, yRotation } = controls.targetBlock;
-          const id = world.getBlockByName(hand).id;
-          world.updateVoxel(
-            ...voxel,
-            id,
-            rotation
-              ? VOXELIZE.BlockRotation.encode(rotation, yRotation)
-              : undefined
-          );
-        },
-        "in-game"
-      );
-
-      const peers = new Peers(controls.object);
-
-      peers.onPeerUpdate = (peer) => {
-        console.log(peer);
-      };
-
-      ColorText.SPLITTER = "$";
-
-      const nametag = new NameTag(
-        "$#E6B325$[VIP] $white$LMAO\n$cyan$[MVP] $white$BRUH",
-        { fontSize: 0.5 }
-      );
-      nametag.position.set(0, 75, 0);
-      world.add(nametag);
-
-      inputs.bind(
-        "p",
-        () => {
-          nametag.text = `$#E6B325$[VIP] $white$HAHA${Math.floor(
-            Math.random() * 100
-          )}\n$cyan$[MVP] $white$BRUH`;
-        },
-        "in-game"
-      );
-
-      inputs.bind(
-        "k",
-        () => {
-          inputs.unbind("p");
-        },
-        "in-game"
-      );
-
-      inputs.bind(
-        "o",
-        () => {
-          console.log(controls.object.position);
-        },
-        "in-game"
-      );
-
-      inputs.bind(
-        "g",
-        () => {
-          controls.toggleGhostMode();
-        },
-        "in-game"
-      );
-
-      inputs.bind(
-        "enter",
-        () => {
-          controls.lock();
-        },
-        "chat"
-      );
-
-      const toggleFly = () => {
-        if (!controls.ghostMode) {
-          const isFlying = controls.body.gravityMultiplier === 0;
-
-          if (!isFlying) {
-            controls.body.applyImpulse([0, 8, 0]);
-          }
-
-          setTimeout(() => {
-            controls.body.gravityMultiplier = isFlying ? 1 : 0;
-          }, 100);
-        }
-      };
-      inputs.bind("f", toggleFly, "in-game");
-
-      let lastSpace = -1;
-      inputs.bind(
-        "space",
-        () => {
-          let now = performance.now();
-          if (now - lastSpace < 250) {
-            toggleFly();
-            now = 0;
-          }
-          lastSpace = now;
-        },
-        "in-game",
-        { occasion: "keyup" }
-      );
-
-      network
-        .register(chat)
-        .register(world)
-        .register(peers)
-        .connect({ serverURL: BACKEND_SERVER, secret: "test" })
-        .then(() => {
-          network
-            .join("world3")
-            .then(() => {
-              const animate = () => {
-                requestAnimationFrame(animate);
-
-                const delta = clock.getDelta();
-
-                peers.update();
-                controls.update(delta);
-
-                clouds.update(camera.position, delta);
-                sky.position.copy(camera.position);
-
-                world.update(
-                  controls.object.position,
-                  delta,
-                  controls.getDirection()
-                );
-
-                network.flush();
-
-                composer.render();
-              };
-
-              animate();
-            })
-            .catch((error) => {
-              console.error("Connection error: " + error);
-            });
+    inputs.bind(
+      "t",
+      () => {
+        controls.unlock(() => {
+          inputs.setNamespace("chat");
         });
+      },
+      "in-game"
+    );
 
-      worldRef.current = world;
-    }
-  }, [domRef, canvasRef]);
+    inputs.bind(
+      "esc",
+      () => {
+        controls.lock();
+      },
+      "chat",
+      {
+        // Need this so that ESC doesn't unlock the pointerlock.
+        occasion: "keyup",
+      }
+    );
+
+    inputs.click(
+      "left",
+      () => {
+        if (!controls.lookBlock) return;
+        const [vx, vy, vz] = controls.lookBlock;
+        world.updateVoxel(vx, vy, vz, 0);
+      },
+      "in-game"
+    );
+
+    let hand = "Stone";
+
+    inputs.click(
+      "middle",
+      () => {
+        if (!controls.lookBlock) return;
+        const [vx, vy, vz] = controls.lookBlock;
+        hand = world.getBlockByVoxel(vx, vy, vz).name;
+      },
+      "in-game"
+    );
+
+    inputs.click(
+      "right",
+      () => {
+        if (!controls.targetBlock) return;
+        const { rotation, voxel, yRotation } = controls.targetBlock;
+        const id = world.getBlockByName(hand).id;
+        world.updateVoxel(
+          ...voxel,
+          id,
+          rotation
+            ? VOXELIZE.BlockRotation.encode(rotation, yRotation)
+            : undefined
+        );
+      },
+      "in-game"
+    );
+
+    const peers = new Peers(controls.object);
+
+    peers.onPeerUpdate = (peer) => {
+      console.log(peer);
+    };
+
+    ColorText.SPLITTER = "$";
+
+    const nametag = new NameTag(
+      "$#E6B325$[VIP] $white$LMAO\n$cyan$[MVP] $white$BRUH",
+      { fontSize: 0.5 }
+    );
+    nametag.position.set(0, 75, 0);
+    world.add(nametag);
+
+    inputs.bind(
+      "p",
+      () => {
+        nametag.text = `$#E6B325$[VIP] $white$HAHA${Math.floor(
+          Math.random() * 100
+        )}\n$cyan$[MVP] $white$BRUH`;
+      },
+      "in-game"
+    );
+
+    inputs.bind(
+      "k",
+      () => {
+        inputs.unbind("p");
+      },
+      "in-game"
+    );
+
+    inputs.bind(
+      "o",
+      () => {
+        console.log(controls.object.position);
+      },
+      "in-game"
+    );
+
+    inputs.bind(
+      "g",
+      () => {
+        controls.toggleGhostMode();
+      },
+      "in-game"
+    );
+
+    inputs.bind(
+      "enter",
+      () => {
+        controls.lock();
+      },
+      "chat"
+    );
+
+    controls.useInputs(inputs, "in-game");
+
+    const toggleFly = () => {
+      if (!controls.ghostMode) {
+        const isFlying = controls.body.gravityMultiplier === 0;
+
+        if (!isFlying) {
+          controls.body.applyImpulse([0, 8, 0]);
+        }
+
+        setTimeout(() => {
+          controls.body.gravityMultiplier = isFlying ? 1 : 0;
+        }, 100);
+      }
+    };
+    inputs.bind("f", toggleFly, "in-game");
+
+    network
+      .register(chat)
+      .register(world)
+      .register(peers)
+      .connect({ serverURL: BACKEND_SERVER, secret: "test" })
+      .then(() => {
+        network
+          .join("world3")
+          .then(() => {
+            const animate = () => {
+              requestAnimationFrame(animate);
+
+              const delta = clock.getDelta();
+
+              peers.update();
+              controls.update(delta);
+
+              clouds.update(camera.position, delta);
+              sky.position.copy(camera.position);
+
+              world.update(
+                controls.object.position,
+                delta,
+                controls.getDirection()
+              );
+
+              network.flush();
+
+              composer.render();
+            };
+
+            animate();
+          })
+          .catch((error) => {
+            console.error("Connection error: " + error);
+          });
+      });
+
+    worldRef.current = world;
+  }, [domRef, canvasRef, worldRef]);
 
   return (
     <GameWrapper ref={domRef}>

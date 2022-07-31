@@ -18,6 +18,7 @@ import {
 import { Coords3 } from "../types";
 import { ChunkUtils, MathUtils } from "../utils";
 
+import { Inputs } from "./inputs";
 import {
   NX_ROTATION,
   NY_ROTATION,
@@ -529,20 +530,8 @@ export class RigidControls extends EventEmitter {
 
     this.domElement.addEventListener("click", this.onDocumentClick);
 
-    document.addEventListener(
-      "keydown",
-      (event: KeyboardEvent) => {
-        this.onKeyDown(event);
-      },
-      false
-    );
-    document.addEventListener(
-      "keyup",
-      (event: KeyboardEvent) => {
-        this.onKeyUp(event);
-      },
-      false
-    );
+    document.addEventListener("keydown", this.onKeyDown, false);
+    document.addEventListener("keyup", this.onKeyUp, false);
   };
 
   /**
@@ -572,20 +561,8 @@ export class RigidControls extends EventEmitter {
 
     this.domElement.removeEventListener("click", this.onDocumentClick);
 
-    document.removeEventListener(
-      "keydown",
-      (event: KeyboardEvent) => {
-        this.onKeyDown(event);
-      },
-      false
-    );
-    document.removeEventListener(
-      "keyup",
-      (event: KeyboardEvent) => {
-        this.onKeyUp(event);
-      },
-      false
-    );
+    document.removeEventListener("keydown", this.onKeyDown, false);
+    document.removeEventListener("keyup", this.onKeyUp, false);
   };
 
   /**
@@ -675,6 +652,159 @@ export class RigidControls extends EventEmitter {
       down: false,
       up: false,
     };
+  };
+
+  /**
+   * Unregister the original event listeners, and use the Inputs instead.
+   */
+  useInputs = <T extends string>(inputs: Inputs<T>, namespace: T) => {
+    document.removeEventListener("keydown", this.onKeyDown, false);
+    document.removeEventListener("keyup", this.onKeyUp, false);
+
+    console.log("BRUH");
+
+    inputs.bind(
+      "r",
+      () => {
+        this.movements.sprint = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "r",
+      () => {
+        this.movements.sprint = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
+
+    inputs.bind(
+      "w",
+      () => {
+        this.movements.front = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "w",
+      () => {
+        this.movements.front = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
+
+    inputs.bind(
+      "s",
+      () => {
+        this.movements.back = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "s",
+      () => {
+        this.movements.back = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
+
+    inputs.bind(
+      "a",
+      () => {
+        this.movements.left = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "a",
+      () => {
+        this.movements.left = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
+
+    inputs.bind(
+      "d",
+      () => {
+        this.movements.right = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "d",
+      () => {
+        this.movements.right = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
+
+    inputs.bind(
+      "space",
+      () => {
+        this.movements.up = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "space",
+      () => {
+        this.movements.up = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
+
+    inputs.bind(
+      "shift",
+      () => {
+        this.movements.down = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
   };
 
   /**

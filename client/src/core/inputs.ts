@@ -46,7 +46,7 @@ export class Inputs<T extends string> extends EventEmitter {
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace for namespace checking.
    */
-  public namespace: T;
+  public namespace: T | "*";
 
   private combos: Map<string, string> = new Map();
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
@@ -57,7 +57,7 @@ export class Inputs<T extends string> extends EventEmitter {
     {
       unbind: () => void;
       callback: () => void;
-      namespace: T;
+      namespace: T | "*";
     }
   >();
   private mouseUnbinds: (() => void)[] = [];
@@ -81,6 +81,7 @@ export class Inputs<T extends string> extends EventEmitter {
     this.add("down", "down");
     this.add("enter", "enter");
     this.add("tab", "tab");
+    this.add("shift", "shift");
 
     this.initClickListener();
     this.initScrollListener();
@@ -93,7 +94,7 @@ export class Inputs<T extends string> extends EventEmitter {
    * @param callback - What to do when that button is clicked.
    * @param namespace - Which namespace should this event be fired?
    */
-  click = (type: ClickType, callback: () => void, namespace: T) => {
+  click = (type: ClickType, callback: () => void, namespace: T | "*") => {
     this.clickCallbacks.get(type)?.push({ namespace, callback });
   };
 
@@ -107,7 +108,7 @@ export class Inputs<T extends string> extends EventEmitter {
   scroll = (
     up: (delta?: number) => void,
     down: (delta?: number) => void,
-    namespace: T
+    namespace: T | "*"
   ) => {
     this.scrollCallbacks.push({ up, down, namespace });
   };
@@ -125,7 +126,7 @@ export class Inputs<T extends string> extends EventEmitter {
   bind = (
     name: string,
     callback: () => void,
-    namespace: T,
+    namespace: T | "*",
     specifics: { occasion?: InputOccasion; element?: HTMLElement } = {}
   ) => {
     const { occasion = "keydown", element } = specifics;
@@ -241,7 +242,7 @@ export class Inputs<T extends string> extends EventEmitter {
         callbacks = this.clickCallbacks.get("right") as any;
 
       callbacks.forEach(({ namespace, callback }) => {
-        if (this.namespace === namespace) callback();
+        if (this.namespace === namespace || namespace === "*") callback();
       });
     };
 
@@ -254,7 +255,7 @@ export class Inputs<T extends string> extends EventEmitter {
   private initScrollListener = () => {
     const listener = ({ deltaY }: any) => {
       this.scrollCallbacks.forEach(({ up, down, namespace }) => {
-        if (this.namespace === namespace) {
+        if (this.namespace === namespace || namespace === "*") {
           if (deltaY > 0) up(deltaY);
           else if (deltaY < 0) down(deltaY);
         }
