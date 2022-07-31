@@ -18,7 +18,7 @@ export class Peers<T = { direction: number[]; position: number[] }>
   public packets: MessageProtocol<any, any, any, any>[] = [];
 
   constructor(
-    public object: Object3D,
+    public object?: Object3D,
     public params: { countSelf: boolean } = { countSelf: false }
   ) {}
 
@@ -68,6 +68,8 @@ export class Peers<T = { direction: number[]; position: number[] }>
   };
 
   public packInfo = () => {
+    if (!this.object) return;
+
     const {
       x: dx,
       y: dy,
@@ -88,6 +90,8 @@ export class Peers<T = { direction: number[]; position: number[] }>
   };
 
   public update = () => {
+    if (!this.object) return;
+
     const event: MessageProtocol = {
       type: "PEER",
       peers: [this.packInfo()],
