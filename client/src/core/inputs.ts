@@ -124,7 +124,6 @@ export class Inputs<T extends string> extends EventEmitter {
     } = {}
   ) => {
     key = this.modifyKey(key);
-    console.log(key);
 
     const { occasion = "keydown", identifier = "default" } = specifics;
 
