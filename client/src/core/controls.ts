@@ -424,6 +424,7 @@ export class RigidControls extends EventEmitter {
   private vector = new Vector3();
 
   private newPosition = new Vector3();
+  private justUnlocked = false;
 
   private newLookBlockScale = new Vector3();
   private newLookBlockPosition = new Vector3();
@@ -1307,6 +1308,13 @@ export class RigidControls extends EventEmitter {
   private onMouseMove = (event: MouseEvent) => {
     if (this.isLocked === false) return;
 
+    // Skip the first movement back on lock because chrome has a bug where
+    // movementX and movementY becomes 60+
+    if (this.justUnlocked) {
+      this.justUnlocked = false;
+      return;
+    }
+
     const movementX = event.movementX || 0;
     const movementY = event.movementY || 0;
 
@@ -1360,5 +1368,6 @@ export class RigidControls extends EventEmitter {
 
   private onUnlock = () => {
     this.emit("unlock");
+    this.justUnlocked = true;
   };
 }

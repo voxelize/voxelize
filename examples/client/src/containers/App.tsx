@@ -226,6 +226,14 @@ const App = () => {
         "in-game"
       );
 
+      inputs.bind(
+        "enter",
+        () => {
+          controls.lock();
+        },
+        "chat"
+      );
+
       const toggleFly = () => {
         if (!controls.ghostMode) {
           const isFlying = controls.body.gravityMultiplier === 0;
