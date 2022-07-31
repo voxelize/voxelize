@@ -184,9 +184,9 @@ const App = () => {
     );
 
     inputs.bind(
-      " ",
+      "b",
       () => {
-        console.log("M");
+        inputs.remap("t", "c", { occasion: "keyup" });
       },
       "in-game",
       { identifier: "BRUH" }

@@ -803,6 +803,17 @@ export class RigidControls extends EventEmitter {
         occasion: "keydown",
       }
     );
+
+    inputs.bind(
+      "shift",
+      () => {
+        this.movements.down = false;
+      },
+      namespace,
+      {
+        occasion: "keyup",
+      }
+    );
   };
 
   /**
