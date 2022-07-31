@@ -661,8 +661,6 @@ export class RigidControls extends EventEmitter {
     document.removeEventListener("keydown", this.onKeyDown, false);
     document.removeEventListener("keyup", this.onKeyUp, false);
 
-    console.log("BRUH");
-
     inputs.bind(
       "r",
       () => {
