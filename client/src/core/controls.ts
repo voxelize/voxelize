@@ -664,22 +664,11 @@ export class RigidControls extends EventEmitter {
     inputs.bind(
       "r",
       () => {
-        this.movements.sprint = true;
+        this.movements.sprint = !this.movements.sprint;
       },
       namespace,
       {
         occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "r",
-      () => {
-        this.movements.sprint = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
       }
     );
 
@@ -1377,7 +1366,7 @@ export class RigidControls extends EventEmitter {
 
     switch (code) {
       case "KeyR":
-        this.movements.sprint = true;
+        this.movements.sprint = !this.movements.sprint;
 
         break;
       case "ArrowUp":
