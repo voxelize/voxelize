@@ -174,6 +174,7 @@ export class Inputs<T extends string> extends EventEmitter {
     this.keyBounds.set(key, {
       unbind: () => {
         if (combo) mousetrap.unbind(combo, occasion);
+        this.keyBounds.delete(key);
       },
       callback,
       namespace,
@@ -194,7 +195,6 @@ export class Inputs<T extends string> extends EventEmitter {
     if (bounds) {
       const { unbind } = bounds;
       unbind();
-      this.keyBounds.delete(key);
       return true;
     }
 
