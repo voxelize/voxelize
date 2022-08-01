@@ -664,7 +664,18 @@ export class RigidControls extends EventEmitter {
     inputs.bind(
       "r",
       () => {
-        this.movements.sprint = !this.movements.sprint;
+        this.movements.sprint = true;
+      },
+      namespace,
+      {
+        occasion: "keydown",
+      }
+    );
+
+    inputs.bind(
+      "r",
+      () => {
+        this.movements.sprint = false;
       },
       namespace,
       {
@@ -1366,7 +1377,7 @@ export class RigidControls extends EventEmitter {
 
     switch (code) {
       case "KeyR":
-        this.movements.sprint = !this.movements.sprint;
+        this.movements.sprint = true;
 
         break;
       case "ArrowUp":
@@ -1403,6 +1414,10 @@ export class RigidControls extends EventEmitter {
     if (!this.isLocked) return;
 
     switch (code) {
+      case "KeyR":
+        this.movements.sprint = false;
+
+        break;
       case "ArrowUp":
       case "KeyW":
         this.movements.front = false;
