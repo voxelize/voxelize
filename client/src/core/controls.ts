@@ -249,6 +249,11 @@ export type RigidControlsParams = {
   sprintFactor: number;
 
   /**
+   * The factor to the movement speed when crouch is applied. Defaults to `0.6`.
+   */
+  crouchFactor: number;
+
+  /**
    * Sprint factor would be on always.
    */
   alwaysSprint: boolean;
@@ -309,6 +314,7 @@ const defaultParams: RigidControlsParams = {
   flyInertia: 6,
 
   sprintFactor: 1.4,
+  crouchFactor: 0.6,
   alwaysSprint: false,
   airMoveMult: 0.7,
   jumpImpulse: 8,
@@ -1208,6 +1214,7 @@ export class RigidControls extends EventEmitter {
       jumpImpulse,
       maxSpeed,
       sprintFactor,
+      crouchFactor,
       moveForce,
       airMoveMult,
       responsiveness,
@@ -1259,7 +1266,7 @@ export class RigidControls extends EventEmitter {
         let speed = maxSpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
-        // if (state.crouch) speed *= state.crouchMoveMult
+        if (this.state.crouching) speed *= crouchFactor;
         m[2] = speed;
 
         // rotate move vector to entity's heading
@@ -1323,7 +1330,7 @@ export class RigidControls extends EventEmitter {
         let speed = flySpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
-        // if (state.crouch) speed *= state.crouchMoveMult
+        if (this.state.crouching) speed *= crouchFactor;
         m[2] = speed;
 
         // rotate move vector to entity's heading
