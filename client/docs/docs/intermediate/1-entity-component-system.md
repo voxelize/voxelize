@@ -210,4 +210,4 @@ Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/do
   - **Should be dependent on `BroadcastSystem`.**
   - Packs all events in the `Events` resource and send them to the specified clients.
 
-To customize the dispatcher, checkout [this tutorial](../intermediate/custom-systems).
+To customize the dispatcher, checkout [this tutorial](./customizing-the-ecs).

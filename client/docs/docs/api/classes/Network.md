@@ -42,7 +42,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-4)
+• **params**: [`NetworkParams`](../modules.md#networkparams)
 
 Parameters to initialize the Network instance.
 
@@ -50,7 +50,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-4)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws)
 
 The WebSocket client for Voxelize.
 

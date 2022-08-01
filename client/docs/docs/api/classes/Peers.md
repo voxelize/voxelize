@@ -38,13 +38,25 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-4)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets)
 
 ___
 
 ### object
 
-• **object**: `Object3D`<`Event`\>
+• `Optional` **object**: `Object3D`<`Event`\>
+
+___
+
+### params
+
+• **params**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `countSelf` | `boolean` |
 
 ___
 
@@ -110,7 +122,7 @@ ___
 
 ### constructor
 
-• **new Peers**<`T`\>(`object`)
+• **new Peers**<`T`\>(`object?`, `params?`)
 
 #### Type parameters
 
@@ -122,7 +134,9 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `object` | `Object3D`<`Event`\> |
+| `object?` | `Object3D`<`Event`\> |
+| `params` | `Object` |
+| `params.countSelf` | `boolean` |
 
 ## Methods
 
@@ -144,7 +158,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-4)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
 
 ___
 

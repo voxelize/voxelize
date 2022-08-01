@@ -155,13 +155,66 @@ ___
 
 ### defaultParams
 
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-4)
+• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams)
 
 ___
 
 ### BOX\_SIDES
 
 • `Const` **BOX\_SIDES**: `string`[]
+
+___
+
+### STAR\_COLORS
+
+• `Const` **STAR\_COLORS**: `string`[]
+
+___
+
+### SKY\_CONFIGS
+
+• `Const` **SKY\_CONFIGS**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `hours` | { `0`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 } ; `600`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } ; `700`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 0; `voidOffset`: `number` = 1200 } ; `1700`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } ; `1800`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 }  } |
+| `hours.0` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 } |
+| `hours.0.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
+| `hours.0.color.top` | `Color` |
+| `hours.0.color.middle` | `Color` |
+| `hours.0.color.bottom` | `Color` |
+| `hours.0.skyOffset` | `number` |
+| `hours.0.voidOffset` | `number` |
+| `hours.600` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } |
+| `hours.600.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
+| `hours.600.color.top` | `Color` |
+| `hours.600.color.middle` | `Color` |
+| `hours.600.color.bottom` | `Color` |
+| `hours.600.skyOffset` | `number` |
+| `hours.600.voidOffset` | `number` |
+| `hours.700` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 0; `voidOffset`: `number` = 1200 } |
+| `hours.700.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
+| `hours.700.color.top` | `Color` |
+| `hours.700.color.middle` | `Color` |
+| `hours.700.color.bottom` | `Color` |
+| `hours.700.skyOffset` | `number` |
+| `hours.700.voidOffset` | `number` |
+| `hours.1700` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } |
+| `hours.1700.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
+| `hours.1700.color.top` | `Color` |
+| `hours.1700.color.middle` | `Color` |
+| `hours.1700.color.bottom` | `Color` |
+| `hours.1700.skyOffset` | `number` |
+| `hours.1700.voidOffset` | `number` |
+| `hours.1800` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 } |
+| `hours.1800.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
+| `hours.1800.color.top` | `Color` |
+| `hours.1800.color.middle` | `Color` |
+| `hours.1800.color.bottom` | `Color` |
+| `hours.1800.skyOffset` | `number` |
+| `hours.1800.voidOffset` | `number` |
 
 ___
 
@@ -250,7 +303,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
 | `lookInGhostMode` | `boolean` | Allow client to look at blocks even in ghost mode. Defaults to `false`. |
 | `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-4) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
@@ -267,6 +320,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `flyImpulse` | `number` | The level impulse of which a client flies at. Defaults to `2.5`. |
 | `flyInertia` | `number` | The inertia of a client when they're flying. Defaults to `6`. |
 | `sprintFactor` | `number` | The factor to the movement speed when sprint is applied. Defaults to `1.4`. |
+| `crouchFactor` | `number` | The factor to the movement speed when crouch is applied. Defaults to `0.6`. |
 | `alwaysSprint` | `boolean` | Sprint factor would be on always. |
 | `airMoveMult` | `number` | The factor applied to the movements of the client in air, such as while half-jump. Defaults to `0.7`. |
 | `jumpImpulse` | `number` | The level of impulse at which the client jumps upwards. Defaults to `8`. |
@@ -408,7 +462,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-4) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -463,7 +517,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-4) & [`WorldServerParams`](modules.md#worldserverparams-4)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams) & [`WorldServerParams`](modules.md#worldserverparams)
 
 ___
 
@@ -486,7 +540,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-4) or [applyTexturesByNames](classes/World.md#applytexturesbynames-4) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname) or [applyTexturesByNames](classes/World.md#applytexturesbynames) to load a block texture.
 
 #### Type declaration
 
@@ -569,7 +623,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-4) |
+| `dimensions` | [`Coords3`](modules.md#coords3) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -610,11 +664,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-4) |
-| `max` | [`Coords3`](modules.md#coords3-4) |
-| `realMin` | [`Coords3`](modules.md#coords3-4) |
-| `realMax` | [`Coords3`](modules.md#coords3-4) |
-| `dimensions` | [`Coords3`](modules.md#coords3-4) |
+| `min` | [`Coords3`](modules.md#coords3) |
+| `max` | [`Coords3`](modules.md#coords3) |
+| `realMin` | [`Coords3`](modules.md#coords3) |
+| `realMax` | [`Coords3`](modules.md#coords3) |
+| `dimensions` | [`Coords3`](modules.md#coords3) |
 
 ___
 
@@ -786,18 +840,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-4)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-4) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-4)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
 
 ___
 

@@ -24,7 +24,7 @@ Given a coordinate of a chunk, return the chunk representation.
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-4) | `undefined` |
+| `coords` | [`Coords2`](../modules.md#coords2) | `undefined` |
 | `concat` | `string` | `"|"` |
 
 #### Returns
@@ -43,7 +43,7 @@ Given a coordinate of a voxel, return the voxel representation.
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `coords` | [`Coords3`](../modules.md#coords3-4) | `undefined` |
+| `coords` | [`Coords3`](../modules.md#coords3) | `undefined` |
 | `concat` | `string` | `"|"` |
 
 #### Returns
@@ -73,7 +73,7 @@ ___
 
 ### scaleCoordsF
 
-▸ `Static` **scaleCoordsF**(`coords`, `factor`): [`Coords3`](../modules.md#coords3-4)
+▸ `Static` **scaleCoordsF**(`coords`, `factor`): [`Coords3`](../modules.md#coords3)
 
 Scale coordinates and floor them.
 
@@ -81,18 +81,18 @@ Scale coordinates and floor them.
 
 | Name | Type |
 | :------ | :------ |
-| `coords` | [`Coords3`](../modules.md#coords3-4) |
+| `coords` | [`Coords3`](../modules.md#coords3) |
 | `factor` | `number` |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-4)
+[`Coords3`](../modules.md#coords3)
 
 ___
 
 ### mapVoxelPosToChunkLocalPos
 
-▸ `Static` **mapVoxelPosToChunkLocalPos**(`voxelPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-4)
+▸ `Static` **mapVoxelPosToChunkLocalPos**(`voxelPos`, `chunkSize`): [`Coords3`](../modules.md#coords3)
 
 Map voxel position to local position in current chunk.
 
@@ -100,18 +100,18 @@ Map voxel position to local position in current chunk.
 
 | Name | Type |
 | :------ | :------ |
-| `voxelPos` | [`Coords3`](../modules.md#coords3-4) |
+| `voxelPos` | [`Coords3`](../modules.md#coords3) |
 | `chunkSize` | `number` |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-4)
+[`Coords3`](../modules.md#coords3)
 
 ___
 
 ### mapVoxelPosToChunkPos
 
-▸ `Static` **mapVoxelPosToChunkPos**(`voxelPos`, `chunkSize`): [`Coords2`](../modules.md#coords2-4)
+▸ `Static` **mapVoxelPosToChunkPos**(`voxelPos`, `chunkSize`): [`Coords2`](../modules.md#coords2)
 
 Map voxel position to the current chunk position.
 
@@ -119,18 +119,18 @@ Map voxel position to the current chunk position.
 
 | Name | Type |
 | :------ | :------ |
-| `voxelPos` | [`Coords3`](../modules.md#coords3-4) |
+| `voxelPos` | [`Coords3`](../modules.md#coords3) |
 | `chunkSize` | `number` |
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-4)
+[`Coords2`](../modules.md#coords2)
 
 ___
 
 ### mapChunkPosToVoxelPos
 
-▸ `Static` **mapChunkPosToVoxelPos**(`chunkPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-4)
+▸ `Static` **mapChunkPosToVoxelPos**(`chunkPos`, `chunkSize`): [`Coords3`](../modules.md#coords3)
 
 Get the voxel position of a chunk position.
 
@@ -142,18 +142,18 @@ Get the voxel position of a chunk position.
 
 | Name | Type |
 | :------ | :------ |
-| `chunkPos` | [`Coords2`](../modules.md#coords2-4) |
+| `chunkPos` | [`Coords2`](../modules.md#coords2) |
 | `chunkSize` | `number` |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-4)
+[`Coords3`](../modules.md#coords3)
 
 ___
 
 ### mapWorldPosToVoxelPos
 
-▸ `Static` **mapWorldPosToVoxelPos**(`worldPos`): [`Coords3`](../modules.md#coords3-4)
+▸ `Static` **mapWorldPosToVoxelPos**(`worldPos`): [`Coords3`](../modules.md#coords3)
 
 Map world position to voxel position.
 
@@ -161,8 +161,8 @@ Map world position to voxel position.
 
 | Name | Type |
 | :------ | :------ |
-| `worldPos` | [`Coords3`](../modules.md#coords3-4) |
+| `worldPos` | [`Coords3`](../modules.md#coords3) |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-4)
+[`Coords3`](../modules.md#coords3)

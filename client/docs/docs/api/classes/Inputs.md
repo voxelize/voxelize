@@ -62,9 +62,9 @@ Register a new click event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype-4) | Which mouse button to register on. |
+| `type` | [`ClickType`](../modules.md#clicktype) | Which mouse button to register on. |
 | `callback` | () => `void` | What to do when that button is clicked. |
-| `namespace` | `T` | Which namespace should this event be fired? |
+| `namespace` | `T` \| ``"*"`` | Which namespace should this event be fired? |
 
 #### Returns
 
@@ -84,7 +84,7 @@ Register a new scroll event listener.
 | :------ | :------ | :------ |
 | `up` | (`delta?`: `number`) => `void` | What to do when scrolled upwards. |
 | `down` | (`delta?`: `number`) => `void` | What to do when scrolled downwards. |
-| `namespace` | `T` | Which namespace should this even be fired? |
+| `namespace` | `T` \| ``"*"`` | Which namespace should this even be fired? |
 
 #### Returns
 
@@ -94,7 +94,7 @@ ___
 
 ### bind
 
-▸ **bind**(`name`, `callback`, `namespace`, `specifics?`): `void`
+▸ **bind**(`key`, `callback`, `namespace`, `specifics?`): `void`
 
 Register a key-bind event listener.
 
@@ -102,12 +102,51 @@ Register a key-bind event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `name` | `string` | The name of the key or key combo to listen on. |
+| `key` | `string` | The key to listen on. |
 | `callback` | () => `void` | What to do when the key/combo is pressed. |
-| `namespace` | `T` | The namespace in which the to fire this event. |
+| `namespace` | `T` \| ``"*"`` | The namespace in which the to fire this event. |
 | `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-4) | Which pressing occasion should the event be fired. Defaults to "keydown". |
-| `specifics.element?` | `HTMLElement` | Which element should the key binding be bound to. Defaults to "document". |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| `specifics.identifier?` | `string` | Whether or not should this be a special key event. Defaults to "". |
+
+#### Returns
+
+`void`
+
+___
+
+### unbind
+
+▸ **unbind**(`key`, `specifics?`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+| `specifics` | `Object` |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) |
+| `specifics.identifier?` | `string` |
+
+#### Returns
+
+`boolean`
+
+___
+
+### remap
+
+▸ **remap**(`key`, `newName`, `specifics?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+| `newName` | `string` |
+| `specifics` | `Object` |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) |
+| `specifics.identifier?` | `string` |
 
 #### Returns
 
@@ -385,7 +424,7 @@ ___
 
 ### namespace
 
-• **namespace**: `T`
+• **namespace**: `T` \| ``"*"``
 
 The namespace that the Voxelize inputs is in. Use `setNamespace` to
 set the namespace for namespace checking.

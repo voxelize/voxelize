@@ -123,6 +123,18 @@ Set the position of the client in interpolation.
 
 ___
 
+### getPosition
+
+▸ **getPosition**(): `Vector3`
+
+Return a reference of the position of the rigid controller.
+
+#### Returns
+
+`Vector3`
+
+___
+
 ### lookAt
 
 ▸ **lookAt**(`x`, `y`, `z`): `void`
@@ -148,6 +160,31 @@ ___
 ▸ **resetMovements**(): `void`
 
 Reset all of the control's movements.
+
+#### Returns
+
+`void`
+
+___
+
+### useInputs
+
+▸ **useInputs**<`T`\>(`inputs`, `namespace`): `void`
+
+Unregister the original event listeners, and use the Inputs instead.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `inputs` | [`Inputs`](Inputs.md)<`T`\> |
+| `namespace` | `T` |
 
 #### Returns
 
@@ -427,7 +464,7 @@ ___
 
 ### params
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-4)
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams)
 
 Parameters to initialize the Voxelize controls.
 
@@ -443,7 +480,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-4)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -470,7 +507,7 @@ ___
 
 ### lookBlock
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3-4)
+• **lookBlock**: [`Coords3`](../modules.md#coords3)
 
 The voxel at which the client is looking at.
 
@@ -486,7 +523,7 @@ The block that a client can potentially place at.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3-4) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
+| `voxel` | [`Coords3`](../modules.md#coords3) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
 | `rotation` | `number` | The rotation of the block that may be placed. |
 | `yRotation` | `number` | The rotation on the y-axis of the block that may be placed. |
 
@@ -512,34 +549,34 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-4)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-4)
+[`Coords3`](../modules.md#coords3)
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-4)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-4)
+[`Coords2`](../modules.md#coords2)
 
 ___
 
 ### lookingAt
 
-• `get` **lookingAt**(): [`Block`](../modules.md#block-4)
+• `get` **lookingAt**(): [`Block`](../modules.md#block)
 
 The block type that the client is looking at.
 
 #### Returns
 
-[`Block`](../modules.md#block-4)
+[`Block`](../modules.md#block)

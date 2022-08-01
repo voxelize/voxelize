@@ -28,7 +28,7 @@ Unique number of this object instance.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[id](SpriteText.md#id-4)
+[SpriteText](SpriteText.md).[id](SpriteText.md#id)
 
 ___
 
@@ -38,7 +38,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[uuid](SpriteText.md#uuid-4)
+[SpriteText](SpriteText.md).[uuid](SpriteText.md#uuid)
 
 ___
 
@@ -52,7 +52,7 @@ Optional name of the object (doesn't need to be unique).
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[name](SpriteText.md#name-4)
+[SpriteText](SpriteText.md).[name](SpriteText.md#name)
 
 ___
 
@@ -66,7 +66,7 @@ Object's parent in the scene graph.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[parent](SpriteText.md#parent-4)
+[SpriteText](SpriteText.md).[parent](SpriteText.md#parent)
 
 ___
 
@@ -80,7 +80,7 @@ Array with object's children.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[children](SpriteText.md#children-4)
+[SpriteText](SpriteText.md).[children](SpriteText.md#children)
 
 ___
 
@@ -94,7 +94,7 @@ Up direction.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[up](SpriteText.md#up-4)
+[SpriteText](SpriteText.md).[up](SpriteText.md#up)
 
 ___
 
@@ -108,7 +108,7 @@ Object's local position.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[position](SpriteText.md#position-4)
+[SpriteText](SpriteText.md).[position](SpriteText.md#position)
 
 ___
 
@@ -122,7 +122,7 @@ Object's local rotation (Euler angles), in radians.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[rotation](SpriteText.md#rotation-4)
+[SpriteText](SpriteText.md).[rotation](SpriteText.md#rotation)
 
 ___
 
@@ -136,7 +136,7 @@ Object's local rotation as a Quaternion.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[quaternion](SpriteText.md#quaternion-4)
+[SpriteText](SpriteText.md).[quaternion](SpriteText.md#quaternion)
 
 ___
 
@@ -150,7 +150,7 @@ Object's local scale.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[scale](SpriteText.md#scale-4)
+[SpriteText](SpriteText.md).[scale](SpriteText.md#scale)
 
 ___
 
@@ -162,7 +162,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[modelViewMatrix](SpriteText.md#modelviewmatrix-4)
+[SpriteText](SpriteText.md).[modelViewMatrix](SpriteText.md#modelviewmatrix)
 
 ___
 
@@ -174,7 +174,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[normalMatrix](SpriteText.md#normalmatrix-4)
+[SpriteText](SpriteText.md).[normalMatrix](SpriteText.md#normalmatrix)
 
 ___
 
@@ -188,7 +188,7 @@ Local transform.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[matrix](SpriteText.md#matrix-4)
+[SpriteText](SpriteText.md).[matrix](SpriteText.md#matrix)
 
 ___
 
@@ -202,7 +202,7 @@ The global transform of the object. If the Object3d has no parent, then it's ide
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[matrixWorld](SpriteText.md#matrixworld-4)
+[SpriteText](SpriteText.md).[matrixWorld](SpriteText.md#matrixworld)
 
 ___
 
@@ -217,7 +217,7 @@ recalculates the matrixWorld property.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[matrixAutoUpdate](SpriteText.md#matrixautoupdate-4)
+[SpriteText](SpriteText.md).[matrixAutoUpdate](SpriteText.md#matrixautoupdate)
 
 ___
 
@@ -231,7 +231,7 @@ When this is set, it calculates the matrixWorld in that frame and resets this pr
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[matrixWorldNeedsUpdate](SpriteText.md#matrixworldneedsupdate-4)
+[SpriteText](SpriteText.md).[matrixWorldNeedsUpdate](SpriteText.md#matrixworldneedsupdate)
 
 ___
 
@@ -243,7 +243,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[layers](SpriteText.md#layers-4)
+[SpriteText](SpriteText.md).[layers](SpriteText.md#layers)
 
 ___
 
@@ -257,7 +257,7 @@ Object gets rendered if true.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[visible](SpriteText.md#visible-4)
+[SpriteText](SpriteText.md).[visible](SpriteText.md#visible)
 
 ___
 
@@ -271,7 +271,7 @@ Gets rendered into shadow map.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[castShadow](SpriteText.md#castshadow-4)
+[SpriteText](SpriteText.md).[castShadow](SpriteText.md#castshadow)
 
 ___
 
@@ -285,7 +285,7 @@ Material gets baked in shadow receiving.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[receiveShadow](SpriteText.md#receiveshadow-4)
+[SpriteText](SpriteText.md).[receiveShadow](SpriteText.md#receiveshadow)
 
 ___
 
@@ -300,7 +300,7 @@ If set to false the object gets rendered every frame even if it is not in the fr
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[frustumCulled](SpriteText.md#frustumculled-4)
+[SpriteText](SpriteText.md).[frustumCulled](SpriteText.md#frustumculled)
 
 ___
 
@@ -316,7 +316,7 @@ When this property is set for an instance of Group, all descendants objects will
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[renderOrder](SpriteText.md#renderorder-4)
+[SpriteText](SpriteText.md).[renderOrder](SpriteText.md#renderorder)
 
 ___
 
@@ -330,7 +330,7 @@ Array with animation clips.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[animations](SpriteText.md#animations-4)
+[SpriteText](SpriteText.md).[animations](SpriteText.md#animations)
 
 ___
 
@@ -348,7 +348,7 @@ An object that can be used to store custom data about the Object3d. It should no
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[userData](SpriteText.md#userdata-4)
+[SpriteText](SpriteText.md).[userData](SpriteText.md#userdata)
 
 ___
 
@@ -363,7 +363,7 @@ transparent texture with alphaTest, you must specify a customDepthMaterial for p
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[customDepthMaterial](SpriteText.md#customdepthmaterial-4)
+[SpriteText](SpriteText.md).[customDepthMaterial](SpriteText.md#customdepthmaterial)
 
 ___
 
@@ -375,7 +375,7 @@ Same as customDepthMaterial, but used with PointLight.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[customDistanceMaterial](SpriteText.md#customdistancematerial-4)
+[SpriteText](SpriteText.md).[customDistanceMaterial](SpriteText.md#customdistancematerial)
 
 ___
 
@@ -388,7 +388,7 @@ You should not change this, as it is used internally for optimisation.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[isObject3D](SpriteText.md#isobject3d-4)
+[SpriteText](SpriteText.md).[isObject3D](SpriteText.md#isobject3d)
 
 ___
 
@@ -421,7 +421,7 @@ Calls before rendering object
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[onBeforeRender](SpriteText.md#onbeforerender-4)
+[SpriteText](SpriteText.md).[onBeforeRender](SpriteText.md#onbeforerender)
 
 ___
 
@@ -454,7 +454,7 @@ Calls after rendering object
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[onAfterRender](SpriteText.md#onafterrender-4)
+[SpriteText](SpriteText.md).[onAfterRender](SpriteText.md#onafterrender)
 
 ___
 
@@ -464,7 +464,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[DefaultUp](SpriteText.md#defaultup-4)
+[SpriteText](SpriteText.md).[DefaultUp](SpriteText.md#defaultup)
 
 ___
 
@@ -474,7 +474,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[DefaultMatrixAutoUpdate](SpriteText.md#defaultmatrixautoupdate-4)
+[SpriteText](SpriteText.md).[DefaultMatrixAutoUpdate](SpriteText.md#defaultmatrixautoupdate)
 
 ___
 
@@ -484,7 +484,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[type](SpriteText.md#type-4)
+[SpriteText](SpriteText.md).[type](SpriteText.md#type)
 
 ___
 
@@ -494,7 +494,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[isSprite](SpriteText.md#issprite-4)
+[SpriteText](SpriteText.md).[isSprite](SpriteText.md#issprite)
 
 ___
 
@@ -504,7 +504,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[geometry](SpriteText.md#geometry-4)
+[SpriteText](SpriteText.md).[geometry](SpriteText.md#geometry)
 
 ___
 
@@ -514,7 +514,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[material](SpriteText.md#material-4)
+[SpriteText](SpriteText.md).[material](SpriteText.md#material)
 
 ___
 
@@ -524,7 +524,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[center](SpriteText.md#center-4)
+[SpriteText](SpriteText.md).[center](SpriteText.md#center)
 
 ## Constructors
 
@@ -545,7 +545,7 @@ ___
 
 #### Overrides
 
-[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-4)
+[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor)
 
 ## Accessors
 
@@ -934,7 +934,7 @@ Adds a listener to an event type.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[addEventListener](SpriteText.md#addeventlistener-4)
+[SpriteText](SpriteText.md).[addEventListener](SpriteText.md#addeventlistener)
 
 ___
 
@@ -963,7 +963,7 @@ Checks if listener is added to an event type.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[hasEventListener](SpriteText.md#haseventlistener-4)
+[SpriteText](SpriteText.md).[hasEventListener](SpriteText.md#haseventlistener)
 
 ___
 
@@ -992,7 +992,7 @@ Removes a listener from an event type.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[removeEventListener](SpriteText.md#removeeventlistener-4)
+[SpriteText](SpriteText.md).[removeEventListener](SpriteText.md#removeeventlistener)
 
 ___
 
@@ -1014,7 +1014,7 @@ Fire an event type.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[dispatchEvent](SpriteText.md#dispatchevent-4)
+[SpriteText](SpriteText.md).[dispatchEvent](SpriteText.md#dispatchevent)
 
 ___
 
@@ -1036,7 +1036,7 @@ Applies the matrix transform to the object and updates the object's position, ro
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[applyMatrix4](SpriteText.md#applymatrix4-4)
+[SpriteText](SpriteText.md).[applyMatrix4](SpriteText.md#applymatrix4)
 
 ___
 
@@ -1058,7 +1058,7 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[applyQuaternion](SpriteText.md#applyquaternion-4)
+[SpriteText](SpriteText.md).[applyQuaternion](SpriteText.md#applyquaternion)
 
 ___
 
@@ -1082,7 +1082,7 @@ angle -- angle in radians
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[setRotationFromAxisAngle](SpriteText.md#setrotationfromaxisangle-4)
+[SpriteText](SpriteText.md).[setRotationFromAxisAngle](SpriteText.md#setrotationfromaxisangle)
 
 ___
 
@@ -1104,7 +1104,7 @@ Calls setRotationFromEuler(euler) on the .quaternion.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[setRotationFromEuler](SpriteText.md#setrotationfromeuler-4)
+[SpriteText](SpriteText.md).[setRotationFromEuler](SpriteText.md#setrotationfromeuler)
 
 ___
 
@@ -1128,7 +1128,7 @@ Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, u
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[setRotationFromMatrix](SpriteText.md#setrotationfrommatrix-4)
+[SpriteText](SpriteText.md).[setRotationFromMatrix](SpriteText.md#setrotationfrommatrix)
 
 ___
 
@@ -1150,7 +1150,7 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[setRotationFromQuaternion](SpriteText.md#setrotationfromquaternion-4)
+[SpriteText](SpriteText.md).[setRotationFromQuaternion](SpriteText.md#setrotationfromquaternion)
 
 ___
 
@@ -1173,7 +1173,7 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[rotateOnAxis](SpriteText.md#rotateonaxis-4)
+[SpriteText](SpriteText.md).[rotateOnAxis](SpriteText.md#rotateonaxis)
 
 ___
 
@@ -1196,7 +1196,7 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[rotateOnWorldAxis](SpriteText.md#rotateonworldaxis-4)
+[SpriteText](SpriteText.md).[rotateOnWorldAxis](SpriteText.md#rotateonworldaxis)
 
 ___
 
@@ -1218,7 +1218,7 @@ Rotates the object around x axis in local space.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[rotateX](SpriteText.md#rotatex-4)
+[SpriteText](SpriteText.md).[rotateX](SpriteText.md#rotatex)
 
 ___
 
@@ -1240,7 +1240,7 @@ Rotates the object around y axis in local space.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[rotateY](SpriteText.md#rotatey-4)
+[SpriteText](SpriteText.md).[rotateY](SpriteText.md#rotatey)
 
 ___
 
@@ -1262,7 +1262,7 @@ Rotates the object around z axis in local space.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[rotateZ](SpriteText.md#rotatez-4)
+[SpriteText](SpriteText.md).[rotateZ](SpriteText.md#rotatez)
 
 ___
 
@@ -1285,7 +1285,7 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[translateOnAxis](SpriteText.md#translateonaxis-4)
+[SpriteText](SpriteText.md).[translateOnAxis](SpriteText.md#translateonaxis)
 
 ___
 
@@ -1307,7 +1307,7 @@ Translates object along x axis by distance.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[translateX](SpriteText.md#translatex-4)
+[SpriteText](SpriteText.md).[translateX](SpriteText.md#translatex)
 
 ___
 
@@ -1329,7 +1329,7 @@ Translates object along y axis by distance.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[translateY](SpriteText.md#translatey-4)
+[SpriteText](SpriteText.md).[translateY](SpriteText.md#translatey)
 
 ___
 
@@ -1351,7 +1351,7 @@ Translates object along z axis by distance.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[translateZ](SpriteText.md#translatez-4)
+[SpriteText](SpriteText.md).[translateZ](SpriteText.md#translatez)
 
 ___
 
@@ -1373,7 +1373,7 @@ Updates the vector from local space to world space.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[localToWorld](SpriteText.md#localtoworld-4)
+[SpriteText](SpriteText.md).[localToWorld](SpriteText.md#localtoworld)
 
 ___
 
@@ -1395,7 +1395,7 @@ Updates the vector from world space to local space.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[worldToLocal](SpriteText.md#worldtolocal-4)
+[SpriteText](SpriteText.md).[worldToLocal](SpriteText.md#worldtolocal)
 
 ___
 
@@ -1421,7 +1421,7 @@ This method does not support objects having non-uniformly-scaled parent(s).
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[lookAt](SpriteText.md#lookat-4)
+[SpriteText](SpriteText.md).[lookAt](SpriteText.md#lookat)
 
 ___
 
@@ -1443,7 +1443,7 @@ Adds object as child of this object.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[add](SpriteText.md#add-4)
+[SpriteText](SpriteText.md).[add](SpriteText.md#add)
 
 ___
 
@@ -1465,7 +1465,7 @@ Removes object as child of this object.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[remove](SpriteText.md#remove-4)
+[SpriteText](SpriteText.md).[remove](SpriteText.md#remove)
 
 ___
 
@@ -1481,7 +1481,7 @@ Removes this object from its current parent.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[removeFromParent](SpriteText.md#removefromparent-4)
+[SpriteText](SpriteText.md).[removeFromParent](SpriteText.md#removefromparent)
 
 ___
 
@@ -1497,7 +1497,7 @@ Removes all child objects.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[clear](SpriteText.md#clear-4)
+[SpriteText](SpriteText.md).[clear](SpriteText.md#clear)
 
 ___
 
@@ -1519,7 +1519,7 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[attach](SpriteText.md#attach-4)
+[SpriteText](SpriteText.md).[attach](SpriteText.md#attach)
 
 ___
 
@@ -1541,7 +1541,7 @@ Searches through the object's children and returns the first with a matching id.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getObjectById](SpriteText.md#getobjectbyid-4)
+[SpriteText](SpriteText.md).[getObjectById](SpriteText.md#getobjectbyid)
 
 ___
 
@@ -1563,7 +1563,7 @@ Searches through the object's children and returns the first with a matching nam
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getObjectByName](SpriteText.md#getobjectbyname-4)
+[SpriteText](SpriteText.md).[getObjectByName](SpriteText.md#getobjectbyname)
 
 ___
 
@@ -1584,7 +1584,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getObjectByProperty](SpriteText.md#getobjectbyproperty-4)
+[SpriteText](SpriteText.md).[getObjectByProperty](SpriteText.md#getobjectbyproperty)
 
 ___
 
@@ -1604,7 +1604,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getWorldPosition](SpriteText.md#getworldposition-4)
+[SpriteText](SpriteText.md).[getWorldPosition](SpriteText.md#getworldposition)
 
 ___
 
@@ -1624,7 +1624,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getWorldQuaternion](SpriteText.md#getworldquaternion-4)
+[SpriteText](SpriteText.md).[getWorldQuaternion](SpriteText.md#getworldquaternion)
 
 ___
 
@@ -1644,7 +1644,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getWorldScale](SpriteText.md#getworldscale-4)
+[SpriteText](SpriteText.md).[getWorldScale](SpriteText.md#getworldscale)
 
 ___
 
@@ -1664,7 +1664,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[getWorldDirection](SpriteText.md#getworlddirection-4)
+[SpriteText](SpriteText.md).[getWorldDirection](SpriteText.md#getworlddirection)
 
 ___
 
@@ -1684,7 +1684,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[traverse](SpriteText.md#traverse-4)
+[SpriteText](SpriteText.md).[traverse](SpriteText.md#traverse)
 
 ___
 
@@ -1704,7 +1704,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[traverseVisible](SpriteText.md#traversevisible-4)
+[SpriteText](SpriteText.md).[traverseVisible](SpriteText.md#traversevisible)
 
 ___
 
@@ -1724,7 +1724,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[traverseAncestors](SpriteText.md#traverseancestors-4)
+[SpriteText](SpriteText.md).[traverseAncestors](SpriteText.md#traverseancestors)
 
 ___
 
@@ -1740,7 +1740,7 @@ Updates local transform.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[updateMatrix](SpriteText.md#updatematrix-4)
+[SpriteText](SpriteText.md).[updateMatrix](SpriteText.md#updatematrix)
 
 ___
 
@@ -1762,7 +1762,7 @@ Updates global transform of the object and its children.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[updateMatrixWorld](SpriteText.md#updatematrixworld-4)
+[SpriteText](SpriteText.md).[updateMatrixWorld](SpriteText.md#updatematrixworld)
 
 ___
 
@@ -1785,7 +1785,7 @@ Updates the global transform of the object.
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[updateWorldMatrix](SpriteText.md#updateworldmatrix-4)
+[SpriteText](SpriteText.md).[updateWorldMatrix](SpriteText.md#updateworldmatrix)
 
 ___
 
@@ -1809,7 +1809,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[toJSON](SpriteText.md#tojson-4)
+[SpriteText](SpriteText.md).[toJSON](SpriteText.md#tojson)
 
 ___
 
@@ -1829,7 +1829,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[clone](SpriteText.md#clone-4)
+[SpriteText](SpriteText.md).[clone](SpriteText.md#clone)
 
 ___
 
@@ -1850,7 +1850,7 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[raycast](SpriteText.md#raycast-4)
+[SpriteText](SpriteText.md).[raycast](SpriteText.md#raycast)
 
 ___
 
@@ -1870,4 +1870,4 @@ ___
 
 #### Inherited from
 
-[SpriteText](SpriteText.md).[copy](SpriteText.md#copy-4)
+[SpriteText](SpriteText.md).[copy](SpriteText.md#copy)

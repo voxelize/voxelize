@@ -16,7 +16,7 @@ ___
 
 ### params
 
-• **params**: [`HeadParams`](../modules.md#headparams-4)
+• **params**: [`HeadParams`](../modules.md#headparams)
 
 ## Constructors
 
@@ -28,7 +28,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `params` | [`HeadParams`](../modules.md#headparams-4) |
+| `params` | [`HeadParams`](../modules.md#headparams) |
 
 ## Accessors
 
