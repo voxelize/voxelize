@@ -3,9 +3,11 @@
 <p align="center">A multiplayer, fast, super fast, voxel engine in your browser!</p>
 
 <p align="center">
-<a href="https://discord.gg/6AfEkpjsTS">
-  <img src="https://discordapp.com/api/guilds/1003378871753777263/widget.png?style=shield" alt="Discord Shield"/>
-</a>
+  <a href="https://discord.gg/6AfEkpjsTS">
+  <img alt="Discord Server" src="https://img.shields.io/discord/1003378871753777263?label=Discord&logo=Discord&style=for-the-badge">
+  </a>
+  <img src="https://img.shields.io/npm/v/@voxelize/client?logo=npm&style=for-the-badge">
+  <img src="https://img.shields.io/crates/v/voxelize?style=for-the-badge"/>
 </p>
 
 ## Supporting
@@ -18,14 +20,30 @@ If you like our work, please considering supporting us on Patreon, BuyMeACoffee,
   <a href="https://paypal.me/iantheboss"><img src="https://werwolv.net/assets/paypal_banner.png" alt="PayPal donate button" /> </a>
 </p>
 
-## Screenshots
+## Showcase
 
 ![Voxelize Parkour](https://i.imgur.com/Mx9o5pV.jpg)
 ![MineJS](https://i.imgur.com/JdBQ5Lo.png)
 
-[WIP](https://trello.com/b/SzTDLVm3/voxelize)
+## Features
 
-A well-optimized web-based voxel engine.
+- Realtime built-in multiplayer game play
+  - Protocol buffers for fast voxel data transferral
+- Multi-threaded parallel chunk processing
+  - Multi-stage world generation to exceed expectations
+- Fully integrated chat system with commands registry
+- Oriented bounding box (ORM) physics engine that works with any blocks
+  - Custom block types and shapes with physics support
+- Entity with in-place collision detection and ECS built in
+- World data saving for consistent experiences
+- Robust event system for custom game events
+
+## Documentation
+
+Checkout the Voxelize documentations here:
+
+- [Backend](https://docs.rs/voxelize/0.8.11/voxelize/index.html)
+- [Frontend](https://docs.voxelize.io/docs/intro/what-is-voxelize)
 
 ## Development
 
