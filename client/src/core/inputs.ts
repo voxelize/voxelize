@@ -254,14 +254,16 @@ export class Inputs<T extends string> extends EventEmitter {
 
   private modifyKey = (key: string) => {
     // Make first character upper case
-    return key.length > 1 ? key.charAt(0).toUpperCase() + key.slice(1) : key;
+    return (
+      key.length > 1 ? key.charAt(0).toUpperCase() + key.slice(1) : key
+    ).toLowerCase();
   };
 
   private initKeyListener = () => {
     // Handle all three types of key events while checking namespace.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
-      const keyName = key || code;
+      const keyName = (key || code).toLowerCase();
       const keyCombo = keyName + occasion;
 
       const bounds = this.keyBounds.get(keyCombo);
