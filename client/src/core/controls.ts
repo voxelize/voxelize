@@ -800,7 +800,7 @@ export class RigidControls extends EventEmitter {
     );
 
     inputs.bind(
-      "shift",
+      "Shift",
       () => {
         this.movements.down = true;
       },
@@ -811,7 +811,7 @@ export class RigidControls extends EventEmitter {
     );
 
     inputs.bind(
-      "shift",
+      "Shift",
       () => {
         this.movements.down = false;
       },
