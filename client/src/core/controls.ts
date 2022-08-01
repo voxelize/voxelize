@@ -1183,7 +1183,8 @@ export class RigidControls extends EventEmitter {
     }
 
     // set jump as true, and brain will handle the jumping
-    state.jumping = up ? (down ? false : true) : down ? false : false;
+    // state.jumping = up ? (down ? false : true) : down ? false : false;
+    state.jumping = up;
 
     // crouch to true, so far used for flying
     state.crouching = down;
