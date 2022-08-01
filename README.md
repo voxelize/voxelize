@@ -73,5 +73,3 @@ yarn run demo
 ```
 
 visit http://localhost:3000
-
-## Work in progress, PR Welcomed!!
