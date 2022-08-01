@@ -679,7 +679,7 @@ export class RigidControls extends EventEmitter {
       },
       namespace,
       {
-        occasion: "keydown",
+        occasion: "keyup",
       }
     );
 
