@@ -73,3 +73,7 @@ yarn run demo
 ```
 
 visit http://localhost:3000
+
+## Disclaimers
+
+This is purely a passionate project. Although inspired, I have no intention for this game to be affiliated with Minecraft, or any licensed voxel engines. Further, textures and assets used in the game are all either licensed for free use or hand-drawn by us.
