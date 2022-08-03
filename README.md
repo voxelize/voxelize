@@ -15,9 +15,9 @@
 If you like our work, please considering supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
 
 <p align="center">
-  <a href="https://www.buymeacoffee.com/shaoruu"><img src="https://i.imgur.com/xPDiGKQ.png" alt="Buy Me A Coffee" style="height: 50px"/> </a>
   <a href="https://www.patreon.com/voxelize"><img src="https://c5.patreon.com/external/logo/become_a_patron_button.png" alt="Patreon donate button" /> </a>
   <a href="https://paypal.me/iantheboss"><img src="https://werwolv.net/assets/paypal_banner.png" alt="PayPal donate button" /> </a>
+  <a href="https://www.buymeacoffee.com/voxelize"><img src="https://i.imgur.com/xPDiGKQ.png" alt="Buy Me A Coffee" style="height: 50px"/> </a>
 </p>
 
 ## Showcase
