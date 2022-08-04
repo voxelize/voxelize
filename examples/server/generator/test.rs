@@ -33,7 +33,7 @@ impl ChunkStage for TestStage {
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 for vy in 0..max_height {
-                    let density = terrain.density_at(vx, vy, vz);
+                    let density = terrain.get_density_at(vx, vy, vz);
 
                     if density > 0.0 {
                         chunk.set_voxel(vx, vy, vz, *map.get("Stone").unwrap());

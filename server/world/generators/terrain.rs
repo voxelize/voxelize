@@ -31,7 +31,7 @@ impl SeededTerrain {
     /// 1. Calculate the height bias and height offset of each terrain layer.
     /// 2. Obtain the average height bias and height offset at this specific voxel column.
     /// 3. Get the noise value at this specific voxel coordinate, and add the average bias and height to it.
-    pub fn density_at(&self, vx: i32, vy: i32, vz: i32) -> f64 {
+    pub fn get_density_at(&self, vx: i32, vy: i32, vz: i32) -> f64 {
         let (bias, offset) = self.get_bias_offset(vx, vz);
         self.noise.get3d(vx, vy, vz, &self.params) - bias * (vy as f64 - offset) / offset
     }

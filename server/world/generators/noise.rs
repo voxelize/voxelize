@@ -47,6 +47,10 @@ impl SeededSimplex {
         let mut vx = vx as f64 * frequency;
         let mut vz = vz as f64 * frequency;
 
+        if octaves == 0 {
+            return 0.0;
+        }
+
         // First unscaled octave of function; later octaves are scaled.
         let mut result = if ridged {
             0.0
@@ -126,6 +130,10 @@ impl SeededSimplex {
         let mut vx = vx as f64 * frequency;
         let mut vy = vy as f64 * frequency;
         let mut vz = vz as f64 * frequency;
+
+        if octaves == 0 {
+            return 0.0;
+        }
 
         // First unscaled octave of function; later octaves are scaled.
         let mut result = if ridged {

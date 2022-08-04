@@ -9,10 +9,10 @@ pub fn setup_world() -> World {
         // .max_chunk([1, 1])
         .terrain(
             &NoiseParams::new()
-                .frequency(0.008)
-                .octaves(7)
-                .persistence(0.8)
-                .lacunarity(1.4)
+                .frequency(0.000)
+                .octaves(0)
+                .persistence(0.0)
+                .lacunarity(0.0)
                 .build(),
         )
         .seed(1213123)
@@ -38,61 +38,16 @@ pub fn setup_world() -> World {
 
         let continentalness = TerrainLayer::new(
             &NoiseParams::new()
-                .frequency(0.001)
+                .frequency(0.004)
                 .octaves(7)
                 .persistence(0.8)
                 .lacunarity(1.6)
                 .build(),
         )
-        .add_bias_points(vec![[-1.0, 5.0], [0.0, 5.0], [1.0, 5.0]])
-        .add_offset_points(vec![[-1.0, 60.0], [0.0, 120.0], [1.0, 60.0]]);
-
-        // let erosion = TerrainLayer::new(
-        //     &NoiseParams::new()
-        //         .frequency(0.0008)
-        //         .octaves(5)
-        //         .persistence(0.8)
-        //         .lacunarity(1.8)
-        //         .build(),
-        // )
-        // .add_bias_points(vec![
-        //     [-1.0, 1.6],
-        //     [-0.4, 1.2],
-        //     [0.0, 2.0],
-        //     [0.2, 6.8],
-        //     [1.0, 2.0],
-        // ])
-        // .add_offset_points(vec![
-        //     [-1.3, 230.0],
-        //     [-0.5, 113.0],
-        //     [-0.3, 85.0],
-        //     [0.0, 65.0],
-        //     [0.3, 66.0],
-        //     [0.4, 63.0],
-        //     [0.7, 63.0],
-        //     [1.0, 10.0],
-        // ]);
-
-        // let pv = TerrainLayer::new(
-        //     &NoiseParams::new()
-        //         .frequency(0.0015)
-        //         .octaves(5)
-        //         .persistence(1.2)
-        //         .ridged(true)
-        //         .build(),
-        // )
-        // .add_bias_points(vec![[-1.2, 0.4], [-0.4, 1.0], [0.9, 0.7], [1.3, 0.9]])
-        // .add_offset_points(vec![
-        //     [-1.5, 166.0],
-        //     [-0.3, 80.0],
-        //     [0.5, 56.0],
-        //     [0.9, 34.0],
-        //     [1.2, 6.0],
-        // ]);
+        .add_bias_points(vec![[-1.0, 1.0], [0.0, 1.0], [1.0, 1.0]])
+        .add_offset_points(vec![[-1.0, 60.0], [-0.1, 60.0], [0.1, 90.0], [1.0, 90.0]]);
 
         terrain.add_layer(&continentalness);
-        // terrain.add_layer(&erosion);
-        // terrain.add_layer(&pv);
     }
 
     world
