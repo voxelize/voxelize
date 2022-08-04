@@ -15,7 +15,7 @@ exclude = [
 ]
 license = "MIT"
 name = "voxelize"
-version = "0.8.12"
+version = "0.8.13"
 
 [lib]
 name = "voxelize"
@@ -44,13 +44,13 @@ nalgebra = "0.31.0"
 nanoid = "0.4.0"
 noise = "0.7.0"
 num = "0.4.0"
-prost = "0.10.0"
+prost = "0.11.0"
 rand = "0.8.5"
-rapier3d = {version = "0.13.0", features = ["simd-stable"]}
+rapier3d = {version = "0.14.0", features = ["simd-stable"]}
 rayon = "1.5.2"
 serde = {version = "1.0.136", features = ["derive"]}
 serde_json = "1.0.79"
-specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
+specs = {version = "0.18.0", features = ["specs-derive", "serde"]}
 splines = "4.1.0"
 
 chrono = "0.4.19"
@@ -58,7 +58,7 @@ fern = {version = "0.6.0", features = ["colored"]}
 log = "0.4.16"
 
 [build-dependencies]
-prost-build = "0.10.0"
+prost-build = "0.11.1"
 
 [profile.release]
 opt-level = 3
