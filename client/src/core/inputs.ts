@@ -210,6 +210,44 @@ export class Inputs<T extends string> extends EventEmitter {
     return false;
   };
 
+  swap = (
+    keyA: string,
+    keyB: string,
+    specifics: { occasion?: InputOccasion; identifier?: string } = {}
+  ) => {
+    keyA = this.modifyKey(keyA);
+    keyB = this.modifyKey(keyB);
+
+    const { occasion = "keydown", identifier = "default" } = specifics;
+
+    const nameA = keyA + occasion;
+    const nameB = keyB + occasion;
+    const boundsA = (this.keyBounds.get(nameA) || {})[identifier];
+    const boundsB = (this.keyBounds.get(nameB) || {})[identifier];
+
+    if (!boundsA) {
+      throw new Error(`Key ${nameA} is not bound.`);
+    } else if (!boundsB) {
+      throw new Error(`Key ${nameB} is not bound.`);
+    }
+
+    const {
+      unbind: unbindA,
+      callback: callbackA,
+      namespace: namespaceA,
+    } = boundsA;
+    const {
+      unbind: unbindB,
+      callback: callbackB,
+      namespace: namespaceB,
+    } = boundsB;
+
+    unbindA();
+    unbindB();
+    this.bind(keyB, callbackA, namespaceA, specifics);
+    this.bind(keyA, callbackB, namespaceB, specifics);
+  };
+
   remap = (
     key: string,
     newName: string,

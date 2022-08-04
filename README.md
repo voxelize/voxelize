@@ -12,12 +12,12 @@
 
 ## Supporting
 
-If you like our work, please considering supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
+If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
 
 <p align="center">
-  <a href="https://www.buymeacoffee.com/shaoruu"><img src="https://i.imgur.com/xPDiGKQ.png" alt="Buy Me A Coffee" style="height: 50px"/> </a>
   <a href="https://www.patreon.com/voxelize"><img src="https://c5.patreon.com/external/logo/become_a_patron_button.png" alt="Patreon donate button" /> </a>
   <a href="https://paypal.me/iantheboss"><img src="https://werwolv.net/assets/paypal_banner.png" alt="PayPal donate button" /> </a>
+  <a href="https://www.buymeacoffee.com/voxelize"><img src="https://i.imgur.com/xPDiGKQ.png" alt="Buy Me A Coffee" style="height: 50px"/> </a>
 </p>
 
 ## Showcase
@@ -74,4 +74,6 @@ yarn run demo
 
 visit http://localhost:3000
 
-## Work in progress, PR Welcomed!!
+## Disclaimers
+
+This is purely a passionate project. Although inspired, I have no intention for this game to be affiliated with Minecraft, or any licensed voxel engines. Further, textures and assets used in the game are all either licensed for free use or hand-drawn by us.
