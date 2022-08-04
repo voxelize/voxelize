@@ -518,7 +518,7 @@ export class World extends Scene implements NetIntercept {
     if (this.callTick % 2 === 0) {
       this.surroundChunks(direction);
     } else if (this.callTick % 3 === 0) {
-      this.meshChunks();
+      this.meshChunks(direction);
     }
 
     this.addChunks();
@@ -738,13 +738,23 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
-  private meshChunks = () => {
+  private meshChunks = (direction?: Vector3) => {
     const { maxProcessesPerTick } = this.params;
-    const toProcess = this.chunks.toProcess.splice(0, maxProcessesPerTick);
+    let count = 0;
 
-    toProcess.forEach((data) => {
+    while (count < maxProcessesPerTick && this.chunks.toProcess.length) {
+      const data = this.chunks.toProcess.shift();
+      const { x, z } = data;
+
+      this.chunks.requested.delete(ChunkUtils.getChunkName([x, z]));
+
+      if (!this.isChunkInView(x, z, direction?.x, direction?.z)) {
+        continue;
+      }
+
+      count++;
       this.meshChunk(data);
-    });
+    }
   };
 
   private meshChunk = (data: ChunkProtocol) => {
@@ -765,7 +775,6 @@ export class World extends Scene implements NetIntercept {
     }
 
     chunk.build(data, this.materials);
-    this.chunks.requested.delete(chunk.name);
   };
 
   private addChunks = () => {

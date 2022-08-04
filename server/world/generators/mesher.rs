@@ -501,7 +501,7 @@ impl Mesher {
                         }
                     };
 
-                for vy in (min_y..=max_y.min(height) as i32).rev() {
+                for vy in (min_y..=(max_y - 1).min(height) as i32).rev() {
                     let voxel_id = space.get_voxel(vx, vy, vz);
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = registry.get_block_by_id(voxel_id);

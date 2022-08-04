@@ -111,6 +111,26 @@ class ChunkMesh extends Group {
   }
 }
 
+function requestTimeout(fn: () => void, delay: number) {
+  const start = new Date().getTime();
+  let handle: number;
+
+  function loop() {
+    const current = new Date().getTime(),
+      delta = current - start;
+
+    delta >= delay ? fn() : (handle = requestAnimationFrame(loop));
+  }
+
+  handle = requestAnimationFrame(loop);
+
+  return handle;
+}
+
+function clearRequestTimeout(handle: number) {
+  cancelAnimationFrame(handle);
+}
+
 class Chunk {
   public mesh: ChunkMesh;
 
@@ -163,9 +183,9 @@ class Chunk {
         if (!meshData) return;
         this.mesh.set(meshData, materials);
         if (index + 1 < meshes.length) {
-          const timeout = setTimeout(() => {
+          const timeout = requestTimeout(() => {
             keepMeshing(index + 1);
-            clearTimeout(timeout);
+            clearRequestTimeout(timeout);
           }, Chunk.SUB_MESHING_INTERVAL);
         }
       };

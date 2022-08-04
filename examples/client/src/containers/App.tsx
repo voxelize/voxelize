@@ -10,7 +10,7 @@ import {
 import * as THREE from "three";
 
 import { setupWorld } from "src/core/world";
-import { ColorText, NameTag, Peers } from "@voxelize/client";
+import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
 
 const GameWrapper = styled.div`
@@ -29,6 +29,15 @@ const GameCanvas = styled.canvas`
   height: 100%;
 `;
 
+const Position = styled.p`
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 8px;
+  z-index: 100000;
+  color: #eee;
+`;
+
 let BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
@@ -41,15 +50,18 @@ const App = () => {
   const domRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const worldRef = useRef<VOXELIZE.World | null>(null);
+  const positionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!domRef.current || !canvasRef.current) return;
+    if (!domRef.current || !canvasRef.current || !positionRef.current) return;
     if (worldRef.current) return;
 
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
       textureDimension: 128,
-      maxProcessesPerTick: 16,
+      maxProcessesPerTick: 10,
+      maxRequestsPerTick: 10,
+      maxAddsPerTick: 1,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -144,24 +156,84 @@ const App = () => {
       }
     );
 
+    let hand = "Stone";
+    let radius = 1;
+    let circular = true;
+
+    const bulkDestroy = () => {
+      if (!controls.lookBlock) return;
+
+      const [vx, vy, vz] = controls.lookBlock;
+
+      const updates: VOXELIZE.BlockUpdate[] = [];
+
+      for (let x = -radius; x <= radius; x++) {
+        for (let y = -radius; y <= radius; y++) {
+          for (let z = -radius; z <= radius; z++) {
+            if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
+              continue;
+
+            updates.push({
+              vx: vx + x,
+              vy: vy + y,
+              vz: vz + z,
+              type: 0,
+            });
+          }
+        }
+      }
+
+      if (updates.length) controls.world.updateVoxels(updates);
+    };
+
+    const bulkPlace = () => {
+      if (!controls.targetBlock) return;
+
+      const {
+        voxel: [vx, vy, vz],
+        rotation,
+      } = controls.targetBlock;
+
+      const updates: VOXELIZE.BlockUpdate[] = [];
+      const block = controls.world.getBlockByName(hand);
+
+      for (let x = -radius; x <= radius; x++) {
+        for (let y = -radius; y <= radius; y++) {
+          for (let z = -radius; z <= radius; z++) {
+            if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
+              continue;
+
+            updates.push({
+              vx: vx + x,
+              vy: vy + y,
+              vz: vz + z,
+              type: block.id,
+              rotation: rotation
+                ? VOXELIZE.BlockRotation.encode(rotation, 0)
+                : undefined,
+            });
+          }
+        }
+      }
+
+      if (updates.length) controls.world.updateVoxels(updates);
+    };
+
     inputs.click(
       "left",
       () => {
-        if (!controls.lookBlock) return;
-        const [vx, vy, vz] = controls.lookBlock;
-        world.updateVoxel(vx, vy, vz, 0);
+        bulkDestroy();
       },
       "in-game"
     );
-
-    let hand = "Stone";
 
     inputs.click(
       "middle",
       () => {
         if (!controls.lookBlock) return;
         const [vx, vy, vz] = controls.lookBlock;
-        hand = world.getBlockByVoxel(vx, vy, vz).name;
+        const block = controls.world.getBlockByVoxel(vx, vy, vz);
+        hand = block.name;
       },
       "in-game"
     );
@@ -169,17 +241,14 @@ const App = () => {
     inputs.click(
       "right",
       () => {
-        if (!controls.targetBlock) return;
-        const { rotation, voxel, yRotation } = controls.targetBlock;
-        const id = world.getBlockByName(hand).id;
-        world.updateVoxel(
-          ...voxel,
-          id,
-          rotation
-            ? VOXELIZE.BlockRotation.encode(rotation, yRotation)
-            : undefined
-        );
+        bulkPlace();
       },
+      "in-game"
+    );
+
+    inputs.scroll(
+      () => (radius = Math.min(100, radius + 1)),
+      () => (radius = Math.max(1, radius - 1)),
       "in-game"
     );
 
@@ -199,23 +268,6 @@ const App = () => {
     };
 
     ColorText.SPLITTER = "$";
-
-    const nametag = new NameTag(
-      "$#E6B325$[VIP] $white$LMAO\n$cyan$[MVP] $white$BRUH",
-      { fontSize: 0.5 }
-    );
-    nametag.position.set(0, 75, 0);
-    world.add(nametag);
-
-    inputs.bind(
-      "p",
-      () => {
-        nametag.text = `$#E6B325$[VIP] $white$HAHA${Math.floor(
-          Math.random() * 100
-        )}\n$cyan$[MVP] $white$BRUH`;
-      },
-      "in-game"
-    );
 
     inputs.bind(
       "o",
@@ -265,7 +317,7 @@ const App = () => {
       .connect({ serverURL: BACKEND_SERVER, secret: "test" })
       .then(() => {
         network
-          .join("world3")
+          .join("world1")
           .then(() => {
             const animate = () => {
               requestAnimationFrame(animate);
@@ -284,6 +336,13 @@ const App = () => {
                 controls.getDirection()
               );
 
+              if (positionRef.current)
+                positionRef.current.textContent = controls
+                  .getPosition()
+                  .toArray()
+                  .map((x) => x.toFixed(2))
+                  .toString();
+
               network.flush();
 
               composer.render();
@@ -297,10 +356,11 @@ const App = () => {
       });
 
     worldRef.current = world;
-  }, [domRef, canvasRef, worldRef]);
+  }, [domRef, canvasRef, worldRef, positionRef]);
 
   return (
     <GameWrapper ref={domRef}>
+      <Position ref={positionRef} />
       <GameCanvas ref={canvasRef} />
     </GameWrapper>
   );
