@@ -8,13 +8,15 @@ use actix::{
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::HashMap;
-use log::{info, warn};
+use log::info;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
+    SeededTerrain, Stats,
 };
 
 pub use models::*;
@@ -24,6 +26,103 @@ pub use session::*;
 pub struct OnJoinRequest {
     world: String,
     username: String,
+}
+
+type ServerInfoHandle = fn(&Server) -> Value;
+
+fn default_info_handle(server: &Server) -> Value {
+    let mut info = HashMap::new();
+
+    info.insert(
+        "lost_sessions".to_owned(),
+        json!(server.lost_sessions.len()),
+    );
+
+    let mut connections = HashMap::new();
+
+    for (id, (_, world)) in server.connections.iter() {
+        connections.insert(id.to_owned(), json!(world));
+    }
+
+    info.insert("connections".to_owned(), json!(connections));
+
+    let mut transports = vec![];
+
+    for (id, _) in server.transport_sessions.iter() {
+        transports.push(id.to_owned());
+    }
+
+    info.insert("transports".to_owned(), json!(transports));
+
+    let mut worlds = HashMap::new();
+
+    for (name, world) in server.worlds.iter() {
+        let mut world_info = HashMap::new();
+
+        {
+            let clients = world.clients();
+            world_info.insert("clients".to_owned(), json!(clients.len()));
+        }
+
+        {
+            let config = world.config();
+            world_info.insert("config".to_owned(), json!(*config));
+        }
+
+        {
+            let stats = world.read_resource::<Stats>();
+            let mut stats_info = HashMap::new();
+
+            stats_info.insert("tick".to_owned(), json!(stats.tick));
+            stats_info.insert("delta".to_owned(), json!(stats.delta));
+
+            world_info.insert("stats".to_owned(), json!(stats_info));
+        }
+
+        {
+            let chunks = world.chunks();
+
+            world_info.insert(
+                "chunks".to_owned(),
+                json!({
+                    "count": chunks.map.len(),
+                    "toUpdate": chunks.to_update.len(),
+                    "toRemesh": chunks.to_remesh.len(),
+                    "toSend": chunks.to_send.len(),
+                    "toSave": chunks.to_save.len(),
+
+                }),
+            );
+        }
+
+        {
+            let terrains = world.read_resource::<SeededTerrain>();
+            let mut layers = vec![];
+
+            terrains.layers.iter().for_each(|layer| {
+                layers.push(json!(layer));
+            });
+
+            world_info.insert("terrains".to_owned(), json!(layers));
+        }
+
+        {
+            let pipeline = world.pipeline();
+            let stages = pipeline
+                .stages
+                .iter()
+                .map(|stage| json!(stage.name()))
+                .collect::<Vec<_>>();
+
+            world_info.insert("pipeline".to_owned(), json!(stages));
+        }
+
+        worlds.insert(name.to_owned(), json!(world_info));
+    }
+
+    info.insert("worlds".to_owned(), json!(worlds));
+
+    serde_json::to_value(info).unwrap()
 }
 
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
@@ -48,19 +147,22 @@ pub struct Server {
     pub secret: Option<String>,
 
     /// A map of all the worlds.
-    worlds: HashMap<String, World>,
+    pub worlds: HashMap<String, World>,
 
     /// Registry of the server.
-    registry: Registry,
+    pub registry: Registry,
 
     /// Session IDs and addresses who haven't connected to a world.
-    lost_sessions: HashMap<String, Recipient<EncodedMessage>>,
+    pub lost_sessions: HashMap<String, Recipient<EncodedMessage>>,
 
     /// Transport sessions, not connect to any particular world.
-    transport_sessions: HashMap<String, Recipient<EncodedMessage>>,
+    pub transport_sessions: HashMap<String, Recipient<EncodedMessage>>,
 
     /// What world each client ID is connected to, client ID <-> world ID.
-    connections: HashMap<String, (Recipient<EncodedMessage>, String)>,
+    pub connections: HashMap<String, (Recipient<EncodedMessage>, String)>,
+
+    /// The information sent to the client when requested.
+    info_handle: ServerInfoHandle,
 }
 
 impl Server {
@@ -117,6 +219,11 @@ impl Server {
     /// Get a mutable world reference by name.
     pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut World> {
         self.worlds.get_mut(world_name)
+    }
+
+    /// Get the information of the server
+    pub fn get_info(&mut self) -> Value {
+        (self.info_handle)(self)
     }
 
     /// Handler for client's message.
@@ -244,6 +351,10 @@ pub struct Disconnect {
     pub id: String,
 }
 
+#[derive(ActixMessage)]
+#[rtype(result = "Value")]
+pub struct Info;
+
 /// Send message to specific world
 #[derive(ActixMessage)]
 #[rtype(result = "Option<String>")]
@@ -327,6 +438,15 @@ impl Handler<Disconnect> for Server {
         }
 
         self.lost_sessions.remove(&msg.id);
+    }
+}
+
+/// Handler for server info request.
+impl Handler<Info> for Server {
+    type Result = MessageResult<Info>;
+
+    fn handle(&mut self, _: Info, _: &mut Context<Self>) -> Self::Result {
+        MessageResult(self.get_info())
     }
 }
 
@@ -424,6 +544,7 @@ impl ServerBuilder {
             lost_sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
             worlds: HashMap::default(),
+            info_handle: default_info_handle,
         }
     }
 }

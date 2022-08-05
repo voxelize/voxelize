@@ -475,9 +475,9 @@ export class RigidControls extends EventEmitter {
         this.params.positionLerp = 0.6;
         this.body.aabb = newAABB.clone();
 
-        const stepInterval = setInterval(() => {
+        const stepTimeout = setTimeout(() => {
           this.params.positionLerp = positionLerp;
-          clearInterval(stepInterval);
+          clearTimeout(stepTimeout);
         }, 500);
       },
       stepHeight: 0.5,

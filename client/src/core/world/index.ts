@@ -53,6 +53,7 @@ export type WorldClientParams = {
   defaultRenderRadius: number;
   defaultDeleteRadius: number;
   textureDimension: number;
+  subMeshingInterval: number;
 };
 
 export type WorldServerParams = {
@@ -79,6 +80,7 @@ const defaultParams: WorldClientParams = {
   defaultRenderRadius: 8,
   defaultDeleteRadius: 14,
   textureDimension: 8,
+  subMeshingInterval: 100,
 };
 
 export type WorldParams = WorldClientParams & WorldServerParams;
@@ -762,13 +764,14 @@ export class World extends Scene implements NetIntercept {
 
     let chunk = this.getChunk(x, z);
 
-    const { chunkSize, maxHeight, subChunks } = this.params;
+    const { chunkSize, maxHeight, subChunks, subMeshingInterval } = this.params;
 
     if (!chunk) {
       chunk = new Chunk(id, x, z, {
         size: chunkSize,
         maxHeight,
         subChunks,
+        subMeshingInterval,
       });
 
       this.chunks.set(chunk.name, chunk);

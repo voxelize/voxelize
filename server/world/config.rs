@@ -41,7 +41,8 @@ pub struct InitConfig {
 }
 
 /// World configuration, storing information of how a world is constructed.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorldConfig {
     /// Max clients for each world. Default is 100 clients.
     pub max_clients: usize,

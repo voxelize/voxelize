@@ -88,6 +88,11 @@ async fn index(path: web::Data<Config>) -> Result<NamedFile> {
     })?)
 }
 
+async fn info(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
+    let info = server.send(Info).await.unwrap();
+    Ok(HttpResponse::Ok().json(info))
+}
+
 pub struct Voxelize;
 
 impl Voxelize {
@@ -129,6 +134,7 @@ impl Voxelize {
                 }))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
+                .route("/info", web::get().to(info))
                 .service(Files::new("/", serve).show_files_listing())
         })
         .workers(1)

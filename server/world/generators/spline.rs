@@ -1,8 +1,9 @@
+use serde::Serialize;
 use splines::{Interpolation, Key, Spline};
 use std::f64;
 
 /// Spline graph of Voxelize. Used to map noise values to custom values.
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct SplineMap {
     min: f64,
     min_val: f64,

@@ -19,6 +19,7 @@ type ChunkParams = {
   size: number;
   maxHeight: number;
   subChunks: number;
+  subMeshingInterval: number;
 };
 
 class ChunkMesh extends Group {
@@ -145,9 +146,6 @@ class Chunk {
 
   public added = false;
 
-  // ms
-  public static SUB_MESHING_INTERVAL = 100;
-
   constructor(
     public id: string,
     x: number,
@@ -186,7 +184,7 @@ class Chunk {
           const timeout = requestTimeout(() => {
             keepMeshing(index + 1);
             clearRequestTimeout(timeout);
-          }, Chunk.SUB_MESHING_INTERVAL);
+          }, this.params.subMeshingInterval);
         }
       };
 

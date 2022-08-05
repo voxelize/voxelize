@@ -1,4 +1,5 @@
-use noise::{NoiseFn, Seedable, SuperSimplex};
+use noise::{NoiseFn, OpenSimplex, Seedable};
+use serde::Serialize;
 use std::f64;
 
 /// Seeded noise of Voxelize. Use this to get consistent results with seed!
@@ -21,13 +22,13 @@ impl SeededNoise {
 #[derive(Clone)]
 pub struct SeededSimplex {
     /// Core noise instance.
-    noise: SuperSimplex,
+    noise: OpenSimplex,
 }
 
 impl SeededSimplex {
     /// Create a new seeded simplex noise.
     pub fn new(seed: u32) -> Self {
-        let noise = SuperSimplex::new().set_seed(seed);
+        let noise = OpenSimplex::new().set_seed(seed);
 
         Self { noise }
     }
@@ -203,7 +204,7 @@ impl SeededSimplex {
 }
 
 /// Multi-fractal noise parameters.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 pub struct NoiseParams {
     /// How frequently should noise be sampled. The bigger the value, the more condensed noise
     /// seems. Defaults to PI * 2.0 / 3.0.

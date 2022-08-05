@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 use super::{
     noise::{NoiseParams, SeededSimplex},
     spline::SplineMap,
@@ -8,7 +10,7 @@ use super::{
 pub struct SeededTerrain {
     noise: SeededSimplex,
     params: NoiseParams,
-    layers: Vec<TerrainLayer>,
+    pub layers: Vec<TerrainLayer>,
 }
 
 impl SeededTerrain {
@@ -63,7 +65,8 @@ impl SeededTerrain {
 /// A layer to the terrain. Consists of two spline graphs: height bias and height offset graphs.
 /// Height bias is how much terrain should be compressed as y-coordinate increases, and height offset is
 /// by how much should the entire terrain shift up and down.
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TerrainLayer {
     pub params: NoiseParams,
     height_bias_spline: SplineMap,

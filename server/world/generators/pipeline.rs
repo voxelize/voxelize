@@ -149,6 +149,9 @@ pub struct Pipeline {
     /// Leftover changes to chunks.
     pub leftovers: HashMap<Vec2<i32>, Vec<BlockChange>>,
 
+    /// A list of stages that chunks are in.
+    pub stages: Vec<Arc<dyn ChunkStage + Send + Sync>>,
+
     /// Sender of processed chunks from other threads to main thread.
     sender: Arc<Sender<(Vec<Chunk>, Vec<BlockChange>)>>,
 
@@ -160,9 +163,6 @@ pub struct Pipeline {
 
     /// Queue of chunk jobs to finish.
     queue: VecDeque<(Vec2<i32>, usize)>,
-
-    /// A list of stages that chunks are in.
-    stages: Vec<Arc<dyn ChunkStage + Send + Sync>>,
 }
 
 impl Pipeline {
