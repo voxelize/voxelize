@@ -141,6 +141,52 @@ impl ChunkStage for FlatlandStage {
         chunk
     }
 }
+
+pub struct TerrainStage {
+    threshold: f64,
+    base: u32,
+}
+
+impl TerrainStage {
+    pub fn new(threshold: f64, base: u32) -> Self {
+        Self { threshold, base }
+    }
+}
+
+impl ChunkStage for TerrainStage {
+    fn name(&self) -> String {
+        "Terrain".to_owned()
+    }
+
+    fn needs_resources(&self) -> ResourceRequirements {
+        ResourceRequirements {
+            needs_terrain: true,
+            ..Default::default()
+        }
+    }
+
+    fn process(&self, mut chunk: Chunk, resources: ResourceResults, _: Option<Space>) -> Chunk {
+        let Vec3(min_x, min_y, min_z) = chunk.min;
+        let Vec3(max_x, max_y, max_z) = chunk.max;
+
+        let mut terrain = resources.terrain.unwrap();
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                for vy in min_y..max_y {
+                    let density = terrain.get_density_at(vx, vy, vz);
+
+                    if density > self.threshold {
+                        chunk.set_voxel(vx, vy, vz, self.base);
+                    }
+                }
+            }
+        }
+
+        chunk
+    }
+}
+
 /// A pipeline where chunks are initialized and generated.
 pub struct Pipeline {
     /// A HashSet that keeps track of what chunks are in the pipeline.
