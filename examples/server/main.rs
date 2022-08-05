@@ -105,7 +105,7 @@ struct LimitedStage;
 
 impl ChunkStage for LimitedStage {
     fn name(&self) -> String {
-        "Limited Stage".to_owned()
+        "Limited".to_owned()
     }
 
     fn process(
