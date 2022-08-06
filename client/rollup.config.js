@@ -20,11 +20,15 @@ export default {
     {
       file: packageJson.module,
       format: "esm",
-      sourcemap: true,
+      sourcemap: !!process.env.ROLLUP_WATCH,
     },
     ...(process.env.ROLLUP_WATCH
       ? []
       : [
+          {
+            file: packageJson.main,
+            format: "cjs",
+          },
           {
             file: packageJson.umd,
             extend: true,
