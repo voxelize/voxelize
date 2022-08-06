@@ -1,11 +1,4 @@
-import {
-  AudioLoader,
-  LoadingManager,
-  Texture,
-  TextureLoader,
-  Group,
-} from "three";
-import { GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { AudioLoader, LoadingManager, Texture, TextureLoader } from "three";
 
 /**
  * A **built-in** loader for Voxelize.
@@ -17,11 +10,6 @@ class Loader {
    * A map of all textures loaded by Voxelize.
    */
   public textures = new Map<string, Texture>();
-
-  /**
-   * A map of all GLTF models loaded by Voxelize.
-   */
-  public gltfModels = new Map<string, Group>();
 
   /**
    * A map of all audios loaded by Voxelize.
@@ -36,7 +24,6 @@ class Loader {
   private manager = new LoadingManager();
   private textureLoader = new TextureLoader(this.manager);
   private audioLoader = new AudioLoader(this.manager);
-  private gltfLoader = new GLTFLoader(this.manager);
 
   private assetPromises = new Map<string, Promise<void>>();
   private audioCallbacks = new Map<string, () => Promise<AudioBuffer>>();
@@ -87,36 +74,6 @@ class Loader {
    */
   getTexture = (source: string) => {
     return this.textures.get(source);
-  };
-
-  /**
-   * Add a GLTF source to load from. Must be called before `client.connect`.
-   *
-   * @param source - The source to the GLTF file to load from.
-   */
-  addGLTFModel = (source: string, onLoaded?: (gltf: GLTF) => void) => {
-    this.assetPromises.set(
-      source,
-      new Promise((resolve) => {
-        this.gltfLoader.load(source, (gltf) => {
-          this.gltfModels.set(source, gltf.scene);
-          this.assetPromises.delete(source);
-
-          onLoaded?.(gltf);
-
-          resolve();
-        });
-      })
-    );
-  };
-
-  /**
-   * Get the loaded GLTF model with this function.
-   *
-   * @param source - The source to the GLTF model loaded from.
-   */
-  getGLTFModel = (source: string) => {
-    return this.gltfModels.get(source);
   };
 
   /**

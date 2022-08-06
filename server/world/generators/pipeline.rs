@@ -142,20 +142,20 @@ impl ChunkStage for FlatlandStage {
     }
 }
 
-pub struct TerrainStage {
+pub struct BaseTerrainStage {
     threshold: f64,
     base: u32,
 }
 
-impl TerrainStage {
+impl BaseTerrainStage {
     pub fn new(threshold: f64, base: u32) -> Self {
         Self { threshold, base }
     }
 }
 
-impl ChunkStage for TerrainStage {
+impl ChunkStage for BaseTerrainStage {
     fn name(&self) -> String {
-        "Terrain".to_owned()
+        "Base Terrain".to_owned()
     }
 
     fn needs_resources(&self) -> ResourceRequirements {
@@ -169,7 +169,7 @@ impl ChunkStage for TerrainStage {
         let Vec3(min_x, min_y, min_z) = chunk.min;
         let Vec3(max_x, max_y, max_z) = chunk.max;
 
-        let mut terrain = resources.terrain.unwrap();
+        let terrain = resources.terrain.unwrap();
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {

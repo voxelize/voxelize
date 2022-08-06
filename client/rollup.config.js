@@ -33,7 +33,6 @@ export default {
             name: "Voxelize",
             globals: {
               three: "THREE",
-              "three/examples/jsm/loaders/GLTFLoader": "THREE.GLTFLoader",
             },
           },
         ]),
