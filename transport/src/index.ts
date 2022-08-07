@@ -56,7 +56,9 @@ export class Transport extends WebSocket {
     if (this.connection) {
       this.connection.drop();
       this.connection.close();
-      this.connection.removeAllListeners();
+      ["message", "close", "error"].forEach((event) => {
+        this.connection.removeAllListeners(event);
+      });
       if (this.reconnection) {
         clearTimeout(this.reconnection);
       }
@@ -66,6 +68,8 @@ export class Transport extends WebSocket {
     super.connect(`${q.href}ws/?secret=${secret}&is_transport=true`);
 
     return new Promise<void>((resolve) => {
+      this.removeAllListeners("connect");
+
       this.on("connect", (connection) => {
         this.connection = connection;
 
