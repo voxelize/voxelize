@@ -6,12 +6,12 @@ import {
   connection as WebSocketConnection,
 } from "websocket";
 
-import { protocol } from "./protocol";
+import protocol from "./protocol";
 import { MessageProtocol } from "./types";
 
 export * from "./types";
 
-const { Message } = protocol;
+const { Message } = protocol.protocol;
 
 export class Transport extends WebSocket {
   public connection: WebSocketConnection;
@@ -195,6 +195,8 @@ export class Transport extends WebSocket {
         (peer) => (peer.metadata = JSON.stringify(peer.metadata))
       );
     }
-    return protocol.Message.encode(protocol.Message.create(message)).finish();
+    return protocol.protocol.Message.encode(
+      protocol.protocol.Message.create(message)
+    ).finish();
   }
 }
