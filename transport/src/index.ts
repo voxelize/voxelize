@@ -53,14 +53,25 @@ export class Transport extends WebSocket {
     this.address = address;
     this.secret = secret;
 
+    if (this.connection) {
+      this.connection.drop();
+      this.connection.close();
+      this.connection.removeAllListeners();
+      if (this.reconnection) {
+        clearTimeout(this.reconnection);
+      }
+    }
+
     const q = url.parse(address, true);
     super.connect(`${q.href}ws/?secret=${secret}&is_transport=true`);
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       this.on("connect", (connection) => {
         this.connection = connection;
 
         console.log("WebSocket Client Connected");
+
+        clearTimeout(this.reconnection);
 
         connection.on("message", (message) => {
           if (message.type !== "binary") return;
