@@ -16,9 +16,12 @@ const { Message } = protocol;
 export class Transport extends WebSocket {
   public connection: WebSocketConnection;
 
+  private address: string;
+  private secret: string;
+
   public static MessageTypes = Message.Type;
 
-  constructor() {
+  constructor(public reconnectTimeout?: number) {
     super();
   }
 
@@ -37,10 +40,13 @@ export class Transport extends WebSocket {
   onEvent?: (event: MessageProtocol) => void;
 
   connect = async (address: string, secret: string) => {
+    this.address = address;
+    this.secret = secret;
+
     const q = url.parse(address, true);
     super.connect(`${q.href}ws/?secret=${secret}&is_transport=true`);
 
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       this.on("connect", (connection) => {
         this.connection = connection;
 
@@ -66,6 +72,7 @@ export class Transport extends WebSocket {
 
       this.on("connectFailed", function (error) {
         console.log(`Connect Error: ${error.toString()}`);
+        this.tryReconnect();
       });
     });
   };
@@ -73,6 +80,15 @@ export class Transport extends WebSocket {
   send = (event: MessageProtocol) => {
     if (!this.connection) return;
     this.connection.sendBytes(Buffer.from(Transport.encodeSync(event)));
+  };
+
+  tryReconnect = () => {
+    if (this.reconnectTimeout) {
+      const timeout = setTimeout(() => {
+        clearTimeout(timeout);
+        this.connect(this.address, this.secret);
+      }, this.reconnectTimeout);
+    }
   };
 
   private onMessage = (event: MessageProtocol) => {
