@@ -1239,10 +1239,10 @@
     typescript "^4.6.4"
     vitest "^0.10.4"
 
-"@voxelize/physics-engine@^1.1.24":
-  version "1.1.25"
-  resolved "https://registry.yarnpkg.com/@voxelize/physics-engine/-/physics-engine-1.1.25.tgz#315683d59437b85750c4ff0e5178542f7d8633b7"
-  integrity sha512-pLiQEmz73HEmFUHibkXhHCoWWVMqz2QmGFc82P43319b+W3LcFf1X3WvcpnvFXIL1eFQ1G30Q7WKDK2uj9Aswg==
+"@voxelize/physics-engine@^1.1.26":
+  version "1.1.26"
+  resolved "https://registry.yarnpkg.com/@voxelize/physics-engine/-/physics-engine-1.1.26.tgz#979f95ddb921358461a89b83d422de4f6d09e310"
+  integrity sha512-PyATL4NhqXTR0j5DANzJS+tEtgW5Fo/DFoO6VeaSKp7ymGnZPrj9IEaeXRPx7pqEAngXGaWuI8MwjkB+gSwzLA==
   dependencies:
     "@voxelize/voxel-aabb" "^1.0.0"
     tsup "^5.12.7"
