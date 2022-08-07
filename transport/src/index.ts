@@ -25,6 +25,14 @@ export class Transport extends WebSocket {
 
   constructor(public reconnectTimeout?: number) {
     super();
+
+    this.on("connectFailed", function (error) {
+      console.log(`Connect Error: ${error.toString()}`);
+
+      if (!this.reconnection) {
+        this.tryReconnect();
+      }
+    });
   }
 
   onInit?: (event: MessageProtocol) => void;
@@ -64,7 +72,9 @@ export class Transport extends WebSocket {
         connection.on("close", function () {
           console.log("Transport connection closed.");
 
-          this.tryReconnect();
+          if (!this.reconnection) {
+            this.tryReconnect();
+          }
         });
 
         connection.on("error", function (error) {
@@ -72,11 +82,6 @@ export class Transport extends WebSocket {
         });
 
         resolve();
-      });
-
-      this.on("connectFailed", function (error) {
-        console.log(`Connect Error: ${error.toString()}`);
-        this.tryReconnect();
       });
     });
   };
