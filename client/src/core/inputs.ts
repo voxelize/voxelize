@@ -1,5 +1,7 @@
 import { EventEmitter } from "events";
 
+import { v4 as uuidv4 } from "uuid";
+
 /**
  * Three types of clicking for mouse input listening.
  */
@@ -10,12 +12,15 @@ export type ClickType = "left" | "middle" | "right";
  */
 export type InputOccasion = "keydown" | "keypress" | "keyup";
 
-type ClickCallbacks = { callback: () => void; namespace: string }[];
-type ScrollCallbacks = {
-  up: (delta?: number) => void;
-  down: (delta?: number) => void;
-  namespace: string;
-}[];
+type ClickCallbacks = Map<string, { callback: () => void; namespace: string }>;
+type ScrollCallbacks = Map<
+  string,
+  {
+    up: (delta?: number) => void;
+    down: (delta?: number) => void;
+    namespace: string;
+  }
+>;
 
 export declare interface Inputs<T extends string> {
   on(event: "namespace", listener: (namespace: string) => void): this;
@@ -47,7 +52,7 @@ export class Inputs<T extends string> extends EventEmitter {
   public namespace: T | "*";
 
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
-  private scrollCallbacks: ScrollCallbacks = [];
+  private scrollCallbacks: ScrollCallbacks = new Map();
   private keyDownCallbacks: Map<string, (() => void)[]> = new Map();
   private keyUpCallbacks: Map<string, (() => void)[]> = new Map();
   private keyPressCallbacks: Map<string, (() => void)[]> = new Map();
@@ -85,7 +90,9 @@ export class Inputs<T extends string> extends EventEmitter {
    * @param namespace - Which namespace should this event be fired?
    */
   click = (type: ClickType, callback: () => void, namespace: T | "*") => {
-    this.clickCallbacks.get(type)?.push({ namespace, callback });
+    const id = uuidv4();
+    this.clickCallbacks.get(type)?.set(id, { namespace, callback });
+    return () => this.clickCallbacks.get(type).delete(id);
   };
 
   /**
@@ -100,7 +107,9 @@ export class Inputs<T extends string> extends EventEmitter {
     down: (delta?: number) => void,
     namespace: T | "*"
   ) => {
-    this.scrollCallbacks.push({ up, down, namespace });
+    const id = uuidv4();
+    this.scrollCallbacks.set(id, { up, down, namespace });
+    return () => this.scrollCallbacks.delete(id);
   };
 
   /**
@@ -160,34 +169,38 @@ export class Inputs<T extends string> extends EventEmitter {
 
     const bounds = this.keyBounds.get(name) || {};
 
+    const unbind = () => {
+      (
+        [
+          ["keydown", this.keyDownCallbacks],
+          ["keyup", this.keyUpCallbacks],
+          ["keypress", this.keyPressCallbacks],
+        ] as [string, Map<string, (() => void)[]>][]
+      ).forEach(([o, map]) => {
+        if (o !== occasion) return;
+
+        const callbacks = map.get(name);
+        if (callbacks) {
+          const index = callbacks.indexOf(callback);
+          if (index !== -1) callbacks.splice(index, 1);
+        }
+
+        // Remove key from keydown callbacks if it is empty.
+        if (map.get(name)?.length === 0) map.delete(name);
+      });
+
+      delete bounds[identifier];
+    };
+
     bounds[identifier] = {
-      unbind: () => {
-        (
-          [
-            ["keydown", this.keyDownCallbacks],
-            ["keyup", this.keyUpCallbacks],
-            ["keypress", this.keyPressCallbacks],
-          ] as [string, Map<string, (() => void)[]>][]
-        ).forEach(([o, map]) => {
-          if (o !== occasion) return;
-
-          const callbacks = map.get(name);
-          if (callbacks) {
-            const index = callbacks.indexOf(callback);
-            if (index !== -1) callbacks.splice(index, 1);
-          }
-
-          // Remove key from keydown callbacks if it is empty.
-          if (map.get(name)?.length === 0) map.delete(name);
-        });
-
-        delete bounds[identifier];
-      },
+      unbind,
       callback,
       namespace,
     };
 
     this.keyBounds.set(name, bounds);
+
+    return unbind;
   };
 
   unbind = (
@@ -324,11 +337,11 @@ export class Inputs<T extends string> extends EventEmitter {
 
   private initClickListener = () => {
     (["left", "middle", "right"] as ClickType[]).forEach((type) =>
-      this.clickCallbacks.set(type, [])
+      this.clickCallbacks.set(type, new Map())
     );
 
     const listener = ({ button }: MouseEvent) => {
-      let callbacks: ClickCallbacks = [];
+      let callbacks: ClickCallbacks;
 
       if (button === 0) callbacks = this.clickCallbacks.get("left") as any;
       else if (button === 1)
