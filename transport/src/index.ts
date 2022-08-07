@@ -61,6 +61,8 @@ export class Transport extends WebSocket {
 
         connection.on("close", function () {
           console.log("Transport connection closed.");
+
+          this.tryReconnect();
         });
 
         connection.on("error", function (error) {
@@ -86,6 +88,7 @@ export class Transport extends WebSocket {
     if (this.reconnectTimeout) {
       const timeout = setTimeout(() => {
         clearTimeout(timeout);
+        console.log("Transport reconnecting...");
         this.connect(this.address, this.secret);
       }, this.reconnectTimeout);
     }
