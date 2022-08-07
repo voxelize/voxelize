@@ -87,9 +87,10 @@ export class Transport extends WebSocket {
   };
 
   tryReconnect = () => {
-    if (this.reconnectTimeout) {
+    if (this.reconnectTimeout && !this.reconnection) {
       this.reconnection = setTimeout(() => {
         clearTimeout(this.reconnection);
+        this.reconnection = undefined;
         console.log("Transport reconnecting...");
         this.connect(this.address, this.secret);
       }, this.reconnectTimeout);
