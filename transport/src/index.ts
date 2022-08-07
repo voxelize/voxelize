@@ -16,10 +16,12 @@ const { Message } = protocol.protocol;
 export class Transport extends WebSocket {
   public connection: WebSocketConnection;
 
+  public static MessageTypes = Message.Type;
+
   private address: string;
   private secret: string;
 
-  public static MessageTypes = Message.Type;
+  private reconnection: any;
 
   constructor(public reconnectTimeout?: number) {
     super();
@@ -86,8 +88,8 @@ export class Transport extends WebSocket {
 
   tryReconnect = () => {
     if (this.reconnectTimeout) {
-      const timeout = setTimeout(() => {
-        clearTimeout(timeout);
+      this.reconnection = setTimeout(() => {
+        clearTimeout(this.reconnection);
         console.log("Transport reconnecting...");
         this.connect(this.address, this.secret);
       }, this.reconnectTimeout);
