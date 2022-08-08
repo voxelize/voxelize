@@ -1,6 +1,6 @@
 use hashbrown::{HashMap, HashSet};
 
-use crate::{ndarray, BlockUtils, ChunkUtils, LightColor, LightUtils, Ndarray, Vec2, Vec3};
+use crate::{ndarray, BlockUtils, ChunkUtils, LightUtils, Ndarray, Vec2, Vec3};
 
 use super::{
     access::VoxelAccess,

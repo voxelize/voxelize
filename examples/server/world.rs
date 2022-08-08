@@ -1,4 +1,4 @@
-use voxelize::{NoiseParams, TerrainLayer, World, WorldConfig};
+use voxelize::{BaseTerrainStage, NoiseParams, TerrainLayer, World, WorldConfig};
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
@@ -33,6 +33,11 @@ pub fn setup_world() -> World {
         .add_offset_points(vec![[-1.0, 60.0], [-0.1, 60.0], [0.1, 90.0], [1.0, 90.0]]);
 
         terrain.add_layer(&continentalness);
+    }
+
+    {
+        let mut pipeline = world.pipeline_mut();
+        pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
     }
 
     world

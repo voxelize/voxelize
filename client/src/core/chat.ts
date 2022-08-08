@@ -84,8 +84,8 @@ export class Chat implements NetIntercept {
   public onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "INIT": {
-        const { commandPrefix } = message.json.params;
-        this._commandSymbol = commandPrefix;
+        const { commandSymbol } = message.json.params;
+        this._commandSymbol = commandSymbol;
         break;
       }
       case "CHAT": {
@@ -96,7 +96,7 @@ export class Chat implements NetIntercept {
     }
   };
 
-  get commandPrefix(): string {
+  get commandSymbol(): string {
     return this._commandSymbol;
   }
 }
