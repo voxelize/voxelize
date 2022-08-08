@@ -1,7 +1,6 @@
 use std::ops::Range;
 
 use hashbrown::{HashMap, HashSet};
-use log::info;
 
 use crate::{BlockChange, ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Registry, Vec2, Vec3};
 
@@ -242,11 +241,11 @@ impl VoxelAccess for Chunk {
         true
     }
 
-    fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
+    fn get_lights(&self, _: i32, _: i32) -> Option<&Ndarray<u32>> {
         Some(&self.lights)
     }
 
-    fn get_voxels(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
+    fn get_voxels(&self, _: i32, _: i32) -> Option<&Ndarray<u32>> {
         Some(&self.voxels)
     }
 

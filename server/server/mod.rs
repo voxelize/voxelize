@@ -16,7 +16,7 @@ use serde_json::{json, Value};
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
-    SeededTerrain, Stats,
+    Stats, Terrain,
 };
 
 pub use models::*;
@@ -96,7 +96,7 @@ fn default_info_handle(server: &Server) -> Value {
         }
 
         {
-            let terrains = world.read_resource::<SeededTerrain>();
+            let terrains = world.read_resource::<Terrain>();
             let mut layers = vec![];
 
             terrains.layers.iter().for_each(|layer| {

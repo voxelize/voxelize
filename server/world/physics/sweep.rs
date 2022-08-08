@@ -1,5 +1,3 @@
-use log::info;
-
 use crate::{approx_equals, between, Registry, Vec3};
 
 use super::{aabb::AABB, GetVoxelFunc};

@@ -1,7 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,

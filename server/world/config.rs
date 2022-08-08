@@ -2,44 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use super::generators::NoiseParams;
 
-#[derive(Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InitConfig {
-    /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
-    pub chunk_size: usize,
-
-    /// The number of sub chunks a chunk is divided into to mesh more efficiently. Defaults to 16.
-    pub sub_chunks: usize,
-
-    /// Max height of the world. Default is 256 blocks high.
-    pub max_height: usize,
-
-    /// Max light level that light can propagate. Default is 15 blocks.
-    pub max_light_level: u32,
-
-    /// The minimum inclusive chunk on this world. Default is [i32::MIN, i32::MIN].
-    pub min_chunk: [i32; 2],
-
-    /// The maximum inclusive chunk on this world. Default is [i32::MAX, i32::MAX].
-    pub max_chunk: [i32; 2],
-
-    /// Gravity of the voxelize world.
-    pub gravity: [f32; 3],
-
-    /// Minimum impulse to start bouncing.
-    pub min_bounce_impulse: f32,
-
-    /// Drag of the air in the voxelize world.
-    pub air_drag: f32,
-
-    /// Drag of the fluid in the voxelize world.
-    pub fluid_drag: f32,
-
-    /// Fluid density of the voxelize world.
-    /// TODO: move this to registry.
-    pub fluid_density: f32,
-}
-
 /// World configuration, storing information of how a world is constructed.
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,6 +75,9 @@ pub struct WorldConfig {
 
     /// Saving interval.
     pub save_interval: usize,
+
+    /// Prefix for all commands.
+    pub command_symbol: String,
 }
 
 impl WorldConfig {
@@ -126,23 +91,6 @@ impl WorldConfig {
     /// ```
     pub fn new() -> WorldConfigBuilder {
         WorldConfigBuilder::new()
-    }
-
-    /// Get the INIT configurations
-    pub fn get_init_config(&self) -> InitConfig {
-        InitConfig {
-            chunk_size: self.chunk_size,
-            sub_chunks: self.sub_chunks,
-            max_height: self.max_height,
-            max_light_level: self.max_light_level,
-            min_chunk: self.min_chunk,
-            max_chunk: self.max_chunk,
-            gravity: self.gravity.to_owned(),
-            air_drag: self.air_drag,
-            fluid_density: self.fluid_density,
-            fluid_drag: self.fluid_drag,
-            min_bounce_impulse: self.min_bounce_impulse,
-        }
     }
 }
 
@@ -168,6 +116,7 @@ const DEFAULT_COLLISION_REPULSION: f32 = 0.3;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
+const DEFAULT_command_symbol: &str = "/";
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -194,6 +143,7 @@ pub struct WorldConfigBuilder {
     saving: bool,
     save_dir: String,
     save_interval: usize,
+    command_symbol: String,
 }
 
 impl WorldConfigBuilder {
@@ -223,6 +173,7 @@ impl WorldConfigBuilder {
             save_dir: DEFAULT_SAVE_DIR.to_owned(),
             save_interval: DEFAULT_SAVE_INTERVAL,
             terrain: NoiseParams::default(),
+            command_symbol: DEFAULT_command_symbol.to_owned(),
         }
     }
 
@@ -335,6 +286,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the prefix of command messages.
+    pub fn command_symbol(mut self, command_symbol: &str) -> Self {
+        self.command_symbol = command_symbol.to_owned();
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -374,6 +331,7 @@ impl WorldConfigBuilder {
             saving: self.saving,
             save_dir: self.save_dir,
             save_interval: self.save_interval,
+            command_symbol: self.command_symbol,
         }
     }
 }

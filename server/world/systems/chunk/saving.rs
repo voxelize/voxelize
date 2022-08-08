@@ -1,4 +1,3 @@
-use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{Chunks, WorldConfig};

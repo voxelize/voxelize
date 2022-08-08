@@ -1,7 +1,5 @@
 use std::collections::VecDeque;
 
-use log::info;
-
 use crate::{
     Block, ChunkUtils, LightColor, Ndarray, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };

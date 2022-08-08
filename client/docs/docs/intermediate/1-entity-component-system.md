@@ -135,7 +135,7 @@ These are the utility resources that can be used as helpers.
   - A manager that takes care of all the chunk 3D meshing in parallel.
 - [`Search`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Search.html)
   - A 3-dimensional tree that has all the clients and entities to search for.
-- [`Terrain`](https://docs.rs/voxelize/0.8.7/voxelize/struct.SeededTerrain.html)
+- [`Terrain`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Terrain.html)
   - A seeded terrain manager to generate terrain.
 - [`Noise`](https://docs.rs/voxelize/0.8.7/voxelize/struct.SeededNoise.html)
   - A seeded noise manager to make 2D or 3D noise.

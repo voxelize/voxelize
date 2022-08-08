@@ -1,7 +1,4 @@
-use noise::Worley;
-use voxelize::{HeightMapStage, NoiseParams, TerrainLayer, World, WorldConfig};
-
-use crate::generator::{test::TestStage, tree::TreeTestStage, water::WaterStage};
+use voxelize::{NoiseParams, TerrainLayer, World, WorldConfig};
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
@@ -20,18 +17,6 @@ pub fn setup_world() -> World {
         .build();
 
     let mut world = World::new("world1", &config);
-
-    {
-        let mut pipeline = world.pipeline_mut();
-
-        // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
-        pipeline.add_stage(TestStage);
-        // pipeline.add_stage(HeightMapStage);
-        // pipeline.add_stage(WaterStage);
-        // pipeline.add_stage(TreeTestStage {
-        //     noise: Worley::new(),
-        // });
-    }
 
     {
         let mut terrain = world.terrain_mut();

@@ -134,15 +134,6 @@ pub struct MessageBuilder {
     updates: Option<Vec<UpdateProtocol>>,
 }
 
-/// Convert a `Vec3` to protocol buffer `Vector3`.
-fn vec3_to_vector3(vec3: &Option<Vec3<f32>>) -> Option<protocols::Vector3> {
-    vec3.as_ref().map(|vec3| protocols::Vector3 {
-        x: vec3.0,
-        y: vec3.1,
-        z: vec3.2,
-    })
-}
-
 impl MessageBuilder {
     /// Configure the json data of the protocol.
     pub fn json(mut self, json: &str) -> Self {

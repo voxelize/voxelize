@@ -1,9 +1,8 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use itertools::izip;
-use log::info;
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
@@ -541,37 +540,5 @@ impl Mesher {
             uvs,
             lights,
         })
-    }
-
-    fn get_dir_transparency(
-        block: &Block,
-        dx: i32,
-        dy: i32,
-        dz: i32,
-        rotation: &BlockRotation,
-    ) -> bool {
-        let [px, py, pz, nx, ny, nz] = block.get_rotated_transparency(rotation);
-
-        if dx == 1 {
-            return nx;
-        }
-
-        if dx == -1 {
-            return px;
-        }
-
-        if dy == 1 {
-            return ny;
-        }
-
-        if dy == -1 {
-            return py;
-        }
-
-        if dz == 1 {
-            return nz;
-        }
-
-        return pz;
     }
 }

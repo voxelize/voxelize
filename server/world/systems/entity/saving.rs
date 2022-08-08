@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 use crate::{ETypeComp, Entities, IDComp, MetadataComp, Stats, WorldConfig};

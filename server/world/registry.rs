@@ -1,12 +1,9 @@
 use hashbrown::{HashMap, HashSet};
-use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::BlockFace;
 
 use super::voxels::Block;
-
-const TEXTURE_BLEEDING_OFFSET: f32 = 1.0 / 64.0;
 
 /// Serializable struct representing a UV coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,11 +286,7 @@ impl Registry {
     /// Record a block into the registry, adding this block into appropriate maps.
     fn record_block(&mut self, block: &Block) {
         let Block {
-            id,
-            name,
-            faces,
-            is_plant,
-            ..
+            id, name, faces, ..
         } = block;
 
         let lower_name = name.to_lowercase();

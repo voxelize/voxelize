@@ -1,9 +1,8 @@
-use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    world::systems::peers::meta, ClientFilter, ClientFlag, Clients, DirectionComp, IDComp, Message,
-    MessageQueue, MessageType, MetadataComp, NameComp, PeerProtocol, PositionComp, Stats,
+    ClientFilter, ClientFlag, Clients, IDComp, Message, MessageQueue, MessageType, MetadataComp,
+    NameComp, PeerProtocol, Stats,
 };
 
 pub struct PeersSendingSystem;

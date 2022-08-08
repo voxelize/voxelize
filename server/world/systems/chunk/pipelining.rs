@@ -1,9 +1,8 @@
-use log::info;
 use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    Chunk, ChunkParams, ChunkUtils, Chunks, Pipeline, Registry, SeededNoise, SeededTerrain, Vec2,
+    Chunk, ChunkParams, ChunkUtils, Chunks, Pipeline, Registry, SeededNoise, Terrain, Vec2,
     WorldConfig,
 };
 
@@ -15,7 +14,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, SeededNoise>,
-        ReadExpect<'a, SeededTerrain>,
+        ReadExpect<'a, Terrain>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Chunks>,
     );

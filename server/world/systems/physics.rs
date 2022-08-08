@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use hashbrown::HashMap;
-use log::info;
 use rapier3d::prelude::CollisionEvent;
 use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 

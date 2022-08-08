@@ -1,12 +1,11 @@
-use std::{collections::VecDeque, time::Instant};
+use std::collections::VecDeque;
 
 use hashbrown::HashMap;
-use log::info;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    Block, BlockUtils, ChunkUtils, Chunks, ClientFilter, Geometry, LightColor, LightNode, Lights,
+    BlockUtils, ChunkUtils, Chunks, ClientFilter, Geometry, LightColor, LightNode, Lights,
     MeshProtocol, Mesher, Message, MessageQueue, MessageType, Registry, UpdateProtocol, Vec2, Vec3,
     VoxelAccess, WorldConfig,
 };

@@ -18,7 +18,6 @@ use actix::Recipient;
 use hashbrown::HashMap;
 use log::{info, warn};
 use nanoid::nanoid;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
@@ -26,9 +25,9 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
+use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
-use std::{env, hash::Hash};
 
 use crate::{
     encode_message,
@@ -62,6 +61,8 @@ pub type CustomFunction<T> = fn(T, &mut World);
 pub type ClientParser = fn(&str, Entity, &mut World);
 
 pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
+
+pub type CommandHandle = fn(&str, &str, &mut World);
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 pub fn default_client_parser(metadata: &str, client_ent: Entity, world: &mut World) {
@@ -127,6 +128,9 @@ pub struct World {
 
     /// The handler for `Transport`s.
     transport_handle: Option<CustomFunction<Value>>,
+
+    /// The handler for commands.
+    command_handle: Option<CommandHandle>,
 }
 
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
@@ -238,7 +242,7 @@ impl World {
 
         ecs.insert(Chunks::new(config));
         ecs.insert(SeededNoise::new(config.seed));
-        ecs.insert(SeededTerrain::new(config.seed, &config.terrain));
+        ecs.insert(Terrain::new(config.seed, &config.terrain));
         ecs.insert(Entities::new(config.saving, &config.save_dir));
         ecs.insert(Search::new());
 
@@ -263,6 +267,7 @@ impl World {
             client_parser: Some(default_client_parser),
             client_modifier: None,
             transport_handle: None,
+            command_handle: None,
         }
     }
 
@@ -422,8 +427,12 @@ impl World {
         self.transport_handle = Some(handle);
     }
 
+    pub fn set_command_handle(&mut self, handle: CommandHandle) {
+        self.command_handle = Some(handle);
+    }
+
     pub fn generate_init_message(&self, id: &str) -> Message {
-        let config = self.config().get_init_config();
+        let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
 
         json.insert("id".to_owned(), json!(id));
@@ -590,17 +599,17 @@ impl World {
     }
 
     /// Access the terrain of the ECS world.
-    pub fn terrain(&self) -> Fetch<SeededTerrain> {
-        self.read_resource::<SeededTerrain>()
+    pub fn terrain(&self) -> Fetch<Terrain> {
+        self.read_resource::<Terrain>()
     }
 
     /// Access a mutable terrain of the ECS world.
-    pub fn terrain_mut(&mut self) -> FetchMut<SeededTerrain> {
+    pub fn terrain_mut(&mut self) -> FetchMut<Terrain> {
         assert!(
             !self.started,
             "Cannot change terrain after world has started."
         );
-        self.write_resource::<SeededTerrain>()
+        self.write_resource::<Terrain>()
     }
 
     /// Access pipeline management in the ECS world.
@@ -793,7 +802,7 @@ impl World {
     }
 
     /// Handler for `Chat` type messages.
-    fn on_chat(&mut self, _: &str, data: Message) {
+    fn on_chat(&mut self, id: &str, data: Message) {
         if let Some(chat) = data.chat.clone() {
             let sender = chat.sender;
             let body = chat.body;
@@ -801,13 +810,11 @@ impl World {
             info!("{}: {}", sender, body);
 
             if body.starts_with('/') {
-                let body = body
-                    .strip_prefix('/')
-                    .unwrap()
-                    .split_whitespace()
-                    .collect::<Vec<_>>();
-
-                // let mut msgs = vec![];
+                if let Some(handle) = self.command_handle {
+                    handle(id, body.strip_prefix('/').unwrap(), self);
+                } else {
+                    warn!("Clients are sending commands, but no command handler set.");
+                }
             } else {
                 self.broadcast(data, ClientFilter::All);
             }

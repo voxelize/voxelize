@@ -12,12 +12,12 @@ export class Chat implements NetIntercept {
 
   public packets: MessageProtocol[] = [];
 
-  constructor(public commandSymbol = "/") {}
+  private _commandPrefix: string;
 
   public send = (chat: ChatProtocol) => {
-    if (chat.body.startsWith(this.commandSymbol)) {
+    if (chat.body.startsWith(this._commandPrefix)) {
       const words = chat.body
-        .substring(this.commandSymbol.length)
+        .substring(this._commandPrefix.length)
         .split(" ")
         .filter(Boolean);
       const trigger = words.shift();
@@ -82,9 +82,21 @@ export class Chat implements NetIntercept {
   };
 
   public onMessage = (message: MessageProtocol) => {
-    if (message.type !== "CHAT") return;
-
-    const { chat } = message;
-    this.onChat?.(chat);
+    switch (message.type) {
+      case "INIT": {
+        const { commandPrefix } = message.json.params;
+        this._commandPrefix = commandPrefix;
+        break;
+      }
+      case "CHAT": {
+        const { chat } = message;
+        this.onChat?.(chat);
+        break;
+      }
+    }
   };
+
+  get commandPrefix(): string {
+    return this._commandPrefix;
+  }
 }

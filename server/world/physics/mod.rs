@@ -1,14 +1,12 @@
-use crossbeam_channel::{Receiver, Sender};
-use hashbrown::HashMap;
+use crossbeam_channel::Receiver;
 use nalgebra::Vector3;
 use rapier3d::prelude::{
     vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
-    ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ImpulseJointSet,
-    IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline,
-    RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
-    RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
+    ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
+    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBody as RapierBody,
+    RigidBodyBuilder as RapierBodyBuilder, RigidBodyHandle as RapierBodyHandle,
+    RigidBodySet as RapierBodySet,
 };
-use specs::Entity;
 
 use crate::{approx_equals, BlockRotation, Vec3};
 
@@ -36,7 +34,6 @@ pub struct Physics {
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     collision_recv: Receiver<CollisionEvent>,
-    contact_force_recv: Receiver<ContactForceEvent>,
     event_handler: ChannelEventCollector,
     gravity: Vector3<f32>,
 }
@@ -44,12 +41,11 @@ pub struct Physics {
 impl Physics {
     pub fn new() -> Self {
         let (collision_send, collision_recv) = crossbeam_channel::unbounded();
-        let (contact_force_send, contact_force_recv) = crossbeam_channel::unbounded();
+        let (contact_force_send, _) = crossbeam_channel::unbounded();
         let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
 
         Self {
             collision_recv,
-            contact_force_recv,
             body_set: RapierBodySet::default(),
             broad_phase: BroadPhase::default(),
             ccd_solver: CCDSolver::default(),

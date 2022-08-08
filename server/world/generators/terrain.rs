@@ -7,13 +7,13 @@ use super::{
 
 /// A seeded layered terrain for Voxelize world generation.
 #[derive(Clone)]
-pub struct SeededTerrain {
+pub struct Terrain {
     noise: SeededSimplex,
     params: NoiseParams,
     pub layers: Vec<TerrainLayer>,
 }
 
-impl SeededTerrain {
+impl Terrain {
     /// Create a new instance of the seeded terrain.
     pub fn new(seed: u32, params: &NoiseParams) -> Self {
         Self {

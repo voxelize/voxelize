@@ -1,6 +1,5 @@
-use std::{f32, fmt};
+use std::f32;
 
-use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::AABB;
