@@ -12,7 +12,6 @@ use voxelize::{
 };
 use world::setup_world;
 
-mod generator;
 mod registry;
 mod world;
 
@@ -111,7 +110,7 @@ impl ChunkStage for LimitedStage {
     fn process(
         &self,
         mut chunk: voxelize::Chunk,
-        resources: voxelize::ResourceResults,
+        resources: voxelize::Resources,
         _: Option<voxelize::Space>,
     ) -> voxelize::Chunk {
         if chunk.coords.0 > ISLAND_LIMIT
@@ -122,7 +121,7 @@ impl ChunkStage for LimitedStage {
             return chunk;
         }
 
-        let id = resources.registry.unwrap().get_block_by_name("Stone").id;
+        let id = resources.registry.get_block_by_name("Stone").id;
 
         let Vec3(min_x, _, min_z) = chunk.min;
         let Vec3(max_x, _, max_z) = chunk.max;

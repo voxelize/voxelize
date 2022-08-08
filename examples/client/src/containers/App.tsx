@@ -9,6 +9,7 @@ import {
 } from "postprocessing";
 import * as THREE from "three";
 
+import Stats from "stats.js";
 import { setupWorld } from "src/core/world";
 import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
@@ -31,7 +32,7 @@ const GameCanvas = styled.canvas`
 
 const Position = styled.p`
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   margin: 8px;
   z-index: 100000;
@@ -78,6 +79,7 @@ const App = () => {
     // world.add(clouds);
 
     world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
+    world.renderRadius = 12;
 
     const camera = new THREE.PerspectiveCamera(
       90,
@@ -109,8 +111,11 @@ const App = () => {
       world,
       {
         lookInGhostMode: true,
+        initialPosition: [0, 128, 150],
+        rotationLerp: 0.3,
       }
     );
+    controls.toggleGhostMode();
 
     const network = new VOXELIZE.Network();
 
@@ -310,6 +315,9 @@ const App = () => {
     };
     inputs.bind("f", toggleFly, "in-game");
 
+    const stats = new Stats();
+    document.body.appendChild(stats.dom);
+
     network
       .register(chat)
       .register(world)
@@ -317,10 +325,13 @@ const App = () => {
       .connect({ serverURL: BACKEND_SERVER, secret: "test" })
       .then(() => {
         network
-          .join("world3")
+          .join("world1")
           .then(() => {
+            world.setFogDistance(50);
+            controls.lookAt(0, 150, 0);
+
             const animate = () => {
-              requestAnimationFrame(animate);
+              stats.begin();
 
               const delta = clock.getDelta();
 
@@ -346,6 +357,10 @@ const App = () => {
               network.flush();
 
               composer.render();
+
+              stats.end();
+
+              requestAnimationFrame(animate);
             };
 
             animate();

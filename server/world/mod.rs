@@ -237,8 +237,6 @@ impl World {
         ecs.insert(config.clone());
 
         ecs.insert(Chunks::new(config));
-        ecs.insert(SeededNoise::new(config.seed));
-        ecs.insert(SeededTerrain::new(config.seed, &config.terrain));
         ecs.insert(Entities::new(config.saving, &config.save_dir));
         ecs.insert(Search::new());
 
@@ -587,20 +585,6 @@ impl World {
     /// Access the mutable search tree in the ECS world.
     pub fn search_mut(&mut self) -> FetchMut<Search> {
         self.write_resource::<Search>()
-    }
-
-    /// Access the terrain of the ECS world.
-    pub fn terrain(&self) -> Fetch<SeededTerrain> {
-        self.read_resource::<SeededTerrain>()
-    }
-
-    /// Access a mutable terrain of the ECS world.
-    pub fn terrain_mut(&mut self) -> FetchMut<SeededTerrain> {
-        assert!(
-            !self.started,
-            "Cannot change terrain after world has started."
-        );
-        self.write_resource::<SeededTerrain>()
     }
 
     /// Access pipeline management in the ECS world.

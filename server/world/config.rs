@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use super::generators::NoiseParams;
-
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitConfig {
@@ -102,9 +100,6 @@ pub struct WorldConfig {
     /// Seed of the world. Default is "Voxelize".
     pub seed: u32,
 
-    /// Terrain parameters
-    pub terrain: NoiseParams,
-
     /// Whether this world is saved.
     pub saving: bool,
 
@@ -190,7 +185,6 @@ pub struct WorldConfigBuilder {
     fluid_drag: f32,
     fluid_density: f32,
     collision_repulsion: f32,
-    terrain: NoiseParams,
     saving: bool,
     save_dir: String,
     save_interval: usize,
@@ -222,7 +216,6 @@ impl WorldConfigBuilder {
             saving: DEFAULT_SAVING,
             save_dir: DEFAULT_SAVE_DIR.to_owned(),
             save_interval: DEFAULT_SAVE_INTERVAL,
-            terrain: NoiseParams::default(),
         }
     }
 
@@ -305,12 +298,6 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the terrain of the world. Default, check out NoiseParams.
-    pub fn terrain(mut self, terrain: &NoiseParams) -> Self {
-        self.terrain = terrain.to_owned();
-        self
-    }
-
     /// Configure the collision repulsion between entities. Defaults to `0.3`.
     pub fn collision_repulsion(mut self, collision_repulsion: f32) -> Self {
         self.collision_repulsion = collision_repulsion;
@@ -370,7 +357,6 @@ impl WorldConfigBuilder {
             gravity: self.gravity,
             min_bounce_impulse: self.min_bounce_impulse,
             collision_repulsion: self.collision_repulsion,
-            terrain: self.terrain,
             saving: self.saving,
             save_dir: self.save_dir,
             save_interval: self.save_interval,

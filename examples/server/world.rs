@@ -1,20 +1,35 @@
-use noise::Worley;
-use voxelize::{HeightMapStage, NoiseParams, TerrainLayer, World, WorldConfig};
+use voxelize::{ChunkStage, Vec3, VoxelAccess, World, WorldConfig};
 
-use crate::generator::{test::TestStage, tree::TreeTestStage, water::WaterStage};
+pub struct Height128Stage;
+
+impl ChunkStage for Height128Stage {
+    fn name(&self) -> String {
+        "Height128".to_string()
+    }
+
+    fn process(
+        &self,
+        mut chunk: voxelize::Chunk,
+        resources: voxelize::Resources,
+        space: Option<voxelize::Space>,
+    ) -> voxelize::Chunk {
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                chunk.set_voxel(vx, 128, vz, 60);
+            }
+        }
+
+        chunk
+    }
+}
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
-        // .min_chunk([-1, -1])
-        // .max_chunk([1, 1])
-        .terrain(
-            &NoiseParams::new()
-                .frequency(0.000)
-                .octaves(0)
-                .persistence(0.0)
-                .lacunarity(0.0)
-                .build(),
-        )
+        .min_chunk([-20, 0])
+        .max_chunk([20, 0])
         .seed(1213123)
         .max_response_per_tick(1)
         .build();
@@ -23,31 +38,7 @@ pub fn setup_world() -> World {
 
     {
         let mut pipeline = world.pipeline_mut();
-
-        // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 3));
-        pipeline.add_stage(TestStage);
-        // pipeline.add_stage(HeightMapStage);
-        // pipeline.add_stage(WaterStage);
-        // pipeline.add_stage(TreeTestStage {
-        //     noise: Worley::new(),
-        // });
-    }
-
-    {
-        let mut terrain = world.terrain_mut();
-
-        let continentalness = TerrainLayer::new(
-            &NoiseParams::new()
-                .frequency(0.004)
-                .octaves(7)
-                .persistence(0.8)
-                .lacunarity(1.6)
-                .build(),
-        )
-        .add_bias_points(vec![[-1.0, 1.0], [0.0, 1.0], [1.0, 1.0]])
-        .add_offset_points(vec![[-1.0, 60.0], [-0.1, 60.0], [0.1, 90.0], [1.0, 90.0]]);
-
-        terrain.add_layer(&continentalness);
+        pipeline.add_stage(Height128Stage);
     }
 
     world
