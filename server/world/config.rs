@@ -116,7 +116,7 @@ const DEFAULT_COLLISION_REPULSION: f32 = 0.3;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
-const DEFAULT_command_symbol: &str = "/";
+const DEFAULT_COMMAND_SYMBOL: &str = "/";
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -173,7 +173,7 @@ impl WorldConfigBuilder {
             save_dir: DEFAULT_SAVE_DIR.to_owned(),
             save_interval: DEFAULT_SAVE_INTERVAL,
             terrain: NoiseParams::default(),
-            command_symbol: DEFAULT_command_symbol.to_owned(),
+            command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
         }
     }
 
