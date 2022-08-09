@@ -33,10 +33,10 @@ impl<'a> System<'a> for CurrentChunkSystem {
                 }
             });
 
-        for (curr_chunk, request) in (&mut curr_chunks, &mut requests).join() {
-            if curr_chunk.changed {
-                request.sort_pending(&curr_chunk.coords);
-            }
-        }
+        // for (curr_chunk, request) in (&mut curr_chunks, &mut requests).join() {
+        //     if curr_chunk.changed {
+        //         request.sort_pending(&curr_chunk.coords);
+        //     }
+        // }
     }
 }

@@ -665,11 +665,11 @@ export class World extends Scene implements NetIntercept {
       );
     });
 
-    if (direction) {
-      this.chunks.toProcess = this.chunks.toProcess.filter(({ x, z }) => {
-        return this.isChunkInView(x, z, direction.x, direction.z);
-      });
-    }
+    // if (direction) {
+    //   this.chunks.toProcess = this.chunks.toProcess.filter(({ x, z }) => {
+    //     return this.isChunkInView(x, z, direction.x, direction.z);
+    //   });
+    // }
 
     this.chunks.toProcess.sort((a, b) => {
       const { x: cx1, z: cz1 } = a;
