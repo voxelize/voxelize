@@ -3,14 +3,15 @@ use splines::{Interpolation, Key, Spline};
 use std::f64;
 
 /// Spline graph of Voxelize. Used to map noise values to custom values.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub struct SplineMap {
     min: f64,
     min_val: f64,
     max: f64,
     max_val: f64,
+    left_val: f64,
+    right_val: f64,
     spline: Spline<f64, f64>,
-    interpolation: Interpolation<f64, f64>,
 }
 
 impl Default for SplineMap {
@@ -22,7 +23,8 @@ impl Default for SplineMap {
             max: f64::MIN,
             min_val: f64::MAX,
             max_val: f64::MIN,
-            interpolation: Interpolation::Cosine,
+            left_val: 0.0,
+            right_val: 0.0,
         }
     }
 }
@@ -32,15 +34,23 @@ impl SplineMap {
     pub fn add(&mut self, t: f64, value: f64) -> &mut Self {
         if t < self.min {
             self.min = t;
+            self.left_val = value;
+        }
+
+        if value < self.min_val {
             self.min_val = value;
         }
 
         if t > self.max {
             self.max = t;
+            self.right_val = value;
+        }
+
+        if value > self.max_val {
             self.max_val = value;
         }
 
-        let point = Key::new(t, value, self.interpolation.to_owned());
+        let point = Key::new(t, value, Interpolation::Bezier(value));
         self.spline.add(point);
 
         self
@@ -49,6 +59,9 @@ impl SplineMap {
     /// Rescale the y-axis of the spline graph.
     pub fn rescale_values(&mut self, min_val: f64, max_val: f64) -> &mut Self {
         let scale = |num: f64| {
+            if self.min_val == self.max_val {
+                return self.min_val;
+            }
             (max_val - min_val) * (num - self.min_val) / (self.max_val - self.min_val) + min_val
         };
 
@@ -104,9 +117,9 @@ impl SplineMap {
         }
 
         if t < self.min {
-            return self.min_val;
+            return self.left_val;
         }
 
-        self.max_val
+        self.right_val
     }
 }

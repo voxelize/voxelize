@@ -1,4 +1,9 @@
-<a href="https://realms.voxelize.io"><h1 align="center" >:mushroom: Voxelize</h1></a>
+<a href="https://realms.voxelize.io">
+  <p align="center">
+    <img src="examples/client/src/assets/logo-circle.png" width="100px" height="100px" />
+  </p>
+  <h1 align="center">Voxelize</h1>
+</a>
 
 <p align="center">A multiplayer, fast, super fast, voxel engine in your browser!</p>
 

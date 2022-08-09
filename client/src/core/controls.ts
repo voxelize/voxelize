@@ -282,6 +282,11 @@ export type RigidControlsParams = {
    * How many times can a client jump in the air. Defaults to `0`.
    */
   airJumps: number;
+
+  /**
+   * How tall a client can step up. Defaults to `0.5`.
+   */
+  stepHeight: number;
 };
 
 const defaultParams: RigidControlsParams = {
@@ -321,6 +326,8 @@ const defaultParams: RigidControlsParams = {
   jumpForce: 1,
   jumpTime: 50,
   airJumps: 0,
+
+  stepHeight: 0.5,
 };
 
 export declare interface RigidControls {
@@ -465,12 +472,7 @@ export class RigidControls extends EventEmitter {
     this.body = world.physics.addBody({
       aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
       onStep: (newAABB) => {
-        const { positionLerp, jumpImpulse } = this.params;
-
-        const blockHeight = newAABB.minY - this.body.aabb.minY;
-        if (blockHeight >= 1) {
-          this.body.applyImpulse([0, jumpImpulse * blockHeight * 0.5, 0]);
-        }
+        const { positionLerp } = this.params;
 
         this.params.positionLerp = 0.6;
         this.body.aabb = newAABB.clone();
@@ -480,7 +482,7 @@ export class RigidControls extends EventEmitter {
           clearTimeout(stepTimeout);
         }, 500);
       },
-      stepHeight: 0.5,
+      stepHeight: this.params.stepHeight,
     });
 
     this.setPosition(...this.params.initialPosition);

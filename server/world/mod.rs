@@ -235,14 +235,14 @@ impl World {
         ecs.register::<AddrComp>();
         ecs.register::<InteractorComp>();
         ecs.register::<CollisionsComp>();
-        ecs.register::<AnimationComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
 
+        ecs.insert(SeededNoise::new(config.seed, &config.terrain));
+
         ecs.insert(Chunks::new(config));
-        ecs.insert(SeededNoise::new(config.seed));
-        ecs.insert(Terrain::new(config.seed, &config.terrain));
+        ecs.insert(Terrain::new(config));
         ecs.insert(Entities::new(config.saving, &config.save_dir));
         ecs.insert(Search::new());
 

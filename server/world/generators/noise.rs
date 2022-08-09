@@ -1,210 +1,70 @@
-use noise::{NoiseFn, OpenSimplex, Seedable};
+use noise::{Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable};
 use serde::Serialize;
 use std::f64;
 
-/// Seeded noise of Voxelize. Use this to get consistent results with seed!
-#[derive(Clone)]
+/// Seeded simplex noise for Voxelize.
+#[derive(Clone, Debug)]
 pub struct SeededNoise {
-    /// Simplex noise.
-    pub simplex: SeededSimplex,
+    /// Core noise instance.
+    regular: Fbm,
+    ridged: RidgedMulti,
+    params: NoiseParams,
 }
 
 impl SeededNoise {
-    /// Create a new `SeededNoise` instance.
-    pub fn new(seed: u32) -> Self {
-        Self {
-            simplex: SeededSimplex::new(seed),
-        }
-    }
-}
-
-/// Seeded simplex noise for Voxelize.
-#[derive(Clone)]
-pub struct SeededSimplex {
-    /// Core noise instance.
-    noise: OpenSimplex,
-}
-
-impl SeededSimplex {
     /// Create a new seeded simplex noise.
-    pub fn new(seed: u32) -> Self {
-        let noise = OpenSimplex::new().set_seed(seed);
+    pub fn new(seed: u32, params: &NoiseParams) -> Self {
+        let regular = Fbm::new()
+            .set_seed(seed)
+            .set_frequency(params.frequency)
+            .set_lacunarity(params.lacunarity)
+            .set_persistence(params.persistence)
+            .set_octaves(params.octaves);
+        let ridged = RidgedMulti::new()
+            .set_seed(seed)
+            .set_frequency(params.frequency)
+            .set_lacunarity(params.lacunarity)
+            .set_persistence(params.persistence)
+            .set_attenuation(params.attenuation)
+            .set_octaves(params.octaves);
 
-        Self { noise }
+        Self {
+            regular,
+            ridged,
+            params: params.clone(),
+        }
     }
 
     /// Get the 2D multi-fractal value at voxel column with noise parameters.
     /// Noise values are attempted to be scaled to -1.0 to 1.0, but noise parameters may change that.
-    pub fn get2d(&self, vx: i32, vz: i32, params: &NoiseParams) -> f64 {
-        let &NoiseParams {
-            octaves,
-            frequency,
-            lacunarity,
-            persistence,
-            attenuation,
-            ridged,
-        } = params;
-
-        let mut vx = vx as f64 * frequency;
-        let mut vz = vz as f64 * frequency;
-
-        if octaves == 0 {
-            return 0.0;
-        }
-
-        // First unscaled octave of function; later octaves are scaled.
-        let mut result = if ridged {
-            0.0
+    pub fn get2d(&self, vx: i32, vz: i32) -> f64 {
+        if self.params.ridged {
+            self.ridged.get([vx as f64, vz as f64])
         } else {
-            self.noise.get([vx, vz])
-        };
-        let mut weight = 1.0;
-
-        for x in (if ridged { 0 } else { 1 })..octaves {
-            if !ridged {
-                vx *= lacunarity;
-                vz *= lacunarity;
-            }
-
-            // Get noise value.
-            let mut signal = self.noise.get([vx, vz]);
-
-            // If needed, make the ridges.
-            if ridged {
-                // Make the ridges.
-                signal = signal.abs();
-                signal = 1.0 - signal;
-
-                // Square the signal to increase the sharpness of the ridges.
-                signal *= signal;
-
-                // Apply the weighting from the previous octave to the signal.
-                // Larger values have higher weights, producing sharp points along
-                // the ridges.
-                signal *= weight;
-
-                // Weight successive contributions by the previous signal.
-                weight = signal / attenuation;
-
-                // Clamp the weight to [0,1] to prevent the result from diverging.
-                weight = weight.clamp(0.0, 1.0);
-            }
-
-            // Scale the amplitude appropriately for this frequency.
-            signal *= persistence.powi(x as i32);
-
-            if !ridged {
-                // Scale the signal by the current "altitude" of the function.
-                signal *= result;
-            }
-
-            // Add signal to result.
-            result += signal;
-
-            if ridged {
-                vx *= lacunarity;
-                vz *= lacunarity;
-            }
-        }
-
-        // Scale the result to the [-1, 1] range.
-        if ridged {
-            let scale = 2.0 - 0.5_f64.powi(octaves as i32 - 1);
-            result.abs().mul_add(2.0 / scale, -1.0_f64)
-        } else {
-            result * 0.5
+            self.regular.get([vx as f64, vz as f64])
         }
     }
 
     /// Get the 3D multi-fractal value at voxel column with noise parameters.
     /// Noise values are attempted to be scaled to -1.0 to 1.0, but noise parameters may change that.
-    pub fn get3d(&self, vx: i32, vy: i32, vz: i32, params: &NoiseParams) -> f64 {
-        let &NoiseParams {
-            octaves,
-            frequency,
-            lacunarity,
-            persistence,
-            attenuation,
-            ridged,
-        } = params;
-
-        let mut vx = vx as f64 * frequency;
-        let mut vy = vy as f64 * frequency;
-        let mut vz = vz as f64 * frequency;
-
-        if octaves == 0 {
-            return 0.0;
-        }
-
-        // First unscaled octave of function; later octaves are scaled.
-        let mut result = if ridged {
-            0.0
+    pub fn get3d(&self, vx: i32, vy: i32, vz: i32) -> f64 {
+        if self.params.ridged {
+            self.ridged.get([vx as f64, vy as f64, vz as f64])
         } else {
-            self.noise.get([vx, vz])
-        };
-        let mut weight = 1.0;
-
-        for x in (if ridged { 0 } else { 1 })..octaves {
-            if !ridged {
-                vx *= lacunarity;
-                vy *= lacunarity;
-                vz *= lacunarity;
-            }
-
-            // Get noise value.
-            let mut signal = self.noise.get([vx, vy, vz]);
-
-            // If needed, make the ridges.
-            if ridged {
-                // Make the ridges.
-                signal = signal.abs();
-                signal = 1.0 - signal;
-
-                // Square the signal to increase the sharpness of the ridges.
-                signal *= signal;
-
-                // Apply the weighting from the previous octave to the signal.
-                // Larger values have higher weights, producing sharp points along
-                // the ridges.
-                signal *= weight;
-
-                // Weight successive contributions by the previous signal.
-                weight = signal / attenuation;
-
-                // Clamp the weight to [0,1] to prevent the result from diverging.
-                weight = weight.clamp(0.0, 1.0);
-            }
-
-            // Scale the amplitude appropriately for this frequency.
-            signal *= persistence.powi(x as i32);
-
-            if !ridged {
-                // Scale the signal by the current "altitude" of the function.
-                signal *= result;
-            }
-
-            // Add signal to result.
-            result += signal;
-
-            if ridged {
-                vx *= lacunarity;
-                vy *= lacunarity;
-                vz *= lacunarity;
-            }
+            self.regular.get([vx as f64, vy as f64, vz as f64])
         }
+    }
 
-        // Scale the result to the [-1, 1] range.
-        if ridged {
-            let scale = 2.0 - 0.5_f64.powi(octaves as i32 - 1);
-            result.abs().mul_add(2.0 / scale, -1.0_f64)
-        } else {
-            result * 0.5
-        }
+    /// Set the noise of this seeded noise as a whole.
+    pub fn set_seed(&mut self, seed: u32) -> &mut Self {
+        self.regular = self.regular.clone().set_seed(seed);
+        self.ridged = self.ridged.clone().set_seed(seed);
+        self
     }
 }
 
 /// Multi-fractal noise parameters.
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, Debug)]
 pub struct NoiseParams {
     /// How frequently should noise be sampled. The bigger the value, the more condensed noise
     /// seems. Defaults to PI * 2.0 / 3.0.

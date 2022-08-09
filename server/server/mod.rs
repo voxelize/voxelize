@@ -108,13 +108,19 @@ fn default_info_handle(server: &Server) -> Value {
 
         {
             let pipeline = world.pipeline();
-            let stages = pipeline
-                .stages
-                .iter()
-                .map(|stage| json!(stage.name()))
-                .collect::<Vec<_>>();
 
-            world_info.insert("pipeline".to_owned(), json!(stages));
+            let pipeline_info = json!({
+                "count": json!(pipeline.chunks.len()),
+                "stages": json!(
+                    pipeline
+                        .stages
+                        .iter()
+                        .map(|stage| json!(stage.name()))
+                        .collect::<Vec<_>>()
+                )
+            });
+
+            world_info.insert("pipeline".to_owned(), pipeline_info);
         }
 
         worlds.insert(name.to_owned(), json!(world_info));

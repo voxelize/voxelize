@@ -239,9 +239,9 @@ impl Mesher {
                                 let pos_z = pos[2] + vz as f32;
 
                                 let scale = if is_opaque { 0.0 } else { 0.0001 };
-                                positions.push(pos_x - min_x as f32 - dir[0] as f32 * scale);
+                                positions.push(pos_x as f32 - dir[0] as f32 * scale);
                                 positions.push(pos_y - dir[1] as f32 * scale);
-                                positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
+                                positions.push(pos_z as f32 - dir[2] as f32 * scale);
 
                                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                                 uvs.push(uv[1] * (end_v - start_v) + start_v);

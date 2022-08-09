@@ -15,21 +15,16 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, IDComp>,
-        ReadStorage<'a, CurrentChunkComp>,
         WriteStorage<'a, ChunkRequestsComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, mut pipeline, chunks, mut queue, ids, curr_chunks, mut requests) = data;
+        let (config, mut pipeline, chunks, mut queue, ids, mut requests) = data;
 
         let mut to_send: HashMap<String, Vec<Vec2<i32>>> = HashMap::new();
 
-        for (id, curr_chunk, request) in (&ids, &curr_chunks, &mut requests).join() {
+        for (id, request) in (&ids, &mut requests).join() {
             let mut count = 0;
-
-            if !request.pending.is_empty() {
-                request.sort_pending(&curr_chunk.coords);
-            }
 
             while !request.pending.is_empty()
                 && count < config.max_chunks_per_tick
@@ -70,7 +65,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                             pipeline.push(&n_coords, 0);
                         });
 
-                    request.pending.insert(coords);
+                    request.pending.push_back(coords);
                 }
 
                 count += 1;

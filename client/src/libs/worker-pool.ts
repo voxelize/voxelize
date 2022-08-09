@@ -52,7 +52,7 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         this.available.push(index);
         resolve(data);
-        this.process();
+        requestAnimationFrame(this.process);
       };
 
       worker.addEventListener("message", workerCallback);

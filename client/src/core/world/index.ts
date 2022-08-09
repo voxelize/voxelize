@@ -53,7 +53,6 @@ export type WorldClientParams = {
   defaultRenderRadius: number;
   defaultDeleteRadius: number;
   textureDimension: number;
-  subMeshingInterval: number;
 };
 
 export type WorldServerParams = {
@@ -80,7 +79,6 @@ const defaultParams: WorldClientParams = {
   defaultRenderRadius: 8,
   defaultDeleteRadius: 14,
   textureDimension: 8,
-  subMeshingInterval: 100,
 };
 
 export type WorldParams = WorldClientParams & WorldServerParams;
@@ -651,28 +649,31 @@ export class World extends Scene implements NetIntercept {
       }
     })();
 
+    if (direction) {
+      this.chunks.toRequest = this.chunks.toRequest.filter((name) => {
+        const [cx, cz] = ChunkUtils.parseChunkName(name);
+        return this.isChunkInView(cx, cz, direction.x, direction.z);
+      });
+    }
+
     this.chunks.toRequest.sort((a, b) => {
       const [cx1, cz1] = ChunkUtils.parseChunkName(a);
       const [cx2, cz2] = ChunkUtils.parseChunkName(b);
-
-      if (direction && !this.isChunkInView(cx1, cz1, direction.x, direction.z))
-        return -1;
-      if (direction && !this.isChunkInView(cx2, cz2, direction.x, direction.z))
-        return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
       );
     });
 
+    if (direction) {
+      this.chunks.toProcess = this.chunks.toProcess.filter(({ x, z }) => {
+        return this.isChunkInView(x, z, direction.x, direction.z);
+      });
+    }
+
     this.chunks.toProcess.sort((a, b) => {
       const { x: cx1, z: cz1 } = a;
       const { x: cx2, z: cz2 } = b;
-
-      if (direction && !this.isChunkInView(cx1, cz1, direction.x, direction.z))
-        return -1;
-      if (direction && !this.isChunkInView(cx2, cz2, direction.x, direction.z))
-        return 1;
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -750,7 +751,7 @@ export class World extends Scene implements NetIntercept {
 
       this.chunks.requested.delete(ChunkUtils.getChunkName([x, z]));
 
-      if (!this.isChunkInView(x, z, direction?.x, direction?.z)) {
+      if (direction && !this.isChunkInView(x, z, direction?.x, direction?.z)) {
         continue;
       }
 
@@ -764,14 +765,13 @@ export class World extends Scene implements NetIntercept {
 
     let chunk = this.getChunk(x, z);
 
-    const { chunkSize, maxHeight, subChunks, subMeshingInterval } = this.params;
+    const { chunkSize, maxHeight, subChunks } = this.params;
 
     if (!chunk) {
       chunk = new Chunk(id, x, z, {
         size: chunkSize,
         maxHeight,
         subChunks,
-        subMeshingInterval,
       });
 
       this.chunks.set(chunk.name, chunk);

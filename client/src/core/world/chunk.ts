@@ -19,7 +19,6 @@ type ChunkParams = {
   size: number;
   maxHeight: number;
   subChunks: number;
-  subMeshingInterval: number;
 };
 
 class ChunkMesh extends Group {
@@ -71,9 +70,9 @@ class ChunkMesh extends Group {
         mesh.matrixAutoUpdate = false;
         mesh.renderOrder =
           type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
-        mesh.frustumCulled = false;
-        mesh.position.set(...this.chunk.min);
-        mesh.updateMatrix();
+        // mesh.frustumCulled = false;
+        // mesh.position.set(...this.chunk.min);
+        // mesh.updateMatrix();
         map.set(level, mesh);
       }
 
@@ -110,26 +109,6 @@ class ChunkMesh extends Group {
   get isEmpty() {
     return this.opaque.size === 0 && this.transparent.size === 0;
   }
-}
-
-function requestTimeout(fn: () => void, delay: number) {
-  const start = new Date().getTime();
-  let handle: number;
-
-  function loop() {
-    const current = new Date().getTime(),
-      delta = current - start;
-
-    delta >= delay ? fn() : (handle = requestAnimationFrame(loop));
-  }
-
-  handle = requestAnimationFrame(loop);
-
-  return handle;
-}
-
-function clearRequestTimeout(handle: number) {
-  cancelAnimationFrame(handle);
 }
 
 class Chunk {
@@ -176,19 +155,29 @@ class Chunk {
     if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
 
     if (meshes) {
-      const keepMeshing = (index = 0) => {
-        const meshData = meshes[index];
-        if (!meshData) return;
-        this.mesh.set(meshData, materials);
-        if (index + 1 < meshes.length) {
-          const timeout = requestTimeout(() => {
-            keepMeshing(index + 1);
-            clearRequestTimeout(timeout);
-          }, this.params.subMeshingInterval);
+      let frame = 0;
+
+      const filtered = meshes.filter((mesh) => {
+        return (
+          mesh.opaque?.positions.length || mesh.transparent?.positions.length
+        );
+      });
+
+      const update = (index = 0) => {
+        const data = filtered[index];
+
+        if (data) {
+          this.mesh.set(data, materials);
+          frame = requestAnimationFrame(() => {
+            update(index + 1);
+          });
+        } else {
+          cancelAnimationFrame(frame);
+          return;
         }
       };
 
-      keepMeshing();
+      update();
     }
   };
 

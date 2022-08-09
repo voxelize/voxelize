@@ -58,10 +58,7 @@ const App = () => {
 
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
-      textureDimension: 128,
-      maxProcessesPerTick: 10,
-      maxRequestsPerTick: 10,
-      maxAddsPerTick: 1,
+      maxProcessesPerTick: 16,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -109,6 +106,8 @@ const App = () => {
       world,
       {
         lookInGhostMode: true,
+        flyForce: 300,
+        stepHeight: 3,
       }
     );
 
@@ -317,8 +316,10 @@ const App = () => {
       .connect({ serverURL: BACKEND_SERVER, secret: "test" })
       .then(() => {
         network
-          .join("world3")
+          .join("world1")
           .then(() => {
+            world.setFogDistance(50);
+
             const animate = () => {
               requestAnimationFrame(animate);
 

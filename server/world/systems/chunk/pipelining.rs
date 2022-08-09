@@ -57,13 +57,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
 
         let mut processes = vec![];
 
-        let mut processed = 0;
-
-        while processed < max_per_tick {
-            if pipeline.is_empty() {
-                break;
-            }
-
+        while processes.len() < max_per_tick && !pipeline.is_empty() {
             let (Vec2(cx, cz), index) = pipeline.pop().unwrap();
 
             let stage = pipeline.get_stage(index);
@@ -185,8 +179,6 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             } else {
                 processes.push((chunk, None, index));
             }
-
-            processed += 1;
         }
 
         // This part goes through all block changes (chunk coords -> list of changes) and see

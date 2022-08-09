@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use linked_hash_set::LinkedHashSet;
 use rayon::slice::ParallelSliceMut;
 use specs::{Component, VecStorage};
@@ -8,8 +10,8 @@ use crate::Vec2;
 #[derive(Default, Component)]
 #[storage(VecStorage)]
 pub struct ChunkRequestsComp {
-    pub pending: LinkedHashSet<Vec2<i32>>,
-    pub loaded: LinkedHashSet<Vec2<i32>>,
+    pub pending: VecDeque<Vec2<i32>>,
+    pub loaded: VecDeque<Vec2<i32>>,
 }
 
 impl ChunkRequestsComp {
@@ -20,19 +22,19 @@ impl ChunkRequestsComp {
 
     /// Add a requested chunk.
     pub fn add(&mut self, coords: &Vec2<i32>) {
-        self.pending.insert(coords.to_owned());
+        self.pending.push_front(coords.to_owned());
     }
 
     /// Finish a requested chunk, add it to `loaded`.
     pub fn mark_finish(&mut self, coords: &Vec2<i32>) {
-        self.pending.remove(coords);
-        self.loaded.insert(coords.to_owned());
+        self.pending.retain(|c| *c != *coords);
+        self.loaded.push_back(coords.to_owned());
     }
 
     /// Unload a chunk, remove from both requests and loaded
     pub fn unload(&mut self, coords: &Vec2<i32>) {
-        self.pending.remove(coords);
-        self.loaded.remove(coords);
+        self.pending.retain(|c| *c != *coords);
+        self.loaded.retain(|c| *c != *coords);
     }
 
     /// Sort pending chunks.
@@ -47,9 +49,7 @@ impl ChunkRequestsComp {
             dist1.cmp(&dist2)
         });
 
-        let list = LinkedHashSet::from_iter(pendings.into_iter());
-
-        self.pending = list;
+        self.pending = VecDeque::from_iter(pendings.into_iter());
     }
 
     /// Check to see if this chunk request is interested in a chunk.

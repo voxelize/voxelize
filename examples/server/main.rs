@@ -6,9 +6,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use specs::{Builder, Component, Entity, EntityBuilder, NullStorage, WorldExt};
 use voxelize::{
-    default_client_parser, AnimationComp, ChunkStage, FlatlandStage, InteractorComp, MetadataComp,
-    PositionComp, RigidBody, RigidBodyComp, Server, Vec3, VoxelAccess, Voxelize, World,
-    WorldConfig, AABB,
+    default_client_parser, ChunkStage, FlatlandStage, InteractorComp, MetadataComp, PositionComp,
+    RigidBody, RigidBodyComp, Server, Vec3, VoxelAccess, Voxelize, World, WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -75,26 +74,10 @@ fn transport_handle(value: Value, world: &mut World) {
     // );
 }
 
-fn client_modifier(ent: Entity, world: &mut World) {
-    world.add(ent, AnimationComp::default());
-}
-
-#[derive(Deserialize, Default)]
-struct ClientAnimation {
-    animation: Option<String>,
-}
+fn client_modifier(ent: Entity, world: &mut World) {}
 
 fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
     default_client_parser(metadata, ent.to_owned(), world);
-
-    let metadata = serde_json::from_str::<ClientAnimation>(metadata).unwrap_or_default();
-
-    if let Some(new_anim) = metadata.animation {
-        let mut animations = world.write_component::<AnimationComp>();
-        if let Some(animation) = animations.get_mut(ent) {
-            animation.0 = Some(new_anim);
-        }
-    }
 }
 
 const ISLAND_LIMIT: i32 = 1;

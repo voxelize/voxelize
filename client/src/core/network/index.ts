@@ -168,7 +168,6 @@ class Network extends EventEmitter {
       ws.onmessage = ({ data }) => {
         this.decode(new Uint8Array(data)).then((data) => {
           this.onMessage(data);
-          this.emit("network-event", data);
         });
       };
       ws.onclose = () => {
