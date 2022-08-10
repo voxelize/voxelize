@@ -36,6 +36,7 @@ byteorder = "1.4.3"
 crossbeam-channel = "0.5.4"
 ctrlc = "3.2.1"
 hashbrown = {version = "0.12.0", features = ["serde"]}
+indicatif = "0.17.0"
 itertools = "0.10.3"
 kdtree = "0.6.0"
 libflate = "1.2.0"

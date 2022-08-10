@@ -1,6 +1,8 @@
 use specs::{ReadExpect, System, WriteExpect};
 
-use crate::{Chunks, Mesher, MessageType, Pipeline, Registry, Vec3, VoxelAccess, WorldConfig};
+use crate::{
+    BlockUtils, Chunks, Mesher, MessageType, Pipeline, Registry, Vec3, VoxelAccess, WorldConfig,
+};
 
 pub struct ChunkMeshingSystem;
 
@@ -18,9 +20,7 @@ impl<'a> System<'a> for ChunkMeshingSystem {
 
         if let Ok(list) = mesher.results() {
             list.into_iter().for_each(|chunk| {
-                chunks
-                    .to_send
-                    .push_back((chunk.coords.to_owned(), MessageType::Load));
+                chunks.add_chunk_to_send(&chunk.coords, &MessageType::Load, false);
                 chunks.renew(chunk);
             });
         }
@@ -38,62 +38,59 @@ impl<'a> System<'a> for ChunkMeshingSystem {
             if let Some(coords) = chunks.to_remesh.pop_front() {
                 let mut ready = true;
 
+                // Traverse through the neighboring coordinates. If any of them are not ready, then this chunk is not ready.
                 for n_coords in chunks.light_traversed_chunks(&coords).into_iter() {
-                    if !pipeline.has(&n_coords) && chunks.map.contains_key(&n_coords) {
-                        // Apply the additional changes whenever available.
-                        if let Some(blocks) = pipeline.leftovers.remove(&n_coords) {
-                            blocks.into_iter().for_each(|(voxel, id)| {
-                                let Vec3(vx, vy, vz) = voxel;
-
-                                chunks.set_raw_voxel(vx, vy, vz, id);
-
-                                let height = chunks.get_max_height(vx, vz);
-
-                                if registry.is_air(id) {
-                                    if vy == height as i32 {
-                                        // on max height, should set max height to lower
-                                        for y in (0..vy - 1).rev() {
-                                            if y == 0
-                                                || registry
-                                                    .check_height(chunks.get_voxel(vx, y, vz))
-                                            {
-                                                chunks.set_max_height(vx, vz, y as u32);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                } else if height < vy as u32 {
-                                    chunks.set_max_height(vx, vz, vy as u32);
-                                }
-                            });
-
-                            if !chunks.to_remesh.contains(&n_coords) {
-                                chunks.to_remesh.push_back(n_coords.to_owned());
-                            }
-                            continue;
-                        }
-
-                        continue;
+                    // The neighbor isn't even in the world.
+                    if !chunks.map.contains_key(&n_coords) {
+                        ready = false;
+                        break;
                     }
 
-                    ready = false;
-                    break;
+                    // The neighbor is still in the pipeline, means this chunk can still have potential block changes.
+                    if pipeline.has(&n_coords) {
+                        ready = false;
+                        break;
+                    }
                 }
 
                 count += 1;
 
                 if !ready {
-                    if !chunks.to_remesh.contains(&coords) {
-                        chunks.to_remesh.push_back(coords);
-                    }
+                    chunks.add_chunk_to_remesh(&coords, false);
                     continue;
+                }
+
+                // Neighbors are ready, but may have some blocks to be applied onto this chunk.
+                if let Some(blocks) = pipeline.leftovers.remove(&coords) {
+                    blocks.into_iter().for_each(|(voxel, val)| {
+                        let Vec3(vx, vy, vz) = voxel;
+
+                        chunks.set_raw_voxel(vx, vy, vz, val);
+
+                        let height = chunks.get_max_height(vx, vz);
+                        let id = BlockUtils::extract_id(val);
+
+                        // Change the max height if necessary.
+                        if registry.is_air(id) {
+                            if vy == height as i32 {
+                                // on max height, should set max height to lower
+                                for y in (0..vy - 1).rev() {
+                                    if y == 0 || registry.check_height(chunks.get_voxel(vx, y, vz))
+                                    {
+                                        chunks.set_max_height(vx, vz, y as u32);
+                                        break;
+                                    }
+                                }
+                            }
+                        } else if height < vy as u32 {
+                            chunks.set_max_height(vx, vz, vy as u32);
+                        }
+                    });
                 }
 
                 // At this point, the chunk is ready to be saved.
                 if config.saving {
-                    if !chunks.to_save.contains(&coords) {
-                        chunks.to_save.push_back(coords.clone());
-                    }
+                    chunks.add_chunk_to_save(&coords, false);
                 }
 
                 let chunk = chunks.raw(&coords).unwrap().to_owned();

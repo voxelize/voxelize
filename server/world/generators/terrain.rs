@@ -59,16 +59,27 @@ impl Terrain {
     /// Get the height bias and height offset values at a voxel column. What it does is that it samples the bias and offset
     /// of all noise layers and take the average of them all.
     pub fn get_bias_offset(&self, vx: i32, vz: i32) -> (f64, f64) {
+        if self.layers.len() == 1 {
+            let layer = &self.layers[0].0;
+            let value = layer.noise.get2d(vx, vz);
+            return (layer.sample_bias(value), layer.sample_offset(value));
+        }
+
         let mut bias = 1.0;
         let mut offset = 1.0;
+        let mut total_weight = 0.0;
+        let mut started = false;
 
-        self.layers.iter().for_each(|(layer, _)| {
+        self.layers.iter().for_each(|(layer, weight)| {
             let value = layer.noise.get2d(vx, vz);
-            bias = layer.sample_bias(value) * bias;
-            offset = layer.sample_offset(value) * offset;
+            bias = layer.sample_bias(bias * value) * weight + if started { bias } else { 0.0 };
+            offset =
+                layer.sample_offset(offset * value) * weight + if started { offset } else { 0.0 };
+            total_weight += weight;
+            started = true;
         });
 
-        (bias, offset)
+        (bias / total_weight, offset / total_weight)
     }
 }
 
@@ -144,7 +155,7 @@ impl TerrainLayer {
 
     /// Normalize the spline graphs.
     pub fn normalize(&mut self) {
-        self.height_bias_spline.rescale_values(0.0, 1.0);
-        self.height_offset_spline.rescale_values(0.0, 1.0);
+        self.height_bias_spline.rescale_values(-1.0, 1.0);
+        self.height_offset_spline.rescale_values(-1.0, 1.0);
     }
 }

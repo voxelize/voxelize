@@ -9,9 +9,6 @@ use crate::{
     Server,
 };
 
-/// How often heartbeat pings are sent
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
-
 /// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -34,43 +31,12 @@ pub struct WsSession {
     pub addr: Addr<Server>,
 }
 
-impl WsSession {
-    /// helper method that sends ping to client every second.
-    ///
-    /// also this method checks heartbeats from client
-    fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
-        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            // check client heartbeats
-            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
-                // heartbeat timed out
-                info!("Websocket Client heartbeat failed, disconnecting!");
-
-                // notify chat server
-                act.addr.do_send(Disconnect {
-                    id: act.id.to_owned(),
-                });
-
-                // stop actor
-                ctx.stop();
-
-                // don't try to send a ping
-                return;
-            }
-
-            ctx.ping(b"");
-        });
-    }
-}
-
 impl Actor for WsSession {
     type Context = ws::WebsocketContext<Self>;
 
     /// Method is called on actor start.
     /// We register ws session with ChatServer
     fn started(&mut self, ctx: &mut Self::Context) {
-        // we'll start heartbeat process on session start.
-        self.hb(ctx);
-
         // register self in chat server. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.

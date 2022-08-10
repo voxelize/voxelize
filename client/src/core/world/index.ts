@@ -214,6 +214,20 @@ export class World extends Scene implements NetIntercept {
           this.handleServerChunk(chunk);
         });
 
+        // Sort `chunks.toProcess` by distance from the player.
+        const [cx, cz] = this.chunks.currentChunk;
+        this.chunks.toProcess.sort((a, b) => {
+          const { x: cx1, z: cz1 } = a;
+          const { x: cx2, z: cz2 } = b;
+
+          return (
+            (cx - cx1) ** 2 +
+            (cz - cz1) ** 2 -
+            (cx - cx2) ** 2 -
+            (cz - cz2) ** 2
+          );
+        });
+
         return;
       }
       case "UPDATE": {
@@ -516,7 +530,7 @@ export class World extends Scene implements NetIntercept {
     this.calculateCurrChunk(center);
 
     if (this.callTick % 2 === 0) {
-      this.surroundChunks(direction);
+      this.surroundChunks();
     } else if (this.callTick % 3 === 0) {
       this.meshChunks(direction);
     }
@@ -597,7 +611,7 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
-  private surroundChunks = (direction?: Vector3) => {
+  private surroundChunks = () => {
     const [cx, cz] = this.chunks.currentChunk;
 
     (() => {
@@ -618,13 +632,6 @@ export class World extends Scene implements NetIntercept {
           const name = ChunkUtils.getChunkName([cx + x, cz + z]);
 
           if (this.chunks.requested.has(name)) {
-            continue;
-          }
-
-          if (
-            direction &&
-            !this.isChunkInView(cx + x, cz + z, direction.x, direction.z)
-          ) {
             continue;
           }
 
@@ -649,36 +656,22 @@ export class World extends Scene implements NetIntercept {
       }
     })();
 
-    if (direction) {
-      this.chunks.toRequest = this.chunks.toRequest.filter((name) => {
-        const [cx, cz] = ChunkUtils.parseChunkName(name);
-        return this.isChunkInView(cx, cz, direction.x, direction.z);
-      });
-    }
-
-    this.chunks.toRequest.sort((a, b) => {
-      const [cx1, cz1] = ChunkUtils.parseChunkName(a);
-      const [cx2, cz2] = ChunkUtils.parseChunkName(b);
-
-      return (
-        (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
-      );
-    });
-
     // if (direction) {
-    //   this.chunks.toProcess = this.chunks.toProcess.filter(({ x, z }) => {
-    //     return this.isChunkInView(x, z, direction.x, direction.z);
+    //   this.chunks.toRequest.sort((a, b) => {
+    //     const [cx1, cz1] = ChunkUtils.parseChunkName(a);
+    //     const [cx2, cz2] = ChunkUtils.parseChunkName(b);
+
+    //     if (!this.isChunkInView(cx1, cz1, direction.x, direction.z)) {
+    //       return 1;
+    //     }
+
+    //     if (!this.isChunkInView(cx2, cz2, direction.x, direction.z)) {
+    //       return -1;
+    //     }
+
+    //     return 0;
     //   });
     // }
-
-    this.chunks.toProcess.sort((a, b) => {
-      const { x: cx1, z: cz1 } = a;
-      const { x: cx2, z: cz2 } = b;
-
-      return (
-        (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
-      );
-    });
   };
 
   private setupPhysics = () => {
@@ -745,15 +738,29 @@ export class World extends Scene implements NetIntercept {
     const { maxProcessesPerTick } = this.params;
     let count = 0;
 
+    // Sort toProcess by in view
+    if (direction) {
+      this.chunks.toProcess.sort((a, b) => {
+        const { x: cx1, z: cz1 } = a;
+        const { x: cx2, z: cz2 } = b;
+
+        if (!this.isChunkInView(cx1, cz1, direction.x, direction.z)) {
+          return 1;
+        }
+
+        if (!this.isChunkInView(cx2, cz2, direction.x, direction.z)) {
+          return -1;
+        }
+
+        return 0;
+      });
+    }
+
     while (count < maxProcessesPerTick && this.chunks.toProcess.length) {
       const data = this.chunks.toProcess.shift();
       const { x, z } = data;
 
       this.chunks.requested.delete(ChunkUtils.getChunkName([x, z]));
-
-      if (direction && !this.isChunkInView(x, z, direction?.x, direction?.z)) {
-        continue;
-      }
 
       count++;
       this.meshChunk(data);

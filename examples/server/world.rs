@@ -1,4 +1,6 @@
-use voxelize::{BaseTerrainStage, FlatlandStage, NoiseParams, TerrainLayer, World, WorldConfig};
+use voxelize::{
+    BaseTerrainStage, DebugStage, FlatlandStage, NoiseParams, TerrainLayer, World, WorldConfig,
+};
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
@@ -9,11 +11,10 @@ pub fn setup_world() -> World {
                 .frequency(0.005)
                 .octaves(8)
                 .persistence(0.5)
-                .lacunarity(1.9623123)
+                .lacunarity(1.8623123)
                 .build(),
         )
         .seed(1213123)
-        .max_chunks_per_tick(48)
         .build();
 
     let mut world = World::new("world1", &config);
@@ -30,7 +31,7 @@ pub fn setup_world() -> World {
                 .lacunarity(1.4)
                 .build(),
         )
-        .add_bias_points(&[[-1.0, 2.0], [0.0, 2.0], [1.0, 2.0]])
+        .add_bias_points(&[[-1.0, 2.0], [0.0, 3.0], [1.0, 4.0]])
         .add_offset_points(&[
             [-1.0, 0.9],
             [-0.9, 0.1],
@@ -69,33 +70,32 @@ pub fn setup_world() -> World {
         let peaks_and_valleys = TerrainLayer::new(
             "peaks_and_valleys",
             &NoiseParams::new()
-                .frequency(0.004)
+                .frequency(0.044)
                 .octaves(7)
                 .persistence(0.5)
                 .lacunarity(1.2)
-                .attenuation(8.0)
                 .ridged(true)
                 .build(),
         )
-        .add_bias_points(&[[-1.0, 2.0], [0.0, 2.0], [1.0, 2.0]])
+        .add_bias_points(&[[-1.0, 1.2], [0.0, 1.4], [1.0, 4.0]])
         .add_offset_points(&[
-            [-0.95, 0.0],
             [-0.8, 0.2],
             [-0.2, 0.35],
-            [0.0, 0.4],
-            [0.45, 0.75],
-            [1.0, 0.9],
+            [0.0, 0.3],
+            [0.45, 0.45],
+            [1.0, 0.5],
         ]);
 
-        terrain.add_layer(&peaks_and_valleys, 0.3);
-        terrain.add_layer(&erosion, 0.5);
         terrain.add_layer(&continentalness, 0.5);
+        terrain.add_layer(&erosion, 0.5);
+        terrain.add_layer(&peaks_and_valleys, 0.3);
     }
 
     {
         let mut pipeline = world.pipeline_mut();
-        // pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
-        pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
+        // pipeline.add_stage(DebugStage::new(2));
+        pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
+        // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
     }
 
     world

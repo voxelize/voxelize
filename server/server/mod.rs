@@ -8,10 +8,12 @@ use actix::{
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::HashMap;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::info;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::thread;
 
 use crate::{
     errors::AddWorldError,
@@ -146,6 +148,9 @@ pub struct Server {
     /// Static folder to serve from.
     pub serve: String,
 
+    /// Whether the server should show debug information.
+    pub debug: bool,
+
     /// Interval to tick the server at.
     pub interval: u64,
 
@@ -184,7 +189,6 @@ impl Server {
     /// Voxelize::run(server);
     /// ```
     pub fn new() -> ServerBuilder {
-        Server::setup_logger();
         ServerBuilder::new()
     }
 
@@ -193,13 +197,25 @@ impl Server {
     /// started right away.
     pub fn add_world(&mut self, mut world: World) -> Result<&mut World, AddWorldError> {
         let name = world.name.clone();
+
+        let saving = world.config().saving;
+        let save_dir = world.config().save_dir.clone();
+
         world.ecs_mut().insert(self.registry.clone());
 
         if self.worlds.insert(name.to_owned(), world).is_some() {
             return Err(AddWorldError);
         };
 
-        info!("🌎 World created: {}", name);
+        info!(
+            "🌎 World created: {} ({})",
+            name,
+            if saving {
+                format!("on-disk @ {}", save_dir)
+            } else {
+                "in-memory".to_owned()
+            }
+        );
 
         Ok(self.worlds.get_mut(&name).unwrap())
     }
@@ -306,6 +322,57 @@ impl Server {
         for world in self.worlds.values_mut() {
             world.prepare();
         }
+
+        self.preload();
+    }
+
+    /// Preload all the worlds.
+    pub fn preload(&mut self) {
+        let m = MultiProgress::new();
+        let sty = ProgressStyle::with_template(
+            "[{elapsed_precise}] Preloading {msg} [{bar:40.cyan/blue}] {spinner:.green} {percent:>7}%",
+        )
+        .unwrap()
+        .progress_chars("#>-");
+
+        let mut bars = vec![];
+
+        for world in self.worlds.values_mut() {
+            let bar = m.insert_from_back(0, ProgressBar::new(100));
+            bar.set_message(world.name.clone());
+            bar.set_style(sty.clone());
+            bar.set_position(0);
+            bars.push(bar);
+        }
+
+        loop {
+            let mut done = true;
+
+            for (i, world) in self.worlds.values_mut().enumerate() {
+                if !world.preloading || world.preload_progress >= 1.0 {
+                    bars[i].finish_and_clear();
+                    continue;
+                }
+
+                world.tick();
+
+                let at = (world.preload_progress * 100.0) as u64;
+
+                done = false;
+                bars[i].set_position(at);
+            }
+
+            if done {
+                m.clear().unwrap();
+                break;
+            }
+        }
+
+        info!(
+            "✅ Total of {} world{} preloaded.",
+            self.worlds.len(),
+            if self.worlds.len() == 1 { "" } else { "s" }
+        );
     }
 
     /// Tick every world on this server.
@@ -465,14 +532,16 @@ impl Handler<ClientMessage> for Server {
     }
 }
 
+const DEFAULT_DEBUG: bool = true;
 const DEFAULT_PORT: u16 = 4000;
 const DEFAULT_ADDR: &str = "0.0.0.0";
-const DEFAULT_SERVE: &str = "./";
+const DEFAULT_SERVE: &str = "";
 const DEFAULT_INTERVAL: u64 = 8;
 
 /// Builder for a voxelize server.
 pub struct ServerBuilder {
     port: u16,
+    debug: bool,
     addr: String,
     serve: String,
     interval: u64,
@@ -484,6 +553,7 @@ impl ServerBuilder {
     /// Create a new server builder instance.
     pub fn new() -> Self {
         Self {
+            debug: DEFAULT_DEBUG,
             port: DEFAULT_PORT,
             addr: DEFAULT_ADDR.to_owned(),
             serve: DEFAULT_SERVE.to_owned(),
@@ -502,6 +572,12 @@ impl ServerBuilder {
     /// Configure the address of the voxelize server.
     pub fn addr(mut self, addr: &str) -> Self {
         self.addr = addr.to_owned();
+        self
+    }
+
+    /// Configure whether or not the voxelize server should be in debug mode.
+    pub fn debug(mut self, debug: bool) -> Self {
+        self.debug = debug;
         self
     }
 
@@ -535,10 +611,15 @@ impl ServerBuilder {
         let mut registry = self.registry.unwrap_or_default();
         registry.generate();
 
+        if self.debug {
+            Server::setup_logger();
+        }
+
         Server {
             port: self.port,
             addr: self.addr,
             serve: self.serve,
+            debug: self.debug,
             interval: self.interval,
             secret: self.secret,
 

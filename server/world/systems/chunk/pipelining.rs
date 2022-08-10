@@ -1,3 +1,4 @@
+use log::info;
 use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
@@ -32,23 +33,19 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
 
                 let mut already = pipeline.leftovers.remove(&coords).unwrap_or_else(|| vec![]);
                 already.push((voxel, id));
+
                 pipeline.leftovers.insert(coords, already);
             });
 
             // Advance each chunk's stage to the next stage. If the chunk is about to be meshed, then apply the changes
             // that the neighboring chunks have on it.
             list.into_iter().for_each(|mut chunk| {
-                pipeline.advance(&mut chunk);
-
                 // Means chunk has gone through the pipeline, ready to be lit and meshed.
-                if chunk.stage.is_none() {
+                if pipeline.advance(&mut chunk).is_none() {
                     // This means the chunk was pushed back into the pipeline for remeshing.
                     // Should send to users that has requested for these chunks for update.
                     chunk.calculate_max_height(&registry);
-
-                    if !chunks.to_remesh.contains(&chunk.coords) {
-                        chunks.to_remesh.push_back(chunk.coords.to_owned());
-                    }
+                    chunks.add_chunk_to_remesh(&chunk.coords, false);
                 }
 
                 chunks.renew(chunk);
@@ -72,13 +69,10 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             // Chunk DNE, make one.
             if chunk.is_none() {
                 if let Some(chunk) = chunks.try_load(&coords) {
-                    chunks.add(chunk);
-
                     pipeline.remove(&coords);
 
-                    if !chunks.to_remesh.contains(&coords) {
-                        chunks.to_remesh.push_back(coords);
-                    }
+                    chunks.add(chunk);
+                    chunks.add_chunk_to_remesh(&coords, false);
 
                     continue;
                 }

@@ -118,14 +118,16 @@ impl Voxelize {
 
         let server_addr = server.start();
 
-        info!("Attempting to serve static index.html at: {}", serve);
+        if serve.is_empty() {
+            info!("Attempting to serve static folder: {}", serve);
+        }
 
         let srv = HttpServer::new(move || {
             let serve = serve.to_owned();
             let secret = secret.to_owned();
             let cors = Cors::permissive();
 
-            App::new()
+            let app = App::new()
                 .wrap(cors)
                 .app_data(web::Data::new(secret))
                 .app_data(web::Data::new(server_addr.clone()))
@@ -134,13 +136,17 @@ impl Voxelize {
                 }))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
-                .route("/info", web::get().to(info))
-                .service(Files::new("/", serve).show_files_listing())
+                .route("/info", web::get().to(info));
+
+            if serve.is_empty() {
+                app
+            } else {
+                app.service(Files::new("/", serve).show_files_listing())
+            }
         })
-        .workers(1)
         .bind((addr.to_owned(), port.to_owned()))?;
 
-        info!("🧱  Voxelize running on http://{}:{}", addr, port);
+        info!("🍄  Voxelize backend running on http://{}:{}", addr, port);
 
         srv.run().await
     }

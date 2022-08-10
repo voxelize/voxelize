@@ -1,9 +1,12 @@
-use std::{collections::VecDeque, sync::Arc, time::Instant};
+use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
-use log::info;
-use rayon::{ThreadPool, ThreadPoolBuilder};
+use rayon::{
+    prelude::{IntoParallelIterator, ParallelIterator},
+    ThreadPool, ThreadPoolBuilder,
+};
+use std::thread::spawn;
 
 use crate::{BlockChange, Chunk, Registry, Space, SpaceData, Vec2, Vec3, VoxelAccess, WorldConfig};
 
@@ -63,6 +66,34 @@ pub trait ChunkStage {
     /// placed on the border of a chunk, the leaves would exceed the chunk border, thus appended to `exceeded_changes`.
     /// After each stage, the `exceeded_changes` list of block changes would be emptied and applied to the world.
     fn process(&self, chunk: Chunk, resources: Resources, space: Option<Space>) -> Chunk;
+}
+
+pub struct DebugStage {
+    block: u32,
+}
+
+impl DebugStage {
+    pub fn new(block: u32) -> Self {
+        Self { block }
+    }
+}
+
+impl ChunkStage for DebugStage {
+    fn name(&self) -> String {
+        "Debug".to_owned()
+    }
+
+    fn process(&self, mut chunk: Chunk, _: Resources, _: Option<Space>) -> Chunk {
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        chunk.set_voxel(min_x, 0, min_z, self.block);
+        chunk.set_voxel(min_x, 0, max_z - 1, self.block);
+        chunk.set_voxel(max_x - 1, 0, min_z, self.block);
+        chunk.set_voxel(max_x - 1, 0, max_z - 1, self.block);
+
+        chunk
+    }
 }
 
 /// A preset chunk stage to calculate the chunk's height map.
@@ -293,12 +324,12 @@ impl Pipeline {
         let noise = noise.to_owned();
         let terrain = terrain.to_owned();
 
-        self.pool.spawn(move || {
-            let mut changes = vec![];
-
-            let chunks: Vec<Chunk> = processes
-                .into_iter()
+        spawn(move || {
+            let results: Vec<(Chunk, Vec<(Vec3<i32>, u32)>)> = processes
+                .into_par_iter()
                 .map(|(chunk, space, stage)| {
+                    let mut changes = vec![];
+
                     let mut chunk = stage.process(
                         chunk,
                         Resources {
@@ -314,9 +345,17 @@ impl Pipeline {
                         changes.append(&mut chunk.exceeded_changes.drain(..).collect());
                     }
 
-                    chunk
+                    (chunk, changes)
                 })
                 .collect();
+
+            let mut chunks = vec![];
+            let mut changes = vec![];
+
+            for (chunk, mut chunk_changes) in results {
+                chunks.push(chunk);
+                changes.append(&mut chunk_changes);
+            }
 
             sender.send((chunks, changes)).unwrap();
         });
@@ -329,7 +368,7 @@ impl Pipeline {
 
     /// Advance a chunk to the next chunk stage. If chunk has reached the end of
     /// the pipeline, `chunk.stage` is set to None.
-    pub fn advance(&mut self, chunk: &mut Chunk) {
+    pub fn advance(&mut self, chunk: &mut Chunk) -> Option<usize> {
         // Chunk not in pipeline
         if !self.chunks.contains(&chunk.coords) {
             panic!("Chunk {:?} isn't in the pipeline.", chunk.coords);
@@ -352,13 +391,15 @@ impl Pipeline {
             // Remove this chunk from the pipeline.
             self.remove(&chunk.coords);
 
-            return;
+            return None;
         }
 
         chunk.stage = Some(index + 1);
 
         // Add the chunk with the new index to the queue.
         self.queue.push_back((chunk.coords.to_owned(), index + 1));
+
+        Some(index + 1)
     }
 
     /// Remove a chunk from the pipeline.

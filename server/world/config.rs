@@ -21,6 +21,9 @@ pub struct WorldConfig {
     /// The maximum inclusive chunk on this world. Default is [i32::MAX, i32::MAX].
     pub max_chunk: [i32; 2],
 
+    /// The radius at which the world should preload.
+    pub preload_radius: usize,
+
     /// Max height of the world. Default is 256 blocks high.
     pub max_height: usize,
 
@@ -99,9 +102,10 @@ const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_SUB_CHUNKS: usize = 16;
 const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
 const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
+const DEFAULT_PRELOAD_RADIUS: usize = 8;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
-const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 24;
+const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 4;
 const DEFAULT_MAX_UPDATES_PER_TICK: usize = 200;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
@@ -125,6 +129,7 @@ pub struct WorldConfigBuilder {
     sub_chunks: usize,
     min_chunk: [i32; 2],
     max_chunk: [i32; 2],
+    preload_radius: usize,
     max_height: usize,
     max_light_level: u32,
     max_chunks_per_tick: usize,
@@ -155,6 +160,7 @@ impl WorldConfigBuilder {
             sub_chunks: DEFAULT_SUB_CHUNKS,
             min_chunk: DEFAULT_MIN_CHUNK,
             max_chunk: DEFAULT_MAX_CHUNK,
+            preload_radius: DEFAULT_PRELOAD_RADIUS,
             max_height: DEFAULT_MAX_HEIGHT,
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
             max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
@@ -204,6 +210,12 @@ impl WorldConfigBuilder {
     /// Configure the maximum inclusive chunk of the world. Default is [i32::MAX, i32::MAX].
     pub fn max_chunk(mut self, max_chunk: [i32; 2]) -> Self {
         self.max_chunk = max_chunk;
+        self
+    }
+
+    /// Configure the preload radius of the world. Default is 12 chunks.
+    pub fn preload_radius(mut self, preload_radius: usize) -> Self {
+        self.preload_radius = preload_radius;
         self
     }
 
@@ -321,6 +333,7 @@ impl WorldConfigBuilder {
             seed: self.seed,
             min_chunk: self.min_chunk,
             max_chunk: self.max_chunk,
+            preload_radius: self.preload_radius,
             air_drag: self.air_drag,
             fluid_drag: self.fluid_drag,
             fluid_density: self.fluid_density,

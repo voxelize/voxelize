@@ -111,6 +111,12 @@ pub struct World {
     /// Whether if the world has started.
     pub started: bool,
 
+    /// Whether if the world is preloading.
+    pub preloading: bool,
+
+    /// The progress of preloading.
+    pub preload_progress: f32,
+
     /// Entity component system world.
     ecs: ECSWorld,
 
@@ -213,10 +219,6 @@ impl World {
                     .to_string_lossy()
                 );
             }
-
-            info!("Storage for world '{}' is at '{}'", name, config.save_dir);
-        } else {
-            info!("World '{}' is temporarily saved in memory.", name);
         }
 
         let mut ecs = ECSWorld::new();
@@ -259,6 +261,8 @@ impl World {
             id,
             name: name.to_owned(),
             started: false,
+            preloading: false,
+            preload_progress: 0.0,
 
             ecs,
 
@@ -654,7 +658,7 @@ impl World {
 
     /// Check if this world is empty.
     pub fn is_empty(&self) -> bool {
-        self.read_resource::<Clients>().is_empty() && self.read_resource::<Transports>().is_empty()
+        self.read_resource::<Clients>().is_empty()
     }
 
     /// Prepare to start.
@@ -669,7 +673,25 @@ impl World {
                 .set_position(position.0 .0, position.0 .1, position.0 .2);
         }
 
+        self.preload();
         self.load_entities();
+    }
+
+    /// Preload the chunks in the world.
+    pub fn preload(&mut self) {
+        let radius = self.config().preload_radius as i32;
+
+        {
+            let mut pipeline = self.pipeline_mut();
+
+            for x in -radius..=radius {
+                for z in -radius..=radius {
+                    pipeline.push(&Vec2(x, z), 0);
+                }
+            }
+        }
+
+        self.preloading = true;
     }
 
     /// Tick of the world, run every 16ms.
@@ -678,7 +700,30 @@ impl World {
             self.started = true;
         }
 
-        if self.is_empty() {
+        if self.preloading {
+            let check_radius = (self.config().preload_radius - 1) as i32;
+
+            let mut total = 0;
+            let supposed = (check_radius * 2 + 1).pow(2);
+
+            for x in -check_radius..=check_radius {
+                for z in -check_radius..=check_radius {
+                    let chunks = self.chunks();
+                    let chunk = chunks.get(&Vec2(x, z));
+                    if chunk.is_some() {
+                        total += 1;
+                    }
+                }
+            }
+
+            self.preload_progress = (total as f32 / supposed as f32).min(1.0);
+
+            if total >= supposed {
+                self.preloading = false;
+            }
+        }
+
+        if !self.preloading && self.is_empty() {
             return;
         }
 
@@ -732,13 +777,18 @@ impl World {
             return;
         }
 
-        let mut storage = self.write_component::<ChunkRequestsComp>();
+        // let storage = self.read_component::<CurrentChunkComp>();
+        // let center = storage.get(client_ent).unwrap().coords.to_owned();
+        // drop(storage);
 
-        if let Some(requests) = storage.get_mut(client_ent) {
-            chunks.into_iter().for_each(|coords| {
-                requests.add(&coords);
-            });
-        }
+        let mut storage = self.write_component::<ChunkRequestsComp>();
+        let requests = storage.get_mut(client_ent).unwrap();
+
+        chunks.into_iter().for_each(|coords| {
+            requests.append(&coords);
+        });
+
+        // requests.sort_pending(&center);
     }
 
     /// Handler for `Unload` type messages.

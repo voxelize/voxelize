@@ -3,7 +3,8 @@ use std::sync::Arc;
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use itertools::izip;
-use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
+use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator};
+use std::thread::spawn;
 
 use crate::{
     Block, BlockFace, BlockRotation, Chunk, CornerData, Geometry, LightUtils, MeshProtocol,
@@ -38,7 +39,6 @@ fn get_block_by_voxel<'a>(
 pub struct Mesher {
     sender: Arc<Sender<Vec<Chunk>>>,
     receiver: Arc<Receiver<Vec<Chunk>>>,
-    pool: ThreadPool,
 }
 
 impl Mesher {
@@ -49,10 +49,6 @@ impl Mesher {
         Self {
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            pool: ThreadPoolBuilder::new()
-                .thread_name(|index| format!("chunk-meshing-{index}"))
-                .build()
-                .unwrap(),
         }
     }
 
@@ -67,7 +63,7 @@ impl Mesher {
         let registry = registry.to_owned();
         let config = config.to_owned();
 
-        self.pool.spawn(move || {
+        spawn(move || {
             let chunks: Vec<Chunk> = processes
                 .into_par_iter()
                 .map(|(mut chunk, mut space)| {
@@ -130,7 +126,7 @@ impl Mesher {
                 .collect();
 
             sender.send(chunks).unwrap();
-        })
+        });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`

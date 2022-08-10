@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -26,6 +27,29 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         for (id, request) in (&ids, &mut requests).join() {
             let mut count = 0;
 
+            // Process the chunks that this request is waiting on.
+            while !request.waiting.is_empty() && count < config.max_chunks_per_tick {
+                count += 1;
+
+                let coords = request.waiting.pop_front().unwrap();
+
+                if let Some(_) = chunks.get(&coords) {
+                    if !to_send.contains_key(&id.0) {
+                        to_send.insert(id.0.clone(), vec![]);
+                    }
+
+                    to_send.get_mut(&id.0).unwrap().push(coords.to_owned());
+
+                    // Add coordinate to the "finished" list.
+                    request.mark_finish(&coords);
+                } else {
+                    // Add coordinate to the "waiting" list.
+                    request.wait(&coords);
+                }
+            }
+
+            let mut count = 0;
+            // Process the pending requests, either send them if chunk is ready, or add them to the pipeline if not.
             while !request.pending.is_empty()
                 && count < config.max_chunks_per_tick
                 && to_send.len() < config.max_response_per_tick
@@ -65,7 +89,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                             pipeline.push(&n_coords, 0);
                         });
 
-                    request.pending.push_back(coords);
+                    request.wait(&coords);
                 }
 
                 count += 1;

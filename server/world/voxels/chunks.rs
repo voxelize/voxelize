@@ -283,6 +283,10 @@ impl Chunks {
 
         for x in -extended..=extended {
             for z in -extended..=extended {
+                if x * x + z * z > extended * extended {
+                    continue;
+                }
+
                 let n_coords = Vec2(coords.0 + x, coords.1 + z);
 
                 if self.is_within_world(&n_coords) {
@@ -348,6 +352,42 @@ impl Chunks {
     /// Clear the mutable chunk borrowing list.
     pub fn clear_cache(&mut self) {
         self.cache.clear();
+    }
+
+    /// Add a chunk to be remeshed.
+    pub fn add_chunk_to_remesh(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        if !self.to_remesh.contains(coords) {
+            if prioritized {
+                self.to_remesh.push_front(coords.to_owned());
+            } else {
+                self.to_remesh.push_back(coords.to_owned());
+            }
+        }
+    }
+
+    /// Add a chunk to be saved.
+    pub fn add_chunk_to_save(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        if !self.to_save.contains(coords) {
+            if prioritized {
+                self.to_save.push_front(coords.to_owned());
+            } else {
+                self.to_save.push_back(coords.to_owned());
+            }
+        }
+    }
+
+    /// Add a chunk to be sent.
+    pub fn add_chunk_to_send(
+        &mut self,
+        coords: &Vec2<i32>,
+        r#type: &MessageType,
+        prioritized: bool,
+    ) {
+        if prioritized {
+            self.to_send.push_front((coords.to_owned(), r#type.clone()));
+        } else {
+            self.to_send.push_back((coords.to_owned(), r#type.clone()));
+        }
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {

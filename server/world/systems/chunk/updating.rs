@@ -433,10 +433,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     });
 
                 if config.saving {
-                    chunks.to_save.push_back(coords.clone());
+                    chunks.add_chunk_to_save(&coords, true);
                 }
 
-                chunks.to_send.push_front((coords, MessageType::Update));
+                chunks.add_chunk_to_send(&coords, &MessageType::Update, true);
             });
         }
 
