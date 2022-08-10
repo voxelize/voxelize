@@ -67,7 +67,7 @@ cd voxelize
 yarn
 
 # generate protocol buffers
-yarn run proto
+yarn --cwd transport run proto
 
 # start development
 yarn run dev
