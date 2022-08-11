@@ -211,7 +211,7 @@ impl Server {
             "🌎 World created: {} ({})",
             name,
             if saving {
-                format!("on-disk @ \"{}\"", save_dir)
+                format!("on-disk @ {}", save_dir)
             } else {
                 "in-memory".to_owned()
             }
