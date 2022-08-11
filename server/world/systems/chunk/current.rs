@@ -1,6 +1,6 @@
-use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
+use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{ChunkRequestsComp, ChunkUtils, CurrentChunkComp, PositionComp, Vec3, WorldConfig};
+use crate::{ChunkUtils, CurrentChunkComp, PositionComp, Vec3, WorldConfig};
 
 pub struct CurrentChunkSystem;
 
@@ -8,7 +8,6 @@ impl<'a> System<'a> for CurrentChunkSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
         ReadStorage<'a, PositionComp>,
-        WriteStorage<'a, ChunkRequestsComp>,
         WriteStorage<'a, CurrentChunkComp>,
     );
 
@@ -16,7 +15,7 @@ impl<'a> System<'a> for CurrentChunkSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (config, positions, mut requests, mut curr_chunks) = data;
+        let (config, positions, mut curr_chunks) = data;
 
         let chunk_size = config.chunk_size;
 
@@ -32,11 +31,5 @@ impl<'a> System<'a> for CurrentChunkSystem {
                     curr_chunk.changed = true;
                 }
             });
-
-        // for (curr_chunk, request) in (&mut curr_chunks, &mut requests).join() {
-        //     if curr_chunk.changed {
-        //         request.sort_pending(&curr_chunk.coords);
-        //     }
-        // }
     }
 }

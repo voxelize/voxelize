@@ -1,25 +1,16 @@
-use std::time::{Duration, Instant};
-
 use actix::prelude::*;
 use actix_web_actors::ws;
-use log::{info, warn};
+use log::warn;
 
 use crate::{
     server::models, ClientMessage, Connect, Disconnect, EncodedMessage, Message, MessageType,
     Server,
 };
 
-/// How long before lack of client response causes a timeout
-const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
-
 #[derive(Debug)]
 pub struct WsSession {
     /// unique session id
     pub id: String,
-
-    /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
-    /// otherwise we drop connection.
-    pub hb: Instant,
 
     /// peer name
     pub name: Option<String>,
@@ -103,13 +94,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
         };
 
         match msg {
-            ws::Message::Ping(msg) => {
-                self.hb = Instant::now();
-                ctx.pong(&msg);
-            }
-            ws::Message::Pong(_) => {
-                self.hb = Instant::now();
-            }
             ws::Message::Binary(bytes) => {
                 let message = models::decode_message(&bytes.to_vec()).unwrap();
                 self.addr

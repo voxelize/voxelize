@@ -1,4 +1,3 @@
-use log::info;
 use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 

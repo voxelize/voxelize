@@ -13,7 +13,6 @@ use log::info;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::thread;
 
 use crate::{
     errors::AddWorldError,

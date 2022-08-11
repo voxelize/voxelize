@@ -2,10 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
-use rayon::{
-    prelude::{IntoParallelIterator, ParallelIterator},
-    ThreadPool, ThreadPoolBuilder,
-};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::thread::spawn;
 
 use crate::{BlockChange, Chunk, Registry, Space, SpaceData, Vec2, Vec3, VoxelAccess, WorldConfig};
@@ -211,9 +208,6 @@ pub struct Pipeline {
     /// Receiver to receive processed chunks from other threads to main thread.
     receiver: Arc<Receiver<(Vec<Chunk>, Vec<BlockChange>)>>,
 
-    /// Pipeline's thread pool to process chunks.
-    pool: ThreadPool,
-
     /// Queue of chunk jobs to finish.
     queue: VecDeque<(Vec2<i32>, usize)>,
 }
@@ -228,10 +222,6 @@ impl Pipeline {
             leftovers: HashMap::default(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            pool: ThreadPoolBuilder::new()
-                .thread_name(|index| format!("voxelize-chunking-{index}"))
-                .build()
-                .unwrap(),
             queue: VecDeque::default(),
             stages: vec![],
         }

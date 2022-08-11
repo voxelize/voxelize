@@ -1,10 +1,9 @@
 use hashbrown::HashMap;
-use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    ChunkProtocol, ChunkRequestsComp, Chunks, ClientFilter, CurrentChunkComp, IDComp, Message,
-    MessageQueue, MessageType, Pipeline, Vec2, WorldConfig,
+    ChunkProtocol, ChunkRequestsComp, Chunks, ClientFilter, IDComp, Message, MessageQueue,
+    MessageType, Pipeline, Vec2, WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;

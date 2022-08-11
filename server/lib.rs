@@ -16,8 +16,6 @@ use actix_web_actors::ws;
 use hashbrown::HashMap;
 use log::{info, warn};
 
-use std::time::Instant;
-
 pub use common::*;
 pub use libs::*;
 pub use server::*;
@@ -68,7 +66,6 @@ async fn ws_route(
     ws::start(
         server::WsSession {
             id,
-            hb: Instant::now(),
             name: None,
             is_transport,
             addr: srv.get_ref().clone(),
