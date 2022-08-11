@@ -329,7 +329,7 @@ impl Server {
     pub fn preload(&mut self) {
         let m = MultiProgress::new();
         let sty = ProgressStyle::with_template(
-            "[{elapsed_precise}] Preloading {msg} [{bar:40.cyan/blue}] {spinner:.green} {percent:>7}%",
+            "[{elapsed_precise}] [{bar:40.cyan/blue}] {msg} {spinner:.green} {percent:>7}%",
         )
         .unwrap()
         .progress_chars("#>-");

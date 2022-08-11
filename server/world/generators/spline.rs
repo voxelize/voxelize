@@ -65,6 +65,9 @@ impl SplineMap {
             (max_val - min_val) * (num - self.min_val) / (self.max_val - self.min_val) + min_val
         };
 
+        self.left_val = scale(self.left_val);
+        self.right_val = scale(self.right_val);
+
         let keys = self.spline.keys().to_owned();
 
         let mut index = 0;

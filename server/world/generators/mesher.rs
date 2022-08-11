@@ -170,7 +170,6 @@ impl Mesher {
                      block: &Block,
                      uv_map: &HashMap<String, &UV>| {
                         let &Block {
-                            is_fluid,
                             is_opaque,
                             is_see_through,
                             rotatable,
@@ -198,17 +197,22 @@ impl Mesher {
                         let n_is_void = !space.contains(nvx, nvy, nvz);
                         let n_block_type = registry.get_block_by_id(neighbor_id);
 
-                        if n_is_void
-                            || n_block_type.is_empty
+                        // To mesh the face, we need to match these conditions:
+                        // a. general
+                        //    1. the neighbor is void or empty (air or DNE)
+                        // b. transparent mode
+                        //    1. itself is see-through (water & leaves)
+                        //       - if the neighbor is the same, then mesh if standalone (leaves).
+                        //       - not the same, don't mesh.
+                        // c. opaque mode
+                        //    1. ignore all see-through blocks (transparent)
+                        //    2. if one of them is not opaque, mesh.
+                        if (n_is_void || n_block_type.is_empty)
                             || (transparent
-                                && neighbor_id == voxel_id
-                                && n_block_type.transparent_standalone
-                                && (dir[0] + dir[1] + dir[2]) as i32 >= 1)
-                            || (is_fluid && !is_opaque)
-                            || !is_fluid
-                                && ((!is_opaque && !n_block_type.is_opaque)
-                                    || ((is_opaque && !n_block_type.is_opaque)
-                                        || (!is_opaque && n_block_type.is_opaque)))
+                                && (is_see_through
+                                    && neighbor_id == voxel_id
+                                    && n_block_type.transparent_standalone))
+                            || (!transparent && (!is_opaque || !n_block_type.is_opaque))
                         {
                             let UV {
                                 start_u,

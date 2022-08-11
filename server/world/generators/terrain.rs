@@ -72,14 +72,14 @@ impl Terrain {
 
         self.layers.iter().for_each(|(layer, weight)| {
             let value = layer.noise.get2d(vx, vz);
-            bias = layer.sample_bias(bias * value) * weight + if started { bias } else { 0.0 };
-            offset =
-                layer.sample_offset(offset * value) * weight + if started { offset } else { 0.0 };
-            total_weight += weight;
+            bias = layer.sample_bias(bias * value);
+            offset = layer.sample_offset(offset * value);
+            // total_weight += weight;
             started = true;
         });
 
-        (bias / total_weight, offset / total_weight)
+        (bias, offset)
+        // (bias / total_weight, offset / total_weight)
     }
 }
 
