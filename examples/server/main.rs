@@ -135,40 +135,40 @@ async fn main() -> std::io::Result<()> {
         .add_world(setup_world())
         .expect("Could not create world1.");
 
-    let config2 = WorldConfig::new()
-        .min_chunk([-100, -100])
-        .max_chunk([100, 100])
-        .build();
-    let world2 = server
-        .create_world("world2", &config2)
-        .expect("Could not create world2.");
+    // let config2 = WorldConfig::new()
+    //     .min_chunk([-100, -100])
+    //     .max_chunk([100, 100])
+    //     .build();
+    // let world2 = server
+    //     .create_world("world2", &config2)
+    //     .expect("Could not create world2.");
 
-    {
-        let mut pipeline = world2.pipeline_mut();
-        pipeline.add_stage(LimitedStage);
-    }
+    // {
+    //     let mut pipeline = world2.pipeline_mut();
+    //     pipeline.add_stage(LimitedStage);
+    // }
 
-    let world3 = server
-        .create_world(
-            "world3",
-            &WorldConfig::new()
-                .saving(true)
-                .save_dir("examples/server/worlds/world3")
-                .build(),
-        )
-        .expect("Could not create world2.");
+    // let world3 = server
+    //     .create_world(
+    //         "world3",
+    //         &WorldConfig::new()
+    //             .saving(true)
+    //             .save_dir("examples/server/worlds/world3")
+    //             .build(),
+    //     )
+    //     .expect("Could not create world2.");
 
-    {
-        let mut pipeline = world3.pipeline_mut();
-        pipeline.add_stage(FlatlandStage::new(70, 2, 1, 3));
-    }
+    // {
+    //     let mut pipeline = world3.pipeline_mut();
+    //     pipeline.add_stage(FlatlandStage::new(70, 2, 1, 3));
+    // }
 
-    world3.ecs_mut().register::<BoxFlag>();
-    world3.entities_mut().add_loader("box", load_box);
-    world3.set_method_handle("spawn", spawn_handle);
-    world3.set_transport_handle(transport_handle);
-    world3.set_client_modifier(client_modifier);
-    world3.set_client_parser(client_parser);
+    // world3.ecs_mut().register::<BoxFlag>();
+    // world3.entities_mut().add_loader("box", load_box);
+    // world3.set_method_handle("spawn", spawn_handle);
+    // world3.set_transport_handle(transport_handle);
+    // world3.set_client_modifier(client_modifier);
+    // world3.set_client_parser(client_parser);
 
     Voxelize::run(server).await
 }

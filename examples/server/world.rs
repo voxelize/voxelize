@@ -1,6 +1,53 @@
 use voxelize::{
-    BaseTerrainStage, DebugStage, FlatlandStage, NoiseParams, TerrainLayer, World, WorldConfig,
+    BaseTerrainStage, Chunk, ChunkStage, DebugStage, FlatlandStage, NoiseParams, Resources,
+    SeededNoise, Space, SplineMap, TerrainLayer, Vec3, VoxelAccess, World, WorldConfig,
 };
+
+struct TerrainStage {
+    noise: SeededNoise,
+    map: SplineMap,
+}
+
+impl TerrainStage {
+    fn new(seed: u32, params: &NoiseParams) -> Self {
+        Self {
+            noise: SeededNoise::new(seed, params),
+            map: SplineMap::default(),
+        }
+    }
+
+    fn add_control_points(&mut self, points: &[[f64; 2]]) {
+        points.iter().for_each(|[t, value]| {
+            self.map.add(*t, *value);
+        });
+    }
+}
+
+const RIVER_DEPTH: f64 = 50.0;
+
+impl ChunkStage for TerrainStage {
+    fn name(&self) -> String {
+        "River".to_owned()
+    }
+
+    fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                let value = self.noise.get2d(vx, vz);
+                let height = (self.map.sample(value) * RIVER_DEPTH) as i32;
+
+                for vy in 0..height {
+                    chunk.set_voxel(vx, vy, vz, resources.registry.get_block_by_name("Stone").id);
+                }
+            }
+        }
+
+        chunk
+    }
+}
 
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
@@ -93,8 +140,26 @@ pub fn setup_world() -> World {
 
     {
         let mut pipeline = world.pipeline_mut();
+
+        let mut river_stage = TerrainStage::new(
+            config.seed,
+            &NoiseParams::new()
+                .frequency(0.007)
+                // .ridged(true)
+                // .attenuation(10.0)
+                .build(),
+        );
+        river_stage.add_control_points(&[
+            [-1.0, 1.0],
+            [-0.4, 0.9],
+            [-0.1, 0.4],
+            [0.1, 0.5],
+            [1.0, 0.5],
+        ]);
+
+        pipeline.add_stage(river_stage);
         // pipeline.add_stage(DebugStage::new(2));
-        pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
+        // pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
     }
 
