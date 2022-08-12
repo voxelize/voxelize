@@ -8,19 +8,22 @@ const RIVER_HEIGHT: f64 = 0.20;
 const PLAINS_HEIGHT: f64 = 0.24;
 const RIVER_TO_PLAINS: f64 = 0.06;
 
-struct WaterStage {
+const SNOW_HEIGHT: i32 = 90;
+const STONE_HEIGHT: i32 = 80;
+
+struct SoilingStage {
     noise: SeededNoise,
 }
 
-impl WaterStage {
-    pub fn new(seed: u32, params: &NoiseParams) -> Self {
-        Self {
+impl SoilingStage {
+    pub fn new(seed: u32, params: &NoiseParams) -> SoilingStage {
+        SoilingStage {
             noise: SeededNoise::new(seed, params),
         }
     }
 }
 
-impl ChunkStage for WaterStage {
+impl ChunkStage for SoilingStage {
     fn name(&self) -> String {
         "Water".to_owned()
     }
@@ -36,54 +39,57 @@ impl ChunkStage for WaterStage {
         let sand = registry.get_block_by_name("Sand");
         let dirt = registry.get_block_by_name("Dirt");
         let stone = registry.get_block_by_name("Stone");
-        let grass = registry.get_block_by_name("Grass");
+        let grass_block = registry.get_block_by_name("Grass Block");
         let snow = registry.get_block_by_name("Snow");
+        let grass = registry.get_block_by_name("Grass");
 
         for vx in chunk.min.0..chunk.max.0 {
             for vz in chunk.min.2..chunk.max.2 {
                 let height = chunk.get_max_height(vx, vz) as i32;
-                let mut was_air = false;
 
-                for vy in 0..max_height {
+                for vy in 0..=(height.max(water_level)) {
+                    let depth = 2;
+
+                    // Fill in the water
                     let id = chunk.get_voxel(vx, vy, vz);
-                    let is_air = registry.is_air(id);
 
-                    if is_air && vy < water_level {
+                    if registry.is_air(id) && vy < water_level {
                         chunk.set_voxel(vx, vy, vz, water.id);
                         continue;
                     }
 
-                    if height < water_level {
-                        chunk.set_voxel(vx, height, vz, sand.id);
-                        continue;
-                    }
-
-                    let relative_height = if is_air && !was_air && vy < height {
-                        vy
-                    } else {
-                        height
-                    };
-
-                    let snow_height = 90;
-                    let stone_height = 80;
-
-                    let should_snow_stone = self.noise.get2d(vx, vz) > 0.0;
-
-                    if should_snow_stone {
-                        if vy == relative_height {
-                            if vy >= snow_height {
+                    if height > water_level {
+                        if vy >= height - depth {
+                            if vy > SNOW_HEIGHT {
                                 chunk.set_voxel(vx, vy, vz, snow.id);
-                            } else if vy >= stone_height {
+                            } else if vy > STONE_HEIGHT {
                                 chunk.set_voxel(vx, vy, vz, stone.id);
                             } else {
-                                chunk.set_voxel(vx, vy, vz, grass.id);
+                                if vy == height {
+                                    chunk.set_voxel(vx, vy, vz, grass_block.id);
+                                } else {
+                                    chunk.set_voxel(vx, vy, vz, dirt.id);
+                                }
                             }
                         }
-                    } else if vy >= height - 2 && vy < relative_height {
-                        chunk.set_voxel(vx, vy, vz, dirt.id);
-                    }
 
-                    was_air = is_air;
+                        if vy == height {
+                            if self.noise.get3d(vx, vy, vz) > 1.0
+                                && chunk.get_voxel(vx, vy, vz) == grass_block.id
+                            {
+                                chunk.set_voxel(vx, vy + 1, vz, grass.id);
+                            }
+                        }
+                    } else if chunk.get_voxel(vx, vy, vz) != water.id
+                        && vy <= height
+                        && vy >= height - depth
+                    {
+                        if self.noise.get3d(vx, vy, vz) > 1.0 {
+                            chunk.set_voxel(vx, vy, vz, stone.id);
+                        } else {
+                            chunk.set_voxel(vx, vy, vz, sand.id);
+                        }
+                    }
                 }
             }
         }
@@ -136,9 +142,9 @@ pub fn setup_world() -> World {
 
         pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
         pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(WaterStage::new(
+        pipeline.add_stage(SoilingStage::new(
             config.seed,
-            &NoiseParams::new().frequency(0.1).build(),
+            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
         ));
     }
 

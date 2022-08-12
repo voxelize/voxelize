@@ -27,15 +27,6 @@ import {
   PY_ROTATION,
   PZ_ROTATION,
   World,
-  Y_000_ROTATION,
-  Y_045_ROTATION,
-  Y_090_ROTATION,
-  Y_135_ROTATION,
-  Y_180_ROTATION,
-  Y_225_ROTATION,
-  Y_270_ROTATION,
-  Y_315_ROTATION,
-  Y_ROT_MAP,
 } from "./world";
 
 const PI_2 = Math.PI / 2;
@@ -172,6 +163,11 @@ export type RigidControlsParams = {
    * The interpolation factor of the client's rotation. Defaults to `0.9`.
    */
   rotationLerp: number;
+
+  /**
+   * The force upwards when a client tries to jump in water. Defaults to `0.3`.
+   */
+  fluidPushForce: number;
 
   /**
    * The interpolation factor of the client's position. Defaults to `0.9`.
@@ -322,6 +318,7 @@ const defaultParams: RigidControlsParams = {
   crouchFactor: 0.6,
   alwaysSprint: false,
   airMoveMult: 0.7,
+  fluidPushForce: 0.3,
   jumpImpulse: 8,
   jumpForce: 1,
   jumpTime: 50,
@@ -1226,6 +1223,7 @@ export class RigidControls extends EventEmitter {
       flyImpulse,
       flyForce,
       flySpeed,
+      fluidPushForce,
     } = this.params;
 
     if (this.body.gravityMultiplier) {
@@ -1256,6 +1254,9 @@ export class RigidControls extends EventEmitter {
           this.body.applyImpulse([0, jumpImpulse, 0]);
           // clear downward velocity on airjump
           if (!onGround && this.body.velocity[1] < 0) this.body.velocity[1] = 0;
+        } else if (this.body.ratioInFluid > 0) {
+          // apply impulse to swim
+          this.body.applyImpulse([0, fluidPushForce, 0]);
         }
       } else {
         this.state.isJumping = false;

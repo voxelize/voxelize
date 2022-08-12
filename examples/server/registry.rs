@@ -1,5 +1,7 @@
 use voxelize::{Block, BlockFace, Registry, AABB};
 
+const PLANT_SCALE: f32 = 0.6;
+
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
 
@@ -27,10 +29,10 @@ pub fn setup_registry() -> Registry {
     );
 
     registry.register_blocks(&[
-        Block::new("Dirt").id(1).is_plantable(true).build(),
+        Block::new("Dirt").id(1).build(),
         Block::new("Stone").id(2).build(),
         Block::new("Sand").id(3).build(),
-        Block::new("Grass").id(4).is_plantable(true).build(),
+        Block::new("Grass Block").id(4).build(),
         Block::new("Snow").id(5).build(),
         Block::new("Obsidian").id(20).build(),
         Block::new("Granite").id(21).build(),
@@ -105,6 +107,7 @@ pub fn setup_registry() -> Registry {
             .is_transparent(true)
             .is_see_through(true)
             .is_fluid(true)
+            .faces(&BlockFace::six_faces().scale_y(0.8).build())
             .aabbs(&[])
             .build(),
         Block::new("Glass")
@@ -167,40 +170,27 @@ pub fn setup_registry() -> Registry {
             .rotatable(true)
             .is_transparent(true)
             .build(),
-        // Register 50 blocks
-        Block::new("Test1").id(501).build(),
-        Block::new("Test2").id(502).build(),
-        Block::new("Test3").id(503).build(),
-        Block::new("Test4").id(504).build(),
-        Block::new("Test5").id(505).build(),
-        Block::new("Test6").id(506).build(),
-        Block::new("Test7").id(507).build(),
-        Block::new("Test8").id(508).build(),
-        Block::new("Test9").id(509).build(),
-        Block::new("Test10").id(510).build(),
-        Block::new("Test11").id(511).build(),
-        Block::new("Test12").id(512).build(),
-        Block::new("Test13").id(513).build(),
-        Block::new("Test14").id(514).build(),
-        Block::new("Test15").id(515).build(),
-        Block::new("Test16").id(516).build(),
-        Block::new("Test17").id(517).build(),
-        Block::new("Test18").id(518).build(),
-        Block::new("Test19").id(519).build(),
-        Block::new("Test20").id(520).build(),
-        Block::new("Test21").id(521).build(),
-        Block::new("Test22").id(522).build(),
-        Block::new("Test23").id(523).build(),
-        Block::new("Test24").id(524).build(),
-        Block::new("Test25").id(525).build(),
-        Block::new("Test26").id(526).build(),
-        Block::new("Test27").id(527).build(),
-        Block::new("Test28").id(528).build(),
-        Block::new("Test29").id(529).build(),
-        Block::new("Test30").id(530).build(),
-        Block::new("Test31").id(531).build(),
-        Block::new("Test32").id(532).build(),
-        Block::new("Test33").id(533).build(),
+        // Plants
+        Block::new("Grass")
+            .id(1000)
+            .aabbs(&[AABB::new()
+                .scale_x(PLANT_SCALE)
+                .scale_y(PLANT_SCALE)
+                .scale_z(PLANT_SCALE)
+                .offset_x((1.0 - PLANT_SCALE) / 2.0)
+                .offset_z((1.0 - PLANT_SCALE) / 2.0)
+                .build()])
+            .is_passable(true)
+            .faces(
+                &BlockFace::diagonal_faces()
+                    .scale_horizontal(PLANT_SCALE)
+                    .scale_vertical(PLANT_SCALE)
+                    .build(),
+            )
+            .is_transparent(true)
+            .is_see_through(true)
+            .transparent_standalone(true)
+            .build(),
     ]);
 
     registry

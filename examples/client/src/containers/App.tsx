@@ -4,6 +4,7 @@ import * as VOXELIZE from "@voxelize/client";
 import {
   EffectComposer,
   EffectPass,
+  // PixelationEffect,
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
@@ -99,7 +100,13 @@ const App = () => {
 
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(world, camera));
-    composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+    composer.addPass(
+      new EffectPass(
+        camera,
+        new SMAAEffect({})
+        // new PixelationEffect(6)
+      )
+    );
 
     domRef.current.appendChild(renderer.domElement);
 
@@ -263,10 +270,6 @@ const App = () => {
 
     const peers = new Peers(controls.object);
 
-    peers.onPeerUpdate = (peer) => {
-      console.log(peer);
-    };
-
     ColorText.SPLITTER = "$";
 
     inputs.bind(
@@ -309,6 +312,15 @@ const App = () => {
       }
     };
     inputs.bind("f", toggleFly, "in-game");
+
+    // Create a test for atlas
+    // setTimeout(() => {
+    //   const plane = new THREE.Mesh(
+    //     new THREE.PlaneBufferGeometry(100, 100),
+    //     world.atlas.material
+    //   );
+    //   world.add(plane);
+    // }, 1000);
 
     network
       .register(chat)

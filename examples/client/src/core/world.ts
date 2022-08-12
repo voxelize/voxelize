@@ -1,8 +1,8 @@
 import WaterImage from "../assets/own/water.png";
 import ObsidianImage from "../assets/own/obsidian.png";
 import OakLeavesImage from "../assets/own/oak_leaves.png";
-import GrassImage from "../assets/own/grass_top.png";
-import GrassSideImage from "../assets/own/grass_side.png";
+import GrassBlockImage from "../assets/own/grass_top.png";
+import GrassBlockSideImage from "../assets/own/grass_side.png";
 import DirtImage from "../assets/own/dirt.png";
 import OakTopImage from "../assets/own/oak_log_top.png";
 import OakSideImage from "../assets/own/oak_log_side.png";
@@ -28,6 +28,7 @@ import OakPlanksImage from "../assets/own/oak_planks.png";
 import LolImage from "../assets/lol.jpeg";
 import ChoGeImage from "../assets/lol.png";
 import GlassImage from "../assets/own/glass.png";
+import GrassImage from "../assets/own/grass.png";
 import TechnoImage from "../assets/techno.png";
 import TestImage from "../assets/cat.jpeg";
 
@@ -50,11 +51,12 @@ export function setupWorld(world: World) {
     { name: "Yellow Concrete", sides: all, data: YellowConcreteImage },
     { name: "Black Concrete", sides: all, data: BlackConcreteImage },
     { name: "Ivory Block", sides: all, data: IvoryBlockImage },
-    { name: "Grass", sides: ["py"], data: GrassImage },
+    { name: "Grass Block", sides: ["py"], data: GrassBlockImage },
     { name: "Color", sides: all, data: new Color("#ffffff") },
     { name: "Color", sides: all, data: Color2Image },
-    { name: "Grass", sides: side, data: GrassSideImage },
-    { name: "Grass", sides: ["ny"], data: DirtImage },
+    { name: "Grass Block", sides: side, data: GrassBlockSideImage },
+    { name: "Grass Block", sides: ["ny"], data: DirtImage },
+    { name: "Grass", sides: ["one", "two"], data: GrassImage },
     { name: "Stone", sides: all, data: StoneImage },
     { name: "Oak Leaves", sides: all, data: OakLeavesImage },
     { name: "Oak Log", sides: ["py"], data: OakTopImage },

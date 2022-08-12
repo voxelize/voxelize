@@ -285,6 +285,141 @@ impl BlockFace {
     pub fn six_faces() -> SixFacesBuilder {
         SixFacesBuilder::new()
     }
+
+    /// Create and customize a diagonal-faced block face data.
+    pub fn diagonal_faces() -> DiagonalFacesBuilder {
+        DiagonalFacesBuilder::new()
+    }
+}
+
+pub struct DiagonalFacesBuilder {
+    scale_horizontal: f32,
+    scale_vertical: f32,
+    prefix: String,
+    suffix: String,
+    concat: String,
+}
+
+impl DiagonalFacesBuilder {
+    /// Create a new diagonal faces builder.
+    pub fn new() -> DiagonalFacesBuilder {
+        DiagonalFacesBuilder {
+            scale_horizontal: 1.0,
+            scale_vertical: 1.0,
+            prefix: "".to_string(),
+            suffix: "".to_string(),
+            concat: "".to_string(),
+        }
+    }
+
+    /// Set the scale of the horizontal faces.
+    pub fn scale_horizontal(mut self, scale: f32) -> Self {
+        self.scale_horizontal = scale;
+        self
+    }
+
+    /// Set the scale of the vertical faces.
+    pub fn scale_vertical(mut self, scale: f32) -> Self {
+        self.scale_vertical = scale;
+        self
+    }
+
+    /// Set the prefix of the faces.
+    pub fn prefix(mut self, prefix: &str) -> Self {
+        self.prefix = prefix.to_string();
+        self
+    }
+
+    /// Set the suffix of the faces.
+    pub fn suffix(mut self, suffix: &str) -> Self {
+        self.suffix = suffix.to_string();
+        self
+    }
+
+    /// Set the concatenation of the faces.
+    pub fn concat(mut self, concat: &str) -> Self {
+        self.concat = concat.to_string();
+        self
+    }
+
+    /// Build the diagonal faces.
+    pub fn build(self) -> Vec<BlockFace> {
+        let Self {
+            scale_horizontal,
+            scale_vertical,
+            prefix,
+            suffix,
+            concat,
+        } = self;
+
+        let make_name = |side: &str| {
+            let mut name = "".to_owned();
+            if !prefix.is_empty() {
+                name += &prefix;
+            }
+            if !concat.is_empty() {
+                name += &concat;
+            }
+            name += side;
+            if !concat.is_empty() {
+                name += &concat;
+            }
+            if !suffix.is_empty() {
+                name += &suffix;
+            }
+            name
+        };
+
+        let h_min = (1.0 - scale_horizontal) / 2.0;
+        let h_max = 1.0 - h_min;
+
+        vec![
+            BlockFace {
+                name: make_name("one"),
+                dir: [0, 0, 0],
+                corners: [
+                    CornerData {
+                        pos: [h_min, scale_vertical, h_min],
+                        uv: [0.0, 1.0],
+                    },
+                    CornerData {
+                        pos: [h_min, 0.0, h_min],
+                        uv: [0.0, 0.0],
+                    },
+                    CornerData {
+                        pos: [h_max, scale_vertical, h_max],
+                        uv: [1.0, 1.0],
+                    },
+                    CornerData {
+                        pos: [h_max, 0.0, h_max],
+                        uv: [1.0, 0.0],
+                    },
+                ],
+            },
+            BlockFace {
+                name: make_name("two"),
+                dir: [0, 0, 0],
+                corners: [
+                    CornerData {
+                        pos: [h_max, scale_vertical, h_min],
+                        uv: [0.0, 1.0],
+                    },
+                    CornerData {
+                        pos: [h_max, 0.0, h_min],
+                        uv: [0.0, 0.0],
+                    },
+                    CornerData {
+                        pos: [h_min, scale_vertical, h_max],
+                        uv: [1.0, 1.0],
+                    },
+                    CornerData {
+                        pos: [h_min, 0.0, h_max],
+                        uv: [1.0, 0.0],
+                    },
+                ],
+            },
+        ]
+    }
 }
 
 pub struct SixFacesBuilder {
@@ -650,8 +785,8 @@ pub struct Block {
     /// Does the block emit light?
     pub is_light: bool,
 
-    /// Is the block a type of plant?
-    pub is_plant: bool,
+    /// Can this block be passed through?
+    pub is_passable: bool,
 
     /// Is the block opaque?
     pub is_opaque: bool,
@@ -664,9 +799,6 @@ pub struct Block {
 
     /// Blue-light level of the block.
     pub blue_light_level: u32,
-
-    /// Can plants grow on this block?
-    pub is_plantable: bool,
 
     /// Do faces of this transparent block need to be rendered?
     pub transparent_standalone: bool,
@@ -726,11 +858,10 @@ pub struct BlockBuilder {
     is_empty: bool,
     is_fluid: bool,
     is_light: bool,
-    is_plant: bool,
+    is_passable: bool,
     red_light_level: u32,
     green_light_level: u32,
     blue_light_level: u32,
-    is_plantable: bool,
     transparent_standalone: bool,
     faces: Vec<BlockFace>,
     aabbs: Vec<AABB>,
@@ -801,9 +932,9 @@ impl BlockBuilder {
         self
     }
 
-    /// Configure whether or not this block is a plant. Default is false.
-    pub fn is_plant(mut self, is_plant: bool) -> Self {
-        self.is_plant = is_plant;
+    /// Configure whether or not this block can be passed through. Default is false.
+    pub fn is_passable(mut self, is_plant: bool) -> Self {
+        self.is_passable = is_plant;
         self
     }
 
@@ -822,12 +953,6 @@ impl BlockBuilder {
     /// Configure the blue light level of this block. Default is 0.
     pub fn blue_light_level(mut self, blue_light_level: u32) -> Self {
         self.blue_light_level = blue_light_level;
-        self
-    }
-
-    /// Configure whether or can plants grow on this block. Default is false.
-    pub fn is_plantable(mut self, is_plantable: bool) -> Self {
-        self.is_plantable = is_plantable;
         self
     }
 
@@ -934,7 +1059,7 @@ impl BlockBuilder {
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
             is_light: self.is_light,
-            is_plant: self.is_plant,
+            is_passable: self.is_passable,
             is_opaque: !self.is_px_transparent
                 && !self.is_py_transparent
                 && !self.is_pz_transparent
@@ -944,7 +1069,6 @@ impl BlockBuilder {
             red_light_level: self.red_light_level,
             green_light_level: self.green_light_level,
             blue_light_level: self.blue_light_level,
-            is_plantable: self.is_plantable,
             transparent_standalone: self.transparent_standalone,
             faces: self.faces,
             aabbs: self.aabbs,

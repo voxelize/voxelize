@@ -142,95 +142,6 @@ class Registry {
     return null;
   };
 
-  /**
-   * Get the UV for the block type.
-   *
-   * @param id - The ID of the block type.
-   *
-   * @hidden
-   * @internal
-   */
-  getUV = (id: number): { [key: string]: [any[][], number] } => {
-    const getUVInner = (range: TextureRange, uv: number[]): number[] => {
-      const { startU, endU, startV, endV } = range;
-      return [
-        uv[0] * (endU - startU) + startU,
-        uv[1] * (endV - startV) + startV,
-      ];
-    };
-
-    const { isBlock, isPlant } = this.getBlockById(id);
-    const textures = this.getUVMap(this.getBlockById(id));
-
-    if (isBlock) {
-      // ny
-      const bottomUVs = [
-        [1, 0],
-        [0, 0],
-        [1, 1],
-        [0, 1],
-      ].map((uv) => getUVInner(textures["ny"], uv));
-
-      // py
-      const topUVs = [
-        [1, 1],
-        [0, 1],
-        [1, 0],
-        [0, 0],
-      ].map((uv) => getUVInner(textures["py"], uv));
-
-      // nx
-      const side1UVs = [
-        [0, 1],
-        [0, 0],
-        [1, 1],
-        [1, 0],
-      ].map((uv) => getUVInner(textures["nx"], uv));
-
-      // px
-      const side2UVs = [
-        [0, 1],
-        [0, 0],
-        [1, 1],
-        [1, 0],
-      ].map((uv) => getUVInner(textures["px"], uv));
-
-      // nz
-      const side3UVs = [
-        [0, 0],
-        [1, 0],
-        [0, 1],
-        [1, 1],
-      ].map((uv) => getUVInner(textures["nz"], uv));
-
-      // pz
-      const side4UVs = [
-        [0, 0],
-        [1, 0],
-        [0, 1],
-        [1, 1],
-      ].map((uv) => getUVInner(textures["pz"], uv));
-
-      return {
-        px: [side2UVs, 1],
-        py: [topUVs, 3],
-        pz: [side4UVs, 0],
-        nx: [side1UVs, 1],
-        ny: [bottomUVs, 1],
-        nz: [side3UVs, 0],
-      };
-    } else if (isPlant) {
-      const oneUVs = [
-        [0, 1],
-        [0, 0],
-        [1, 1],
-        [1, 0],
-      ].map((uv) => getUVInner(textures["one"], uv));
-      return { one: [oneUVs, 1] };
-    }
-    return {};
-  };
-
   makeSideName = (name: string, side: string) => {
     return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
@@ -246,20 +157,6 @@ class Registry {
     }
     return i;
   }
-
-  private getUVMap = (block: Block) => {
-    const uvMap: { [key: string]: TextureRange } = {};
-
-    block.faces.forEach((side) => {
-      const sideName = this.makeSideName(block.name, side.name);
-      const uv = this.ranges.get(sideName);
-      if (!uv)
-        throw new Error(`UV range not found: ${sideName} - ${block.name}`);
-      uvMap[side.name] = uv;
-    });
-
-    return uvMap;
-  };
 
   private recordBlock = (block: Block) => {
     const { name, id, faces, aabbs } = block;

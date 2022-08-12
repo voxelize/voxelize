@@ -95,6 +95,7 @@ class TextureAtlas {
       }
 
       if (context) {
+        // Draw a background first.
         context.drawImage(
           texture.image,
           (startU - offset) * canvasWidth,
@@ -102,6 +103,16 @@ class TextureAtlas {
           dimension * r + 2 * margin,
           dimension * r + 2 * margin
         );
+
+        // Carve out the middle.
+        context.clearRect(
+          (startU - offset) * canvasWidth + margin,
+          (1 - endV - offset) * canvasHeight + margin,
+          dimension * r,
+          dimension * r
+        );
+
+        // Draw the actual texture.
         context.drawImage(
           texture.image,
           (startU - offset) * canvasWidth + margin,

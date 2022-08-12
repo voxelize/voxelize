@@ -220,16 +220,6 @@ impl Registry {
         self.get_block_by_id(id).is_fluid
     }
 
-    /// Check if block is a plant by id.
-    pub fn is_plant(&self, id: u32) -> bool {
-        self.get_block_by_id(id).is_plant
-    }
-
-    /// Check if block is plantable by id.
-    pub fn is_plantable(&self, id: u32, above: u32) -> bool {
-        self.get_block_by_id(id).is_plantable && self.get_block_by_id(above).is_empty
-    }
-
     /// Get type map of all blocks.
     pub fn get_type_map(&self, blocks: &[&str]) -> HashMap<String, u32> {
         let mut type_map = HashMap::new();
@@ -248,8 +238,7 @@ impl Registry {
 
     /// Logic for checking max height, returning true if id counts as valid max height.
     pub fn check_height(&self, id: u32) -> bool {
-        let block = self.get_block_by_id(id);
-        id != 0 && !block.is_plant
+        id != 0
     }
 
     /// Check if registry contains type.

@@ -14,8 +14,7 @@ export type Block = {
   isEmpty: boolean;
   isFluid: boolean;
   isLight: boolean;
-  isPlant: boolean;
-  isPlantable: boolean;
+  isPassable: boolean;
   isOpaque: boolean;
   isSeeThrough: boolean;
   isPxTransparent: boolean;

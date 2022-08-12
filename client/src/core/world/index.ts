@@ -13,6 +13,7 @@ import {
   sRGBEncoding,
   Texture,
   UniformsUtils,
+  Vector2,
   Vector3,
   Vector4,
 } from "three";
@@ -335,18 +336,6 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
-   * Get the UV for the block type.
-   *
-   * @param id - The ID of the block type.
-   *
-   * @hidden
-   * @internal
-   */
-  getUV = (id: number): { [key: string]: [any[][], number] } => {
-    return this.registry.getUV(id);
-  };
-
-  /**
    * Applies the server settings onto this world.
    * Caution: do not call this after game started!
    *
@@ -448,6 +437,11 @@ export class World extends Scene implements NetIntercept {
   getBlockByVoxel = (vx: number, vy: number, vz: number) => {
     const voxel = this.getVoxelByVoxel(vx, vy, vz);
     return this.registry.getBlockById(voxel);
+  };
+
+  getBlockByWorld = (wx: number, wy: number, wz: number) => {
+    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    return this.getBlockByVoxel(...voxel);
   };
 
   isWithinWorld = (cx: number, cz: number) => {
@@ -680,7 +674,8 @@ export class World extends Scene implements NetIntercept {
       (vx: number, vy: number, vz: number) => {
         const id = this.getVoxelByVoxel(vx, vy, vz);
         const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
-        const { aabbs } = this.getBlockById(id);
+        const { aabbs, isPassable } = this.getBlockById(id);
+        if (isPassable) return [];
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
         );
@@ -873,18 +868,18 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.atlas.value = this.atlas.texture;
 
     if (this.materials.opaque) {
-      this.materials.opaque.map = this.atlas.texture;
+      this.materials.opaque.map = this.atlas.texture.clone();
     } else {
       this.materials.opaque = this.makeShaderMaterial();
     }
 
     if (this.materials.transparent) {
-      this.materials.transparent.map = this.atlas.texture;
+      this.materials.transparent.map = this.atlas.texture.clone();
     } else {
       const mat = this.makeShaderMaterial();
       mat.side = DoubleSide;
       mat.transparent = true;
-      mat.alphaTest = 0.1;
+      mat.alphaTest = 0.3;
       this.materials.transparent = mat;
     }
   };
