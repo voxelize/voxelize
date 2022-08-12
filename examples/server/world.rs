@@ -8,6 +8,7 @@ const RIVER_HEIGHT: f64 = 0.20;
 const PLAINS_HEIGHT: f64 = 0.24;
 const RIVER_TO_PLAINS: f64 = 0.06;
 
+const VARIANCE: f64 = 3.0;
 const SNOW_HEIGHT: i32 = 90;
 const STONE_HEIGHT: i32 = 80;
 
@@ -47,6 +48,9 @@ impl ChunkStage for SoilingStage {
             for vz in chunk.min.2..chunk.max.2 {
                 let height = chunk.get_max_height(vx, vz) as i32;
 
+                let snow_height = SNOW_HEIGHT + (self.noise.get2d(vx, vz) * VARIANCE) as i32;
+                let stone_height = STONE_HEIGHT + (self.noise.get2d(vx, vz) * VARIANCE) as i32;
+
                 for vy in 0..=(height.max(water_level)) {
                     let depth = 2;
 
@@ -60,9 +64,9 @@ impl ChunkStage for SoilingStage {
 
                     if height > water_level {
                         if vy >= height - depth {
-                            if vy > SNOW_HEIGHT {
+                            if vy > snow_height {
                                 chunk.set_voxel(vx, vy, vz, snow.id);
-                            } else if vy > STONE_HEIGHT {
+                            } else if vy > stone_height {
                                 chunk.set_voxel(vx, vy, vz, stone.id);
                             } else {
                                 if vy == height {

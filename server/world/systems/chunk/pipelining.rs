@@ -1,5 +1,5 @@
 use nanoid::nanoid;
-use specs::{ReadExpect, System, WriteExpect};
+use specs::{ReadExpect, System, World, WriteExpect};
 
 use crate::{
     Chunk, ChunkParams, ChunkUtils, Chunks, Pipeline, Registry, SeededNoise, Terrain, Vec2,
@@ -11,6 +11,7 @@ pub struct ChunkPipeliningSystem;
 
 impl<'a> System<'a> for ChunkPipeliningSystem {
     type SystemData = (
+        ReadExpect<'a, World>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, SeededNoise>,
@@ -20,7 +21,7 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (registry, config, noise, terrain, mut pipeline, mut chunks) = data;
+        let (ecs, registry, config, noise, terrain, mut pipeline, mut chunks) = data;
 
         let max_per_tick = config.max_chunks_per_tick;
         let chunk_size = config.chunk_size;
