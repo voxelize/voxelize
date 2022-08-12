@@ -5,15 +5,14 @@ use hashbrown::{HashMap, HashSet};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::thread::spawn;
 
-use crate::{BlockChange, Chunk, Registry, Space, SpaceData, Vec2, Vec3, VoxelAccess, WorldConfig};
-
-use super::{noise::SeededNoise, terrain::Terrain};
+use crate::{
+    BlockChange, Chunk, NoiseParams, Registry, SeededNoise, Space, SpaceData, Terrain, Vec2, Vec3,
+    VoxelAccess, WorldConfig,
+};
 
 pub struct Resources<'a> {
     pub registry: &'a Registry,
     pub config: &'a WorldConfig,
-    pub noise: &'a SeededNoise,
-    pub terrain: &'a Terrain,
 }
 
 /// A stage in the pipeline where a chunk gets populated.
@@ -156,11 +155,24 @@ impl ChunkStage for FlatlandStage {
 pub struct BaseTerrainStage {
     threshold: f64,
     base: u32,
+    terrain: Terrain,
 }
 
 impl BaseTerrainStage {
-    pub fn new(threshold: f64, base: u32) -> Self {
-        Self { threshold, base }
+    pub fn new(terrain: Terrain) -> Self {
+        Self {
+            threshold: 0.0,
+            base: 0,
+            terrain,
+        }
+    }
+
+    pub fn set_base(&mut self, base: u32) {
+        self.base = base;
+    }
+
+    pub fn set_threshold(&mut self, threshold: f64) {
+        self.threshold = threshold;
     }
 }
 
@@ -169,16 +181,14 @@ impl ChunkStage for BaseTerrainStage {
         "Base Terrain".to_owned()
     }
 
-    fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
+    fn process(&self, mut chunk: Chunk, _: Resources, _: Option<Space>) -> Chunk {
         let Vec3(min_x, min_y, min_z) = chunk.min;
         let Vec3(max_x, max_y, max_z) = chunk.max;
-
-        let terrain = resources.terrain;
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
                 for vy in min_y..max_y {
-                    let density = terrain.get_density_at(vx, vy, vz);
+                    let density = self.terrain.get_density_at(vx, vy, vz);
 
                     if density > self.threshold {
                         chunk.set_voxel(vx, vy, vz, self.base);
@@ -295,8 +305,6 @@ impl Pipeline {
         processes: Vec<(Chunk, Option<Space>, usize)>,
         registry: &Registry,
         config: &WorldConfig,
-        noise: &SeededNoise,
-        terrain: &Terrain,
     ) {
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
@@ -311,8 +319,6 @@ impl Pipeline {
 
         let registry = registry.to_owned();
         let config = config.to_owned();
-        let noise = noise.to_owned();
-        let terrain = terrain.to_owned();
 
         spawn(move || {
             let results: Vec<(Chunk, Vec<(Vec3<i32>, u32)>)> = processes
@@ -325,8 +331,6 @@ impl Pipeline {
                         Resources {
                             registry: &registry,
                             config: &config,
-                            noise: &noise,
-                            terrain: &terrain,
                         },
                         space,
                     );

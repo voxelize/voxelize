@@ -1,6 +1,6 @@
 use voxelize::{
     BaseTerrainStage, Chunk, ChunkStage, HeightMapStage, NoiseParams, Resources, SeededNoise,
-    Space, TerrainLayer, VoxelAccess, World, WorldConfig,
+    Space, Terrain, TerrainLayer, VoxelAccess, World, WorldConfig,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -34,7 +34,6 @@ impl ChunkStage for SoilingStage {
         let registry = resources.registry;
 
         let water_level = config.water_level as i32;
-        let max_height = config.max_height as i32;
 
         let water = registry.get_block_by_name("Water");
         let sand = registry.get_block_by_name("Sand");
@@ -117,34 +116,36 @@ pub fn setup_world() -> World {
 
     let mut world = World::new("world1", &config);
 
-    {
-        let mut terrain = world.terrain_mut();
+    let mut terrain = Terrain::new(&config);
 
-        let continentalness = TerrainLayer::new(
-            "continentalness",
-            &NoiseParams::new()
-                .frequency(0.0035)
-                .octaves(7)
-                .persistence(0.5)
-                .lacunarity(1.8)
-                .build(),
-        )
-        .add_bias_points(&[[-1.0, 3.0], [0.0, 2.0], [1.0, 3.0]])
-        .add_offset_points(&[
-            [-1.0, MOUNTAIN_HEIGHT + RIVER_HEIGHT],
-            [-RIVER_TO_PLAINS, PLAINS_HEIGHT],
-            [0.0, RIVER_HEIGHT],
-            [RIVER_TO_PLAINS, PLAINS_HEIGHT],
-            [1.0, PLAINS_HEIGHT],
-        ]);
+    let continentalness = TerrainLayer::new(
+        "continentalness",
+        &NoiseParams::new()
+            .frequency(0.0035)
+            .octaves(7)
+            .persistence(0.5)
+            .lacunarity(1.8)
+            .build(),
+    )
+    .add_bias_points(&[[-1.0, 3.0], [0.0, 2.0], [1.0, 3.0]])
+    .add_offset_points(&[
+        [-1.0, MOUNTAIN_HEIGHT + RIVER_HEIGHT],
+        [-RIVER_TO_PLAINS, PLAINS_HEIGHT],
+        [0.0, RIVER_HEIGHT],
+        [RIVER_TO_PLAINS, PLAINS_HEIGHT],
+        [1.0, PLAINS_HEIGHT],
+    ]);
 
-        terrain.add_layer(&continentalness, 0.8);
-    }
+    terrain.add_layer(&continentalness, 0.8);
 
     {
         let mut pipeline = world.pipeline_mut();
 
-        pipeline.add_stage(BaseTerrainStage::new(0.0, 2));
+        let mut terrain_stage = BaseTerrainStage::new(terrain);
+        terrain_stage.set_base(2);
+        terrain_stage.set_threshold(0.0);
+
+        pipeline.add_stage(terrain_stage);
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(SoilingStage::new(
             config.seed,

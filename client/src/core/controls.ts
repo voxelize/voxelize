@@ -1034,9 +1034,9 @@ export class RigidControls extends EventEmitter {
 
         const id = this.world.getVoxelByVoxel(x, y, z);
         const rotation = this.world.getVoxelRotationByVoxel(x, y, z);
-        const { aabbs, isFluid } = this.world.getBlockById(id);
+        const { aabbs } = this.world.getBlockById(id);
 
-        return isFluid ? [] : aabbs.map((aabb) => rotation.rotateAABB(aabb));
+        return aabbs.map((aabb) => rotation.rotateAABB(aabb));
       },
       [camPos.x, camPos.y, camPos.z],
       [camDir.x, camDir.y, camDir.z],

@@ -95,6 +95,7 @@ const App = () => {
       renderer.domElement.offsetWidth,
       renderer.domElement.offsetHeight
     );
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
 
     renderer.outputEncoding = sRGBEncoding;
 
