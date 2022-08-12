@@ -1,6 +1,6 @@
 use voxelize::{
     BaseTerrainStage, Chunk, ChunkStage, HeightMapStage, NoiseParams, Resources, SeededNoise,
-    Space, Terrain, TerrainLayer, VoxelAccess, World, WorldConfig,
+    Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -17,8 +17,8 @@ struct SoilingStage {
 }
 
 impl SoilingStage {
-    pub fn new(seed: u32, params: &NoiseParams) -> SoilingStage {
-        SoilingStage {
+    pub fn new(seed: u32, params: &NoiseParams) -> Self {
+        Self {
             noise: SeededNoise::new(seed, params),
         }
     }
@@ -101,6 +101,50 @@ impl ChunkStage for SoilingStage {
     }
 }
 
+struct TreeStage {
+    threshold: f64,
+    noise: SeededNoise,
+    trees: Trees,
+}
+
+impl TreeStage {
+    pub fn new(seed: u32, threshold: f64, params: &NoiseParams, trees: Trees) -> Self {
+        Self {
+            threshold,
+            noise: SeededNoise::new(seed, params),
+            trees,
+        }
+    }
+}
+
+impl ChunkStage for TreeStage {
+    fn name(&self) -> String {
+        "Trees".to_owned()
+    }
+
+    fn process(&self, mut chunk: Chunk, resources: Resources, space: Option<Space>) -> Chunk {
+        let leaves = resources.registry.get_block_by_name("Oak Leaves");
+        let trunk = resources.registry.get_block_by_name("Oak Log");
+
+        for vx in chunk.min.0..chunk.max.0 {
+            for vz in chunk.min.2..chunk.max.2 {
+                let height = chunk.get_max_height(vx, vz) as i32;
+
+                if self.noise.get2d(vx, vz) > self.threshold {
+                    self.trees
+                        .generate("Oak", &Vec3(vx, height, vz))
+                        .into_iter()
+                        .for_each(|(Vec3(ux, uy, uz), id)| {
+                            chunk.set_voxel(ux, uy, uz, id);
+                        });
+                }
+            }
+        }
+
+        chunk
+    }
+}
+
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
         .terrain(
@@ -145,11 +189,25 @@ pub fn setup_world() -> World {
         terrain_stage.set_base(2);
         terrain_stage.set_threshold(0.0);
 
+        let oak = Tree::new(44, 43).leaf_height(2).leaf_radius(2).build();
+        let mut trees = Trees::new(
+            config.seed,
+            &NoiseParams::new().frequency(0.04).lacunarity(2.9).build(),
+        );
+        trees.register("Oak", oak);
+
         pipeline.add_stage(terrain_stage);
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(SoilingStage::new(
             config.seed,
             &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
+        ));
+        pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(TreeStage::new(
+            config.seed,
+            3.5,
+            &NoiseParams::new().build(),
+            trees,
         ));
     }
 

@@ -8,7 +8,7 @@ use std::thread::spawn;
 
 use crate::{
     Block, BlockFace, BlockRotation, Chunk, CornerData, Geometry, LightUtils, MeshProtocol,
-    Registry, Space, Vec3, VoxelAccess, WorldConfig, UV,
+    Registry, Space, Vec3, VoxelAccess, WorldConfig, AABB, UV,
 };
 
 use super::lights::Lights;
@@ -203,15 +203,34 @@ impl Mesher {
                         // b. transparent mode
                         //    1. itself is see-through (water & leaves)
                         //       - if the neighbor is the same, then mesh if standalone (leaves).
-                        //       - not the same, don't mesh.
+                        //       - not the same, and both are see-through, then mesh (leaves + water).
+                        //       - not the same, and the bounding boxes do not intersect, then mesh.
                         // c. opaque mode
                         //    1. ignore all see-through blocks (transparent)
                         //    2. if one of them is not opaque, mesh.
                         if (n_is_void || n_block_type.is_empty)
                             || (transparent
-                                && (is_see_through
+                                && ((is_see_through
                                     && neighbor_id == voxel_id
-                                    && n_block_type.transparent_standalone))
+                                    && n_block_type.transparent_standalone)
+                                    || (neighbor_id != voxel_id
+                                        && is_see_through
+                                        && n_block_type.is_see_through)
+                                    || ({
+                                        if is_see_through && n_block_type.is_opaque {
+                                            let self_bounding = AABB::union(&block.aabbs);
+                                            let mut n_bounding = AABB::union(&n_block_type.aabbs);
+                                            n_bounding.translate(
+                                                dir[0] as f32,
+                                                dir[1] as f32,
+                                                dir[2] as f32,
+                                            );
+                                            !(self_bounding.intersects(&n_bounding)
+                                                || self_bounding.touches(&n_bounding))
+                                        } else {
+                                            false
+                                        }
+                                    })))
                             || (!transparent && (!is_opaque || !n_block_type.is_opaque))
                         {
                             let UV {
@@ -239,9 +258,9 @@ impl Mesher {
                                 let pos_z = pos[2] + vz as f32;
 
                                 let scale = if is_opaque { 0.0 } else { 0.0001 };
-                                positions.push(pos_x as f32 - dir[0] as f32 * scale);
+                                positions.push(pos_x as f32 - min_x as f32 - dir[0] as f32 * scale);
                                 positions.push(pos_y - dir[1] as f32 * scale);
-                                positions.push(pos_z as f32 - dir[2] as f32 * scale);
+                                positions.push(pos_z as f32 - min_z as f32 - dir[2] as f32 * scale);
 
                                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                                 uvs.push(uv[1] * (end_v - start_v) + start_v);

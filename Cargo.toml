@@ -47,6 +47,7 @@ noise = "0.7.0"
 num = "0.4.0"
 prost = "0.11.0"
 rand = "0.8.5"
+rand_chacha = "0.3.1"
 rapier3d = {version = "0.14.0", features = ["simd-stable"]}
 rayon = "1.5.2"
 serde = {version = "1.0.136", features = ["derive"]}

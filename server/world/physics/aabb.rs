@@ -24,6 +24,62 @@ impl AABB {
         AABBBuilder::new()
     }
 
+    /// Return an empty AABB.
+    pub fn empty() -> Self {
+        Self {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 0.0,
+            max_y: 0.0,
+            max_z: 0.0,
+        }
+    }
+
+    /// Calculate the union of a set of AABBs.
+    pub fn union(all: &[AABB]) -> AABB {
+        if all.is_empty() {
+            return AABB::empty();
+        }
+
+        let mut min_x = all[0].min_x;
+        let mut min_y = all[0].min_y;
+        let mut min_z = all[0].min_z;
+        let mut max_x = all[0].max_x;
+        let mut max_y = all[0].max_y;
+        let mut max_z = all[0].max_z;
+
+        for aabb in all {
+            if aabb.min_x < min_x {
+                min_x = aabb.min_x;
+            }
+            if aabb.min_y < min_y {
+                min_y = aabb.min_y;
+            }
+            if aabb.min_z < min_z {
+                min_z = aabb.min_z;
+            }
+            if aabb.max_x > max_x {
+                max_x = aabb.max_x;
+            }
+            if aabb.max_y > max_y {
+                max_y = aabb.max_y;
+            }
+            if aabb.max_z > max_z {
+                max_z = aabb.max_z;
+            }
+        }
+
+        AABB {
+            min_x,
+            min_y,
+            min_z,
+            max_x,
+            max_y,
+            max_z,
+        }
+    }
+
     /// The width of this AABB, max_x - min_x.
     #[inline]
     pub fn width(&self) -> f32 {
@@ -77,6 +133,48 @@ impl AABB {
         self.max_x = other.max_x;
         self.max_y = other.max_y;
         self.max_z = other.max_z;
+    }
+
+    /// Get the intersection of this AABB with another AABB.
+    pub fn intersection(&self, other: &AABB) -> AABB {
+        AABB {
+            min_x: self.min_x.max(other.min_x),
+            min_y: self.min_y.max(other.min_y),
+            min_z: self.min_z.max(other.min_z),
+            max_x: self.max_x.min(other.max_x),
+            max_y: self.max_y.min(other.max_y),
+            max_z: self.max_z.min(other.max_z),
+        }
+    }
+
+    /// Check if this AABB touches the other AABB.
+    pub fn touches(&self, other: &AABB) -> bool {
+        let intersection = self.intersection(other);
+
+        intersection.width() == 0.0 || intersection.height() == 0.0 || intersection.depth() == 0.0
+    }
+
+    /// Check if this AABB intersects the other AABB.
+    pub fn intersects(&self, other: &AABB) -> bool {
+        if other.min_x >= self.max_x {
+            return false;
+        }
+        if other.min_y >= self.max_y {
+            return false;
+        }
+        if other.min_z >= self.max_z {
+            return false;
+        }
+        if other.max_x <= self.min_x {
+            return false;
+        }
+        if other.max_y <= self.min_y {
+            return false;
+        }
+        if other.max_z <= self.min_z {
+            return false;
+        }
+        true
     }
 }
 

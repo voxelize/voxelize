@@ -120,6 +120,8 @@ const App = () => {
       }
     );
 
+    renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
+
     const network = new VOXELIZE.Network();
 
     setupWorld(world);

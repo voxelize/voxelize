@@ -5,8 +5,9 @@ use registry::setup_registry;
 use serde_json::Value;
 use specs::{Builder, Component, Entity, EntityBuilder, NullStorage, WorldExt};
 use voxelize::{
-    default_client_parser, ChunkStage, FlatlandStage, InteractorComp, MetadataComp, PositionComp,
-    RigidBody, RigidBodyComp, Server, Vec3, VoxelAccess, Voxelize, World, WorldConfig, AABB,
+    default_client_parser, ChunkStage, FlatlandStage, InteractorComp, LSystem, MetadataComp,
+    PositionComp, RigidBody, RigidBodyComp, Server, Vec3, VoxelAccess, Voxelize, World,
+    WorldConfig, AABB,
 };
 use world::setup_world;
 
@@ -134,6 +135,14 @@ async fn main() -> std::io::Result<()> {
     server
         .add_world(setup_world())
         .expect("Could not create world1.");
+
+    let l_system = LSystem::new()
+        .axiom("FR")
+        .iterations(2)
+        .rule('F', "FRF")
+        .build();
+
+    info!("Result: {:?}", l_system.generate());
 
     // let config2 = WorldConfig::new()
     //     .min_chunk([-100, -100])
