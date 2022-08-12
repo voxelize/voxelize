@@ -68,8 +68,9 @@ class ChunkMesh extends Group {
         mesh = new Mesh(new BufferGeometry(), materials[type]);
         mesh.name = `${this.chunk.name}-${type}-${level}`;
         mesh.matrixAutoUpdate = false;
-        // mesh.renderOrder =
-        // type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
+        mesh.renderOrder =
+          type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
+        mesh.userData.isChunk = true;
         // mesh.frustumCulled = false;
         mesh.position.set(...this.chunk.min);
         mesh.updateMatrix();

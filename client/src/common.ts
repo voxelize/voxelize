@@ -4,7 +4,15 @@ export const TRANSPARENT_RENDER_ORDER = 100000;
 export const OPAQUE_RENDER_ORDER = 100;
 
 export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
-  if (a.object && a.object.isMesh && b.object && b.object.isMesh) {
+  // Custom chunk sorting logic, to ensure that the closest objects are rendered last.
+  if (
+    a.object &&
+    a.object.isMesh &&
+    a.object.userData.isChunk &&
+    b.object &&
+    b.object.isMesh &&
+    b.object.userData.isChunk
+  ) {
     const aPos = new Vector3();
     a.object.getWorldPosition(aPos);
 
@@ -17,9 +25,14 @@ export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
     );
   }
 
-  if (a.z !== b.z) {
+  // https://github.com/mrdoob/three.js/blob/d0af538927/src/renderers/webgl/WebGLRenderLists.js
+  if (a.groupOrder !== b.groupOrder) {
+    return a.groupOrder - b.groupOrder;
+  } else if (a.renderOrder !== b.renderOrder) {
+    return a.renderOrder - b.renderOrder;
+  } else if (a.z !== b.z) {
     return b.z - a.z;
+  } else {
+    return a.id - b.id;
   }
-
-  return a.id - b.id;
 };
