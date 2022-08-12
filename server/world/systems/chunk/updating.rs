@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use hashbrown::HashMap;
+use log::info;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, System, WriteExpect};
 
@@ -411,11 +412,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         let max = Vec3(max_x, (level + 1) * blocks_per_sub_chunk, max_z);
 
                         let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
-                        let transparent = Mesher::mesh_space(&min, &max, &space, &registry, true);
+                        let transparent =
+                            Mesher::typed_mesh_space(&min, &max, &space, &registry, true);
 
                         (opaque, transparent, level)
                     })
-                    .collect::<Vec<(Option<Geometry>, Option<Geometry>, i32)>>()
+                    .collect::<Vec<(Option<Geometry>, Vec<Geometry>, i32)>>()
                     .into_iter()
                     .for_each(|(opaque, transparent, level)| {
                         if chunk.meshes.is_none() {

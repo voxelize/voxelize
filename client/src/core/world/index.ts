@@ -1,10 +1,11 @@
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import {
+  BackSide,
   BufferGeometry,
   Color,
-  DoubleSide,
   Float32BufferAttribute,
+  FrontSide,
   Mesh,
   MeshBasicMaterial,
   Scene,
@@ -154,7 +155,10 @@ export class World extends Scene implements NetIntercept {
    */
   public materials: {
     opaque?: CustomShaderMaterial;
-    transparent?: CustomShaderMaterial;
+    transparent?: {
+      front: CustomShaderMaterial;
+      back: CustomShaderMaterial;
+    };
   } = {};
 
   public packets: MessageProtocol[] = [];
@@ -873,13 +877,23 @@ export class World extends Scene implements NetIntercept {
     }
 
     if (this.materials.transparent) {
-      this.materials.transparent.map = this.atlas.texture.clone();
+      this.materials.transparent.front.map = this.atlas.texture.clone();
+      this.materials.transparent.back.map = this.atlas.texture.clone();
     } else {
-      const mat = this.makeShaderMaterial();
-      mat.side = DoubleSide;
-      mat.transparent = true;
-      mat.alphaTest = 0.3;
-      this.materials.transparent = mat;
+      this.materials.transparent = {} as any;
+
+      const makeTransparentMat = () => {
+        const mat = this.makeShaderMaterial();
+        mat.transparent = true;
+        mat.alphaTest = 0.1;
+        return mat;
+      };
+
+      this.materials.transparent.front = makeTransparentMat();
+      this.materials.transparent.back = makeTransparentMat();
+
+      this.materials.transparent.front.side = FrontSide;
+      this.materials.transparent.back.side = BackSide;
     }
   };
 
@@ -971,7 +985,6 @@ worldPosition = modelMatrix * worldPosition;
 vWorldPosition = worldPosition;
 `
         ),
-
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         map: this.uniforms.atlas,

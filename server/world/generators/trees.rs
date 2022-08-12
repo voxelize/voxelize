@@ -4,6 +4,7 @@ use rand_chacha::ChaChaRng;
 
 use crate::{BlockChange, NoiseParams, SeededNoise, Vec3};
 
+#[derive(Clone)]
 pub struct Trees {
     noise: SeededNoise,
     rand: ChaChaRng,
@@ -79,6 +80,7 @@ impl Trees {
     }
 }
 
+#[derive(Clone)]
 pub struct Tree {
     leaf_radius: u32,
     leaf_height: u32,

@@ -9,7 +9,6 @@ import {
   Scene,
 } from "three";
 
-import { OPAQUE_RENDER_ORDER, TRANSPARENT_RENDER_ORDER } from "../../common";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../../utils";
 
@@ -23,7 +22,7 @@ type ChunkParams = {
 
 class ChunkMesh extends Group {
   public opaque = new Map<number, Mesh>();
-  public transparent = new Map<number, Mesh>();
+  public transparent = new Map<number, Mesh[][]>();
 
   constructor(public chunk: Chunk) {
     super();
@@ -33,7 +32,13 @@ class ChunkMesh extends Group {
 
   set = (
     meshData: MeshProtocol,
-    materials: { opaque?: Material; transparent?: Material }
+    materials: {
+      opaque?: Material;
+      transparent?: {
+        front: Material;
+        back: Material;
+      };
+    }
   ) => {
     let { level } = meshData;
 
@@ -41,11 +46,16 @@ class ChunkMesh extends Group {
       level = 0;
     }
 
-    ["opaque", "transparent"].forEach((type) => {
-      const data = meshData[type];
-      const map = this[type];
+    const partition = this.chunk.params.maxHeight / this.chunk.params.subChunks;
 
-      if (!data) {
+    // Process opaque meshes first
+    (() => {
+      if (!meshData.opaque) return;
+      const { opaque } = meshData;
+      const map = this.opaque;
+
+      // If opaque DNE, means used to be a mesh but now there isn't. Remove it.
+      if (!opaque) {
         const existing = map.get(level);
 
         if (existing) {
@@ -55,25 +65,32 @@ class ChunkMesh extends Group {
         return;
       }
 
-      const { positions, indices, uvs, lights } = data;
+      const { positions, indices, uvs, lights } = opaque;
 
       // No mesh actually
       if (positions.length === 0 || indices.length === 0) {
         return;
       }
 
+      // Process it.
       let mesh = map.get(level) as Mesh;
 
       if (!mesh) {
-        mesh = new Mesh(new BufferGeometry(), materials[type]);
-        mesh.name = `${this.chunk.name}-${type}-${level}`;
+        mesh = new Mesh(new BufferGeometry(), materials.opaque);
+        mesh.name = `${this.chunk.name}-opaque`;
         mesh.matrixAutoUpdate = false;
-        mesh.renderOrder =
-          type === "opaque" ? OPAQUE_RENDER_ORDER : TRANSPARENT_RENDER_ORDER;
         mesh.userData.isChunk = true;
-        // mesh.frustumCulled = false;
-        mesh.position.set(...this.chunk.min);
-        mesh.updateMatrix();
+        mesh.position.set(
+          this.chunk.min[0],
+          level * partition,
+          this.chunk.min[2]
+        );
+        // TODO: is this good?
+        requestAnimationFrame(() => {
+          mesh.updateMatrix();
+          mesh.visible = true;
+        });
+        mesh.visible = false;
         map.set(level, mesh);
       }
 
@@ -96,13 +113,93 @@ class ChunkMesh extends Group {
         new BufferAttribute(new Int32Array(lights), 1)
       );
       geometry.setIndex(Array.from(new Uint32Array(indices)));
-    });
+    })();
+
+    // Process transparent meshes next
+    (() => {
+      if (!meshData.transparent) return;
+
+      const { transparent } = meshData;
+      const map = this.transparent;
+
+      // If transparent DNE, means used to be a mesh but now there isn't. Remove it.
+      const existing = map.get(level);
+      if (existing) {
+        existing.forEach((meshes) => {
+          meshes.forEach((mesh) => {
+            this.remove(mesh);
+          });
+        });
+      }
+      map.delete(level);
+
+      const arr = transparent
+        .map((meshData) => {
+          const meshes = [];
+
+          ["front", "back"].forEach((side) => {
+            const { positions, indices, uvs, lights } = meshData;
+
+            // No mesh actually
+            if (positions.length === 0 || indices.length === 0) {
+              return;
+            }
+
+            const mesh = new Mesh(
+              new BufferGeometry(),
+              materials.transparent[side]
+            );
+
+            const geometry = mesh.geometry;
+
+            geometry.setAttribute(
+              "position",
+              new BufferAttribute(new Float32Array(positions), 3)
+            );
+            geometry.setAttribute(
+              "uv",
+              new BufferAttribute(new Float32Array(uvs), 2)
+            );
+            geometry.setAttribute(
+              "light",
+              new BufferAttribute(new Int32Array(lights), 1)
+            );
+            geometry.setIndex(Array.from(new Uint32Array(indices)));
+
+            geometry.computeBoundingBox();
+
+            mesh.name = `${this.chunk.name}-transparent`;
+            mesh.matrixAutoUpdate = false;
+            mesh.userData.isChunk = true;
+            mesh.position.set(
+              this.chunk.min[0] + (side === "front" ? 0 : 0.001),
+              level * partition + (side === "front" ? 0 : 0.001),
+              this.chunk.min[2] + (side === "front" ? 0 : 0.001)
+            );
+            mesh.updateMatrix();
+
+            meshes.push(mesh);
+            this.add(mesh);
+          });
+
+          return meshes;
+        })
+        .filter(Boolean);
+
+      map.set(level, arr);
+    })();
   };
 
   dispose = () => {
-    [this.opaque, this.transparent].forEach((map) => {
-      map.forEach((mesh) => {
-        mesh.geometry.dispose();
+    this.opaque.forEach((mesh) => {
+      mesh.geometry.dispose();
+    });
+
+    this.transparent.forEach((groups) => {
+      groups.forEach((group) => {
+        group.forEach((mesh) => {
+          mesh.geometry?.dispose();
+        });
       });
     });
   };
@@ -148,7 +245,13 @@ class Chunk {
 
   build = (
     data: ChunkProtocol,
-    materials: { opaque?: Material; transparent?: Material }
+    materials: {
+      opaque?: Material;
+      transparent?: {
+        front: Material;
+        back: Material;
+      };
+    }
   ) => {
     const { meshes, lights, voxels } = data;
 
@@ -158,14 +261,8 @@ class Chunk {
     if (meshes) {
       let frame = 0;
 
-      const filtered = meshes.filter((mesh) => {
-        return (
-          mesh.opaque?.positions.length || mesh.transparent?.positions.length
-        );
-      });
-
       const update = (index = 0) => {
-        const data = filtered[index];
+        const data = meshes[index];
 
         if (data) {
           this.mesh.set(data, materials);

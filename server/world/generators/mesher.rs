@@ -100,11 +100,12 @@ impl Mesher {
                                 Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
                             let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
-                            let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
+                            let transparent =
+                                Self::typed_mesh_space(&min, &max, &space, &registry, true);
 
                             (opaque, transparent, level)
                         })
-                        .collect::<Vec<(Option<Geometry>, Option<Geometry>, i32)>>()
+                        .collect::<Vec<(Option<Geometry>, Vec<Geometry>, i32)>>()
                         .into_iter()
                         .for_each(|(opaque, transparent, level)| {
                             if chunk.meshes.is_none() {
@@ -136,7 +137,6 @@ impl Mesher {
 
     /// Mesh a Space struct from specified voxel coordinates, generating the 3D data needed
     /// to render a chunk/space.
-    // #[allow(clippy::all)]
     pub fn mesh_space(
         min: &Vec3<i32>,
         max: &Vec3<i32>,
@@ -199,7 +199,6 @@ impl Mesher {
                                     &mut uvs,
                                     &mut lights,
                                     min,
-                                    max,
                                 )
                             });
                         }
@@ -213,11 +212,90 @@ impl Mesher {
         }
 
         Some(Geometry {
+            identifier: -1,
             positions,
             indices,
             uvs,
             lights,
         })
+    }
+
+    /// Mesh this space and separate individual block types into their own meshes.
+    pub fn typed_mesh_space(
+        min: &Vec3<i32>,
+        max: &Vec3<i32>,
+        space: &Space,
+        registry: &Registry,
+        transparent: bool,
+    ) -> Vec<Geometry> {
+        let mut map: HashMap<u32, Geometry> = HashMap::new();
+
+        let &Vec3(min_x, min_y, min_z) = min;
+        let &Vec3(max_x, max_y, max_z) = max;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                let height = space.get_max_height(vx, vz) as i32;
+
+                if min_y > height {
+                    continue;
+                }
+
+                for vy in (min_y..=(max_y - 1).min(height) as i32).rev() {
+                    let voxel_id = space.get_voxel(vx, vy, vz);
+                    let rotation = space.get_voxel_rotation(vx, vy, vz);
+                    let block = registry.get_block_by_id(voxel_id);
+
+                    let Block {
+                        is_see_through,
+                        is_block,
+                        ..
+                    } = block.to_owned();
+
+                    if if transparent {
+                        is_see_through
+                    } else {
+                        !is_see_through
+                    } {
+                        if is_block {
+                            let Block { faces, .. } = block.to_owned();
+
+                            let mut geometry = map.remove(&voxel_id).unwrap_or_default();
+
+                            // !: Could break, since u32 has larger upper limit than i32.
+                            geometry.identifier = voxel_id as i32;
+
+                            let uv_map = registry.get_uv_map(block);
+
+                            faces.iter().for_each(|face| {
+                                Mesher::process_face(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    &rotation,
+                                    face,
+                                    block,
+                                    &uv_map,
+                                    &registry,
+                                    &space,
+                                    transparent,
+                                    &mut geometry.positions,
+                                    &mut geometry.indices,
+                                    &mut geometry.uvs,
+                                    &mut geometry.lights,
+                                    min,
+                                )
+                            });
+
+                            map.insert(voxel_id, geometry);
+                        }
+                    }
+                }
+            }
+        }
+
+        map.into_iter().map(|(_, geometry)| geometry).collect()
     }
 
     #[inline]
@@ -238,14 +316,13 @@ impl Mesher {
         uvs: &mut Vec<f32>,
         lights: &mut Vec<i32>,
         min: &Vec3<i32>,
-        max: &Vec3<i32>,
     ) {
         let &Vec3(min_x, min_y, min_z) = min;
-        let &Vec3(max_x, max_y, max_z) = max;
 
         let &Block {
             is_opaque,
             is_see_through,
+            transparent_standalone,
             rotatable,
             ..
         } = block;
@@ -287,7 +364,10 @@ impl Mesher {
                 && ((is_see_through
                     && neighbor_id == voxel_id
                     && n_block_type.transparent_standalone)
-                    || (neighbor_id != voxel_id && is_see_through && n_block_type.is_see_through)
+                    || (neighbor_id != voxel_id
+                        && is_see_through
+                        && transparent_standalone
+                        && n_block_type.is_see_through)
                     || ({
                         if is_see_through && n_block_type.is_opaque {
                             let self_bounding = AABB::union(&block.aabbs);
@@ -326,9 +406,9 @@ impl Mesher {
                 let pos_z = pos[2] + vz as f32;
 
                 let scale = if is_opaque { 0.0 } else { 0.0001 };
-                positions.push(pos_x as f32 - min_x as f32 - dir[0] as f32 * scale);
-                positions.push(pos_y - dir[1] as f32 * scale);
-                positions.push(pos_z as f32 - min_z as f32 - dir[2] as f32 * scale);
+                positions.push(pos_x - min_x as f32 - dir[0] as f32 * scale);
+                positions.push(pos_y - min_y as f32 - dir[1] as f32 * scale);
+                positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
 
                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                 uvs.push(uv[1] * (end_v - start_v) + start_v);

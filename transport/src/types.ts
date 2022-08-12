@@ -1,4 +1,5 @@
 export type GeometryProtocol = {
+  identifier: number;
   positions: number[];
   uvs: number[];
   indices: number[];
@@ -8,7 +9,7 @@ export type GeometryProtocol = {
 export type MeshProtocol = {
   level: number;
   opaque: GeometryProtocol;
-  transparent: GeometryProtocol;
+  transparent: GeometryProtocol[];
 };
 
 export type ChunkProtocol = {

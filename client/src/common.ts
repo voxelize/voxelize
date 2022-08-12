@@ -14,10 +14,25 @@ export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
     b.object.userData.isChunk
   ) {
     const aPos = new Vector3();
-    a.object.getWorldPosition(aPos);
-
     const bPos = new Vector3();
-    b.object.getWorldPosition(bPos);
+
+    const { object: aObj } = a;
+    const { object: bObj } = b;
+
+    const { geometry: aGeo } = aObj;
+    const { geometry: bGeo } = bObj;
+
+    if (aGeo && aGeo.boundingBox) {
+      aGeo.boundingBox.getCenter(aPos);
+    } else {
+      aObj.getWorldPosition(aPos);
+    }
+
+    if (bGeo && bGeo.boundingBox) {
+      bGeo.boundingBox.getCenter(bPos);
+    } else {
+      bObj.getWorldPosition(bPos);
+    }
 
     return (
       bPos.distanceToSquared(object.position) -

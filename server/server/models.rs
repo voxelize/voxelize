@@ -53,6 +53,7 @@ pub fn decode_message(buf: &[u8]) -> Result<Message, prost::DecodeError> {
 /// Protocol buffer compatible geometry data structure.
 #[derive(Debug, Clone, Default)]
 pub struct Geometry {
+    pub identifier: i32,
     pub positions: Vec<f32>,
     pub indices: Vec<i32>,
     pub uvs: Vec<f32>,
@@ -64,7 +65,7 @@ pub struct Geometry {
 pub struct MeshProtocol {
     pub level: i32,
     pub opaque: Option<Geometry>,
-    pub transparent: Option<Geometry>,
+    pub transparent: Vec<Geometry>,
 }
 
 /// Protocol buffer compatible chunk data structure.
@@ -235,22 +236,27 @@ impl MessageBuilder {
                         .into_iter()
                         .map(|mesh| {
                             let opaque = mesh.opaque.as_ref();
-                            let transparent = mesh.transparent.as_ref();
 
                             protocols::Mesh {
                                 level: mesh.level,
                                 opaque: opaque.map(|opaque| protocols::Geometry {
+                                    identifier: opaque.identifier,
                                     indices: opaque.indices.to_owned(),
                                     positions: opaque.positions.to_owned(),
                                     lights: opaque.lights.to_owned(),
                                     uvs: opaque.uvs.to_owned(),
                                 }),
-                                transparent: transparent.map(|transparent| protocols::Geometry {
-                                    indices: transparent.indices.to_owned(),
-                                    positions: transparent.positions.to_owned(),
-                                    lights: transparent.lights.to_owned(),
-                                    uvs: transparent.uvs.to_owned(),
-                                }),
+                                transparent: mesh
+                                    .transparent
+                                    .into_iter()
+                                    .map(|transparent| protocols::Geometry {
+                                        identifier: transparent.identifier,
+                                        indices: transparent.indices.to_owned(),
+                                        positions: transparent.positions.to_owned(),
+                                        lights: transparent.lights.to_owned(),
+                                        uvs: transparent.uvs.to_owned(),
+                                    })
+                                    .collect(),
                             }
                         })
                         .collect(),

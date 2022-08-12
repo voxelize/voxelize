@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import * as VOXELIZE from "@voxelize/client";
+import Stats from "stats.js";
 import {
   EffectComposer,
   EffectPass,
@@ -32,7 +33,7 @@ const GameCanvas = styled.canvas`
 
 const Position = styled.p`
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   margin: 8px;
   z-index: 100000;
@@ -59,10 +60,7 @@ const App = () => {
 
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
-      maxProcessesPerTick: 8,
       maxRequestsPerTick: 30,
-      // defaultRenderRadius: 3,
-      // defaultDeleteRadius: 6,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -316,6 +314,10 @@ const App = () => {
     };
     inputs.bind("f", toggleFly, "in-game");
 
+    const stats = new Stats();
+    document.body.appendChild(stats.dom);
+    stats.dom.style.margin = "8px";
+
     // Create a test for atlas
     // setTimeout(() => {
     //   const plane = new THREE.Mesh(
@@ -336,6 +338,8 @@ const App = () => {
           .then(() => {
             const animate = () => {
               requestAnimationFrame(animate);
+
+              stats.begin();
 
               const delta = clock.getDelta();
 
@@ -361,6 +365,8 @@ const App = () => {
               network.flush();
 
               composer.render();
+
+              stats.end();
             };
 
             animate();
