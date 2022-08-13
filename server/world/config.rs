@@ -99,7 +99,7 @@ impl WorldConfig {
 
 const DEFAULT_MAX_CLIENT: usize = 100;
 const DEFAULT_CHUNK_SIZE: usize = 16;
-const DEFAULT_SUB_CHUNKS: usize = 16;
+const DEFAULT_SUB_CHUNKS: usize = 8;
 const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
 const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
 const DEFAULT_PRELOAD_RADIUS: usize = 8;

@@ -79,9 +79,9 @@ const defaultParams: WorldClientParams = {
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
   defaultRenderRadius: 8,
-  defaultDeleteRadius: 14,
+  defaultDeleteRadius: 12,
   textureDimension: 8,
-  updateTimeout: 3, // ms
+  updateTimeout: 1.5, // ms
 };
 
 export type WorldParams = WorldClientParams & WorldServerParams;

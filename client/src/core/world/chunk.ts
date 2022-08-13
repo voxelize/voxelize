@@ -26,8 +26,6 @@ class ChunkMesh extends Group {
 
   constructor(public chunk: Chunk) {
     super();
-
-    this.frustumCulled = false;
   }
 
   set = (
@@ -85,12 +83,8 @@ class ChunkMesh extends Group {
           level * partition,
           this.chunk.min[2]
         );
-        // TODO: is this good?
-        requestAnimationFrame(() => {
-          mesh.updateMatrix();
-          mesh.visible = true;
-        });
-        mesh.visible = false;
+        mesh.updateMatrix();
+        mesh.frustumCulled = false;
         map.set(level, mesh);
       }
 

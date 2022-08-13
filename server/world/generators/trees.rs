@@ -44,9 +44,9 @@ impl Trees {
 
         let mut updates = HashMap::new();
 
-        let extend = 5;
+        let extend = 50;
 
-        self.place_trunk(trunk_id, at, &Vec3(vx + 1, vy + extend, vz + 1), 3, 1)
+        self.place_trunk(trunk_id, at, &Vec3(vx, vy + extend, vz), 7, 2)
             .into_iter()
             .for_each(|(pos, id)| {
                 updates.insert(pos, id);

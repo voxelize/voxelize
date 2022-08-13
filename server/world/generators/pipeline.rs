@@ -3,11 +3,10 @@ use std::{collections::VecDeque, sync::Arc};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use std::thread::spawn;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    BlockChange, Chunk, NoiseParams, Registry, SeededNoise, Space, SpaceData, Terrain, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    BlockChange, Chunk, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 pub struct Resources<'a> {
@@ -220,6 +219,9 @@ pub struct Pipeline {
 
     /// Queue of chunk jobs to finish.
     queue: VecDeque<(Vec2<i32>, usize)>,
+
+    /// Pipeline's thread pool to process chunks.
+    pool: ThreadPool,
 }
 
 impl Pipeline {
@@ -234,6 +236,10 @@ impl Pipeline {
             receiver: Arc::new(receiver),
             queue: VecDeque::default(),
             stages: vec![],
+            pool: ThreadPoolBuilder::new()
+                .thread_name(|index| format!("voxelize-chunking-{index}"))
+                .build()
+                .unwrap(),
         }
     }
 
@@ -320,7 +326,7 @@ impl Pipeline {
         let registry = registry.to_owned();
         let config = config.to_owned();
 
-        spawn(move || {
+        self.pool.spawn(move || {
             let results: Vec<(Chunk, Vec<(Vec3<i32>, u32)>)> = processes
                 .into_par_iter()
                 .map(|(chunk, space, stage)| {

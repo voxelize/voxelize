@@ -59,12 +59,7 @@ const App = () => {
     if (worldRef.current) return;
 
     const clock = new THREE.Clock();
-    const world = new VOXELIZE.World({
-      maxProcessesPerTick: 8,
-      maxRequestsPerTick: 30,
-      // defaultRenderRadius: 3,
-      // defaultDeleteRadius: 6,
-    });
+    const world = new VOXELIZE.World({});
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
