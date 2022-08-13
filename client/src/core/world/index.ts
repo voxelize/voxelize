@@ -54,6 +54,7 @@ export type WorldClientParams = {
   defaultRenderRadius: number;
   defaultDeleteRadius: number;
   textureDimension: number;
+  updateTimeout: number;
 };
 
 export type WorldServerParams = {
@@ -80,6 +81,7 @@ const defaultParams: WorldClientParams = {
   defaultRenderRadius: 8,
   defaultDeleteRadius: 14,
   textureDimension: 8,
+  updateTimeout: 3, // ms
 };
 
 export type WorldParams = WorldClientParams & WorldServerParams;
@@ -216,20 +218,6 @@ export class World extends Scene implements NetIntercept {
 
         chunks.forEach((chunk) => {
           this.handleServerChunk(chunk);
-        });
-
-        // Sort `chunks.toProcess` by distance from the player.
-        const [cx, cz] = this.chunks.currentChunk;
-        this.chunks.toProcess.sort((a, b) => {
-          const { x: cx1, z: cz1 } = a;
-          const { x: cx2, z: cz2 } = b;
-
-          return (
-            (cx - cx1) ** 2 +
-            (cz - cz1) ** 2 -
-            (cx - cx2) ** 2 -
-            (cz - cz2) ** 2
-          );
         });
 
         return;
@@ -523,18 +511,18 @@ export class World extends Scene implements NetIntercept {
     return mesh;
   };
 
-  update = (center: Vector3, delta: number, direction?: Vector3) => {
+  update = (center: Vector3, delta: number) => {
     this.calculateCurrChunk(center);
 
     if (this.callTick % 2 === 0) {
       this.surroundChunks();
     } else if (this.callTick % 3 === 0) {
-      this.meshChunks(direction);
+      this.meshChunks();
     }
 
     this.addChunks();
     this.requestChunks();
-    this.maintainChunks(center, direction);
+    this.maintainChunks(center);
 
     this.emitServerUpdates();
 
@@ -616,7 +604,7 @@ export class World extends Scene implements NetIntercept {
       for (let x = -this.renderRadius; x <= this.renderRadius; x++) {
         for (let z = -this.renderRadius; z <= this.renderRadius; z++) {
           // Stop process if it's taking too long.
-          if (performance.now() - now >= 1.5) {
+          if (performance.now() - now >= this.params.updateTimeout) {
             return;
           }
 
@@ -652,23 +640,6 @@ export class World extends Scene implements NetIntercept {
         }
       }
     })();
-
-    // if (direction) {
-    //   this.chunks.toRequest.sort((a, b) => {
-    //     const [cx1, cz1] = ChunkUtils.parseChunkName(a);
-    //     const [cx2, cz2] = ChunkUtils.parseChunkName(b);
-
-    //     if (!this.isChunkInView(cx1, cz1, direction.x, direction.z)) {
-    //       return 1;
-    //     }
-
-    //     if (!this.isChunkInView(cx2, cz2, direction.x, direction.z)) {
-    //       return -1;
-    //     }
-
-    //     return 0;
-    //   });
-    // }
   };
 
   private setupPhysics = () => {
@@ -732,27 +703,11 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
-  private meshChunks = (direction?: Vector3) => {
-    const { maxProcessesPerTick } = this.params;
+  private meshChunks = () => {
+    const { maxProcessesPerTick, updateTimeout } = this.params;
+
+    const now = performance.now();
     let count = 0;
-
-    // Sort toProcess by in view
-    if (direction) {
-      this.chunks.toProcess.sort((a, b) => {
-        const { x: cx1, z: cz1 } = a;
-        const { x: cx2, z: cz2 } = b;
-
-        if (!this.isChunkInView(cx1, cz1, direction.x, direction.z)) {
-          return 1;
-        }
-
-        if (!this.isChunkInView(cx2, cz2, direction.x, direction.z)) {
-          return -1;
-        }
-
-        return 0;
-      });
-    }
 
     while (count < maxProcessesPerTick && this.chunks.toProcess.length) {
       const data = this.chunks.toProcess.shift();
@@ -762,6 +717,10 @@ export class World extends Scene implements NetIntercept {
 
       count++;
       this.meshChunk(data);
+
+      if (performance.now() - now > updateTimeout) {
+        return;
+      }
     }
   };
 
@@ -798,7 +757,7 @@ export class World extends Scene implements NetIntercept {
 
   // If the chunk is too far away, remove from scene. If chunk is not in the view,
   // make it invisible to the client.
-  private maintainChunks = (center: Vector3, direction?: Vector3) => {
+  private maintainChunks = (center: Vector3) => {
     const { chunkSize, defaultDeleteRadius } = this.params;
 
     const deleteDistance = defaultDeleteRadius * chunkSize;
@@ -821,18 +780,6 @@ export class World extends Scene implements NetIntercept {
         json: {
           chunks: deleted,
         },
-      });
-    }
-
-    if (direction) {
-      this.chunks.forEach((chunk) => {
-        if (chunk.mesh && !chunk.mesh.isEmpty) {
-          chunk.mesh.visible = this.isChunkInView(
-            ...chunk.coords,
-            direction.x,
-            direction.z
-          );
-        }
       });
     }
   };

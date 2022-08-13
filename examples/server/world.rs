@@ -102,15 +102,13 @@ impl ChunkStage for SoilingStage {
 }
 
 struct TreeStage {
-    threshold: f64,
     noise: SeededNoise,
     trees: Trees,
 }
 
 impl TreeStage {
-    pub fn new(seed: u32, threshold: f64, params: &NoiseParams, trees: Trees) -> Self {
+    pub fn new(seed: u32, params: &NoiseParams, trees: Trees) -> Self {
         Self {
-            threshold,
             noise: SeededNoise::new(seed, params),
             trees,
         }
@@ -122,15 +120,20 @@ impl ChunkStage for TreeStage {
         "Trees".to_owned()
     }
 
-    fn process(&self, mut chunk: Chunk, resources: Resources, space: Option<Space>) -> Chunk {
-        let leaves = resources.registry.get_block_by_name("Oak Leaves");
-        let trunk = resources.registry.get_block_by_name("Oak Log");
+    fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
+        let dirt = resources.registry.get_block_by_name("Dirt");
+        let grass_block = resources.registry.get_block_by_name("Grass Block");
 
         for vx in chunk.min.0..chunk.max.0 {
             for vz in chunk.min.2..chunk.max.2 {
                 let height = chunk.get_max_height(vx, vz) as i32;
+                let id = chunk.get_voxel(vx, height, vz);
 
-                if self.noise.get2d(vx, vz) > self.threshold {
+                if id != dirt.id && id != grass_block.id {
+                    continue;
+                }
+
+                if self.trees.should_plant(&Vec3(vx, height, vz)) {
                     self.trees
                         .generate("Oak", &Vec3(vx, height, vz))
                         .into_iter()
@@ -194,6 +197,7 @@ pub fn setup_world() -> World {
             config.seed,
             &NoiseParams::new().frequency(0.04).lacunarity(2.9).build(),
         );
+        trees.set_threshold(1.8);
         trees.register("Oak", oak);
 
         pipeline.add_stage(terrain_stage);
@@ -205,7 +209,6 @@ pub fn setup_world() -> World {
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeStage::new(
             config.seed,
-            3.5,
             &NoiseParams::new().build(),
             trees,
         ));

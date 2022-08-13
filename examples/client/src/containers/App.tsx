@@ -60,7 +60,10 @@ const App = () => {
 
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
+      maxProcessesPerTick: 8,
       maxRequestsPerTick: 30,
+      // defaultRenderRadius: 3,
+      // defaultDeleteRadius: 6,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -348,12 +351,7 @@ const App = () => {
 
               clouds.update(camera.position, delta);
               sky.position.copy(camera.position);
-
-              world.update(
-                controls.object.position,
-                delta,
-                controls.getDirection()
-              );
+              world.update(controls.object.position, delta);
 
               if (positionRef.current)
                 positionRef.current.textContent = controls

@@ -14,14 +14,6 @@ use world::setup_world;
 mod registry;
 mod world;
 
-fn handle_ctrlc() {
-    ctrlc::set_handler(move || {
-        print!("\nStopping application...\n");
-        process::exit(0);
-    })
-    .expect("Error setting Ctrl-C handler");
-}
-
 #[derive(Default, Component)]
 #[storage(NullStorage)]
 struct BoxFlag;
@@ -123,8 +115,6 @@ impl ChunkStage for LimitedStage {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    handle_ctrlc();
-
     let mut server = Server::new()
         .port(4000)
         .secret("test")
