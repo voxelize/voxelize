@@ -1,6 +1,6 @@
 use voxelize::{
-    BaseTerrainStage, Chunk, ChunkStage, HeightMapStage, NoiseParams, Resources, SeededNoise,
-    Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
+    BaseTerrainStage, Chunk, ChunkStage, FlatlandStage, HeightMapStage, NoiseParams, Resources,
+    SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -200,12 +200,13 @@ pub fn setup_world() -> World {
         trees.set_threshold(1.8);
         trees.register("Oak", oak);
 
-        pipeline.add_stage(terrain_stage);
-        pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(SoilingStage::new(
-            config.seed,
-            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
-        ));
+        // pipeline.add_stage(terrain_stage);
+        // pipeline.add_stage(HeightMapStage);
+        // pipeline.add_stage(SoilingStage::new(
+        //     config.seed,
+        //     &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
+        // ));
+        pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeStage::new(
             config.seed,

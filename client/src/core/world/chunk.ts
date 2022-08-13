@@ -84,7 +84,6 @@ class ChunkMesh extends Group {
           this.chunk.min[2]
         );
         mesh.updateMatrix();
-        mesh.frustumCulled = false;
         map.set(level, mesh);
       }
 

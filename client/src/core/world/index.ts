@@ -74,8 +74,8 @@ export type WorldServerParams = {
 
 const defaultParams: WorldClientParams = {
   inViewRadius: 5,
-  maxRequestsPerTick: 2,
-  maxProcessesPerTick: 2,
+  maxRequestsPerTick: 4,
+  maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
   defaultRenderRadius: 8,
@@ -689,7 +689,12 @@ export class World extends Scene implements NetIntercept {
 
   private requestChunks = () => {
     const { maxRequestsPerTick } = this.params;
-    const toRequest = this.chunks.toRequest.splice(0, maxRequestsPerTick);
+    const toRequest = this.chunks.toRequest.splice(
+      0,
+      this.chunks.get(ChunkUtils.getChunkName(this.chunks.currentChunk))
+        ? maxRequestsPerTick
+        : maxRequestsPerTick * 10
+    );
 
     if (toRequest.length === 0) return;
 

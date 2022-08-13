@@ -113,6 +113,7 @@ const App = () => {
       world,
       {
         lookInGhostMode: true,
+        initialPosition: [0, 12, 0],
       }
     );
 
