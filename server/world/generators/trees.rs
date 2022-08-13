@@ -1,4 +1,7 @@
+use std::f64;
+
 use hashbrown::HashMap;
+use log::info;
 use nalgebra::{Rotation3, Vector3};
 
 use crate::{BlockChange, NoiseParams, SeededNoise, Vec3};
@@ -44,13 +47,28 @@ impl Trees {
 
         let mut updates = HashMap::new();
 
-        let extend = 50;
+        let extend = 20;
 
-        self.place_trunk(trunk_id, at, &Vec3(vx, vy + extend, vz), 7, 2)
-            .into_iter()
-            .for_each(|(pos, id)| {
-                updates.insert(pos, id);
-            });
+        // Trees::place_trunk_by_points(trunk_id, at, &Vec3(vx + 5, vy + extend, vz + 5), 1, 1)
+        //     .into_iter()
+        //     .for_each(|(pos, id)| {
+        //         updates.insert(pos, id);
+        //     });
+
+        Trees::place_trunk_by_angles(
+            &self,
+            trunk_id,
+            at,
+            f64::consts::PI / 4.0,
+            f64::consts::PI / 4.0,
+            extend,
+            1,
+            1,
+        )
+        .into_iter()
+        .for_each(|(pos, id)| {
+            updates.insert(pos, id);
+        });
 
         // self.place_leaves(
         //     leaf_id,
@@ -65,8 +83,35 @@ impl Trees {
         updates.into_iter().collect()
     }
 
-    fn place_trunk(
+    fn place_trunk_by_angles(
         &self,
+        trunk_id: u32,
+        from: &Vec3<i32>,
+        y_angle: f64,
+        rot_angle: f64,
+        dist: i32,
+        start_radius: i32,
+        end_radius: i32,
+    ) -> Vec<BlockChange> {
+        let &Vec3(fx, fy, fz) = from;
+
+        // Sin because y-angle is angle from y-axis not horizontal plane.
+        let dist = dist as f64;
+        let t_sum_x = y_angle.sin() * dist;
+        let ty = (y_angle.cos() * dist) as i32;
+        let tx = (rot_angle.cos() * t_sum_x) as i32;
+        let tz = (rot_angle.sin() * t_sum_x) as i32;
+
+        Trees::place_trunk_by_points(
+            trunk_id,
+            from,
+            &Vec3(fx + tx, fy + ty, fz + tz),
+            start_radius,
+            end_radius,
+        )
+    }
+
+    fn place_trunk_by_points(
         trunk_id: u32,
         from: &Vec3<i32>,
         to: &Vec3<i32>,
@@ -76,20 +121,14 @@ impl Trees {
         let mut changes = vec![];
 
         let &Vec3(fx, fy, fz) = from;
-        let &Vec3(tx, _, tz) = to;
 
         let height = to.sub(from);
 
         // Cannot be colinear to the y-axis.
-        let rotation = if (tx - fx) == 0 && (tz - fz) == 0 {
-            None
-        } else {
-            // Create a rotation that transforms y-axis to the direction of the vector.
-            Some(Rotation3::face_towards(
-                &Vector3::z(),
-                &Vector3::new(height.0 as f32, height.1 as f32, height.2 as f32),
-            ))
-        };
+        let rotation = Rotation3::rotation_between(
+            &Vector3::y(),
+            &Vector3::new(height.0 as f32, height.1 as f32, height.2 as f32),
+        );
 
         let height = ((height.0 * height.0 + height.1 * height.1 + height.2 * height.2) as f32)
             .sqrt()
@@ -122,12 +161,7 @@ impl Trees {
         changes
     }
 
-    fn place_leaves(
-        &self,
-        leaf_id: u32,
-        dimensions: &Vec3<u32>,
-        at: &Vec3<i32>,
-    ) -> Vec<BlockChange> {
+    fn place_leaves(leaf_id: u32, dimensions: &Vec3<u32>, at: &Vec3<i32>) -> Vec<BlockChange> {
         let mut changes = vec![];
 
         let &Vec3(vx, vy, vz) = at;
@@ -175,7 +209,6 @@ impl Tree {
 pub struct TreeBuilder {
     leaf_radius: u32,
     leaf_height: u32,
-
     iteration: u32,
     leaf_id: u32,
     trunk_id: u32,

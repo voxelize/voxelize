@@ -714,6 +714,16 @@ export class World extends Scene implements NetIntercept {
     const now = performance.now();
     let count = 0;
 
+    const [cx, cz] = this.chunks.currentChunk;
+    this.chunks.toProcess.sort((a, b) => {
+      const { x: cx1, z: cz1 } = a;
+      const { x: cx2, z: cz2 } = b;
+
+      return (
+        (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
+      );
+    });
+
     while (count < maxProcessesPerTick && this.chunks.toProcess.length) {
       const data = this.chunks.toProcess.shift();
       const { x, z } = data;
