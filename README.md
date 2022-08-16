@@ -57,6 +57,7 @@ Before starting, make sure to install the following:
 - [rust](https://www.rust-lang.org/tools/install)
 - [node.js](https://nodejs.org/en/download/)
 - [cargo-watch](https://crates.io/crates/cargo-watch)
+- [protoc](https://grpc.io/docs/protoc-installation/)
 
 ```bash
 # clone the repository
