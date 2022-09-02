@@ -1,6 +1,8 @@
+use specs::Entity;
 use voxelize::{
-    BaseTerrainStage, Chunk, ChunkStage, FlatlandStage, HeightMapStage, NoiseParams, Resources,
-    SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
+    default_client_parser, BaseTerrainStage, Chunk, ChunkStage, FlatlandStage, HeightMapStage,
+    NoiseParams, Resources, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3,
+    VoxelAccess, World, WorldConfig,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -148,6 +150,10 @@ impl ChunkStage for TreeStage {
     }
 }
 
+fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
+    default_client_parser(metadata, ent.to_owned(), world);
+}
+
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
         .terrain(
@@ -162,6 +168,8 @@ pub fn setup_world() -> World {
         .build();
 
     let mut world = World::new("world1", &config);
+
+    world.set_client_parser(client_parser);
 
     let mut terrain = Terrain::new(&config);
 

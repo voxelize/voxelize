@@ -25,9 +25,9 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::{env, sync::Arc};
 
 use crate::{
     encode_message,
@@ -100,7 +100,6 @@ pub struct PeerUpdate {
 }
 
 /// A voxelize world.
-#[derive(Default)]
 pub struct World {
     /// ID of the world, generated from `nanoid!()`.
     pub id: String,
@@ -124,19 +123,19 @@ pub struct World {
     dispatcher: Option<ModifyDispatch>,
 
     /// The modifier of any new client.
-    client_modifier: Option<CustomFunction<Entity>>,
+    client_modifier: Option<Arc<dyn Fn(Entity, &mut World)>>,
 
     /// The metadata parser for clients.
-    client_parser: Option<ClientParser>,
+    client_parser: Arc<dyn Fn(&str, Entity, &mut World)>,
 
     /// The handler for `Method`s.
-    method_handles: HashMap<String, CustomFunction<Value>>,
+    method_handles: HashMap<String, Arc<dyn Fn(Value, &mut World)>>,
 
     /// The handler for `Transport`s.
-    transport_handle: Option<CustomFunction<Value>>,
+    transport_handle: Option<Arc<dyn Fn(Value, &mut World)>>,
 
     /// The handler for commands.
-    command_handle: Option<CommandHandle>,
+    command_handle: Option<Arc<dyn Fn(&str, &str, &mut World)>>,
 }
 
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
@@ -265,7 +264,7 @@ impl World {
 
             dispatcher: Some(dispatcher),
             method_handles: HashMap::default(),
-            client_parser: Some(default_client_parser),
+            client_parser: Arc::new(default_client_parser),
             client_modifier: None,
             transport_handle: None,
             command_handle: None,
@@ -412,24 +411,29 @@ impl World {
         self.dispatcher = Some(dispatch);
     }
 
-    pub fn set_client_modifier(&mut self, modifier: CustomFunction<Entity>) {
-        self.client_modifier = Some(modifier);
+    pub fn set_client_modifier<F: Fn(Entity, &mut World) + 'static>(&mut self, modifier: F) {
+        self.client_modifier = Some(Arc::new(modifier));
     }
 
-    pub fn set_client_parser(&mut self, parser: ClientParser) {
-        self.client_parser = Some(parser);
+    pub fn set_client_parser<F: Fn(&str, Entity, &mut World) + 'static>(&mut self, parser: F) {
+        self.client_parser = Arc::new(parser);
     }
 
-    pub fn set_method_handle(&mut self, method: &str, handle: CustomFunction<Value>) {
-        self.method_handles.insert(method.to_lowercase(), handle);
+    pub fn set_method_handle<F: Fn(Value, &mut World) + 'static>(
+        &mut self,
+        method: &str,
+        handle: F,
+    ) {
+        self.method_handles
+            .insert(method.to_lowercase(), Arc::new(handle));
     }
 
-    pub fn set_transport_handle(&mut self, handle: CustomFunction<Value>) {
-        self.transport_handle = Some(handle);
+    pub fn set_transport_handle<F: Fn(Value, &mut World) + 'static>(&mut self, handle: F) {
+        self.transport_handle = Some(Arc::new(handle));
     }
 
-    pub fn set_command_handle(&mut self, handle: CommandHandle) {
-        self.command_handle = Some(handle);
+    pub fn set_command_handle<F: Fn(&str, &str, &mut World) + 'static>(&mut self, handle: F) {
+        self.command_handle = Some(Arc::new(handle));
     }
 
     pub fn generate_init_message(&self, id: &str) -> Message {
@@ -503,14 +507,16 @@ impl World {
                 .write_resource::<MessageQueue>()
                 .push((data, ClientFilter::All)),
             MessageType::Transport => {
-                if let Some(transport_handle) = self.transport_handle {
-                    transport_handle(
+                if self.transport_handle.is_none() {
+                    warn!("Transport calls are being called, but no transport handlers set!");
+                } else {
+                    let handle = self.transport_handle.as_ref().unwrap().to_owned();
+
+                    handle(
                         serde_json::from_str(&data.json)
                             .expect("Something went wrong with the transport JSON value."),
                         self,
                     );
-                } else {
-                    warn!("Transport calls are being called, but no transport handlers set!");
                 }
             }
             _ => {
@@ -736,7 +742,7 @@ impl World {
                 }
             }
 
-            self.client_parser.unwrap()(&metadata, client_ent, self);
+            self.client_parser.clone()(&metadata, client_ent, self);
 
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 client.username = username;
@@ -843,7 +849,7 @@ impl World {
             info!("{}: {}", sender, body);
 
             if body.starts_with('/') {
-                if let Some(handle) = self.command_handle {
+                if let Some(handle) = self.command_handle.to_owned() {
                     handle(id, body.strip_prefix('/').unwrap(), self);
                 } else {
                     warn!("Clients are sending commands, but no command handler set.");
