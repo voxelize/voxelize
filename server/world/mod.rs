@@ -323,7 +323,7 @@ impl World {
     }
 
     /// Add a transport address to this world.
-    pub fn add_transport(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
+    pub(crate) fn add_transport(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
         let init_message = self.generate_init_message(id);
         self.send(addr, &init_message);
         self.write_resource::<Transports>()
@@ -331,12 +331,17 @@ impl World {
     }
 
     /// Remove a transport address from this world.
-    pub fn remove_transport(&mut self, id: &str) {
+    pub(crate) fn remove_transport(&mut self, id: &str) {
         self.write_resource::<Transports>().remove(id);
     }
 
     /// Add a client to the world by an ID and an Actix actor address.
-    pub fn add_client(&mut self, id: &str, username: &str, addr: &Recipient<EncodedMessage>) {
+    pub(crate) fn add_client(
+        &mut self,
+        id: &str,
+        username: &str,
+        addr: &Recipient<EncodedMessage>,
+    ) {
         let init_message = self.generate_init_message(id);
 
         let body =
@@ -384,7 +389,7 @@ impl World {
     }
 
     /// Remove a client from the world by endpoint.
-    pub fn remove_client(&mut self, id: &str) {
+    pub(crate) fn remove_client(&mut self, id: &str) {
         let removed = self.clients_mut().remove(id);
 
         if let Some(client) = removed {
@@ -436,64 +441,8 @@ impl World {
         self.command_handle = Some(Arc::new(handle));
     }
 
-    pub fn generate_init_message(&self, id: &str) -> Message {
-        let config = (*self.config()).to_owned();
-        let mut json = HashMap::new();
-
-        json.insert("id".to_owned(), json!(id));
-        json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
-        json.insert("ranges".to_owned(), json!(self.registry().ranges));
-        json.insert("params".to_owned(), json!(config));
-
-        /* ------------------------ Loading other the clients ----------------------- */
-        let ids = self.read_component::<IDComp>();
-        let flags = self.read_component::<ClientFlag>();
-        let names = self.read_component::<NameComp>();
-        let metadatas = self.read_component::<MetadataComp>();
-
-        let mut peers = vec![];
-
-        for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
-            peers.push(PeerProtocol {
-                id: pid.0.to_owned(),
-                username: name.0.to_owned(),
-                metadata: metadata.to_string(),
-            })
-        }
-
-        /* -------------------------- Loading all entities -------------------------- */
-        let etypes = self.read_component::<ETypeComp>();
-        let metadatas = self.read_component::<MetadataComp>();
-
-        let mut entities = vec![];
-
-        for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if metadata.is_empty() {
-                continue;
-            }
-
-            let j_str = metadata.to_string();
-
-            entities.push(EntityProtocol {
-                id: id.0.to_owned(),
-                r#type: etype.0.to_owned(),
-                metadata: Some(j_str),
-            });
-        }
-
-        drop(ids);
-        drop(etypes);
-        drop(metadatas);
-
-        Message::new(&MessageType::Init)
-            .json(&serde_json::to_string(&json).unwrap())
-            .peers(&peers)
-            .entities(&entities)
-            .build()
-    }
-
     /// Handler for protobuf requests from clients.
-    pub fn on_request(&mut self, client_id: &str, data: Message) {
+    pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
 
         match msg_type {
@@ -651,7 +600,7 @@ impl World {
     }
 
     /// Prepare to start.
-    pub fn prepare(&mut self) {
+    pub(crate) fn prepare(&mut self) {
         for (position, body) in (
             &self.ecs.read_storage::<PositionComp>(),
             &mut self.ecs.write_storage::<RigidBodyComp>(),
@@ -667,7 +616,7 @@ impl World {
     }
 
     /// Preload the chunks in the world.
-    pub fn preload(&mut self) {
+    pub(crate) fn preload(&mut self) {
         let radius = self.config().preload_radius as i32;
 
         {
@@ -684,7 +633,7 @@ impl World {
     }
 
     /// Tick of the world, run every 16ms.
-    pub fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         if !self.started {
             self.started = true;
         }
@@ -892,5 +841,61 @@ impl World {
                 }
             }
         }
+    }
+
+    fn generate_init_message(&self, id: &str) -> Message {
+        let config = (*self.config()).to_owned();
+        let mut json = HashMap::new();
+
+        json.insert("id".to_owned(), json!(id));
+        json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
+        json.insert("ranges".to_owned(), json!(self.registry().ranges));
+        json.insert("params".to_owned(), json!(config));
+
+        /* ------------------------ Loading other the clients ----------------------- */
+        let ids = self.read_component::<IDComp>();
+        let flags = self.read_component::<ClientFlag>();
+        let names = self.read_component::<NameComp>();
+        let metadatas = self.read_component::<MetadataComp>();
+
+        let mut peers = vec![];
+
+        for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
+            peers.push(PeerProtocol {
+                id: pid.0.to_owned(),
+                username: name.0.to_owned(),
+                metadata: metadata.to_string(),
+            })
+        }
+
+        /* -------------------------- Loading all entities -------------------------- */
+        let etypes = self.read_component::<ETypeComp>();
+        let metadatas = self.read_component::<MetadataComp>();
+
+        let mut entities = vec![];
+
+        for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
+            if metadata.is_empty() {
+                continue;
+            }
+
+            let j_str = metadata.to_string();
+
+            entities.push(EntityProtocol {
+                id: id.0.to_owned(),
+                r#type: etype.0.to_owned(),
+                metadata: Some(j_str),
+            });
+        }
+
+        drop(ids);
+        drop(etypes);
+        drop(metadatas);
+
+        Message::new(&MessageType::Init)
+            .json(&serde_json::to_string(&json).unwrap())
+            .peers(&peers)
+            .entities(&entities)
+            .build()
     }
 }

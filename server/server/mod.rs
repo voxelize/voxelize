@@ -237,7 +237,7 @@ impl Server {
     }
 
     /// Handler for client's message.
-    pub fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
+    pub(crate) fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
         if data.r#type == MessageType::Transport as i32 || self.transport_sessions.contains_key(id)
         {
             if !self.transport_sessions.contains_key(id) {
@@ -315,7 +315,7 @@ impl Server {
     }
 
     /// Preload all the worlds.
-    pub fn preload(&mut self) {
+    pub(crate) fn preload(&mut self) {
         let m = MultiProgress::new();
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] [{bar:40.cyan/blue}] {msg} {spinner:.green} {percent:>7}%",
@@ -364,7 +364,7 @@ impl Server {
     }
 
     /// Tick every world on this server.
-    pub fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         for world in self.worlds.values_mut() {
             world.tick();
         }
