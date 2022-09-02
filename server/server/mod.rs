@@ -337,7 +337,7 @@ impl Server {
             let mut done = true;
 
             for (i, world) in self.worlds.values_mut().enumerate() {
-                if !world.preloading || world.preload_progress >= 1.0 {
+                if !world.config().preload || !world.preloading || world.preload_progress >= 1.0 {
                     bars[i].finish_and_clear();
                     continue;
                 }

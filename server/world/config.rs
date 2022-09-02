@@ -21,6 +21,9 @@ pub struct WorldConfig {
     /// The maximum inclusive chunk on this world. Default is [i32::MAX, i32::MAX].
     pub max_chunk: [i32; 2],
 
+    /// Whether or not should the world preload.
+    pub preload: bool,
+
     /// The radius at which the world should preload.
     pub preload_radius: usize,
 
@@ -102,6 +105,7 @@ const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_SUB_CHUNKS: usize = 8;
 const DEFAULT_MIN_CHUNK: [i32; 2] = [i32::MIN + 1, i32::MIN + 1];
 const DEFAULT_MAX_CHUNK: [i32; 2] = [i32::MAX - 1, i32::MAX - 1];
+const DEFAULT_PRELOAD: bool = false;
 const DEFAULT_PRELOAD_RADIUS: usize = 8;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
@@ -129,6 +133,7 @@ pub struct WorldConfigBuilder {
     sub_chunks: usize,
     min_chunk: [i32; 2],
     max_chunk: [i32; 2],
+    preload: bool,
     preload_radius: usize,
     max_height: usize,
     max_light_level: u32,
@@ -160,6 +165,7 @@ impl WorldConfigBuilder {
             sub_chunks: DEFAULT_SUB_CHUNKS,
             min_chunk: DEFAULT_MIN_CHUNK,
             max_chunk: DEFAULT_MAX_CHUNK,
+            preload: DEFAULT_PRELOAD,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
             max_height: DEFAULT_MAX_HEIGHT,
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
@@ -210,6 +216,13 @@ impl WorldConfigBuilder {
     /// Configure the maximum inclusive chunk of the world. Default is [i32::MAX, i32::MAX].
     pub fn max_chunk(mut self, max_chunk: [i32; 2]) -> Self {
         self.max_chunk = max_chunk;
+        self
+    }
+
+    /// Configure whether or not should the world preload chunks. Default is false.
+    pub fn preload(mut self, preload: bool) -> Self {
+        self.preload_radius = if preload { DEFAULT_PRELOAD_RADIUS } else { 0 };
+        self.preload = preload;
         self
     }
 
@@ -333,6 +346,7 @@ impl WorldConfigBuilder {
             seed: self.seed,
             min_chunk: self.min_chunk,
             max_chunk: self.max_chunk,
+            preload: self.preload,
             preload_radius: self.preload_radius,
             air_drag: self.air_drag,
             fluid_drag: self.fluid_drag,
