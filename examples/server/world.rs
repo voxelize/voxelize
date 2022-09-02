@@ -164,7 +164,8 @@ pub fn setup_world() -> World {
                 .lacunarity(1.8623123)
                 .build(),
         )
-        .seed(1213123)
+        .preload(true)
+        .seed(53215124)
         .build();
 
     let mut world = World::new("world1", &config);
@@ -208,19 +209,19 @@ pub fn setup_world() -> World {
         trees.set_threshold(1.8);
         trees.register("Oak", oak);
 
-        // pipeline.add_stage(terrain_stage);
-        // pipeline.add_stage(HeightMapStage);
-        // pipeline.add_stage(SoilingStage::new(
-        //     config.seed,
-        //     &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
-        // ));
-        pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
+        pipeline.add_stage(terrain_stage);
         pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(TreeStage::new(
+        pipeline.add_stage(SoilingStage::new(
             config.seed,
-            &NoiseParams::new().build(),
-            trees,
+            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
         ));
+        // pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
+        // pipeline.add_stage(HeightMapStage);
+        // pipeline.add_stage(TreeStage::new(
+        //     config.seed,
+        //     &NoiseParams::new().build(),
+        //     trees,
+        // ));
     }
 
     world
