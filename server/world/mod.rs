@@ -665,11 +665,18 @@ impl World {
         let radius = self.config().preload_radius as i32;
 
         {
-            let mut pipeline = self.pipeline_mut();
-
             for x in -radius..=radius {
                 for z in -radius..=radius {
-                    pipeline.push(&Vec2(x, z), 0);
+                    let coords = Vec2(x, z);
+                    let is_within = {
+                        let chunks = self.chunks();
+                        chunks.is_within_world(&coords)
+                    };
+
+                    let mut pipeline = self.pipeline_mut();
+                    if is_within {
+                        pipeline.push(&coords, 0);
+                    }
                 }
             }
         }
@@ -693,7 +700,8 @@ impl World {
                 for z in -check_radius..=check_radius {
                     let chunks = self.chunks();
                     let chunk = chunks.get(&Vec2(x, z));
-                    if chunk.is_some() {
+
+                    if chunk.is_some() || !chunks.is_within_world(&Vec2(x, z)) {
                         total += 1;
                     }
                 }

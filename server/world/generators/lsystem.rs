@@ -1,5 +1,6 @@
 use hashbrown::HashMap;
 
+#[derive(Debug, Clone, Default)]
 pub struct LSystem {
     pub axiom: String,
     pub rules: HashMap<char, String>,
@@ -9,6 +10,21 @@ pub struct LSystem {
 impl LSystem {
     pub fn new() -> LSystemBuilder {
         LSystemBuilder::default()
+    }
+
+    pub fn set_axiom(&mut self, axiom: &str) {
+        self.axiom = axiom.to_string();
+    }
+
+    pub fn set_rules(&mut self, rules: &[(&str, &str)]) {
+        for &(key, value) in rules {
+            self.rules
+                .insert(key.chars().next().unwrap(), value.to_string());
+        }
+    }
+
+    pub fn set_iterations(&mut self, iterations: u32) {
+        self.iterations = iterations;
     }
 
     pub fn generate(&self) -> String {

@@ -4,7 +4,26 @@ use hashbrown::HashMap;
 use log::info;
 use nalgebra::{Rotation3, Vector3};
 
-use crate::{BlockChange, NoiseParams, SeededNoise, Vec3};
+use crate::{BlockChange, LSystem, NoiseParams, SeededNoise, Vec3};
+
+/// There are a set of L-system symbols for the tree generator.
+/// The symbols are:
+/// - `F`: Forward one unit.
+/// - `+`: Rotate right drot degrees.
+/// - `-`: Rotate left drot degrees.
+/// - `#`: Rotate upwards dy degrees.
+/// - `&`: Rotate downwards dy degrees.
+/// - `[`: Push the current state onto the stack.
+/// - `]`: Pop the current state from the stack.
+/// - `@`: Scale length and radius by decreases.
+
+struct TreeState {
+    pub base: Vec3<i32>,
+    pub length: f64,
+    pub radius: f64,
+    pub y_angle: f64,
+    pub rot_angle: f64,
+}
 
 pub struct Trees {
     threshold: f64,
@@ -34,57 +53,102 @@ impl Trees {
     }
 
     pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<BlockChange> {
+        let tree = self.trees.get(&name.to_lowercase()).unwrap();
         // Panic if the tree doesn't exist
         let &Tree {
             leaf_radius,
             leaf_height,
-            iteration,
             leaf_id,
             trunk_id,
-        } = self.trees.get(&name.to_lowercase()).unwrap();
+            branch_initial_radius,
+            branch_min_radius,
+            branch_radius_factor,
+            branch_initial_length,
+            branch_min_length,
+            branch_length_factor,
+            branch_drot_angle,
+            branch_dy_angle,
+            ..
+        } = tree;
 
-        let &Vec3(vx, vy, vz) = at;
+        let system = &tree.system;
+        let result = system.generate();
+
+        let mut base = at.clone();
+        let mut length = branch_initial_length as f64;
+        let mut radius = branch_initial_radius as f64;
+
+        let mut y_angle = 0.0;
+        let mut rot_angle = 0.0;
 
         let mut updates = HashMap::new();
 
-        let extend = 20;
+        let mut push_updates = |new_updates: Vec<BlockChange>| {
+            new_updates.into_iter().for_each(|(pos, id)| {
+                updates.insert(pos, id);
+            });
+        };
 
-        // Trees::place_trunk_by_points(trunk_id, at, &Vec3(vx + 5, vy + extend, vz + 5), 1, 1)
-        //     .into_iter()
-        //     .for_each(|(pos, id)| {
-        //         updates.insert(pos, id);
-        //     });
+        info!("Generating tree with {:?}", result);
 
-        Trees::place_trunk_by_angles(
-            &self,
-            trunk_id,
-            at,
-            f64::consts::PI / 4.0,
-            f64::consts::PI / 4.0,
-            extend,
-            1,
-            1,
-        )
-        .into_iter()
-        .for_each(|(pos, id)| {
-            updates.insert(pos, id);
-        });
+        let mut stack = vec![];
 
-        // self.place_leaves(
-        //     leaf_id,
-        //     &Vec3(leaf_radius, leaf_height, leaf_radius),
-        //     &Vec3(vx + 5, vy + 5, vz + 5),
-        // )
-        // .into_iter()
-        // .for_each(|(pos, id)| {
-        //     updates.insert(pos, id);
-        // });
+        for symbol in result.chars() {
+            // Grow the tree from base.
+            if symbol == 'F' {
+                let delta_pos = Trees::angle_dist_cast(y_angle, rot_angle, length.ceil() as i32);
+                let next_pos = Vec3(
+                    delta_pos.0 + base.0,
+                    delta_pos.1 + base.1,
+                    delta_pos.2 + base.2,
+                );
+
+                push_updates(Trees::place_trunk_by_points(
+                    trunk_id,
+                    &base,
+                    &next_pos,
+                    radius.round() as i32,
+                    radius.round() as i32,
+                ));
+
+                base = next_pos;
+            } else if symbol == '+' {
+                rot_angle += branch_drot_angle;
+            } else if symbol == '-' {
+                rot_angle -= branch_drot_angle;
+            } else if symbol == '#' {
+                y_angle += branch_dy_angle;
+            } else if symbol == '$' {
+                y_angle -= branch_dy_angle;
+            } else if symbol == '@' {
+                length *= branch_length_factor;
+                length = length.max(branch_min_length as f64);
+                radius *= branch_radius_factor;
+                radius = radius.max(branch_min_radius as f64);
+            }
+            // Save the state
+            else if symbol == '[' {
+                stack.push(TreeState {
+                    base: base.clone(),
+                    length,
+                    radius,
+                    y_angle,
+                    rot_angle,
+                });
+            } else if symbol == ']' {
+                let state = stack.pop().unwrap();
+                base = state.base;
+                length = state.length;
+                radius = state.radius;
+                y_angle = state.y_angle;
+                rot_angle = state.rot_angle;
+            }
+        }
 
         updates.into_iter().collect()
     }
 
     fn place_trunk_by_angles(
-        &self,
         trunk_id: u32,
         from: &Vec3<i32>,
         y_angle: f64,
@@ -95,17 +159,12 @@ impl Trees {
     ) -> Vec<BlockChange> {
         let &Vec3(fx, fy, fz) = from;
 
-        // Sin because y-angle is angle from y-axis not horizontal plane.
-        let dist = dist as f64;
-        let t_sum_x = y_angle.sin() * dist;
-        let ty = (y_angle.cos() * dist) as i32;
-        let tx = (rot_angle.cos() * t_sum_x) as i32;
-        let tz = (rot_angle.sin() * t_sum_x) as i32;
+        let Vec3(dx, dy, dz) = Trees::angle_dist_cast(y_angle, rot_angle, dist);
 
         Trees::place_trunk_by_points(
             trunk_id,
             from,
-            &Vec3(fx + tx, fy + ty, fz + tz),
+            &Vec3(fx + dx, fy + dy, fz + dz),
             start_radius,
             end_radius,
         )
@@ -187,17 +246,60 @@ impl Trees {
 
         changes
     }
+
+    fn angle_dist_cast(y_angle: f64, rot_angle: f64, dist: i32) -> Vec3<i32> {
+        let dist = dist as f64;
+
+        // Sin because y-angle is angle from y-axis not horizontal plane.
+        let t_sum_x = y_angle.sin() * dist;
+        let dy = (y_angle.cos() * dist).ceil() as i32;
+        let dx = (rot_angle.cos() * t_sum_x).round() as i32;
+        let dz = (rot_angle.sin() * t_sum_x).round() as i32;
+
+        Vec3(dx, dy, dz)
+    }
 }
 
 #[derive(Clone)]
 pub struct Tree {
-    leaf_radius: u32,
-    leaf_height: u32,
+    /// The horizontal radius of each bunch of leaves.
+    pub leaf_radius: i32,
 
-    iteration: u32,
+    /// The height of each bunch of leaves.
+    pub leaf_height: i32,
 
-    leaf_id: u32,
-    trunk_id: u32,
+    /// The starting radius of the base of the tree.
+    pub branch_initial_radius: i32,
+
+    /// The minimum radius of the branches.
+    pub branch_min_radius: i32,
+
+    /// The rate at which the branch radius shrinks.
+    pub branch_radius_factor: f64,
+
+    /// The initial length of the branch.
+    pub branch_initial_length: i32,
+
+    /// The minimum length of the branch.
+    pub branch_min_length: i32,
+
+    /// The rate at which the branch length decreases.
+    pub branch_length_factor: f64,
+
+    /// The angle from the y-axis at which the branch turns on a node.
+    pub branch_dy_angle: f64,
+
+    /// The angle from the horizontal plane at which the branch turns on a node.
+    pub branch_drot_angle: f64,
+
+    /// The id of the leaf block.
+    pub leaf_id: u32,
+
+    /// The id of the trunk block.
+    pub trunk_id: u32,
+
+    /// The L-system to use.
+    pub system: LSystem,
 }
 
 impl Tree {
@@ -207,11 +309,19 @@ impl Tree {
 }
 
 pub struct TreeBuilder {
-    leaf_radius: u32,
-    leaf_height: u32,
-    iteration: u32,
+    leaf_radius: i32,
+    leaf_height: i32,
+    branch_min_radius: i32,
+    branch_initial_radius: i32,
+    branch_radius_factor: f64,
+    branch_min_length: i32,
+    branch_initial_length: i32,
+    branch_length_factor: f64,
+    branch_dy_angle: f64,
+    branch_drot_angle: f64,
     leaf_id: u32,
     trunk_id: u32,
+    system: LSystem,
 }
 
 impl TreeBuilder {
@@ -219,24 +329,75 @@ impl TreeBuilder {
         TreeBuilder {
             leaf_radius: 1,
             leaf_height: 1,
-            iteration: 1,
+
+            branch_initial_radius: 5,
+            branch_min_radius: 1,
+            branch_radius_factor: 0.5,
+            branch_initial_length: 5,
+            branch_min_length: 1,
+            branch_length_factor: 0.5,
+            branch_dy_angle: f64::consts::FRAC_PI_8,
+            branch_drot_angle: f64::consts::FRAC_PI_8,
+
             leaf_id,
             trunk_id,
+
+            system: LSystem::default(),
         }
     }
 
-    pub fn leaf_radius(mut self, leaf_radius: u32) -> TreeBuilder {
+    pub fn leaf_radius(mut self, leaf_radius: i32) -> TreeBuilder {
         self.leaf_radius = leaf_radius;
         self
     }
 
-    pub fn leaf_height(mut self, leaf_height: u32) -> TreeBuilder {
+    pub fn leaf_height(mut self, leaf_height: i32) -> TreeBuilder {
         self.leaf_height = leaf_height;
         self
     }
 
-    pub fn iteration(mut self, iteration: u32) -> TreeBuilder {
-        self.iteration = iteration;
+    pub fn branch_initial_radius(mut self, branch_initial_radius: i32) -> TreeBuilder {
+        self.branch_initial_radius = branch_initial_radius;
+        self
+    }
+
+    pub fn branch_min_radius(mut self, branch_min_radius: i32) -> TreeBuilder {
+        self.branch_min_radius = branch_min_radius;
+        self
+    }
+
+    pub fn branch_radius_factor(mut self, branch_radius_factor: f64) -> TreeBuilder {
+        self.branch_radius_factor = branch_radius_factor;
+        self
+    }
+
+    pub fn branch_initial_length(mut self, branch_initial_length: i32) -> TreeBuilder {
+        self.branch_initial_length = branch_initial_length;
+        self
+    }
+
+    pub fn branch_min_length(mut self, branch_min_length: i32) -> TreeBuilder {
+        self.branch_min_length = branch_min_length;
+        self
+    }
+
+    pub fn branch_length_factor(mut self, branch_length_factor: f64) -> TreeBuilder {
+        self.branch_length_factor = branch_length_factor;
+        self
+    }
+
+    pub fn branch_dy_angle(mut self, branch_dy_angle: f64) -> TreeBuilder {
+        self.branch_dy_angle = branch_dy_angle;
+        self
+    }
+
+    pub fn branch_drot_angle(mut self, branch_drot_angle: f64) -> TreeBuilder {
+        self.branch_drot_angle = branch_drot_angle;
+        self
+    }
+
+    pub fn system(mut self, system: LSystem) -> TreeBuilder {
+        self.system = system;
         self
     }
 
@@ -254,9 +415,17 @@ impl TreeBuilder {
         Tree {
             leaf_radius: self.leaf_radius,
             leaf_height: self.leaf_height,
-            iteration: self.iteration,
+            branch_initial_radius: self.branch_initial_radius,
+            branch_min_radius: self.branch_min_radius,
+            branch_radius_factor: self.branch_radius_factor,
+            branch_initial_length: self.branch_initial_length,
+            branch_min_length: self.branch_min_length,
+            branch_length_factor: self.branch_length_factor,
+            branch_dy_angle: self.branch_dy_angle,
+            branch_drot_angle: self.branch_drot_angle,
             leaf_id: self.leaf_id,
             trunk_id: self.trunk_id,
+            system: self.system,
         }
     }
 }
