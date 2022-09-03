@@ -50,7 +50,8 @@ impl Trees {
     }
 
     pub fn should_plant(&self, pos: &Vec3<i32>) -> bool {
-        (self.noise.get3d(pos.0, pos.1, pos.2) + 1.0) / 2.0 > self.threshold
+        ((self.noise.get3d(pos.0, pos.1, pos.2) + 1.0) / 2.0 * 10000.0).floor() / 10000.0
+            > self.threshold
     }
 
     pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<BlockChange> {
@@ -125,7 +126,7 @@ impl Trees {
                 radius = radius.max(branch_min_radius as f64);
             } else if symbol == '%' {
                 Trees::place_leaves(
-                    tree.leaf_id,
+                    leaf_id,
                     &Vec3(leaf_radius as u32, leaf_height as u32, leaf_radius as u32),
                     &base,
                 )
@@ -346,8 +347,8 @@ impl TreeBuilder {
             branch_initial_length: 5,
             branch_min_length: 1,
             branch_length_factor: 0.5,
-            branch_dy_angle: f64::consts::FRAC_PI_8,
-            branch_drot_angle: f64::consts::FRAC_PI_8,
+            branch_dy_angle: 0.0,
+            branch_drot_angle: 0.0,
 
             leaf_id,
             trunk_id,
