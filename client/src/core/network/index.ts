@@ -225,6 +225,13 @@ class Network extends EventEmitter {
     this.emit("leave");
   };
 
+  action = async (data) => {
+    this.send({
+      type: "ACTION",
+      json: data,
+    });
+  };
+
   flush = () => {
     this.intercepts.forEach((intercept) => {
       if (intercept.packets) {

@@ -296,6 +296,14 @@ const App = () => {
       "chat"
     );
 
+    inputs.bind(
+      "l",
+      () => {
+        network.action({ action: "create_world", data: { name: "test" } });
+      },
+      "in-game"
+    );
+
     controls.useInputs(inputs, "in-game");
 
     const toggleFly = () => {
