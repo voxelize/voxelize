@@ -138,7 +138,7 @@ impl ChunkStage for TreeStage {
 
                 if self.trees.should_plant(&Vec3(vx, height, vz)) {
                     self.trees
-                        .generate("Oak", &Vec3(vx, height, vz))
+                        .generate("Palm", &Vec3(vx, height, vz))
                         .into_iter()
                         .for_each(|(Vec3(ux, uy, uz), id)| {
                             chunk.set_voxel(ux, uy, uz, id);
@@ -222,12 +222,31 @@ pub fn setup_world() -> World {
                     .build(),
             )
             .build();
+
+        let palm = Tree::new(44, 43)
+            .leaf_height(2)
+            .leaf_radius(1)
+            .branch_initial_radius(1)
+            .branch_initial_length(12)
+            .branch_dy_angle(f64::consts::PI / 4.0)
+            .branch_drot_angle(f64::consts::PI / 4.0)
+            .system(
+                LSystem::new()
+                    .axiom("F%#B")
+                    .rule('B', "F%#B")
+                    .iterations(3)
+                    .build(),
+            )
+            .build();
+
         let mut trees = Trees::new(
             config.seed,
             &NoiseParams::new().frequency(0.04).lacunarity(2.9).build(),
         );
         trees.set_threshold(1.8);
+
         trees.register("Oak", oak);
+        trees.register("Palm", palm);
 
         // pipeline.add_stage(terrain_stage);
         // pipeline.add_stage(HeightMapStage);
