@@ -9,10 +9,11 @@ use actix::{
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::HashMap;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use log::info;
+use log::{info, warn};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::{env, sync::Arc};
 
 use crate::{
     errors::AddWorldError,
@@ -27,6 +28,12 @@ pub use session::*;
 pub struct OnJoinRequest {
     world: String,
     username: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct OnActionRequest {
+    action: String,
+    data: Value,
 }
 
 type ServerInfoHandle = fn(&Server) -> Value;
@@ -162,6 +169,9 @@ pub struct Server {
 
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
+
+    /// The handler for `Action`s.
+    action_handles: HashMap<String, Arc<dyn Fn(Value, &mut Server)>>,
 }
 
 impl Server {
@@ -289,6 +299,10 @@ impl Server {
             }
 
             return None;
+        } else if data.r#type == MessageType::Action as i32 {
+            self.on_action(id, &data);
+
+            return None;
         }
 
         let connection = self.connections.get(id);
@@ -304,7 +318,6 @@ impl Server {
 
         None
     }
-
     /// Prepare all worlds on the server to start.
     pub fn prepare(&mut self) {
         for world in self.worlds.values_mut() {
@@ -389,6 +402,34 @@ impl Server {
             .chain(std::io::stdout())
             .apply()
             .expect("Fern did not run successfully");
+    }
+
+    pub fn set_action_handle<F: Fn(Value, &mut Server) + 'static>(
+        &mut self,
+        action: &str,
+        handle: F,
+    ) {
+        self.action_handles
+            .insert(action.to_lowercase(), Arc::new(handle));
+    }
+
+    /// Handler for `Action` type messages.
+    fn on_action(&mut self, _: &str, data: &Message) {
+        let json: OnActionRequest = serde_json::from_str(&data.json)
+            .expect("`on_action` error. Could not read JSON string.");
+        let action = json.action.to_lowercase();
+
+        info!("{:?}", &self.action_handles.keys());
+        info!("{:?}", &action);
+
+        if !self.action_handles.contains_key(&action) {
+            warn!("`Action` type messages received, but no action handler set.");
+            return;
+        }
+
+        let handle = self.action_handles.get(&action).unwrap().to_owned();
+
+        handle(json.data, self);
     }
 }
 
@@ -620,6 +661,7 @@ impl ServerBuilder {
             transport_sessions: HashMap::default(),
             worlds: HashMap::default(),
             info_handle: default_info_handle,
+            action_handles: HashMap::default(),
         }
     }
 }

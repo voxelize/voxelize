@@ -76,6 +76,7 @@ message Message {
     CHAT = 10;
     TRANSPORT = 11;
     EVENT = 12;
+    ACTION = 13;
   }
 
   Type type = 1;
