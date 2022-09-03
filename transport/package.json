@@ -18,7 +18,7 @@
     "demo": "node example/index.js",
     "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
     "proto:js": "pbjs -t static-module -w commonjs -o ./src/protocol.js ../messages.proto",
-    "proto": "yarn run proto:js && yarn run proto:ts && cp src/protocol.* dist/"
+    "proto": "yarn run proto:js && yarn run proto:ts && mkdir -p dist && cp src/protocol.* dist/"
   },
   "dependencies": {
     "fflate": "^0.7.3",

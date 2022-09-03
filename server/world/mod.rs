@@ -25,9 +25,9 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
+use std::{env, sync::Arc};
 
 use crate::{
     encode_message,
@@ -100,7 +100,6 @@ pub struct PeerUpdate {
 }
 
 /// A voxelize world.
-#[derive(Default)]
 pub struct World {
     /// ID of the world, generated from `nanoid!()`.
     pub id: String,
@@ -124,19 +123,19 @@ pub struct World {
     dispatcher: Option<ModifyDispatch>,
 
     /// The modifier of any new client.
-    client_modifier: Option<CustomFunction<Entity>>,
+    client_modifier: Option<Arc<dyn Fn(Entity, &mut World)>>,
 
     /// The metadata parser for clients.
-    client_parser: Option<ClientParser>,
+    client_parser: Arc<dyn Fn(&str, Entity, &mut World)>,
 
     /// The handler for `Method`s.
-    method_handles: HashMap<String, CustomFunction<Value>>,
+    method_handles: HashMap<String, Arc<dyn Fn(Value, &mut World)>>,
 
     /// The handler for `Transport`s.
-    transport_handle: Option<CustomFunction<Value>>,
+    transport_handle: Option<Arc<dyn Fn(Value, &mut World)>>,
 
     /// The handler for commands.
-    command_handle: Option<CommandHandle>,
+    command_handle: Option<Arc<dyn Fn(&str, &str, &mut World)>>,
 }
 
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
@@ -265,7 +264,7 @@ impl World {
 
             dispatcher: Some(dispatcher),
             method_handles: HashMap::default(),
-            client_parser: Some(default_client_parser),
+            client_parser: Arc::new(default_client_parser),
             client_modifier: None,
             transport_handle: None,
             command_handle: None,
@@ -324,7 +323,7 @@ impl World {
     }
 
     /// Add a transport address to this world.
-    pub fn add_transport(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
+    pub(crate) fn add_transport(&mut self, id: &str, addr: &Recipient<EncodedMessage>) {
         let init_message = self.generate_init_message(id);
         self.send(addr, &init_message);
         self.write_resource::<Transports>()
@@ -332,12 +331,17 @@ impl World {
     }
 
     /// Remove a transport address from this world.
-    pub fn remove_transport(&mut self, id: &str) {
+    pub(crate) fn remove_transport(&mut self, id: &str) {
         self.write_resource::<Transports>().remove(id);
     }
 
     /// Add a client to the world by an ID and an Actix actor address.
-    pub fn add_client(&mut self, id: &str, username: &str, addr: &Recipient<EncodedMessage>) {
+    pub(crate) fn add_client(
+        &mut self,
+        id: &str,
+        username: &str,
+        addr: &Recipient<EncodedMessage>,
+    ) {
         let init_message = self.generate_init_message(id);
 
         let body =
@@ -385,7 +389,7 @@ impl World {
     }
 
     /// Remove a client from the world by endpoint.
-    pub fn remove_client(&mut self, id: &str) {
+    pub(crate) fn remove_client(&mut self, id: &str) {
         let removed = self.clients_mut().remove(id);
 
         if let Some(client) = removed {
@@ -412,84 +416,33 @@ impl World {
         self.dispatcher = Some(dispatch);
     }
 
-    pub fn set_client_modifier(&mut self, modifier: CustomFunction<Entity>) {
-        self.client_modifier = Some(modifier);
+    pub fn set_client_modifier<F: Fn(Entity, &mut World) + 'static>(&mut self, modifier: F) {
+        self.client_modifier = Some(Arc::new(modifier));
     }
 
-    pub fn set_client_parser(&mut self, parser: ClientParser) {
-        self.client_parser = Some(parser);
+    pub fn set_client_parser<F: Fn(&str, Entity, &mut World) + 'static>(&mut self, parser: F) {
+        self.client_parser = Arc::new(parser);
     }
 
-    pub fn set_method_handle(&mut self, method: &str, handle: CustomFunction<Value>) {
-        self.method_handles.insert(method.to_lowercase(), handle);
+    pub fn set_method_handle<F: Fn(Value, &mut World) + 'static>(
+        &mut self,
+        method: &str,
+        handle: F,
+    ) {
+        self.method_handles
+            .insert(method.to_lowercase(), Arc::new(handle));
     }
 
-    pub fn set_transport_handle(&mut self, handle: CustomFunction<Value>) {
-        self.transport_handle = Some(handle);
+    pub fn set_transport_handle<F: Fn(Value, &mut World) + 'static>(&mut self, handle: F) {
+        self.transport_handle = Some(Arc::new(handle));
     }
 
-    pub fn set_command_handle(&mut self, handle: CommandHandle) {
-        self.command_handle = Some(handle);
-    }
-
-    pub fn generate_init_message(&self, id: &str) -> Message {
-        let config = (*self.config()).to_owned();
-        let mut json = HashMap::new();
-
-        json.insert("id".to_owned(), json!(id));
-        json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
-        json.insert("ranges".to_owned(), json!(self.registry().ranges));
-        json.insert("params".to_owned(), json!(config));
-
-        /* ------------------------ Loading other the clients ----------------------- */
-        let ids = self.read_component::<IDComp>();
-        let flags = self.read_component::<ClientFlag>();
-        let names = self.read_component::<NameComp>();
-        let metadatas = self.read_component::<MetadataComp>();
-
-        let mut peers = vec![];
-
-        for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
-            peers.push(PeerProtocol {
-                id: pid.0.to_owned(),
-                username: name.0.to_owned(),
-                metadata: metadata.to_string(),
-            })
-        }
-
-        /* -------------------------- Loading all entities -------------------------- */
-        let etypes = self.read_component::<ETypeComp>();
-        let metadatas = self.read_component::<MetadataComp>();
-
-        let mut entities = vec![];
-
-        for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if metadata.is_empty() {
-                continue;
-            }
-
-            let j_str = metadata.to_string();
-
-            entities.push(EntityProtocol {
-                id: id.0.to_owned(),
-                r#type: etype.0.to_owned(),
-                metadata: Some(j_str),
-            });
-        }
-
-        drop(ids);
-        drop(etypes);
-        drop(metadatas);
-
-        Message::new(&MessageType::Init)
-            .json(&serde_json::to_string(&json).unwrap())
-            .peers(&peers)
-            .entities(&entities)
-            .build()
+    pub fn set_command_handle<F: Fn(&str, &str, &mut World) + 'static>(&mut self, handle: F) {
+        self.command_handle = Some(Arc::new(handle));
     }
 
     /// Handler for protobuf requests from clients.
-    pub fn on_request(&mut self, client_id: &str, data: Message) {
+    pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
         let msg_type = MessageType::from_i32(data.r#type).unwrap();
 
         match msg_type {
@@ -503,14 +456,16 @@ impl World {
                 .write_resource::<MessageQueue>()
                 .push((data, ClientFilter::All)),
             MessageType::Transport => {
-                if let Some(transport_handle) = self.transport_handle {
-                    transport_handle(
+                if self.transport_handle.is_none() {
+                    warn!("Transport calls are being called, but no transport handlers set!");
+                } else {
+                    let handle = self.transport_handle.as_ref().unwrap().to_owned();
+
+                    handle(
                         serde_json::from_str(&data.json)
                             .expect("Something went wrong with the transport JSON value."),
                         self,
                     );
-                } else {
-                    warn!("Transport calls are being called, but no transport handlers set!");
                 }
             }
             _ => {
@@ -645,7 +600,7 @@ impl World {
     }
 
     /// Prepare to start.
-    pub fn prepare(&mut self) {
+    pub(crate) fn prepare(&mut self) {
         for (position, body) in (
             &self.ecs.read_storage::<PositionComp>(),
             &mut self.ecs.write_storage::<RigidBodyComp>(),
@@ -661,7 +616,7 @@ impl World {
     }
 
     /// Preload the chunks in the world.
-    pub fn preload(&mut self) {
+    pub(crate) fn preload(&mut self) {
         let radius = self.config().preload_radius as i32;
 
         {
@@ -685,7 +640,7 @@ impl World {
     }
 
     /// Tick of the world, run every 16ms.
-    pub fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         if !self.started {
             self.started = true;
         }
@@ -744,7 +699,7 @@ impl World {
                 }
             }
 
-            self.client_parser.unwrap()(&metadata, client_ent, self);
+            self.client_parser.clone()(&metadata, client_ent, self);
 
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 client.username = username;
@@ -851,7 +806,7 @@ impl World {
             info!("{}: {}", sender, body);
 
             if body.starts_with('/') {
-                if let Some(handle) = self.command_handle {
+                if let Some(handle) = self.command_handle.to_owned() {
                     handle(id, body.strip_prefix('/').unwrap(), self);
                 } else {
                     warn!("Clients are sending commands, but no command handler set.");
@@ -894,5 +849,61 @@ impl World {
                 }
             }
         }
+    }
+
+    fn generate_init_message(&self, id: &str) -> Message {
+        let config = (*self.config()).to_owned();
+        let mut json = HashMap::new();
+
+        json.insert("id".to_owned(), json!(id));
+        json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
+        json.insert("ranges".to_owned(), json!(self.registry().ranges));
+        json.insert("params".to_owned(), json!(config));
+
+        /* ------------------------ Loading other the clients ----------------------- */
+        let ids = self.read_component::<IDComp>();
+        let flags = self.read_component::<ClientFlag>();
+        let names = self.read_component::<NameComp>();
+        let metadatas = self.read_component::<MetadataComp>();
+
+        let mut peers = vec![];
+
+        for (pid, name, metadata, _) in (&ids, &names, &metadatas, &flags).join() {
+            peers.push(PeerProtocol {
+                id: pid.0.to_owned(),
+                username: name.0.to_owned(),
+                metadata: metadata.to_string(),
+            })
+        }
+
+        /* -------------------------- Loading all entities -------------------------- */
+        let etypes = self.read_component::<ETypeComp>();
+        let metadatas = self.read_component::<MetadataComp>();
+
+        let mut entities = vec![];
+
+        for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
+            if metadata.is_empty() {
+                continue;
+            }
+
+            let j_str = metadata.to_string();
+
+            entities.push(EntityProtocol {
+                id: id.0.to_owned(),
+                r#type: etype.0.to_owned(),
+                metadata: Some(j_str),
+            });
+        }
+
+        drop(ids);
+        drop(etypes);
+        drop(metadatas);
+
+        Message::new(&MessageType::Init)
+            .json(&serde_json::to_string(&json).unwrap())
+            .peers(&peers)
+            .entities(&entities)
+            .build()
     }
 }

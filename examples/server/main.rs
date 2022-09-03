@@ -68,10 +68,6 @@ fn transport_handle(value: Value, world: &mut World) {
 
 fn client_modifier(ent: Entity, world: &mut World) {}
 
-fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
-    default_client_parser(metadata, ent.to_owned(), world);
-}
-
 const ISLAND_LIMIT: i32 = 1;
 const ISLAND_HEIGHT: i32 = 10;
 

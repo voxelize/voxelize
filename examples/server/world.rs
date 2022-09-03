@@ -1,8 +1,9 @@
+use specs::Entity;
 use std::f64;
 use voxelize::{
-    BaseTerrainStage, Chunk, ChunkStage, FlatlandStage, HeightMapStage, LSystem, NoiseParams,
-    Resources, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec2, Vec3, VoxelAccess,
-    World, WorldConfig,
+    default_client_parser, BaseTerrainStage, Chunk, ChunkStage, FlatlandStage, HeightMapStage,
+    LSystem, NoiseParams, Resources, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3,
+    VoxelAccess, World, WorldConfig,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -126,37 +127,32 @@ impl ChunkStage for TreeStage {
         let dirt = resources.registry.get_block_by_name("Dirt");
         let grass_block = resources.registry.get_block_by_name("Grass Block");
 
-        // for vx in chunk.min.0..chunk.max.0 {
-        //     for vz in chunk.min.2..chunk.max.2 {
-        //         let height = chunk.get_max_height(vx, vz) as i32;
-        //         let id = chunk.get_voxel(vx, height, vz);
+        for vx in chunk.min.0..chunk.max.0 {
+            for vz in chunk.min.2..chunk.max.2 {
+                let height = chunk.get_max_height(vx, vz) as i32;
+                let id = chunk.get_voxel(vx, height, vz);
 
-        //         if id != dirt.id && id != grass_block.id {
-        //             continue;
-        //         }
+                if id != dirt.id && id != grass_block.id {
+                    continue;
+                }
 
-        //         if self.trees.should_plant(&Vec3(vx, height, vz)) {}
-        //     }
-        // }
-
-        if chunk.coords == Vec2(0, 0) {
-            self.trees
-                .generate(
-                    "Oak",
-                    &Vec3(
-                        (chunk.max.0 - chunk.min.0) / 2,
-                        10,
-                        (chunk.max.0 - chunk.min.0) / 2,
-                    ),
-                )
-                .into_iter()
-                .for_each(|(Vec3(ux, uy, uz), id)| {
-                    chunk.set_voxel(ux, uy, uz, id);
-                });
+                if self.trees.should_plant(&Vec3(vx, height, vz)) {
+                    self.trees
+                        .generate("Oak", &Vec3(vx, height, vz))
+                        .into_iter()
+                        .for_each(|(Vec3(ux, uy, uz), id)| {
+                            chunk.set_voxel(ux, uy, uz, id);
+                        });
+                }
+            }
         }
 
         chunk
     }
+}
+
+fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
+    default_client_parser(metadata, ent.to_owned(), world);
 }
 
 pub fn setup_world() -> World {
@@ -169,12 +165,13 @@ pub fn setup_world() -> World {
                 .lacunarity(1.8623123)
                 .build(),
         )
-        .max_chunk([10, 10])
-        .min_chunk([-10, -10])
-        .seed(1213123)
+        .preload(true)
+        .seed(53215124)
         .build();
 
     let mut world = World::new("world1", &config);
+
+    world.set_client_parser(client_parser);
 
     let mut terrain = Terrain::new(&config);
 
