@@ -1,5 +1,5 @@
 use specs::Entity;
-use std::f64;
+use std::{default, f64};
 use voxelize::{
     default_client_parser, BaseTerrainStage, Chunk, ChunkStage, FlatlandStage, HeightMapStage,
     LSystem, NoiseParams, Resources, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3,
@@ -171,7 +171,9 @@ pub fn setup_world() -> World {
 
     let mut world = World::new("world1", &config);
 
-    world.set_client_parser(client_parser);
+    world.set_client_parser(|metadata, ent, world| {
+        default_client_parser(metadata, ent, world);
+    });
 
     let mut terrain = Terrain::new(&config);
 
@@ -203,19 +205,20 @@ pub fn setup_world() -> World {
         terrain_stage.set_threshold(0.0);
 
         let oak = Tree::new(44, 43)
-            .leaf_height(2)
-            .leaf_radius(2)
-            .branch_initial_radius(3)
-            .branch_initial_length(8)
+            .leaf_height(3)
+            .leaf_radius(3)
+            .branch_initial_radius(2)
+            .branch_initial_length(7)
             .branch_radius_factor(0.8)
-            .branch_length_factor(0.9)
-            .branch_dy_angle(f64::consts::PI / 2.0)
-            .branch_drot_angle(f64::consts::PI * 2.0 / 8.0)
+            .branch_length_factor(0.5)
+            .branch_dy_angle(f64::consts::PI / 4.0)
+            .branch_drot_angle(f64::consts::PI * 2.0 / 7.0)
             .system(
                 LSystem::new()
                     .axiom("A")
-                    .rule('A', "F[[#F]++[#F]++[#F]++[#F]]@A")
-                    .iterations(3)
+                    .rule('A', "F[[#B]++[#B]++[#B]++[#B]]+%!A")
+                    .rule('B', "%F#@%B")
+                    .iterations(4)
                     .build(),
             )
             .build();
@@ -226,19 +229,19 @@ pub fn setup_world() -> World {
         trees.set_threshold(1.8);
         trees.register("Oak", oak);
 
-        pipeline.add_stage(terrain_stage);
-        pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(SoilingStage::new(
-            config.seed,
-            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
-        ));
-        // pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
+        // pipeline.add_stage(terrain_stage);
         // pipeline.add_stage(HeightMapStage);
-        // pipeline.add_stage(TreeStage::new(
+        // pipeline.add_stage(SoilingStage::new(
         //     config.seed,
-        //     &NoiseParams::new().build(),
-        //     trees,
+        //     &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
         // ));
+        pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
+        pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(TreeStage::new(
+            config.seed,
+            &NoiseParams::new().build(),
+            trees,
+        ));
     }
 
     world

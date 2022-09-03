@@ -74,10 +74,17 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 continue;
             }
 
+            let mut ready = true;
+
             for neighbor in chunks.light_traversed_chunks(&coords) {
-                if !chunks.is_chunk_ready(&neighbor) {
+                if ready && !chunks.is_chunk_ready(&neighbor) {
                     chunks.to_update.push_back((voxel.to_owned(), raw));
+                    ready = false;
                 }
+            }
+
+            if !ready {
+                continue;
             }
 
             let current_id = chunks.get_voxel(vx, vy, vz);
@@ -380,6 +387,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         if !chunks.cache.is_empty() {
             let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
+
             cache.into_iter().for_each(|coords| {
                 if !chunks.is_chunk_ready(&coords) {
                     return;

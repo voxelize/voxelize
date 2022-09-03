@@ -1,10 +1,7 @@
 use nanoid::nanoid;
 use specs::{ReadExpect, System, WriteExpect};
 
-use crate::{
-    Chunk, ChunkParams, ChunkUtils, Chunks, Pipeline, Registry, SeededNoise, Terrain, Vec2,
-    WorldConfig,
-};
+use crate::{Chunk, ChunkParams, ChunkUtils, Chunks, Pipeline, Registry, Vec2, WorldConfig};
 
 /// An ECS system to pipeline chunks through different phases of generation.
 pub struct ChunkPipeliningSystem;
@@ -27,6 +24,12 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             // Store the block changes that exceed to neighboring chunks.
             new_changes.into_iter().for_each(|(voxel, id)| {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
+
+                // New changes are changing the chunk that is currently being generated.
+                if chunks.is_chunk_ready(&coords) {
+                    chunks.add_voxel_to_update(&voxel, id);
+                    return;
+                }
 
                 let mut already = pipeline.leftovers.remove(&coords).unwrap_or_else(|| vec![]);
                 already.push((voxel, id));

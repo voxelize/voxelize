@@ -59,7 +59,9 @@ const App = () => {
     if (worldRef.current) return;
 
     const clock = new THREE.Clock();
-    const world = new VOXELIZE.World({});
+    const world = new VOXELIZE.World({
+      textureDimension: 32,
+    });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
