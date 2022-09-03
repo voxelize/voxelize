@@ -1,7 +1,6 @@
 use std::f64;
 
 use hashbrown::HashMap;
-use log::info;
 use nalgebra::{Rotation3, Vector3};
 
 use crate::{BlockChange, LSystem, NoiseParams, SeededNoise, Vec3};
@@ -92,8 +91,6 @@ impl Trees {
             });
         };
 
-        info!("Generating tree with {:?}", result);
-
         let mut stack = vec![];
 
         for symbol in result.chars() {
@@ -132,11 +129,7 @@ impl Trees {
             } else if symbol == '%' {
                 Trees::place_leaves(
                     tree.leaf_id,
-                    &Vec3(
-                        tree.leaf_radius as u32,
-                        tree.leaf_height as u32,
-                        tree.leaf_radius as u32,
-                    ),
+                    &Vec3(leaf_radius as u32, leaf_height as u32, leaf_radius as u32),
                     &base,
                 )
                 .into_iter()
