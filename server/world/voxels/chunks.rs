@@ -191,6 +191,7 @@ impl Chunks {
             return None;
         }
 
+        self.cache.insert(coords.to_owned());
         self.map.get_mut(coords)
     }
 
@@ -211,6 +212,7 @@ impl Chunks {
             return None;
         }
 
+        self.cache.insert(coords.to_owned());
         self.map.get_mut(coords)
     }
 
