@@ -1,7 +1,7 @@
 use log::info;
 use registry::setup_registry;
 use specs::{Component, NullStorage};
-use voxelize::{ChunkStage, LSystem, Server, Vec3, VoxelAccess, Voxelize};
+use voxelize::{ChunkStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig};
 use world::setup_world;
 
 mod registry;
