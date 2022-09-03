@@ -3,7 +3,7 @@ use serde::Serialize;
 use super::generators::NoiseParams;
 
 /// World configuration, storing information of how a world is constructed.
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldConfig {
     /// Max clients for each world. Default is 100 clients.
@@ -84,6 +84,12 @@ pub struct WorldConfig {
 
     /// Prefix for all commands.
     pub command_symbol: String,
+}
+
+impl Default for WorldConfig {
+    fn default() -> Self {
+        Self::new().build()
+    }
 }
 
 impl WorldConfig {
