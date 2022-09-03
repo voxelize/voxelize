@@ -237,18 +237,18 @@ pub fn setup_world() -> World {
             config.seed,
             &NoiseParams::new().frequency(0.4).lacunarity(2.9).build(),
         );
-        trees.set_threshold(1.8);
+        trees.set_threshold(1.5);
 
         trees.register("Oak", oak);
         trees.register("Palm", palm);
 
-        // pipeline.add_stage(terrain_stage);
-        // pipeline.add_stage(HeightMapStage);
-        // pipeline.add_stage(SoilingStage::new(
-        //     config.seed,
-        //     &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
-        // ));
-        pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
+        pipeline.add_stage(terrain_stage);
+        pipeline.add_stage(HeightMapStage);
+        pipeline.add_stage(SoilingStage::new(
+            config.seed,
+            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
+        ));
+        // pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
         pipeline.add_stage(HeightMapStage);
         pipeline.add_stage(TreeStage::new(
             config.seed,
