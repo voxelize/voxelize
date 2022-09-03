@@ -301,7 +301,7 @@ const App = () => {
     inputs.bind(
       "l",
       () => {
-        network.action({ action: "create_world", data: { name: "test" } });
+        network.action({ action: "create_world", data: "new_world" });
       },
       "in-game"
     );
@@ -343,7 +343,7 @@ const App = () => {
       .connect({ serverURL: BACKEND_SERVER, secret: "test" })
       .then(() => {
         network
-          .join("world1")
+          .join("new_world")
           .then(() => {
             const animate = () => {
               requestAnimationFrame(animate);

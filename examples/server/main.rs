@@ -122,12 +122,12 @@ async fn main() -> std::io::Result<()> {
         .add_world(setup_world())
         .expect("Could not create world1.");
 
-    server.set_action_handle("create_world", |value, world| {
-        info!("World creating...")
-        // let name: String = serde_json::from_value(value).expect("Can't understand name.");
-        // if world.create_world(&name).is_none() {
-        //     warn!("Failed to create world: {}", name);
-        // }
+    server.set_action_handle("create_world", |value, server| {
+        info!("World creating...");
+        let name: String = serde_json::from_value(value).expect("Can't understand name.");
+        server
+            .create_world(&name, &WorldConfig::default())
+            .expect("Could not create world.");
     });
 
     let l_system = LSystem::new()
