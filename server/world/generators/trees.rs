@@ -72,9 +72,6 @@ impl Trees {
             ..
         } = tree;
 
-        let system = &tree.system;
-        let result = system.generate();
-
         let mut base = at.clone();
         let mut length = branch_initial_length as f64;
         let mut radius = branch_initial_radius as f64;
@@ -93,7 +90,7 @@ impl Trees {
 
         let mut stack = vec![];
 
-        for symbol in result.chars() {
+        for symbol in tree.system_result.chars() {
             // Grow the tree from base.
             if symbol == 'F' {
                 let delta_pos = Trees::angle_dist_cast(y_angle, rot_angle, length.ceil() as i32);
@@ -311,8 +308,8 @@ pub struct Tree {
     /// The id of the trunk block.
     pub trunk_id: u32,
 
-    /// The L-system to use.
-    pub system: LSystem,
+    /// The L-system output to use.
+    pub system_result: String,
 }
 
 impl Tree {
@@ -438,7 +435,7 @@ impl TreeBuilder {
             branch_drot_angle: self.branch_drot_angle,
             leaf_id: self.leaf_id,
             trunk_id: self.trunk_id,
-            system: self.system,
+            system_result: self.system.generate(),
         }
     }
 }
