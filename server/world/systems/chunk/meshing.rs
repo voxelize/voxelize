@@ -51,25 +51,15 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                         ready = false;
                         break;
                     }
-                }
 
-                count += 1;
-
-                if !ready {
-                    chunks.add_chunk_to_remesh(&coords, false);
-                    continue;
-                }
-
-                for n_coords in chunks.light_traversed_chunks(&coords).into_iter() {
-                    // Neighbors are ready, but may have some blocks to be applied onto this chunk.
-                    if let Some(blocks) = pipeline.leftovers.remove(&n_coords) {
+                    if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
                         blocks.into_iter().for_each(|(voxel, val)| {
-                            let Vec3(vx, vy, vz) = voxel;
+                            let Vec3(vx, vy, vz) = *voxel;
 
-                            chunks.set_raw_voxel(vx, vy, vz, val);
+                            chunks.set_raw_voxel(vx, vy, vz, *val);
 
                             let height = chunks.get_max_height(vx, vz);
-                            let id = BlockUtils::extract_id(val);
+                            let id = BlockUtils::extract_id(*val);
 
                             // Change the max height if necessary.
                             if registry.is_air(id) {
@@ -90,6 +80,15 @@ impl<'a> System<'a> for ChunkMeshingSystem {
                         });
                     }
                 }
+
+                count += 1;
+
+                if !ready {
+                    chunks.add_chunk_to_remesh(&coords, false);
+                    continue;
+                }
+
+                pipeline.leftovers.remove(&coords);
 
                 // At this point, the chunk is ready to be saved.
                 if config.saving {

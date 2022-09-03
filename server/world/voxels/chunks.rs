@@ -33,19 +33,19 @@ pub struct Chunks {
     pub map: HashMap<Vec2<i32>, Chunk>,
 
     /// Voxel updates waiting to be processed.
-    pub to_update: VecDeque<BlockChange>,
+    pub(crate) to_update: VecDeque<BlockChange>,
 
     /// A list of chunks that are to be remeshed (light + mesh).
-    pub to_remesh: VecDeque<Vec2<i32>>,
+    pub(crate) to_remesh: VecDeque<Vec2<i32>>,
 
     /// A list of chunks that are done meshing and ready to be sent.
-    pub to_send: VecDeque<(Vec2<i32>, MessageType)>,
+    pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
-    pub to_save: VecDeque<Vec2<i32>>,
+    pub(crate) to_save: VecDeque<Vec2<i32>>,
 
     /// A cache of what chunks has been borrowed mutable.
-    pub cache: HashSet<Vec2<i32>>,
+    pub(crate) cache: HashSet<Vec2<i32>>,
 
     /// A copy of the world's config.
     config: WorldConfig,
@@ -191,7 +191,6 @@ impl Chunks {
             return None;
         }
 
-        self.cache.insert(coords.to_owned());
         self.map.get_mut(coords)
     }
 
@@ -212,7 +211,6 @@ impl Chunks {
             return None;
         }
 
-        self.cache.insert(coords.to_owned());
         self.map.get_mut(coords)
     }
 
@@ -387,6 +385,15 @@ impl Chunks {
             self.to_send.push_front((coords.to_owned(), r#type.clone()));
         } else {
             self.to_send.push_back((coords.to_owned(), r#type.clone()));
+        }
+    }
+
+    /// Add a voxel to update.
+    pub fn add_voxel_to_update(&mut self, voxel: &Vec3<i32>, id: u32) {
+        if let Some(entry) = self.to_update.iter_mut().find(|(vox, _)| *vox == *voxel) {
+            entry.1 = id;
+        } else {
+            self.to_update.push_back((voxel.to_owned(), id));
         }
     }
 

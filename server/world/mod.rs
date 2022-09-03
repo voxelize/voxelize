@@ -137,6 +137,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PeersMetaSystem, "peers-meta", &[])
         .with(CurrentChunkSystem, "current-chunk", &[])
         .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
+        .with(ChunkCachingSystem, "chunk-caching", &["chunk-updating"])
         .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
         .with(
             ChunkPipeliningSystem,
@@ -146,7 +147,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(
             ChunkMeshingSystem,
             "chunk-meshing",
-            &["chunk-updating", "chunk-pipelining"],
+            &["chunk-updating", "chunk-caching", "chunk-pipelining"],
         )
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-meshing"])

@@ -1,3 +1,4 @@
+mod caching;
 mod current;
 mod meshing;
 mod pipelining;
@@ -6,6 +7,7 @@ mod saving;
 mod sending;
 mod updating;
 
+pub use caching::*;
 pub use current::CurrentChunkSystem;
 pub use meshing::ChunkMeshingSystem;
 pub use pipelining::ChunkPipeliningSystem;

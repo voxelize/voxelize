@@ -205,10 +205,10 @@ pub fn setup_world() -> World {
         terrain_stage.set_threshold(0.0);
 
         let oak = Tree::new(44, 43)
-            .leaf_height(2)
-            .leaf_radius(2)
-            .branch_initial_radius(1)
-            .branch_initial_length(5)
+            .leaf_height(3)
+            .leaf_radius(3)
+            .branch_initial_radius(2)
+            .branch_initial_length(7)
             .branch_radius_factor(0.8)
             .branch_length_factor(0.5)
             .branch_dy_angle(f64::consts::PI / 4.0)

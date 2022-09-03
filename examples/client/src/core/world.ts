@@ -4,7 +4,7 @@ import ObsidianImage from "../assets/own/obsidian.png";
 import GrassBlockImage from "../assets/own/grass_top.png";
 import GrassBlockSideImage from "../assets/own/grass_side.png";
 import DirtImage from "../assets/own/dirt.png";
-import OakLeavesImage from "../assets/blocks/leaves_oak.png";
+import OakLeavesImage from "../assets/own/leaves_oak.png";
 import OakTopImage from "../assets/own/oak_log_top.png";
 import OakSideImage from "../assets/own/oak_log_side.png";
 import OrangeConcreteImage from "../assets/own/orange_concrete.png";
