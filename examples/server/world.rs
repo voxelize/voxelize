@@ -227,21 +227,15 @@ pub fn setup_world() -> World {
             .leaf_height(2)
             .leaf_radius(1)
             .branch_initial_radius(1)
-            .branch_initial_length(12)
+            .branch_initial_length(6)
             .branch_dy_angle(f64::consts::PI / 4.0)
             .branch_drot_angle(f64::consts::PI / 4.0)
-            .system(
-                LSystem::new()
-                    .axiom("F%#B")
-                    .rule('B', "F%#B")
-                    .iterations(3)
-                    .build(),
-            )
+            .system(LSystem::new().axiom("F%").build())
             .build();
 
         let mut trees = Trees::new(
             config.seed,
-            &NoiseParams::new().frequency(0.04).lacunarity(2.9).build(),
+            &NoiseParams::new().frequency(0.4).lacunarity(2.9).build(),
         );
         trees.set_threshold(1.8);
 
