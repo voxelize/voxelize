@@ -11,11 +11,13 @@ use crate::{BlockChange, LSystem, NoiseParams, SeededNoise, Vec3};
 /// - `F`: Forward one unit.
 /// - `+`: Rotate right drot degrees.
 /// - `-`: Rotate left drot degrees.
-/// - `#`: Rotate upwards dy degrees.
-/// - `&`: Rotate downwards dy degrees.
+/// - `#`: Rotate downwards dy degrees.
+/// - `&`: Rotate upwards dy degrees.
 /// - `[`: Push the current state onto the stack.
 /// - `]`: Pop the current state from the stack.
-/// - `@`: Scale length and radius by decreases.
+/// - `@`: Scale length by decreases.
+/// - `!`: Scale radius by decreases.
+/// - `%`: Place a ball of leaves.
 
 struct TreeState {
     pub base: Vec3<i32>,
@@ -82,6 +84,7 @@ impl Trees {
         let mut rot_angle = 0.0;
 
         let mut updates = HashMap::new();
+        let mut leaves_updates = HashMap::new();
 
         let mut push_updates = |new_updates: Vec<BlockChange>| {
             new_updates.into_iter().for_each(|(pos, id)| {
@@ -123,8 +126,23 @@ impl Trees {
             } else if symbol == '@' {
                 length *= branch_length_factor;
                 length = length.max(branch_min_length as f64);
+            } else if symbol == '!' {
                 radius *= branch_radius_factor;
                 radius = radius.max(branch_min_radius as f64);
+            } else if symbol == '%' {
+                Trees::place_leaves(
+                    tree.leaf_id,
+                    &Vec3(
+                        tree.leaf_radius as u32,
+                        tree.leaf_height as u32,
+                        tree.leaf_radius as u32,
+                    ),
+                    &base,
+                )
+                .into_iter()
+                .for_each(|(pos, id)| {
+                    leaves_updates.insert(pos, id);
+                });
             }
             // Save the state
             else if symbol == '[' {
@@ -145,7 +163,9 @@ impl Trees {
             }
         }
 
-        updates.into_iter().collect()
+        leaves_updates.extend(updates.into_iter());
+
+        leaves_updates.into_iter().collect()
     }
 
     fn place_trunk_by_angles(
@@ -207,9 +227,9 @@ impl Trees {
                             vec = rotation.transform_vector(&vec);
                         }
 
-                        let new_x = vec.x as i32;
-                        let new_y = vec.y as i32;
-                        let new_z = vec.z as i32;
+                        let new_x = vec.x.round() as i32;
+                        let new_y = vec.y.round() as i32;
+                        let new_z = vec.z.round() as i32;
 
                         changes.push((Vec3(fx + new_x, fy + new_y, fz + new_z), trunk_id));
                     }

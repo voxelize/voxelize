@@ -1,9 +1,10 @@
 import WaterImage from "../assets/own/water.png";
 import ObsidianImage from "../assets/own/obsidian.png";
-import OakLeavesImage from "../assets/own/oak_leaves.png";
+// import OakLeavesImage from "../assets/own/oak_leaves.png";
 import GrassBlockImage from "../assets/own/grass_top.png";
 import GrassBlockSideImage from "../assets/own/grass_side.png";
 import DirtImage from "../assets/own/dirt.png";
+import OakLeavesImage from "../assets/blocks/leaves_oak.png";
 import OakTopImage from "../assets/own/oak_log_top.png";
 import OakSideImage from "../assets/own/oak_log_side.png";
 import OrangeConcreteImage from "../assets/own/orange_concrete.png";
@@ -59,6 +60,7 @@ export function setupWorld(world: World) {
     { name: "Grass", sides: ["one", "two"], data: GrassImage },
     { name: "Stone", sides: all, data: StoneImage },
     { name: "Oak Leaves", sides: all, data: OakLeavesImage },
+    { name: "Oak Leaves", sides: ["one", "two"], data: OakLeavesImage },
     { name: "Oak Log", sides: ["py"], data: OakTopImage },
     { name: "Oak Log", sides: side, data: OakSideImage },
     { name: "Oak Log", sides: ["ny"], data: OakTopImage },

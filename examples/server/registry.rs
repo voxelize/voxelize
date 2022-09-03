@@ -62,10 +62,23 @@ pub fn setup_registry() -> Registry {
         Block::new("Oak Log").id(43).rotatable(true).build(),
         Block::new("Oak Leaves")
             .id(44)
+            .faces(
+                &BlockFace::six_faces()
+                    .build()
+                    .iter()
+                    .chain(
+                        &BlockFace::diagonal_faces()
+                            .scale_horizontal(1.2)
+                            .scale_vertical(1.4)
+                            .build(),
+                    )
+                    .map(|x| x.to_owned())
+                    .collect::<Vec<_>>(),
+            )
+            .is_see_through(true)
             .is_x_transparent(true)
             .is_y_transparent(true)
             .is_z_transparent(true)
-            .is_see_through(true)
             .transparent_standalone(true)
             .build(),
         Block::new("Oak Pole")

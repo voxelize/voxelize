@@ -54,15 +54,7 @@ pub use types::*;
 pub use utils::*;
 pub use voxels::*;
 
-pub type ModifyDispatch = fn() -> DispatcherBuilder<'static, 'static>;
-
-pub type CustomFunction<T> = fn(T, &mut World);
-
-pub type ClientParser = fn(&str, Entity, &mut World);
-
 pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
-
-pub type CommandHandle = fn(&str, &str, &mut World);
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 pub fn default_client_parser(metadata: &str, client_ent: Entity, world: &mut World) {
@@ -120,7 +112,7 @@ pub struct World {
     ecs: ECSWorld,
 
     /// The modifier of the ECS dispatcher.
-    dispatcher: Option<ModifyDispatch>,
+    dispatcher: Arc<dyn Fn() -> DispatcherBuilder<'static, 'static>>,
 
     /// The modifier of any new client.
     client_modifier: Option<Arc<dyn Fn(Entity, &mut World)>>,
@@ -262,7 +254,7 @@ impl World {
 
             ecs,
 
-            dispatcher: Some(dispatcher),
+            dispatcher: Arc::new(dispatcher),
             method_handles: HashMap::default(),
             client_parser: Arc::new(default_client_parser),
             client_modifier: None,
@@ -412,8 +404,11 @@ impl World {
         }
     }
 
-    pub fn set_dispatcher(&mut self, dispatch: ModifyDispatch) {
-        self.dispatcher = Some(dispatch);
+    pub fn set_dispatcher<F: Fn() -> DispatcherBuilder<'static, 'static> + 'static>(
+        &mut self,
+        dispatch: F,
+    ) {
+        self.dispatcher = Arc::new(dispatch);
     }
 
     pub fn set_client_modifier<F: Fn(Entity, &mut World) + 'static>(&mut self, modifier: F) {
@@ -673,7 +668,7 @@ impl World {
             return;
         }
 
-        let mut dispatcher = self.dispatcher.unwrap()().build();
+        let mut dispatcher = (self.dispatcher)().build();
         dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
