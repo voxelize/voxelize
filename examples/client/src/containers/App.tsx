@@ -343,7 +343,7 @@ const App = () => {
       .connect({ serverURL: BACKEND_SERVER, secret: "test" })
       .then(() => {
         network
-          .join("new_world")
+          .join("world1")
           .then(() => {
             const animate = () => {
               requestAnimationFrame(animate);
