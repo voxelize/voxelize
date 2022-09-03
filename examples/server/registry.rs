@@ -75,11 +75,6 @@ pub fn setup_registry() -> Registry {
                     .map(|x| x.to_owned())
                     .collect::<Vec<_>>(),
             )
-            .is_see_through(true)
-            .is_x_transparent(true)
-            .is_y_transparent(true)
-            .is_z_transparent(true)
-            .transparent_standalone(true)
             .build(),
         Block::new("Oak Pole")
             .id(45)
