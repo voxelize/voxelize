@@ -151,10 +151,6 @@ impl ChunkStage for TreeStage {
     }
 }
 
-fn client_parser(metadata: &str, ent: Entity, world: &mut World) {
-    default_client_parser(metadata, ent.to_owned(), world);
-}
-
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
         .terrain(
@@ -166,7 +162,7 @@ pub fn setup_world() -> World {
                 .build(),
         )
         .preload(true)
-        .seed(53215124)
+        .seed(141234123)
         .build();
 
     let mut world = World::new("world1", &config);

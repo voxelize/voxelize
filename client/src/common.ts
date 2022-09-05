@@ -3,6 +3,8 @@ import { Object3D, Vector3 } from "three";
 export const TRANSPARENT_RENDER_ORDER = 100000;
 export const OPAQUE_RENDER_ORDER = 100;
 
+const empty = new Vector3();
+
 export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
   // Custom chunk sorting logic, to ensure that the closest objects are rendered last.
   if (
@@ -24,20 +26,23 @@ export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
 
     if (aGeo && aGeo.boundingBox) {
       aGeo.boundingBox.getCenter(aPos);
+      aPos.add(aObj.getWorldPosition(empty));
     } else {
       aObj.getWorldPosition(aPos);
     }
 
     if (bGeo && bGeo.boundingBox) {
       bGeo.boundingBox.getCenter(bPos);
+      bPos.add(bObj.getWorldPosition(empty));
     } else {
       bObj.getWorldPosition(bPos);
     }
 
-    return (
-      bPos.distanceToSquared(object.position) -
-      aPos.distanceToSquared(object.position)
-    );
+    return bPos.distanceToSquared(object.position) -
+      aPos.distanceToSquared(object.position) >
+      1
+      ? 1
+      : -1;
   }
 
   // https://github.com/mrdoob/three.js/blob/d0af538927/src/renderers/webgl/WebGLRenderLists.js

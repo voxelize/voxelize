@@ -848,6 +848,7 @@ export class World extends Scene implements NetIntercept {
         const mat = this.makeShaderMaterial();
         mat.transparent = true;
         mat.alphaTest = 0.1;
+        // mat.depthWrite = false;
         return mat;
       };
 

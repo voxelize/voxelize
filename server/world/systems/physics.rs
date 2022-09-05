@@ -16,8 +16,6 @@ use crate::{
     ClientFlag, CollisionsComp, InteractorComp, Vec3,
 };
 
-use rand::{distributions::Uniform, Rng};
-
 #[derive(Default)]
 pub struct PhysicsSystem;
 
@@ -170,13 +168,10 @@ impl<'a> System<'a> for PhysicsSystem {
                 let dy = dy / len;
                 let mut dz = dz / len;
 
-                let mut rng = rand::thread_rng();
-                let range = Uniform::new(-10.0, 10.0);
-
                 // If only dy movements, add a little bias to eliminate stack overflow.
                 if dx.abs() < 0.001 && dz.abs() < 0.001 {
-                    dx = rng.sample(&range) / 1000.0;
-                    dz = rng.sample(&range) / 1000.0;
+                    dx = fastrand::i32(-10..10) as f32 / 1000.0;
+                    dz = fastrand::i32(-10..10) as f32 / 1000.0;
                 }
 
                 body.0.apply_impulse(

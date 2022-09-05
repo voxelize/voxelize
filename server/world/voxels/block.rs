@@ -295,6 +295,9 @@ impl BlockFace {
 pub struct DiagonalFacesBuilder {
     scale_horizontal: f32,
     scale_vertical: f32,
+    offset_x: f32,
+    offset_y: f32,
+    offset_z: f32,
     prefix: String,
     suffix: String,
     concat: String,
@@ -306,6 +309,9 @@ impl DiagonalFacesBuilder {
         DiagonalFacesBuilder {
             scale_horizontal: 1.0,
             scale_vertical: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+            offset_z: 0.0,
             prefix: "".to_string(),
             suffix: "".to_string(),
             concat: "".to_string(),
@@ -321,6 +327,24 @@ impl DiagonalFacesBuilder {
     /// Set the scale of the vertical faces.
     pub fn scale_vertical(mut self, scale: f32) -> Self {
         self.scale_vertical = scale;
+        self
+    }
+
+    /// Set the offset of the x-axis.
+    pub fn offset_x(mut self, offset: f32) -> Self {
+        self.offset_x = offset;
+        self
+    }
+
+    /// Set the offset of the y-axis.
+    pub fn offset_y(mut self, offset: f32) -> Self {
+        self.offset_y = offset;
+        self
+    }
+
+    /// Set the offset of the z-axis.
+    pub fn offset_z(mut self, offset: f32) -> Self {
+        self.offset_z = offset;
         self
     }
 
@@ -347,6 +371,9 @@ impl DiagonalFacesBuilder {
         let Self {
             scale_horizontal,
             scale_vertical,
+            offset_x,
+            offset_y,
+            offset_z,
             prefix,
             suffix,
             concat,
@@ -379,19 +406,27 @@ impl DiagonalFacesBuilder {
                 dir: [0, 0, 0],
                 corners: [
                     CornerData {
-                        pos: [h_min, scale_vertical, h_min],
+                        pos: [
+                            offset_x + h_min,
+                            offset_y + scale_vertical,
+                            offset_z + h_min,
+                        ],
                         uv: [0.0, 1.0],
                     },
                     CornerData {
-                        pos: [h_min, 0.0, h_min],
+                        pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_min],
                         uv: [0.0, 0.0],
                     },
                     CornerData {
-                        pos: [h_max, scale_vertical, h_max],
+                        pos: [
+                            offset_x + h_max,
+                            offset_y + scale_vertical,
+                            offset_z + h_max,
+                        ],
                         uv: [1.0, 1.0],
                     },
                     CornerData {
-                        pos: [h_max, 0.0, h_max],
+                        pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_max],
                         uv: [1.0, 0.0],
                     },
                 ],
@@ -401,19 +436,27 @@ impl DiagonalFacesBuilder {
                 dir: [0, 0, 0],
                 corners: [
                     CornerData {
-                        pos: [h_max, scale_vertical, h_min],
+                        pos: [
+                            offset_x + h_max,
+                            offset_y + scale_vertical,
+                            offset_z + h_min,
+                        ],
                         uv: [0.0, 1.0],
                     },
                     CornerData {
-                        pos: [h_max, 0.0, h_min],
+                        pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_min],
                         uv: [0.0, 0.0],
                     },
                     CornerData {
-                        pos: [h_min, scale_vertical, h_max],
+                        pos: [
+                            offset_x + h_min,
+                            offset_y + scale_vertical,
+                            offset_z + h_max,
+                        ],
                         uv: [1.0, 1.0],
                     },
                     CornerData {
-                        pos: [h_min, 0.0, h_max],
+                        pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_max],
                         uv: [1.0, 0.0],
                     },
                 ],
