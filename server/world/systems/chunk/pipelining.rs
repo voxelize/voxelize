@@ -88,14 +88,10 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
                     },
                 );
 
-                // Add this chunk to the pipeline with stage 0.
-                pipeline.postpone(&new_chunk.coords, 0);
                 chunks.add(new_chunk);
-
-                continue;
             }
 
-            let chunk = chunk.unwrap().clone();
+            let chunk = chunks.raw(&coords).unwrap();
 
             // Means chunk is already done.
             if chunk.stage.is_none() {
@@ -106,6 +102,8 @@ impl<'a> System<'a> for ChunkPipeliningSystem {
             if chunk.stage.unwrap() > index {
                 continue;
             }
+
+            let chunk = chunk.clone();
 
             // Check if chunk's neighbors are ready to be used.
             let mut ready = true;
