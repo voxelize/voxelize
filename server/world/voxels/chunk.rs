@@ -6,6 +6,16 @@ use crate::{BlockChange, ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Regis
 
 use super::access::VoxelAccess;
 
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+pub enum ChunkStatus {
+    #[default]
+    Generating,
+
+    Meshing,
+
+    Ready,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ChunkParams {
     pub size: usize,
@@ -19,6 +29,8 @@ pub struct Chunk {
     pub name: String,
     pub coords: Vec2<i32>,
     pub stage: Option<usize>,
+
+    pub status: ChunkStatus,
 
     pub voxels: Ndarray<u32>,
     pub lights: Ndarray<u32>,
@@ -59,6 +71,7 @@ impl Chunk {
             name: ChunkUtils::get_chunk_name(cx, cz),
             coords: Vec2(cx, cz),
             stage: Some(0),
+            status: ChunkStatus::Generating,
 
             meshes: None,
 

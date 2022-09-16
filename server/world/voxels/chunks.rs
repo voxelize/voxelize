@@ -9,7 +9,9 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{BlockChange, ChunkParams, ChunkUtils, MessageType, Vec2, Vec3, WorldConfig};
+use crate::{
+    BlockChange, ChunkParams, ChunkStatus, ChunkUtils, MessageType, Vec2, Vec3, WorldConfig,
+};
 
 use super::{
     access::VoxelAccess,
@@ -166,7 +168,16 @@ impl Chunks {
     }
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.
-    pub fn renew(&mut self, chunk: Chunk) {
+    pub fn renew(&mut self, mut chunk: Chunk) {
+        // Updates the chunk status also.
+        if chunk.stage.is_some() {
+            chunk.status = ChunkStatus::Generating;
+        } else if chunk.meshes.is_none() {
+            chunk.status = ChunkStatus::Meshing;
+        } else {
+            chunk.status = ChunkStatus::Ready;
+        }
+
         self.map.remove(&chunk.coords);
         self.map.insert(chunk.coords.to_owned(), chunk);
     }

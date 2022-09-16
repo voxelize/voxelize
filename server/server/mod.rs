@@ -18,7 +18,7 @@ use std::{env, sync::Arc};
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
-    Stats,
+    ChunkStatus, Stats,
 };
 
 pub use models::*;
@@ -90,15 +90,25 @@ fn default_info_handle(server: &Server) -> Value {
         {
             let chunks = world.chunks();
 
+            let mut generating: i32 = 0;
+            let mut meshing: i32 = 0;
+            let mut ready: i32 = 0;
+
+            for chunk in chunks.map.values() {
+                match chunk.status {
+                    ChunkStatus::Generating => generating += 1,
+                    ChunkStatus::Meshing => meshing += 1,
+                    ChunkStatus::Ready => ready += 1,
+                }
+            }
+
             world_info.insert(
                 "chunks".to_owned(),
                 json!({
                     "count": chunks.map.len(),
-                    "toUpdate": chunks.to_update.len(),
-                    "toRemesh": chunks.to_remesh.len(),
-                    "toSend": chunks.to_send.len(),
-                    "toSave": chunks.to_save.len(),
-
+                    "generating": generating,
+                    "meshing": meshing,
+                    "ready": ready,
                 }),
             );
         }

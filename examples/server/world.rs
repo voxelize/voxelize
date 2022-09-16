@@ -161,7 +161,7 @@ pub fn setup_world() -> World {
                 .lacunarity(1.8623123)
                 .build(),
         )
-        .preload(true)
+        // .preload(true)
         .seed(141234123)
         .build();
 
