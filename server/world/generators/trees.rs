@@ -3,7 +3,7 @@ use std::f64;
 use hashbrown::HashMap;
 use nalgebra::{Rotation3, Vector3};
 
-use crate::{BlockChange, LSystem, NoiseParams, SeededNoise, Vec3};
+use crate::{LSystem, NoiseParams, SeededNoise, Vec3, VoxelUpdate};
 
 /// There are a set of L-system symbols for the tree generator.
 /// The symbols are:
@@ -54,7 +54,7 @@ impl Trees {
             > self.threshold
     }
 
-    pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<BlockChange> {
+    pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<VoxelUpdate> {
         let tree = self.trees.get(&name.to_lowercase()).unwrap();
         // Panic if the tree doesn't exist
         let &Tree {
@@ -83,7 +83,7 @@ impl Trees {
         let mut updates = HashMap::new();
         let mut leaves_updates = HashMap::new();
 
-        let mut push_updates = |new_updates: Vec<BlockChange>| {
+        let mut push_updates = |new_updates: Vec<VoxelUpdate>| {
             new_updates.into_iter().for_each(|(pos, id)| {
                 updates.insert(pos, id);
             });
@@ -167,7 +167,7 @@ impl Trees {
         dist: i32,
         start_radius: i32,
         end_radius: i32,
-    ) -> Vec<BlockChange> {
+    ) -> Vec<VoxelUpdate> {
         let &Vec3(fx, fy, fz) = from;
 
         let Vec3(dx, dy, dz) = Trees::angle_dist_cast(y_angle, rot_angle, dist);
@@ -187,7 +187,7 @@ impl Trees {
         to: &Vec3<i32>,
         start_radius: i32,
         end_radius: i32,
-    ) -> Vec<BlockChange> {
+    ) -> Vec<VoxelUpdate> {
         let mut changes = vec![];
 
         let &Vec3(fx, fy, fz) = from;
@@ -231,7 +231,7 @@ impl Trees {
         changes
     }
 
-    fn place_leaves(leaf_id: u32, dimensions: &Vec3<u32>, at: &Vec3<i32>) -> Vec<BlockChange> {
+    fn place_leaves(leaf_id: u32, dimensions: &Vec3<u32>, at: &Vec3<i32>) -> Vec<VoxelUpdate> {
         let mut changes = vec![];
 
         let &Vec3(vx, vy, vz) = at;

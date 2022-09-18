@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    BlockChange, ChunkParams, ChunkStatus, ChunkUtils, MessageType, Vec2, Vec3, WorldConfig,
+    ChunkParams, ChunkStatus, ChunkUtils, MessageType, Vec2, Vec3, VoxelUpdate, WorldConfig,
 };
 
 use super::{
@@ -35,16 +35,16 @@ pub struct Chunks {
     pub map: HashMap<Vec2<i32>, Chunk>,
 
     /// Voxel updates waiting to be processed.
-    pub(crate) to_update: VecDeque<BlockChange>,
-
-    /// A list of chunks that are to be remeshed (light + mesh).
-    pub(crate) to_remesh: VecDeque<Vec2<i32>>,
+    pub(crate) updates: VecDeque<VoxelUpdate>,
 
     /// A list of chunks that are done meshing and ready to be sent.
     pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
+
+    /// A listener for when a chunk is done generating or meshing.
+    pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
 
     /// A cache of what chunks has been borrowed mutable.
     pub(crate) cache: HashSet<Vec2<i32>>,
@@ -120,7 +120,7 @@ impl Chunks {
 
             chunk.voxels.data = decode_base64(voxels);
             chunk.height_map.data = decode_base64(height_map);
-            chunk.stage = None;
+            chunk.status = ChunkStatus::Meshing;
 
             Some(chunk)
         } else {
@@ -169,15 +169,6 @@ impl Chunks {
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.
     pub fn renew(&mut self, mut chunk: Chunk) {
-        // Updates the chunk status also.
-        if chunk.stage.is_some() {
-            chunk.status = ChunkStatus::Generating;
-        } else if chunk.meshes.is_none() {
-            chunk.status = ChunkStatus::Meshing;
-        } else {
-            chunk.status = ChunkStatus::Ready;
-        }
-
         self.map.remove(&chunk.coords);
         self.map.insert(chunk.coords.to_owned(), chunk);
     }
@@ -346,15 +337,7 @@ impl Chunks {
     /// Guard to getting a chunk, only allowing chunks to be accessed when they're ready.
     pub fn is_chunk_ready(&self, coords: &Vec2<i32>) -> bool {
         if let Some(chunk) = self.raw(coords) {
-            if chunk.stage.is_some() {
-                return false;
-            }
-
-            if chunk.meshes.is_none() {
-                return false;
-            }
-
-            return true;
+            return chunk.status == ChunkStatus::Ready;
         }
 
         false
@@ -365,15 +348,11 @@ impl Chunks {
         self.cache.clear();
     }
 
-    /// Add a chunk to be remeshed.
-    pub fn add_chunk_to_remesh(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if !self.to_remesh.contains(coords) {
-            if prioritized {
-                self.to_remesh.push_front(coords.to_owned());
-            } else {
-                self.to_remesh.push_back(coords.to_owned());
-            }
-        }
+    /// Update a voxel in the chunk map. This includes recalculating the light and height maps
+    /// and sending the chunk to the interested clients. This process is not instant, and will
+    /// be done in the background.
+    pub fn update_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
+        self.updates.push_back((voxel.to_owned(), val))
     }
 
     /// Add a chunk to be saved.
@@ -401,13 +380,11 @@ impl Chunks {
         }
     }
 
-    /// Add a voxel to update.
-    pub fn add_voxel_to_update(&mut self, voxel: &Vec3<i32>, id: u32) {
-        if let Some(entry) = self.to_update.iter_mut().find(|(vox, _)| *vox == *voxel) {
-            entry.1 = id;
-        } else {
-            self.to_update.push_back((voxel.to_owned(), id));
-        }
+    /// Add a listener to a chunk.
+    pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
+        let mut listeners = self.listeners.remove(coords).unwrap_or_default();
+        listeners.push(listener.to_owned());
+        self.listeners.insert(coords.to_owned(), listeners);
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {

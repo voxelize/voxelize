@@ -139,17 +139,12 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
         .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
         .with(
-            ChunkPipeliningSystem,
-            "chunk-pipelining",
+            ChunkGeneratingSystem,
+            "chunk-generating",
             &["chunk-requests"],
         )
-        .with(
-            ChunkMeshingSystem,
-            "chunk-meshing",
-            &["chunk-updating", "chunk-pipelining"],
-        )
-        .with(ChunkSendingSystem, "chunk-sending", &["chunk-meshing"])
-        .with(ChunkSavingSystem, "chunk-saving", &["chunk-meshing"])
+        .with(ChunkSendingSystem, "chunk-sending", &["chunk-generating"])
+        .with(ChunkSavingSystem, "chunk-saving", &["chunk-generating"])
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
         .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
         .with(
@@ -161,7 +156,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(
             BroadcastSystem,
             "broadcast",
-            &["entities-sending", "peers-sending", "chunk-sending"],
+            &["entities-sending", "peers-sending"],
         )
         .with(
             ClearCollisionsSystem,
@@ -625,7 +620,7 @@ impl World {
 
                     let mut pipeline = self.pipeline_mut();
                     if is_within {
-                        pipeline.push(&coords, 0);
+                        pipeline.add_chunk(&coords, false);
                     }
                 }
             }
@@ -718,18 +713,12 @@ impl World {
             return;
         }
 
-        // let storage = self.read_component::<CurrentChunkComp>();
-        // let center = storage.get(client_ent).unwrap().coords.to_owned();
-        // drop(storage);
-
         let mut storage = self.write_component::<ChunkRequestsComp>();
         let requests = storage.get_mut(client_ent).unwrap();
 
         chunks.into_iter().for_each(|coords| {
-            requests.append(&coords);
+            requests.add(&coords);
         });
-
-        // requests.sort_pending(&center);
     }
 
     /// Handler for `Unload` type messages.
@@ -752,7 +741,7 @@ impl World {
 
         if let Some(requests) = storage.get_mut(client_ent) {
             chunks.into_iter().for_each(|coords| {
-                requests.unload(&coords);
+                requests.remove(&coords);
             });
         }
     }
@@ -770,9 +759,7 @@ impl World {
                 return;
             }
 
-            chunks
-                .to_update
-                .push_front((Vec3(update.vx, update.vy, update.vz), update.voxel));
+            chunks.update_voxel(&Vec3(update.vx, update.vy, update.vz), update.voxel);
         });
     }
 

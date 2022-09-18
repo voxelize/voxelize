@@ -18,7 +18,7 @@ use std::{env, sync::Arc};
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
-    ChunkStatus, Stats,
+    ChunkStatus, Mesher, Stats,
 };
 
 pub use models::*;
@@ -89,6 +89,8 @@ fn default_info_handle(server: &Server) -> Value {
 
         {
             let chunks = world.chunks();
+            let pipeline = world.pipeline();
+            let mesher = world.read_resource::<Mesher>();
 
             let mut generating: i32 = 0;
             let mut meshing: i32 = 0;
@@ -96,7 +98,7 @@ fn default_info_handle(server: &Server) -> Value {
 
             for chunk in chunks.map.values() {
                 match chunk.status {
-                    ChunkStatus::Generating => generating += 1,
+                    ChunkStatus::Generating(_) => generating += 1,
                     ChunkStatus::Meshing => meshing += 1,
                     ChunkStatus::Ready => ready += 1,
                 }
@@ -109,6 +111,9 @@ fn default_info_handle(server: &Server) -> Value {
                     "generating": generating,
                     "meshing": meshing,
                     "ready": ready,
+                    "pipeline_chunks": pipeline.chunks.len(),
+                    "pipeline_queue": pipeline.queue.len(),
+                    "mesher": mesher.queue.len()
                 }),
             );
         }

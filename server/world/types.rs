@@ -10,4 +10,4 @@ pub enum LightColor {
 }
 
 /// Denoting a change in block in the world.
-pub type BlockChange = (Vec3<i32>, u32);
+pub type VoxelUpdate = (Vec3<i32>, u32);

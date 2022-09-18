@@ -6,7 +6,8 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    BlockChange, Chunk, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, WorldConfig,
+    Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, VoxelUpdate,
+    WorldConfig,
 };
 
 pub struct Resources<'a> {
@@ -200,25 +201,25 @@ impl ChunkStage for BaseTerrainStage {
     }
 }
 
-/// A pipeline where chunks are initialized and generated.
+/// A pipeline is strictly for holding the stages necessary to build the chunks.
 pub struct Pipeline {
-    /// A HashSet that keeps track of what chunks are in the pipeline.
-    pub chunks: HashSet<Vec2<i32>>,
-
-    /// Leftover changes to chunks.
-    pub leftovers: HashMap<Vec2<i32>, Vec<BlockChange>>,
-
     /// A list of stages that chunks are in.
     pub stages: Vec<Arc<dyn ChunkStage + Send + Sync>>,
 
+    /// A set of chunk coordinates in this pipeline to know which chunks are in this pipeline.
+    pub(crate) chunks: HashSet<Vec2<i32>>,
+
+    /// A queue of chunk coordinates that are waiting to be processed.
+    pub(crate) queue: VecDeque<Vec2<i32>>,
+
+    /// A map of leftover changes from processing chunk stages.
+    pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
+
     /// Sender of processed chunks from other threads to main thread.
-    sender: Arc<Sender<(Vec<Chunk>, Vec<BlockChange>)>>,
+    sender: Arc<Sender<(Vec<Chunk>, Vec<VoxelUpdate>)>>,
 
     /// Receiver to receive processed chunks from other threads to main thread.
-    receiver: Arc<Receiver<(Vec<Chunk>, Vec<BlockChange>)>>,
-
-    /// Queue of chunk jobs to finish.
-    queue: VecDeque<(Vec2<i32>, usize)>,
+    receiver: Arc<Receiver<(Vec<Chunk>, Vec<VoxelUpdate>)>>,
 
     /// Pipeline's thread pool to process chunks.
     pool: ThreadPool,
@@ -230,65 +231,45 @@ impl Pipeline {
         let (sender, receiver) = unbounded();
 
         Self {
-            chunks: HashSet::default(),
-            leftovers: HashMap::default(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
-            queue: VecDeque::default(),
-            stages: vec![],
             pool: ThreadPoolBuilder::new()
                 .thread_name(|index| format!("voxelize-chunking-{index}"))
                 .build()
                 .unwrap(),
+            chunks: HashSet::new(),
+            leftovers: HashMap::new(),
+            queue: VecDeque::new(),
+            stages: Vec::new(),
         }
     }
 
-    /// Check to see if a chunk is in this pipeline. Chunks are added into the pipeline
-    /// by calling `pipeline.push`.
-    pub fn has(&self, coords: &Vec2<i32>) -> bool {
+    /// Add a chunk coordinate to the pipeline to be processed.
+    pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        self.remove_chunk(coords);
+        self.chunks.insert(coords.to_owned());
+
+        if prioritized {
+            self.queue.push_front(coords.to_owned());
+        } else {
+            self.queue.push_back(coords.to_owned());
+        }
+    }
+
+    /// Remove a chunk coordinate from the pipeline.
+    pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
+        self.chunks.remove(coords);
+        self.queue.retain(|c| c != coords);
+    }
+
+    /// Check to see if a chunk coordinate is in the pipeline.
+    pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
         self.chunks.contains(coords)
     }
 
-    /// Get the length of this pipeline, in other words how many stages there are.
-    pub fn len(&self) -> usize {
-        self.stages.len()
-    }
-
-    /// Push a chunk job into the pipeline's queue. Does nothing if chunk is in the
-    /// pipeline already. Chunks that are pushed into the pipeline will only be freed
-    /// from the pipeline if they reach the end of the pipeline.
-    pub fn push(&mut self, coords: &Vec2<i32>, index: usize) {
-        if self.stages.is_empty() {
-            return;
-        }
-
-        assert!(index < self.stages.len());
-
-        if self.has(coords) {
-            return;
-        }
-
-        self.chunks.insert(coords.to_owned());
-        self.queue.push_back((coords.to_owned(), index));
-    }
-
-    /// Pop a chunk job from the queue. This does not remove the chunk from the pipeline.
-    /// Calling `pipeline.has` will still return true as chunk hasn't reached the last stage.
-    pub fn pop(&mut self) -> Option<(Vec2<i32>, usize)> {
+    /// Pop the first chunk coordinate in the queue.
+    pub fn get(&mut self) -> Option<Vec2<i32>> {
         self.queue.pop_front()
-    }
-
-    /// Postpone the chunk process to wait for its neighbors. Similar to `pipeline.push`, but
-    /// checks if chunk is already waiting in queue. Panics if true.
-    pub fn postpone(&mut self, coords: &Vec2<i32>, index: usize) {
-        self.queue.iter().for_each(|(c, _)| {
-            if *coords == *c {
-                panic!("Chunk {:?} is already waiting in queue.", coords);
-            }
-        });
-
-        self.chunks.remove(&coords);
-        self.push(coords, index);
     }
 
     /// Add a stage to the chunking pipeline.
@@ -300,22 +281,23 @@ impl Pipeline {
         self.stages.push(Arc::new(stage));
     }
 
-    /// Get the stage instance at index.
-    pub fn get_stage(&mut self, index: usize) -> &Arc<dyn ChunkStage + Send + Sync> {
-        &self.stages[index]
-    }
-
     /// Process a list of chunk processes, generated from the ECS system `PipeliningSystem` .
     pub fn process(
         &mut self,
-        processes: Vec<(Chunk, Option<Space>, usize)>,
+        processes: Vec<(Chunk, Option<Space>)>,
         registry: &Registry,
         config: &WorldConfig,
     ) {
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
             .into_iter()
-            .map(|(chunk, space, index)| {
+            .map(|(chunk, space)| {
+                let index = if let ChunkStatus::Generating(index) = chunk.status {
+                    index
+                } else {
+                    panic!("Chunk in pipeline does not have a generating status.");
+                };
+
                 let stage = self.stages.get(index).unwrap().clone();
                 (chunk, space, stage)
             })
@@ -341,8 +323,8 @@ impl Pipeline {
                         space,
                     );
 
-                    if !chunk.exceeded_changes.is_empty() {
-                        changes.append(&mut chunk.exceeded_changes.drain(..).collect());
+                    if !chunk.extra_changes.is_empty() {
+                        changes.append(&mut chunk.extra_changes.drain(..).collect());
                     }
 
                     (chunk, changes)
@@ -362,68 +344,7 @@ impl Pipeline {
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&self) -> Result<(Vec<Chunk>, Vec<BlockChange>), TryRecvError> {
+    pub fn results(&self) -> Result<(Vec<Chunk>, Vec<VoxelUpdate>), TryRecvError> {
         self.receiver.try_recv()
-    }
-
-    /// Advance a chunk to the next chunk stage. If chunk has reached the end of
-    /// the pipeline, `chunk.stage` is set to None.
-    pub fn advance(&mut self, chunk: &mut Chunk) -> Option<usize> {
-        // Chunk not in pipeline
-        if !self.chunks.contains(&chunk.coords) {
-            panic!("Chunk {:?} isn't in the pipeline.", chunk.coords);
-        }
-
-        // Why would chunk's stage even be none?
-        if chunk.stage.is_none() {
-            panic!(
-                "Something's wrong! Why does chunk {:?} not have a stage?",
-                chunk.coords
-            );
-        }
-
-        let index = chunk.stage.unwrap();
-
-        // Reached the end of the stages.
-        if index == self.stages.len() - 1 {
-            chunk.stage = None;
-
-            // Remove this chunk from the pipeline.
-            self.remove(&chunk.coords);
-
-            return None;
-        }
-
-        chunk.stage = Some(index + 1);
-
-        // Add the chunk with the new index to the queue.
-        self.queue.push_back((chunk.coords.to_owned(), index + 1));
-
-        Some(index + 1)
-    }
-
-    /// Remove a chunk from the pipeline.
-    pub fn remove(&mut self, coords: &Vec2<i32>) {
-        self.chunks.remove(&coords);
-    }
-
-    /// Is this pipeline vacant?
-    pub fn is_empty(&self) -> bool {
-        self.chunks.is_empty() || self.queue.is_empty()
-    }
-
-    /// Get the stage name from index.
-    pub fn get_stage_name(&self, index: Option<usize>) -> Option<String> {
-        if index.is_none() {
-            return None;
-        }
-
-        let index = index.unwrap();
-
-        if let Some(stage) = self.stages.get(index) {
-            return Some(stage.name());
-        }
-
-        None
     }
 }

@@ -2,18 +2,23 @@ use std::ops::Range;
 
 use hashbrown::{HashMap, HashSet};
 
-use crate::{BlockChange, ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Registry, Vec2, Vec3};
+use crate::{ChunkProtocol, ChunkUtils, MeshProtocol, Ndarray, Registry, Vec2, Vec3, VoxelUpdate};
 
 use super::access::VoxelAccess;
 
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ChunkStatus {
-    #[default]
-    Generating,
+    Generating(usize),
 
     Meshing,
 
     Ready,
+}
+
+impl Default for ChunkStatus {
+    fn default() -> Self {
+        Self::Generating(0)
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -28,7 +33,6 @@ pub struct Chunk {
     pub id: String,
     pub name: String,
     pub coords: Vec2<i32>,
-    pub stage: Option<usize>,
 
     pub status: ChunkStatus,
 
@@ -43,7 +47,7 @@ pub struct Chunk {
 
     pub params: ChunkParams,
 
-    pub exceeded_changes: Vec<BlockChange>,
+    pub extra_changes: Vec<VoxelUpdate>,
     pub updated_levels: HashSet<u32>,
 }
 
@@ -70,10 +74,6 @@ impl Chunk {
             id: id.to_owned(),
             name: ChunkUtils::get_chunk_name(cx, cz),
             coords: Vec2(cx, cz),
-            stage: Some(0),
-            status: ChunkStatus::Generating,
-
-            meshes: None,
 
             voxels,
             lights,
@@ -83,9 +83,9 @@ impl Chunk {
             max,
 
             params: params.to_owned(),
-
-            exceeded_changes: vec![],
             updated_levels: (0..sub_chunks as u32).collect(),
+
+            ..Default::default()
         }
     }
 
@@ -186,7 +186,7 @@ impl VoxelAccess for Chunk {
     fn set_raw_voxel(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
         if !self.contains(vx, vy, vz) {
             if vy >= 0 && vy < self.params.max_height as i32 {
-                self.exceeded_changes.push((Vec3(vx, vy, vz), val));
+                self.extra_changes.push((Vec3(vx, vy, vz), val));
             }
 
             return false;

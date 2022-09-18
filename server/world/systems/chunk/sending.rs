@@ -1,13 +1,18 @@
-use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    common::ClientFilter,
-    server::{Message, MessageType},
-    world::{ChunkRequestsComp, Chunks, IDComp, MessageQueue, WorldConfig},
+    ChunkRequestsComp, Chunks, ClientFilter, IDComp, Message, MessageQueue, MessageType,
+    WorldConfig,
 };
 
+#[derive(Default)]
 pub struct ChunkSendingSystem;
+
+impl ChunkSendingSystem {
+    pub fn new() -> Self {
+        ChunkSendingSystem
+    }
+}
 
 impl<'a> System<'a> for ChunkSendingSystem {
     type SystemData = (

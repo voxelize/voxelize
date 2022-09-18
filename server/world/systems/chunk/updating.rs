@@ -38,7 +38,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (config, registry, mut message_queue, mut chunks) = data;
 
-        if chunks.to_update.is_empty() {
+        if chunks.updates.is_empty() {
             return;
         }
 
@@ -56,10 +56,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut blue_flood = VecDeque::default();
         let mut sun_flood = VecDeque::default();
 
-        while count < config.max_updates_per_tick && !chunks.to_update.is_empty() {
+        while count < config.max_updates_per_tick && !chunks.updates.is_empty() {
             count += 1;
 
-            let (voxel, raw) = chunks.to_update.pop_front().unwrap();
+            let (voxel, raw) = chunks.updates.pop_front().unwrap();
             let Vec3(vx, vy, vz) = voxel;
 
             let updated_id = BlockUtils::extract_id(raw);
@@ -78,7 +78,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
             for neighbor in chunks.light_traversed_chunks(&coords) {
                 if ready && !chunks.is_chunk_ready(&neighbor) {
-                    chunks.to_update.push_back((voxel.to_owned(), raw));
+                    chunks.updates.push_back((voxel.to_owned(), raw));
                     ready = false;
                 }
             }

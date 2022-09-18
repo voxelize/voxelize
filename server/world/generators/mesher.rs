@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
@@ -7,7 +7,7 @@ use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, T
 
 use crate::{
     Block, BlockFace, BlockRotation, Chunk, CornerData, Geometry, LightUtils, MeshProtocol,
-    Registry, Space, Vec3, VoxelAccess, WorldConfig, AABB, UV,
+    Registry, Space, Vec2, Vec3, VoxelAccess, WorldConfig, AABB, UV,
 };
 
 use super::lights::Lights;
@@ -36,8 +36,16 @@ fn get_block_by_voxel<'a>(
 
 /// A meshing helper to mesh chunks.
 pub struct Mesher {
+    /// A queue of chunks to be meshed.
+    pub(crate) queue: VecDeque<Vec2<i32>>,
+
+    /// Sender of processed chunks from other threads to the main thread.
     sender: Arc<Sender<Vec<Chunk>>>,
+
+    /// Receiver of processed chunks from other threads to the main thread.
     receiver: Arc<Receiver<Vec<Chunk>>>,
+
+    /// The thread pool for meshing.
     pool: ThreadPool,
 }
 
@@ -47,6 +55,7 @@ impl Mesher {
         let (sender, receiver) = unbounded();
 
         Self {
+            queue: VecDeque::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()
@@ -56,6 +65,25 @@ impl Mesher {
         }
     }
 
+    /// Add a chunk to be meshed.
+    pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        if self.queue.contains(coords) {
+            return;
+        }
+
+        if prioritized {
+            self.queue.push_front(coords.to_owned());
+        } else {
+            self.queue.push_back(coords.to_owned());
+        }
+    }
+
+    /// Pop the first chunk coordinate in the queue.
+    pub fn get(&mut self) -> Option<Vec2<i32>> {
+        self.queue.pop_front()
+    }
+
+    /// Mesh a set of chunks.
     pub fn process(
         &mut self,
         processes: Vec<(Chunk, Space)>,
