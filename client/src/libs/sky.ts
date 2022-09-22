@@ -191,17 +191,16 @@ export class Sky extends Group {
 
   private createSkyBox = () => {
     this.box = new CanvasBox({
-      dimension: this.dimension * 0.9,
+      width: this.dimension * 0.9,
       side: BackSide,
-      width: 512,
+      widthSegments: 512,
+      heightSegments: 512,
+      depthSegments: 512,
     });
     this.box.boxMaterials.forEach((m) => (m.depthWrite = false));
+    this.box.frustumCulled = false;
+    this.box.renderOrder = -1;
 
-    const { meshes } = this.box;
-
-    meshes.frustumCulled = false;
-    meshes.renderOrder = -1;
-
-    this.add(meshes);
+    this.add(this.box);
   };
 }

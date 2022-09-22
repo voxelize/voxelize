@@ -16,36 +16,37 @@ export type CanvasBoxParams = {
   gap: number; // gap between layers
   layers: number;
   width: number;
-  dimension: number;
+  height?: number;
+  depth?: number;
+  widthSegments: number;
+  heightSegments?: number;
+  depthSegments?: number;
   side: Side;
 };
 
 export type ArtFunction = (
   context: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  width?: number,
-  dimension?: number
+  canvas: HTMLCanvasElement
 ) => void;
 
-export type BoxSides =
-  | "back"
-  | "front"
-  | "top"
-  | "bottom"
-  | "left"
-  | "right"
-  | "all"
-  | "sides";
+export type BoxSides = "back" | "front" | "top" | "bottom" | "left" | "right";
 
 export const defaultParams: CanvasBoxParams = {
   gap: 0,
   layers: 1,
-  width: 8,
-  dimension: 1,
+  width: 1,
+  widthSegments: 8,
   side: FrontSide,
 };
 
-export const BOX_SIDES = ["back", "front", "top", "bottom", "left", "right"];
+export const BOX_SIDES: BoxSides[] = [
+  "back",
+  "front",
+  "top",
+  "bottom",
+  "left",
+  "right",
+];
 
 export class BoxLayer {
   public geometry: BoxBufferGeometry;
@@ -53,14 +54,18 @@ export class BoxLayer {
   public mesh: Mesh;
 
   constructor(
-    public dimension: number,
     public width: number,
+    public height: number,
+    public depth: number,
+    public widthSegments: number,
+    public heightSegments: number,
+    public depthSegments: number,
     private side: Side
   ) {
-    this.geometry = new BoxBufferGeometry(dimension, dimension, dimension);
+    this.geometry = new BoxBufferGeometry(width, height, depth);
 
     for (const face of BOX_SIDES) {
-      this.materials.set(face, this.createCanvasMaterial());
+      this.materials.set(face, this.createCanvasMaterial(face));
     }
 
     this.mesh = new Mesh(this.geometry, Array.from(this.materials.values()));
@@ -68,10 +73,12 @@ export class BoxLayer {
     this.mesh.rotation.y = Math.PI / 2;
   }
 
-  createCanvasMaterial = () => {
+  createCanvasMaterial = (face: BoxSides) => {
     const canvas = document.createElement("canvas");
-    canvas.height = this.width;
-    canvas.width = this.width;
+
+    const { width, height } = this.getDimensionFromSide(face);
+    canvas.width = width;
+    canvas.height = height;
 
     const material = new MeshBasicMaterial({
       side: this.side,
@@ -94,13 +101,7 @@ export class BoxLayer {
   };
 
   paint = (side: BoxSides[] | BoxSides, art: ArtFunction | Color | Texture) => {
-    const actualSides = Array.isArray(side)
-      ? side
-      : side === "all"
-      ? BOX_SIDES
-      : side === "sides"
-      ? ["front", "back", "left", "right"]
-      : [side];
+    const actualSides = Array.isArray(side) ? side : [side];
 
     for (const face of actualSides) {
       const material = this.materials.get(face);
@@ -114,18 +115,20 @@ export class BoxLayer {
 
       context.imageSmoothingEnabled = false;
 
+      const { width, height } = this.getDimensionFromSide(face);
+
       if (art instanceof Texture) {
-        context.drawImage(art.image, 0, 0, this.width, this.width);
+        context.drawImage(art.image, 0, 0, width, height);
       } else {
         if (art instanceof Color) {
           context.save();
           context.fillStyle = `rgb(${art.r * 255},${art.g * 255},${
             art.b * 255
           })`;
-          context.fillRect(0, 0, this.width, this.width);
+          context.fillRect(0, 0, width, height);
           context.restore();
         } else {
-          art(context, canvas, this.width, this.dimension);
+          art(context, canvas);
         }
       }
 
@@ -133,15 +136,36 @@ export class BoxLayer {
       material.map.needsUpdate = true;
     }
   };
+
+  private getDimensionFromSide = (side: BoxSides) => {
+    switch (side) {
+      case "front":
+      case "back": {
+        return { width: this.widthSegments, height: this.heightSegments };
+      }
+      case "left":
+      case "right": {
+        return { width: this.depthSegments, height: this.heightSegments };
+      }
+      case "top":
+      case "bottom": {
+        return { width: this.widthSegments, height: this.heightSegments };
+      }
+      default: {
+        throw new Error("Cannot derive width/height from unknown side.");
+      }
+    }
+  };
 }
 
-export class CanvasBox {
+export class CanvasBox extends Group {
   public params: CanvasBoxParams;
 
-  public meshes = new Group();
-  public layers: BoxLayer[] = [];
+  public boxLayers: BoxLayer[] = [];
 
   constructor(params: Partial<CanvasBoxParams> = {}) {
+    super();
+
     this.params = {
       ...defaultParams,
       ...params,
@@ -151,12 +175,30 @@ export class CanvasBox {
   }
 
   makeBoxes = () => {
-    const { layers, gap, dimension, side, width } = this.params;
+    const {
+      layers,
+      gap,
+      side,
+      width,
+      height,
+      depth,
+      widthSegments,
+      heightSegments,
+      depthSegments,
+    } = this.params;
 
     for (let i = 0; i < layers; i++) {
-      const newBoxLayer = new BoxLayer(dimension + i * gap * 2, width, side);
-      this.layers.push(newBoxLayer);
-      this.meshes.add(newBoxLayer.mesh);
+      const newBoxLayer = new BoxLayer(
+        width + i * gap * 2,
+        (height ? height : width) + i * gap * 2,
+        (depth ? depth : width) + i * gap * 2,
+        widthSegments,
+        heightSegments ? heightSegments : widthSegments,
+        depthSegments ? depthSegments : widthSegments,
+        side
+      );
+      this.boxLayers.push(newBoxLayer);
+      this.add(newBoxLayer.mesh);
     }
   };
 
@@ -165,11 +207,11 @@ export class CanvasBox {
     art: ArtFunction | Color | Texture,
     layer = 0
   ) => {
-    if (layer >= this.layers.length) {
+    if (layer >= this.boxLayers.length) {
       throw new Error("Canvas box layer does not exist.");
     }
 
-    this.layers[layer].paint(side, art);
+    this.boxLayers[layer].paint(side, art);
   };
 
   // TODO: fix this ugly code ?
@@ -178,7 +220,7 @@ export class CanvasBox {
 
     return (multiplier: number) => {
       const scale = MathUtils.lerp(m, multiplier, 0.3);
-      this.layers.forEach((layer) => {
+      this.boxLayers.forEach((layer) => {
         layer.materials.forEach((material) => {
           material.color.multiplyScalar((1 / m) * scale);
         });
@@ -188,6 +230,6 @@ export class CanvasBox {
   })();
 
   get boxMaterials() {
-    return this.layers[0].materials;
+    return this.boxLayers[0].materials;
   }
 }
