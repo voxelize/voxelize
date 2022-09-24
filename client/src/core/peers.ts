@@ -3,6 +3,9 @@ import { Matrix4, Vector3, Quaternion, Object3D } from "three";
 
 import { NetIntercept } from "./network";
 
+const emptyQ = new Quaternion();
+const emptyP = new Vector3();
+
 /**
  * A **built-in** manager for the peer clients in the same Voxelize world.
  *
@@ -75,9 +78,9 @@ export class Peers<T = { direction: number[]; position: number[] }>
       y: dy,
       z: dz,
     } = new Vector3(0, 0, -1)
-      .applyQuaternion(this.object.quaternion)
+      .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
       .normalize();
-    const { x: px, y: py, z: pz } = this.object.position;
+    const { x: px, y: py, z: pz } = this.object.getWorldPosition(emptyP);
 
     return {
       id: this.ownID,

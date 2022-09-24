@@ -65,6 +65,11 @@ const App = () => {
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
+    const character = new VOXELIZE.Character();
+    character.position.set(0, 10, -5);
+    const helper = new THREE.BoxHelper(character);
+    world.add(character, helper);
+
     inputs.setNamespace("menu");
 
     const sky = new VOXELIZE.Sky(2000);
@@ -116,6 +121,8 @@ const App = () => {
       {
         lookInGhostMode: true,
         initialPosition: [0, 12, 0],
+        bodyHeight: character.totalHeight,
+        eyeHeight: character.eyeHeight / character.totalHeight,
       }
     );
 
@@ -367,6 +374,8 @@ const App = () => {
                   .toString();
 
               network.flush();
+
+              character.update();
 
               composer.render();
 

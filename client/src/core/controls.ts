@@ -16,7 +16,7 @@ import {
 } from "three";
 
 import { Coords3 } from "../types";
-import { ChunkUtils, MathUtils } from "../utils";
+import { ChunkUtils } from "../utils";
 
 import { Inputs } from "./inputs";
 import {
@@ -180,7 +180,7 @@ export type RigidControlsParams = {
   bodyWidth: number;
 
   /**
-   * The height of the client's avatar. Defaults to `1.8` blocks.
+   * The height of the client's avatar. Defaults to `1.55` blocks.
    */
   bodyHeight: number;
 
@@ -190,7 +190,7 @@ export type RigidControlsParams = {
   bodyDepth: number;
 
   /**
-   * The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.8`.
+   * The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.919`.
    */
   eyeHeight: number;
 
@@ -299,9 +299,9 @@ const defaultParams: RigidControlsParams = {
   positionLerp: 1.0,
 
   bodyWidth: 0.8,
-  bodyHeight: 1.8,
+  bodyHeight: 1.55,
   bodyDepth: 0.8,
-  eyeHeight: 0.8,
+  eyeHeight: 0.9193548387096774,
 
   maxSpeed: 6,
   moveForce: 30,

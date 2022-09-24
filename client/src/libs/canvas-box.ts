@@ -22,6 +22,7 @@ export type CanvasBoxParams = {
   heightSegments?: number;
   depthSegments?: number;
   side: Side;
+  transparent?: boolean;
 };
 
 export type ArtFunction = (
@@ -29,7 +30,14 @@ export type ArtFunction = (
   canvas: HTMLCanvasElement
 ) => void;
 
-export type BoxSides = "back" | "front" | "top" | "bottom" | "left" | "right";
+export type BoxSides =
+  | "back"
+  | "front"
+  | "top"
+  | "bottom"
+  | "left"
+  | "right"
+  | "all";
 
 export const defaultParams: CanvasBoxParams = {
   gap: 0,
@@ -37,6 +45,7 @@ export const defaultParams: CanvasBoxParams = {
   width: 1,
   widthSegments: 8,
   side: FrontSide,
+  transparent: false,
 };
 
 export const BOX_SIDES: BoxSides[] = [
@@ -60,7 +69,8 @@ export class BoxLayer {
     public widthSegments: number,
     public heightSegments: number,
     public depthSegments: number,
-    private side: Side
+    private side: Side,
+    private transparent: boolean
   ) {
     this.geometry = new BoxBufferGeometry(width, height, depth);
 
@@ -83,7 +93,7 @@ export class BoxLayer {
     const material = new MeshBasicMaterial({
       side: this.side,
       map: new Texture(canvas),
-      transparent: true,
+      transparent: this.transparent,
     });
 
     material.toneMapped = false;
@@ -101,7 +111,8 @@ export class BoxLayer {
   };
 
   paint = (side: BoxSides[] | BoxSides, art: ArtFunction | Color | Texture) => {
-    const actualSides = Array.isArray(side) ? side : [side];
+    const actualSides =
+      side === "all" ? BOX_SIDES : Array.isArray(side) ? side : [side];
 
     for (const face of actualSides) {
       const material = this.materials.get(face);
@@ -163,6 +174,10 @@ export class CanvasBox extends Group {
 
   public boxLayers: BoxLayer[] = [];
 
+  public width: number;
+  public height: number;
+  public depth: number;
+
   constructor(params: Partial<CanvasBoxParams> = {}) {
     super();
 
@@ -185,7 +200,16 @@ export class CanvasBox extends Group {
       widthSegments,
       heightSegments,
       depthSegments,
+      transparent,
     } = this.params;
+
+    if (!width) {
+      throw new Error("CanvasBox width must be specified.");
+    }
+
+    this.width = width;
+    this.height = height || width;
+    this.depth = depth || width;
 
     for (let i = 0; i < layers; i++) {
       const newBoxLayer = new BoxLayer(
@@ -195,7 +219,8 @@ export class CanvasBox extends Group {
         widthSegments,
         heightSegments ? heightSegments : widthSegments,
         depthSegments ? depthSegments : widthSegments,
-        side
+        side,
+        transparent
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer.mesh);
