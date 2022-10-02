@@ -244,13 +244,13 @@ pub fn setup_world() -> World {
         //     config.seed,
         //     &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
         // ));
-        pipeline.add_stage(FlatlandStage::new(10, 4, 2, 2));
+        pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
         pipeline.add_stage(HeightMapStage);
-        pipeline.add_stage(TreeStage::new(
-            config.seed,
-            &NoiseParams::new().build(),
-            trees,
-        ));
+        // pipeline.add_stage(TreeStage::new(
+        //     config.seed,
+        //     &NoiseParams::new().build(),
+        //     trees,
+        // ));
     }
 
     world

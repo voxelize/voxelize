@@ -126,6 +126,8 @@ const App = () => {
       }
     );
 
+    controls.connect(inputs, "in-game");
+
     renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 
     const network = new VOXELIZE.Network();
@@ -312,8 +314,6 @@ const App = () => {
       },
       "in-game"
     );
-
-    controls.useInputs(inputs, "in-game");
 
     const toggleFly = () => {
       if (!controls.ghostMode) {

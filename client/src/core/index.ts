@@ -6,3 +6,4 @@ export * from "./world";
 export * from "./network";
 export * from "./chat";
 export * from "./inputs";
+export * from "./perspective";

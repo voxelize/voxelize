@@ -1,6 +1,7 @@
 import { Color, DoubleSide, Group, Quaternion, Vector3 } from "three";
 
 import { CanvasBox, CanvasBoxParams } from "./canvas-box";
+import { NameTag } from "./nametag";
 
 export type HeadParams = CanvasBoxParams & {
   neckGap?: number;
@@ -79,6 +80,42 @@ const defaultLegsParams: LegParams = {
   betweenLegsGap: 0.2,
 };
 
+const drawCrown = (context: CanvasRenderingContext2D) => {
+  const gold = [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [1, 2],
+    [2, 2],
+    [2, 1],
+    [3, 0],
+    [3, 2],
+    [4, 0],
+    [4, 2],
+    [5, 1],
+    [5, 2],
+    [6, 2],
+    [7, 0],
+    [7, 1],
+    [7, 2],
+  ];
+
+  const blue = [
+    [1, 1],
+    [6, 1],
+  ];
+
+  context.fillStyle = "#f7ea00";
+  gold.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+
+  context.fillStyle = "#51c2d5";
+  blue.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+
+  context.fillStyle = "#ff005c";
+  context.fillRect(3, 1, 1, 1);
+  context.fillRect(4, 1, 1, 1);
+};
+
 /**
  * The default Voxelize character.
  */
@@ -91,9 +128,10 @@ export class Character extends Group {
   public rightArm: Group;
   public leftLeg: Group;
   public rightLeg: Group;
+  public nametag: NameTag;
+  public crown: CanvasBox;
 
   public speed = 0;
-  public username: string;
 
   public newPosition = new Vector3();
   public newBodyDirection = new Quaternion();
@@ -132,7 +170,8 @@ export class Character extends Group {
       },
     };
 
-    this.create();
+    this.createModel();
+    this.addAccessories();
   }
 
   update = () => {
@@ -200,6 +239,24 @@ export class Character extends Group {
       Math.sin((performance.now() * this.speed) / scale) * amplitude;
   };
 
+  set username(username: string) {
+    if (!username) return;
+
+    if (!this.nametag) {
+      this.nametag = new NameTag(username, {
+        yOffset: this.totalHeight * 1.1,
+        fontSize: 0.2,
+      });
+      this.add(this.nametag);
+    }
+
+    this.nametag.text = username;
+  }
+
+  get username() {
+    return this.nametag.text;
+  }
+
   get eyeHeight() {
     return (
       this.params.legs.height +
@@ -218,7 +275,7 @@ export class Character extends Group {
     );
   }
 
-  private create = () => {
+  private createModel = () => {
     const head = new CanvasBox({
       ...defaultHeadParams,
       ...(this.params.head ? this.params.head : {}),
@@ -321,5 +378,11 @@ export class Character extends Group {
       this.leftLeg,
       this.rightLeg
     );
+  };
+
+  private addAccessories = () => {
+    this.crown = new CanvasBox({
+      width: 0.1,
+    });
   };
 }

@@ -351,6 +351,8 @@ export class RigidControls extends EventEmitter {
    */
   public camera: PerspectiveCamera;
 
+  public inputs?: Inputs<any>;
+
   public domElement: HTMLElement;
 
   /**
@@ -440,6 +442,8 @@ export class RigidControls extends EventEmitter {
   private newLookBlockScale = new Vector3();
   private newLookBlockPosition = new Vector3();
 
+  public static readonly INPUT_IDENTIFIER = "rigid-controls";
+
   /**
    * Construct a Voxelize controls.
    *
@@ -484,8 +488,6 @@ export class RigidControls extends EventEmitter {
 
     this.setPosition(...this.params.initialPosition);
     this.setupLookBlock();
-
-    this.connect();
   }
 
   /**
@@ -521,7 +523,7 @@ export class RigidControls extends EventEmitter {
    *
    * @hidden
    */
-  connect = () => {
+  connect = (inputs: Inputs<any>, namespace = "*") => {
     this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
       this.onMouseMove(event);
     });
@@ -535,8 +537,39 @@ export class RigidControls extends EventEmitter {
 
     this.domElement.addEventListener("click", this.onDocumentClick);
 
-    document.addEventListener("keydown", this.onKeyDown, false);
-    document.addEventListener("keyup", this.onKeyUp, false);
+    [
+      ["r", "sprint"],
+      ["w", "front"],
+      ["a", "left"],
+      ["s", "back"],
+      ["d", "right"],
+      [" ", "up"],
+      ["shift", "down"],
+    ].forEach(([key, movement]) => {
+      inputs.bind(
+        key,
+        () => {
+          if (!this.isLocked) return;
+          this.movements[movement] = true;
+        },
+        namespace,
+        {
+          identifier: RigidControls.INPUT_IDENTIFIER,
+        }
+      );
+
+      inputs.bind(
+        key,
+        () => {
+          if (!this.isLocked) return;
+          this.movements[movement] = false;
+        },
+        namespace,
+        { occasion: "keyup", identifier: RigidControls.INPUT_IDENTIFIER }
+      );
+    });
+
+    this.inputs = inputs;
   };
 
   /**
@@ -566,8 +599,17 @@ export class RigidControls extends EventEmitter {
 
     this.domElement.removeEventListener("click", this.onDocumentClick);
 
-    document.removeEventListener("keydown", this.onKeyDown, false);
-    document.removeEventListener("keyup", this.onKeyUp, false);
+    if (this.inputs) {
+      ["r", "w", "a", "s", "d", " ", "shift"].forEach(([key]) => {
+        this.inputs.unbind(key, { identifier: RigidControls.INPUT_IDENTIFIER });
+        this.inputs.unbind(key, {
+          identifier: RigidControls.INPUT_IDENTIFIER,
+          occasion: "keyup",
+        });
+      });
+    } else {
+      console.warn("Controls is not connected to any inputs.");
+    }
   };
 
   /**
@@ -657,168 +699,6 @@ export class RigidControls extends EventEmitter {
       down: false,
       up: false,
     };
-  };
-
-  /**
-   * Unregister the original event listeners, and use the Inputs instead.
-   */
-  useInputs = <T extends string>(inputs: Inputs<T>, namespace: T) => {
-    document.removeEventListener("keydown", this.onKeyDown, false);
-    document.removeEventListener("keyup", this.onKeyUp, false);
-
-    inputs.bind(
-      "r",
-      () => {
-        this.movements.sprint = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "r",
-      () => {
-        this.movements.sprint = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      "w",
-      () => {
-        this.movements.front = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "w",
-      () => {
-        this.movements.front = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      "s",
-      () => {
-        this.movements.back = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "s",
-      () => {
-        this.movements.back = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      "a",
-      () => {
-        this.movements.left = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "a",
-      () => {
-        this.movements.left = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      "d",
-      () => {
-        this.movements.right = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "d",
-      () => {
-        this.movements.right = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      " ",
-      () => {
-        this.movements.up = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      " ",
-      () => {
-        this.movements.up = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
-
-    inputs.bind(
-      "Shift",
-      () => {
-        this.movements.down = true;
-      },
-      namespace,
-      {
-        occasion: "keydown",
-      }
-    );
-
-    inputs.bind(
-      "Shift",
-      () => {
-        this.movements.down = false;
-      },
-      namespace,
-      {
-        occasion: "keyup",
-      }
-    );
   };
 
   /**
