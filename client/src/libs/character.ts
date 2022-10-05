@@ -72,7 +72,7 @@ const defaultLegsParams: LegParams = {
   layers: 1,
   side: DoubleSide,
   width: 0.25,
-  height: 0.25,
+  height: 0.35,
   depth: 0.25,
   widthSegments: 3,
   heightSegments: 3,
@@ -350,11 +350,13 @@ export class Character extends Group {
     }
 
     this.leftLeg.add(leftLeg);
-    leftLeg.position.y += leftLeg.height / 2;
+    this.leftLeg.position.y += leftLeg.height;
+    leftLeg.position.y -= leftLeg.height / 2;
     leftLeg.position.x -= leftLeg.width / 2;
 
     this.rightLeg.add(rightLeg);
-    rightLeg.position.y += rightLeg.height / 2;
+    this.rightLeg.position.y += rightLeg.height;
+    rightLeg.position.y -= rightLeg.height / 2;
     rightLeg.position.x += rightLeg.width / 2;
 
     if (this.params.legs && this.params.legs.betweenLegsGap) {
