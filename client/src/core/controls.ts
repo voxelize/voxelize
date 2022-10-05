@@ -442,7 +442,7 @@ export class RigidControls extends EventEmitter {
   private newLookBlockScale = new Vector3();
   private newLookBlockPosition = new Vector3();
 
-  public static readonly INPUT_IDENTIFIER = "rigid-controls";
+  public static readonly INPUT_IDENTIFIER = "voxelize-rigid-controls";
 
   /**
    * Construct a Voxelize controls.

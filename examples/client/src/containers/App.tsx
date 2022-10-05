@@ -40,6 +40,27 @@ const Position = styled.p`
   color: #eee;
 `;
 
+const Crosshair = styled.div`
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 6px;
+  border: 2px solid #eeeeee55;
+  z-index: 100000;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 4px;
+    background: #eeeeee55;
+  }
+`;
+
 let BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
@@ -129,6 +150,9 @@ const App = () => {
     controls.connect(inputs, "in-game");
 
     renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
+
+    const perspective = new VOXELIZE.Perspective(controls, world);
+    perspective.connect(inputs, "in-game");
 
     const network = new VOXELIZE.Network();
 
@@ -376,6 +400,7 @@ const App = () => {
               network.flush();
 
               character.update();
+              perspective.update();
 
               composer.render();
 
@@ -394,6 +419,7 @@ const App = () => {
 
   return (
     <GameWrapper ref={domRef}>
+      <Crosshair />
       <Position ref={positionRef} />
       <GameCanvas ref={canvasRef} />
     </GameWrapper>
