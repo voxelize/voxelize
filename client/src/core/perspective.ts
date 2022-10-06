@@ -42,6 +42,8 @@ export class Perspective {
       ...defaultParams,
       ...params,
     };
+
+    this.state = "first";
   }
 
   connect = (inputs: Inputs<any>, namespace = "*") => {
@@ -69,6 +71,14 @@ export class Perspective {
   set state(state: "first" | "second" | "third") {
     this.controls.camera.position.set(0, 0, 0);
     this.controls.camera.quaternion.set(0, 0, 0, 0);
+
+    if (this.controls.character) {
+      if (state === "first") {
+        this.controls.character.visible = false;
+      } else {
+        this.controls.character.visible = true;
+      }
+    }
 
     this._state = state;
   }

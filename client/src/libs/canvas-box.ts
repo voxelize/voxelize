@@ -78,7 +78,12 @@ export class BoxLayer {
       this.materials.set(face, this.createCanvasMaterial(face));
     }
 
-    this.mesh = new Mesh(this.geometry, Array.from(this.materials.values()));
+    const materials = Array.from(this.materials.values());
+    const temp = materials[0];
+    materials[0] = materials[1];
+    materials[1] = temp;
+
+    this.mesh = new Mesh(this.geometry, materials);
 
     this.mesh.rotation.y = Math.PI / 2;
   }
@@ -94,6 +99,7 @@ export class BoxLayer {
       side: this.side,
       map: new Texture(canvas),
       transparent: this.transparent,
+      name: face,
     });
 
     material.toneMapped = false;

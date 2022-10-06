@@ -88,8 +88,6 @@ const App = () => {
 
     const character = new VOXELIZE.Character();
     character.position.set(0, 10, -5);
-    const helper = new THREE.BoxHelper(character);
-    world.add(character, helper);
 
     inputs.setNamespace("menu");
 
@@ -147,6 +145,7 @@ const App = () => {
       }
     );
 
+    controls.attachCharacter(character);
     controls.connect(inputs, "in-game");
 
     renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));

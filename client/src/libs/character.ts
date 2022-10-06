@@ -1,4 +1,16 @@
-import { Color, DoubleSide, Group, Quaternion, Vector3 } from "three";
+import {
+  BoxBufferGeometry,
+  Color,
+  DoubleSide,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Quaternion,
+  Vector3,
+} from "three";
+
+import { Peers } from "../core";
+import { Coords3 } from "../types";
 
 import { CanvasBox, CanvasBoxParams } from "./canvas-box";
 import { NameTag } from "./nametag";
@@ -72,7 +84,7 @@ const defaultLegsParams: LegParams = {
   layers: 1,
   side: DoubleSide,
   width: 0.25,
-  height: 0.35,
+  height: 0.25,
   depth: 0.25,
   widthSegments: 3,
   heightSegments: 3,
@@ -188,9 +200,8 @@ export class Character extends Group {
     const p2 = this.newPosition.clone();
     p1.y = p2.y = 0;
     const dist = p1.distanceTo(p2);
-    // if (dist > 0.001)
-    this.speed = this.params.walkingSpeed;
-    // else this.speed = 0;
+    if (dist > 0.001) this.speed = this.params.walkingSpeed;
+    else this.speed = 0;
   };
 
   lerpAll = () => {
@@ -237,6 +248,15 @@ export class Character extends Group {
       -Math.sin((performance.now() * this.speed) / scale) * amplitude;
     this.rightLeg.rotation.x =
       Math.sin((performance.now() * this.speed) / scale) * amplitude;
+  };
+
+  set = (position: Coords3, direction: Coords3) => {
+    this.newPosition.set(...position);
+
+    this.newDirection.copy(Peers.directionToQuaternion(...direction));
+    this.newBodyDirection.copy(
+      Peers.directionToQuaternion(direction[0], 0, direction[2])
+    );
   };
 
   set username(username: string) {
@@ -328,13 +348,13 @@ export class Character extends Group {
     this.leftArm.add(leftArm);
     leftArm.position.y -= leftArm.height / 2;
     leftArm.position.x -= leftArm.width / 2;
-    this.leftArm.position.y += body.height + leftLeg.height;
+    this.leftArm.position.y += body.height;
     this.leftArm.position.x -= body.width / 2;
 
     this.rightArm.add(rightArm);
     rightArm.position.y -= rightArm.height / 2;
     rightArm.position.x += rightArm.width / 2;
-    this.rightArm.position.y += body.height + rightLeg.height;
+    this.rightArm.position.y += body.height;
     this.rightArm.position.x += body.width / 2;
 
     if (this.params.arms) {
@@ -350,12 +370,10 @@ export class Character extends Group {
     }
 
     this.leftLeg.add(leftLeg);
-    this.leftLeg.position.y += leftLeg.height;
     leftLeg.position.y -= leftLeg.height / 2;
     leftLeg.position.x -= leftLeg.width / 2;
 
     this.rightLeg.add(rightLeg);
-    this.rightLeg.position.y += rightLeg.height;
     rightLeg.position.y -= rightLeg.height / 2;
     rightLeg.position.x += rightLeg.width / 2;
 
@@ -372,14 +390,12 @@ export class Character extends Group {
     leftLeg.paint("all", new Color("#96baff"));
     rightLeg.paint("all", new Color("#96baff"));
 
-    this.add(
-      this.head,
-      this.body,
-      this.leftArm,
-      this.rightArm,
-      this.leftLeg,
-      this.rightLeg
-    );
+    this.add(this.head, this.body);
+
+    this.body.add(this.leftArm, this.rightArm, this.leftLeg, this.rightLeg);
+
+    this.head.position.y -= this.eyeHeight;
+    this.body.position.y -= this.eyeHeight;
   };
 
   private addAccessories = () => {

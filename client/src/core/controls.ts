@@ -15,6 +15,7 @@ import {
   PerspectiveCamera,
 } from "three";
 
+import { Character } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -30,6 +31,7 @@ import {
 } from "./world";
 
 const PI_2 = Math.PI / 2;
+const emptyQ = new Quaternion();
 
 function rotateY(a: number[], b: number[], c: number) {
   const bx = b[0];
@@ -353,6 +355,8 @@ export class RigidControls extends EventEmitter {
 
   public inputs?: Inputs<any>;
 
+  public character?: Character;
+
   public domElement: HTMLElement;
 
   /**
@@ -507,6 +511,19 @@ export class RigidControls extends EventEmitter {
       this.newLookBlockPosition,
       this.params.lookBlockLerp
     );
+
+    if (this.character) {
+      const {
+        x: dx,
+        y: dy,
+        z: dz,
+      } = new Vector3(0, 0, -1)
+        .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
+        .normalize();
+
+      this.character.set(this.object.position.toArray(), [dx, dy, dz]);
+      this.character.update();
+    }
 
     this.moveRigidBody();
     this.updateRigidBody(delta);
@@ -783,6 +800,11 @@ export class RigidControls extends EventEmitter {
     this.vector.setFromMatrixColumn(this.object.matrix, 0);
 
     this.object.position.addScaledVector(this.vector, distance);
+  };
+
+  attachCharacter = (character: Character) => {
+    this.world.add(character);
+    this.character = character;
   };
 
   /**
