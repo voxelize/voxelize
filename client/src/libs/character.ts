@@ -33,10 +33,10 @@ export type ArmsParams = CanvasBoxParams & {
 export type CharacterParams = {
   walkingSpeed?: number;
   idleArmSwing?: number;
-  head?: HeadParams;
-  body?: BodyParams;
-  legs?: LegParams;
-  arms?: ArmsParams;
+  head?: Partial<HeadParams>;
+  body?: Partial<BodyParams>;
+  legs?: Partial<LegParams>;
+  arms?: Partial<ArmsParams>;
 };
 
 const defaultCharacterParams: CharacterParams = {

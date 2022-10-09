@@ -86,7 +86,7 @@ const App = () => {
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-    const character = new VOXELIZE.Character();
+    const character = new VOXELIZE.Character({});
     character.position.set(0, 10, -5);
 
     inputs.setNamespace("menu");
