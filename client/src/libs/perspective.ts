@@ -1,9 +1,9 @@
 import { raycast } from "@voxelize/raycast";
 import { Vector3 } from "three";
 
-import { RigidControls } from "./controls";
-import { Inputs } from "./inputs";
-import { World } from "./world";
+import { RigidControls } from "../core/controls";
+import { Inputs } from "../core/inputs";
+import { World } from "../core/world";
 
 export type PerspectiveParams = {
   maxDistance: number;

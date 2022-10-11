@@ -141,7 +141,7 @@ export class Clouds extends Group {
     }
   };
 
-  move = (delta: number, position: Vector3) => {
+  update = (position: Vector3, delta = 0) => {
     if (!this.initialized) return;
 
     const { speedFactor, count, dimensions } = this.params;
@@ -171,10 +171,6 @@ export class Clouds extends Group {
 
       this.locatedCell = locatedCell;
     }
-  };
-
-  update = (position: Vector3, delta: number) => {
-    this.move(delta, position);
 
     this.position.lerp(this.newPosition, this.params.lerpFactor);
   };

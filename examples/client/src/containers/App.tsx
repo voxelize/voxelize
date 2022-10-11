@@ -92,13 +92,13 @@ const App = () => {
     inputs.setNamespace("menu");
 
     const sky = new VOXELIZE.Sky(2000);
-    sky.box.paint("top", VOXELIZE.drawSun);
+    sky.paint("top", VOXELIZE.drawSun);
     world.add(sky);
 
     const clouds = new VOXELIZE.Clouds({
       uFogColor: sky.uMiddleColor,
     });
-    // world.add(clouds);
+    world.add(clouds);
 
     world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
 

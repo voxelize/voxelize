@@ -9,5 +9,6 @@ export * from "./cull";
 export * from "./sprite-text";
 export * from "./character";
 export * from "./color-text";
+export * from "./perspective";
 
 export { default as ECS } from "./ecs";

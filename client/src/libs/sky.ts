@@ -5,6 +5,7 @@ import {
   Group,
   Mesh,
   ShaderMaterial,
+  Vector3,
 } from "three";
 
 import { DOMUtils } from "../utils";
@@ -127,9 +128,7 @@ export function drawSun(
   context.restore();
 }
 
-export class Sky extends Group {
-  public box: CanvasBox;
-
+export class Sky extends CanvasBox {
   public uTopColor: {
     value: Color;
   };
@@ -144,12 +143,31 @@ export class Sky extends Group {
   private newMiddleColor: Color;
   private newBottomColor: Color;
 
-  constructor(public dimension: number) {
-    super();
+  constructor(public dimension: number = 2000, public lerpFactor = 0.01) {
+    super({
+      width: dimension * 0.9,
+      side: BackSide,
+      widthSegments: 512,
+      heightSegments: 512,
+      depthSegments: 512,
+    });
+
+    this.boxMaterials.forEach((m) => (m.depthWrite = false));
+    this.frustumCulled = false;
+    this.renderOrder = -1;
 
     this.createSkyShading();
-    this.createSkyBox();
   }
+
+  update = (position: Vector3) => {
+    const { uTopColor, uMiddleColor, uBottomColor } = this;
+
+    this.position.copy(position);
+
+    uTopColor.value.lerp(this.newTopColor, this.lerpFactor);
+    uMiddleColor.value.lerp(this.newMiddleColor, this.lerpFactor);
+    uBottomColor.value.lerp(this.newBottomColor, this.lerpFactor);
+  };
 
   private createSkyShading = () => {
     const {
@@ -187,20 +205,5 @@ export class Sky extends Group {
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
 
     this.add(shadingMesh);
-  };
-
-  private createSkyBox = () => {
-    this.box = new CanvasBox({
-      width: this.dimension * 0.9,
-      side: BackSide,
-      widthSegments: 512,
-      heightSegments: 512,
-      depthSegments: 512,
-    });
-    this.box.boxMaterials.forEach((m) => (m.depthWrite = false));
-    this.box.frustumCulled = false;
-    this.box.renderOrder = -1;
-
-    this.add(this.box);
   };
 }
