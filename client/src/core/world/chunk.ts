@@ -84,6 +84,7 @@ class ChunkMesh extends Group {
           this.chunk.min[2]
         );
         mesh.updateMatrix();
+        mesh.frustumCulled = false;
         map.set(level, mesh);
       }
 
@@ -170,6 +171,7 @@ class ChunkMesh extends Group {
               this.chunk.min[2] + (side === "front" ? 0 : 0.001)
             );
             mesh.updateMatrix();
+            mesh.frustumCulled = false;
 
             meshes.push(mesh);
             this.add(mesh);
