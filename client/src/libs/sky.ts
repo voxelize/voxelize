@@ -145,8 +145,9 @@ export class Sky extends CanvasBox {
 
   constructor(public dimension: number = 2000, public lerpFactor = 0.01) {
     super({
-      width: dimension * 0.9,
+      width: dimension * 0.2,
       side: BackSide,
+      transparent: true,
       widthSegments: 512,
       heightSegments: 512,
       depthSegments: 512,
