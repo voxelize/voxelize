@@ -803,6 +803,10 @@ export class RigidControls extends EventEmitter {
   };
 
   attachCharacter = (character: Character) => {
+    // Change lerp factors to one.
+    character.params.positionLerp = 1;
+    character.params.rotationLerp = 1;
+
     this.world.add(character);
     this.character = character;
   };

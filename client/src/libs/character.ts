@@ -33,6 +33,8 @@ export type ArmsParams = CanvasBoxParams & {
 export type CharacterParams = {
   walkingSpeed?: number;
   idleArmSwing?: number;
+  positionLerp?: number;
+  rotationLerp?: number;
   head?: Partial<HeadParams>;
   body?: Partial<BodyParams>;
   legs?: Partial<LegParams>;
@@ -41,6 +43,8 @@ export type CharacterParams = {
 
 const defaultCharacterParams: CharacterParams = {
   walkingSpeed: 1.4,
+  positionLerp: 0.7,
+  rotationLerp: 0.2,
   idleArmSwing: 0.06,
 };
 
@@ -187,12 +191,10 @@ export class Character extends Group {
   }
 
   update = () => {
-    // this.visible = !!this.username;
-
-    this.lerpAll();
     this.calculateDelta();
     this.playArmSwingAnimation();
     this.playWalkingAnimation();
+    this.lerpAll();
   };
 
   calculateDelta = () => {
@@ -200,7 +202,7 @@ export class Character extends Group {
     const p2 = this.newPosition.clone();
     p1.y = p2.y = 0;
     const dist = p1.distanceTo(p2);
-    if (dist > 0.001) this.speed = this.params.walkingSpeed;
+    if (dist > 0.00001) this.speed = this.params.walkingSpeed;
     else this.speed = 0;
   };
 
@@ -209,15 +211,19 @@ export class Character extends Group {
     // or else network latency will result in a weird
     // animation defect where body glitches out.
     if (this.newPosition.length() !== 0) {
-      this.position.lerp(this.newPosition, 0.7);
+      this.position.lerp(this.newPosition, this.params.positionLerp);
     }
 
+    // Head rotates immediately.
     if (this.newDirection.length() !== 0) {
       this.head.rotation.setFromQuaternion(this.newDirection);
     }
 
     if (this.newBodyDirection.length() !== 0) {
-      this.body.quaternion.slerp(this.newBodyDirection, 0.2);
+      this.body.quaternion.slerp(
+        this.newBodyDirection,
+        this.params.rotationLerp
+      );
     }
   };
 

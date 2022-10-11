@@ -398,7 +398,6 @@ const App = () => {
 
               network.flush();
 
-              character.update();
               perspective.update();
 
               composer.render();
