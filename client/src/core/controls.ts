@@ -10,7 +10,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   Color,
-  BoxBufferGeometry,
+  BoxGeometry,
   Quaternion,
   PerspectiveCamera,
 } from "three";
@@ -859,7 +859,7 @@ export class RigidControls extends EventEmitter {
 
     const w = 0.01;
     const dim = lookBlockScale;
-    const side = new Mesh(new BoxBufferGeometry(dim, w, w), mat);
+    const side = new Mesh(new BoxGeometry(dim, w, w), mat);
 
     for (let i = -1; i <= 1; i += 2) {
       for (let j = -1; j <= 1; j += 2) {

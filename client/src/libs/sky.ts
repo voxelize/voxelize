@@ -2,7 +2,6 @@ import {
   BackSide,
   Color,
   DodecahedronGeometry,
-  Group,
   Mesh,
   ShaderMaterial,
   Vector3,

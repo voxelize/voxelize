@@ -1,6 +1,6 @@
 import { Color, MathUtils, sRGBEncoding } from "three";
 import {
-  BoxBufferGeometry,
+  BoxGeometry,
   FrontSide,
   Group,
   LinearMipMapLinearFilter,
@@ -58,7 +58,7 @@ export const BOX_SIDES: BoxSides[] = [
 ];
 
 export class BoxLayer {
-  public geometry: BoxBufferGeometry;
+  public geometry: BoxGeometry;
   public materials: Map<string, MeshBasicMaterial> = new Map();
   public mesh: Mesh;
 
@@ -72,7 +72,7 @@ export class BoxLayer {
     private side: Side,
     private transparent: boolean
   ) {
-    this.geometry = new BoxBufferGeometry(width, height, depth);
+    this.geometry = new BoxGeometry(width, height, depth);
 
     for (const face of BOX_SIDES) {
       this.materials.set(face, this.createCanvasMaterial(face));
