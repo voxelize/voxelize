@@ -802,10 +802,10 @@ export class RigidControls extends EventEmitter {
     this.object.position.addScaledVector(this.vector, distance);
   };
 
-  attachCharacter = (character: Character) => {
+  attachCharacter = (character: Character, newLerpFactor = 1) => {
     // Change lerp factors to one.
-    character.params.positionLerp = 1;
-    character.params.rotationLerp = 1;
+    character.params.positionLerp = newLerpFactor;
+    character.params.rotationLerp = newLerpFactor;
 
     this.world.add(character);
     this.character = character;
