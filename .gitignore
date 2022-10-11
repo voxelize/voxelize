@@ -10,3 +10,4 @@ examples/server/worlds/world3/*
 client/protocol/index.*
 Cargo.lock
 .vscode
+**/*/.DS_Store
