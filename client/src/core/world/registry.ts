@@ -40,6 +40,10 @@ type RegistryParams = {
   dimension: number;
 };
 
+export const ALL_FACES = ["px", "nx", "py", "ny", "pz", "nz"];
+export const SIDE_FACES = ["px", "nx", "pz", "nz"];
+export const DIAGONAL_FACES = ["one", "two"];
+
 /**
  * A **built-in** block registry for Voxelize.
  *
