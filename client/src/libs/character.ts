@@ -1,15 +1,6 @@
-import {
-  BoxGeometry,
-  Color,
-  DoubleSide,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  Quaternion,
-  Vector3,
-} from "three";
+import { Color, DoubleSide, Group, Quaternion, Vector3 } from "three";
 
-import { Peers } from "../core";
+import { Peers } from "../core/peers";
 import { Coords3 } from "../types";
 
 import { CanvasBox, CanvasBoxParams } from "./canvas-box";
