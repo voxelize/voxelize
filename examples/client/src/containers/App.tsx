@@ -31,15 +31,6 @@ const GameCanvas = styled.canvas`
   height: 100%;
 `;
 
-const Position = styled.p`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  margin: 8px;
-  z-index: 100000;
-  color: #eee;
-`;
-
 const Crosshair = styled.div`
   position: fixed;
   top: 50%;
@@ -73,10 +64,9 @@ const App = () => {
   const domRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const worldRef = useRef<VOXELIZE.World | null>(null);
-  const positionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!domRef.current || !canvasRef.current || !positionRef.current) return;
+    if (!domRef.current || !canvasRef.current) return;
     if (worldRef.current) return;
 
     const clock = new THREE.Clock();
@@ -175,6 +165,8 @@ const App = () => {
       inputs.setNamespace("menu");
     });
 
+    const debug = new VOXELIZE.Debug();
+
     inputs.bind(
       "t",
       () => {
@@ -249,9 +241,7 @@ const App = () => {
               vy: vy + y,
               vz: vz + z,
               type: block.id,
-              rotation: rotation
-                ? VOXELIZE.BlockRotation.encode(rotation, 0)
-                : undefined,
+              rotation,
             });
           }
         }
@@ -351,11 +341,13 @@ const App = () => {
         }, 100);
       }
     };
+
     inputs.bind("f", toggleFly, "in-game");
 
-    const stats = new Stats();
-    document.body.appendChild(stats.dom);
-    stats.dom.style.margin = "8px";
+    inputs.bind("j", debug.toggle, "*");
+
+    debug.displayNewline();
+    debug.registerDisplay("Position", controls, "voxel");
 
     // Create a test for atlas
     // setTimeout(() => {
@@ -378,8 +370,6 @@ const App = () => {
             const animate = () => {
               requestAnimationFrame(animate);
 
-              stats.begin();
-
               const delta = clock.getDelta();
 
               peers.update();
@@ -389,20 +379,12 @@ const App = () => {
               sky.position.copy(camera.position);
               world.update(controls.object.position, delta);
 
-              if (positionRef.current)
-                positionRef.current.textContent = controls
-                  .getPosition()
-                  .toArray()
-                  .map((x) => x.toFixed(2))
-                  .toString();
-
               network.flush();
 
               perspective.update();
+              debug.update();
 
               composer.render();
-
-              stats.end();
             };
 
             animate();
@@ -413,12 +395,11 @@ const App = () => {
       });
 
     worldRef.current = world;
-  }, [domRef, canvasRef, worldRef, positionRef]);
+  }, [domRef, canvasRef, worldRef]);
 
   return (
     <GameWrapper ref={domRef}>
       <Crosshair />
-      <Position ref={positionRef} />
       <GameCanvas ref={canvasRef} />
     </GameWrapper>
   );

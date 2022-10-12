@@ -22,10 +22,11 @@
     "docs:deploy": "cd docs && yarn && yarn run deploy"
   },
   "peerDependencies": {
-    "three": "^0.142.0"
+    "@tweakpane/core": "^1.0.8",
+    "three": "^0.142.0",
+    "tweakpane": "3.1.0"
   },
   "devDependencies": {
-    "@tweakpane/core": "^1.0.8",
     "@types/gl-vec3": "^1.1.1",
     "@types/ndarray": "^1.0.11",
     "@types/three": "^0.141.0",
