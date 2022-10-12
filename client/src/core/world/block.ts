@@ -59,7 +59,12 @@ export type BlockUpdate = {
   /**
    * The optional rotation of the updated block.
    */
-  rotation?: BlockRotation;
+  rotation: number;
+
+  /**
+   * The optional y-rotation of the updated block.
+   */
+  yRotation: number;
 };
 
 export const PY_ROTATION = 0;

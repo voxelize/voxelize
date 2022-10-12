@@ -24,7 +24,7 @@ import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 import { NetIntercept } from "../network";
 
 import { TextureAtlas } from "./atlas";
-import { Block, BlockRotation, BlockUpdate } from "./block";
+import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Loader } from "./loader";
@@ -355,9 +355,10 @@ export class World extends Scene implements NetIntercept {
     vy: number,
     vz: number,
     type: number,
-    rotation?: BlockRotation
+    rotation = PY_ROTATION,
+    yRotation = 0
   ) => {
-    this.updateVoxels([{ vx, vy, vz, type, rotation }]);
+    this.updateVoxels([{ vx, vy, vz, type, rotation, yRotation }]);
   };
 
   updateVoxels = (updates: BlockUpdate[]) => {
@@ -574,16 +575,24 @@ export class World extends Scene implements NetIntercept {
               );
               chunk.setVoxel(vx, vy, vz, type);
 
-              if (update.rotation) {
-                chunk.setVoxelRotation(vx, vy, vz, update.rotation);
+              if (!isNaN(update.rotation) || !isNaN(update.yRotation)) {
+                chunk.setVoxelRotation(
+                  vx,
+                  vy,
+                  vz,
+                  BlockRotation.encode(update.rotation, update.yRotation)
+                );
               }
             }
 
             let raw = 0;
             raw = BlockUtils.insertId(raw, update.type);
 
-            if (update.rotation) {
-              raw = BlockUtils.insertRotation(raw, update.rotation);
+            if (!isNaN(update.rotation) || !isNaN(update.yRotation)) {
+              raw = BlockUtils.insertRotation(
+                raw,
+                BlockRotation.encode(update.rotation, update.yRotation)
+              );
             }
 
             return {
