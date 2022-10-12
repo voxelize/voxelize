@@ -803,6 +803,11 @@ export class RigidControls extends EventEmitter {
   };
 
   attachCharacter = (character: Character, newLerpFactor = 1) => {
+    if (!(character instanceof Character)) {
+      console.warn("Character not attached: not a default character.");
+      return;
+    }
+
     // Change lerp factors to one.
     character.params.positionLerp = newLerpFactor;
     character.params.rotationLerp = newLerpFactor;
