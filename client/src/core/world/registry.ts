@@ -150,6 +150,10 @@ class Registry {
     return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
+  checkHeight = (id: number) => {
+    return id !== 0;
+  };
+
   /**
    * On the texture atlas, how many textures are on each side.
    */
