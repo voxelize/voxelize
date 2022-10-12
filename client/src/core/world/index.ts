@@ -350,6 +350,10 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.fogFar.value = distance * chunkSize;
   };
 
+  setFogColor = (color: Color) => {
+    this.uniforms.fogColor.value.copy(color);
+  };
+
   updateVoxel = (
     vx: number,
     vy: number,
