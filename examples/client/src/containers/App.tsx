@@ -165,7 +165,11 @@ const App = () => {
       inputs.setNamespace("menu");
     });
 
-    const debug = new VOXELIZE.Debug();
+    const debug = new VOXELIZE.Debug(document.body, {
+      stats: false,
+      tweakpane: false,
+      showVoxelize: false,
+    });
 
     inputs.bind(
       "t",
@@ -357,7 +361,6 @@ const App = () => {
 
     inputs.bind("j", debug.toggle, "*");
 
-    debug.displayNewline();
     debug.registerDisplay("Position", controls, "voxel");
 
     // Create a test for atlas

@@ -14,7 +14,7 @@ export type DebugParams = {
   lineClass: string;
   dataStyles: Partial<CSSStyleDeclaration>;
   dataClass: string;
-  showTitle: boolean;
+  showVoxelize: boolean;
 };
 
 const defaultParams: DebugParams = {
@@ -27,7 +27,7 @@ const defaultParams: DebugParams = {
   lineClass: "",
   dataStyles: {},
   dataClass: "",
-  showTitle: true,
+  showVoxelize: true,
 };
 
 export class Debug extends Group {
@@ -224,14 +224,19 @@ export class Debug extends Group {
       }
     }
 
-    if (this.params.showTitle) {
+    if (this.params.showVoxelize) {
       this.displayTitle(`Voxelize ${"__buildVersion__"}`);
+      this.displayNewline();
     }
   };
 
   private mount = () => {
     this.dataWrapper.appendChild(this.entryWrapper);
-    this.dataWrapper.appendChild(this.stats?.dom);
+
+    if (this.stats) {
+      this.dataWrapper.appendChild(this.stats?.dom);
+    }
+
     this.domElement.appendChild(this.dataWrapper);
 
     if (this.gui?.element) {
