@@ -46,6 +46,8 @@ export class Perspective {
     this.state = "first";
   }
 
+  onChangeState: (state: "first" | "second" | "third") => void;
+
   connect = (inputs: Inputs<any>, namespace = "*") => {
     inputs.bind("c", this.toggle, namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
@@ -67,16 +69,6 @@ export class Perspective {
         break;
     }
   };
-
-  set state(state: "first" | "second" | "third") {
-    this.controls.camera.position.set(0, 0, 0);
-    this.controls.camera.quaternion.set(0, 0, 0, 0);
-    this._state = state;
-  }
-
-  get state() {
-    return this._state;
-  }
 
   update = () => {
     const { object, camera } = this.controls;
@@ -144,5 +136,17 @@ export class Perspective {
     }
   };
 
-  // dispose = () => {};
+  set state(state: "first" | "second" | "third") {
+    this.controls.camera.position.set(0, 0, 0);
+    this.controls.camera.quaternion.set(0, 0, 0, 0);
+
+    if (state !== this._state) {
+      this.onChangeState?.(state);
+      this._state = state;
+    }
+  }
+
+  get state() {
+    return this._state;
+  }
 }
