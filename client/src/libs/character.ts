@@ -247,10 +247,12 @@ export class Character extends Group {
       Math.sin((performance.now() * this.speed) / scale) * amplitude;
   };
 
-  set = (position: Coords3, direction: Coords3) => {
-    this.newPosition.set(...position);
+  set = (position: number[], direction: number[]) => {
+    this.newPosition.set(position[0], position[1], position[2]);
 
-    this.newDirection.copy(Peers.directionToQuaternion(...direction));
+    this.newDirection.copy(
+      Peers.directionToQuaternion(direction[0], direction[1], direction[2])
+    );
     this.newBodyDirection.copy(
       Peers.directionToQuaternion(direction[0], 0, direction[2])
     );

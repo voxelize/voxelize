@@ -4,10 +4,37 @@ import { Pane } from "tweakpane";
 
 import { DOMUtils } from "../utils";
 
-export class Debug extends Group {
-  public gui: Pane;
+export type DebugParams = {
+  stats: boolean;
+  tweakpane: boolean;
+  onByDefault: boolean;
+  entryStyles: Partial<CSSStyleDeclaration>;
+  entryClass: string;
+  lineStyles: Partial<CSSStyleDeclaration>;
+  lineClass: string;
+  dataStyles: Partial<CSSStyleDeclaration>;
+  dataClass: string;
+  showTitle: boolean;
+};
 
-  public stats: Stats;
+const defaultParams: DebugParams = {
+  stats: true,
+  tweakpane: true,
+  onByDefault: true,
+  entryStyles: {},
+  entryClass: "",
+  lineStyles: {},
+  lineClass: "",
+  dataStyles: {},
+  dataClass: "",
+  showTitle: true,
+};
+
+export class Debug extends Group {
+  public params: DebugParams;
+
+  public gui?: Pane;
+  public stats?: Stats;
 
   public dataWrapper: HTMLDivElement;
   public entryWrapper: HTMLDivElement;
@@ -22,9 +49,11 @@ export class Debug extends Group {
 
   constructor(
     public domElement: HTMLElement = document.body,
-    onByDefault = false
+    params: Partial<DebugParams> = {}
   ) {
     super();
+
+    const { onByDefault } = (this.params = { ...defaultParams, ...params });
 
     this.makeDOM();
     this.setup();
@@ -84,7 +113,10 @@ export class Debug extends Group {
       : "visible";
 
     this.entryWrapper.style.visibility = newVisibility;
-    this.stats.dom.style.visibility = newVisibility;
+
+    if (this.stats) {
+      this.stats.dom.style.visibility = newVisibility;
+    }
 
     if (this.gui?.element) {
       this.gui.element.style.visibility = newVisibility;
@@ -102,15 +134,19 @@ export class Debug extends Group {
     }
 
     // fps update
-    this.stats.update();
+    this.stats?.update();
   };
 
   private makeDataEntry = (newline = false) => {
     const dataEntry = document.createElement("p");
+    if (this.params.lineClass) {
+      dataEntry.classList.add(this.params.lineClass);
+    }
     DOMUtils.applyStyles(dataEntry, {
       fontSize: "13.3333px",
       margin: "0",
       ...(newline ? { height: "16px" } : {}),
+      ...(this.params.lineStyles || {}),
     });
     return dataEntry;
   };
@@ -118,8 +154,16 @@ export class Debug extends Group {
   private makeDOM = () => {
     this.dataWrapper = document.createElement("div");
 
+    if (this.params.dataClass) {
+      this.dataWrapper.classList.add(this.params.dataClass);
+    }
+
     this.entryWrapper = document.createElement("div");
     this.entryWrapper.id = "data-wrapper";
+
+    if (this.params.entryClass) {
+      this.entryWrapper.classList.add(this.params.entryClass);
+    }
 
     DOMUtils.applyStyles(this.dataWrapper, {
       position: "fixed",
@@ -134,6 +178,7 @@ export class Debug extends Group {
       borderRadius: "4px",
       overflow: "hidden",
       gap: "8px",
+      ...(this.params.dataStyles || {}),
     });
 
     DOMUtils.applyStyles(this.entryWrapper, {
@@ -141,45 +186,52 @@ export class Debug extends Group {
       flexDirection: "column-reverse",
       alignItems: "flex-start",
       justifyContent: "flex-start",
+      ...(this.params.entryStyles || {}),
     });
 
-    this.stats = Stats();
-    this.stats.dom.parentNode?.removeChild(this.stats.dom);
+    if (this.params.stats) {
+      this.stats = Stats();
+      this.stats.dom.parentNode?.removeChild(this.stats.dom);
 
-    DOMUtils.applyStyles(this.stats.dom, {
-      position: "relative",
-      top: "unset",
-      bottom: "unset",
-      left: "unset",
-      zIndex: "1000000000000",
-    });
+      DOMUtils.applyStyles(this.stats.dom, {
+        position: "relative",
+        top: "unset",
+        bottom: "unset",
+        left: "unset",
+        zIndex: "1000000000000",
+      });
+    }
   };
 
   private setup = () => {
-    this.gui = new Pane({
-      title: "Voxelize Debug Panel",
-      expanded: false,
-    });
+    if (this.params.tweakpane) {
+      this.gui = new Pane({
+        title: "Voxelize Debug Panel",
+        expanded: false,
+      });
 
-    DOMUtils.applyStyles(this.gui.element, {
-      position: "fixed",
-      top: "10px",
-      right: "10px",
-      zIndex: "1000000000000",
-    });
+      DOMUtils.applyStyles(this.gui.element, {
+        position: "fixed",
+        top: "10px",
+        right: "10px",
+        zIndex: "1000000000000",
+      });
 
-    // detach tweakpane from it's default parent
-    const parentElement = this.gui.element;
-    if (parentElement) {
-      parentElement.parentNode?.removeChild(parentElement);
+      // detach tweakpane from it's default parent
+      const parentElement = this.gui.element;
+      if (parentElement) {
+        parentElement.parentNode?.removeChild(parentElement);
+      }
     }
 
-    this.displayTitle(`Voxelize ${"__buildVersion__"}`);
+    if (this.params.showTitle) {
+      this.displayTitle(`Voxelize ${"__buildVersion__"}`);
+    }
   };
 
   private mount = () => {
     this.dataWrapper.appendChild(this.entryWrapper);
-    this.dataWrapper.appendChild(this.stats.dom);
+    this.dataWrapper.appendChild(this.stats?.dom);
     this.domElement.appendChild(this.dataWrapper);
 
     if (this.gui?.element) {

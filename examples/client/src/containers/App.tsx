@@ -292,7 +292,18 @@ const App = () => {
       { identifier: "BRUH" }
     );
 
-    const peers = new Peers(controls.object);
+    const peers = new Peers<VOXELIZE.Character>(controls.object);
+
+    peers.createPeer = () => {
+      const peer = new VOXELIZE.Character();
+      return peer;
+    };
+
+    peers.onPeerUpdate = (object, data) => {
+      object.set(data.position, data.direction);
+    };
+
+    world.add(peers);
 
     ColorText.SPLITTER = "$";
 
