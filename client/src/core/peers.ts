@@ -1,5 +1,5 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
-import { Matrix4, Vector3, Quaternion, Object3D, Group } from "three";
+import { Vector3, Quaternion, Object3D, Group } from "three";
 
 import { Character } from "../libs";
 
@@ -135,22 +135,5 @@ export class Peers<
         child.update();
       }
     });
-  };
-
-  static directionToQuaternion = (dx: number, dy: number, dz: number) => {
-    const toQuaternion = (() => {
-      const m = new Matrix4();
-      const q = new Quaternion();
-      const zero = new Vector3(0, 0, 0);
-      const one = new Vector3(0, 1, 0);
-
-      return () => {
-        return q.setFromRotationMatrix(
-          m.lookAt(new Vector3(-dx, -dy, -dz), zero, one)
-        );
-      };
-    })();
-
-    return toQuaternion();
   };
 }

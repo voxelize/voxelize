@@ -10,6 +10,7 @@ import {
   SMAAEffect,
 } from "postprocessing";
 import * as THREE from "three";
+import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 
 import { setupWorld } from "src/core/world";
 import { ColorText, Peers } from "@voxelize/client";
@@ -170,6 +171,22 @@ const App = () => {
       tweakpane: false,
       showVoxelize: false,
     });
+
+    // const expChar = new VOXELIZE.Character({});
+    // const exporter = new OBJExporter();
+    // const data = exporter.parse(expChar);
+    // expChar.update();
+
+    // function saveString(text: string, filename: string) {
+    //   const blob = new Blob([text], { type: "text/plain" });
+    //   const link = document.createElement("a");
+    //   link.href = URL.createObjectURL(blob);
+    //   link.download = filename;
+    //   link.click();
+    // }
+
+    // saveString(data, "character.obj");
+    // world.add(expChar);
 
     inputs.bind(
       "t",

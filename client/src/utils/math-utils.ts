@@ -1,3 +1,5 @@
+import { Matrix4, Quaternion, Vector3 } from "three";
+
 const TWO_PI = Math.PI * 2;
 
 /**
@@ -21,5 +23,22 @@ export class MathUtils {
 
   static normalizeAngle = (angle: number) => {
     return angle - TWO_PI * Math.floor((angle + Math.PI) / TWO_PI);
+  };
+
+  static directionToQuaternion = (dx: number, dy: number, dz: number) => {
+    const toQuaternion = (() => {
+      const m = new Matrix4();
+      const q = new Quaternion();
+      const zero = new Vector3(0, 0, 0);
+      const one = new Vector3(0, 1, 0);
+
+      return () => {
+        return q.setFromRotationMatrix(
+          m.lookAt(new Vector3(-dx, -dy, -dz), zero, one)
+        );
+      };
+    })();
+
+    return toQuaternion();
   };
 }

@@ -1,7 +1,13 @@
-import { Color, DoubleSide, Group, Quaternion, Vector3 } from "three";
+import {
+  Color,
+  DoubleSide,
+  Group,
+  MathUtils,
+  Quaternion,
+  Vector3,
+} from "three";
 
-import { Peers } from "../core/peers";
-import { Coords3 } from "../types";
+import { MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxParams } from "./canvas-box";
 import { NameTag } from "./nametag";
@@ -22,6 +28,7 @@ export type ArmsParams = CanvasBoxParams & {
 };
 
 export type CharacterParams = {
+  swingLerp?: number;
   walkingSpeed?: number;
   idleArmSwing?: number;
   positionLerp?: number;
@@ -33,6 +40,7 @@ export type CharacterParams = {
 };
 
 const defaultCharacterParams: CharacterParams = {
+  swingLerp: 0.8,
   walkingSpeed: 1.4,
   positionLerp: 0.7,
   rotationLerp: 0.2,
@@ -56,8 +64,10 @@ const defaultBodyParams: BodyParams = {
   gap: 0.1,
   layers: 1,
   side: DoubleSide,
-  width: 1,
+  width: 0.6,
   widthSegments: 16,
+  depth: 0.6,
+  height: 1,
 };
 
 const defaultArmsParams: ArmsParams = {
@@ -155,13 +165,22 @@ export class Character extends Group {
         ...(params.head || {}),
         depth:
           params.head?.depth || params.head?.width || defaultHeadParams.width,
-        height: params.head?.height || defaultHeadParams.height,
+        height:
+          params.head?.height ||
+          defaultHeadParams.height ||
+          defaultHeadParams.width,
       },
       body: {
         ...defaultBodyParams,
         ...(params.body || {}),
-        depth: params.body?.depth || defaultBodyParams.width,
-        height: params.body?.height || defaultBodyParams.width,
+        depth:
+          params.body?.depth ||
+          defaultBodyParams.depth ||
+          defaultBodyParams.width,
+        height:
+          params.body?.height ||
+          defaultBodyParams.height ||
+          defaultBodyParams.width,
       },
       arms: {
         ...defaultArmsParams,
@@ -223,17 +242,26 @@ export class Character extends Group {
     const speed = Math.max(this.speed, this.params.idleArmSwing);
     const amplitude = speed * 1;
 
-    this.leftArm.rotation.x =
-      Math.sin((performance.now() * speed) / scale) * amplitude;
-    this.leftArm.rotation.z =
-      Math.cos((performance.now() * speed) / scale) ** 2 * amplitude * 0.1;
+    this.leftArm.rotation.x = MathUtils.lerp(
+      this.leftArm.rotation.x,
+      Math.sin((performance.now() * speed) / scale) * amplitude,
+      this.params.swingLerp
+    );
+    this.leftArm.rotation.z = MathUtils.lerp(
+      this.leftArm.rotation.z,
+      Math.cos((performance.now() * speed) / scale) ** 2 * amplitude * 0.1,
+      this.params.swingLerp
+    );
 
-    this.rightArm.rotation.x =
-      Math.sin((performance.now() * speed) / scale + Math.PI) * amplitude;
-    this.rightArm.rotation.z = -(
-      Math.sin((performance.now() * speed) / scale) ** 2 *
-      amplitude *
-      0.1
+    this.rightArm.rotation.x = MathUtils.lerp(
+      this.rightArm.rotation.x,
+      Math.sin((performance.now() * 1.4) / scale + Math.PI) * 1.4 + 1.4,
+      this.params.swingLerp
+    );
+    this.rightArm.rotation.z = MathUtils.lerp(
+      this.rightArm.rotation.z,
+      -(Math.sin((performance.now() * 1.4) / scale) ** 2 * 1.4 * 0.5),
+      this.params.swingLerp
     );
   };
 
@@ -251,10 +279,14 @@ export class Character extends Group {
     this.newPosition.set(position[0], position[1], position[2]);
 
     this.newDirection.copy(
-      Peers.directionToQuaternion(direction[0], direction[1], direction[2])
+      VoxMathUtils.directionToQuaternion(
+        direction[0],
+        direction[1],
+        direction[2]
+      )
     );
     this.newBodyDirection.copy(
-      Peers.directionToQuaternion(direction[0], 0, direction[2])
+      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2])
     );
   };
 
