@@ -127,7 +127,13 @@ export class Debug extends Group {
     // loop through all data entries, and get their latest updated values
     for (const { element, title, attribute, object, formatter } of this
       .dataEntries) {
-      const newValue = object && attribute ? object[attribute] : "";
+      const newValue = object
+        ? typeof object === "function"
+          ? object()
+          : attribute
+          ? object[attribute]
+          : ""
+        : "";
       element.textContent = `${title ? `${title}: ` : ""}${formatter(
         newValue
       )}`;

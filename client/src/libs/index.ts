@@ -10,3 +10,4 @@ export * from "./perspective";
 export * from "./sky";
 export * from "./sprite-text";
 export * from "./worker-pool";
+export * from "./shadows";

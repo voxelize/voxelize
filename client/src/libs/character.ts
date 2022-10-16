@@ -64,10 +64,8 @@ const defaultBodyParams: BodyParams = {
   gap: 0.1,
   layers: 1,
   side: DoubleSide,
-  width: 0.6,
+  width: 1,
   widthSegments: 16,
-  depth: 0.6,
-  height: 1,
 };
 
 const defaultArmsParams: ArmsParams = {
@@ -255,12 +253,12 @@ export class Character extends Group {
 
     this.rightArm.rotation.x = MathUtils.lerp(
       this.rightArm.rotation.x,
-      Math.sin((performance.now() * 1.4) / scale + Math.PI) * 1.4 + 1.4,
+      Math.sin((performance.now() * speed) / scale + Math.PI) * amplitude,
       this.params.swingLerp
     );
     this.rightArm.rotation.z = MathUtils.lerp(
       this.rightArm.rotation.z,
-      -(Math.sin((performance.now() * 1.4) / scale) ** 2 * 1.4 * 0.5),
+      -(Math.sin((performance.now() * speed) / scale) ** 2 * amplitude * 0.1),
       this.params.swingLerp
     );
   };

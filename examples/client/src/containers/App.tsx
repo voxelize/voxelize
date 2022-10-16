@@ -172,22 +172,6 @@ const App = () => {
       showVoxelize: false,
     });
 
-    // const expChar = new VOXELIZE.Character({});
-    // const exporter = new OBJExporter();
-    // const data = exporter.parse(expChar);
-    // expChar.update();
-
-    // function saveString(text: string, filename: string) {
-    //   const blob = new Blob([text], { type: "text/plain" });
-    //   const link = document.createElement("a");
-    //   link.href = URL.createObjectURL(blob);
-    //   link.download = filename;
-    //   link.click();
-    // }
-
-    // saveString(data, "character.obj");
-    // world.add(expChar);
-
     inputs.bind(
       "t",
       () => {
@@ -317,6 +301,7 @@ const App = () => {
 
     peers.createPeer = () => {
       const peer = new VOXELIZE.Character();
+      shadows.add(peer);
       return peer;
     };
 
@@ -380,6 +365,22 @@ const App = () => {
 
     debug.registerDisplay("Position", controls, "voxel");
 
+    debug.registerDisplay("Sunlight", () => {
+      return world.getSunlightByVoxel(...controls.voxel);
+    });
+
+    ["Red", "Green", "Blue"].forEach((color) => {
+      debug.registerDisplay(color + " Light", () => {
+        return world.getTorchLightByVoxel(
+          ...controls.voxel,
+          color.toUpperCase() as any
+        );
+      });
+    });
+
+    const shadows = new VOXELIZE.Shadows(world);
+    shadows.add(character);
+
     // Create a test for atlas
     // setTimeout(() => {
     //   const plane = new THREE.Mesh(
@@ -413,6 +414,7 @@ const App = () => {
               network.flush();
 
               perspective.update();
+              shadows.update();
               debug.update();
 
               composer.render();

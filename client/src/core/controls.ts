@@ -929,7 +929,6 @@ export class RigidControls extends EventEmitter {
       return;
     }
 
-    const { maxHeight } = this.world.params;
     const { reachDistance, lookBlockScale } = this.params;
 
     const camDir = new Vector3();
@@ -938,17 +937,7 @@ export class RigidControls extends EventEmitter {
     camDir.normalize();
 
     const result = raycast(
-      (x, y, z) => {
-        if (y >= maxHeight || y < 0) {
-          return [];
-        }
-
-        const id = this.world.getVoxelByVoxel(x, y, z);
-        const rotation = this.world.getVoxelRotationByVoxel(x, y, z);
-        const { aabbs } = this.world.getBlockById(id);
-
-        return aabbs.map((aabb) => rotation.rotateAABB(aabb));
-      },
+      this.world.getBlockAABBsByWorld,
       [camPos.x, camPos.y, camPos.z],
       [camDir.x, camDir.y, camDir.z],
       reachDistance
