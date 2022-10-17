@@ -1,16 +1,15 @@
 import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import * as VOXELIZE from "@voxelize/client";
-import Stats from "stats.js";
 import {
   EffectComposer,
   EffectPass,
+  HueSaturationEffect,
   // PixelationEffect,
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
 import * as THREE from "three";
-import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 
 import { setupWorld } from "src/core/world";
 import { ColorText, Peers } from "@voxelize/client";
@@ -114,10 +113,15 @@ const App = () => {
 
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(world, camera));
+
+    const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+    overlayEffect.addOverlay(150, new THREE.Color("#5F9DF7"), 0.05);
+
     composer.addPass(
       new EffectPass(
         camera,
-        new SMAAEffect({})
+        new SMAAEffect({}),
+        overlayEffect
         // new PixelationEffect(6)
       )
     );

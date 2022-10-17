@@ -11,3 +11,4 @@ export * from "./sky";
 export * from "./sprite-text";
 export * from "./worker-pool";
 export * from "./shadows";
+export * from "./effects";
