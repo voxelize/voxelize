@@ -115,7 +115,7 @@ const App = () => {
     composer.addPass(new RenderPass(world, camera));
 
     const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-    overlayEffect.addOverlay(150, new THREE.Color("#5F9DF7"), 0.05);
+    overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
 
     composer.addPass(
       new EffectPass(

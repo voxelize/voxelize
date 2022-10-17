@@ -5,7 +5,7 @@ import { World } from "../../core/world";
 import OverlayFragmentShader from "../shaders/effects/overlay.frag.glsl";
 
 export class BlockOverlayEffect extends Effect {
-  private overlays: Map<number, [Color, number]> = new Map();
+  private overlays: Map<number | string, [Color, number]> = new Map();
   private oldId: number;
 
   constructor(public world: World, public camera: PerspectiveCamera) {
@@ -17,8 +17,11 @@ export class BlockOverlayEffect extends Effect {
     });
   }
 
-  addOverlay = (id: number, color: Color, opacity: number) => {
-    this.overlays.set(id, [color, opacity]);
+  addOverlay = (idOrName: number | string, color: Color, opacity: number) => {
+    this.overlays.set(
+      typeof idOrName === "number" ? idOrName : idOrName.toLowerCase(),
+      [color, opacity]
+    );
   };
 
   update = () => {
@@ -33,7 +36,9 @@ export class BlockOverlayEffect extends Effect {
       return;
     }
 
-    const entry = this.overlays.get(id);
+    const block = this.world.getBlockById(id);
+    const entry =
+      this.overlays.get(id) || this.overlays.get(block.name.toLowerCase());
 
     if (!entry) {
       this.opacity = 0;
