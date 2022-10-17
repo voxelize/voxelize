@@ -269,7 +269,11 @@ impl VoxelAccess for Space {
     #[inline]
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if self.lights.is_empty() {
-            panic!("Space does not contain voxel data.");
+            panic!("Space does not contain light data.");
+        }
+
+        if vy as usize >= self.params.max_height {
+            return LightUtils::insert_sunlight(0, self.params.max_light_level);
         }
 
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);

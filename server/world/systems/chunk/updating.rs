@@ -24,6 +24,7 @@ const RED: LightColor = LightColor::Red;
 const GREEN: LightColor = LightColor::Green;
 const BLUE: LightColor = LightColor::Blue;
 const SUNLIGHT: LightColor = LightColor::Sunlight;
+const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 
 pub struct ChunkUpdatingSystem;
 
@@ -258,7 +259,20 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
                     let nvy = vy + oy;
 
-                    if nvy < 0 || nvy >= max_height {
+                    if nvy < 0 {
+                        return;
+                    }
+
+                    // Sunlight should propagate downwards here.
+                    if nvy >= max_height {
+                        // Light can go downwards into this block.
+                        if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
+                            sun_flood.push_back(LightNode {
+                                voxel: [vx + ox, vy, vz + oz],
+                                level: max_light_level,
+                            })
+                        }
+
                         return;
                     }
 

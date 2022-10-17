@@ -10,7 +10,8 @@ use std::{
 };
 
 use crate::{
-    ChunkParams, ChunkStatus, ChunkUtils, MessageType, Vec2, Vec3, VoxelUpdate, WorldConfig,
+    ChunkParams, ChunkStatus, ChunkUtils, LightUtils, MessageType, Vec2, Vec3, VoxelUpdate,
+    WorldConfig,
 };
 
 use super::{
@@ -424,6 +425,10 @@ impl VoxelAccess for Chunks {
 
     /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if vy as usize >= self.config.max_height {
+            return LightUtils::insert_sunlight(0, self.config.max_light_level);
+        }
+
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
             chunk.get_raw_light(vx, vy, vz)
         } else {
@@ -445,6 +450,10 @@ impl VoxelAccess for Chunks {
 
     /// Get the sunlight level at a voxel position. Returns 0 if chunk does not exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if vy >= self.config.max_height as i32 {
+            return self.config.max_light_level;
+        }
+
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
             chunk.get_sunlight(vx, vy, vz)
         } else {
