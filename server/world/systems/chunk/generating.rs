@@ -59,7 +59,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     if next_stage >= pipeline.stages.len() {
                         // At this point, this chunk has nothing to do with the pipeline.
                         chunk.status = ChunkStatus::Meshing;
-                        chunk.calculate_max_height(&registry);
                         mesher.add_chunk(&chunk.coords, false);
                         pipeline.remove_chunk(&chunk.coords);
                     } else {

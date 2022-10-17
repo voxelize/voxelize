@@ -92,20 +92,6 @@ impl ChunkStage for DebugStage {
     }
 }
 
-/// A preset chunk stage to calculate the chunk's height map.
-pub struct HeightMapStage;
-
-impl ChunkStage for HeightMapStage {
-    fn name(&self) -> String {
-        "HeightMap".to_owned()
-    }
-
-    fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
-        chunk.calculate_max_height(resources.registry);
-        chunk
-    }
-}
-
 /// A preset chunk stage to set a flat land.
 pub struct FlatlandStage {
     height: i32,
@@ -322,6 +308,9 @@ impl Pipeline {
                         },
                         space,
                     );
+
+                    // Calculate the max height after processing each chunk.
+                    chunk.calculate_max_height(&registry);
 
                     if !chunk.extra_changes.is_empty() {
                         changes.append(&mut chunk.extra_changes.drain(..).collect());
