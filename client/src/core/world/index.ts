@@ -51,6 +51,7 @@ export type WorldClientParams = {
   maxProcessesPerTick: number;
   maxUpdatesPerTick: number;
   maxAddsPerTick: number;
+  minBrightness: number;
   rerequestTicks: number;
   defaultRenderRadius: number;
   defaultDeleteRadius: number;
@@ -79,6 +80,7 @@ const defaultParams: WorldClientParams = {
   maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
+  minBrightness: 0.04,
   rerequestTicks: 100,
   defaultRenderRadius: 8,
   defaultDeleteRadius: 12,
@@ -120,10 +122,10 @@ export class World extends Scene implements NetIntercept {
     ao: {
       value: Vector4;
     };
-    minLight: {
+    minBrightness: {
       value: number;
     };
-    sunlight: {
+    sunlightIntensity: {
       value: number;
     };
   } = {
@@ -142,10 +144,10 @@ export class World extends Scene implements NetIntercept {
     ao: {
       value: new Vector4(100.0, 170.0, 210.0, 255.0),
     },
-    minLight: {
+    minBrightness: {
       value: 0.2,
     },
-    sunlight: {
+    sunlightIntensity: {
       value: 1,
     },
   };
@@ -190,6 +192,8 @@ export class World extends Scene implements NetIntercept {
     };
 
     this.renderRadius = defaultRenderRadius;
+
+    this.uniforms.minBrightness.value = this.params.minBrightness;
 
     this.setupPhysics();
   }
@@ -474,6 +478,20 @@ export class World extends Scene implements NetIntercept {
   getBlockAABBsByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
     return this.getBlockAABBsByVoxel(...voxel);
+  };
+
+  setMinBrightness = (minBrightness: number) => {
+    this.uniforms.minBrightness.value = minBrightness;
+  };
+
+  setSunlightIntensity = (intensity: number) => {
+    if (intensity < 0 || intensity > this.params.maxLightLevel) {
+      throw new Error(
+        `Sunlight intensity must be between 0 and ${this.params.maxLightLevel}`
+      );
+    }
+
+    this.uniforms.sunlightIntensity.value = intensity;
   };
 
   isWithinWorld = (cx: number, cz: number) => {
@@ -939,7 +957,7 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 uniform float uSunlightIntensity;
-uniform float uMinLight;
+uniform float uMinBrightness;
 varying float vAO;
 varying vec4 vLight; 
 varying vec4 vWorldPosition;
@@ -949,7 +967,7 @@ varying vec4 vWorldPosition;
           "#include <envmap_fragment>",
           `
 #include <envmap_fragment>
-float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinLight, 1.0);
+float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinBrightness, 1.0);
 float scale = 1.0;
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
 outgoingLight *= 0.88 * vAO;
@@ -1010,9 +1028,9 @@ vWorldPosition = worldPosition;
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         map: this.uniforms.atlas,
-        uSunlightIntensity: this.uniforms.sunlight,
+        uSunlightIntensity: this.uniforms.sunlightIntensity,
         uAOTable: this.uniforms.ao,
-        uMinLight: this.uniforms.minLight,
+        uMinBrightness: this.uniforms.minBrightness,
         uFogNear: this.uniforms.fogNear,
         uFogFar: this.uniforms.fogFar,
         uFogColor: this.uniforms.fogColor,
