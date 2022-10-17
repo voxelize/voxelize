@@ -28,11 +28,6 @@ type ProtocolWS = WebSocket & {
  */
 type NetworkParams = {
   /**
-   * The HTTP url to the backend. Example: `http://localhost:4000`
-   */
-  serverURL: string;
-
-  /**
    * On disconnection, the timeout to attempt to reconnect. Defaults to 5000.
    */
   reconnectTimeout?: number;
@@ -101,6 +96,11 @@ class Network extends EventEmitter {
   public connected = false;
   public joined = false;
 
+  public onJoin: (world: string) => void;
+  public onLeave: (world: string) => void;
+  public onConnect: () => void;
+  public onDisconnect: () => void;
+
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
   });
@@ -114,14 +114,18 @@ class Network extends EventEmitter {
    *
    * @hidden
    */
-  connect = async (params: NetworkParams) => {
+  connect = async (serverURL: string, params: NetworkParams) => {
+    if (!serverURL) {
+      throw new Error("No server URL provided.");
+    }
+
     this.params = params;
 
-    this.url = new DOMUrl(this.params.serverURL);
+    this.url = new DOMUrl(serverURL);
     this.url.protocol = this.url.protocol.replace(/ws/, "http");
     this.url.hash = "";
 
-    const socketURL = new DOMUrl(this.params.serverURL);
+    const socketURL = new DOMUrl(serverURL);
     socketURL.path = "/ws/";
 
     this.socket = new URL(socketURL.toString());
@@ -158,6 +162,7 @@ class Network extends EventEmitter {
       };
       ws.onopen = () => {
         this.connected = true;
+        this.onConnect?.();
         this.emit("connected");
 
         clearTimeout(this.reconnection);
@@ -172,12 +177,13 @@ class Network extends EventEmitter {
       };
       ws.onclose = () => {
         this.connected = false;
+        this.onDisconnect?.();
         this.emit("disconnected");
 
         // fire reconnection every "reconnectTimeout" ms
         if (this.params.reconnectTimeout) {
           this.reconnection = setTimeout(() => {
-            this.connect(params);
+            this.connect(serverURL, params);
           }, this.params.reconnectTimeout);
         }
       };
@@ -333,6 +339,7 @@ class Network extends EventEmitter {
       }
 
       this.joinResolve(this);
+      this.onJoin?.(this.world);
     }
   };
 

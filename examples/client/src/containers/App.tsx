@@ -398,7 +398,7 @@ const App = () => {
       .register(chat)
       .register(world)
       .register(peers)
-      .connect({ serverURL: BACKEND_SERVER, secret: "test" })
+      .connect(BACKEND_SERVER, { secret: "test" })
       .then(() => {
         network
           .join("world1")
