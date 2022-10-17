@@ -26,6 +26,7 @@ class ChunkMesh extends Group {
 
   constructor(public chunk: Chunk) {
     super();
+    this.frustumCulled = false;
   }
 
   set = (
@@ -84,7 +85,6 @@ class ChunkMesh extends Group {
           this.chunk.min[2]
         );
         mesh.updateMatrix();
-        mesh.frustumCulled = false;
         map.set(level, mesh);
       }
 
@@ -107,6 +107,9 @@ class ChunkMesh extends Group {
         new BufferAttribute(new Int32Array(lights), 1)
       );
       geometry.setIndex(Array.from(new Uint32Array(indices)));
+
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
     })();
 
     // Process transparent meshes next
@@ -161,6 +164,7 @@ class ChunkMesh extends Group {
             geometry.setIndex(Array.from(new Uint32Array(indices)));
 
             geometry.computeBoundingBox();
+            geometry.computeBoundingSphere();
 
             mesh.name = `${this.chunk.name}-transparent`;
             mesh.matrixAutoUpdate = false;
@@ -171,7 +175,6 @@ class ChunkMesh extends Group {
               this.chunk.min[2] + (side === "front" ? 0 : 0.001)
             );
             mesh.updateMatrix();
-            mesh.frustumCulled = false;
 
             meshes.push(mesh);
             this.add(mesh);

@@ -279,7 +279,7 @@ export class Clouds extends Group {
     geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new Int8BufferAttribute(normals, 3));
     geometry.setIndex(Array.from(indices));
-    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
 
     mesh = mesh || new Mesh(geometry, this.material);
 
