@@ -171,7 +171,6 @@ const App = () => {
     });
 
     const debug = new VOXELIZE.Debug(document.body, {
-      stats: false,
       tweakpane: false,
       showVoxelize: false,
     });

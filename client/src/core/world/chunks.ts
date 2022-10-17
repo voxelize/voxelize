@@ -6,7 +6,7 @@ import { BlockUpdate } from "./block";
 import { Chunk } from "./chunk";
 
 class Chunks extends Map<string, Chunk> {
-  public requested = new Set<string>();
+  public requested = new Map<string, number>();
   public toRequest: string[] = [];
   public toProcess: ChunkProtocol[] = [];
   public toUpdate: BlockUpdate[] = [];

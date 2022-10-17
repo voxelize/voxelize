@@ -51,6 +51,7 @@ export type WorldClientParams = {
   maxProcessesPerTick: number;
   maxUpdatesPerTick: number;
   maxAddsPerTick: number;
+  rerequestTicks: number;
   defaultRenderRadius: number;
   defaultDeleteRadius: number;
   textureDimension: number;
@@ -78,6 +79,7 @@ const defaultParams: WorldClientParams = {
   maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
+  rerequestTicks: 100,
   defaultRenderRadius: 8,
   defaultDeleteRadius: 12,
   textureDimension: 8,
@@ -664,6 +666,16 @@ export class World extends Scene implements NetIntercept {
           const name = ChunkUtils.getChunkName([cx + x, cz + z]);
 
           if (this.chunks.requested.has(name)) {
+            let already = this.chunks.requested.get(name);
+            already += 1;
+
+            if (already > this.params.rerequestTicks) {
+              this.chunks.toRequest.push(name);
+              this.chunks.requested.delete(name);
+            } else {
+              this.chunks.requested.set(name, already);
+            }
+
             continue;
           }
 
@@ -745,7 +757,7 @@ export class World extends Scene implements NetIntercept {
 
     if (toRequest.length === 0) return;
 
-    toRequest.forEach((name) => this.chunks.requested.add(name));
+    toRequest.forEach((name) => this.chunks.requested.set(name, 1));
 
     this.packets.push({
       type: "LOAD",

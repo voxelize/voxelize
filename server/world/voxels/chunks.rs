@@ -285,10 +285,6 @@ impl Chunks {
 
         for x in -extended..=extended {
             for z in -extended..=extended {
-                if x * x + z * z > extended * extended {
-                    continue;
-                }
-
                 let n_coords = Vec2(coords.0 + x, coords.1 + z);
 
                 if self.is_within_world(&n_coords) {

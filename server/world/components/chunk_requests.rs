@@ -19,6 +19,10 @@ impl ChunkRequestsComp {
 
     /// Add a chunk to the list of chunks requested.
     pub fn add(&mut self, coords: &Vec2<i32>) {
+        if self.processed.contains(coords) {
+            return;
+        }
+
         self.requested.insert(coords.to_owned());
     }
 
