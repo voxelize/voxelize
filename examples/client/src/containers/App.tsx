@@ -4,12 +4,12 @@ import * as VOXELIZE from "@voxelize/client";
 import {
   EffectComposer,
   EffectPass,
-  HueSaturationEffect,
   // PixelationEffect,
   RenderPass,
   SMAAEffect,
 } from "postprocessing";
 import * as THREE from "three";
+import { MeshRenderer } from "three-nebula";
 
 import { setupWorld } from "src/core/world";
 import { ColorText, Peers } from "@voxelize/client";
@@ -258,6 +258,10 @@ const App = () => {
       if (updates.length) controls.world.updateVoxels(updates);
     };
 
+    const particleRenderer = new MeshRenderer(world, THREE);
+    const blockBreakParticles = new VOXELIZE.BlockBreakParticles(world);
+    blockBreakParticles.addRenderer(particleRenderer);
+
     inputs.click(
       "left",
       () => {
@@ -397,6 +401,7 @@ const App = () => {
       .register(chat)
       .register(world)
       .register(peers)
+      .register(blockBreakParticles)
       .connect(BACKEND_SERVER, { secret: "test" })
       .then(() => {
         network
@@ -419,6 +424,7 @@ const App = () => {
               perspective.update();
               shadows.update();
               debug.update();
+              blockBreakParticles.update();
 
               composer.render();
             };
