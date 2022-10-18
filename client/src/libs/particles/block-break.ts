@@ -9,7 +9,6 @@ import {
   BoxZone,
   Emitter,
   Life,
-  Mass,
   Position,
   Radius,
   Rate,
@@ -65,9 +64,38 @@ class Rigid extends Behaviour {
   }
 }
 
+export type BlockBreakParticlesParams = {
+  minCount: number;
+  maxCount: number;
+  capSize: number;
+  scale: number;
+  impulse: number;
+  minLife: number;
+  maxLife: number;
+  zoneWidth: number;
+};
+
+const defaultParams: BlockBreakParticlesParams = {
+  minCount: 15,
+  maxCount: 25,
+  capSize: 5,
+  scale: 0.1,
+  impulse: 3,
+  minLife: 2,
+  maxLife: 4,
+  zoneWidth: 1,
+};
+
 export class BlockBreakParticles extends System implements NetIntercept {
-  constructor(public world: World, public particleCount = 20) {
+  private params: BlockBreakParticlesParams;
+
+  constructor(
+    public world: World,
+    params: Partial<BlockBreakParticlesParams> = {}
+  ) {
     super();
+
+    this.params = { ...defaultParams, ...params };
   }
 
   [key: string]: any;
@@ -90,21 +118,20 @@ export class BlockBreakParticles extends System implements NetIntercept {
         .setRate(
           new Rate(
             new Span(
-              updates.length > 5 ? 0 : this.particleCount - 5,
-              updates.length > 5 ? 1 : this.particleCount + 5
+              updates.length > this.params.capSize ? 0 : this.params.minCount,
+              updates.length > this.params.capSize ? 1 : this.params.maxCount
             ),
             new Span(0.1, 0.25)
           )
         )
         .addInitializers([
-          new Radius(1),
-          new Life(2, 4),
+          new Life(this.params.minLife, this.params.maxLife),
           new Body(mesh),
-          new Position(new BoxZone(1)),
+          new Position(new BoxZone(this.params.zoneWidth)),
         ])
         .addBehaviours([
-          new Scale(0.1, 0.1),
-          new Rigid(0.1, 3, this.world.physics),
+          new Scale(this.params.scale, this.params.scale),
+          new Rigid(this.params.scale, 3, this.world.physics),
         ])
         .setPosition({ x: vx + 0.5, y: vy + 0.5, z: vz + 0.5 })
         .addOnEmitterDeadEventListener(() => {
