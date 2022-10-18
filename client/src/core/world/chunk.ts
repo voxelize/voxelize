@@ -64,7 +64,7 @@ class ChunkMesh extends Group {
         return;
       }
 
-      const { positions, indices, uvs, lights } = opaque;
+      const { positions, indices, uvs, lights, aos } = opaque;
 
       // No mesh actually
       if (positions.length === 0 || indices.length === 0) {
@@ -102,9 +102,10 @@ class ChunkMesh extends Group {
         "uv",
         new BufferAttribute(new Float32Array(uvs), 2)
       );
+      geometry.setAttribute("ao", new BufferAttribute(new Int32Array(aos), 1));
       geometry.setAttribute(
         "light",
-        new BufferAttribute(new Int32Array(lights), 1)
+        new BufferAttribute(new Float32Array(lights), 4)
       );
       geometry.setIndex(Array.from(new Uint32Array(indices)));
 
@@ -135,7 +136,7 @@ class ChunkMesh extends Group {
           const meshes = [];
 
           ["front", "back"].forEach((side) => {
-            const { positions, indices, uvs, lights } = meshData;
+            const { positions, indices, uvs, lights, aos } = meshData;
 
             // No mesh actually
             if (positions.length === 0 || indices.length === 0) {
@@ -159,7 +160,11 @@ class ChunkMesh extends Group {
             );
             geometry.setAttribute(
               "light",
-              new BufferAttribute(new Int32Array(lights), 1)
+              new BufferAttribute(new Float32Array(lights), 4)
+            );
+            geometry.setAttribute(
+              "ao",
+              new BufferAttribute(new Int32Array(aos), 1)
             );
             geometry.setIndex(Array.from(new Uint32Array(indices)));
 

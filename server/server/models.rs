@@ -57,7 +57,8 @@ pub struct Geometry {
     pub positions: Vec<f32>,
     pub indices: Vec<i32>,
     pub uvs: Vec<f32>,
-    pub lights: Vec<i32>,
+    pub lights: Vec<f32>,
+    pub aos: Vec<i32>,
 }
 
 /// Protocol buffer compatible mesh data structure.
@@ -245,6 +246,7 @@ impl MessageBuilder {
                                     positions: opaque.positions.to_owned(),
                                     lights: opaque.lights.to_owned(),
                                     uvs: opaque.uvs.to_owned(),
+                                    aos: opaque.aos.to_owned(),
                                 }),
                                 transparent: mesh
                                     .transparent
@@ -255,6 +257,7 @@ impl MessageBuilder {
                                         positions: transparent.positions.to_owned(),
                                         lights: transparent.lights.to_owned(),
                                         uvs: transparent.uvs.to_owned(),
+                                        aos: transparent.aos.to_owned(),
                                     })
                                     .collect(),
                             }

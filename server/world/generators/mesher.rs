@@ -179,7 +179,8 @@ impl Mesher {
         let mut positions = Vec::<f32>::new();
         let mut indices = Vec::<i32>::new();
         let mut uvs = Vec::<f32>::new();
-        let mut lights = Vec::<i32>::new();
+        let mut lights = Vec::<f32>::new();
+        let mut aos = Vec::<i32>::new();
 
         let &Vec3(min_x, min_y, min_z) = min;
         let &Vec3(max_x, max_y, max_z) = max;
@@ -230,6 +231,7 @@ impl Mesher {
                                     &mut indices,
                                     &mut uvs,
                                     &mut lights,
+                                    &mut aos,
                                     min,
                                 )
                             });
@@ -249,6 +251,7 @@ impl Mesher {
             indices,
             uvs,
             lights,
+            aos,
         })
     }
 
@@ -316,6 +319,7 @@ impl Mesher {
                                     &mut geometry.indices,
                                     &mut geometry.uvs,
                                     &mut geometry.lights,
+                                    &mut geometry.aos,
                                     min,
                                 )
                             });
@@ -346,7 +350,8 @@ impl Mesher {
         positions: &mut Vec<f32>,
         indices: &mut Vec<i32>,
         uvs: &mut Vec<f32>,
-        lights: &mut Vec<i32>,
+        lights: &mut Vec<f32>,
+        aos: &mut Vec<i32>,
         min: &Vec3<i32>,
     ) {
         let &Vec3(min_x, min_y, min_z) = min;
@@ -479,10 +484,10 @@ impl Mesher {
                 }
 
                 if is_see_through {
-                    four_sunlights.push(space.get_sunlight(vx, vy, vz) as i32);
-                    four_red_lights.push(space.get_red_light(vx, vy, vz) as i32);
-                    four_green_lights.push(space.get_green_light(vx, vy, vz) as i32);
-                    four_blue_lights.push(space.get_blue_light(vx, vy, vz) as i32);
+                    four_sunlights.push(space.get_sunlight(vx, vy, vz) as f32);
+                    four_red_lights.push(space.get_red_light(vx, vy, vz) as f32);
+                    four_green_lights.push(space.get_green_light(vx, vy, vz) as f32);
+                    four_blue_lights.push(space.get_blue_light(vx, vy, vz) as f32);
                 } else {
                     // Loop through all 8 neighbors of this vertex.
                     for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
@@ -558,24 +563,19 @@ impl Mesher {
                         }
                     }
 
-                    four_sunlights.push(
-                        (sum_sunlight.iter().sum::<u32>() as f32 / sum_sunlight.len() as f32)
-                            as i32,
-                    );
+                    four_sunlights
+                        .push(sum_sunlight.iter().sum::<u32>() as f32 / sum_sunlight.len() as f32);
 
                     four_red_lights.push(
-                        (sum_red_lights.iter().sum::<u32>() as f32 / sum_red_lights.len() as f32)
-                            as i32,
+                        sum_red_lights.iter().sum::<u32>() as f32 / sum_red_lights.len() as f32,
                     );
 
                     four_green_lights.push(
-                        (sum_green_lights.iter().sum::<u32>() as f32
-                            / sum_green_lights.len() as f32) as i32,
+                        sum_green_lights.iter().sum::<u32>() as f32 / sum_green_lights.len() as f32,
                     );
 
                     four_blue_lights.push(
-                        (sum_blue_lights.iter().sum::<u32>() as f32 / sum_blue_lights.len() as f32)
-                            as i32,
+                        sum_blue_lights.iter().sum::<u32>() as f32 / sum_blue_lights.len() as f32,
                     );
                 }
             }
@@ -595,7 +595,7 @@ impl Mesher {
             let c_bt = four_blue_lights[2];
             let d_bt = four_blue_lights[3];
 
-            let threshold = 0;
+            let threshold = 0.0;
 
             /* -------------------------------------------------------------------------- */
             /*                     I KNOW THIS IS UGLY, BUT IT WORKS!                     */
@@ -650,21 +650,19 @@ impl Mesher {
                 indices.push(ndx + 3);
             }
 
-            let mut ao_i = 0;
             for (s, r, g, b) in izip!(
                 &four_sunlights,
                 &four_red_lights,
                 &four_green_lights,
                 &four_blue_lights
             ) {
-                let mut light = 0;
-                light = LightUtils::insert_red_light(light, *r as u32);
-                light = LightUtils::insert_green_light(light, *g as u32);
-                light = LightUtils::insert_blue_light(light, *b as u32);
-                light = LightUtils::insert_sunlight(light, *s as u32);
-                lights.push(light as i32 | face_aos[ao_i] << 16);
-                ao_i += 1;
+                lights.push(*r);
+                lights.push(*g);
+                lights.push(*b);
+                lights.push(*s);
             }
+
+            aos.append(&mut face_aos);
         }
     }
 }

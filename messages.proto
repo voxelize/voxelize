@@ -5,8 +5,9 @@ message Geometry {
   int32 identifier = 1;
   repeated float positions = 2 [ packed = true ];
   repeated float uvs = 3 [ packed = true ];
-  repeated int32 indices = 4 [ packed = true ];
-  repeated int32 lights = 5 [ packed = true ];
+  repeated float lights = 4 [ packed = true ];
+  repeated int32 aos = 5 [ packed = true ];
+  repeated int32 indices = 6 [ packed = true ];
 }
 
 message Mesh {

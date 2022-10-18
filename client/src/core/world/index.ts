@@ -688,6 +688,13 @@ export class World extends Scene implements NetIntercept {
             already += 1;
 
             if (already > this.params.rerequestTicks) {
+              this.packets.push({
+                type: "UNLOAD",
+                json: {
+                  chunks: [[cx + x, cz + z]],
+                },
+              });
+
               this.chunks.toRequest.push(name);
               this.chunks.requested.delete(name);
             } else {
@@ -967,10 +974,10 @@ varying vec4 vWorldPosition;
           "#include <envmap_fragment>",
           `
 #include <envmap_fragment>
-float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinBrightness, 1.0);
-float scale = 1.0;
+float s = min(vLight.a * vLight.a * uSunlightIntensity * 0.8 + uMinBrightness, 1.0);
+float scale = 2.0;
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
-outgoingLight *= 0.88 * vAO;
+outgoingLight *= vAO;
 `
         )
         .replace(
@@ -988,18 +995,12 @@ gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
         .replace(
           "#include <common>",
           `
-attribute int light;
+attribute vec4 light;
+attribute int ao;
 varying float vAO;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 uniform vec4 uAOTable;
-vec4 unpackLight(int l) {
-  float r = float((l >> 8) & 0xF) / 15.0;
-  float g = float((l >> 4) & 0xF) / 15.0;
-  float b = float(l & 0xF) / 15.0;
-  float s = float((l >> 12) & 0xF) / 15.0;
-  return vec4(r, g, b, s);
-}
 #include <common>
 `
         )
@@ -1007,11 +1008,10 @@ vec4 unpackLight(int l) {
           "#include <color_vertex>",
           `
 #include <color_vertex>
-int ao = light >> 16;
 vAO = ((ao == 0) ? uAOTable.x :
     (ao == 1) ? uAOTable.y :
     (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
-vLight = unpackLight(light & ((1 << 16) - 1));
+vLight = vec4(light.x / 15.0, light.y / 15.0, light.z / 15.0, light.w / 15.0);
 `
         )
         .replace(

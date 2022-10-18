@@ -4,6 +4,7 @@ export type GeometryProtocol = {
   uvs: number[];
   indices: number[];
   lights: number[];
+  aos: number[];
 };
 
 export type MeshProtocol = {
