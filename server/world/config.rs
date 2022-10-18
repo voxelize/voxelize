@@ -330,8 +330,8 @@ impl WorldConfigBuilder {
             panic!("Min/max chunk parameters do not make sense.");
         }
 
-        if self.chunk_size % self.sub_chunks != 0 {
-            panic!("Chunk size should be divisible by sub-chunks.");
+        if self.max_height % self.sub_chunks != 0 {
+            panic!("Max height should be divisible by sub-chunks.");
         }
 
         if !self.saving && !self.save_dir.is_empty() {

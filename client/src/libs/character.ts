@@ -152,6 +152,9 @@ export class Character extends Group {
   public newBodyDirection = new Quaternion();
   public newDirection = new Quaternion();
 
+  onMove: () => void;
+  onIdle: () => void;
+
   constructor(params: Partial<CharacterParams> = {}) {
     super();
 
@@ -210,8 +213,13 @@ export class Character extends Group {
     const p2 = this.newPosition.clone();
     p1.y = p2.y = 0;
     const dist = p1.distanceTo(p2);
-    if (dist > 0.00001) this.speed = this.params.walkingSpeed;
-    else this.speed = 0;
+    if (dist > 0.00001) {
+      if (this.speed === 0) this.onMove?.();
+      this.speed = this.params.walkingSpeed;
+    } else {
+      if (this.speed > 0) this.onIdle?.();
+      this.speed = 0;
+    }
   };
 
   lerpAll = () => {

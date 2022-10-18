@@ -113,6 +113,7 @@ export class Debug extends Group {
       : "visible";
 
     this.entryWrapper.style.visibility = newVisibility;
+    this.dataWrapper.style.visibility = newVisibility;
 
     if (this.stats) {
       this.stats.dom.style.visibility = newVisibility;

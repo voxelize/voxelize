@@ -72,6 +72,7 @@ const App = () => {
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
       textureDimension: 32,
+      maxProcessesPerTick: 100,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -375,6 +376,19 @@ const App = () => {
     debug.registerDisplay("Sunlight", () => {
       return world.getSunlightByVoxel(...controls.voxel);
     });
+
+    debug.registerDisplay(
+      "Chunks to Request",
+      world.chunks.toRequest,
+      "length"
+    );
+    debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
+    debug.registerDisplay(
+      "Chunks to Process",
+      world.chunks.toProcess,
+      "length"
+    );
+    debug.registerDisplay("Chunks to Add", world.chunks.toAdd, "length");
 
     ["Red", "Green", "Blue"].forEach((color) => {
       debug.registerDisplay(color + " Light", () => {
