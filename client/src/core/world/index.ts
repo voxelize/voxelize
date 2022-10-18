@@ -967,10 +967,11 @@ varying vec4 vWorldPosition;
           "#include <envmap_fragment>",
           `
 #include <envmap_fragment>
-float s = min(vLight.a * uSunlightIntensity * 0.8 + uMinBrightness, 1.0);
-float scale = 1.0;
+// Not sure why, but making this power of 2 makes it look better.
+float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinBrightness) + uMinBrightness, 1.0);
+float scale = 2.0;
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
-outgoingLight *= 0.88 * vAO;
+outgoingLight *= vAO;
 `
         )
         .replace(
