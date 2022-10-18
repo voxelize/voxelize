@@ -463,6 +463,16 @@ export class World extends Scene implements NetIntercept {
     return this.getMaxHeightByVoxel(voxel[0], voxel[2]);
   };
 
+  getPreviousVoxelByVoxel = (vx: number, vy: number, vz: number) => {
+    const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+    return this.blockCache.get(name);
+  };
+
+  getPreviousVoxelByWorld = (wx: number, wy: number, wz: number) => {
+    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    return this.getPreviousVoxelByVoxel(...voxel);
+  };
+
   getBlockAABBsByVoxel = (vx: number, vy: number, vz: number) => {
     if (vy >= this.params.maxHeight || vy < 0) {
       return [];
