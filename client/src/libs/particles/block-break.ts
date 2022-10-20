@@ -68,6 +68,7 @@ export type BlockBreakParticlesParams = {
   minCount: number;
   maxCount: number;
   capSize: number;
+  capScale: number;
   scale: number;
   impulse: number;
   minLife: number;
@@ -79,6 +80,7 @@ const defaultParams: BlockBreakParticlesParams = {
   minCount: 15,
   maxCount: 25,
   capSize: 5,
+  capScale: 0.1,
   scale: 0.1,
   impulse: 3,
   minLife: 2,
@@ -112,20 +114,28 @@ export class BlockBreakParticles extends System implements NetIntercept {
       if (oldID === 0 || newID !== 0) return;
 
       const mesh = this.world.makeBlockMesh(oldID);
+      const sunScale = this.world.getSunlightScaleByVoxel(vx, vy, vz);
+      mesh.material.color.multiplyScalar(sunScale);
 
       const emitter = new Emitter();
+
+      const tooMany = updates.length > this.params.capSize;
+
       emitter
         .setRate(
           new Rate(
             new Span(
-              updates.length > this.params.capSize ? 0 : this.params.minCount,
-              updates.length > this.params.capSize ? 1 : this.params.maxCount
+              tooMany ? (Math.random() > 0.5 ? 1 : 0) : this.params.minCount,
+              tooMany ? 1 : this.params.maxCount
             ),
             new Span(0.1, 0.25)
           )
         )
         .addInitializers([
-          new Life(this.params.minLife, this.params.maxLife),
+          new Life(
+            this.params.minLife * (tooMany ? this.params.capScale : 1),
+            this.params.maxLife * (tooMany ? this.params.capScale : 1)
+          ),
           new Body(mesh),
           new Position(new BoxZone(this.params.zoneWidth)),
         ])

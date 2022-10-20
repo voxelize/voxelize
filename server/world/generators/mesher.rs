@@ -514,11 +514,43 @@ impl Mesher {
                                     let diagonal_xy =
                                         get_block_by_voxel(vx + ddx, vy + ddy, vz, space, registry);
 
+                                    // Three corners all blocked
                                     if diagonal_yz.is_opaque
                                         && diagonal_xz.is_opaque
                                         && diagonal_xy.is_opaque
                                     {
                                         continue;
+                                    }
+
+                                    // Two corners blocked
+                                    if diagonal_xy.is_opaque && diagonal_xz.is_opaque {
+                                        let neighbor_y =
+                                            get_block_by_voxel(vx, vy + ddy, vz, space, registry);
+                                        let neighbor_z =
+                                            get_block_by_voxel(vx, vy, vz + ddz, space, registry);
+                                        if neighbor_y.is_opaque && neighbor_z.is_opaque {
+                                            continue;
+                                        }
+                                    }
+
+                                    if diagonal_xy.is_opaque && diagonal_yz.is_opaque {
+                                        let neighbor_x =
+                                            get_block_by_voxel(vx + ddx, vy, vz, space, registry);
+                                        let neighbor_z =
+                                            get_block_by_voxel(vx, vy, vz + ddz, space, registry);
+                                        if neighbor_x.is_opaque && neighbor_z.is_opaque {
+                                            continue;
+                                        }
+                                    }
+
+                                    if diagonal_xz.is_opaque && diagonal_yz.is_opaque {
+                                        let neighbor_x =
+                                            get_block_by_voxel(vx + ddx, vy, vz, space, registry);
+                                        let neighbor_y =
+                                            get_block_by_voxel(vx, vy + ddy, vz, space, registry);
+                                        if neighbor_x.is_opaque && neighbor_y.is_opaque {
+                                            continue;
+                                        }
                                     }
                                 }
 

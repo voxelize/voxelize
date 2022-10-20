@@ -24,8 +24,8 @@
   "peerDependencies": {
     "@tweakpane/core": "^1.0.8",
     "postprocessing": "^6.26.3",
-    "three-nebula": "10.0.3",
     "three": "^0.142.0",
+    "three-nebula": "10.0.3",
     "tweakpane": "3.1.0"
   },
   "devDependencies": {

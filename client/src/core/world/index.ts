@@ -373,9 +373,26 @@ export class World extends Scene implements NetIntercept {
 
   updateVoxels = (updates: BlockUpdate[]) => {
     this.chunks.toUpdate.push(
-      ...updates.filter(
-        (update) => update.vy >= 0 && update.vy < this.params.maxHeight
-      )
+      ...updates.filter((update) => {
+        if (update.vy < 0 || update.vy >= this.params.maxHeight) {
+          return false;
+        }
+
+        const { vx, vy, vz, type, rotation, yRotation } = update;
+
+        const currId = this.getVoxelByVoxel(vx, vy, vz);
+        const currRot = this.getVoxelRotationByVoxel(vx, vy, vz);
+
+        if (
+          currId === type &&
+          (rotation ? currRot.value === rotation : true) &&
+          (yRotation ? currRot.yRotation === yRotation : true)
+        ) {
+          return false;
+        }
+
+        return true;
+      })
     );
   };
 
@@ -423,6 +440,19 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getSunlight(vx, vy, vz);
+  };
+
+  getSunlightScaleByVoxel = (vx: number, vy: number, vz: number) => {
+    const sunlight = this.getSunlightByVoxel(vx, vy, vz);
+    const { sunlightIntensity, minBrightness } = this.uniforms;
+
+    return Math.min(
+      (sunlight / this.params.maxLightLevel) ** 2 *
+        sunlightIntensity.value *
+        (1 - minBrightness.value) +
+        minBrightness.value,
+      1
+    );
   };
 
   getTorchLightByVoxel = (
@@ -492,6 +522,10 @@ export class World extends Scene implements NetIntercept {
 
   setMinBrightness = (minBrightness: number) => {
     this.uniforms.minBrightness.value = minBrightness;
+  };
+
+  getSunlightIntensity = () => {
+    return this.uniforms.sunlightIntensity.value;
   };
 
   setSunlightIntensity = (intensity: number) => {
