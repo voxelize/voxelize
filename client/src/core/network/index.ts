@@ -114,9 +114,13 @@ class Network extends EventEmitter {
    *
    * @hidden
    */
-  connect = async (serverURL: string, params: NetworkParams) => {
+  connect = async (serverURL: string, params: NetworkParams = {}) => {
     if (!serverURL) {
       throw new Error("No server URL provided.");
+    }
+
+    if (typeof serverURL !== "string") {
+      throw new Error("Server URL must be a string.");
     }
 
     this.params = params;
