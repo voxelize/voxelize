@@ -845,6 +845,12 @@ export class RigidControls extends EventEmitter {
     ]);
   }
 
+  get position() {
+    const position = new Vector3(...this.body.getPosition());
+    position.y -= this.params.bodyHeight * 0.5;
+    return position;
+  }
+
   /**
    * The chunk that the client is situated in.
    */
