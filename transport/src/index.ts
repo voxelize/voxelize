@@ -48,6 +48,7 @@ export class Transport extends WebSocket {
   onChat?: (event: MessageProtocol) => void;
   onTransport?: (event: MessageProtocol) => void;
   onEvent?: (event: MessageProtocol) => void;
+  onAction?: (event: MessageProtocol) => void;
 
   connect = async (address: string, secret: string) => {
     this.address = address;
@@ -169,6 +170,10 @@ export class Transport extends WebSocket {
       }
       case "EVENT": {
         this.onEvent?.(event);
+        break;
+      }
+      case "ACTION": {
+        this.onAction?.(event);
         break;
       }
     }

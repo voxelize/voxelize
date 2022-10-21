@@ -66,7 +66,8 @@ export type MessageProtocol<T = any, Peer = any, Entity = any, Event = any> = {
     | "METHOD"
     | "CHAT"
     | "TRANSPORT"
-    | "EVENT";
+    | "EVENT"
+    | "ACTION";
   json?: T;
   text?: string;
 
