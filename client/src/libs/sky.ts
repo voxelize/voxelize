@@ -164,9 +164,17 @@ export class Sky extends CanvasBox {
 
     this.position.copy(position);
 
-    uTopColor.value.lerp(this.newTopColor, this.lerpFactor);
-    uMiddleColor.value.lerp(this.newMiddleColor, this.lerpFactor);
-    uBottomColor.value.lerp(this.newBottomColor, this.lerpFactor);
+    if (this.newTopColor) {
+      uTopColor.value.lerp(this.newTopColor, this.lerpFactor);
+    }
+
+    if (this.newMiddleColor) {
+      uMiddleColor.value.lerp(this.newMiddleColor, this.lerpFactor);
+    }
+
+    if (this.newBottomColor) {
+      uBottomColor.value.lerp(this.newBottomColor, this.lerpFactor);
+    }
   };
 
   private createSkyShading = () => {

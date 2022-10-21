@@ -144,7 +144,8 @@ export class Clouds extends Group {
   update = (position: Vector3, delta = 0) => {
     if (!this.initialized) return;
 
-    delta = Math.min(1, delta);
+    // Normalize the delta
+    delta = Math.min(0.1, delta);
 
     const { speedFactor, count, dimensions } = this.params;
 

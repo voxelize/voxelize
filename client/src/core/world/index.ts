@@ -455,6 +455,11 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
+  getSunlightScaleByWorld = (wx: number, wy: number, wz: number) => {
+    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    return this.getSunlightScaleByVoxel(...voxel);
+  };
+
   getTorchLightByVoxel = (
     vx: number,
     vy: number,
@@ -615,6 +620,9 @@ export class World extends Scene implements NetIntercept {
   };
 
   update = (center: Vector3, delta: number) => {
+    // Normalize the delta
+    delta = Math.min(delta, 0.1);
+
     this.calculateCurrChunk(center);
 
     if (this.callTick % 2 === 0) {

@@ -127,6 +127,9 @@ const App = () => {
       )
     );
 
+    const sunShined = new VOXELIZE.SunShined(world);
+    sunShined.add(character);
+
     domRef.current.appendChild(renderer.domElement);
 
     const controls = new VOXELIZE.RigidControls(
@@ -309,6 +312,7 @@ const App = () => {
 
     peers.createPeer = () => {
       const peer = new VOXELIZE.Character();
+      sunShined.add(peer);
       shadows.add(peer);
       return peer;
     };
@@ -430,7 +434,7 @@ const App = () => {
               controls.update(delta);
 
               clouds.update(camera.position, delta);
-              sky.position.copy(camera.position);
+              sky.update(camera.position);
               world.update(controls.object.position, delta);
 
               network.flush();
@@ -439,6 +443,7 @@ const App = () => {
               shadows.update();
               debug.update();
               blockBreakParticles.update();
+              sunShined.update();
 
               composer.render();
             };

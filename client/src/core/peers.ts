@@ -89,10 +89,11 @@ export class Peers<
         if (!this.params.countSelf && (!this.ownID || peer.id === this.ownID))
           return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id);
-        this.onPeerUpdate?.(
-          this.getObjectByName(peer.id) as any,
-          peer.metadata
-        );
+
+        const object = this.getObjectByName(peer.id) as C;
+        if (!object) return;
+
+        this.onPeerUpdate?.(object, peer.metadata);
       });
     }
   };

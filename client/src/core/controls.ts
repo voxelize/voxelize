@@ -500,6 +500,9 @@ export class RigidControls extends EventEmitter {
    * @hidden
    */
   update = (delta: number) => {
+    // Normalize the delta
+    delta = Math.min(0.1, delta);
+
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
     this.object.position.lerp(this.newPosition, this.params.positionLerp);
 
