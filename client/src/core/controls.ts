@@ -671,10 +671,10 @@ export class RigidControls extends EventEmitter {
 
   teleport = (vx: number, vy: number, vz: number) => {
     const { bodyHeight, eyeHeight } = this.params;
-    this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight, vz + 0.5);
+    this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight + 1, vz + 0.5);
 
     if (this.body) {
-      this.body.setPosition([vx + 0.5, vy + bodyHeight * eyeHeight, vz + 0.5]);
+      this.body.setPosition([vx + 0.5, vy + bodyHeight / 2 + 1, vz + 0.5]);
     }
   };
 
