@@ -80,6 +80,8 @@ export class Debug extends Group {
 
     this.dataEntries.push(newEntry);
     this.entryWrapper.insertBefore(wrapper, this.entryWrapper.firstChild);
+
+    return this;
   };
 
   removeDisplay = (title: string) => {
@@ -93,13 +95,17 @@ export class Debug extends Group {
 
   displayTitle = (title: string) => {
     const newline = this.makeDataEntry(true);
+
     newline.textContent = title;
     this.entryWrapper.insertBefore(newline, this.entryWrapper.firstChild);
+
+    return this;
   };
 
   displayNewline = () => {
     const newline = this.makeDataEntry(true);
     this.entryWrapper.insertBefore(newline, this.entryWrapper.firstChild);
+    return this;
   };
 
   toggle = (force = false) => {
