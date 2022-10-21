@@ -999,6 +999,14 @@ impl BlockBuilder {
         self
     }
 
+    /// Configure the torch level (RGB) of this block. Default is 0.
+    pub fn torch_light_level(mut self, light_level: u32) -> Self {
+        self.red_light_level = light_level;
+        self.green_light_level = light_level;
+        self.blue_light_level = light_level;
+        self
+    }
+
     /// Configure whether or not should transparent faces be rendered individually. Default is false.
     pub fn transparent_standalone(mut self, transparent_standalone: bool) -> Self {
         self.transparent_standalone = transparent_standalone;
