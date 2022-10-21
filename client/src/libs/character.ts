@@ -137,12 +137,18 @@ const drawCrown = (context: CanvasRenderingContext2D) => {
 export class Character extends Group {
   public params: CharacterParams;
 
-  public head: Group;
-  public body: Group;
-  public leftArm: Group;
-  public rightArm: Group;
-  public leftLeg: Group;
-  public rightLeg: Group;
+  public headGroup: Group;
+  public bodyGroup: Group;
+  public leftArmGroup: Group;
+  public rightArmGroup: Group;
+  public leftLegGroup: Group;
+  public rightLegGroup: Group;
+  public head: CanvasBox;
+  public body: CanvasBox;
+  public leftArm: CanvasBox;
+  public rightArm: CanvasBox;
+  public leftLeg: CanvasBox;
+  public rightLeg: CanvasBox;
   public nametag: NameTag;
   public crown: CanvasBox;
 
@@ -232,11 +238,11 @@ export class Character extends Group {
 
     // Head rotates immediately.
     if (this.newDirection.length() !== 0) {
-      this.head.rotation.setFromQuaternion(this.newDirection);
+      this.headGroup.rotation.setFromQuaternion(this.newDirection);
     }
 
     if (this.newBodyDirection.length() !== 0) {
-      this.body.quaternion.slerp(
+      this.bodyGroup.quaternion.slerp(
         this.newBodyDirection,
         this.params.rotationLerp
       );
@@ -248,24 +254,24 @@ export class Character extends Group {
     const speed = Math.max(this.speed, this.params.idleArmSwing);
     const amplitude = speed * 1;
 
-    this.leftArm.rotation.x = MathUtils.lerp(
-      this.leftArm.rotation.x,
+    this.leftArmGroup.rotation.x = MathUtils.lerp(
+      this.leftArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale) * amplitude,
       this.params.swingLerp
     );
-    this.leftArm.rotation.z = MathUtils.lerp(
-      this.leftArm.rotation.z,
+    this.leftArmGroup.rotation.z = MathUtils.lerp(
+      this.leftArmGroup.rotation.z,
       Math.cos((performance.now() * speed) / scale) ** 2 * amplitude * 0.1,
       this.params.swingLerp
     );
 
-    this.rightArm.rotation.x = MathUtils.lerp(
-      this.rightArm.rotation.x,
+    this.rightArmGroup.rotation.x = MathUtils.lerp(
+      this.rightArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale + Math.PI) * amplitude,
       this.params.swingLerp
     );
-    this.rightArm.rotation.z = MathUtils.lerp(
-      this.rightArm.rotation.z,
+    this.rightArmGroup.rotation.z = MathUtils.lerp(
+      this.rightArmGroup.rotation.z,
       -(Math.sin((performance.now() * speed) / scale) ** 2 * amplitude * 0.1),
       this.params.swingLerp
     );
@@ -275,9 +281,9 @@ export class Character extends Group {
     const scale = 100;
     const amplitude = this.speed * 1;
 
-    this.leftLeg.rotation.x =
+    this.leftLegGroup.rotation.x =
       -Math.sin((performance.now() * this.speed) / scale) * amplitude;
-    this.rightLeg.rotation.x =
+    this.rightLegGroup.rotation.x =
       Math.sin((performance.now() * this.speed) / scale) * amplitude;
   };
 
@@ -363,60 +369,60 @@ export class Character extends Group {
       ...(this.params.legs ? this.params.legs : {}),
     });
 
-    this.head = new Group();
-    this.body = new Group();
-    this.leftArm = new Group();
-    this.rightArm = new Group();
-    this.leftLeg = new Group();
-    this.rightLeg = new Group();
+    this.headGroup = new Group();
+    this.bodyGroup = new Group();
+    this.leftArmGroup = new Group();
+    this.rightArmGroup = new Group();
+    this.leftLegGroup = new Group();
+    this.rightLegGroup = new Group();
 
-    this.head.add(head);
+    this.headGroup.add(head);
     head.position.y += head.height / 2;
-    this.head.position.y += body.height + leftLeg.height;
+    this.headGroup.position.y += body.height + leftLeg.height;
 
     if (this.params.head && this.params.head.neckGap) {
-      this.head.position.y += this.params.head.neckGap;
+      this.headGroup.position.y += this.params.head.neckGap;
     }
 
-    this.body.add(body);
+    this.bodyGroup.add(body);
     body.position.y += body.height / 2;
-    this.body.position.y += leftLeg.height;
+    this.bodyGroup.position.y += leftLeg.height;
 
-    this.leftArm.add(leftArm);
+    this.leftArmGroup.add(leftArm);
     leftArm.position.y -= leftArm.height / 2;
     leftArm.position.x -= leftArm.width / 2;
-    this.leftArm.position.y += body.height;
-    this.leftArm.position.x -= body.width / 2;
+    this.leftArmGroup.position.y += body.height;
+    this.leftArmGroup.position.x -= body.width / 2;
 
-    this.rightArm.add(rightArm);
+    this.rightArmGroup.add(rightArm);
     rightArm.position.y -= rightArm.height / 2;
     rightArm.position.x += rightArm.width / 2;
-    this.rightArm.position.y += body.height;
-    this.rightArm.position.x += body.width / 2;
+    this.rightArmGroup.position.y += body.height;
+    this.rightArmGroup.position.x += body.width / 2;
 
     if (this.params.arms) {
       if (this.params.arms.shoulderDrop) {
-        this.leftArm.position.y -= this.params.arms.shoulderDrop;
-        this.rightArm.position.y -= this.params.arms.shoulderDrop;
+        this.leftArmGroup.position.y -= this.params.arms.shoulderDrop;
+        this.rightArmGroup.position.y -= this.params.arms.shoulderDrop;
       }
 
       if (this.params.arms.shoulderGap) {
-        this.leftArm.position.x -= this.params.arms.shoulderGap;
-        this.rightArm.position.x += this.params.arms.shoulderGap;
+        this.leftArmGroup.position.x -= this.params.arms.shoulderGap;
+        this.rightArmGroup.position.x += this.params.arms.shoulderGap;
       }
     }
 
-    this.leftLeg.add(leftLeg);
+    this.leftLegGroup.add(leftLeg);
     leftLeg.position.y -= leftLeg.height / 2;
     leftLeg.position.x -= leftLeg.width / 2;
 
-    this.rightLeg.add(rightLeg);
+    this.rightLegGroup.add(rightLeg);
     rightLeg.position.y -= rightLeg.height / 2;
     rightLeg.position.x += rightLeg.width / 2;
 
     if (this.params.legs && this.params.legs.betweenLegsGap) {
-      this.leftLeg.position.x -= this.params.legs.betweenLegsGap / 2;
-      this.rightLeg.position.x += this.params.legs.betweenLegsGap / 2;
+      this.leftLegGroup.position.x -= this.params.legs.betweenLegsGap / 2;
+      this.rightLegGroup.position.x += this.params.legs.betweenLegsGap / 2;
     }
 
     head.paint("all", new Color("#96baff"));
@@ -427,12 +433,24 @@ export class Character extends Group {
     leftLeg.paint("all", new Color("#96baff"));
     rightLeg.paint("all", new Color("#96baff"));
 
-    this.add(this.head, this.body);
+    this.add(this.headGroup, this.bodyGroup);
 
-    this.body.add(this.leftArm, this.rightArm, this.leftLeg, this.rightLeg);
+    this.bodyGroup.add(
+      this.leftArmGroup,
+      this.rightArmGroup,
+      this.leftLegGroup,
+      this.rightLegGroup
+    );
 
-    this.head.position.y -= this.eyeHeight;
-    this.body.position.y -= this.eyeHeight;
+    this.headGroup.position.y -= this.eyeHeight;
+    this.bodyGroup.position.y -= this.eyeHeight;
+
+    this.head = head;
+    this.body = body;
+    this.leftArm = leftArm;
+    this.rightArm = rightArm;
+    this.leftLeg = leftLeg;
+    this.rightLeg = rightLeg;
   };
 
   private addAccessories = () => {

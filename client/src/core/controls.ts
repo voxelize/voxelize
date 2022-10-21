@@ -490,7 +490,7 @@ export class RigidControls extends EventEmitter {
       stepHeight: this.params.stepHeight,
     });
 
-    this.setPosition(...this.params.initialPosition);
+    this.teleport(...this.params.initialPosition);
     this.setupLookBlock();
   }
 
@@ -669,35 +669,17 @@ export class RigidControls extends EventEmitter {
     }
   };
 
-  /**
-   * Set the position of the client in interpolation.
-   *
-   * @param x - X-coordinate to be at.
-   * @param y - Y-coordinate to be at.
-   * @param z - Z-coordinate to be at.
-   */
-  setPosition = (x: number, y: number, z: number) => {
-    const { eyeHeight, bodyHeight } = this.params;
-    this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+  teleport = (vx: number, vy: number, vz: number) => {
+    const { bodyHeight, eyeHeight } = this.params;
+    this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight, vz + 0.5);
 
     if (this.body) {
-      this.body.setPosition([x, y, z]);
+      this.body.setPosition([vx + 0.5, vy + bodyHeight * eyeHeight, vz + 0.5]);
     }
   };
 
-  /**
-   * Return a reference of the position of the rigid controller.
-   */
-  getPosition = () => {
-    return this.object.position;
-  };
-
-  teleport = (vx: number, vy: number, vz: number) => {
-    this.setPosition(vx + 0.5, vy + this.params.bodyHeight, vz + 0.5);
-  };
-
   teleportToTop = () => {
-    const { x, z } = this.getPosition();
+    const { x, z } = this.object.position;
     const maxHeight = this.world.getMaxHeightByWorld(x, z);
     this.teleport(Math.floor(x), maxHeight, Math.floor(z));
   };
@@ -761,6 +743,20 @@ export class RigidControls extends EventEmitter {
     }
   };
 
+  toggleFly = () => {
+    if (!this.ghostMode) {
+      const isFlying = this.body.gravityMultiplier === 0;
+
+      if (!isFlying) {
+        this.body.applyImpulse([0, 8, 0]);
+      }
+
+      setTimeout(() => {
+        this.body.gravityMultiplier = isFlying ? 1 : 0;
+      }, 100);
+    }
+  };
+
   /**
    * Reset the controls instance.
    *
@@ -768,7 +764,7 @@ export class RigidControls extends EventEmitter {
    * @hidden
    */
   reset = () => {
-    this.setPosition(...this.params.initialPosition);
+    this.teleport(...this.params.initialPosition);
     this.object.rotation.set(0, 0, 0);
 
     this.resetMovements();
@@ -840,7 +836,13 @@ export class RigidControls extends EventEmitter {
    * The voxel coordinates that the client is on.
    */
   get voxel() {
-    return ChunkUtils.mapWorldPosToVoxelPos(this.body.getPosition() as Coords3);
+    const [x, y, z] = this.body.getPosition();
+
+    return ChunkUtils.mapWorldPosToVoxelPos([
+      x,
+      y - this.params.bodyHeight * 0.5,
+      z,
+    ]);
   }
 
   /**

@@ -97,6 +97,8 @@ export class World extends Scene implements NetIntercept {
   // @ts-ignore
   public params: WorldParams = {};
 
+  public initialized = false;
+
   public chunks: Chunks;
 
   public physics: PhysicsEngine;
@@ -341,6 +343,8 @@ export class World extends Scene implements NetIntercept {
    * @memberof World
    */
   setParams = (data: WorldServerParams) => {
+    this.initialized = true;
+
     Object.keys(data).forEach((key) => {
       this.params[key] = data[key];
     });

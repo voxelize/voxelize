@@ -14,6 +14,7 @@ import { MeshRenderer } from "three-nebula";
 import { setupWorld } from "src/core/world";
 import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
+import LolImage from "../assets/lol.jpeg";
 
 const GameWrapper = styled.div`
   background: black;
@@ -77,8 +78,18 @@ const App = () => {
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-    const character = new VOXELIZE.Character({});
+    const character = new VOXELIZE.Character({
+      head: {
+        height: 0.5,
+        heightSegments: 64,
+        widthSegments: 64,
+      },
+    });
     character.position.set(0, 10, -5);
+
+    world.loader.addTexture(LolImage, (texture) => {
+      character.head.paint("front", texture);
+    });
 
     inputs.setNamespace("menu");
 
@@ -146,6 +157,8 @@ const App = () => {
 
     controls.attachCharacter(character);
     controls.connect(inputs, "in-game");
+
+    world.addChunkInitListener([0, 0], controls.teleportToTop);
 
     renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 
@@ -311,7 +324,14 @@ const App = () => {
     const peers = new Peers<VOXELIZE.Character>(controls.object);
 
     peers.createPeer = () => {
-      const peer = new VOXELIZE.Character();
+      const peer = new VOXELIZE.Character({
+        head: {
+          height: 0.5,
+          heightSegments: 64,
+          widthSegments: 64,
+        },
+      });
+      peer.head.paint("front", world.loader.getTexture(LolImage));
       sunShined.add(peer);
       shadows.add(peer);
       return peer;
@@ -357,21 +377,7 @@ const App = () => {
       "in-game"
     );
 
-    const toggleFly = () => {
-      if (!controls.ghostMode) {
-        const isFlying = controls.body.gravityMultiplier === 0;
-
-        if (!isFlying) {
-          controls.body.applyImpulse([0, 8, 0]);
-        }
-
-        setTimeout(() => {
-          controls.body.gravityMultiplier = isFlying ? 1 : 0;
-        }, 100);
-      }
-    };
-
-    inputs.bind("f", toggleFly, "in-game");
+    inputs.bind("f", controls.toggleFly, "in-game");
 
     inputs.bind("j", debug.toggle, "*");
 

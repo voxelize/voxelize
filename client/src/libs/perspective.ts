@@ -28,6 +28,8 @@ export class Perspective {
 
   private _state: "first" | "second" | "third" = "first";
 
+  private firstPersonPosition = new Vector3();
+
   public static readonly INPUT_IDENTIFIER = "voxelize-perspective";
 
   constructor(
@@ -42,6 +44,8 @@ export class Perspective {
       ...defaultParams,
       ...params,
     };
+
+    this.firstPersonPosition.copy(this.controls.camera.position);
 
     this.state = "first";
   }
@@ -137,8 +141,15 @@ export class Perspective {
   };
 
   set state(state: "first" | "second" | "third") {
-    this.controls.camera.position.set(0, 0, 0);
-    this.controls.camera.quaternion.set(0, 0, 0, 0);
+    const { camera } = this.controls;
+
+    if (state === "first") {
+      camera.position.copy(this.firstPersonPosition);
+    } else {
+      camera.position.set(0, 0, 0);
+    }
+
+    camera.quaternion.set(0, 0, 0, 0);
 
     if (state !== this._state) {
       this.onChangeState?.(state);
