@@ -900,6 +900,7 @@ export class World extends Scene implements NetIntercept {
 
     chunk.build(data, this.materials).then(() => {
       const listeners = this.chunkInitListeners.get(chunk.name);
+      if (!listeners) return;
       listeners.forEach((listener) => listener(chunk));
       this.chunkInitListeners.delete(chunk.name);
     });
