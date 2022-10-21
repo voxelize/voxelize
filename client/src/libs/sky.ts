@@ -159,6 +159,10 @@ export class Sky extends CanvasBox {
     this.createSkyShading();
   }
 
+  getMiddleColor() {
+    return this.uMiddleColor.value;
+  }
+
   update = (position: Vector3) => {
     const { uTopColor, uMiddleColor, uBottomColor } = this;
 

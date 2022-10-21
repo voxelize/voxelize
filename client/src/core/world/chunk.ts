@@ -241,7 +241,7 @@ class Chunk {
     this.mesh = new ChunkMesh(this);
   }
 
-  build = (
+  build = async (
     data: ChunkProtocol,
     materials: {
       opaque?: Material;
@@ -256,25 +256,30 @@ class Chunk {
     if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
     if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
 
-    if (meshes) {
-      let frame = 0;
+    return new Promise<void>((resolve) => {
+      if (meshes) {
+        let frame = 0;
 
-      const update = (index = 0) => {
-        const data = meshes[index];
+        const update = (index = 0) => {
+          const data = meshes[index];
 
-        if (data) {
-          this.mesh.set(data, materials);
-          frame = requestAnimationFrame(() => {
-            update(index + 1);
-          });
-        } else {
-          cancelAnimationFrame(frame);
-          return;
-        }
-      };
+          if (data) {
+            this.mesh.set(data, materials);
+            frame = requestAnimationFrame(() => {
+              update(index + 1);
+            });
+          } else {
+            cancelAnimationFrame(frame);
+            resolve();
+            return;
+          }
+        };
 
-      update();
-    }
+        update();
+      } else {
+        resolve();
+      }
+    });
   };
 
   addToScene = (scene: Scene) => {

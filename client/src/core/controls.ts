@@ -692,6 +692,16 @@ export class RigidControls extends EventEmitter {
     return this.object.position;
   };
 
+  teleport = (vx: number, vy: number, vz: number) => {
+    this.setPosition(vx + 0.5, vy + this.params.bodyHeight, vz + 0.5);
+  };
+
+  teleportToTop = () => {
+    const { x, z } = this.getPosition();
+    const maxHeight = this.world.getMaxHeightByWorld(x, z);
+    this.teleport(Math.floor(x), maxHeight, Math.floor(z));
+  };
+
   /**
    * Make the client look at a coordinate.
    *
