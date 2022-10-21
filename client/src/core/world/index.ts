@@ -171,6 +171,8 @@ export class World extends Scene implements NetIntercept {
 
   public loader: Loader = new Loader();
 
+  private chunkInitListeners = new Map<string, ((chunk: Chunk) => void)[]>();
+
   private _renderRadius = 8;
 
   private callTick = 0;
@@ -543,6 +545,17 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.sunlightIntensity.value = intensity;
   };
 
+  addChunkInitListener = (
+    cx: number,
+    cz: number,
+    listener: (chunk: Chunk) => void
+  ) => {
+    const name = ChunkUtils.getChunkName([cx, cz]);
+    const listeners = this.chunkInitListeners.get(name) || [];
+    listeners.push(listener);
+    this.chunkInitListeners.set(name, listeners);
+  };
+
   isWithinWorld = (cx: number, cz: number) => {
     const { minChunk, maxChunk } = this.params;
 
@@ -885,7 +898,11 @@ export class World extends Scene implements NetIntercept {
       this.chunks.set(chunk.name, chunk);
     }
 
-    chunk.build(data, this.materials);
+    chunk.build(data, this.materials).then(() => {
+      const listeners = this.chunkInitListeners.get(chunk.name);
+      listeners.forEach((listener) => listener(chunk));
+      this.chunkInitListeners.delete(chunk.name);
+    });
   };
 
   private addChunks = () => {
