@@ -888,6 +888,8 @@ export class World extends Scene implements NetIntercept {
 
     const { chunkSize, maxHeight, subChunks } = this.params;
 
+    let fresh = false;
+
     if (!chunk) {
       chunk = new Chunk(id, x, z, {
         size: chunkSize,
@@ -896,11 +898,16 @@ export class World extends Scene implements NetIntercept {
       });
 
       this.chunks.set(chunk.name, chunk);
+
+      fresh = true;
     }
 
     chunk.build(data, this.materials).then(() => {
+      if (!fresh) return;
+
       const listeners = this.chunkInitListeners.get(chunk.name);
       if (!listeners) return;
+
       listeners.forEach((listener) => listener(chunk));
       this.chunkInitListeners.delete(chunk.name);
     });
