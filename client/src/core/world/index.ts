@@ -546,11 +546,10 @@ export class World extends Scene implements NetIntercept {
   };
 
   addChunkInitListener = (
-    cx: number,
-    cz: number,
+    coords: Coords2,
     listener: (chunk: Chunk) => void
   ) => {
-    const name = ChunkUtils.getChunkName([cx, cz]);
+    const name = ChunkUtils.getChunkName(coords);
     const listeners = this.chunkInitListeners.get(name) || [];
     listeners.push(listener);
     this.chunkInitListeners.set(name, listeners);
