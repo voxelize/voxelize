@@ -969,12 +969,6 @@ impl BlockBuilder {
         self
     }
 
-    /// Configure whether or not this block emits light. Default is false.
-    pub fn is_light(mut self, is_light: bool) -> Self {
-        self.is_light = is_light;
-        self
-    }
-
     /// Configure whether or not this block can be passed through. Default is false.
     pub fn is_passable(mut self, is_plant: bool) -> Self {
         self.is_passable = is_plant;
@@ -1109,7 +1103,9 @@ impl BlockBuilder {
             is_block: self.is_block,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
-            is_light: self.is_light,
+            is_light: self.red_light_level > 0
+                || self.green_light_level > 0
+                || self.blue_light_level > 0,
             is_passable: self.is_passable,
             is_opaque: !self.is_px_transparent
                 && !self.is_py_transparent

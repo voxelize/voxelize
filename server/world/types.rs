@@ -1,7 +1,7 @@
 use crate::Vec3;
 
 /// Enum of light colors.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum LightColor {
     Sunlight,
     Red,

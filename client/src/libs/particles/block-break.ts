@@ -1,6 +1,6 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine, RigidBody } from "@voxelize/physics-engine";
-import { MessageProtocol } from "@voxelize/transport";
+import { MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core";
 import { Clock } from "three";
 import {
@@ -10,7 +10,6 @@ import {
   Emitter,
   Life,
   Position,
-  Radius,
   Rate,
   Scale,
   Span,
@@ -114,8 +113,8 @@ export class BlockBreakParticles extends System implements NetIntercept {
       if (oldID === 0 || newID !== 0) return;
 
       const mesh = this.world.makeBlockMesh(oldID);
-      const sunScale = this.world.getSunlightScaleByVoxel(vx, vy, vz);
-      mesh.material.color.multiplyScalar(sunScale);
+      const lightScale = this.world.getLightColorByVoxel(vx, vy, vz);
+      mesh.material.color.copy(lightScale);
 
       const emitter = new Emitter();
 

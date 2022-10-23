@@ -24,6 +24,7 @@ const RED: LightColor = LightColor::Red;
 const GREEN: LightColor = LightColor::Green;
 const BLUE: LightColor = LightColor::Blue;
 const SUNLIGHT: LightColor = LightColor::Sunlight;
+const ALL_TRANSPARENT: [bool; 6] = [true, true, true, true, true, true];
 
 /// A set of utility functions to simulate global illumination in a Voxelize world.
 pub struct Lights;
@@ -65,8 +66,11 @@ impl Lights {
             }
 
             let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
-            let source_transparency =
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz));
+            let source_transparency = if !is_sunlight && source_block.is_light {
+                ALL_TRANSPARENT
+            } else {
+                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+            };
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
                 let nvy = vy + oy;

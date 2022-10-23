@@ -7,21 +7,21 @@ import { Shadow } from "../shadows";
 
 const position = new Vector3();
 
-export type SunShinedParams = {
+export type LightShinedParams = {
   lerpFactor: number;
 };
 
-const defaultParams: SunShinedParams = {
-  lerpFactor: 0.2,
+const defaultParams: LightShinedParams = {
+  lerpFactor: 0.1,
 };
 
-export class SunShined {
-  public params: SunShinedParams;
+export class LightShined {
+  public params: LightShinedParams;
 
   public list: Set<Object3D> = new Set();
   public ignored: Set<any> = new Set();
 
-  constructor(public world: World, params: Partial<SunShinedParams> = {}) {
+  constructor(public world: World, params: Partial<LightShinedParams> = {}) {
     this.params = { ...defaultParams, ...params };
 
     this.ignore(Shadow);
@@ -63,18 +63,7 @@ export class SunShined {
 
       if (!chunk) return;
 
-      // const vString = voxel.join(",");
-
-      // // TODO: IN ORDER TO LERP, CANNOT DO THIS...
-
-      // if (obj.userData[SUN_SHINED_USERDATA] === vString) {
-      //   return;
-      // }
-
-      // obj.userData[SUN_SHINED_USERDATA] = vString;
-
-      const level = this.world.getSunlightScaleByVoxel(...voxel);
-      color = new Color(level, level, level);
+      color = this.world.getLightColorByVoxel(...voxel);
     }
 
     if (obj instanceof Mesh) {

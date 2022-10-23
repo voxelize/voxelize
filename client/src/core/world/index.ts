@@ -448,22 +448,32 @@ export class World extends Scene implements NetIntercept {
     return chunk.getSunlight(vx, vy, vz);
   };
 
-  getSunlightScaleByVoxel = (vx: number, vy: number, vz: number) => {
+  getLightColorByVoxel = (vx: number, vy: number, vz: number) => {
     const sunlight = this.getSunlightByVoxel(vx, vy, vz);
+    const redLight = this.getTorchLightByVoxel(vx, vy, vz, "RED");
+    const greenLight = this.getTorchLightByVoxel(vx, vy, vz, "GREEN");
+    const blueLight = this.getTorchLightByVoxel(vx, vy, vz, "BLUE");
+
     const { sunlightIntensity, minBrightness } = this.uniforms;
 
-    return Math.min(
+    const s = Math.min(
       (sunlight / this.params.maxLightLevel) ** 2 *
         sunlightIntensity.value *
         (1 - minBrightness.value) +
         minBrightness.value,
       1
     );
+
+    return new Color(
+      s + Math.pow(redLight / this.params.maxLightLevel, 2),
+      s + Math.pow(greenLight / this.params.maxLightLevel, 2),
+      s + Math.pow(blueLight / this.params.maxLightLevel, 2)
+    );
   };
 
-  getSunlightScaleByWorld = (wx: number, wy: number, wz: number) => {
+  getLightColorByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
-    return this.getSunlightScaleByVoxel(...voxel);
+    return this.getLightColorByVoxel(...voxel);
   };
 
   getTorchLightByVoxel = (

@@ -14,7 +14,7 @@ import { MeshRenderer } from "three-nebula";
 import { setupWorld } from "src/core/world";
 import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
-import LolImage from "../assets/lol.jpeg";
+import LolImage from "../assets/lol.png";
 
 const GameWrapper = styled.div`
   background: black;
@@ -73,7 +73,6 @@ const App = () => {
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
       textureDimension: 32,
-      maxProcessesPerTick: 100,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -138,8 +137,8 @@ const App = () => {
       )
     );
 
-    const sunShined = new VOXELIZE.SunShined(world);
-    sunShined.add(character);
+    const lightShined = new VOXELIZE.LightShined(world);
+    lightShined.add(character);
 
     domRef.current.appendChild(renderer.domElement);
 
@@ -214,7 +213,7 @@ const App = () => {
       }
     );
 
-    let hand = "Stone";
+    let hand = "Andesite";
     let radius = 1;
     let circular = true;
 
@@ -332,7 +331,7 @@ const App = () => {
         },
       });
       peer.head.paint("front", world.loader.getTexture(LolImage));
-      sunShined.add(peer);
+      lightShined.add(peer);
       shadows.add(peer);
       return peer;
     };
@@ -449,7 +448,7 @@ const App = () => {
               shadows.update();
               debug.update();
               blockBreakParticles.update();
-              sunShined.update();
+              lightShined.update();
 
               composer.render();
             };
