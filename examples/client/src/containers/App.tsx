@@ -214,7 +214,7 @@ const App = () => {
     );
 
     let hand = "Andesite";
-    let radius = 1;
+    let radius = 3;
     let circular = true;
 
     const bulkDestroy = () => {

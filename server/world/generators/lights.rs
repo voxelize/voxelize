@@ -66,11 +66,12 @@ impl Lights {
             }
 
             let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
-            let source_transparency = if !is_sunlight && source_block.is_light {
-                ALL_TRANSPARENT
-            } else {
-                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
-            };
+            let source_transparency =
+                if !is_sunlight && source_block.get_torch_light_level(color) > 0 {
+                    ALL_TRANSPARENT
+                } else {
+                    source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+                };
 
             for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
                 let nvy = vy + oy;
@@ -192,7 +193,12 @@ impl Lights {
                 let n_transparency = n_block.get_rotated_transparency(&rotation);
 
                 // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
-                if !Lights::can_enter_into(&n_transparency, ox, oy, oz) {
+                if if is_sunlight {
+                    true
+                } else {
+                    n_block.get_torch_light_level(color) == 0
+                } && !Lights::can_enter_into(&n_transparency, ox, oy, oz)
+                {
                     continue;
                 }
 

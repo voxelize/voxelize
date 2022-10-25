@@ -2,7 +2,7 @@ use std::f32;
 
 use serde::{Deserialize, Serialize};
 
-use crate::AABB;
+use crate::{LightColor, AABB};
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -877,6 +877,15 @@ pub struct Block {
 impl Block {
     pub fn new(name: &str) -> BlockBuilder {
         BlockBuilder::new(name)
+    }
+
+    pub fn get_torch_light_level(&self, color: &LightColor) -> u32 {
+        match *color {
+            LightColor::Red => self.red_light_level,
+            LightColor::Green => self.green_light_level,
+            LightColor::Blue => self.blue_light_level,
+            LightColor::Sunlight => 0,
+        }
     }
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
