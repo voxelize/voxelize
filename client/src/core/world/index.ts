@@ -529,21 +529,33 @@ export class World extends Scene implements NetIntercept {
     return this.getPreviousVoxelByVoxel(...voxel);
   };
 
-  getBlockAABBsByVoxel = (vx: number, vy: number, vz: number) => {
+  getBlockAABBsByVoxel = (
+    vx: number,
+    vy: number,
+    vz: number,
+    ignoreFluid = false
+  ) => {
     if (vy >= this.params.maxHeight || vy < 0) {
       return [];
     }
 
     const id = this.getVoxelByVoxel(vx, vy, vz);
     const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
-    const { aabbs } = this.getBlockById(id);
+    const { isFluid, aabbs } = this.getBlockById(id);
 
-    return aabbs.map((aabb) => rotation.rotateAABB(aabb));
+    return ignoreFluid && isFluid
+      ? []
+      : aabbs.map((aabb) => rotation.rotateAABB(aabb));
   };
 
-  getBlockAABBsByWorld = (wx: number, wy: number, wz: number) => {
+  getBlockAABBsByWorld = (
+    wx: number,
+    wy: number,
+    wz: number,
+    ignoreFluid = false
+  ) => {
     const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
-    return this.getBlockAABBsByVoxel(...voxel);
+    return this.getBlockAABBsByVoxel(...voxel, ignoreFluid);
   };
 
   setMinBrightness = (minBrightness: number) => {

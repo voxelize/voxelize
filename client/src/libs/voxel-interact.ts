@@ -113,16 +113,13 @@ export class VoxelInteract extends Group {
 
     const result = raycast(
       (wx, wy, wz) => {
-        const [vx, vy, vz] = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
-        const id = this.world.getVoxelByVoxel(vx, vy, vz);
-        const { aabbs, isFluid } = this.world.getBlockById(id);
-
-        if (this.params.ignoreFluid && isFluid) {
-          return [];
-        }
-
-        const rotation = this.world.getVoxelRotationByVoxel(vx, vy, vz);
-        return aabbs.map((aabb) => rotation.rotateAABB(aabb));
+        const aabbs = this.world.getBlockAABBsByWorld(
+          wx,
+          wy,
+          wz,
+          this.params.ignoreFluid
+        );
+        return aabbs;
       },
       [objPos.x, objPos.y, objPos.z],
       [camDir.x, camDir.y, camDir.z],

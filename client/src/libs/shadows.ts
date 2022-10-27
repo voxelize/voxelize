@@ -9,6 +9,8 @@ import {
   Vector3,
 } from "three";
 
+import { ChunkUtils } from "../utils";
+
 export type ShadowParams = {
   maxDistance: number;
   maxRadius: number;
@@ -46,7 +48,7 @@ export class Shadow extends Mesh {
     };
 
     this.rotateX(Math.PI / 2);
-    this.renderOrder = 100000000;
+    this.renderOrder = -1;
   }
 
   update = () => {
@@ -58,7 +60,17 @@ export class Shadow extends Mesh {
     const { maxDistance } = this.params;
 
     const result = raycast(
-      this.world.getBlockAABBsByWorld,
+      (wx, wy, wz) => {
+        const [vx, vy, vz] = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+        const { isFluid, isPassable, aabbs } = this.world.getBlockByVoxel(
+          vx,
+          vy,
+          vz
+        );
+        if (isFluid || isPassable) return [];
+        const rotation = this.world.getVoxelRotationByVoxel(vx, vy, vz);
+        return aabbs.map((aabb) => rotation.rotateAABB(aabb));
+      },
       [position.x, position.y, position.z],
       [0, -1, 0],
       maxDistance

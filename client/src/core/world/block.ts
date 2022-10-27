@@ -220,7 +220,7 @@ export class BlockRotation {
       const min4 = [aabb.maxX, aabb.minY, aabb.maxZ];
 
       [min1, min2, min3, min4].forEach((min) => {
-        this.rotateNode(min as Coords3, true, false);
+        this.rotateNode(min as Coords3, true, true);
         minX = minX === null ? min[0] : Math.min(minX, min[0]);
         minZ = minZ === null ? min[2] : Math.min(minZ, min[2]);
       });
@@ -231,7 +231,7 @@ export class BlockRotation {
       const max4 = [aabb.maxX, aabb.maxY, aabb.maxZ];
 
       [max1, max2, max3, max4].forEach((max) => {
-        this.rotateNode(max as Coords3, true, false);
+        this.rotateNode(max as Coords3, true, true);
         maxX = maxX === null ? max[0] : Math.max(maxX, max[0]);
         maxZ = maxZ === null ? max[2] : Math.max(maxZ, max[2]);
       });

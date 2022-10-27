@@ -151,7 +151,7 @@ impl BlockRotation {
             let min4 = [aabb.max_x, aabb.min_y, aabb.max_z];
 
             [min1, min2, min3, min4].into_iter().for_each(|mut node| {
-                self.rotate_node(&mut node, false);
+                self.rotate_node(&mut node, true);
 
                 if min_x.is_none() || node[0] < min_x.unwrap() {
                     min_x = Some(node[0]);
@@ -168,7 +168,7 @@ impl BlockRotation {
             let max4 = [aabb.max_x, aabb.max_y, aabb.max_z];
 
             [max1, max2, max3, max4].into_iter().for_each(|mut node| {
-                self.rotate_node(&mut node, false);
+                self.rotate_node(&mut node, true);
 
                 if max_x.is_none() || node[0] > max_x.unwrap() {
                     max_x = Some(node[0]);

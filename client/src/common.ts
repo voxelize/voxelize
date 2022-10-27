@@ -24,6 +24,14 @@ export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
     const { geometry: aGeo } = aObj;
     const { geometry: bGeo } = bObj;
 
+    if (!aGeo.boundingBox) {
+      aGeo.computeBoundingBox();
+    }
+
+    if (!bGeo.boundingBox) {
+      bGeo.computeBoundingBox();
+    }
+
     if (aGeo && aGeo.boundingBox) {
       aGeo.boundingBox.getCenter(aPos);
       aPos.add(aObj.getWorldPosition(empty));
