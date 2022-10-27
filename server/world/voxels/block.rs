@@ -160,10 +160,10 @@ impl BlockRotation {
         let mut min = [aabb.min_x, aabb.min_y, aabb.min_z];
         let mut max = [aabb.max_x, aabb.max_y, aabb.max_z];
 
-        let minX = None;
-        let minZ = None;
-        let maxX = None;
-        let maxZ = None;
+        let mut min_x = None;
+        let mut min_z = None;
+        let mut max_x = None;
+        let mut max_z = None;
 
         if y_rotate
             && (matches!(self, BlockRotation::PY(_)) || matches!(self, BlockRotation::NY(_)))
@@ -173,15 +173,15 @@ impl BlockRotation {
             let min3 = [aabb.max_x, aabb.min_y, aabb.min_z];
             let min4 = [aabb.max_x, aabb.min_y, aabb.max_z];
 
-            [min1, min2, min3, min4].iter().for_each(|node| {
-                self.rotate_node(&mut *node, false);
+            [min1, min2, min3, min4].into_iter().for_each(|mut node| {
+                self.rotate_node(&mut node, false);
 
-                if minX.is_none() || node[0] < minX.unwrap() {
-                    minX = Some(node[0]);
+                if min_x.is_none() || node[0] < min_x.unwrap() {
+                    min_x = Some(node[0]);
                 }
 
-                if minZ.is_none() || node[2] < minZ.unwrap() {
-                    minZ = Some(node[2]);
+                if min_z.is_none() || node[2] < min_z.unwrap() {
+                    min_z = Some(node[2]);
                 }
             });
 
@@ -190,15 +190,15 @@ impl BlockRotation {
             let max3 = [aabb.max_x, aabb.max_y, aabb.min_z];
             let max4 = [aabb.max_x, aabb.max_y, aabb.max_z];
 
-            [max1, max2, max3, max4].iter().for_each(|node| {
-                self.rotate_node(&mut *node, false);
+            [max1, max2, max3, max4].into_iter().for_each(|mut node| {
+                self.rotate_node(&mut node, false);
 
-                if maxX.is_none() || node[0] > maxX.unwrap() {
-                    maxX = Some(node[0]);
+                if max_x.is_none() || node[0] > max_x.unwrap() {
+                    max_x = Some(node[0]);
                 }
 
-                if maxZ.is_none() || node[2] > maxZ.unwrap() {
-                    maxZ = Some(node[2]);
+                if max_z.is_none() || node[2] > max_z.unwrap() {
+                    max_z = Some(node[2]);
                 }
             });
         }
@@ -207,12 +207,12 @@ impl BlockRotation {
         self.rotate_node(&mut max, translate);
 
         AABB {
-            min_x: minX.unwrap_or(min[0].min(max[0])),
+            min_x: min_x.unwrap_or(min[0].min(max[0])),
             min_y: min[1].min(max[1]),
-            min_z: minZ.unwrap_or(min[2].min(max[2])),
-            max_x: maxX.unwrap_or(min[0].max(max[0])),
+            min_z: min_z.unwrap_or(min[2].min(max[2])),
+            max_x: max_x.unwrap_or(min[0].max(max[0])),
             max_y: max[1].max(min[1]),
-            max_z: maxZ.unwrap_or(min[2].max(max[2])),
+            max_z: max_z.unwrap_or(min[2].max(max[2])),
         }
     }
 
