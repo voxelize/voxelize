@@ -396,8 +396,8 @@ export class World extends Scene implements NetIntercept {
 
         if (
           currId === type &&
-          (rotation ? currRot.value === rotation : true) &&
-          (yRotation ? currRot.yRotation === yRotation : true)
+          (rotation !== undefined ? currRot.value === rotation : false) &&
+          (yRotation !== undefined ? currRot.yRotation === yRotation : false)
         ) {
           return false;
         }

@@ -186,12 +186,10 @@ const App = () => {
       inputs.setNamespace("menu");
     });
 
-    const voxelInteract = new VOXELIZE.VoxelInteract(
-      controls.object,
-      camera,
-      world,
-      { potentialVisuals: true }
-    );
+    const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
+      potentialVisuals: true,
+      inverseDirection: true,
+    });
     world.add(voxelInteract);
 
     const debug = new VOXELIZE.Debug(document.body, {

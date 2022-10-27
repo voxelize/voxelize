@@ -9,7 +9,6 @@ import {
   Mesh,
   MeshBasicMaterial,
   Object3D,
-  PerspectiveCamera,
   Vector3,
 } from "three";
 import { Coords3 } from "types";
@@ -29,6 +28,7 @@ import { ChunkUtils, MathUtils } from "../utils";
 export type VoxelInteractParams = {
   reachDistance: number;
   ignoreFluid: boolean;
+  inverseDirection: boolean;
   highlightScale: number;
   highlightType: "box" | "outline";
   highlightLerp: number;
@@ -43,6 +43,7 @@ const defaultParams: VoxelInteractParams = {
   highlightType: "box",
   highlightScale: 1.002,
   highlightLerp: 0.8,
+  inverseDirection: false,
   highlightColor: new Color("white"),
   highlightOpacity: 0.1,
   potentialVisuals: false,
@@ -74,7 +75,6 @@ export class VoxelInteract extends Group {
 
   constructor(
     public object: Object3D,
-    public camera: PerspectiveCamera,
     public world: World,
     params: Partial<VoxelInteractParams> = {}
   ) {
@@ -106,10 +106,15 @@ export class VoxelInteract extends Group {
       this.params.highlightLerp
     );
 
-    const camDir = new Vector3();
-    const objPos = this.object.position;
-    this.camera.getWorldDirection(camDir);
-    camDir.normalize();
+    const objPos = new Vector3();
+    const objDir = new Vector3();
+    this.object.getWorldPosition(objPos);
+    this.object.getWorldDirection(objDir);
+    objDir.normalize();
+
+    if (this.params.inverseDirection) {
+      objDir.multiplyScalar(-1);
+    }
 
     const result = raycast(
       (wx, wy, wz) => {
@@ -122,7 +127,7 @@ export class VoxelInteract extends Group {
         return aabbs;
       },
       [objPos.x, objPos.y, objPos.z],
-      [camDir.x, camDir.y, camDir.z],
+      [objDir.x, objDir.y, objDir.z],
       reachDistance
     );
 

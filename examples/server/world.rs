@@ -160,7 +160,7 @@ pub fn setup_world() -> World {
                 .build(),
         )
         // .preload(true)
-        .seed(141234123)
+        .seed(12312)
         .build();
 
     let mut world = World::new("world1", &config);

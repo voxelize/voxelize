@@ -354,7 +354,6 @@ impl Mesher {
         let &Block {
             is_opaque,
             is_see_through,
-            transparent_standalone,
             rotatable,
             ..
         } = block;
