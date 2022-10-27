@@ -203,17 +203,21 @@ export class VoxelInteract extends Group {
       if (Math.abs(ny) !== 0) {
         this.yRotArrow.visible = true;
 
-        const [vx, vy, vz] = ChunkUtils.mapWorldPosToVoxelPos([
-          objPos.x,
-          objPos.y,
-          objPos.z,
-        ]);
+        const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
 
-        const [tx, ty, tz] = targetVoxel;
+        const [tx, ty, tz] = [
+          targetVoxel[0] + 0.5,
+          targetVoxel[1] + 0.5,
+          targetVoxel[2] + 0.5,
+        ];
 
         let angle =
           vy >= ty
-            ? Math.atan2(vx - tx, vz - tz)
+            ? ny > 0
+              ? Math.atan2(vx - tx, vz - tz)
+              : Math.atan2(vz - tz, vx - tx)
+            : ny > 0
+            ? Math.atan2(tz - vz, tx - vx)
             : Math.atan2(tx - vx, tz - vz);
         if (ny < 0) angle += Math.PI;
         const normalized = MathUtils.normalizeAngle(angle);
