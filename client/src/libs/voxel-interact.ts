@@ -34,6 +34,7 @@ export type VoxelInteractParams = {
   highlightLerp: number;
   highlightColor: Color;
   highlightOpacity: number;
+  potentialVisuals: boolean;
 };
 
 const defaultParams: VoxelInteractParams = {
@@ -44,6 +45,7 @@ const defaultParams: VoxelInteractParams = {
   highlightLerp: 0.8,
   highlightColor: new Color("white"),
   highlightOpacity: 0.1,
+  potentialVisuals: false,
 };
 
 export class VoxelInteract extends Group {
@@ -78,14 +80,15 @@ export class VoxelInteract extends Group {
   ) {
     super();
 
-    this.params = {
+    const { potentialVisuals } = (this.params = {
       ...defaultParams,
       ...params,
-    };
+    });
 
     this.setup();
 
     this.add(this.targetGroup, this.potentialGroup);
+    this.potentialGroup.visible = potentialVisuals;
   }
 
   toggle = (force = null) => {
@@ -210,8 +213,8 @@ export class VoxelInteract extends Group {
 
         let angle =
           vy >= ty
-            ? Math.atan2(vz - tz, vx - tx)
-            : Math.atan2(tz - vz, tx - vx);
+            ? Math.atan2(vx - tx, vz - tz)
+            : Math.atan2(tx - vx, tz - vz);
         if (ny < 0) angle += Math.PI;
         const normalized = MathUtils.normalizeAngle(angle);
 
@@ -227,8 +230,8 @@ export class VoxelInteract extends Group {
           }
         });
 
-        const x = Math.cos(closestA);
-        const z = Math.sin(closestA);
+        const x = Math.sin(closestA);
+        const z = Math.cos(closestA);
         this.yRotArrow.setDirection(new Vector3(x, 0, z).normalize());
         return closest;
       }

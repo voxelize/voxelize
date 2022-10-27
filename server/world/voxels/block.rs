@@ -20,46 +20,30 @@ pub const NX_ROTATION: u32 = 3;
 pub const PZ_ROTATION: u32 = 4;
 pub const NZ_ROTATION: u32 = 5;
 
-pub const Y_000_ROTATION: u32 = 0;
-pub const Y_045_ROTATION: u32 = 1;
-pub const Y_090_ROTATION: u32 = 2;
-pub const Y_135_ROTATION: u32 = 3;
-pub const Y_180_ROTATION: u32 = 4;
-pub const Y_225_ROTATION: u32 = 5;
-pub const Y_270_ROTATION: u32 = 6;
-pub const Y_315_ROTATION: u32 = 7;
+pub const Y_ROT_SEGMENTS: u32 = 16;
 
 pub const ROTATION_MASK: u32 = 0xFFF0FFFF;
 pub const Y_ROTATION_MASK: u32 = 0xFF0FFFFF;
 pub const STAGE_MASK: u32 = 0xF0FFFFFF;
 
 /// Block rotation enumeration. There are 6 possible rotations: `(px, nx, py, ny, pz, nz)`. Default rotation is PY.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum BlockRotation {
-    PX(u32),
-    NX(u32),
-    PY(u32),
-    NY(u32),
-    PZ(u32),
-    NZ(u32),
+    PX(f32),
+    NX(f32),
+    PY(f32),
+    NY(f32),
+    PZ(f32),
+    NZ(f32),
 }
 
+const PI: f32 = f32::consts::PI;
 const PI_2: f32 = f32::consts::PI / 2.0;
 
 impl BlockRotation {
     /// Encode a set of rotations into a `BlockRotation` instance.
     pub fn encode(value: u32, y_rotation: u32) -> Self {
-        let y_rotation = match y_rotation {
-            Y_000_ROTATION => 0,
-            Y_045_ROTATION => 45,
-            Y_090_ROTATION => 90,
-            Y_135_ROTATION => 135,
-            Y_180_ROTATION => 180,
-            Y_225_ROTATION => 225,
-            Y_270_ROTATION => 270,
-            Y_315_ROTATION => 315,
-            _ => panic!("Unable to decode y-rotation: unknown rotation."),
-        };
+        let y_rotation = y_rotation as f32 * PI * 2.0 / Y_ROT_SEGMENTS as f32;
 
         match value {
             PX_ROTATION => BlockRotation::PX(y_rotation),
@@ -74,16 +58,9 @@ impl BlockRotation {
 
     /// Decode a set of rotations from a `BlockRotation` instance.
     pub fn decode(rotation: &Self) -> (u32, u32) {
-        let convert_y_rot = |val: u32| match val {
-            0 => Y_000_ROTATION,
-            45 => Y_045_ROTATION,
-            90 => Y_090_ROTATION,
-            135 => Y_135_ROTATION,
-            180 => Y_180_ROTATION,
-            225 => Y_225_ROTATION,
-            270 => Y_270_ROTATION,
-            315 => Y_315_ROTATION,
-            _ => panic!("Unable to encode y-rotation: unknown y-rotation."),
+        let convert_y_rot = |val: f32| {
+            let val = val * Y_ROT_SEGMENTS as f32 / (PI * 2.0);
+            (val.round() as u32) % Y_ROT_SEGMENTS
         };
 
         match rotation {
@@ -114,19 +91,19 @@ impl BlockRotation {
                 }
             }
             BlockRotation::PY(rot) => {
-                if *rot != 0 {
+                if (*rot).abs() > f32::EPSILON {
                     node[0] -= 0.5;
                     node[2] -= 0.5;
-                    self.rotate_y(node, *rot as f32 / 180.0 * f32::consts::PI);
+                    self.rotate_y(node, *rot);
                     node[0] += 0.5;
                     node[2] += 0.5;
                 }
             }
             BlockRotation::NY(rot) => {
-                if *rot != 0 {
+                if (*rot).abs() > f32::EPSILON {
                     node[0] -= 0.5;
                     node[2] -= 0.5;
-                    self.rotate_y(node, *rot as f32 / 180.0 * f32::consts::PI);
+                    self.rotate_y(node, *rot);
                     node[0] += 0.5;
                     node[2] += 0.5;
                 }

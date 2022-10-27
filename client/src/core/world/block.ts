@@ -83,24 +83,14 @@ export const Y_225_ROTATION = 5;
 export const Y_270_ROTATION = 6;
 export const Y_315_ROTATION = 7;
 
-export const Y_ROT_MAP = [
-  [0, Y_000_ROTATION],
-  [Math.PI / 4, Y_045_ROTATION],
-  [Math.PI / 2, Y_090_ROTATION],
-  [(Math.PI * 3) / 4, Y_135_ROTATION],
-  [Math.PI, Y_180_ROTATION],
-  [(Math.PI * 5) / 4, Y_225_ROTATION],
-  [(Math.PI * 3) / 2, Y_270_ROTATION],
-  [(Math.PI * 7) / 4, Y_315_ROTATION],
-  [-Math.PI / 4, Y_315_ROTATION],
-  [-Math.PI / 2, Y_270_ROTATION],
-  [-(Math.PI * 3) / 4, Y_225_ROTATION],
-  [-Math.PI, Y_180_ROTATION],
-  [-(Math.PI * 5) / 4, Y_135_ROTATION],
-  [(-Math.PI * 3) / 2, Y_090_ROTATION],
-  [-(Math.PI * 7) / 4, Y_045_ROTATION],
-  [-Math.PI * 2, Y_000_ROTATION],
-];
+export const Y_ROT_SEGMENTS = 16;
+
+export const Y_ROT_MAP = [];
+
+for (let i = 0; i < Y_ROT_SEGMENTS; i++) {
+  Y_ROT_MAP.push([(i / Y_ROT_SEGMENTS) * Math.PI * 2, i]);
+  Y_ROT_MAP.push([(i / Y_ROT_SEGMENTS) * Math.PI * 2 - Math.PI * 2, i]);
+}
 
 const PI = Math.PI;
 const PI_2 = Math.PI / 2.0;
@@ -120,35 +110,7 @@ export class BlockRotation {
   constructor(public value: number, public yRotation: number) {}
 
   static encode = (value: number, yRotation = 0) => {
-    let yEncoded = 0;
-    switch (yRotation) {
-      case Y_000_ROTATION:
-        yEncoded = 0;
-        break;
-      case Y_045_ROTATION:
-        yEncoded = 45;
-        break;
-      case Y_090_ROTATION:
-        yEncoded = 90;
-        break;
-      case Y_135_ROTATION:
-        yEncoded = 135;
-        break;
-      case Y_180_ROTATION:
-        yEncoded = 180;
-        break;
-      case Y_225_ROTATION:
-        yEncoded = 225;
-        break;
-      case Y_270_ROTATION:
-        yEncoded = 270;
-        break;
-      case Y_315_ROTATION:
-        yEncoded = 315;
-        break;
-      default:
-        throw new Error(`Unknown y-rotation: ${yRotation}`);
-    }
+    const yEncoded = (yRotation * Math.PI * 2.0) / Y_ROT_SEGMENTS;
 
     switch (value) {
       case PX_ROTATION:
@@ -191,33 +153,9 @@ export class BlockRotation {
         break;
     }
 
-    let yDecoded = 0;
-    switch (rotation.yRotation) {
-      case 0:
-        yDecoded = Y_000_ROTATION;
-        break;
-      case 45:
-        yDecoded = Y_045_ROTATION;
-        break;
-      case 90:
-        yDecoded = Y_090_ROTATION;
-        break;
-      case 135:
-        yDecoded = Y_135_ROTATION;
-        break;
-      case 180:
-        yDecoded = Y_180_ROTATION;
-        break;
-      case 225:
-        yDecoded = Y_225_ROTATION;
-        break;
-      case 270:
-        yDecoded = Y_270_ROTATION;
-        break;
-      case 315:
-        yDecoded = Y_315_ROTATION;
-        break;
-    }
+    const yDecoded =
+      Math.round((rotation.yRotation * Y_ROT_SEGMENTS) / (Math.PI * 2.0)) %
+      Y_ROT_SEGMENTS;
 
     return [value, yDecoded];
   };
@@ -226,7 +164,7 @@ export class BlockRotation {
     if (yRotate && this.yRotation !== 0) {
       node[0] -= 0.5;
       node[2] -= 0.5;
-      BlockRotation.rotateY(node, (this.yRotation / 180) * PI);
+      BlockRotation.rotateY(node, this.yRotation);
       node[0] += 0.5;
       node[2] += 0.5;
     }

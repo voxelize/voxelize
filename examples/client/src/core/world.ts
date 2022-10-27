@@ -98,5 +98,15 @@ export function setupWorld(world: World) {
       sides: "py",
       data: new Color("#E4DCCF"),
     },
+    {
+      name: "Test",
+      sides: "px",
+      data: new Color("red"),
+    },
+    {
+      name: "Test",
+      sides: "pz",
+      data: new Color("purple"),
+    },
   ]);
 }

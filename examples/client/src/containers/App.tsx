@@ -189,7 +189,8 @@ const App = () => {
     const voxelInteract = new VOXELIZE.VoxelInteract(
       controls.object,
       camera,
-      world
+      world,
+      { potentialVisuals: true }
     );
     world.add(voxelInteract);
 

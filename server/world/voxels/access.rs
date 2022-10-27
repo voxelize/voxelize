@@ -38,7 +38,7 @@ pub trait VoxelAccess {
     /// Get the voxel rotation at a voxel coordinate. Panics if chunk isn't found.
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         if !self.contains(vx, vy, vz) {
-            return BlockRotation::PX(0);
+            return BlockRotation::PX(0.0);
         }
 
         BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))

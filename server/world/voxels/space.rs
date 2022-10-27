@@ -4,7 +4,7 @@ use crate::{ndarray, BlockUtils, ChunkUtils, LightUtils, Ndarray, Vec2, Vec3};
 
 use super::{
     access::VoxelAccess,
-    block::{BlockRotation, PY_ROTATION, Y_000_ROTATION},
+    block::{BlockRotation, PY_ROTATION},
     chunks::Chunks,
 };
 
@@ -248,7 +248,7 @@ impl VoxelAccess for Space {
     /// Panics if space does not contain voxel data.
     fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
         if !self.contains(vx, vy, vz) {
-            return BlockRotation::encode(PY_ROTATION, Y_000_ROTATION);
+            return BlockRotation::encode(PY_ROTATION, 0);
         }
 
         BlockUtils::extract_rotation(self.get_raw_voxel(vx, vy, vz))
