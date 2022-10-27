@@ -73,6 +73,7 @@ const App = () => {
     const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
       textureDimension: 32,
+      maxUpdatesPerTick: 10000,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -147,7 +148,6 @@ const App = () => {
       renderer.domElement,
       world,
       {
-        lookInGhostMode: true,
         initialPosition: [0, 12, 0],
         bodyHeight: character.totalHeight,
         eyeHeight: character.eyeHeight / character.totalHeight,
@@ -186,6 +186,13 @@ const App = () => {
       inputs.setNamespace("menu");
     });
 
+    const voxelInteract = new VOXELIZE.VoxelInteract(
+      controls.object,
+      camera,
+      world
+    );
+    world.add(voxelInteract);
+
     const debug = new VOXELIZE.Debug(document.body, {
       tweakpane: false,
       showVoxelize: false,
@@ -213,14 +220,14 @@ const App = () => {
       }
     );
 
-    let hand = "Andesite";
-    let radius = 3;
+    let hand = "Test";
+    let radius = 1;
     let circular = true;
 
     const bulkDestroy = () => {
-      if (!controls.lookBlock) return;
+      if (!voxelInteract.target) return;
 
-      const [vx, vy, vz] = controls.lookBlock;
+      const [vx, vy, vz] = voxelInteract.target;
 
       const updates: VOXELIZE.BlockUpdate[] = [];
 
@@ -244,12 +251,13 @@ const App = () => {
     };
 
     const bulkPlace = () => {
-      if (!controls.targetBlock) return;
+      if (!voxelInteract.potential) return;
 
       const {
         voxel: [vx, vy, vz],
         rotation,
-      } = controls.targetBlock;
+        yRotation,
+      } = voxelInteract.potential;
 
       const updates: VOXELIZE.BlockUpdate[] = [];
       const block = controls.world.getBlockByName(hand);
@@ -266,6 +274,7 @@ const App = () => {
               vz: vz + z,
               type: block.id,
               rotation,
+              yRotation,
             });
           }
         }
@@ -289,8 +298,8 @@ const App = () => {
     inputs.click(
       "middle",
       () => {
-        if (!controls.lookBlock) return;
-        const [vx, vy, vz] = controls.lookBlock;
+        if (!voxelInteract.target) return;
+        const [vx, vy, vz] = voxelInteract.target;
         const block = controls.world.getBlockByVoxel(vx, vy, vz);
         hand = block.name;
       },
@@ -449,6 +458,7 @@ const App = () => {
               debug.update();
               blockBreakParticles.update();
               lightShined.update();
+              voxelInteract.update();
 
               composer.render();
             };

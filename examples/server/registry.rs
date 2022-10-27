@@ -37,7 +37,7 @@ pub fn setup_registry() -> Registry {
         Block::new("Obsidian").id(20).build(),
         Block::new("Granite").id(21).build(),
         Block::new("Graphite").id(22).build(),
-        Block::new("Andesite").id(23).red_light_level(10).build(),
+        Block::new("Andesite").id(23).green_light_level(10).build(),
         Block::new("Slate").id(24).build(),
         Block::new("Oak Planks").id(40).build(),
         Block::new("Oak Slab Top")
@@ -120,7 +120,7 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .is_fluid(true)
             .faces(&BlockFace::six_faces().scale_y(0.8).build())
-            .aabbs(&[])
+            .aabbs(&[AABB::new().scale_y(0.8).build()])
             .build(),
         Block::new("Glass")
             .id(160)
@@ -202,6 +202,26 @@ pub fn setup_registry() -> Registry {
             .is_transparent(true)
             .is_see_through(true)
             .transparent_standalone(true)
+            .build(),
+        Block::new("Test")
+            .id(10000)
+            .faces(
+                &BlockFace::six_faces()
+                    .scale_x(0.2)
+                    .offset_x(0.4)
+                    .scale_z(0.2)
+                    .offset_z(0.4)
+                    .build(),
+            )
+            .aabbs(&[AABB::new()
+                .scale_x(0.2)
+                .offset_x(0.4)
+                .scale_z(0.2)
+                .offset_z(0.4)
+                .build()])
+            .is_transparent(true)
+            .rotatable(true)
+            .y_rotatable(true)
             .build(),
     ]);
 

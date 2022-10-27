@@ -108,8 +108,8 @@ export class Debug extends Group {
     return this;
   };
 
-  toggle = (force = false) => {
-    this.visible = force ? true : !this.visible;
+  toggle = (force = null) => {
+    this.visible = force !== null ? force : !this.visible;
 
     const visibility = this.entryWrapper.style.visibility;
     const newVisibility = force

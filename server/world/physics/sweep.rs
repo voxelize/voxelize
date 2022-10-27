@@ -193,7 +193,7 @@ pub fn sweep(
                 }
 
                 block.aabbs.iter().for_each(|aabb| {
-                    let mut block_aabb = rotation.rotate_aabb(aabb, true);
+                    let mut block_aabb = rotation.rotate_aabb(aabb, true, true);
                     block_aabb.translate(vx as f32, vy as f32, vz as f32);
                     let result = sweep_aabb(target, &block_aabb, &velocity);
 

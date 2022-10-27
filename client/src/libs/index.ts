@@ -13,3 +13,4 @@ export * from "./worker-pool";
 export * from "./shadows";
 export * from "./effects";
 export * from "./particles";
+export * from "./voxel-interact";

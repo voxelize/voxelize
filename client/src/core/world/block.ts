@@ -85,20 +85,20 @@ export const Y_315_ROTATION = 7;
 
 export const Y_ROT_MAP = [
   [0, Y_000_ROTATION],
-  // [Math.PI / 4, Y_045_ROTATION],
+  [Math.PI / 4, Y_045_ROTATION],
   [Math.PI / 2, Y_090_ROTATION],
-  // [(Math.PI * 3) / 4, Y_135_ROTATION],
+  [(Math.PI * 3) / 4, Y_135_ROTATION],
   [Math.PI, Y_180_ROTATION],
-  // [(Math.PI * 5) / 4, Y_225_ROTATION],
+  [(Math.PI * 5) / 4, Y_225_ROTATION],
   [(Math.PI * 3) / 2, Y_270_ROTATION],
-  // [(Math.PI * 7) / 4, Y_315_ROTATION],
-  // [-Math.PI / 4, Y_315_ROTATION],
+  [(Math.PI * 7) / 4, Y_315_ROTATION],
+  [-Math.PI / 4, Y_315_ROTATION],
   [-Math.PI / 2, Y_270_ROTATION],
-  // [-(Math.PI * 3) / 4, Y_225_ROTATION],
+  [-(Math.PI * 3) / 4, Y_225_ROTATION],
   [-Math.PI, Y_180_ROTATION],
-  // [-(Math.PI * 5) / 4, Y_135_ROTATION],
+  [-(Math.PI * 5) / 4, Y_135_ROTATION],
   [(-Math.PI * 3) / 2, Y_090_ROTATION],
-  // [-(Math.PI * 7) / 4, Y_045_ROTATION],
+  [-(Math.PI * 7) / 4, Y_045_ROTATION],
   [-Math.PI * 2, Y_000_ROTATION],
 ];
 
@@ -119,7 +119,7 @@ export class BlockRotation {
 
   constructor(public value: number, public yRotation: number) {}
 
-  static encode = (value: number, yRotation: number) => {
+  static encode = (value: number, yRotation = 0) => {
     let yEncoded = 0;
     switch (yRotation) {
       case Y_000_ROTATION:
@@ -222,38 +222,30 @@ export class BlockRotation {
     return [value, yDecoded];
   };
 
-  public rotateNode = (node: Coords3, translate = true) => {
+  public rotateNode = (node: Coords3, yRotate = true, translate = true) => {
+    if (yRotate && this.yRotation !== 0) {
+      node[0] -= 0.5;
+      node[2] -= 0.5;
+      BlockRotation.rotateY(node, (this.yRotation / 180) * PI);
+      node[0] += 0.5;
+      node[2] += 0.5;
+    }
+
     switch (this.value) {
       case BlockRotation.PX: {
-        if (this.yRotation !== 0) {
-          BlockRotation.rotateY(node, this.yRotation);
-        }
-
         BlockRotation.rotateZ(node, -PI_2);
         if (translate) node[1] += 1;
         break;
       }
       case BlockRotation.NX: {
-        if (this.yRotation !== 0) {
-          BlockRotation.rotateY(node, this.yRotation);
-        }
-
         BlockRotation.rotateZ(node, PI_2);
         if (translate) node[0] += 1;
         break;
       }
       case BlockRotation.PY: {
-        if (this.yRotation !== 0) {
-          BlockRotation.rotateY(node, this.yRotation);
-        }
-
         break;
       }
       case BlockRotation.NY: {
-        if (this.yRotation !== 0) {
-          BlockRotation.rotateY(node, this.yRotation);
-        }
-
         BlockRotation.rotateX(node, PI);
         if (translate) {
           node[1] += 1;
@@ -262,19 +254,11 @@ export class BlockRotation {
         break;
       }
       case BlockRotation.PZ: {
-        if (this.yRotation !== 0) {
-          BlockRotation.rotateY(node, this.yRotation);
-        }
-
         BlockRotation.rotateX(node, PI_2);
         if (translate) node[1] += 1;
         break;
       }
       case BlockRotation.NZ: {
-        if (this.yRotation !== 0) {
-          BlockRotation.rotateY(node, this.yRotation);
-        }
-
         BlockRotation.rotateX(node, -PI_2);
         if (translate) node[2] += 1;
         break;
@@ -282,12 +266,41 @@ export class BlockRotation {
     }
   };
 
-  public rotateAABB = (aabb: AABB, translate = true) => {
+  public rotateAABB = (aabb: AABB, yRotate = true, translate = true) => {
     const min = [aabb.minX, aabb.minY, aabb.minZ] as Coords3;
     const max = [aabb.maxX, aabb.maxY, aabb.maxZ] as Coords3;
 
-    this.rotateNode(min, translate);
-    this.rotateNode(max, translate);
+    let minX = null;
+    let minZ = null;
+    let maxX = null;
+    let maxZ = null;
+
+    if (yRotate && this.yRotation !== 0) {
+      const min1 = [aabb.minX, aabb.minY, aabb.minZ];
+      const min2 = [aabb.minX, aabb.minY, aabb.maxZ];
+      const min3 = [aabb.maxX, aabb.minY, aabb.minZ];
+      const min4 = [aabb.maxX, aabb.minY, aabb.maxZ];
+
+      [min1, min2, min3, min4].forEach((min) => {
+        this.rotateNode(min as Coords3, true, false);
+        minX = minX === null ? min[0] : Math.min(minX, min[0]);
+        minZ = minZ === null ? min[2] : Math.min(minZ, min[2]);
+      });
+
+      const max1 = [aabb.minX, aabb.maxY, aabb.minZ];
+      const max2 = [aabb.minX, aabb.maxY, aabb.maxZ];
+      const max3 = [aabb.maxX, aabb.maxY, aabb.minZ];
+      const max4 = [aabb.maxX, aabb.maxY, aabb.maxZ];
+
+      [max1, max2, max3, max4].forEach((max) => {
+        this.rotateNode(max as Coords3, true, false);
+        maxX = maxX === null ? max[0] : Math.max(maxX, max[0]);
+        maxZ = maxZ === null ? max[2] : Math.max(maxZ, max[2]);
+      });
+    }
+
+    this.rotateNode(min, yRotate, translate);
+    this.rotateNode(max, yRotate, translate);
 
     const EPSILON = 0.0001;
     const justify = (num: number) => (num < EPSILON ? 0 : num);
@@ -300,15 +313,15 @@ export class BlockRotation {
     max[2] = justify(max[2]);
 
     const realMin = [
-      Math.min(min[0], max[0]),
+      minX !== null ? justify(minX) : Math.min(min[0], max[0]),
       Math.min(min[1], max[1]),
-      Math.min(min[2], max[2]),
+      minZ !== null ? justify(minZ) : Math.min(min[2], max[2]),
     ];
 
     const realMax = [
-      Math.max(min[0], max[0]),
+      maxX !== null ? justify(maxX) : Math.max(min[0], max[0]),
       Math.max(min[1], max[1]),
-      Math.max(min[2], max[2]),
+      maxZ !== null ? justify(maxZ) : Math.max(min[2], max[2]),
     ];
 
     return new AABB(

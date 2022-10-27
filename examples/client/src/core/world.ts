@@ -93,5 +93,10 @@ export function setupWorld(world: World) {
     },
     { name: "Biggie", sides: all, data: new Color("#2C3639") },
     { name: "Biggie", sides: ["pz"], data: TechnoImage },
+    {
+      name: "Test",
+      sides: "py",
+      data: new Color("#E4DCCF"),
+    },
   ]);
 }

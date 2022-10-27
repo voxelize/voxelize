@@ -22,7 +22,7 @@ type TextureData = {
   /**
    * The sides that this data loads onto.
    */
-  sides: string[];
+  sides: string[] | string;
 
   /**
    * Either the URL to the source image, or a ThreeJS color instance.
@@ -106,7 +106,7 @@ class Registry {
   applyTextureByName = (texture: TextureData) => {
     const { name, sides, data } = texture;
 
-    sides.forEach((side) => {
+    (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
       this.sources.set(this.makeSideName(name, side), data);
     });
   };

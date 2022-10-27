@@ -1,5 +1,6 @@
 use std::f32;
 
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::{LightColor, AABB};
@@ -98,22 +99,14 @@ impl BlockRotation {
     /// Rotate a 3D position with this block rotation.
     pub fn rotate_node(&self, node: &mut [f32; 3], translate: bool) {
         match self {
-            BlockRotation::PX(rot) => {
-                if *rot != 0 {
-                    self.rotate_y(node, *rot as f32);
-                }
-
+            BlockRotation::PX(_) => {
                 self.rotate_z(node, -PI_2);
 
                 if translate {
                     node[1] += 1.0;
                 }
             }
-            BlockRotation::NX(rot) => {
-                if *rot != 0 {
-                    self.rotate_y(node, *rot as f32);
-                }
-
+            BlockRotation::NX(_) => {
                 self.rotate_z(node, PI_2);
 
                 if translate {
@@ -122,12 +115,20 @@ impl BlockRotation {
             }
             BlockRotation::PY(rot) => {
                 if *rot != 0 {
-                    self.rotate_y(node, *rot as f32);
+                    node[0] -= 0.5;
+                    node[2] -= 0.5;
+                    self.rotate_y(node, *rot as f32 / 180.0 * f32::consts::PI);
+                    node[0] += 0.5;
+                    node[2] += 0.5;
                 }
             }
             BlockRotation::NY(rot) => {
                 if *rot != 0 {
-                    self.rotate_y(node, *rot as f32);
+                    node[0] -= 0.5;
+                    node[2] -= 0.5;
+                    self.rotate_y(node, *rot as f32 / 180.0 * f32::consts::PI);
+                    node[0] += 0.5;
+                    node[2] += 0.5;
                 }
 
                 self.rotate_x(node, PI_2 * 2.0);
@@ -137,22 +138,14 @@ impl BlockRotation {
                     node[2] += 1.0;
                 }
             }
-            BlockRotation::PZ(rot) => {
-                if *rot != 0 {
-                    self.rotate_y(node, *rot as f32);
-                }
-
+            BlockRotation::PZ(_) => {
                 self.rotate_x(node, PI_2);
 
                 if translate {
                     node[1] += 1.0;
                 }
             }
-            BlockRotation::NZ(rot) => {
-                if *rot != 0 {
-                    self.rotate_y(node, *rot as f32);
-                }
-
+            BlockRotation::NZ(_) => {
                 self.rotate_x(node, -PI_2);
 
                 if translate {
@@ -163,18 +156,63 @@ impl BlockRotation {
     }
 
     /// Rotate an AABB.
-    pub fn rotate_aabb(&self, aabb: &AABB, translate: bool) -> AABB {
+    pub fn rotate_aabb(&self, aabb: &AABB, y_rotate: bool, translate: bool) -> AABB {
         let mut min = [aabb.min_x, aabb.min_y, aabb.min_z];
         let mut max = [aabb.max_x, aabb.max_y, aabb.max_z];
+
+        let minX = None;
+        let minZ = None;
+        let maxX = None;
+        let maxZ = None;
+
+        if y_rotate
+            && (matches!(self, BlockRotation::PY(_)) || matches!(self, BlockRotation::NY(_)))
+        {
+            let min1 = [aabb.min_x, aabb.min_y, aabb.min_z];
+            let min2 = [aabb.min_x, aabb.min_y, aabb.max_z];
+            let min3 = [aabb.max_x, aabb.min_y, aabb.min_z];
+            let min4 = [aabb.max_x, aabb.min_y, aabb.max_z];
+
+            [min1, min2, min3, min4].iter().for_each(|node| {
+                self.rotate_node(&mut *node, false);
+
+                if minX.is_none() || node[0] < minX.unwrap() {
+                    minX = Some(node[0]);
+                }
+
+                if minZ.is_none() || node[2] < minZ.unwrap() {
+                    minZ = Some(node[2]);
+                }
+            });
+
+            let max1 = [aabb.min_x, aabb.max_y, aabb.min_z];
+            let max2 = [aabb.min_x, aabb.max_y, aabb.max_z];
+            let max3 = [aabb.max_x, aabb.max_y, aabb.min_z];
+            let max4 = [aabb.max_x, aabb.max_y, aabb.max_z];
+
+            [max1, max2, max3, max4].iter().for_each(|node| {
+                self.rotate_node(&mut *node, false);
+
+                if maxX.is_none() || node[0] > maxX.unwrap() {
+                    maxX = Some(node[0]);
+                }
+
+                if maxZ.is_none() || node[2] > maxZ.unwrap() {
+                    maxZ = Some(node[2]);
+                }
+            });
+        }
+
         self.rotate_node(&mut min, translate);
         self.rotate_node(&mut max, translate);
+
         AABB {
-            min_x: min[0].min(max[0]),
+            min_x: minX.unwrap_or(min[0].min(max[0])),
             min_y: min[1].min(max[1]),
-            min_z: min[2].min(max[2]),
-            max_x: max[0].max(min[0]),
+            min_z: minZ.unwrap_or(min[2].min(max[2])),
+            max_x: maxX.unwrap_or(min[0].max(max[0])),
             max_y: max[1].max(min[1]),
-            max_z: max[2].max(min[2]),
+            max_z: maxZ.unwrap_or(min[2].max(max[2])),
         }
     }
 
@@ -909,7 +947,6 @@ pub struct BlockBuilder {
     is_block: bool,
     is_empty: bool,
     is_fluid: bool,
-    is_light: bool,
     is_passable: bool,
     red_light_level: u32,
     green_light_level: u32,

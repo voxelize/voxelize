@@ -2,33 +2,14 @@ import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
-import { raycast } from "@voxelize/raycast";
-import {
-  Euler,
-  Vector3,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  Color,
-  BoxGeometry,
-  Quaternion,
-  PerspectiveCamera,
-} from "three";
+import { Euler, Vector3, Group, Quaternion, PerspectiveCamera } from "three";
 
 import { Character } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
 import { Inputs } from "./inputs";
-import {
-  NX_ROTATION,
-  NY_ROTATION,
-  NZ_ROTATION,
-  PX_ROTATION,
-  PY_ROTATION,
-  PZ_ROTATION,
-  World,
-} from "./world";
+import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
@@ -130,31 +111,6 @@ export type RigidControlsParams = {
    * Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99`
    */
   maxPolarAngle: number;
-
-  /**
-   * The scale of the outline of the looking block. Defaults to `1.002`.
-   */
-  lookBlockScale: number;
-
-  /**
-   * The color of the outline of the looking block. Defaults to `black`.
-   */
-  lookBlockColor: string;
-
-  /**
-   * The interpolation factor of the looking block changing. Defaults to `1`, immediate changes.
-   */
-  lookBlockLerp: number;
-
-  /**
-   * Allow client to look at blocks even in ghost mode. Defaults to `false`.
-   */
-  lookInGhostMode: boolean;
-
-  /**
-   * The maximum distance a client can reach a block. Defaults to `32`.
-   */
-  reachDistance: number;
 
   /**
    * Initial position of the client. Defaults to `(0, 80, 10)`.
@@ -291,11 +247,6 @@ const defaultParams: RigidControlsParams = {
   sensitivity: 100,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
-  lookBlockScale: 1.002,
-  lookBlockLerp: 1,
-  lookBlockColor: "black",
-  lookInGhostMode: false,
-  reachDistance: 32,
   initialPosition: [0, 80, 10],
   rotationLerp: 0.9,
   positionLerp: 1.0,
@@ -392,37 +343,6 @@ export class RigidControls extends EventEmitter {
    */
   public body: RigidBody;
 
-  /**
-   * The voxel at which the client is looking at.
-   */
-  public lookBlock: Coords3 | null = [0, 0, 0];
-
-  /**
-   * The block that a client can potentially place at.
-   */
-  public targetBlock: {
-    /**
-     * The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`.
-     */
-    voxel: Coords3;
-
-    /**
-     * The rotation of the block that may be placed.
-     */
-    rotation: number;
-
-    /**
-     * The rotation on the y-axis of the block that may be placed.
-     */
-    yRotation: number;
-  } | null = {
-    voxel: [0, 0, 0],
-    rotation: PY_ROTATION,
-    yRotation: 0,
-  };
-
-  private lookBlockMesh: Group;
-
   private movements = {
     up: false,
     down: false,
@@ -442,9 +362,6 @@ export class RigidControls extends EventEmitter {
 
   private newPosition = new Vector3();
   private justUnlocked = false;
-
-  private newLookBlockScale = new Vector3();
-  private newLookBlockPosition = new Vector3();
 
   public static readonly INPUT_IDENTIFIER = "voxelize-rigid-controls";
 
@@ -491,7 +408,6 @@ export class RigidControls extends EventEmitter {
     });
 
     this.teleport(...this.params.initialPosition);
-    this.setupLookBlock();
   }
 
   /**
@@ -505,15 +421,6 @@ export class RigidControls extends EventEmitter {
 
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
     this.object.position.lerp(this.newPosition, this.params.positionLerp);
-
-    this.lookBlockMesh.scale.lerp(
-      this.newLookBlockScale,
-      this.params.lookBlockLerp
-    );
-    this.lookBlockMesh.position.lerp(
-      this.newLookBlockPosition,
-      this.params.lookBlockLerp
-    );
 
     if (this.character) {
       const {
@@ -530,7 +437,6 @@ export class RigidControls extends EventEmitter {
 
     this.moveRigidBody();
     this.updateRigidBody(delta);
-    this.updateLookBlock();
   };
 
   /**
@@ -860,208 +766,6 @@ export class RigidControls extends EventEmitter {
       this.world.params.chunkSize
     );
   }
-
-  /**
-   * The block type that the client is looking at.
-   */
-  get lookingAt() {
-    if (this.lookBlock) {
-      return this.world.getBlockByVoxel(
-        this.lookBlock[0],
-        this.lookBlock[1],
-        this.lookBlock[2]
-      );
-    }
-
-    return null;
-  }
-
-  private setupLookBlock = () => {
-    const { lookBlockScale, lookBlockColor } = this.params;
-
-    this.lookBlockMesh = new Group();
-
-    const mat = new MeshBasicMaterial({
-      color: new Color(lookBlockColor),
-      opacity: 0.3,
-      transparent: true,
-    });
-
-    const w = 0.01;
-    const dim = lookBlockScale;
-    const side = new Mesh(new BoxGeometry(dim, w, w), mat);
-
-    for (let i = -1; i <= 1; i += 2) {
-      for (let j = -1; j <= 1; j += 2) {
-        const temp = side.clone();
-
-        temp.position.y = ((dim - w) / 2) * i;
-        temp.position.z = ((dim - w) / 2) * j;
-
-        this.lookBlockMesh.add(temp);
-      }
-    }
-
-    for (let i = -1; i <= 1; i += 2) {
-      for (let j = -1; j <= 1; j += 2) {
-        const temp = side.clone();
-
-        temp.position.z = ((dim - w) / 2) * i;
-        temp.position.x = ((dim - w) / 2) * j;
-        temp.rotation.z = Math.PI / 2;
-
-        this.lookBlockMesh.add(temp);
-      }
-    }
-
-    for (let i = -1; i <= 1; i += 2) {
-      for (let j = -1; j <= 1; j += 2) {
-        const temp = side.clone();
-
-        temp.position.x = ((dim - w) / 2) * i;
-        temp.position.y = ((dim - w) / 2) * j;
-        temp.rotation.y = Math.PI / 2;
-
-        this.lookBlockMesh.add(temp);
-      }
-    }
-
-    const offset = new Vector3(0.5, 0.5, 0.5);
-
-    this.lookBlockMesh.children.forEach((child) => {
-      child.position.add(offset);
-    });
-
-    this.lookBlockMesh.frustumCulled = false;
-    this.lookBlockMesh.renderOrder = 1000000;
-
-    this.world.add(this.lookBlockMesh);
-  };
-
-  private updateLookBlock = () => {
-    const disableLookBlock = () => {
-      this.lookBlockMesh.visible = false;
-      this.lookBlock = null;
-      this.targetBlock = null;
-    };
-
-    if (!this.params.lookInGhostMode && this.ghostMode) {
-      disableLookBlock();
-      return;
-    }
-
-    const { reachDistance, lookBlockScale } = this.params;
-
-    const camDir = new Vector3();
-    const camPos = this.object.position;
-    this.camera.getWorldDirection(camDir);
-    camDir.normalize();
-
-    const result = raycast(
-      this.world.getBlockAABBsByWorld,
-      [camPos.x, camPos.y, camPos.z],
-      [camDir.x, camDir.y, camDir.z],
-      reachDistance
-    );
-
-    // No target.
-    if (!result) {
-      disableLookBlock();
-      return;
-    }
-
-    const { voxel, normal } = result;
-
-    const [nx, ny, nz] = normal;
-    const newLookBlock = ChunkUtils.mapWorldPosToVoxelPos(<Coords3>voxel);
-
-    // Pointing at air.
-    const newLookingID = this.world.getVoxelByVoxel(...newLookBlock);
-    if (newLookingID === 0) {
-      disableLookBlock();
-      return;
-    }
-
-    this.lookBlockMesh.visible = true;
-    this.lookBlock = newLookBlock;
-
-    const { lookingAt } = this;
-
-    if (lookingAt && this.lookBlock) {
-      const { aabbs } = lookingAt;
-      if (!aabbs.length) return;
-
-      const rotation = this.world.getVoxelRotationByVoxel(...this.lookBlock);
-
-      let union: AABB = rotation.rotateAABB(aabbs[0]);
-
-      for (let i = 1; i < aabbs.length; i++) {
-        const aabb = rotation.rotateAABB(aabbs[i]);
-        union = union.union(aabb);
-      }
-
-      union.translate(this.lookBlock);
-
-      let { width, height, depth } = union;
-
-      width *= lookBlockScale;
-      height *= lookBlockScale;
-      depth *= lookBlockScale;
-
-      this.newLookBlockScale.set(width, height, depth);
-      this.newLookBlockPosition.set(union.minX, union.minY, union.minZ);
-    }
-
-    const targetVoxel = [
-      this.lookBlock[0] + nx,
-      this.lookBlock[1] + ny,
-      this.lookBlock[2] + nz,
-    ] as Coords3;
-
-    // target block is look block summed with the normal
-    const rotation =
-      nx !== 0
-        ? nx > 0
-          ? PX_ROTATION
-          : NX_ROTATION
-        : ny !== 0
-        ? ny > 0
-          ? PY_ROTATION
-          : NY_ROTATION
-        : nz !== 0
-        ? nz > 0
-          ? PZ_ROTATION
-          : NZ_ROTATION
-        : 0;
-
-    // // player's voxel position
-    // const [vx, vy, vz] = this.voxel;
-
-    // // target block's voxel position
-    // const [tx, ty, tz] = targetVoxel;
-
-    // // calculate angle between vx vz and tx tz
-    // const angle =
-    //   vy >= ty ? Math.atan2(vz - tz, vx - tx) : Math.atan2(tz - vz, tx - vx);
-    // const normalized = MathUtils.normalizeAngle(angle);
-
-    // let min = Infinity;
-    // let closest: number;
-
-    // Y_ROT_MAP.forEach(([a, yRot]) => {
-    //   if (Math.abs(normalized - a) < min) {
-    //     min = Math.abs(normalized - a);
-    //     closest = yRot;
-    //   }
-    // });
-
-    this.targetBlock = {
-      voxel: targetVoxel,
-      rotation: lookingAt.rotatable ? rotation : undefined,
-      yRotation: 0,
-      // lookingAt.rotatable ? closest : undefined,
-    };
-  };
 
   private moveRigidBody = () => {
     const { object, state } = this;

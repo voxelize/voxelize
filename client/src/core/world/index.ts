@@ -389,6 +389,11 @@ export class World extends Scene implements NetIntercept {
         const currId = this.getVoxelByVoxel(vx, vy, vz);
         const currRot = this.getVoxelRotationByVoxel(vx, vy, vz);
 
+        if (!this.getBlockById(type)) {
+          console.warn(`Block ID ${type} does not exist.`);
+          return false;
+        }
+
         if (
           currId === type &&
           (rotation ? currRot.value === rotation : true) &&
@@ -803,8 +808,10 @@ export class World extends Scene implements NetIntercept {
       (vx: number, vy: number, vz: number) => {
         const id = this.getVoxelByVoxel(vx, vy, vz);
         const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
-        const { aabbs, isPassable } = this.getBlockById(id);
-        if (isPassable) return [];
+        const { aabbs, isPassable, isFluid } = this.getBlockById(id);
+
+        if (isPassable || isFluid) return [];
+
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
         );
