@@ -393,11 +393,12 @@ impl Mesher {
         //    2. if one of them is not opaque, mesh.
         if (n_is_void || n_block_type.is_empty)
             || (transparent
+                && !is_opaque
+                && !n_block_type.is_opaque
                 && ((is_see_through
                     && neighbor_id == voxel_id
                     && n_block_type.transparent_standalone)
                     || (neighbor_id != voxel_id
-                        && transparent_standalone
                         && (is_see_through || n_block_type.is_see_through))
                     || ({
                         if is_see_through && n_block_type.is_opaque {

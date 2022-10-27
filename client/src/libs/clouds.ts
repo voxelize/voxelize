@@ -290,6 +290,7 @@ export class Clouds extends Group {
     mesh.position.setY(worldHeight);
     mesh.position.setZ((-width / 2 + z) * count * dimensions[2]);
     mesh.userData.data = array;
+    mesh.renderOrder = -1;
 
     return mesh;
   };
