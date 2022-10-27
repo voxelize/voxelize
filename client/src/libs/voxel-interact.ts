@@ -30,7 +30,7 @@ export type VoxelInteractParams = {
   reachDistance: number;
   ignoreFluid: boolean;
   highlightScale: number;
-  highlightType: "box" | "lines";
+  highlightType: "box" | "outline";
   highlightLerp: number;
   highlightColor: Color;
   highlightOpacity: number;
@@ -280,7 +280,7 @@ export class VoxelInteract extends Group {
       transparent: true,
     });
 
-    if (highlightType === "lines") {
+    if (highlightType === "outline") {
       const w = 0.01;
       const dim = highlightScale;
       const side = new Mesh(new BoxGeometry(dim, w, w), mat);
@@ -322,7 +322,7 @@ export class VoxelInteract extends Group {
 
       const offset = new Vector3(0.5, 0.5, 0.5);
 
-      this.children.forEach((child) => {
+      this.targetGroup.children.forEach((child) => {
         child.position.add(offset);
       });
     } else if (highlightType === "box") {
