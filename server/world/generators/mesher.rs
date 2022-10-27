@@ -386,7 +386,7 @@ impl Mesher {
         // b. transparent mode
         //    1. itself is see-through (water & leaves)
         //       - if the neighbor is the same, then mesh if standalone (leaves).
-        //       - not the same, and both are see-through, then mesh (leaves + water).
+        //       - not the same, and one is see-through, then mesh (leaves + water or leaves + stick).
         //       - not the same, and the bounding boxes do not intersect, then mesh.
         // c. opaque mode
         //    1. ignore all see-through blocks (transparent)
@@ -397,9 +397,8 @@ impl Mesher {
                     && neighbor_id == voxel_id
                     && n_block_type.transparent_standalone)
                     || (neighbor_id != voxel_id
-                        && is_see_through
                         && transparent_standalone
-                        && n_block_type.is_see_through)
+                        && (is_see_through || n_block_type.is_see_through))
                     || ({
                         if is_see_through && n_block_type.is_opaque {
                             let self_bounding = AABB::union(&block.aabbs);
