@@ -103,16 +103,12 @@ impl ChunkStage for SoilingStage {
 }
 
 struct TreeStage {
-    noise: SeededNoise,
     trees: Trees,
 }
 
 impl TreeStage {
-    pub fn new(seed: u32, params: &NoiseParams, trees: Trees) -> Self {
-        Self {
-            noise: SeededNoise::new(seed, params),
-            trees,
-        }
+    pub fn new(trees: Trees) -> Self {
+        Self { trees }
     }
 }
 
@@ -224,7 +220,6 @@ pub fn setup_world() -> World {
             .branch_initial_length(6)
             .branch_dy_angle(f64::consts::PI / 4.0)
             .branch_drot_angle(f64::consts::PI / 4.0)
-            .system(LSystem::new().axiom("F%").build())
             .build();
 
         let mut trees = Trees::new(
@@ -241,11 +236,7 @@ pub fn setup_world() -> World {
             config.seed,
             &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
         ));
-        pipeline.add_stage(TreeStage::new(
-            config.seed,
-            &NoiseParams::new().build(),
-            trees,
-        ));
+        pipeline.add_stage(TreeStage::new(trees));
 
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
     }

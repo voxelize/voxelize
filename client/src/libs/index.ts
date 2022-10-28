@@ -14,3 +14,4 @@ export * from "./shadows";
 export * from "./effects";
 export * from "./particles";
 export * from "./voxel-interact";
+export * from "./arrow";

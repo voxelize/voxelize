@@ -25,6 +25,8 @@ import {
 } from "../core/world";
 import { ChunkUtils, MathUtils } from "../utils";
 
+import { Arrow } from "./arrow";
+
 export type VoxelInteractParams = {
   reachDistance: number;
   ignoreFluid: boolean;
@@ -345,30 +347,8 @@ export class VoxelInteract extends Group {
       throw new Error("Invalid highlight type");
     }
 
-    const createArrow = (color: string) => {
-      const arrow = new ArrowHelper(new Vector3(1, 0, 0), new Vector3());
-
-      [...arrow.children].forEach((child) => arrow.remove(child));
-
-      arrow.add(
-        new Mesh(
-          new CylinderBufferGeometry(0.1, 0.1, 0.8),
-          new MeshBasicMaterial({ color })
-        )
-      );
-
-      const cone = new Mesh(
-        new CylinderBufferGeometry(0, 0.2, 0.2),
-        new MeshBasicMaterial({ color })
-      );
-      cone.position.y = 0.5;
-      arrow.add(cone);
-
-      return arrow;
-    };
-
-    this.potentialArrow = createArrow("red");
-    this.yRotArrow = createArrow("green");
+    this.potentialArrow = new Arrow({ color: "red" });
+    this.yRotArrow = new Arrow({ color: "green" });
 
     this.potentialGroup.add(this.potentialArrow, this.yRotArrow);
 

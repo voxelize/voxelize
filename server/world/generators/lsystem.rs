@@ -1,10 +1,20 @@
 use hashbrown::HashMap;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LSystem {
     pub axiom: String,
     pub rules: HashMap<char, String>,
     pub iterations: u32,
+}
+
+impl Default for LSystem {
+    fn default() -> Self {
+        Self {
+            axiom: "F%".to_owned(),
+            rules: HashMap::new(),
+            iterations: 0,
+        }
+    }
 }
 
 impl LSystem {
