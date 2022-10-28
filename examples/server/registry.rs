@@ -78,6 +78,7 @@ pub fn setup_registry() -> Registry {
             )
             .is_transparent(true)
             .is_see_through(true)
+            .light_reduce(true)
             .transparent_standalone(true)
             .build(),
         Block::new("Oak Pole")
@@ -118,6 +119,7 @@ pub fn setup_registry() -> Registry {
             .id(150)
             .is_transparent(true)
             .is_see_through(true)
+            .light_reduce(true)
             .is_fluid(true)
             .faces(&BlockFace::six_faces().scale_y(0.8).build())
             .aabbs(&[AABB::new().scale_y(0.8).build()])

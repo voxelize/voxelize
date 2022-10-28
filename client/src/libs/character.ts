@@ -307,7 +307,7 @@ export class Character extends Group {
 
     if (!this.nametag) {
       this.nametag = new NameTag(username, {
-        yOffset: this.totalHeight * 1.1,
+        yOffset: this.head.height,
         fontSize: 0.2,
       });
       this.add(this.nametag);

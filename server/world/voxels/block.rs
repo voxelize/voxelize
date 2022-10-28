@@ -887,6 +887,9 @@ pub struct Block {
 
     /// Is the block transparent looking from the negative z-axis.
     pub is_nz_transparent: bool,
+
+    /// Does light reduce when passing through this block?
+    pub light_reduce: bool,
 }
 
 impl Block {
@@ -938,6 +941,7 @@ pub struct BlockBuilder {
     is_nx_transparent: bool,
     is_ny_transparent: bool,
     is_nz_transparent: bool,
+    light_reduce: bool,
 }
 
 impl BlockBuilder {
@@ -1116,6 +1120,12 @@ impl BlockBuilder {
         self
     }
 
+    /// Configure whether light reduces through this block. Default is false.
+    pub fn light_reduce(mut self, light_reduce: bool) -> Self {
+        self.light_reduce = light_reduce;
+        self
+    }
+
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         Block {
@@ -1149,6 +1159,7 @@ impl BlockBuilder {
             is_nx_transparent: self.is_nx_transparent,
             is_ny_transparent: self.is_ny_transparent,
             is_nz_transparent: self.is_nz_transparent,
+            light_reduce: self.light_reduce,
         }
     }
 }

@@ -1,8 +1,10 @@
 export class ColorText {
   public static SPLITTER = "∆";
-  public static DEFAULT_COLOR = "black";
 
-  public static split(text: string): { color: string; text: string }[] {
+  public static split(
+    text: string,
+    defaultColor = "black"
+  ): { color: string; text: string }[] {
     const splitted = text
       .split(
         new RegExp(
@@ -14,7 +16,7 @@ export class ColorText {
     if (splitted.length) {
       if (!splitted[0].includes(ColorText.SPLITTER)) {
         splitted.unshift(
-          `${ColorText.SPLITTER}${ColorText.DEFAULT_COLOR}${ColorText.SPLITTER}`
+          `${ColorText.SPLITTER}${defaultColor}${ColorText.SPLITTER}`
         );
       }
 

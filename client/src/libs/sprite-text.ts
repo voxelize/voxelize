@@ -314,7 +314,7 @@ export class SpriteText extends Sprite {
     }
 
     lines.forEach((line, index) => {
-      const splitted = ColorText.split(line);
+      const splitted = ColorText.split(line, this.strokeColor);
 
       let sumLength = 0;
       splitted.forEach(

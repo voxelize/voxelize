@@ -85,6 +85,7 @@ const App = () => {
         widthSegments: 64,
       },
     });
+    character.username = "<placeholder>";
     character.position.set(0, 10, -5);
 
     world.loader.addTexture(LolImage, (texture) => {

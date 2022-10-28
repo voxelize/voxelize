@@ -106,16 +106,20 @@ impl Lights {
                     continue;
                 }
 
-                let next_level = level
-                    - if is_sunlight && oy == -1 && level == max_light_level {
-                        0
-                    } else {
-                        1
-                    };
                 let next_voxel = [nvx, nvy, nvz];
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
                 let n_transparency =
                     n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
+                let next_level = level
+                    - if is_sunlight
+                        && !n_block.light_reduce
+                        && oy == -1
+                        && level == max_light_level
+                    {
+                        0
+                    } else {
+                        1
+                    };
 
                 // To not continue:
                 // (1) Light cannot be flooded from source block to neighbor.
@@ -291,6 +295,7 @@ impl Lights {
                         red_light_level,
                         green_light_level,
                         blue_light_level,
+                        light_reduce,
                         ..
                     } = registry.get_block_by_id(id);
 
@@ -309,7 +314,18 @@ impl Lights {
                         mask[index] = 0;
                     } else {
                         // Let sunlight pass through if it can.
-                        if py && ny {
+                        if light_reduce && py && ny {
+                            if mask[index] != 0 {
+                                space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
+
+                                sunlight_queue.push_back(LightNode {
+                                    level: mask[index] - 1,
+                                    voxel: [start_x + x, y, start_z + z],
+                                });
+
+                                mask[index] = 0;
+                            }
+                        } else if py && ny {
                             space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
 
                             if mask[index] == max_light_level {
