@@ -8,7 +8,7 @@ import { Chunk } from "./chunk";
 class Chunks extends Map<string, Chunk> {
   public requested = new Map<string, number>();
   public toRequest: string[] = [];
-  public toProcess: ChunkProtocol[] = [];
+  public toProcess: [ChunkProtocol, number][] = [];
   public toUpdate: BlockUpdate[] = [];
   public toAdd: string[] = [];
 

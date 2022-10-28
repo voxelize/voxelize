@@ -449,7 +449,7 @@ export class RigidControls extends EventEmitter {
    *
    * @hidden
    */
-  connect = (inputs: Inputs<any>, namespace = "*") => {
+  connect = (inputs: Inputs, namespace = "*") => {
     this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
       this.onMouseMove(event);
     });

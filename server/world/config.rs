@@ -36,7 +36,7 @@ pub struct WorldConfig {
     /// Maximum chunks to be processed per tick. Default is 24 chunks.
     pub max_chunks_per_tick: usize,
 
-    /// Maximum voxel updates to be processed per tick. Default is 500 voxels.
+    /// Maximum voxel updates to be processed per tick. Default is 1000 voxels.
     pub max_updates_per_tick: usize,
 
     /// Maximum responses to send to client per tick to prevent bottle-necking. Default is 4 chunks.
@@ -116,7 +116,7 @@ const DEFAULT_PRELOAD_RADIUS: usize = 8;
 const DEFAULT_MAX_HEIGHT: usize = 256;
 const DEFAULT_MAX_LIGHT_LEVEL: u32 = 15;
 const DEFAULT_MAX_CHUNKS_PER_TICK: usize = 4;
-const DEFAULT_MAX_UPDATES_PER_TICK: usize = 500;
+const DEFAULT_MAX_UPDATES_PER_TICK: usize = 1000;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 const DEFAULT_WATER_LEVEL: usize = 60;
@@ -257,7 +257,7 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the maximum amount of voxel updates to be processed per tick. Default is 500 voxel updates.
+    /// Configure the maximum amount of voxel updates to be processed per tick. Default is 1000 voxel updates.
     pub fn max_updates_per_tick(mut self, max_updates_per_tick: usize) -> Self {
         self.max_updates_per_tick = max_updates_per_tick;
         self

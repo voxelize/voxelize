@@ -889,9 +889,14 @@ export class World extends Scene implements NetIntercept {
     let count = 0;
 
     const [cx, cz] = this.chunks.currentChunk;
+
     this.chunks.toProcess.sort((a, b) => {
-      const { x: cx1, z: cz1 } = a;
-      const { x: cx2, z: cz2 } = b;
+      const [{ x: cx1, z: cz1 }, aTime] = a;
+      const [{ x: cx2, z: cz2 }, bTime] = b;
+
+      if (cx1 === cx2 && cz1 === cz2) {
+        return aTime - bTime;
+      }
 
       return (
         (cx - cx1) ** 2 + (cz - cz1) ** 2 - (cx - cx2) ** 2 - (cz - cz2) ** 2
@@ -900,12 +905,12 @@ export class World extends Scene implements NetIntercept {
 
     while (count < maxProcessesPerTick && this.chunks.toProcess.length) {
       const data = this.chunks.toProcess.shift();
-      const { x, z } = data;
+      const { x, z } = data[0];
 
       this.chunks.requested.delete(ChunkUtils.getChunkName([x, z]));
 
       count++;
-      this.meshChunk(data);
+      this.meshChunk(data[0]);
 
       if (performance.now() - now > updateTimeout) {
         return;
@@ -1050,7 +1055,7 @@ export class World extends Scene implements NetIntercept {
     if (urgent) {
       this.meshChunk(data);
     } else {
-      this.chunks.toProcess.push(data);
+      this.chunks.toProcess.push([data, performance.now()]);
     }
   };
 

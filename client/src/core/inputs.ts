@@ -44,7 +44,7 @@ export declare interface Inputs<T extends string> {
  *
  * @category Core
  */
-export class Inputs<T extends string> extends EventEmitter {
+export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
    * set the namespace for namespace checking.
