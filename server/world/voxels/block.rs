@@ -1,9 +1,10 @@
-use std::f32;
+use std::{f32, marker::Sync, sync::Arc};
 
+use hashbrown::HashMap;
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::{LightColor, AABB};
+use crate::{BlockUtils, Chunks, LightColor, LightUtils, Vec3, VoxelAccess, AABB};
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -815,6 +816,62 @@ impl SixFacesBuilder {
     }
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct Neighbors {
+    pub center: Vec3<i32>,
+    map: HashMap<Vec3<i32>, [u32; 2]>,
+}
+
+impl Neighbors {
+    pub fn populate(center: Vec3<i32>, space: &mut dyn VoxelAccess) -> Self {
+        let mut map = HashMap::new();
+        let Vec3(vx, vy, vz) = center.clone();
+
+        for x in -1..=1 {
+            for y in -1..=1 {
+                for z in -1..=1 {
+                    let voxel = space.get_raw_voxel(vx + x, vy + y, vz + z);
+                    let light = space.get_raw_light(vx + x, vy + y, vz + z);
+                    map.insert(Vec3(x, y, z), [voxel, light]);
+                }
+            }
+        }
+
+        Self { map, center }
+    }
+
+    pub fn get_voxel(&self, offset: Vec3<i32>) -> u32 {
+        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+        BlockUtils::extract_id(value[0])
+    }
+
+    pub fn get_rotation(&self, offset: Vec3<i32>) -> BlockRotation {
+        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+        BlockUtils::extract_rotation(value[0])
+    }
+
+    pub fn get_stage(&self, offset: Vec3<i32>) -> u32 {
+        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+        BlockUtils::extract_stage(value[0])
+    }
+
+    pub fn get_sunlight(&self, offset: Vec3<i32>) -> u32 {
+        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+        LightUtils::extract_sunlight(value[1])
+    }
+
+    pub fn get_torch_light(&self, offset: Vec3<i32>, color: &LightColor) -> u32 {
+        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+
+        match *color {
+            LightColor::Red => LightUtils::extract_red_light(value[1]),
+            LightColor::Green => LightUtils::extract_green_light(value[1]),
+            LightColor::Blue => LightUtils::extract_blue_light(value[1]),
+            LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
+        }
+    }
+}
+
 /// Serializable struct representing block data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -890,6 +947,13 @@ pub struct Block {
 
     /// Does light reduce when passing through this block?
     pub light_reduce: bool,
+    // /// Conditionally build a block's faces.
+    // #[serde(skip_serializing)]
+    // pub conditional_faces: Option<Arc<dyn Fn(Neighbors) -> Vec<BlockFace>>>,
+
+    // /// Conditionally build a block's aabbs.
+    // #[serde(skip_serializing)]
+    // pub conditional_aabbs: Option<Arc<dyn Fn(Neighbors) -> Vec<AABB>>>,
 }
 
 impl Block {
@@ -942,6 +1006,8 @@ pub struct BlockBuilder {
     is_ny_transparent: bool,
     is_nz_transparent: bool,
     light_reduce: bool,
+    conditional_faces: Option<Arc<dyn Fn(Neighbors) -> Vec<BlockFace>>>,
+    conditional_aabbs: Option<Arc<dyn Fn(Neighbors) -> Vec<AABB>>>,
 }
 
 impl BlockBuilder {
@@ -1125,6 +1191,9 @@ impl BlockBuilder {
         self.light_reduce = light_reduce;
         self
     }
+
+    /// Configure the conditional voxel face construction function. Default is `None`.
+    // pub fn conditional_faces()
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {

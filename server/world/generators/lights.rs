@@ -342,10 +342,10 @@ impl Lights {
                                         x + start_x,
                                         y,
                                         z + start_z,
-                                        max_light_level - 1,
+                                        max_light_level,
                                     );
                                     sunlight_queue.push_back(LightNode {
-                                        level: max_light_level - 1,
+                                        level: max_light_level,
                                         voxel: [start_x + x, y, start_z + z],
                                     });
                                 }
