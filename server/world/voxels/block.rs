@@ -873,7 +873,7 @@ impl Neighbors {
 }
 
 /// Serializable struct representing block data.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
     /// ID of the block.
@@ -947,13 +947,14 @@ pub struct Block {
 
     /// Does light reduce when passing through this block?
     pub light_reduce: bool,
-    // /// Conditionally build a block's faces.
-    // #[serde(skip_serializing)]
-    // pub conditional_faces: Option<Arc<dyn Fn(Neighbors) -> Vec<BlockFace>>>,
 
-    // /// Conditionally build a block's aabbs.
-    // #[serde(skip_serializing)]
-    // pub conditional_aabbs: Option<Arc<dyn Fn(Neighbors) -> Vec<AABB>>>,
+    /// Conditionally build a block's faces.
+    #[serde(skip_serializing, skip_deserializing)]
+    pub conditional_faces: Option<Arc<dyn Fn(Neighbors) -> Vec<BlockFace> + Sync + Send>>,
+
+    /// Conditionally build a block's aabbs.
+    #[serde(skip_serializing, skip_deserializing)]
+    pub conditional_aabbs: Option<Arc<dyn Fn(Neighbors) -> Vec<AABB> + Sync + Send>>,
 }
 
 impl Block {
@@ -1229,6 +1230,8 @@ impl BlockBuilder {
             is_ny_transparent: self.is_ny_transparent,
             is_nz_transparent: self.is_nz_transparent,
             light_reduce: self.light_reduce,
+            conditional_aabbs: None,
+            conditional_faces: None,
         }
     }
 }
