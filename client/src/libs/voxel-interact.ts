@@ -4,14 +4,12 @@ import {
   ArrowHelper,
   BoxGeometry,
   Color,
-  CylinderBufferGeometry,
   Group,
   Mesh,
   MeshBasicMaterial,
   Object3D,
   Vector3,
 } from "three";
-import { Coords3 } from "types";
 
 import {
   NX_ROTATION,
@@ -23,6 +21,7 @@ import {
   World,
   Y_ROT_MAP,
 } from "../core/world";
+import { Coords3 } from "../types";
 import { ChunkUtils, MathUtils } from "../utils";
 
 import { Arrow } from "./arrow";
