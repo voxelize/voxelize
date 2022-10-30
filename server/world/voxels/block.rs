@@ -947,14 +947,6 @@ pub struct Block {
 
     /// Does light reduce when passing through this block?
     pub light_reduce: bool,
-
-    /// Conditionally build a block's faces.
-    #[serde(skip_serializing, skip_deserializing)]
-    pub conditional_faces: Option<Arc<dyn Fn(Neighbors) -> Vec<BlockFace> + Sync + Send>>,
-
-    /// Conditionally build a block's aabbs.
-    #[serde(skip_serializing, skip_deserializing)]
-    pub conditional_aabbs: Option<Arc<dyn Fn(Neighbors) -> Vec<AABB> + Sync + Send>>,
 }
 
 impl Block {
@@ -1007,8 +999,6 @@ pub struct BlockBuilder {
     is_ny_transparent: bool,
     is_nz_transparent: bool,
     light_reduce: bool,
-    conditional_faces: Option<Arc<dyn Fn(Neighbors) -> Vec<BlockFace>>>,
-    conditional_aabbs: Option<Arc<dyn Fn(Neighbors) -> Vec<AABB>>>,
 }
 
 impl BlockBuilder {
@@ -1193,9 +1183,6 @@ impl BlockBuilder {
         self
     }
 
-    /// Configure the conditional voxel face construction function. Default is `None`.
-    // pub fn conditional_faces()
-
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         Block {
@@ -1230,8 +1217,6 @@ impl BlockBuilder {
             is_ny_transparent: self.is_ny_transparent,
             is_nz_transparent: self.is_nz_transparent,
             light_reduce: self.light_reduce,
-            conditional_aabbs: None,
-            conditional_faces: None,
         }
     }
 }
