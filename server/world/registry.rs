@@ -49,7 +49,6 @@ impl Registry {
     /// Create a registry instance. By default, the "Air" block is registered at ID of 0.
     pub fn new() -> Self {
         let air = Block::new("Air")
-            .is_block(false)
             .is_empty(true)
             .is_x_transparent(true)
             .is_y_transparent(true)

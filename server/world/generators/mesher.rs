@@ -199,7 +199,7 @@ impl Mesher {
 
                     let Block {
                         is_see_through,
-                        is_block,
+                        is_empty,
                         ..
                     } = block.to_owned();
 
@@ -208,7 +208,7 @@ impl Mesher {
                     } else {
                         !is_see_through
                     } {
-                        if is_block {
+                        if !is_empty {
                             let Block { faces, .. } = block.to_owned();
 
                             let uv_map = registry.get_uv_map(block);
@@ -280,7 +280,7 @@ impl Mesher {
 
                     let Block {
                         is_see_through,
-                        is_block,
+                        is_empty,
                         ..
                     } = block.to_owned();
 
@@ -289,7 +289,7 @@ impl Mesher {
                     } else {
                         !is_see_through
                     } {
-                        if is_block {
+                        if !is_empty {
                             let Block { faces, .. } = block.to_owned();
 
                             let mut geometry = map.remove(&voxel_id).unwrap_or_default();

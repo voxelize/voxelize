@@ -18,7 +18,7 @@ A **built-in** block registry for Voxelize.
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-98)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-184)\>
 
 A map of UV ranges for all registered blocks.
 
@@ -26,7 +26,7 @@ ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-98)\>
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-184)\>
 
 A map of blocks by their names.
 
@@ -34,7 +34,7 @@ ___
 
 ### blocksById
 
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-98)\>
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-184)\>
 
 A map of blocks by their IDs.
 
@@ -62,7 +62,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-98)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-184)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -80,7 +80,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-98) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-184) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -90,7 +90,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-98)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-184)
 
 Get the block information by its name.
 
@@ -102,13 +102,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-98)
+[`Block`](../modules.md#block-184)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-98)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-184)
 
 Get the block information by its ID.
 
@@ -120,13 +120,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-98)
+[`Block`](../modules.md#block-184)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-98)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-184)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -138,7 +138,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-98)
+[`Block`](../modules.md#block-184)
 
 ___
 

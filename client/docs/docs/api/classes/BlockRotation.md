@@ -6,50 +6,17 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-6 possible rotations: (px, nx, py, ny, pz, nz)
-Default rotation is PY
+A block rotation consists of two rotations: one is the axis this block is pointing towards,
+and the other is the rotation around that axis (y-rotation). Y-rotation is only applicable
+to the positive and negative x-axis.
 
 ## Properties
-
-### PX
-
-▪ `Static` **PX**: `number` = `0`
-
-___
-
-### NX
-
-▪ `Static` **NX**: `number` = `1`
-
-___
-
-### PY
-
-▪ `Static` **PY**: `number` = `2`
-
-___
-
-### NY
-
-▪ `Static` **NY**: `number` = `3`
-
-___
-
-### PZ
-
-▪ `Static` **PZ**: `number` = `4`
-
-___
-
-### NZ
-
-▪ `Static` **NZ**: `number` = `5`
-
-___
 
 ### value
 
 • **value**: `number`
+
+The axis this block is pointing towards.
 
 ___
 
@@ -57,18 +24,23 @@ ___
 
 • **yRotation**: `number`
 
+The rotation around the axis this block is pointing towards, rounded to the nearest
+(360 / 16) degrees.
+
 ## Constructors
 
 ### constructor
 
 • **new BlockRotation**(`value`, `yRotation`)
 
+Create a new block rotation.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `value` | `number` |
-| `yRotation` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `value` | `number` | The axis this block is pointing towards. |
+| `yRotation` | `number` | The rotation around the axis this block is pointing towards, rounded to the nearest |
 
 ## Methods
 
@@ -76,16 +48,20 @@ ___
 
 ▸ `Static` **encode**(`value`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
 
+Encode two rotations into a new block rotation instance.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `value` | `number` | `undefined` |
-| `yRotation` | `number` | `0` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `value` | `number` | `undefined` | The axis this block is pointing towards. |
+| `yRotation` | `number` | `0` | The rotation around the axis this block is pointing towards. |
 
 #### Returns
 
 [`BlockRotation`](BlockRotation.md)
+
+A new block rotation.
 
 ___
 
@@ -93,15 +69,20 @@ ___
 
 ▸ `Static` **decode**(`rotation`): `number`[]
 
+Decode a block rotation into two rotations.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `rotation` | [`BlockRotation`](BlockRotation.md) |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `rotation` | [`BlockRotation`](BlockRotation.md) | The block rotation to decode. |
 
 #### Returns
 
 `number`[]
+
+Two values, the first is the axis this block is pointing towards, and
+  the second is the rotation around that axis.
 
 ___
 
@@ -109,13 +90,15 @@ ___
 
 ▸ **rotateNode**(`node`, `yRotate?`, `translate?`): `void`
 
+Rotate a 3D coordinate by this block rotation.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-98) | `undefined` |
-| `yRotate` | `boolean` | `true` |
-| `translate` | `boolean` | `true` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `node` | [`Coords3`](../modules.md#coords3-184) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
+| `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 
 #### Returns
 
@@ -127,14 +110,19 @@ ___
 
 ▸ **rotateAABB**(`aabb`, `yRotate?`, `translate?`): `AABB`
 
+Rotate an axis aligned bounding box by this block rotation, recalculating the new
+maximum and minimum coordinates to this AABB.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `aabb` | `AABB` | `undefined` |
-| `yRotate` | `boolean` | `true` |
-| `translate` | `boolean` | `true` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `aabb` | `AABB` | `undefined` | The axis aligned bounding box to be rotated. |
+| `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
+| `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 
 #### Returns
 
 `AABB`
+
+A new axis aligned bounding box.

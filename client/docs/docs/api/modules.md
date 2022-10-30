@@ -75,11 +75,15 @@ ___
 
 • `Const` **PY\_ROTATION**: ``0``
 
+The numerical representation of the positive Y rotation.
+
 ___
 
 ### NY\_ROTATION
 
 • `Const` **NY\_ROTATION**: ``1``
+
+The numerical representation of the negative Y rotation.
 
 ___
 
@@ -87,11 +91,15 @@ ___
 
 • `Const` **PX\_ROTATION**: ``2``
 
+The numerical representation of the positive X rotation.
+
 ___
 
 ### NX\_ROTATION
 
 • `Const` **NX\_ROTATION**: ``3``
+
+The numerical representation of the negative X rotation.
 
 ___
 
@@ -99,11 +107,15 @@ ___
 
 • `Const` **PZ\_ROTATION**: ``4``
 
+The numerical representation of the positive Z rotation.
+
 ___
 
 ### NZ\_ROTATION
 
 • `Const` **NZ\_ROTATION**: ``5``
+
+The numerical representation of the negative Z rotation.
 
 ___
 
@@ -111,11 +123,16 @@ ___
 
 • `Const` **Y\_ROT\_SEGMENTS**: ``16``
 
+The amount of Y-rotation segments should be allowed for y-rotatable blocks. In other words,
+the amount of times the block can be rotated around the y-axis within 360 degrees.
+
 ___
 
 ### Y\_ROT\_MAP
 
 • `Const` **Y\_ROT\_MAP**: `any`[] = `[]`
+
+A rotational map used to get the closest y-rotation representation to a y-rotation value.
 
 ___
 
@@ -139,13 +156,13 @@ ___
 
 ### defaultParams
 
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-98)
+• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184)
 
 ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-98)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-184)[]
 
 ___
 
@@ -212,18 +229,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-98)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-184)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-98) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-184) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-98)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-184)\>
 
 ___
 
@@ -300,7 +317,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-98) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-184) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
@@ -406,37 +423,53 @@ key to authenticate the connection with the server.
 
 ___
 
+### TextureAtlasParams
+
+Ƭ **TextureAtlasParams**: `Object`
+
+Parameters to create a new texture atlas.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `countPerSide` | `number` | The number of block textures on each side of the atlas. |
+| `dimension` | `number` | The dimension of each block texture. |
+
+___
+
 ### Block
 
 Ƭ **Block**: `Object`
 
+A block type in the world.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
-| `name` | `string` |
-| `redLightLevel` | `number` |
-| `greenLightLevel` | `number` |
-| `blueLightLevel` | `number` |
-| `rotatable` | `boolean` |
-| `yRotatable` | `boolean` |
-| `isBlock` | `boolean` |
-| `isEmpty` | `boolean` |
-| `isFluid` | `boolean` |
-| `isLight` | `boolean` |
-| `isPassable` | `boolean` |
-| `isOpaque` | `boolean` |
-| `isSeeThrough` | `boolean` |
-| `isPxTransparent` | `boolean` |
-| `isNxTransparent` | `boolean` |
-| `isPyTransparent` | `boolean` |
-| `isNyTransparent` | `boolean` |
-| `isPzTransparent` | `boolean` |
-| `isNzTransparent` | `boolean` |
-| `transparentStandalone` | `boolean` |
-| `faces` | { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `name`: `string`  }[] |
-| `aabbs` | `AABB`[] |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | The block id. |
+| `name` | `string` | The name of the block. |
+| `redLightLevel` | `number` | The red light level of the block. |
+| `greenLightLevel` | `number` | The green light level of the block. |
+| `blueLightLevel` | `number` | The blue light level of the block. |
+| `rotatable` | `boolean` | Whether or not is the block rotatable. |
+| `yRotatable` | `boolean` | Whether or not the block is rotatable around the y-axis (has to face either PX or NX). |
+| `isEmpty` | `boolean` | Whether or not is this block empty. By default, only "air" is empty. |
+| `isFluid` | `boolean` | Whether or not is the block a fluid block. |
+| `isLight` | `boolean` | Whether or not is this block a light source. |
+| `isPassable` | `boolean` | Whether or not should physics ignore this block. |
+| `isOpaque` | `boolean` | Whether or not is this block opaque (not transparent). |
+| `isSeeThrough` | `boolean` | Whether or not is this block see-through (can be opaque and see-through at the same time). |
+| `isPxTransparent` | `boolean` | Whether or not is this block transparent on the positive x direction. |
+| `isNxTransparent` | `boolean` | Whether or not is this block transparent on the negative x direction. |
+| `isPyTransparent` | `boolean` | Whether or not is this block transparent on the positive y direction. |
+| `isNyTransparent` | `boolean` | Whether or not is this block transparent on the negative y direction. |
+| `isPzTransparent` | `boolean` | Whether or not is this block transparent on the positive z direction. |
+| `isNzTransparent` | `boolean` | Whether or not is this block transparent on the negative z direction. |
+| `faces` | { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `name`: `string`  }[] | A list of block face data that this block has. |
+| `aabbs` | `AABB`[] | A list of axis-aligned bounding boxes that this block has. |
+| `lightReduce` | `boolean` | Whether or not should light reduce by 1 going through this block. |
 
 ___
 
@@ -461,7 +494,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-98) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-184) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -519,7 +552,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-98) & [`WorldServerParams`](modules.md#worldserverparams-98)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-184) & [`WorldServerParams`](modules.md#worldserverparams-184)
 
 ___
 
@@ -542,7 +575,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-98) or [applyTexturesByNames](classes/World.md#applytexturesbynames-98) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-184) or [applyTexturesByNames](classes/World.md#applytexturesbynames-184) to load a block texture.
 
 #### Type declaration
 
@@ -634,25 +667,25 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-98) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184) & { `neckGap?`: `number`  }
 
 ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-98)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184)
 
 ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-98) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184) & { `betweenLegsGap?`: `number`  }
 
 ___
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-98) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 ___
 
@@ -669,10 +702,10 @@ ___
 | `idleArmSwing?` | `number` |
 | `positionLerp?` | `number` |
 | `rotationLerp?` | `number` |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-98)\> |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-98)\> |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-98)\> |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-98)\> |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-184)\> |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-184)\> |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-184)\> |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-184)\> |
 
 ___
 
@@ -688,7 +721,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-98) |
+| `dimensions` | [`Coords3`](modules.md#coords3-184) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -729,11 +762,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-98) |
-| `max` | [`Coords3`](modules.md#coords3-98) |
-| `realMin` | [`Coords3`](modules.md#coords3-98) |
-| `realMax` | [`Coords3`](modules.md#coords3-98) |
-| `dimensions` | [`Coords3`](modules.md#coords3-98) |
+| `min` | [`Coords3`](modules.md#coords3-184) |
+| `max` | [`Coords3`](modules.md#coords3-184) |
+| `realMin` | [`Coords3`](modules.md#coords3-184) |
+| `realMax` | [`Coords3`](modules.md#coords3-184) |
+| `dimensions` | [`Coords3`](modules.md#coords3-184) |
 
 ___
 

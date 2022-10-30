@@ -888,9 +888,6 @@ pub struct Block {
     /// Whether or not can the block rotate on the y-axis relative to it's overall rotation.
     pub y_rotatable: bool,
 
-    /// Is the block a block?
-    pub is_block: bool,
-
     /// Is the block empty space?
     pub is_empty: bool,
 
@@ -981,7 +978,6 @@ pub struct BlockBuilder {
     name: String,
     rotatable: bool,
     y_rotatable: bool,
-    is_block: bool,
     is_empty: bool,
     is_fluid: bool,
     is_passable: bool,
@@ -1006,7 +1002,6 @@ impl BlockBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
-            is_block: true,
             faces: BlockFace::six_faces().build(),
             aabbs: vec![AABB::new().build()],
             ..Default::default()
@@ -1032,12 +1027,6 @@ impl BlockBuilder {
     /// Configure whether or not this block is rotatable on the y-axis. Default is false.
     pub fn y_rotatable(mut self, y_rotatable: bool) -> Self {
         self.y_rotatable = y_rotatable;
-        self
-    }
-
-    /// Configure whether or not this is a block. Default is true.
-    pub fn is_block(mut self, is_block: bool) -> Self {
-        self.is_block = is_block;
         self
     }
 
@@ -1190,7 +1179,6 @@ impl BlockBuilder {
             name: self.name,
             rotatable: self.rotatable,
             y_rotatable: self.y_rotatable,
-            is_block: self.is_block,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
             is_light: self.red_light_level > 0

@@ -22,19 +22,19 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2-98)
+• **coords**: [`Coords2`](../modules.md#coords2-184)
 
 ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3-98)
+• **min**: [`Coords3`](../modules.md#coords3-184)
 
 ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3-98)
+• **max**: [`Coords3`](../modules.md#coords3-184)
 
 ___
 
@@ -425,7 +425,7 @@ ___
 | `vx` | `number` |
 | `vy` | `number` |
 | `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor-98) |
+| `color` | [`LightColor`](../modules.md#lightcolor-184) |
 
 #### Returns
 
@@ -445,7 +445,7 @@ ___
 | `vy` | `number` |
 | `vz` | `number` |
 | `level` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor-98) |
+| `color` | [`LightColor`](../modules.md#lightcolor-184) |
 
 #### Returns
 
