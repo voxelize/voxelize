@@ -12,12 +12,6 @@ custom_edit_url: null
 
 ▪ `Static` **SPLITTER**: `string` = `"∆"`
 
-___
-
-### DEFAULT\_COLOR
-
-▪ `Static` **DEFAULT\_COLOR**: `string` = `"black"`
-
 ## Constructors
 
 ### constructor
@@ -28,13 +22,14 @@ ___
 
 ### split
 
-▸ `Static` **split**(`text`): { `color`: `string` ; `text`: `string`  }[]
+▸ `Static` **split**(`text`, `defaultColor?`): { `color`: `string` ; `text`: `string`  }[]
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `text` | `string` |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `text` | `string` | `undefined` |
+| `defaultColor` | `string` | `"black"` |
 
 #### Returns
 

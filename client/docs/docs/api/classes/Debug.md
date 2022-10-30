@@ -1,7 +1,7 @@
 ---
-id: "Clouds"
-title: "Class: Clouds"
-sidebar_label: "Clouds"
+id: "Debug"
+title: "Class: Debug"
+sidebar_label: "Debug"
 sidebar_position: 0
 custom_edit_url: null
 ---
@@ -10,37 +10,43 @@ custom_edit_url: null
 
 - `Group`
 
-  ↳ **`Clouds`**
+  ↳ **`Debug`**
 
 ## Properties
 
-### array
-
-• **array**: `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\>
-
-___
-
-### material
-
-• **material**: `ShaderMaterial`
-
-___
-
-### initialized
-
-• **initialized**: `boolean` = `false`
-
-___
-
 ### params
 
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-14)
+• **params**: [`DebugParams`](../modules.md#debugparams-14)
 
 ___
 
-### meshes
+### gui
 
-• **meshes**: `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>[][] = `[]`
+• `Optional` **gui**: `Pane`
+
+___
+
+### stats
+
+• `Optional` **stats**: `Stats`
+
+___
+
+### dataWrapper
+
+• **dataWrapper**: `HTMLDivElement`
+
+___
+
+### entryWrapper
+
+• **entryWrapper**: `HTMLDivElement`
+
+___
+
+### domElement
+
+• **domElement**: `HTMLElement` = `document.body`
 
 ___
 
@@ -520,13 +526,14 @@ Group.isGroup
 
 ### constructor
 
-• **new Clouds**(`params?`)
+• **new Debug**(`domElement?`, `params?`)
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-14)\> |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `domElement` | `HTMLElement` | `document.body` |
+| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-14)\> | `{}` |
 
 #### Overrides
 
@@ -534,36 +541,86 @@ Group.constructor
 
 ## Methods
 
-### initialize
+### registerDisplay
 
-▸ **initialize**(): `Promise`<`void`\>
+▸ **registerDisplay**(`title`, `object?`, `attribute?`, `formatter?`): `this`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+| `object?` | `any` |
+| `attribute?` | `string` |
+| `formatter` | (`str`: `string`) => `string` |
 
 #### Returns
 
-`Promise`<`void`\>
+`this`
 
 ___
 
-### reset
+### removeDisplay
 
-▸ **reset**(): `Promise`<`void`\>
+▸ **removeDisplay**(`title`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
 
 #### Returns
 
-`Promise`<`void`\>
+`void`
 
 ___
 
-### update
+### displayTitle
 
-▸ **update**(`position`, `delta?`): `void`
+▸ **displayTitle**(`title`): `this`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+
+#### Returns
+
+`this`
+
+___
+
+### displayNewline
+
+▸ **displayNewline**(): `this`
+
+#### Returns
+
+`this`
+
+___
+
+### toggle
+
+▸ **toggle**(`force?`): `void`
 
 #### Parameters
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `position` | `Vector3` | `undefined` |
-| `delta` | `number` | `0` |
+| `force` | `any` | `null` |
+
+#### Returns
+
+`void`
+
+___
+
+### update
+
+▸ **update**(): `void`
 
 #### Returns
 
@@ -588,7 +645,7 @@ Adds a listener to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -617,7 +674,7 @@ Checks if listener is added to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -646,7 +703,7 @@ Removes a listener from an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The listener function that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The listener function that gets removed. |
 
 #### Returns
 
@@ -704,7 +761,7 @@ ___
 
 ### applyQuaternion
 
-▸ **applyQuaternion**(`quaternion`): [`Clouds`](Clouds.md)
+▸ **applyQuaternion**(`quaternion`): [`Debug`](Debug.md)
 
 Applies the rotation represented by the quaternion to the object.
 
@@ -716,7 +773,7 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -818,7 +875,7 @@ ___
 
 ### rotateOnAxis
 
-▸ **rotateOnAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnAxis**(`axis`, `angle`): [`Debug`](Debug.md)
 
 Rotate an object along an axis in object space. The axis is assumed to be normalized.
 
@@ -831,7 +888,7 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -841,7 +898,7 @@ ___
 
 ### rotateOnWorldAxis
 
-▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Debug`](Debug.md)
 
 Rotate an object along an axis in world space. The axis is assumed to be normalized. Method Assumes no rotated parent.
 
@@ -854,7 +911,7 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -864,7 +921,7 @@ ___
 
 ### rotateX
 
-▸ **rotateX**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateX**(`angle`): [`Debug`](Debug.md)
 
 Rotates the object around x axis in local space.
 
@@ -876,7 +933,7 @@ Rotates the object around x axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -886,7 +943,7 @@ ___
 
 ### rotateY
 
-▸ **rotateY**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateY**(`angle`): [`Debug`](Debug.md)
 
 Rotates the object around y axis in local space.
 
@@ -898,7 +955,7 @@ Rotates the object around y axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -908,7 +965,7 @@ ___
 
 ### rotateZ
 
-▸ **rotateZ**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateZ**(`angle`): [`Debug`](Debug.md)
 
 Rotates the object around z axis in local space.
 
@@ -920,7 +977,7 @@ Rotates the object around z axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -930,7 +987,7 @@ ___
 
 ### translateOnAxis
 
-▸ **translateOnAxis**(`axis`, `distance`): [`Clouds`](Clouds.md)
+▸ **translateOnAxis**(`axis`, `distance`): [`Debug`](Debug.md)
 
 Translate an object by distance along an axis in object space. The axis is assumed to be normalized.
 
@@ -943,7 +1000,7 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -953,7 +1010,7 @@ ___
 
 ### translateX
 
-▸ **translateX**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateX**(`distance`): [`Debug`](Debug.md)
 
 Translates object along x axis by distance.
 
@@ -965,7 +1022,7 @@ Translates object along x axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -975,7 +1032,7 @@ ___
 
 ### translateY
 
-▸ **translateY**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateY**(`distance`): [`Debug`](Debug.md)
 
 Translates object along y axis by distance.
 
@@ -987,7 +1044,7 @@ Translates object along y axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -997,7 +1054,7 @@ ___
 
 ### translateZ
 
-▸ **translateZ**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateZ**(`distance`): [`Debug`](Debug.md)
 
 Translates object along z axis by distance.
 
@@ -1009,7 +1066,7 @@ Translates object along z axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1089,7 +1146,7 @@ ___
 
 ### add
 
-▸ **add**(...`object`): [`Clouds`](Clouds.md)
+▸ **add**(...`object`): [`Debug`](Debug.md)
 
 Adds object as child of this object.
 
@@ -1101,7 +1158,7 @@ Adds object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1111,7 +1168,7 @@ ___
 
 ### remove
 
-▸ **remove**(...`object`): [`Clouds`](Clouds.md)
+▸ **remove**(...`object`): [`Debug`](Debug.md)
 
 Removes object as child of this object.
 
@@ -1123,7 +1180,7 @@ Removes object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1133,13 +1190,13 @@ ___
 
 ### removeFromParent
 
-▸ **removeFromParent**(): [`Clouds`](Clouds.md)
+▸ **removeFromParent**(): [`Debug`](Debug.md)
 
 Removes this object from its current parent.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1149,13 +1206,13 @@ ___
 
 ### clear
 
-▸ **clear**(): [`Clouds`](Clouds.md)
+▸ **clear**(): [`Debug`](Debug.md)
 
 Removes all child objects.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1165,7 +1222,7 @@ ___
 
 ### attach
 
-▸ **attach**(`object`): [`Clouds`](Clouds.md)
+▸ **attach**(`object`): [`Debug`](Debug.md)
 
 Adds object as a child of this, while maintaining the object's world transform.
 
@@ -1177,7 +1234,7 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1498,7 +1555,7 @@ ___
 
 ### clone
 
-▸ **clone**(`recursive?`): [`Clouds`](Clouds.md)
+▸ **clone**(`recursive?`): [`Debug`](Debug.md)
 
 #### Parameters
 
@@ -1508,7 +1565,7 @@ ___
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 
@@ -1518,18 +1575,18 @@ ___
 
 ### copy
 
-▸ **copy**(`source`, `recursive?`): [`Clouds`](Clouds.md)
+▸ **copy**(`source`, `recursive?`): [`Debug`](Debug.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `source` | [`Clouds`](Clouds.md) |
+| `source` | [`Debug`](Debug.md) |
 | `recursive?` | `boolean` |
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Debug`](Debug.md)
 
 #### Inherited from
 

@@ -74,17 +74,7 @@ export const NX_ROTATION = 3;
 export const PZ_ROTATION = 4;
 export const NZ_ROTATION = 5;
 
-export const Y_000_ROTATION = 0;
-export const Y_045_ROTATION = 1;
-export const Y_090_ROTATION = 2;
-export const Y_135_ROTATION = 3;
-export const Y_180_ROTATION = 4;
-export const Y_225_ROTATION = 5;
-export const Y_270_ROTATION = 6;
-export const Y_315_ROTATION = 7;
-
 export const Y_ROT_SEGMENTS = 16;
-
 export const Y_ROT_MAP = [];
 
 for (let i = 0; i < Y_ROT_SEGMENTS; i++) {

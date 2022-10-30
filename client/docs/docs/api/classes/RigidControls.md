@@ -103,19 +103,17 @@ called within a DOM event listener callback!
 
 ___
 
-### setPosition
+### teleport
 
-▸ **setPosition**(`x`, `y`, `z`): `void`
-
-Set the position of the client in interpolation.
+▸ **teleport**(`vx`, `vy`, `vz`): `void`
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `x` | `number` | X-coordinate to be at. |
-| `y` | `number` | Y-coordinate to be at. |
-| `z` | `number` | Z-coordinate to be at. |
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
 
 #### Returns
 
@@ -123,15 +121,13 @@ Set the position of the client in interpolation.
 
 ___
 
-### getPosition
+### teleportToTop
 
-▸ **getPosition**(): `Vector3`
-
-Return a reference of the position of the rigid controller.
+▸ **teleportToTop**(): `void`
 
 #### Returns
 
-`Vector3`
+`void`
 
 ___
 
@@ -167,24 +163,11 @@ Reset all of the control's movements.
 
 ___
 
-### useInputs
+### toggleGhostMode
 
-▸ **useInputs**<`T`\>(`inputs`, `namespace`): `void`
+▸ **toggleGhostMode**(): `void`
 
-Unregister the original event listeners, and use the Inputs instead.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)<`T`\> |
-| `namespace` | `T` |
+Toggle ghost mode. Ghost mode is when a client can fly through blocks.
 
 #### Returns
 
@@ -192,11 +175,26 @@ Unregister the original event listeners, and use the Inputs instead.
 
 ___
 
-### toggleGhostMode
+### toggleFly
 
-▸ **toggleGhostMode**(): `void`
+▸ **toggleFly**(): `void`
 
-Toggle ghost mode. Ghost mode is when a client can fly through blocks.
+#### Returns
+
+`void`
+
+___
+
+### attachCharacter
+
+▸ **attachCharacter**(`character`, `newLerpFactor?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `character` | [`Character`](Character.md) | `undefined` |
+| `newLerpFactor` | `number` | `1` |
 
 #### Returns
 
@@ -448,6 +446,18 @@ Reference linking to the Voxelize camera instance.
 
 ___
 
+### inputs
+
+• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
+
+___
+
+### character
+
+• `Optional` **character**: [`Character`](Character.md)
+
+___
+
 ### domElement
 
 • **domElement**: `HTMLElement`
@@ -464,7 +474,7 @@ ___
 
 ### params
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams)
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-14)
 
 Parameters to initialize the Voxelize controls.
 
@@ -480,7 +490,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-14)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -505,27 +515,9 @@ The physical rigid body of the client, dimensions described by:
 
 ___
 
-### lookBlock
+### INPUT\_IDENTIFIER
 
-• **lookBlock**: [`Coords3`](../modules.md#coords3)
-
-The voxel at which the client is looking at.
-
-___
-
-### targetBlock
-
-• **targetBlock**: `Object`
-
-The block that a client can potentially place at.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) | The coordinates of the potentially placeable block. Defaults to `(0, 0, 0)`. |
-| `rotation` | `number` | The rotation of the block that may be placed. |
-| `yRotation` | `number` | The rotation on the y-axis of the block that may be placed. |
+▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 ___
 
@@ -549,34 +541,32 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-14)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3)
+[`Coords3`](../modules.md#coords3-14)
+
+___
+
+### position
+
+• `get` **position**(): `Vector3`
+
+#### Returns
+
+`Vector3`
 
 ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-14)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2)
-
-___
-
-### lookingAt
-
-• `get` **lookingAt**(): [`Block`](../modules.md#block)
-
-The block type that the client is looking at.
-
-#### Returns
-
-[`Block`](../modules.md#block)
+[`Coords2`](../modules.md#coords2-14)

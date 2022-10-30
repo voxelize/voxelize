@@ -21,7 +21,7 @@ const config = {
   projectName: "voxelize",
   trailingSlash: false,
 
-  // Even if you don't use internalization, you can use this field to set useful
+  // Even if you don't use nternalization, you can use this field to set useful
   // metadata like html lang. For example, if your site is Chinese, you may want
   // to replace "en" with "zh-Hans".
   i18n: {
@@ -149,6 +149,11 @@ const config = {
           readmeLabel: "Readme",
           position: null,
           autoConfiguration: true,
+        },
+        externalSymbolLinkMappings: {
+          three: {
+            Scene: "https://threejs.org/docs/#api/en/scenes/Scene",
+          },
         },
         plugin: ["typedoc-plugin-no-inherit"],
         watch: process.env.TYPEDOC_WATCH,

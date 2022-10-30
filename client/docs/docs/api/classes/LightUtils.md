@@ -6,6 +6,23 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A utility class for extracting and inserting light data from and into numbers.
+
+The light data is stored in the following format:
+- Sunlight: `0xffff000000000000`
+- Red light: `0x0000ffff00000000`
+- Green light: `0x00000000ffff0000`
+- Blue light: `0x000000000000ffff`
+
+TODO-DOCS
+For more information about lighting data, see [here](/)
+
+# Example
+```ts
+// Insert a level 13 sunlight into zero.
+const number = LightUtils.insertSunlight(0, 13);
+```
+
 ## Constructors
 
 ### constructor
@@ -18,15 +35,19 @@ custom_edit_url: null
 
 ▸ `Static` **extractSunlight**(`light`): `number`
 
+Extract the sunlight level from a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to extract from. |
 
 #### Returns
 
 `number`
+
+The extracted sunlight value.
 
 ___
 
@@ -34,16 +55,20 @@ ___
 
 ▸ `Static` **insertSunlight**(`light`, `level`): `number`
 
+Insert a sunlight level into a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
-| `level` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to insert the level into. |
+| `level` | `number` | The sunlight level to insert. |
 
 #### Returns
 
 `number`
+
+The inserted light value.
 
 ___
 
@@ -51,15 +76,19 @@ ___
 
 ▸ `Static` **extractRedLight**(`light`): `number`
 
+Extract the red light level from a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to extract from. |
 
 #### Returns
 
 `number`
+
+The extracted red light value.
 
 ___
 
@@ -67,16 +96,20 @@ ___
 
 ▸ `Static` **insertRedLight**(`light`, `level`): `number`
 
+Insert a red light level into a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
-| `level` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to insert the level into. |
+| `level` | `number` | The red light level to insert. |
 
 #### Returns
 
 `number`
+
+The inserted light value.
 
 ___
 
@@ -84,15 +117,19 @@ ___
 
 ▸ `Static` **extractGreenLight**(`light`): `number`
 
+Extract the green light level from a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to extract from. |
 
 #### Returns
 
 `number`
+
+The extracted green light value.
 
 ___
 
@@ -100,16 +137,20 @@ ___
 
 ▸ `Static` **insertGreenLight**(`light`, `level`): `number`
 
+Insert a green light level into a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
-| `level` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to insert the level into. |
+| `level` | `number` | The green light level to insert. |
 
 #### Returns
 
 `number`
+
+The inserted light value.
 
 ___
 
@@ -117,15 +158,19 @@ ___
 
 ▸ `Static` **extractBlueLight**(`light`): `number`
 
+Extract the blue light level from a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to extract from. |
 
 #### Returns
 
 `number`
+
+The extracted blue light value.
 
 ___
 
@@ -133,13 +178,17 @@ ___
 
 ▸ `Static` **insertBlueLight**(`light`, `level`): `number`
 
+Insert a blue light level into a number.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `light` | `number` |
-| `level` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `light` | `number` | The light value to insert the level into. |
+| `level` | `number` | The blue light level to insert. |
 
 #### Returns
 
 `number`
+
+The inserted light value.

@@ -142,7 +142,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@91
+Map.\_\_@iterator@8902
 
 ___
 
@@ -210,7 +210,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@140
+Map.\_\_@toStringTag@8957
 
 ___
 
@@ -220,13 +220,13 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@133
+Map.\_\_@species@8950
 
 ___
 
 ### requested
 
-• **requested**: `Set`<`string`\>
+• **requested**: `Map`<`string`, `number`\>
 
 ___
 
@@ -238,13 +238,13 @@ ___
 
 ### toProcess
 
-• **toProcess**: `ChunkProtocol`[] = `[]`
+• **toProcess**: [`ChunkProtocol`, `number`][] = `[]`
 
 ___
 
 ### toUpdate
 
-• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate)[] = `[]`
+• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-14)[] = `[]`
 
 ___
 
@@ -256,7 +256,7 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-14)
 
 ## Constructors
 

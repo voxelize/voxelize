@@ -52,3 +52,21 @@ ___
 #### Returns
 
 `number`
+
+___
+
+### directionToQuaternion
+
+▸ `Static` **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `dx` | `number` |
+| `dy` | `number` |
+| `dz` | `number` |
+
+#### Returns
+
+`Quaternion`

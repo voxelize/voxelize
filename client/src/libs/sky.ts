@@ -13,75 +13,6 @@ import { CanvasBox } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
 
-export const STAR_COLORS = [
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#FFFFFF",
-  "#8589FF",
-  "#FF8585",
-];
-
-export const SKY_CONFIGS = {
-  hours: {
-    0: {
-      color: {
-        top: new Color("#000"),
-        middle: new Color("#000"),
-        bottom: new Color("#000"),
-      },
-      skyOffset: 200,
-      voidOffset: 1200,
-    },
-    // start of sunrise
-    600: {
-      color: {
-        top: new Color("#7694CF"),
-        middle: new Color("#B0483A"),
-        bottom: new Color("#222"),
-      },
-      skyOffset: 100,
-      voidOffset: 1200,
-    },
-    // end of sunrise, start of day
-    700: {
-      color: {
-        top: new Color("#73A3FB"),
-        middle: new Color("#B1CCFD"),
-        bottom: new Color("#B1CCFD"),
-      },
-      skyOffset: 0,
-      voidOffset: 1200,
-    },
-    // start of sunset
-    1700: {
-      color: {
-        top: new Color("#A57A59"),
-        middle: new Color("#FC5935"),
-        bottom: new Color("#222"),
-      },
-      skyOffset: 100,
-      voidOffset: 1200,
-    },
-    // end of sunset, back to night
-    1800: {
-      color: {
-        top: new Color("#000"),
-        middle: new Color("#000"),
-        bottom: new Color("#000"),
-      },
-      skyOffset: 200,
-      voidOffset: 1200,
-    },
-  },
-};
-
 export function drawSun(
   context: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement
@@ -186,7 +117,15 @@ export class Sky extends CanvasBox {
       color: { top, middle, bottom },
       skyOffset,
       voidOffset,
-    } = SKY_CONFIGS.hours[700];
+    } = {
+      color: {
+        top: new Color("#73A3FB"),
+        middle: new Color("#B1CCFD"),
+        bottom: new Color("#B1CCFD"),
+      },
+      skyOffset: 0,
+      voidOffset: 1200,
+    };
 
     this.uTopColor = {
       value: new Color(top),

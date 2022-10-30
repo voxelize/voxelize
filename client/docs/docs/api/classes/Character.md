@@ -1,46 +1,160 @@
 ---
-id: "Clouds"
-title: "Class: Clouds"
-sidebar_label: "Clouds"
+id: "Character"
+title: "Class: Character"
+sidebar_label: "Character"
 sidebar_position: 0
 custom_edit_url: null
 ---
+
+The default Voxelize character.
 
 ## Hierarchy
 
 - `Group`
 
-  ↳ **`Clouds`**
+  ↳ **`Character`**
 
 ## Properties
 
-### array
-
-• **array**: `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\>
-
-___
-
-### material
-
-• **material**: `ShaderMaterial`
-
-___
-
-### initialized
-
-• **initialized**: `boolean` = `false`
-
-___
-
 ### params
 
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-14)
+• **params**: [`CharacterParams`](../modules.md#characterparams-14)
 
 ___
 
-### meshes
+### headGroup
 
-• **meshes**: `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>[][] = `[]`
+• **headGroup**: `Group`
+
+___
+
+### bodyGroup
+
+• **bodyGroup**: `Group`
+
+___
+
+### leftArmGroup
+
+• **leftArmGroup**: `Group`
+
+___
+
+### rightArmGroup
+
+• **rightArmGroup**: `Group`
+
+___
+
+### leftLegGroup
+
+• **leftLegGroup**: `Group`
+
+___
+
+### rightLegGroup
+
+• **rightLegGroup**: `Group`
+
+___
+
+### head
+
+• **head**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### body
+
+• **body**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### leftArm
+
+• **leftArm**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### rightArm
+
+• **rightArm**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### leftLeg
+
+• **leftLeg**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### rightLeg
+
+• **rightLeg**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### nametag
+
+• **nametag**: [`NameTag`](NameTag.md)
+
+___
+
+### crown
+
+• **crown**: [`CanvasBox`](CanvasBox.md)
+
+___
+
+### speed
+
+• **speed**: `number` = `0`
+
+___
+
+### newPosition
+
+• **newPosition**: `Vector3`
+
+___
+
+### newBodyDirection
+
+• **newBodyDirection**: `Quaternion`
+
+___
+
+### newDirection
+
+• **newDirection**: `Quaternion`
+
+___
+
+### onMove
+
+• **onMove**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
+
+##### Returns
+
+`void`
+
+___
+
+### onIdle
+
+• **onIdle**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
+
+##### Returns
+
+`void`
 
 ___
 
@@ -520,13 +634,13 @@ Group.isGroup
 
 ### constructor
 
-• **new Clouds**(`params?`)
+• **new Character**(`params?`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-14)\> |
+| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-14)\> |
 
 #### Overrides
 
@@ -534,36 +648,66 @@ Group.constructor
 
 ## Methods
 
-### initialize
-
-▸ **initialize**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
-### reset
-
-▸ **reset**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
 ### update
 
-▸ **update**(`position`, `delta?`): `void`
+▸ **update**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### calculateDelta
+
+▸ **calculateDelta**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### lerpAll
+
+▸ **lerpAll**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### playArmSwingAnimation
+
+▸ **playArmSwingAnimation**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### playWalkingAnimation
+
+▸ **playWalkingAnimation**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
+### set
+
+▸ **set**(`position`, `direction`): `void`
 
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `position` | `Vector3` | `undefined` |
-| `delta` | `number` | `0` |
+| Name | Type |
+| :------ | :------ |
+| `position` | `number`[] |
+| `direction` | `number`[] |
 
 #### Returns
 
@@ -588,7 +732,7 @@ Adds a listener to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Character`](Character.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -617,7 +761,7 @@ Checks if listener is added to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Character`](Character.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -646,7 +790,7 @@ Removes a listener from an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The listener function that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`Character`](Character.md)\> | The listener function that gets removed. |
 
 #### Returns
 
@@ -704,7 +848,7 @@ ___
 
 ### applyQuaternion
 
-▸ **applyQuaternion**(`quaternion`): [`Clouds`](Clouds.md)
+▸ **applyQuaternion**(`quaternion`): [`Character`](Character.md)
 
 Applies the rotation represented by the quaternion to the object.
 
@@ -716,7 +860,7 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -818,7 +962,7 @@ ___
 
 ### rotateOnAxis
 
-▸ **rotateOnAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnAxis**(`axis`, `angle`): [`Character`](Character.md)
 
 Rotate an object along an axis in object space. The axis is assumed to be normalized.
 
@@ -831,7 +975,7 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -841,7 +985,7 @@ ___
 
 ### rotateOnWorldAxis
 
-▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Character`](Character.md)
 
 Rotate an object along an axis in world space. The axis is assumed to be normalized. Method Assumes no rotated parent.
 
@@ -854,7 +998,7 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -864,7 +1008,7 @@ ___
 
 ### rotateX
 
-▸ **rotateX**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateX**(`angle`): [`Character`](Character.md)
 
 Rotates the object around x axis in local space.
 
@@ -876,7 +1020,7 @@ Rotates the object around x axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -886,7 +1030,7 @@ ___
 
 ### rotateY
 
-▸ **rotateY**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateY**(`angle`): [`Character`](Character.md)
 
 Rotates the object around y axis in local space.
 
@@ -898,7 +1042,7 @@ Rotates the object around y axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -908,7 +1052,7 @@ ___
 
 ### rotateZ
 
-▸ **rotateZ**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateZ**(`angle`): [`Character`](Character.md)
 
 Rotates the object around z axis in local space.
 
@@ -920,7 +1064,7 @@ Rotates the object around z axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -930,7 +1074,7 @@ ___
 
 ### translateOnAxis
 
-▸ **translateOnAxis**(`axis`, `distance`): [`Clouds`](Clouds.md)
+▸ **translateOnAxis**(`axis`, `distance`): [`Character`](Character.md)
 
 Translate an object by distance along an axis in object space. The axis is assumed to be normalized.
 
@@ -943,7 +1087,7 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -953,7 +1097,7 @@ ___
 
 ### translateX
 
-▸ **translateX**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateX**(`distance`): [`Character`](Character.md)
 
 Translates object along x axis by distance.
 
@@ -965,7 +1109,7 @@ Translates object along x axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -975,7 +1119,7 @@ ___
 
 ### translateY
 
-▸ **translateY**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateY**(`distance`): [`Character`](Character.md)
 
 Translates object along y axis by distance.
 
@@ -987,7 +1131,7 @@ Translates object along y axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -997,7 +1141,7 @@ ___
 
 ### translateZ
 
-▸ **translateZ**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateZ**(`distance`): [`Character`](Character.md)
 
 Translates object along z axis by distance.
 
@@ -1009,7 +1153,7 @@ Translates object along z axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1089,7 +1233,7 @@ ___
 
 ### add
 
-▸ **add**(...`object`): [`Clouds`](Clouds.md)
+▸ **add**(...`object`): [`Character`](Character.md)
 
 Adds object as child of this object.
 
@@ -1101,7 +1245,7 @@ Adds object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1111,7 +1255,7 @@ ___
 
 ### remove
 
-▸ **remove**(...`object`): [`Clouds`](Clouds.md)
+▸ **remove**(...`object`): [`Character`](Character.md)
 
 Removes object as child of this object.
 
@@ -1123,7 +1267,7 @@ Removes object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1133,13 +1277,13 @@ ___
 
 ### removeFromParent
 
-▸ **removeFromParent**(): [`Clouds`](Clouds.md)
+▸ **removeFromParent**(): [`Character`](Character.md)
 
 Removes this object from its current parent.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1149,13 +1293,13 @@ ___
 
 ### clear
 
-▸ **clear**(): [`Clouds`](Clouds.md)
+▸ **clear**(): [`Character`](Character.md)
 
 Removes all child objects.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1165,7 +1309,7 @@ ___
 
 ### attach
 
-▸ **attach**(`object`): [`Clouds`](Clouds.md)
+▸ **attach**(`object`): [`Character`](Character.md)
 
 Adds object as a child of this, while maintaining the object's world transform.
 
@@ -1177,7 +1321,7 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1498,7 +1642,7 @@ ___
 
 ### clone
 
-▸ **clone**(`recursive?`): [`Clouds`](Clouds.md)
+▸ **clone**(`recursive?`): [`Character`](Character.md)
 
 #### Parameters
 
@@ -1508,7 +1652,7 @@ ___
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
@@ -1518,19 +1662,61 @@ ___
 
 ### copy
 
-▸ **copy**(`source`, `recursive?`): [`Clouds`](Clouds.md)
+▸ **copy**(`source`, `recursive?`): [`Character`](Character.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `source` | [`Clouds`](Clouds.md) |
+| `source` | [`Character`](Character.md) |
 | `recursive?` | `boolean` |
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Character`](Character.md)
 
 #### Inherited from
 
 Group.copy
+
+## Accessors
+
+### username
+
+• `get` **username**(): `string`
+
+#### Returns
+
+`string`
+
+• `set` **username**(`username`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `username` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### eyeHeight
+
+• `get` **eyeHeight**(): `number`
+
+#### Returns
+
+`number`
+
+___
+
+### totalHeight
+
+• `get` **totalHeight**(): `number`
+
+#### Returns
+
+`number`

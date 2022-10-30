@@ -20,7 +20,13 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams-14) = `{}`
+
+___
+
+### initialized
+
+• **initialized**: `boolean` = `false`
 
 ___
 
@@ -62,10 +68,10 @@ ___
 | `atlas.value` | `Texture` |
 | `ao` | { `value`: `Vector4`  } |
 | `ao.value` | `Vector4` |
-| `minLight` | { `value`: `number`  } |
-| `minLight.value` | `number` |
-| `sunlight` | { `value`: `number`  } |
-| `sunlight.value` | `number` |
+| `minBrightness` | { `value`: `number`  } |
+| `minBrightness.value` | `number` |
+| `sunlightIntensity` | { `value`: `number`  } |
+| `sunlightIntensity.value` | `number` |
 
 ___
 
@@ -91,8 +97,10 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
-| `transparent?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-14) |
+| `transparent?` | { `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-14) ; `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-14)  } |
+| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-14) |
+| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-14) |
 
 ___
 
@@ -102,7 +110,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-14)
 
 ___
 
@@ -658,7 +666,7 @@ Scene.isScene
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams)\> |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-14)\> |
 
 #### Overrides
 
@@ -674,7 +682,7 @@ Scene.constructor
 
 | Name | Type |
 | :------ | :------ |
-| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block)[] ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange);  } ; `params`: [`WorldServerParams`](../modules.md#worldserverparams)  }, `any`, `any`, `any`\> |
+| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-14)[] ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-14);  } ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-14)  }, `any`, `any`, `any`\> |
 
 #### Returns
 
@@ -682,7 +690,7 @@ Scene.constructor
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-14)
 
 ___
 
@@ -706,7 +714,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-14)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -724,7 +732,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-14) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -734,7 +742,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-14)
 
 Get the block information by its name.
 
@@ -746,13 +754,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-14)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-14)
 
 Get the block information by its ID.
 
@@ -764,13 +772,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-14)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-14)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -782,7 +790,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-14)
 
 ___
 
@@ -799,7 +807,7 @@ Caution: do not call this after game started!
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`WorldServerParams`](../modules.md#worldserverparams) |
+| `data` | [`WorldServerParams`](../modules.md#worldserverparams-14) |
 
 #### Returns
 
@@ -825,19 +833,36 @@ Set the farthest distance for the fog. Fog starts fogging up 50% from the farthe
 
 ___
 
-### updateVoxel
+### setFogColor
 
-▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`): `void`
+▸ **setFogColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
-| `type` | `number` |
-| `rotation?` | [`BlockRotation`](BlockRotation.md) |
+| `color` | `Color` |
+
+#### Returns
+
+`void`
+
+___
+
+### updateVoxel
+
+▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `vx` | `number` | `undefined` |
+| `vy` | `number` | `undefined` |
+| `vz` | `number` | `undefined` |
+| `type` | `number` | `undefined` |
+| `rotation` | `number` | `PY_ROTATION` |
+| `yRotation` | `number` | `0` |
 
 #### Returns
 
@@ -853,7 +878,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate)[] |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-14)[] |
 
 #### Returns
 
@@ -1002,6 +1027,42 @@ ___
 
 ___
 
+### getLightColorByVoxel
+
+▸ **getLightColorByVoxel**(`vx`, `vy`, `vz`): `Color`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`Color`
+
+___
+
+### getLightColorByWorld
+
+▸ **getLightColorByWorld**(`wx`, `wy`, `wz`): `Color`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `wx` | `number` |
+| `wy` | `number` |
+| `wz` | `number` |
+
+#### Returns
+
+`Color`
+
+___
+
 ### getTorchLightByVoxel
 
 ▸ **getTorchLightByVoxel**(`vx`, `vy`, `vz`, `color`): `number`
@@ -1013,7 +1074,7 @@ ___
 | `vx` | `number` |
 | `vy` | `number` |
 | `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `color` | [`LightColor`](../modules.md#lightcolor-14) |
 
 #### Returns
 
@@ -1023,7 +1084,7 @@ ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-14)
 
 #### Parameters
 
@@ -1035,7 +1096,192 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-14)
+
+___
+
+### getBlockByWorld
+
+▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-14)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `wx` | `number` |
+| `wy` | `number` |
+| `wz` | `number` |
+
+#### Returns
+
+[`Block`](../modules.md#block-14)
+
+___
+
+### getMaxHeightByVoxel
+
+▸ **getMaxHeightByVoxel**(`vx`, `vz`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`number`
+
+___
+
+### getMaxHeightByWorld
+
+▸ **getMaxHeightByWorld**(`wx`, `wz`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `wx` | `number` |
+| `wz` | `number` |
+
+#### Returns
+
+`number`
+
+___
+
+### getPreviousVoxelByVoxel
+
+▸ **getPreviousVoxelByVoxel**(`vx`, `vy`, `vz`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`number`
+
+___
+
+### getPreviousVoxelByWorld
+
+▸ **getPreviousVoxelByWorld**(`wx`, `wy`, `wz`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `wx` | `number` |
+| `wy` | `number` |
+| `wz` | `number` |
+
+#### Returns
+
+`number`
+
+___
+
+### getBlockAABBsByVoxel
+
+▸ **getBlockAABBsByVoxel**(`vx`, `vy`, `vz`, `ignoreFluid?`): `AABB`[]
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `vx` | `number` | `undefined` |
+| `vy` | `number` | `undefined` |
+| `vz` | `number` | `undefined` |
+| `ignoreFluid` | `boolean` | `false` |
+
+#### Returns
+
+`AABB`[]
+
+___
+
+### getBlockAABBsByWorld
+
+▸ **getBlockAABBsByWorld**(`wx`, `wy`, `wz`, `ignoreFluid?`): `AABB`[]
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `wx` | `number` | `undefined` |
+| `wy` | `number` | `undefined` |
+| `wz` | `number` | `undefined` |
+| `ignoreFluid` | `boolean` | `false` |
+
+#### Returns
+
+`AABB`[]
+
+___
+
+### setMinBrightness
+
+▸ **setMinBrightness**(`minBrightness`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `minBrightness` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### getSunlightIntensity
+
+▸ **getSunlightIntensity**(): `number`
+
+#### Returns
+
+`number`
+
+___
+
+### setSunlightIntensity
+
+▸ **setSunlightIntensity**(`intensity`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `intensity` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### addChunkInitListener
+
+▸ **addChunkInitListener**(`coords`, `listener`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `coords` | [`Coords2`](../modules.md#coords2-14) |
+| `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -1112,7 +1358,7 @@ ___
 
 ### update
 
-▸ **update**(`center`, `delta`, `direction?`): `void`
+▸ **update**(`center`, `delta`): `void`
 
 #### Parameters
 
@@ -1120,7 +1366,6 @@ ___
 | :------ | :------ |
 | `center` | `Vector3` |
 | `delta` | `number` |
-| `direction?` | `Vector3` |
 
 #### Returns
 

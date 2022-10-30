@@ -1,46 +1,22 @@
 ---
-id: "Clouds"
-title: "Class: Clouds"
-sidebar_label: "Clouds"
+id: "Arrow"
+title: "Class: Arrow"
+sidebar_label: "Arrow"
 sidebar_position: 0
 custom_edit_url: null
 ---
 
 ## Hierarchy
 
-- `Group`
+- `ArrowHelper`
 
-  ↳ **`Clouds`**
+  ↳ **`Arrow`**
 
 ## Properties
 
-### array
-
-• **array**: `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\>
-
-___
-
-### material
-
-• **material**: `ShaderMaterial`
-
-___
-
-### initialized
-
-• **initialized**: `boolean` = `false`
-
-___
-
 ### params
 
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-14)
-
-___
-
-### meshes
-
-• **meshes**: `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>[][] = `[]`
+• **params**: [`ArrowParams`](../modules.md#arrowparams-14)
 
 ___
 
@@ -52,7 +28,7 @@ Unique number of this object instance.
 
 #### Inherited from
 
-Group.id
+ArrowHelper.id
 
 ___
 
@@ -62,7 +38,7 @@ ___
 
 #### Inherited from
 
-Group.uuid
+ArrowHelper.uuid
 
 ___
 
@@ -76,7 +52,7 @@ Optional name of the object (doesn't need to be unique).
 
 #### Inherited from
 
-Group.name
+ArrowHelper.name
 
 ___
 
@@ -90,7 +66,7 @@ Object's parent in the scene graph.
 
 #### Inherited from
 
-Group.parent
+ArrowHelper.parent
 
 ___
 
@@ -104,7 +80,7 @@ Array with object's children.
 
 #### Inherited from
 
-Group.children
+ArrowHelper.children
 
 ___
 
@@ -118,7 +94,7 @@ Up direction.
 
 #### Inherited from
 
-Group.up
+ArrowHelper.up
 
 ___
 
@@ -132,7 +108,7 @@ Object's local position.
 
 #### Inherited from
 
-Group.position
+ArrowHelper.position
 
 ___
 
@@ -146,7 +122,7 @@ Object's local rotation (Euler angles), in radians.
 
 #### Inherited from
 
-Group.rotation
+ArrowHelper.rotation
 
 ___
 
@@ -160,7 +136,7 @@ Object's local rotation as a Quaternion.
 
 #### Inherited from
 
-Group.quaternion
+ArrowHelper.quaternion
 
 ___
 
@@ -174,7 +150,7 @@ Object's local scale.
 
 #### Inherited from
 
-Group.scale
+ArrowHelper.scale
 
 ___
 
@@ -186,7 +162,7 @@ ___
 
 #### Inherited from
 
-Group.modelViewMatrix
+ArrowHelper.modelViewMatrix
 
 ___
 
@@ -198,7 +174,7 @@ ___
 
 #### Inherited from
 
-Group.normalMatrix
+ArrowHelper.normalMatrix
 
 ___
 
@@ -212,7 +188,7 @@ Local transform.
 
 #### Inherited from
 
-Group.matrix
+ArrowHelper.matrix
 
 ___
 
@@ -226,7 +202,7 @@ The global transform of the object. If the Object3d has no parent, then it's ide
 
 #### Inherited from
 
-Group.matrixWorld
+ArrowHelper.matrixWorld
 
 ___
 
@@ -241,7 +217,7 @@ recalculates the matrixWorld property.
 
 #### Inherited from
 
-Group.matrixAutoUpdate
+ArrowHelper.matrixAutoUpdate
 
 ___
 
@@ -255,7 +231,7 @@ When this is set, it calculates the matrixWorld in that frame and resets this pr
 
 #### Inherited from
 
-Group.matrixWorldNeedsUpdate
+ArrowHelper.matrixWorldNeedsUpdate
 
 ___
 
@@ -267,7 +243,7 @@ ___
 
 #### Inherited from
 
-Group.layers
+ArrowHelper.layers
 
 ___
 
@@ -281,7 +257,7 @@ Object gets rendered if true.
 
 #### Inherited from
 
-Group.visible
+ArrowHelper.visible
 
 ___
 
@@ -295,7 +271,7 @@ Gets rendered into shadow map.
 
 #### Inherited from
 
-Group.castShadow
+ArrowHelper.castShadow
 
 ___
 
@@ -309,7 +285,7 @@ Material gets baked in shadow receiving.
 
 #### Inherited from
 
-Group.receiveShadow
+ArrowHelper.receiveShadow
 
 ___
 
@@ -324,7 +300,7 @@ If set to false the object gets rendered every frame even if it is not in the fr
 
 #### Inherited from
 
-Group.frustumCulled
+ArrowHelper.frustumCulled
 
 ___
 
@@ -340,7 +316,7 @@ When this property is set for an instance of Group, all descendants objects will
 
 #### Inherited from
 
-Group.renderOrder
+ArrowHelper.renderOrder
 
 ___
 
@@ -354,7 +330,7 @@ Array with animation clips.
 
 #### Inherited from
 
-Group.animations
+ArrowHelper.animations
 
 ___
 
@@ -372,7 +348,7 @@ An object that can be used to store custom data about the Object3d. It should no
 
 #### Inherited from
 
-Group.userData
+ArrowHelper.userData
 
 ___
 
@@ -387,7 +363,7 @@ transparent texture with alphaTest, you must specify a customDepthMaterial for p
 
 #### Inherited from
 
-Group.customDepthMaterial
+ArrowHelper.customDepthMaterial
 
 ___
 
@@ -399,7 +375,7 @@ Same as customDepthMaterial, but used with PointLight.
 
 #### Inherited from
 
-Group.customDistanceMaterial
+ArrowHelper.customDistanceMaterial
 
 ___
 
@@ -412,7 +388,7 @@ You should not change this, as it is used internally for optimisation.
 
 #### Inherited from
 
-Group.isObject3D
+ArrowHelper.isObject3D
 
 ___
 
@@ -443,7 +419,7 @@ Calls before rendering object
 
 #### Inherited from
 
-Group.onBeforeRender
+ArrowHelper.onBeforeRender
 
 ___
 
@@ -474,7 +450,7 @@ Calls after rendering object
 
 #### Inherited from
 
-Group.onAfterRender
+ArrowHelper.onAfterRender
 
 ___
 
@@ -484,7 +460,7 @@ ___
 
 #### Inherited from
 
-Group.DefaultUp
+ArrowHelper.DefaultUp
 
 ___
 
@@ -494,82 +470,61 @@ ___
 
 #### Inherited from
 
-Group.DefaultMatrixAutoUpdate
+ArrowHelper.DefaultMatrixAutoUpdate
 
 ___
 
 ### type
 
-• **type**: ``"Group"``
+• **type**: `string`
+
+**`default`** 'ArrowHelper'
 
 #### Inherited from
 
-Group.type
+ArrowHelper.type
 
 ___
 
-### isGroup
+### line
 
-• `Readonly` **isGroup**: ``true``
+• **line**: `Line`<`BufferGeometry`, `Material` \| `Material`[]\>
+
+Contains the line part of the arrowHelper.
 
 #### Inherited from
 
-Group.isGroup
+ArrowHelper.line
+
+___
+
+### cone
+
+• **cone**: `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>
+
+Contains the cone part of the arrowHelper.
+
+#### Inherited from
+
+ArrowHelper.cone
 
 ## Constructors
 
 ### constructor
 
-• **new Clouds**(`params?`)
+• **new Arrow**(`params?`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-14)\> |
+| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-14)\> |
 
 #### Overrides
 
-Group.constructor
+ArrowHelper.constructor
 
 ## Methods
-
-### initialize
-
-▸ **initialize**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
-### reset
-
-▸ **reset**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
-### update
-
-▸ **update**(`position`, `delta?`): `void`
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `position` | `Vector3` | `undefined` |
-| `delta` | `number` | `0` |
-
-#### Returns
-
-`void`
-
-___
 
 ### addEventListener
 
@@ -588,7 +543,7 @@ Adds a listener to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Arrow`](Arrow.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -596,7 +551,7 @@ Adds a listener to an event type.
 
 #### Inherited from
 
-Group.addEventListener
+ArrowHelper.addEventListener
 
 ___
 
@@ -617,7 +572,7 @@ Checks if listener is added to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Arrow`](Arrow.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -625,7 +580,7 @@ Checks if listener is added to an event type.
 
 #### Inherited from
 
-Group.hasEventListener
+ArrowHelper.hasEventListener
 
 ___
 
@@ -646,7 +601,7 @@ Removes a listener from an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The listener function that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`Arrow`](Arrow.md)\> | The listener function that gets removed. |
 
 #### Returns
 
@@ -654,7 +609,7 @@ Removes a listener from an event type.
 
 #### Inherited from
 
-Group.removeEventListener
+ArrowHelper.removeEventListener
 
 ___
 
@@ -676,7 +631,7 @@ Fire an event type.
 
 #### Inherited from
 
-Group.dispatchEvent
+ArrowHelper.dispatchEvent
 
 ___
 
@@ -698,13 +653,13 @@ Applies the matrix transform to the object and updates the object's position, ro
 
 #### Inherited from
 
-Group.applyMatrix4
+ArrowHelper.applyMatrix4
 
 ___
 
 ### applyQuaternion
 
-▸ **applyQuaternion**(`quaternion`): [`Clouds`](Clouds.md)
+▸ **applyQuaternion**(`quaternion`): [`Arrow`](Arrow.md)
 
 Applies the rotation represented by the quaternion to the object.
 
@@ -716,11 +671,11 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.applyQuaternion
+ArrowHelper.applyQuaternion
 
 ___
 
@@ -744,7 +699,7 @@ angle -- angle in radians
 
 #### Inherited from
 
-Group.setRotationFromAxisAngle
+ArrowHelper.setRotationFromAxisAngle
 
 ___
 
@@ -766,7 +721,7 @@ Calls setRotationFromEuler(euler) on the .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromEuler
+ArrowHelper.setRotationFromEuler
 
 ___
 
@@ -790,7 +745,7 @@ Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, u
 
 #### Inherited from
 
-Group.setRotationFromMatrix
+ArrowHelper.setRotationFromMatrix
 
 ___
 
@@ -812,13 +767,13 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromQuaternion
+ArrowHelper.setRotationFromQuaternion
 
 ___
 
 ### rotateOnAxis
 
-▸ **rotateOnAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnAxis**(`axis`, `angle`): [`Arrow`](Arrow.md)
 
 Rotate an object along an axis in object space. The axis is assumed to be normalized.
 
@@ -831,17 +786,17 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.rotateOnAxis
+ArrowHelper.rotateOnAxis
 
 ___
 
 ### rotateOnWorldAxis
 
-▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Arrow`](Arrow.md)
 
 Rotate an object along an axis in world space. The axis is assumed to be normalized. Method Assumes no rotated parent.
 
@@ -854,17 +809,17 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.rotateOnWorldAxis
+ArrowHelper.rotateOnWorldAxis
 
 ___
 
 ### rotateX
 
-▸ **rotateX**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateX**(`angle`): [`Arrow`](Arrow.md)
 
 Rotates the object around x axis in local space.
 
@@ -876,17 +831,17 @@ Rotates the object around x axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.rotateX
+ArrowHelper.rotateX
 
 ___
 
 ### rotateY
 
-▸ **rotateY**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateY**(`angle`): [`Arrow`](Arrow.md)
 
 Rotates the object around y axis in local space.
 
@@ -898,17 +853,17 @@ Rotates the object around y axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.rotateY
+ArrowHelper.rotateY
 
 ___
 
 ### rotateZ
 
-▸ **rotateZ**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateZ**(`angle`): [`Arrow`](Arrow.md)
 
 Rotates the object around z axis in local space.
 
@@ -920,17 +875,17 @@ Rotates the object around z axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.rotateZ
+ArrowHelper.rotateZ
 
 ___
 
 ### translateOnAxis
 
-▸ **translateOnAxis**(`axis`, `distance`): [`Clouds`](Clouds.md)
+▸ **translateOnAxis**(`axis`, `distance`): [`Arrow`](Arrow.md)
 
 Translate an object by distance along an axis in object space. The axis is assumed to be normalized.
 
@@ -943,17 +898,17 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.translateOnAxis
+ArrowHelper.translateOnAxis
 
 ___
 
 ### translateX
 
-▸ **translateX**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateX**(`distance`): [`Arrow`](Arrow.md)
 
 Translates object along x axis by distance.
 
@@ -965,17 +920,17 @@ Translates object along x axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.translateX
+ArrowHelper.translateX
 
 ___
 
 ### translateY
 
-▸ **translateY**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateY**(`distance`): [`Arrow`](Arrow.md)
 
 Translates object along y axis by distance.
 
@@ -987,17 +942,17 @@ Translates object along y axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.translateY
+ArrowHelper.translateY
 
 ___
 
 ### translateZ
 
-▸ **translateZ**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateZ**(`distance`): [`Arrow`](Arrow.md)
 
 Translates object along z axis by distance.
 
@@ -1009,11 +964,11 @@ Translates object along z axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.translateZ
+ArrowHelper.translateZ
 
 ___
 
@@ -1035,7 +990,7 @@ Updates the vector from local space to world space.
 
 #### Inherited from
 
-Group.localToWorld
+ArrowHelper.localToWorld
 
 ___
 
@@ -1057,7 +1012,7 @@ Updates the vector from world space to local space.
 
 #### Inherited from
 
-Group.worldToLocal
+ArrowHelper.worldToLocal
 
 ___
 
@@ -1083,13 +1038,13 @@ This method does not support objects having non-uniformly-scaled parent(s).
 
 #### Inherited from
 
-Group.lookAt
+ArrowHelper.lookAt
 
 ___
 
 ### add
 
-▸ **add**(...`object`): [`Clouds`](Clouds.md)
+▸ **add**(...`object`): [`Arrow`](Arrow.md)
 
 Adds object as child of this object.
 
@@ -1101,17 +1056,17 @@ Adds object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.add
+ArrowHelper.add
 
 ___
 
 ### remove
 
-▸ **remove**(...`object`): [`Clouds`](Clouds.md)
+▸ **remove**(...`object`): [`Arrow`](Arrow.md)
 
 Removes object as child of this object.
 
@@ -1123,49 +1078,49 @@ Removes object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.remove
+ArrowHelper.remove
 
 ___
 
 ### removeFromParent
 
-▸ **removeFromParent**(): [`Clouds`](Clouds.md)
+▸ **removeFromParent**(): [`Arrow`](Arrow.md)
 
 Removes this object from its current parent.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.removeFromParent
+ArrowHelper.removeFromParent
 
 ___
 
 ### clear
 
-▸ **clear**(): [`Clouds`](Clouds.md)
+▸ **clear**(): [`Arrow`](Arrow.md)
 
 Removes all child objects.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.clear
+ArrowHelper.clear
 
 ___
 
 ### attach
 
-▸ **attach**(`object`): [`Clouds`](Clouds.md)
+▸ **attach**(`object`): [`Arrow`](Arrow.md)
 
 Adds object as a child of this, while maintaining the object's world transform.
 
@@ -1177,11 +1132,11 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.attach
+ArrowHelper.attach
 
 ___
 
@@ -1203,7 +1158,7 @@ Searches through the object's children and returns the first with a matching id.
 
 #### Inherited from
 
-Group.getObjectById
+ArrowHelper.getObjectById
 
 ___
 
@@ -1225,7 +1180,7 @@ Searches through the object's children and returns the first with a matching nam
 
 #### Inherited from
 
-Group.getObjectByName
+ArrowHelper.getObjectByName
 
 ___
 
@@ -1246,7 +1201,7 @@ ___
 
 #### Inherited from
 
-Group.getObjectByProperty
+ArrowHelper.getObjectByProperty
 
 ___
 
@@ -1266,7 +1221,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldPosition
+ArrowHelper.getWorldPosition
 
 ___
 
@@ -1286,7 +1241,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldQuaternion
+ArrowHelper.getWorldQuaternion
 
 ___
 
@@ -1306,7 +1261,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldScale
+ArrowHelper.getWorldScale
 
 ___
 
@@ -1326,7 +1281,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldDirection
+ArrowHelper.getWorldDirection
 
 ___
 
@@ -1347,7 +1302,7 @@ ___
 
 #### Inherited from
 
-Group.raycast
+ArrowHelper.raycast
 
 ___
 
@@ -1367,7 +1322,7 @@ ___
 
 #### Inherited from
 
-Group.traverse
+ArrowHelper.traverse
 
 ___
 
@@ -1387,7 +1342,7 @@ ___
 
 #### Inherited from
 
-Group.traverseVisible
+ArrowHelper.traverseVisible
 
 ___
 
@@ -1407,7 +1362,7 @@ ___
 
 #### Inherited from
 
-Group.traverseAncestors
+ArrowHelper.traverseAncestors
 
 ___
 
@@ -1423,7 +1378,7 @@ Updates local transform.
 
 #### Inherited from
 
-Group.updateMatrix
+ArrowHelper.updateMatrix
 
 ___
 
@@ -1445,7 +1400,7 @@ Updates global transform of the object and its children.
 
 #### Inherited from
 
-Group.updateMatrixWorld
+ArrowHelper.updateMatrixWorld
 
 ___
 
@@ -1468,7 +1423,7 @@ Updates the global transform of the object.
 
 #### Inherited from
 
-Group.updateWorldMatrix
+ArrowHelper.updateWorldMatrix
 
 ___
 
@@ -1492,13 +1447,13 @@ ___
 
 #### Inherited from
 
-Group.toJSON
+ArrowHelper.toJSON
 
 ___
 
 ### clone
 
-▸ **clone**(`recursive?`): [`Clouds`](Clouds.md)
+▸ **clone**(`recursive?`): [`Arrow`](Arrow.md)
 
 #### Parameters
 
@@ -1508,29 +1463,91 @@ ___
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.clone
+ArrowHelper.clone
 
 ___
 
 ### copy
 
-▸ **copy**(`source`, `recursive?`): [`Clouds`](Clouds.md)
+▸ **copy**(`source`, `recursive?`): [`Arrow`](Arrow.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `source` | [`Clouds`](Clouds.md) |
+| `source` | [`Arrow`](Arrow.md) |
 | `recursive?` | `boolean` |
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Arrow`](Arrow.md)
 
 #### Inherited from
 
-Group.copy
+ArrowHelper.copy
+
+___
+
+### setDirection
+
+▸ **setDirection**(`dir`): `void`
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `dir` | `Vector3` | The desired direction. Must be a unit vector. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+ArrowHelper.setDirection
+
+___
+
+### setLength
+
+▸ **setLength**(`length`, `headLength?`, `headWidth?`): `void`
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `length` | `number` | The desired length. |
+| `headLength?` | `number` | - |
+| `headWidth?` | `number` | - |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+ArrowHelper.setLength
+
+___
+
+### setColor
+
+▸ **setColor**(`color`): `void`
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `color` | `ColorRepresentation` | The desired color. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+ArrowHelper.setColor

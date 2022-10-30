@@ -74,14 +74,14 @@ ___
 
 ### encode
 
-▸ `Static` **encode**(`value`, `yRotation`): [`BlockRotation`](BlockRotation.md)
+▸ `Static` **encode**(`value`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `value` | `number` |
-| `yRotation` | `number` |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `value` | `number` | `undefined` |
+| `yRotation` | `number` | `0` |
 
 #### Returns
 
@@ -107,13 +107,14 @@ ___
 
 ### rotateNode
 
-▸ **rotateNode**(`node`, `translate?`): `void`
+▸ **rotateNode**(`node`, `yRotate?`, `translate?`): `void`
 
 #### Parameters
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3) | `undefined` |
+| `node` | [`Coords3`](../modules.md#coords3-14) | `undefined` |
+| `yRotate` | `boolean` | `true` |
 | `translate` | `boolean` | `true` |
 
 #### Returns
@@ -124,13 +125,14 @@ ___
 
 ### rotateAABB
 
-▸ **rotateAABB**(`aabb`, `translate?`): `AABB`
+▸ **rotateAABB**(`aabb`, `yRotate?`, `translate?`): `AABB`
 
 #### Parameters
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
 | `aabb` | `AABB` | `undefined` |
+| `yRotate` | `boolean` | `true` |
 | `translate` | `boolean` | `true` |
 
 #### Returns

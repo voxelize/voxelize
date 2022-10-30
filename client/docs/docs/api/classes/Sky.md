@@ -8,15 +8,83 @@ custom_edit_url: null
 
 ## Hierarchy
 
-- `Group`
+- [`CanvasBox`](CanvasBox.md)
 
   ↳ **`Sky`**
 
 ## Properties
 
-### box
+### params
 
-• **box**: [`CanvasBox`](CanvasBox.md)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-14)
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-14)
+
+___
+
+### boxLayers
+
+• **boxLayers**: [`BoxLayer`](BoxLayer.md)[] = `[]`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-14)
+
+___
+
+### width
+
+• **width**: `number`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-14)
+
+___
+
+### height
+
+• **height**: `number`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-14)
+
+___
+
+### depth
+
+• **depth**: `number`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-14)
+
+___
+
+### scaleColor
+
+• **scaleColor**: (`multiplier`: `number`) => `void`
+
+#### Type declaration
+
+▸ (`multiplier`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `multiplier` | `number` |
+
+##### Returns
+
+`void`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[scaleColor](CanvasBox.md#scalecolor-14)
 
 ___
 
@@ -58,7 +126,13 @@ ___
 
 ### dimension
 
-• **dimension**: `number`
+• **dimension**: `number` = `2000`
+
+___
+
+### lerpFactor
+
+• **lerpFactor**: `number` = `0.01`
 
 ___
 
@@ -70,7 +144,7 @@ Unique number of this object instance.
 
 #### Inherited from
 
-Group.id
+[CanvasBox](CanvasBox.md).[id](CanvasBox.md#id-14)
 
 ___
 
@@ -80,7 +154,7 @@ ___
 
 #### Inherited from
 
-Group.uuid
+[CanvasBox](CanvasBox.md).[uuid](CanvasBox.md#uuid-14)
 
 ___
 
@@ -94,7 +168,7 @@ Optional name of the object (doesn't need to be unique).
 
 #### Inherited from
 
-Group.name
+[CanvasBox](CanvasBox.md).[name](CanvasBox.md#name-14)
 
 ___
 
@@ -108,7 +182,7 @@ Object's parent in the scene graph.
 
 #### Inherited from
 
-Group.parent
+[CanvasBox](CanvasBox.md).[parent](CanvasBox.md#parent-14)
 
 ___
 
@@ -122,7 +196,7 @@ Array with object's children.
 
 #### Inherited from
 
-Group.children
+[CanvasBox](CanvasBox.md).[children](CanvasBox.md#children-14)
 
 ___
 
@@ -136,7 +210,7 @@ Up direction.
 
 #### Inherited from
 
-Group.up
+[CanvasBox](CanvasBox.md).[up](CanvasBox.md#up-14)
 
 ___
 
@@ -150,7 +224,7 @@ Object's local position.
 
 #### Inherited from
 
-Group.position
+[CanvasBox](CanvasBox.md).[position](CanvasBox.md#position-14)
 
 ___
 
@@ -164,7 +238,7 @@ Object's local rotation (Euler angles), in radians.
 
 #### Inherited from
 
-Group.rotation
+[CanvasBox](CanvasBox.md).[rotation](CanvasBox.md#rotation-14)
 
 ___
 
@@ -178,7 +252,7 @@ Object's local rotation as a Quaternion.
 
 #### Inherited from
 
-Group.quaternion
+[CanvasBox](CanvasBox.md).[quaternion](CanvasBox.md#quaternion-14)
 
 ___
 
@@ -192,7 +266,7 @@ Object's local scale.
 
 #### Inherited from
 
-Group.scale
+[CanvasBox](CanvasBox.md).[scale](CanvasBox.md#scale-14)
 
 ___
 
@@ -204,7 +278,7 @@ ___
 
 #### Inherited from
 
-Group.modelViewMatrix
+[CanvasBox](CanvasBox.md).[modelViewMatrix](CanvasBox.md#modelviewmatrix-14)
 
 ___
 
@@ -216,7 +290,7 @@ ___
 
 #### Inherited from
 
-Group.normalMatrix
+[CanvasBox](CanvasBox.md).[normalMatrix](CanvasBox.md#normalmatrix-14)
 
 ___
 
@@ -230,7 +304,7 @@ Local transform.
 
 #### Inherited from
 
-Group.matrix
+[CanvasBox](CanvasBox.md).[matrix](CanvasBox.md#matrix-14)
 
 ___
 
@@ -244,7 +318,7 @@ The global transform of the object. If the Object3d has no parent, then it's ide
 
 #### Inherited from
 
-Group.matrixWorld
+[CanvasBox](CanvasBox.md).[matrixWorld](CanvasBox.md#matrixworld-14)
 
 ___
 
@@ -259,7 +333,7 @@ recalculates the matrixWorld property.
 
 #### Inherited from
 
-Group.matrixAutoUpdate
+[CanvasBox](CanvasBox.md).[matrixAutoUpdate](CanvasBox.md#matrixautoupdate-14)
 
 ___
 
@@ -273,7 +347,7 @@ When this is set, it calculates the matrixWorld in that frame and resets this pr
 
 #### Inherited from
 
-Group.matrixWorldNeedsUpdate
+[CanvasBox](CanvasBox.md).[matrixWorldNeedsUpdate](CanvasBox.md#matrixworldneedsupdate-14)
 
 ___
 
@@ -285,7 +359,7 @@ ___
 
 #### Inherited from
 
-Group.layers
+[CanvasBox](CanvasBox.md).[layers](CanvasBox.md#layers-14)
 
 ___
 
@@ -299,7 +373,7 @@ Object gets rendered if true.
 
 #### Inherited from
 
-Group.visible
+[CanvasBox](CanvasBox.md).[visible](CanvasBox.md#visible-14)
 
 ___
 
@@ -313,7 +387,7 @@ Gets rendered into shadow map.
 
 #### Inherited from
 
-Group.castShadow
+[CanvasBox](CanvasBox.md).[castShadow](CanvasBox.md#castshadow-14)
 
 ___
 
@@ -327,7 +401,7 @@ Material gets baked in shadow receiving.
 
 #### Inherited from
 
-Group.receiveShadow
+[CanvasBox](CanvasBox.md).[receiveShadow](CanvasBox.md#receiveshadow-14)
 
 ___
 
@@ -342,7 +416,7 @@ If set to false the object gets rendered every frame even if it is not in the fr
 
 #### Inherited from
 
-Group.frustumCulled
+[CanvasBox](CanvasBox.md).[frustumCulled](CanvasBox.md#frustumculled-14)
 
 ___
 
@@ -358,7 +432,7 @@ When this property is set for an instance of Group, all descendants objects will
 
 #### Inherited from
 
-Group.renderOrder
+[CanvasBox](CanvasBox.md).[renderOrder](CanvasBox.md#renderorder-14)
 
 ___
 
@@ -372,7 +446,7 @@ Array with animation clips.
 
 #### Inherited from
 
-Group.animations
+[CanvasBox](CanvasBox.md).[animations](CanvasBox.md#animations-14)
 
 ___
 
@@ -390,7 +464,7 @@ An object that can be used to store custom data about the Object3d. It should no
 
 #### Inherited from
 
-Group.userData
+[CanvasBox](CanvasBox.md).[userData](CanvasBox.md#userdata-14)
 
 ___
 
@@ -405,7 +479,7 @@ transparent texture with alphaTest, you must specify a customDepthMaterial for p
 
 #### Inherited from
 
-Group.customDepthMaterial
+[CanvasBox](CanvasBox.md).[customDepthMaterial](CanvasBox.md#customdepthmaterial-14)
 
 ___
 
@@ -417,7 +491,7 @@ Same as customDepthMaterial, but used with PointLight.
 
 #### Inherited from
 
-Group.customDistanceMaterial
+[CanvasBox](CanvasBox.md).[customDistanceMaterial](CanvasBox.md#customdistancematerial-14)
 
 ___
 
@@ -430,7 +504,7 @@ You should not change this, as it is used internally for optimisation.
 
 #### Inherited from
 
-Group.isObject3D
+[CanvasBox](CanvasBox.md).[isObject3D](CanvasBox.md#isobject3d-14)
 
 ___
 
@@ -461,7 +535,7 @@ Calls before rendering object
 
 #### Inherited from
 
-Group.onBeforeRender
+[CanvasBox](CanvasBox.md).[onBeforeRender](CanvasBox.md#onbeforerender-14)
 
 ___
 
@@ -492,7 +566,7 @@ Calls after rendering object
 
 #### Inherited from
 
-Group.onAfterRender
+[CanvasBox](CanvasBox.md).[onAfterRender](CanvasBox.md#onafterrender-14)
 
 ___
 
@@ -502,7 +576,7 @@ ___
 
 #### Inherited from
 
-Group.DefaultUp
+[CanvasBox](CanvasBox.md).[DefaultUp](CanvasBox.md#defaultup-14)
 
 ___
 
@@ -512,7 +586,7 @@ ___
 
 #### Inherited from
 
-Group.DefaultMatrixAutoUpdate
+[CanvasBox](CanvasBox.md).[DefaultMatrixAutoUpdate](CanvasBox.md#defaultmatrixautoupdate-14)
 
 ___
 
@@ -522,7 +596,7 @@ ___
 
 #### Inherited from
 
-Group.type
+[CanvasBox](CanvasBox.md).[type](CanvasBox.md#type-14)
 
 ___
 
@@ -532,25 +606,71 @@ ___
 
 #### Inherited from
 
-Group.isGroup
+[CanvasBox](CanvasBox.md).[isGroup](CanvasBox.md#isgroup-14)
 
-## Constructors
+## Methods
 
-### constructor
+### makeBoxes
 
-• **new Sky**(`dimension`)
+▸ **makeBoxes**(): `void`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[makeBoxes](CanvasBox.md#makeboxes-14)
+
+___
+
+### paint
+
+▸ **paint**(`side`, `art`, `layer?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | `undefined` |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) \| `Color` | `undefined` |
+| `layer` | `number` | `0` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-14)
+
+___
+
+### getMiddleColor
+
+▸ **getMiddleColor**(): `Color`
+
+#### Returns
+
+`Color`
+
+___
+
+### update
+
+▸ **update**(`position`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `dimension` | `number` |
+| `position` | `Vector3` |
 
-#### Overrides
+#### Returns
 
-Group.constructor
+`void`
 
-## Methods
+___
 
 ### addEventListener
 
@@ -577,7 +697,7 @@ Adds a listener to an event type.
 
 #### Inherited from
 
-Group.addEventListener
+[CanvasBox](CanvasBox.md).[addEventListener](CanvasBox.md#addeventlistener-14)
 
 ___
 
@@ -606,7 +726,7 @@ Checks if listener is added to an event type.
 
 #### Inherited from
 
-Group.hasEventListener
+[CanvasBox](CanvasBox.md).[hasEventListener](CanvasBox.md#haseventlistener-14)
 
 ___
 
@@ -635,7 +755,7 @@ Removes a listener from an event type.
 
 #### Inherited from
 
-Group.removeEventListener
+[CanvasBox](CanvasBox.md).[removeEventListener](CanvasBox.md#removeeventlistener-14)
 
 ___
 
@@ -657,7 +777,7 @@ Fire an event type.
 
 #### Inherited from
 
-Group.dispatchEvent
+[CanvasBox](CanvasBox.md).[dispatchEvent](CanvasBox.md#dispatchevent-14)
 
 ___
 
@@ -679,7 +799,7 @@ Applies the matrix transform to the object and updates the object's position, ro
 
 #### Inherited from
 
-Group.applyMatrix4
+[CanvasBox](CanvasBox.md).[applyMatrix4](CanvasBox.md#applymatrix4-14)
 
 ___
 
@@ -701,7 +821,7 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Inherited from
 
-Group.applyQuaternion
+[CanvasBox](CanvasBox.md).[applyQuaternion](CanvasBox.md#applyquaternion-14)
 
 ___
 
@@ -725,7 +845,7 @@ angle -- angle in radians
 
 #### Inherited from
 
-Group.setRotationFromAxisAngle
+[CanvasBox](CanvasBox.md).[setRotationFromAxisAngle](CanvasBox.md#setrotationfromaxisangle-14)
 
 ___
 
@@ -747,7 +867,7 @@ Calls setRotationFromEuler(euler) on the .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromEuler
+[CanvasBox](CanvasBox.md).[setRotationFromEuler](CanvasBox.md#setrotationfromeuler-14)
 
 ___
 
@@ -771,7 +891,7 @@ Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, u
 
 #### Inherited from
 
-Group.setRotationFromMatrix
+[CanvasBox](CanvasBox.md).[setRotationFromMatrix](CanvasBox.md#setrotationfrommatrix-14)
 
 ___
 
@@ -793,7 +913,7 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromQuaternion
+[CanvasBox](CanvasBox.md).[setRotationFromQuaternion](CanvasBox.md#setrotationfromquaternion-14)
 
 ___
 
@@ -816,7 +936,7 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Inherited from
 
-Group.rotateOnAxis
+[CanvasBox](CanvasBox.md).[rotateOnAxis](CanvasBox.md#rotateonaxis-14)
 
 ___
 
@@ -839,7 +959,7 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Inherited from
 
-Group.rotateOnWorldAxis
+[CanvasBox](CanvasBox.md).[rotateOnWorldAxis](CanvasBox.md#rotateonworldaxis-14)
 
 ___
 
@@ -861,7 +981,7 @@ Rotates the object around x axis in local space.
 
 #### Inherited from
 
-Group.rotateX
+[CanvasBox](CanvasBox.md).[rotateX](CanvasBox.md#rotatex-14)
 
 ___
 
@@ -883,7 +1003,7 @@ Rotates the object around y axis in local space.
 
 #### Inherited from
 
-Group.rotateY
+[CanvasBox](CanvasBox.md).[rotateY](CanvasBox.md#rotatey-14)
 
 ___
 
@@ -905,7 +1025,7 @@ Rotates the object around z axis in local space.
 
 #### Inherited from
 
-Group.rotateZ
+[CanvasBox](CanvasBox.md).[rotateZ](CanvasBox.md#rotatez-14)
 
 ___
 
@@ -928,7 +1048,7 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Inherited from
 
-Group.translateOnAxis
+[CanvasBox](CanvasBox.md).[translateOnAxis](CanvasBox.md#translateonaxis-14)
 
 ___
 
@@ -950,7 +1070,7 @@ Translates object along x axis by distance.
 
 #### Inherited from
 
-Group.translateX
+[CanvasBox](CanvasBox.md).[translateX](CanvasBox.md#translatex-14)
 
 ___
 
@@ -972,7 +1092,7 @@ Translates object along y axis by distance.
 
 #### Inherited from
 
-Group.translateY
+[CanvasBox](CanvasBox.md).[translateY](CanvasBox.md#translatey-14)
 
 ___
 
@@ -994,7 +1114,7 @@ Translates object along z axis by distance.
 
 #### Inherited from
 
-Group.translateZ
+[CanvasBox](CanvasBox.md).[translateZ](CanvasBox.md#translatez-14)
 
 ___
 
@@ -1016,7 +1136,7 @@ Updates the vector from local space to world space.
 
 #### Inherited from
 
-Group.localToWorld
+[CanvasBox](CanvasBox.md).[localToWorld](CanvasBox.md#localtoworld-14)
 
 ___
 
@@ -1038,7 +1158,7 @@ Updates the vector from world space to local space.
 
 #### Inherited from
 
-Group.worldToLocal
+[CanvasBox](CanvasBox.md).[worldToLocal](CanvasBox.md#worldtolocal-14)
 
 ___
 
@@ -1064,7 +1184,7 @@ This method does not support objects having non-uniformly-scaled parent(s).
 
 #### Inherited from
 
-Group.lookAt
+[CanvasBox](CanvasBox.md).[lookAt](CanvasBox.md#lookat-14)
 
 ___
 
@@ -1086,7 +1206,7 @@ Adds object as child of this object.
 
 #### Inherited from
 
-Group.add
+[CanvasBox](CanvasBox.md).[add](CanvasBox.md#add-14)
 
 ___
 
@@ -1108,7 +1228,7 @@ Removes object as child of this object.
 
 #### Inherited from
 
-Group.remove
+[CanvasBox](CanvasBox.md).[remove](CanvasBox.md#remove-14)
 
 ___
 
@@ -1124,7 +1244,7 @@ Removes this object from its current parent.
 
 #### Inherited from
 
-Group.removeFromParent
+[CanvasBox](CanvasBox.md).[removeFromParent](CanvasBox.md#removefromparent-14)
 
 ___
 
@@ -1140,7 +1260,7 @@ Removes all child objects.
 
 #### Inherited from
 
-Group.clear
+[CanvasBox](CanvasBox.md).[clear](CanvasBox.md#clear-14)
 
 ___
 
@@ -1162,7 +1282,7 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Inherited from
 
-Group.attach
+[CanvasBox](CanvasBox.md).[attach](CanvasBox.md#attach-14)
 
 ___
 
@@ -1184,7 +1304,7 @@ Searches through the object's children and returns the first with a matching id.
 
 #### Inherited from
 
-Group.getObjectById
+[CanvasBox](CanvasBox.md).[getObjectById](CanvasBox.md#getobjectbyid-14)
 
 ___
 
@@ -1206,7 +1326,7 @@ Searches through the object's children and returns the first with a matching nam
 
 #### Inherited from
 
-Group.getObjectByName
+[CanvasBox](CanvasBox.md).[getObjectByName](CanvasBox.md#getobjectbyname-14)
 
 ___
 
@@ -1227,7 +1347,7 @@ ___
 
 #### Inherited from
 
-Group.getObjectByProperty
+[CanvasBox](CanvasBox.md).[getObjectByProperty](CanvasBox.md#getobjectbyproperty-14)
 
 ___
 
@@ -1247,7 +1367,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldPosition
+[CanvasBox](CanvasBox.md).[getWorldPosition](CanvasBox.md#getworldposition-14)
 
 ___
 
@@ -1267,7 +1387,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldQuaternion
+[CanvasBox](CanvasBox.md).[getWorldQuaternion](CanvasBox.md#getworldquaternion-14)
 
 ___
 
@@ -1287,7 +1407,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldScale
+[CanvasBox](CanvasBox.md).[getWorldScale](CanvasBox.md#getworldscale-14)
 
 ___
 
@@ -1307,7 +1427,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldDirection
+[CanvasBox](CanvasBox.md).[getWorldDirection](CanvasBox.md#getworlddirection-14)
 
 ___
 
@@ -1328,7 +1448,7 @@ ___
 
 #### Inherited from
 
-Group.raycast
+[CanvasBox](CanvasBox.md).[raycast](CanvasBox.md#raycast-14)
 
 ___
 
@@ -1348,7 +1468,7 @@ ___
 
 #### Inherited from
 
-Group.traverse
+[CanvasBox](CanvasBox.md).[traverse](CanvasBox.md#traverse-14)
 
 ___
 
@@ -1368,7 +1488,7 @@ ___
 
 #### Inherited from
 
-Group.traverseVisible
+[CanvasBox](CanvasBox.md).[traverseVisible](CanvasBox.md#traversevisible-14)
 
 ___
 
@@ -1388,7 +1508,7 @@ ___
 
 #### Inherited from
 
-Group.traverseAncestors
+[CanvasBox](CanvasBox.md).[traverseAncestors](CanvasBox.md#traverseancestors-14)
 
 ___
 
@@ -1404,7 +1524,7 @@ Updates local transform.
 
 #### Inherited from
 
-Group.updateMatrix
+[CanvasBox](CanvasBox.md).[updateMatrix](CanvasBox.md#updatematrix-14)
 
 ___
 
@@ -1426,7 +1546,7 @@ Updates global transform of the object and its children.
 
 #### Inherited from
 
-Group.updateMatrixWorld
+[CanvasBox](CanvasBox.md).[updateMatrixWorld](CanvasBox.md#updatematrixworld-14)
 
 ___
 
@@ -1449,7 +1569,7 @@ Updates the global transform of the object.
 
 #### Inherited from
 
-Group.updateWorldMatrix
+[CanvasBox](CanvasBox.md).[updateWorldMatrix](CanvasBox.md#updateworldmatrix-14)
 
 ___
 
@@ -1473,7 +1593,7 @@ ___
 
 #### Inherited from
 
-Group.toJSON
+[CanvasBox](CanvasBox.md).[toJSON](CanvasBox.md#tojson-14)
 
 ___
 
@@ -1493,7 +1613,7 @@ ___
 
 #### Inherited from
 
-Group.clone
+[CanvasBox](CanvasBox.md).[clone](CanvasBox.md#clone-14)
 
 ___
 
@@ -1514,4 +1634,35 @@ ___
 
 #### Inherited from
 
-Group.copy
+[CanvasBox](CanvasBox.md).[copy](CanvasBox.md#copy-14)
+
+## Accessors
+
+### boxMaterials
+
+• `get` **boxMaterials**(): `Map`<`string`, `MeshBasicMaterial`\>
+
+#### Returns
+
+`Map`<`string`, `MeshBasicMaterial`\>
+
+#### Inherited from
+
+CanvasBox.boxMaterials
+
+## Constructors
+
+### constructor
+
+• **new Sky**(`dimension?`, `lerpFactor?`)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `dimension` | `number` | `2000` |
+| `lerpFactor` | `number` | `0.01` |
+
+#### Overrides
+
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-14)

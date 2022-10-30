@@ -6,7 +6,12 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-<a href="https://realms.voxelize.io"><h1 align="center" >:mushroom: Voxelize</h1></a>
+<a href="https://realms.voxelize.io">
+  <p align="center">
+    <img src="examples/client/src/assets/logo-circle.png" width="100px" height="100px" />
+  </p>
+  <h1 align="center">Voxelize</h1>
+</a>
 
 <p align="center">A multiplayer, fast, super fast, voxel engine in your browser!</p>
 
@@ -20,12 +25,12 @@ custom_edit_url: null
 
 ## Supporting
 
-If you like our work, please considering supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
+If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or PayPal. Thanks a lot!
 
 <p align="center">
-  <a href="https://www.buymeacoffee.com/shaoruu"><img src="https://i.imgur.com/xPDiGKQ.png" alt="Buy Me A Coffee" style="height: 50px"/> </a>
   <a href="https://www.patreon.com/voxelize"><img src="https://c5.patreon.com/external/logo/become_a_patron_button.png" alt="Patreon donate button" /> </a>
   <a href="https://paypal.me/iantheboss"><img src="https://werwolv.net/assets/paypal_banner.png" alt="PayPal donate button" /> </a>
+  <a href="https://www.buymeacoffee.com/voxelize"><img src="https://i.imgur.com/xPDiGKQ.png" alt="Buy Me A Coffee" style="height: 50px"/> </a>
 </p>
 
 ## Showcase
@@ -60,6 +65,7 @@ Before starting, make sure to install the following:
 - [rust](https://www.rust-lang.org/tools/install)
 - [node.js](https://nodejs.org/en/download/)
 - [cargo-watch](https://crates.io/crates/cargo-watch)
+- [protoc](https://grpc.io/docs/protoc-installation/)
 
 ```bash
 # clone the repository
@@ -70,7 +76,7 @@ cd voxelize
 yarn
 
 # generate protocol buffers
-yarn run proto
+yarn --cwd transport run proto
 
 # start development
 yarn run dev
@@ -82,4 +88,6 @@ yarn run demo
 
 visit http://localhost:3000
 
-## Work in progress, PR Welcomed!!
+## Disclaimers
+
+This is purely a passionate project. Although inspired, I have no intention for this game to be affiliated with Minecraft, or any licensed voxel engines. Further, textures and assets used in the game are all either licensed for free use or hand-drawn by us.

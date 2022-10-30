@@ -54,7 +54,7 @@ ___
 
 ### click
 
-▸ **click**(`type`, `callback`, `namespace`): `void`
+▸ **click**(`type`, `callback`, `namespace`): () => `boolean`
 
 Register a new click event listener.
 
@@ -62,19 +62,25 @@ Register a new click event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype) | Which mouse button to register on. |
+| `type` | [`ClickType`](../modules.md#clicktype-14) | Which mouse button to register on. |
 | `callback` | () => `void` | What to do when that button is clicked. |
 | `namespace` | `T` \| ``"*"`` | Which namespace should this event be fired? |
 
 #### Returns
 
-`void`
+`fn`
+
+▸ (): `boolean`
+
+##### Returns
+
+`boolean`
 
 ___
 
 ### scroll
 
-▸ **scroll**(`up`, `down`, `namespace`): `void`
+▸ **scroll**(`up`, `down`, `namespace`): () => `boolean`
 
 Register a new scroll event listener.
 
@@ -88,13 +94,19 @@ Register a new scroll event listener.
 
 #### Returns
 
-`void`
+`fn`
+
+▸ (): `boolean`
+
+##### Returns
+
+`boolean`
 
 ___
 
 ### bind
 
-▸ **bind**(`key`, `callback`, `namespace`, `specifics?`): `void`
+▸ **bind**(`key`, `callback`, `namespace`, `specifics?`): () => `void`
 
 Register a key-bind event listener.
 
@@ -106,10 +118,16 @@ Register a key-bind event listener.
 | `callback` | () => `void` | What to do when the key/combo is pressed. |
 | `namespace` | `T` \| ``"*"`` | The namespace in which the to fire this event. |
 | `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) | Which pressing occasion should the event be fired. Defaults to "keydown". |
 | `specifics.identifier?` | `string` | Whether or not should this be a special key event. Defaults to "". |
 
 #### Returns
+
+`fn`
+
+▸ (): `void`
+
+##### Returns
 
 `void`
 
@@ -125,12 +143,32 @@ ___
 | :------ | :------ |
 | `key` | `string` |
 | `specifics` | `Object` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) |
 | `specifics.identifier?` | `string` |
 
 #### Returns
 
 `boolean`
+
+___
+
+### swap
+
+▸ **swap**(`keyA`, `keyB`, `specifics?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `keyA` | `string` |
+| `keyB` | `string` |
+| `specifics` | `Object` |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) |
+| `specifics.identifier?` | `string` |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -145,7 +183,7 @@ ___
 | `key` | `string` |
 | `newName` | `string` |
 | `specifics` | `Object` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) |
 | `specifics.identifier?` | `string` |
 
 #### Returns

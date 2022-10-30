@@ -1,6 +1,6 @@
 ---
 id: "Peers"
-title: "Class: Peers<T>"
+title: "Class: Peers<C, T>"
 sidebar_label: "Peers"
 sidebar_position: 0
 custom_edit_url: null
@@ -12,7 +12,14 @@ A **built-in** manager for the peer clients in the same Voxelize world.
 
 | Name | Type |
 | :------ | :------ |
+| `C` | extends `Object3D` = `Object3D` |
 | `T` | { `direction`: `number`[] ; `position`: `number`[]  } |
+
+## Hierarchy
+
+- `Group`
+
+  ↳ **`Peers`**
 
 ## Implements
 
@@ -38,7 +45,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-14)
 
 ___
 
@@ -60,13 +67,13 @@ ___
 
 ___
 
-### onPeerJoin
+### createPeer
 
-• **onPeerJoin**: (`id`: `string`) => `void`
+• **createPeer**: (`id`: `string`) => `C`
 
 #### Type declaration
 
-▸ (`id`): `void`
+▸ (`id`): `C`
 
 ##### Parameters
 
@@ -76,43 +83,24 @@ ___
 
 ##### Returns
 
-`void`
+`C`
 
 ___
 
 ### onPeerUpdate
 
-• **onPeerUpdate**: (`peer`: `PeerProtocol`<`T`\>) => `void`
+• **onPeerUpdate**: (`object`: `C`, `data`: `T`) => `void`
 
 #### Type declaration
 
-▸ (`peer`): `void`
+▸ (`object`, `data`): `void`
 
 ##### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `peer` | `PeerProtocol`<`T`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onPeerLeave
-
-• **onPeerLeave**: (`id`: `string`) => `void`
-
-#### Type declaration
-
-▸ (`id`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `string` |
+| `object` | `C` |
+| `data` | `T` |
 
 ##### Returns
 
@@ -122,12 +110,13 @@ ___
 
 ### constructor
 
-• **new Peers**<`T`\>(`object?`, `params?`)
+• **new Peers**<`C`, `T`\>(`object?`, `params?`)
 
 #### Type parameters
 
 | Name | Type |
 | :------ | :------ |
+| `C` | extends `Object3D`<`Event`, `C`\> = `Object3D`<`Event`\> |
 | `T` | { `direction`: `number`[] ; `position`: `number`[]  } |
 
 #### Parameters
@@ -138,7 +127,43 @@ ___
 | `params` | `Object` |
 | `params.countSelf` | `boolean` |
 
+#### Overrides
+
+Group.constructor
+
 ## Methods
+
+### onPeerJoin
+
+▸ **onPeerJoin**(`id`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### onPeerLeave
+
+▸ **onPeerLeave**(`id`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+
+#### Returns
+
+`void`
+
+___
 
 ### onMessage
 
@@ -158,7 +183,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-14)
 
 ___
 
@@ -179,21 +204,3 @@ ___
 #### Returns
 
 `void`
-
-___
-
-### directionToQuaternion
-
-▸ `Static` **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `dx` | `number` |
-| `dy` | `number` |
-| `dz` | `number` |
-
-#### Returns
-
-`Quaternion`

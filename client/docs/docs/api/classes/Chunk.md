@@ -22,19 +22,19 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2)
+• **coords**: [`Coords2`](../modules.md#coords2-14)
 
 ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3)
+• **min**: [`Coords3`](../modules.md#coords3-14)
 
 ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3)
+• **max**: [`Coords3`](../modules.md#coords3-14)
 
 ___
 
@@ -53,12 +53,6 @@ ___
 ### added
 
 • **added**: `boolean` = `false`
-
-___
-
-### SUB\_MESHING\_INTERVAL
-
-▪ `Static` **SUB\_MESHING\_INTERVAL**: `number` = `100`
 
 ___
 
@@ -91,7 +85,7 @@ ___
 
 ### build
 
-▸ **build**(`data`, `materials`): `void`
+▸ **build**(`data`, `materials`): `Promise`<`void`\>
 
 #### Parameters
 
@@ -100,11 +94,13 @@ ___
 | `data` | `ChunkProtocol` |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |
-| `materials.transparent?` | `Material` |
+| `materials.transparent?` | `Object` |
+| `materials.transparent.front` | `Material` |
+| `materials.transparent.back` | `Material` |
 
 #### Returns
 
-`void`
+`Promise`<`void`\>
 
 ___
 
@@ -429,7 +425,7 @@ ___
 | `vx` | `number` |
 | `vy` | `number` |
 | `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `color` | [`LightColor`](../modules.md#lightcolor-14) |
 
 #### Returns
 
@@ -449,7 +445,7 @@ ___
 | `vy` | `number` |
 | `vz` | `number` |
 | `level` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `color` | [`LightColor`](../modules.md#lightcolor-14) |
 
 #### Returns
 

@@ -25,25 +25,33 @@ custom_edit_url: null
 - [ChunkMesh](classes/ChunkMesh.md)
 - [Chunk](classes/Chunk.md)
 - [Chunks](classes/Chunks.md)
+- [Arrow](classes/Arrow.md)
 - [BoxLayer](classes/BoxLayer.md)
 - [CanvasBox](classes/CanvasBox.md)
+- [Character](classes/Character.md)
 - [Clouds](classes/Clouds.md)
 - [ColorText](classes/ColorText.md)
-- [Entity](classes/Entity.md)
-- [Component](classes/Component.md)
-- [System](classes/System.md)
-- [ECS](classes/ECS.md)
-- [Head](classes/Head.md)
+- [Debug](classes/Debug.md)
+- [BlockOverlayEffect](classes/BlockOverlayEffect.md)
+- [LightShined](classes/LightShined.md)
 - [ImageVoxelizer](classes/ImageVoxelizer.md)
 - [NameTag](classes/NameTag.md)
+- [BlockBreakParticles](classes/BlockBreakParticles.md)
+- [Perspective](classes/Perspective.md)
+- [Shadow](classes/Shadow.md)
+- [Shadows](classes/Shadows.md)
 - [Sky](classes/Sky.md)
 - [SpriteText](classes/SpriteText.md)
+- [VoxelInteract](classes/VoxelInteract.md)
 - [WorkerPool](classes/WorkerPool.md)
 - [BlockUtils](classes/BlockUtils.md)
 - [ChunkUtils](classes/ChunkUtils.md)
 - [DOMUtils](classes/DOMUtils.md)
-- [LightUtils](classes/LightUtils.md)
 - [MathUtils](classes/MathUtils.md)
+
+## Utils Classes
+
+- [LightUtils](classes/LightUtils.md)
 
 ## Interfaces
 
@@ -99,146 +107,140 @@ ___
 
 ___
 
-### Y\_000\_ROTATION
+### Y\_ROT\_SEGMENTS
 
-• `Const` **Y\_000\_ROTATION**: ``0``
-
-___
-
-### Y\_045\_ROTATION
-
-• `Const` **Y\_045\_ROTATION**: ``1``
-
-___
-
-### Y\_090\_ROTATION
-
-• `Const` **Y\_090\_ROTATION**: ``2``
-
-___
-
-### Y\_135\_ROTATION
-
-• `Const` **Y\_135\_ROTATION**: ``3``
-
-___
-
-### Y\_180\_ROTATION
-
-• `Const` **Y\_180\_ROTATION**: ``4``
-
-___
-
-### Y\_225\_ROTATION
-
-• `Const` **Y\_225\_ROTATION**: ``5``
-
-___
-
-### Y\_270\_ROTATION
-
-• `Const` **Y\_270\_ROTATION**: ``6``
-
-___
-
-### Y\_315\_ROTATION
-
-• `Const` **Y\_315\_ROTATION**: ``7``
+• `Const` **Y\_ROT\_SEGMENTS**: ``16``
 
 ___
 
 ### Y\_ROT\_MAP
 
-• `Const` **Y\_ROT\_MAP**: `number`[][]
+• `Const` **Y\_ROT\_MAP**: `any`[] = `[]`
+
+___
+
+### ALL\_FACES
+
+• `Const` **ALL\_FACES**: `string`[]
+
+___
+
+### SIDE\_FACES
+
+• `Const` **SIDE\_FACES**: `string`[]
+
+___
+
+### DIAGONAL\_FACES
+
+• `Const` **DIAGONAL\_FACES**: `string`[]
 
 ___
 
 ### defaultParams
 
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams)
+• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14)
 
 ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: `string`[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-14)[]
 
 ___
 
-### STAR\_COLORS
+### RED\_LIGHT
 
-• `Const` **STAR\_COLORS**: `string`[]
+• `Const` **RED\_LIGHT**: ``"RED"``
+
+The string representation of red light.
 
 ___
 
-### SKY\_CONFIGS
+### GREEN\_LIGHT
 
-• `Const` **SKY\_CONFIGS**: `Object`
+• `Const` **GREEN\_LIGHT**: ``"GREEN"``
 
-#### Type declaration
+The string representation of green light.
+
+___
+
+### BLUE\_LIGHT
+
+• `Const` **BLUE\_LIGHT**: ``"BLUE"``
+
+The string representation of blue light.
+
+___
+
+### SUNLIGHT
+
+• `Const` **SUNLIGHT**: ``"SUNLIGHT"``
+
+The string representation of sunlight.
+
+## Functions
+
+### TRANSPARENT\_SORT
+
+▸ **TRANSPARENT_SORT**(`object`): (`a`: `any`, `b`: `any`) => `number`
+
+#### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `hours` | { `0`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 } ; `600`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } ; `700`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 0; `voidOffset`: `number` = 1200 } ; `1700`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } ; `1800`: { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 }  } |
-| `hours.0` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 } |
-| `hours.0.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
-| `hours.0.color.top` | `Color` |
-| `hours.0.color.middle` | `Color` |
-| `hours.0.color.bottom` | `Color` |
-| `hours.0.skyOffset` | `number` |
-| `hours.0.voidOffset` | `number` |
-| `hours.600` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } |
-| `hours.600.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
-| `hours.600.color.top` | `Color` |
-| `hours.600.color.middle` | `Color` |
-| `hours.600.color.bottom` | `Color` |
-| `hours.600.skyOffset` | `number` |
-| `hours.600.voidOffset` | `number` |
-| `hours.700` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 0; `voidOffset`: `number` = 1200 } |
-| `hours.700.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
-| `hours.700.color.top` | `Color` |
-| `hours.700.color.middle` | `Color` |
-| `hours.700.color.bottom` | `Color` |
-| `hours.700.skyOffset` | `number` |
-| `hours.700.voidOffset` | `number` |
-| `hours.1700` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 100; `voidOffset`: `number` = 1200 } |
-| `hours.1700.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
-| `hours.1700.color.top` | `Color` |
-| `hours.1700.color.middle` | `Color` |
-| `hours.1700.color.bottom` | `Color` |
-| `hours.1700.skyOffset` | `number` |
-| `hours.1700.voidOffset` | `number` |
-| `hours.1800` | { `color`: { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } ; `skyOffset`: `number` = 200; `voidOffset`: `number` = 1200 } |
-| `hours.1800.color` | { `top`: `Color` ; `middle`: `Color` ; `bottom`: `Color`  } |
-| `hours.1800.color.top` | `Color` |
-| `hours.1800.color.middle` | `Color` |
-| `hours.1800.color.bottom` | `Color` |
-| `hours.1800.skyOffset` | `number` |
-| `hours.1800.voidOffset` | `number` |
+| `object` | `Object3D`<`Event`\> |
+
+#### Returns
+
+`fn`
+
+▸ (`a`, `b`): `number`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `a` | `any` |
+| `b` | `any` |
+
+##### Returns
+
+`number`
 
 ___
 
-### RedLight
+### cull
 
-• `Const` **RedLight**: ``"RED"``
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-14)\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-14) |
+
+#### Returns
+
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-14)\>
 
 ___
 
-### GreenLight
+### drawSun
 
-• `Const` **GreenLight**: ``"GREEN"``
+▸ **drawSun**(`context`, `canvas`): `void`
 
-___
+#### Parameters
 
-### BlueLight
+| Name | Type |
+| :------ | :------ |
+| `context` | `CanvasRenderingContext2D` |
+| `canvas` | `HTMLCanvasElement` |
 
-• `Const` **BlueLight**: ``"BLUE"``
+#### Returns
 
-___
-
-### Sunlight
-
-• `Const` **Sunlight**: ``"SUNLIGHT"``
+`void`
 
 ## Type Aliases
 
@@ -298,18 +300,14 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `lookBlockScale` | `number` | The scale of the outline of the looking block. Defaults to `1.002`. |
-| `lookBlockColor` | `string` | The color of the outline of the looking block. Defaults to `black`. |
-| `lookBlockLerp` | `number` | The interpolation factor of the looking block changing. Defaults to `1`, immediate changes. |
-| `lookInGhostMode` | `boolean` | Allow client to look at blocks even in ghost mode. Defaults to `false`. |
-| `reachDistance` | `number` | The maximum distance a client can reach a block. Defaults to `32`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-14) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
+| `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
 | `bodyWidth` | `number` | The width of the client's avatar. Defaults to `0.8` blocks. |
-| `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.8` blocks. |
+| `bodyHeight` | `number` | The height of the client's avatar. Defaults to `1.55` blocks. |
 | `bodyDepth` | `number` | The depth of the client's avatar. Defaults to `0.8` blocks. |
-| `eyeHeight` | `number` | The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.8`. |
+| `eyeHeight` | `number` | The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.919`. |
 | `maxSpeed` | `number` | The maximum level of speed of a client. Default is `6` . |
 | `moveForce` | `number` | The level of force of which the client can move at. Default is `30`. |
 | `responsiveness` | `number` | The level of responsiveness of a client to movements. Default is `240`. |
@@ -327,6 +325,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `jumpForce` | `number` | The level of force applied to the client when jumping. Defaults to `1`. |
 | `jumpTime` | `number` | The time, in milliseconds, that a client can be jumping. Defaults to `50`ms. |
 | `airJumps` | `number` | How many times can a client jump in the air. Defaults to `0`. |
+| `stepHeight` | `number` | How tall a client can step up. Defaults to `0.5`. |
 
 ___
 
@@ -395,15 +394,15 @@ ___
 
 Ƭ **NetworkParams**: `Object`
 
-Parameters to initializing a Voxelize [Network](classes/Network.md) connection to the server.
+Parameters to customize the connection to a Voxelize server. For example, setting a secret
+key to authenticate the connection with the server.
 
 #### Type declaration
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `serverURL` | `string` | The HTTP url to the backend. Example: `http://localhost:4000` |
 | `reconnectTimeout?` | `number` | On disconnection, the timeout to attempt to reconnect. Defaults to 5000. |
-| `secret?` | `string` | The secret to joining a server. |
+| `secret?` | `string` | The secret to joining a server, a key that if set on the server, then must be provided to connect to the server successfully. |
 
 ___
 
@@ -426,8 +425,7 @@ ___
 | `isEmpty` | `boolean` |
 | `isFluid` | `boolean` |
 | `isLight` | `boolean` |
-| `isPlant` | `boolean` |
-| `isPlantable` | `boolean` |
+| `isPassable` | `boolean` |
 | `isOpaque` | `boolean` |
 | `isSeeThrough` | `boolean` |
 | `isPxTransparent` | `boolean` |
@@ -456,13 +454,14 @@ A block update to make on the server.
 | `vy` | `number` | The voxel y-coordinate. |
 | `vz` | `number` | The voxel z-coordinate. |
 | `type` | `number` | The voxel type. |
-| `rotation?` | [`BlockRotation`](classes/BlockRotation.md) | The optional rotation of the updated block. |
+| `rotation?` | `number` | The optional rotation of the updated block. |
+| `yRotation?` | `number` | The optional y-rotation of the updated block. |
 
 ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-14) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -487,9 +486,12 @@ ___
 | `maxProcessesPerTick` | `number` |
 | `maxUpdatesPerTick` | `number` |
 | `maxAddsPerTick` | `number` |
+| `minBrightness` | `number` |
+| `rerequestTicks` | `number` |
 | `defaultRenderRadius` | `number` |
 | `defaultDeleteRadius` | `number` |
 | `textureDimension` | `number` |
+| `updateTimeout` | `number` |
 
 ___
 
@@ -517,7 +519,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams) & [`WorldServerParams`](modules.md#worldserverparams)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-14) & [`WorldServerParams`](modules.md#worldserverparams-14)
 
 ___
 
@@ -540,14 +542,14 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname) or [applyTexturesByNames](classes/World.md#applytexturesbynames) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-14) or [applyTexturesByNames](classes/World.md#applytexturesbynames-14) to load a block texture.
 
 #### Type declaration
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the block to load. E.g. "Dirt". |
-| `sides` | `string`[] | The sides that this data loads onto. |
+| `sides` | `string`[] \| `string` | The sides that this data loads onto. |
 | `data` | `string` \| `Color` | Either the URL to the source image, or a ThreeJS color instance. |
 
 ___
@@ -566,6 +568,22 @@ Parameters to initialize the registry.
 
 ___
 
+### ArrowParams
+
+Ƭ **ArrowParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `radius` | `number` |
+| `height` | `number` |
+| `coneRadius` | `number` |
+| `coneHeight` | `number` |
+| `color` | `string` \| `Color` |
+
+___
+
 ### CanvasBoxParams
 
 Ƭ **CanvasBoxParams**: `Object`
@@ -577,18 +595,23 @@ ___
 | `gap` | `number` |
 | `layers` | `number` |
 | `width` | `number` |
-| `dimension` | `number` |
+| `height?` | `number` |
+| `depth?` | `number` |
+| `widthSegments` | `number` |
+| `heightSegments?` | `number` |
+| `depthSegments?` | `number` |
 | `side` | `Side` |
+| `transparent?` | `boolean` |
 
 ___
 
 ### ArtFunction
 
-Ƭ **ArtFunction**: (`context`: `CanvasRenderingContext2D`, `canvas`: `HTMLCanvasElement`, `width?`: `number`, `dimension?`: `number`) => `void`
+Ƭ **ArtFunction**: (`context`: `CanvasRenderingContext2D`, `canvas`: `HTMLCanvasElement`) => `void`
 
 #### Type declaration
 
-▸ (`context`, `canvas`, `width?`, `dimension?`): `void`
+▸ (`context`, `canvas`): `void`
 
 ##### Parameters
 
@@ -596,8 +619,6 @@ ___
 | :------ | :------ |
 | `context` | `CanvasRenderingContext2D` |
 | `canvas` | `HTMLCanvasElement` |
-| `width?` | `number` |
-| `dimension?` | `number` |
 
 ##### Returns
 
@@ -607,7 +628,51 @@ ___
 
 ### BoxSides
 
-Ƭ **BoxSides**: ``"back"`` \| ``"front"`` \| ``"top"`` \| ``"bottom"`` \| ``"left"`` \| ``"right"`` \| ``"all"`` \| ``"sides"``
+Ƭ **BoxSides**: ``"back"`` \| ``"front"`` \| ``"top"`` \| ``"bottom"`` \| ``"left"`` \| ``"right"`` \| ``"all"``
+
+___
+
+### HeadParams
+
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14) & { `neckGap?`: `number`  }
+
+___
+
+### BodyParams
+
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14)
+
+___
+
+### LegParams
+
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14) & { `betweenLegsGap?`: `number`  }
+
+___
+
+### ArmsParams
+
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+
+___
+
+### CharacterParams
+
+Ƭ **CharacterParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `swingLerp?` | `number` |
+| `walkingSpeed?` | `number` |
+| `idleArmSwing?` | `number` |
+| `positionLerp?` | `number` |
+| `rotationLerp?` | `number` |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-14)\> |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-14)\> |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-14)\> |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-14)\> |
 
 ___
 
@@ -623,7 +688,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3) |
+| `dimensions` | [`Coords3`](modules.md#coords3-14) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -664,83 +729,44 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3) |
-| `max` | [`Coords3`](modules.md#coords3) |
-| `realMin` | [`Coords3`](modules.md#coords3) |
-| `realMax` | [`Coords3`](modules.md#coords3) |
-| `dimensions` | [`Coords3`](modules.md#coords3) |
+| `min` | [`Coords3`](modules.md#coords3-14) |
+| `max` | [`Coords3`](modules.md#coords3-14) |
+| `realMin` | [`Coords3`](modules.md#coords3-14) |
+| `realMax` | [`Coords3`](modules.md#coords3-14) |
+| `dimensions` | [`Coords3`](modules.md#coords3-14) |
 
 ___
 
-### Susbcription
+### DebugParams
 
-Ƭ **Susbcription**: (`entity`: [`Entity`](classes/Entity.md), `added?`: [`Component`](classes/Component.md)<`any`\>, `removed?`: [`Component`](classes/Component.md)<`any`\>) => `void`
-
-#### Type declaration
-
-▸ (`entity`, `added?`, `removed?`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `entity` | [`Entity`](classes/Entity.md) |
-| `added?` | [`Component`](classes/Component.md)<`any`\> |
-| `removed?` | [`Component`](classes/Component.md)<`any`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### ComponentClassType
-
-Ƭ **ComponentClassType**<`P`\>: (`data?`: `P`) => [`Component`](classes/Component.md)<`P`\> & { `type`: `number` ; `getAll`: (`entity`: [`Entity`](classes/Entity.md)) => [`Component`](classes/Component.md)<`P`\>[] ; `get`: (`entity`: [`Entity`](classes/Entity.md)) => [`Component`](classes/Component.md)<`P`\>  }
-
-Force typing
-
-#### Type parameters
-
-| Name |
-| :------ |
-| `P` |
-
-___
-
-### EventCallback
-
-Ƭ **EventCallback**: (`data`: `any`, `entities`: `Iterator`<[`Entity`](classes/Entity.md)\>) => `void`
-
-#### Type declaration
-
-▸ (`data`, `entities`): `void`
-
-System callback
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `data` | `any` |
-| `entities` | `Iterator`<[`Entity`](classes/Entity.md)\> |
-
-##### Returns
-
-`void`
-
-___
-
-### HeadParams
-
-Ƭ **HeadParams**: `Object`
+Ƭ **DebugParams**: `Object`
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `headDimension` | `number` |
-| `headColor` | `string` |
+| `stats` | `boolean` |
+| `tweakpane` | `boolean` |
+| `onByDefault` | `boolean` |
+| `entryStyles` | `Partial`<`CSSStyleDeclaration`\> |
+| `entryClass` | `string` |
+| `lineStyles` | `Partial`<`CSSStyleDeclaration`\> |
+| `lineClass` | `string` |
+| `dataStyles` | `Partial`<`CSSStyleDeclaration`\> |
+| `dataClass` | `string` |
+| `showVoxelize` | `boolean` |
+
+___
+
+### LightShinedParams
+
+Ƭ **LightShinedParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `lerpFactor` | `number` |
 
 ___
 
@@ -758,6 +784,73 @@ Parameters to process an image voxelization.
 | `height` | `number` | The height, in blocks, of the voxelized image. Defaults to `64`. |
 | `lockedRatio` | `boolean` | Whether or not should the ratio between width and height be locked. If true, the width would be ignored and be later determined form the height. Defaults to `false`. |
 | `orientation` | ``"x"`` \| ``"z"`` | Which direction to place the voxelized image. |
+
+___
+
+### BlockBreakParticlesParams
+
+Ƭ **BlockBreakParticlesParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `minCount` | `number` |
+| `maxCount` | `number` |
+| `capSize` | `number` |
+| `capScale` | `number` |
+| `scale` | `number` |
+| `impulse` | `number` |
+| `minLife` | `number` |
+| `maxLife` | `number` |
+| `zoneWidth` | `number` |
+
+___
+
+### PerspectiveParams
+
+Ƭ **PerspectiveParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `maxDistance` | `number` |
+| `blockMargin` | `number` |
+| `lerpFactor` | `number` |
+
+___
+
+### ShadowParams
+
+Ƭ **ShadowParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `maxDistance` | `number` |
+| `maxRadius` | `number` |
+
+___
+
+### VoxelInteractParams
+
+Ƭ **VoxelInteractParams**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `reachDistance` | `number` |
+| `ignoreFluid` | `boolean` |
+| `inverseDirection` | `boolean` |
+| `highlightScale` | `number` |
+| `highlightType` | ``"box"`` \| ``"outline"`` |
+| `highlightLerp` | `number` |
+| `highlightColor` | `Color` |
+| `highlightOpacity` | `number` |
+| `potentialVisuals` | `boolean` |
 
 ___
 
@@ -836,36 +929,4 @@ ___
 
 Ƭ **LightColor**: ``"RED"`` \| ``"GREEN"`` \| ``"BLUE"`` \| ``"SUNLIGHT"``
 
-## Functions
-
-### cull
-
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype) |
-
-#### Returns
-
-`Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
-
-___
-
-### drawSun
-
-▸ **drawSun**(`context`, `canvas`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `context` | `CanvasRenderingContext2D` |
-| `canvas` | `HTMLCanvasElement` |
-
-#### Returns
-
-`void`
+Sunlight or the color of torch light.

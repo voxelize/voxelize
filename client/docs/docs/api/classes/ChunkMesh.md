@@ -22,7 +22,7 @@ ___
 
 ### transparent
 
-• **transparent**: `Map`<`number`, `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>\>
+• **transparent**: `Map`<`number`, `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>[][]\>
 
 ___
 
@@ -533,7 +533,9 @@ Group.constructor
 | `meshData` | `MeshProtocol` |
 | `materials` | `Object` |
 | `materials.opaque?` | `Material` |
-| `materials.transparent?` | `Material` |
+| `materials.transparent?` | `Object` |
+| `materials.transparent.front` | `Material` |
+| `materials.transparent.back` | `Material` |
 
 #### Returns
 

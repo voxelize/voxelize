@@ -10,6 +10,12 @@ custom_edit_url: null
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
+## Constructors
+
+### constructor
+
+• **new Chat**()
+
 ## Properties
 
 ### packets
@@ -18,13 +24,7 @@ custom_edit_url: null
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets)
-
-___
-
-### commandSymbol
-
-• **commandSymbol**: `string` = `"/"`
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-14)
 
 ___
 
@@ -45,18 +45,6 @@ ___
 ##### Returns
 
 `void`
-
-## Constructors
-
-### constructor
-
-• **new Chat**(`commandSymbol?`)
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `commandSymbol` | `string` | `"/"` |
 
 ## Methods
 
@@ -87,7 +75,7 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor) | `undefined` | The process run when this command is triggered. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor-14) | `undefined` | The process run when this command is triggered. |
 | `aliases` | `string`[] | `[]` | - |
 
 #### Returns
@@ -130,4 +118,14 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-14)
+
+## Accessors
+
+### commandSymbol
+
+• `get` **commandSymbol**(): `string`
+
+#### Returns
+
+`string`

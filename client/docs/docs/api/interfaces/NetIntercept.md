@@ -8,6 +8,7 @@ custom_edit_url: null
 
 ## Implemented by
 
+- [`BlockBreakParticles`](../classes/BlockBreakParticles.md)
 - [`Chat`](../classes/Chat.md)
 - [`Entities`](../classes/Entities.md)
 - [`Events`](../classes/Events.md)

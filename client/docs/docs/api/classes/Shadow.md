@@ -1,46 +1,46 @@
 ---
-id: "Clouds"
-title: "Class: Clouds"
-sidebar_label: "Clouds"
+id: "Shadow"
+title: "Class: Shadow"
+sidebar_label: "Shadow"
 sidebar_position: 0
 custom_edit_url: null
 ---
 
 ## Hierarchy
 
-- `Group`
+- `Mesh`
 
-  ↳ **`Clouds`**
+  ↳ **`Shadow`**
 
 ## Properties
 
-### array
-
-• **array**: `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\>
-
-___
-
-### material
-
-• **material**: `ShaderMaterial`
-
-___
-
-### initialized
-
-• **initialized**: `boolean` = `false`
-
-___
-
 ### params
 
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-14)
+• **params**: [`ShadowParams`](../modules.md#shadowparams-14)
 
 ___
 
-### meshes
+### MATERIAL
 
-• **meshes**: `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>[][] = `[]`
+▪ `Static` `Readonly` **MATERIAL**: `MeshBasicMaterial`
+
+___
+
+### GEOMETRY
+
+▪ `Static` `Readonly` **GEOMETRY**: `CircleGeometry`
+
+___
+
+### Y\_OFFSET
+
+▪ `Static` `Readonly` **Y\_OFFSET**: ``0.01``
+
+___
+
+### world
+
+• **world**: [`World`](World.md)
 
 ___
 
@@ -52,7 +52,7 @@ Unique number of this object instance.
 
 #### Inherited from
 
-Group.id
+Mesh.id
 
 ___
 
@@ -62,7 +62,7 @@ ___
 
 #### Inherited from
 
-Group.uuid
+Mesh.uuid
 
 ___
 
@@ -76,7 +76,7 @@ Optional name of the object (doesn't need to be unique).
 
 #### Inherited from
 
-Group.name
+Mesh.name
 
 ___
 
@@ -90,7 +90,7 @@ Object's parent in the scene graph.
 
 #### Inherited from
 
-Group.parent
+Mesh.parent
 
 ___
 
@@ -104,7 +104,7 @@ Array with object's children.
 
 #### Inherited from
 
-Group.children
+Mesh.children
 
 ___
 
@@ -118,7 +118,7 @@ Up direction.
 
 #### Inherited from
 
-Group.up
+Mesh.up
 
 ___
 
@@ -132,7 +132,7 @@ Object's local position.
 
 #### Inherited from
 
-Group.position
+Mesh.position
 
 ___
 
@@ -146,7 +146,7 @@ Object's local rotation (Euler angles), in radians.
 
 #### Inherited from
 
-Group.rotation
+Mesh.rotation
 
 ___
 
@@ -160,7 +160,7 @@ Object's local rotation as a Quaternion.
 
 #### Inherited from
 
-Group.quaternion
+Mesh.quaternion
 
 ___
 
@@ -174,7 +174,7 @@ Object's local scale.
 
 #### Inherited from
 
-Group.scale
+Mesh.scale
 
 ___
 
@@ -186,7 +186,7 @@ ___
 
 #### Inherited from
 
-Group.modelViewMatrix
+Mesh.modelViewMatrix
 
 ___
 
@@ -198,7 +198,7 @@ ___
 
 #### Inherited from
 
-Group.normalMatrix
+Mesh.normalMatrix
 
 ___
 
@@ -212,7 +212,7 @@ Local transform.
 
 #### Inherited from
 
-Group.matrix
+Mesh.matrix
 
 ___
 
@@ -226,7 +226,7 @@ The global transform of the object. If the Object3d has no parent, then it's ide
 
 #### Inherited from
 
-Group.matrixWorld
+Mesh.matrixWorld
 
 ___
 
@@ -241,7 +241,7 @@ recalculates the matrixWorld property.
 
 #### Inherited from
 
-Group.matrixAutoUpdate
+Mesh.matrixAutoUpdate
 
 ___
 
@@ -255,7 +255,7 @@ When this is set, it calculates the matrixWorld in that frame and resets this pr
 
 #### Inherited from
 
-Group.matrixWorldNeedsUpdate
+Mesh.matrixWorldNeedsUpdate
 
 ___
 
@@ -267,7 +267,7 @@ ___
 
 #### Inherited from
 
-Group.layers
+Mesh.layers
 
 ___
 
@@ -281,7 +281,7 @@ Object gets rendered if true.
 
 #### Inherited from
 
-Group.visible
+Mesh.visible
 
 ___
 
@@ -295,7 +295,7 @@ Gets rendered into shadow map.
 
 #### Inherited from
 
-Group.castShadow
+Mesh.castShadow
 
 ___
 
@@ -309,7 +309,7 @@ Material gets baked in shadow receiving.
 
 #### Inherited from
 
-Group.receiveShadow
+Mesh.receiveShadow
 
 ___
 
@@ -324,7 +324,7 @@ If set to false the object gets rendered every frame even if it is not in the fr
 
 #### Inherited from
 
-Group.frustumCulled
+Mesh.frustumCulled
 
 ___
 
@@ -340,7 +340,7 @@ When this property is set for an instance of Group, all descendants objects will
 
 #### Inherited from
 
-Group.renderOrder
+Mesh.renderOrder
 
 ___
 
@@ -354,7 +354,7 @@ Array with animation clips.
 
 #### Inherited from
 
-Group.animations
+Mesh.animations
 
 ___
 
@@ -372,7 +372,7 @@ An object that can be used to store custom data about the Object3d. It should no
 
 #### Inherited from
 
-Group.userData
+Mesh.userData
 
 ___
 
@@ -387,7 +387,7 @@ transparent texture with alphaTest, you must specify a customDepthMaterial for p
 
 #### Inherited from
 
-Group.customDepthMaterial
+Mesh.customDepthMaterial
 
 ___
 
@@ -399,7 +399,7 @@ Same as customDepthMaterial, but used with PointLight.
 
 #### Inherited from
 
-Group.customDistanceMaterial
+Mesh.customDistanceMaterial
 
 ___
 
@@ -412,7 +412,7 @@ You should not change this, as it is used internally for optimisation.
 
 #### Inherited from
 
-Group.isObject3D
+Mesh.isObject3D
 
 ___
 
@@ -443,7 +443,7 @@ Calls before rendering object
 
 #### Inherited from
 
-Group.onBeforeRender
+Mesh.onBeforeRender
 
 ___
 
@@ -474,7 +474,7 @@ Calls after rendering object
 
 #### Inherited from
 
-Group.onAfterRender
+Mesh.onAfterRender
 
 ___
 
@@ -484,7 +484,7 @@ ___
 
 #### Inherited from
 
-Group.DefaultUp
+Mesh.DefaultUp
 
 ___
 
@@ -494,76 +494,94 @@ ___
 
 #### Inherited from
 
-Group.DefaultMatrixAutoUpdate
+Mesh.DefaultMatrixAutoUpdate
+
+___
+
+### geometry
+
+• **geometry**: `BufferGeometry`
+
+#### Inherited from
+
+Mesh.geometry
+
+___
+
+### material
+
+• **material**: `Material` \| `Material`[]
+
+#### Inherited from
+
+Mesh.material
+
+___
+
+### morphTargetInfluences
+
+• `Optional` **morphTargetInfluences**: `number`[]
+
+#### Inherited from
+
+Mesh.morphTargetInfluences
+
+___
+
+### morphTargetDictionary
+
+• `Optional` **morphTargetDictionary**: `Object`
+
+#### Index signature
+
+▪ [key: `string`]: `number`
+
+#### Inherited from
+
+Mesh.morphTargetDictionary
+
+___
+
+### isMesh
+
+• `Readonly` **isMesh**: ``true``
+
+#### Inherited from
+
+Mesh.isMesh
 
 ___
 
 ### type
 
-• **type**: ``"Group"``
+• **type**: `string`
 
 #### Inherited from
 
-Group.type
-
-___
-
-### isGroup
-
-• `Readonly` **isGroup**: ``true``
-
-#### Inherited from
-
-Group.isGroup
+Mesh.type
 
 ## Constructors
 
 ### constructor
 
-• **new Clouds**(`params?`)
+• **new Shadow**(`world`, `params?`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-14)\> |
+| `world` | [`World`](World.md) |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-14)\> |
 
 #### Overrides
 
-Group.constructor
+Mesh.constructor
 
 ## Methods
 
-### initialize
-
-▸ **initialize**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
-### reset
-
-▸ **reset**(): `Promise`<`void`\>
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
 ### update
 
-▸ **update**(`position`, `delta?`): `void`
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `position` | `Vector3` | `undefined` |
-| `delta` | `number` | `0` |
+▸ **update**(): `void`
 
 #### Returns
 
@@ -588,7 +606,7 @@ Adds a listener to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Shadow`](Shadow.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -596,7 +614,7 @@ Adds a listener to an event type.
 
 #### Inherited from
 
-Group.addEventListener
+Mesh.addEventListener
 
 ___
 
@@ -617,7 +635,7 @@ Checks if listener is added to an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The function that gets called when the event is fired. |
+| `listener` | `EventListener`<`Event`, `T`, [`Shadow`](Shadow.md)\> | The function that gets called when the event is fired. |
 
 #### Returns
 
@@ -625,7 +643,7 @@ Checks if listener is added to an event type.
 
 #### Inherited from
 
-Group.hasEventListener
+Mesh.hasEventListener
 
 ___
 
@@ -646,7 +664,7 @@ Removes a listener from an event type.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`Clouds`](Clouds.md)\> | The listener function that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`Shadow`](Shadow.md)\> | The listener function that gets removed. |
 
 #### Returns
 
@@ -654,7 +672,7 @@ Removes a listener from an event type.
 
 #### Inherited from
 
-Group.removeEventListener
+Mesh.removeEventListener
 
 ___
 
@@ -676,7 +694,7 @@ Fire an event type.
 
 #### Inherited from
 
-Group.dispatchEvent
+Mesh.dispatchEvent
 
 ___
 
@@ -698,13 +716,13 @@ Applies the matrix transform to the object and updates the object's position, ro
 
 #### Inherited from
 
-Group.applyMatrix4
+Mesh.applyMatrix4
 
 ___
 
 ### applyQuaternion
 
-▸ **applyQuaternion**(`quaternion`): [`Clouds`](Clouds.md)
+▸ **applyQuaternion**(`quaternion`): [`Shadow`](Shadow.md)
 
 Applies the rotation represented by the quaternion to the object.
 
@@ -716,11 +734,11 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.applyQuaternion
+Mesh.applyQuaternion
 
 ___
 
@@ -744,7 +762,7 @@ angle -- angle in radians
 
 #### Inherited from
 
-Group.setRotationFromAxisAngle
+Mesh.setRotationFromAxisAngle
 
 ___
 
@@ -766,7 +784,7 @@ Calls setRotationFromEuler(euler) on the .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromEuler
+Mesh.setRotationFromEuler
 
 ___
 
@@ -790,7 +808,7 @@ Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, u
 
 #### Inherited from
 
-Group.setRotationFromMatrix
+Mesh.setRotationFromMatrix
 
 ___
 
@@ -812,13 +830,13 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromQuaternion
+Mesh.setRotationFromQuaternion
 
 ___
 
 ### rotateOnAxis
 
-▸ **rotateOnAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnAxis**(`axis`, `angle`): [`Shadow`](Shadow.md)
 
 Rotate an object along an axis in object space. The axis is assumed to be normalized.
 
@@ -831,17 +849,17 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.rotateOnAxis
+Mesh.rotateOnAxis
 
 ___
 
 ### rotateOnWorldAxis
 
-▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Clouds`](Clouds.md)
+▸ **rotateOnWorldAxis**(`axis`, `angle`): [`Shadow`](Shadow.md)
 
 Rotate an object along an axis in world space. The axis is assumed to be normalized. Method Assumes no rotated parent.
 
@@ -854,17 +872,17 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.rotateOnWorldAxis
+Mesh.rotateOnWorldAxis
 
 ___
 
 ### rotateX
 
-▸ **rotateX**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateX**(`angle`): [`Shadow`](Shadow.md)
 
 Rotates the object around x axis in local space.
 
@@ -876,17 +894,17 @@ Rotates the object around x axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.rotateX
+Mesh.rotateX
 
 ___
 
 ### rotateY
 
-▸ **rotateY**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateY**(`angle`): [`Shadow`](Shadow.md)
 
 Rotates the object around y axis in local space.
 
@@ -898,17 +916,17 @@ Rotates the object around y axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.rotateY
+Mesh.rotateY
 
 ___
 
 ### rotateZ
 
-▸ **rotateZ**(`angle`): [`Clouds`](Clouds.md)
+▸ **rotateZ**(`angle`): [`Shadow`](Shadow.md)
 
 Rotates the object around z axis in local space.
 
@@ -920,17 +938,17 @@ Rotates the object around z axis in local space.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.rotateZ
+Mesh.rotateZ
 
 ___
 
 ### translateOnAxis
 
-▸ **translateOnAxis**(`axis`, `distance`): [`Clouds`](Clouds.md)
+▸ **translateOnAxis**(`axis`, `distance`): [`Shadow`](Shadow.md)
 
 Translate an object by distance along an axis in object space. The axis is assumed to be normalized.
 
@@ -943,17 +961,17 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.translateOnAxis
+Mesh.translateOnAxis
 
 ___
 
 ### translateX
 
-▸ **translateX**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateX**(`distance`): [`Shadow`](Shadow.md)
 
 Translates object along x axis by distance.
 
@@ -965,17 +983,17 @@ Translates object along x axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.translateX
+Mesh.translateX
 
 ___
 
 ### translateY
 
-▸ **translateY**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateY**(`distance`): [`Shadow`](Shadow.md)
 
 Translates object along y axis by distance.
 
@@ -987,17 +1005,17 @@ Translates object along y axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.translateY
+Mesh.translateY
 
 ___
 
 ### translateZ
 
-▸ **translateZ**(`distance`): [`Clouds`](Clouds.md)
+▸ **translateZ**(`distance`): [`Shadow`](Shadow.md)
 
 Translates object along z axis by distance.
 
@@ -1009,11 +1027,11 @@ Translates object along z axis by distance.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.translateZ
+Mesh.translateZ
 
 ___
 
@@ -1035,7 +1053,7 @@ Updates the vector from local space to world space.
 
 #### Inherited from
 
-Group.localToWorld
+Mesh.localToWorld
 
 ___
 
@@ -1057,7 +1075,7 @@ Updates the vector from world space to local space.
 
 #### Inherited from
 
-Group.worldToLocal
+Mesh.worldToLocal
 
 ___
 
@@ -1083,13 +1101,13 @@ This method does not support objects having non-uniformly-scaled parent(s).
 
 #### Inherited from
 
-Group.lookAt
+Mesh.lookAt
 
 ___
 
 ### add
 
-▸ **add**(...`object`): [`Clouds`](Clouds.md)
+▸ **add**(...`object`): [`Shadow`](Shadow.md)
 
 Adds object as child of this object.
 
@@ -1101,17 +1119,17 @@ Adds object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.add
+Mesh.add
 
 ___
 
 ### remove
 
-▸ **remove**(...`object`): [`Clouds`](Clouds.md)
+▸ **remove**(...`object`): [`Shadow`](Shadow.md)
 
 Removes object as child of this object.
 
@@ -1123,49 +1141,49 @@ Removes object as child of this object.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.remove
+Mesh.remove
 
 ___
 
 ### removeFromParent
 
-▸ **removeFromParent**(): [`Clouds`](Clouds.md)
+▸ **removeFromParent**(): [`Shadow`](Shadow.md)
 
 Removes this object from its current parent.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.removeFromParent
+Mesh.removeFromParent
 
 ___
 
 ### clear
 
-▸ **clear**(): [`Clouds`](Clouds.md)
+▸ **clear**(): [`Shadow`](Shadow.md)
 
 Removes all child objects.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.clear
+Mesh.clear
 
 ___
 
 ### attach
 
-▸ **attach**(`object`): [`Clouds`](Clouds.md)
+▸ **attach**(`object`): [`Shadow`](Shadow.md)
 
 Adds object as a child of this, while maintaining the object's world transform.
 
@@ -1177,11 +1195,11 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.attach
+Mesh.attach
 
 ___
 
@@ -1203,7 +1221,7 @@ Searches through the object's children and returns the first with a matching id.
 
 #### Inherited from
 
-Group.getObjectById
+Mesh.getObjectById
 
 ___
 
@@ -1225,7 +1243,7 @@ Searches through the object's children and returns the first with a matching nam
 
 #### Inherited from
 
-Group.getObjectByName
+Mesh.getObjectByName
 
 ___
 
@@ -1246,7 +1264,7 @@ ___
 
 #### Inherited from
 
-Group.getObjectByProperty
+Mesh.getObjectByProperty
 
 ___
 
@@ -1266,7 +1284,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldPosition
+Mesh.getWorldPosition
 
 ___
 
@@ -1286,7 +1304,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldQuaternion
+Mesh.getWorldQuaternion
 
 ___
 
@@ -1306,7 +1324,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldScale
+Mesh.getWorldScale
 
 ___
 
@@ -1326,28 +1344,7 @@ ___
 
 #### Inherited from
 
-Group.getWorldDirection
-
-___
-
-### raycast
-
-▸ **raycast**(`raycaster`, `intersects`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `raycaster` | `Raycaster` |
-| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Group.raycast
+Mesh.getWorldDirection
 
 ___
 
@@ -1367,7 +1364,7 @@ ___
 
 #### Inherited from
 
-Group.traverse
+Mesh.traverse
 
 ___
 
@@ -1387,7 +1384,7 @@ ___
 
 #### Inherited from
 
-Group.traverseVisible
+Mesh.traverseVisible
 
 ___
 
@@ -1407,7 +1404,7 @@ ___
 
 #### Inherited from
 
-Group.traverseAncestors
+Mesh.traverseAncestors
 
 ___
 
@@ -1423,7 +1420,7 @@ Updates local transform.
 
 #### Inherited from
 
-Group.updateMatrix
+Mesh.updateMatrix
 
 ___
 
@@ -1445,7 +1442,7 @@ Updates global transform of the object and its children.
 
 #### Inherited from
 
-Group.updateMatrixWorld
+Mesh.updateMatrixWorld
 
 ___
 
@@ -1468,7 +1465,7 @@ Updates the global transform of the object.
 
 #### Inherited from
 
-Group.updateWorldMatrix
+Mesh.updateWorldMatrix
 
 ___
 
@@ -1492,13 +1489,13 @@ ___
 
 #### Inherited from
 
-Group.toJSON
+Mesh.toJSON
 
 ___
 
 ### clone
 
-▸ **clone**(`recursive?`): [`Clouds`](Clouds.md)
+▸ **clone**(`recursive?`): [`Shadow`](Shadow.md)
 
 #### Parameters
 
@@ -1508,29 +1505,64 @@ ___
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.clone
+Mesh.clone
 
 ___
 
 ### copy
 
-▸ **copy**(`source`, `recursive?`): [`Clouds`](Clouds.md)
+▸ **copy**(`source`, `recursive?`): [`Shadow`](Shadow.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `source` | [`Clouds`](Clouds.md) |
+| `source` | [`Shadow`](Shadow.md) |
 | `recursive?` | `boolean` |
 
 #### Returns
 
-[`Clouds`](Clouds.md)
+[`Shadow`](Shadow.md)
 
 #### Inherited from
 
-Group.copy
+Mesh.copy
+
+___
+
+### updateMorphTargets
+
+▸ **updateMorphTargets**(): `void`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Mesh.updateMorphTargets
+
+___
+
+### raycast
+
+▸ **raycast**(`raycaster`, `intersects`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `raycaster` | `Raycaster` |
+| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Mesh.raycast

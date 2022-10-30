@@ -377,14 +377,6 @@ const App = () => {
       "chat"
     );
 
-    inputs.bind(
-      "l",
-      () => {
-        network.action({ action: "create_world", data: "new_world" });
-      },
-      "in-game"
-    );
-
     inputs.bind("f", controls.toggleFly, "in-game");
 
     inputs.bind("j", debug.toggle, "*");
