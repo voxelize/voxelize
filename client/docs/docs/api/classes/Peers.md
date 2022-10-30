@@ -43,9 +43,12 @@ ___
 
 • **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
 
+An array of packets to be sent to the server. These packets will be
+sent to the server after every `network.flush()` call.
+
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-90)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-98)
 
 ___
 
@@ -169,6 +172,8 @@ ___
 
 ▸ **onMessage**(`message`, `__namedParameters`): `void`
 
+A listener to be implemented to handle incoming packets.
+
 #### Parameters
 
 | Name | Type |
@@ -183,7 +188,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-90)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-98)
 
 ___
 

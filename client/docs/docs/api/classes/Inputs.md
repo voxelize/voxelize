@@ -62,7 +62,7 @@ Register a new click event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype-90) | Which mouse button to register on. |
+| `type` | [`ClickType`](../modules.md#clicktype-98) | Which mouse button to register on. |
 | `callback` | () => `void` | What to do when that button is clicked. |
 | `namespace` | `T` \| ``"*"`` | Which namespace should this event be fired? |
 
@@ -118,7 +118,7 @@ Register a key-bind event listener.
 | `callback` | () => `void` | What to do when the key/combo is pressed. |
 | `namespace` | `T` \| ``"*"`` | The namespace in which the to fire this event. |
 | `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-90) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-98) | Which pressing occasion should the event be fired. Defaults to "keydown". |
 | `specifics.identifier?` | `string` | Whether or not should this be a special key event. Defaults to "". |
 
 #### Returns
@@ -143,7 +143,7 @@ ___
 | :------ | :------ |
 | `key` | `string` |
 | `specifics` | `Object` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-90) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-98) |
 | `specifics.identifier?` | `string` |
 
 #### Returns
@@ -163,7 +163,7 @@ ___
 | `keyA` | `string` |
 | `keyB` | `string` |
 | `specifics` | `Object` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-90) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-98) |
 | `specifics.identifier?` | `string` |
 
 #### Returns
@@ -183,7 +183,7 @@ ___
 | `key` | `string` |
 | `newName` | `string` |
 | `specifics` | `Object` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-90) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-98) |
 | `specifics.identifier?` | `string` |
 
 #### Returns

@@ -56,6 +56,8 @@ A **built-in** map representing living entities on the server.
 
 ▸ **onMessage**(`message`): `void`
 
+A listener to be implemented to handle incoming packets.
+
 #### Parameters
 
 | Name | Type |
@@ -68,4 +70,4 @@ A **built-in** map representing living entities on the server.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-90)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-98)

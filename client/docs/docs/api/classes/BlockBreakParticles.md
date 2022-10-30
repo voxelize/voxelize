@@ -31,7 +31,7 @@ custom_edit_url: null
 | Name | Type |
 | :------ | :------ |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams-90)\> |
+| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams-98)\> |
 
 #### Overrides
 
@@ -49,6 +49,8 @@ System.constructor
 
 ▸ **onMessage**(`message`): `void`
 
+A listener to be implemented to handle incoming packets.
+
 #### Parameters
 
 | Name | Type |
@@ -61,4 +63,4 @@ System.constructor
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-90)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-98)
