@@ -32,7 +32,7 @@ world.add(arrow);
 
 ### params
 
-• **params**: [`ArrowParams`](../modules.md#arrowparams-210)
+• **params**: [`ArrowParams`](../modules.md#arrowparams-394)
 
 Parameters used to create the arrow.
 
@@ -538,7 +538,7 @@ Create a new arrow.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-210)\> | Parameters to create the arrow. |
+| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-394)\> | Parameters to create the arrow. |
 
 #### Overrides
 

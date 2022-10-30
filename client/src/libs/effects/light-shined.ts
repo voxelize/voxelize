@@ -15,6 +15,9 @@ const defaultParams: LightShinedParams = {
   lerpFactor: 0.1,
 };
 
+/**
+ * @category Effects
+ */
 export class LightShined {
   public params: LightShinedParams;
 

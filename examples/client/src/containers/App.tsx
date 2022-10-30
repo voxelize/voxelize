@@ -189,7 +189,7 @@ const App = () => {
 
     const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
       highlightType: "outline",
-      potentialVisuals: true,
+      // potentialVisuals: true,
       inverseDirection: true,
     });
     world.add(voxelInteract);

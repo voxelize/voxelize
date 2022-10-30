@@ -15,6 +15,11 @@ custom_edit_url: null
 - [World](classes/World.md)
 - [Registry](classes/Registry.md)
 
+## Effects Classes
+
+- [BlockOverlayEffect](classes/BlockOverlayEffect.md)
+- [LightShined](classes/LightShined.md)
+
 ## Other Classes
 
 - [Chat](classes/Chat.md)
@@ -32,11 +37,9 @@ custom_edit_url: null
 - [Clouds](classes/Clouds.md)
 - [ColorText](classes/ColorText.md)
 - [Debug](classes/Debug.md)
-- [BlockOverlayEffect](classes/BlockOverlayEffect.md)
-- [LightShined](classes/LightShined.md)
 - [ImageVoxelizer](classes/ImageVoxelizer.md)
 - [NameTag](classes/NameTag.md)
-- [BlockBreakParticles](classes/BlockBreakParticles.md)
+- [Rigid](classes/Rigid.md)
 - [Perspective](classes/Perspective.md)
 - [Shadow](classes/Shadow.md)
 - [Shadows](classes/Shadows.md)
@@ -44,6 +47,10 @@ custom_edit_url: null
 - [SpriteText](classes/SpriteText.md)
 - [VoxelInteract](classes/VoxelInteract.md)
 - [WorkerPool](classes/WorkerPool.md)
+
+## Particles Classes
+
+- [BlockBreakParticles](classes/BlockBreakParticles.md)
 
 ## Utils Classes
 
@@ -154,15 +161,11 @@ ___
 
 ___
 
-### defaultParams
-
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210)
-
-___
-
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-210)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-394)[]
+
+The six default faces of a canvas box.
 
 ___
 
@@ -229,18 +232,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-210)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-394)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-210) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-394) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-210)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-394)\>
 
 ___
 
@@ -317,7 +320,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-210) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-394) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
@@ -494,7 +497,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-210) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-394) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -552,7 +555,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-210) & [`WorldServerParams`](modules.md#worldserverparams-210)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-394) & [`WorldServerParams`](modules.md#worldserverparams-394)
 
 ___
 
@@ -575,7 +578,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-210) or [applyTexturesByNames](classes/World.md#applytexturesbynames-210) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-394) or [applyTexturesByNames](classes/World.md#applytexturesbynames-394) to load a block texture.
 
 #### Type declaration
 
@@ -623,20 +626,22 @@ ___
 
 Ƭ **CanvasBoxParams**: `Object`
 
+Parameters to create a canvas box.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `gap` | `number` |
-| `layers` | `number` |
-| `width` | `number` |
-| `height?` | `number` |
-| `depth?` | `number` |
-| `widthSegments` | `number` |
-| `heightSegments?` | `number` |
-| `depthSegments?` | `number` |
-| `side` | `Side` |
-| `transparent?` | `boolean` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `gap` | `number` | The gap between the layers of the box. Defaults to `0`. |
+| `layers` | `number` | The number of layers of this box. Defaults to `1`. |
+| `width` | `number` | THe width of the box. Defaults to `1`. |
+| `height?` | `number` | The height of the box. Defaults to `1`. |
+| `depth?` | `number` | The depth of the box. Defaults to `1`. |
+| `widthSegments` | `number` | The width segments of the box, which is the number of pixels of the canvases along the width. Defaults to `8`. |
+| `heightSegments?` | `number` | The height segments of the box, which is the number of pixels of the canvases along the height. Defaults to `8`. |
+| `depthSegments?` | `number` | The depth segments of the box, which is the number of pixels of the canvases along the depth. Defaults to `8`. |
+| `side` | `Side` | The side of the box to render. Defaults to `THREE.FrontSide`. |
+| `transparent?` | `boolean` | Whether or not should this canvas box be rendered as transparent. Defaults to `false`. |
 
 ___
 
@@ -647,6 +652,8 @@ ___
 #### Type declaration
 
 ▸ (`context`, `canvas`): `void`
+
+A function to programmatically draw on a canvas.
 
 ##### Parameters
 
@@ -665,29 +672,31 @@ ___
 
 Ƭ **BoxSides**: ``"back"`` \| ``"front"`` \| ``"top"`` \| ``"bottom"`` \| ``"left"`` \| ``"right"`` \| ``"all"``
 
+The sides of a canvas box.
+
 ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394) & { `neckGap?`: `number`  }
 
 ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394)
 
 ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394) & { `betweenLegsGap?`: `number`  }
 
 ___
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 ___
 
@@ -704,10 +713,10 @@ ___
 | `idleArmSwing?` | `number` |
 | `positionLerp?` | `number` |
 | `rotationLerp?` | `number` |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-210)\> |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-210)\> |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-210)\> |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-210)\> |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-394)\> |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-394)\> |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-394)\> |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-394)\> |
 
 ___
 
@@ -723,7 +732,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-210) |
+| `dimensions` | [`Coords3`](modules.md#coords3-394) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -764,11 +773,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-210) |
-| `max` | [`Coords3`](modules.md#coords3-210) |
-| `realMin` | [`Coords3`](modules.md#coords3-210) |
-| `realMax` | [`Coords3`](modules.md#coords3-210) |
-| `dimensions` | [`Coords3`](modules.md#coords3-210) |
+| `min` | [`Coords3`](modules.md#coords3-394) |
+| `max` | [`Coords3`](modules.md#coords3-394) |
+| `realMin` | [`Coords3`](modules.md#coords3-394) |
+| `realMax` | [`Coords3`](modules.md#coords3-394) |
+| `dimensions` | [`Coords3`](modules.md#coords3-394) |
 
 ___
 
@@ -826,19 +835,21 @@ ___
 
 Ƭ **BlockBreakParticlesParams**: `Object`
 
+Parameters to create a block break particle system.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `minCount` | `number` |
-| `maxCount` | `number` |
-| `capSize` | `number` |
-| `capScale` | `number` |
-| `scale` | `number` |
-| `impulse` | `number` |
-| `minLife` | `number` |
-| `maxLife` | `number` |
-| `zoneWidth` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `minCount` | `number` | The minimum count of a particle to be emitted per block break. Defaults to `15`. |
+| `maxCount` | `number` | The maximum count of a particle to be emitted per block break. Defaults to `25`. |
+| `capSize` | `number` | The maximum block breaks for a regular particle emission. Otherwise, a burst is emitted. Defaults to `5`. |
+| `capScale` | `number` | The scale of which the lifespans of the particles that are emitted in bursts are scaled. Defaults to `0.1`. |
+| `scale` | `number` | The size of the rigid particles. Defaults to `0.1`. |
+| `impulse` | `number` | The initial impulse of the rigid particles. Defaults to `3`. |
+| `minLife` | `number` | The minimum lifespan of the particles. Defaults to `2`. |
+| `maxLife` | `number` | The maximum lifespan of the particles. Defaults to `4`. |
+| `zoneWidth` | `number` | Around the center of the block break, the dimension of the box-sized zone in which the particles are emitted from. Defaults to `1`. |
 
 ___
 

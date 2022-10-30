@@ -19,16 +19,49 @@ import {
 import { World } from "../../core/world";
 import { BlockUtils } from "../../utils";
 
-class Rigid extends Behaviour {
+/**
+ * A rigid behavior makes the particle act like a rigid body in the voxel physics engine.
+ */
+export class Rigid extends Behaviour {
+  /**
+   * The size of the rigid particle.
+   */
+  public size: number;
+
+  /**
+   * The initial impulse of the rigid particle, which goes in a random direction with this impulse as
+   * the magnitude of impulse.
+   */
+  public impulse: number;
+
+  /**
+   * A reference to the physics engine of the world for update purposes.
+   */
+  public engine: Engine;
+
+  /**
+   * Creates a new rigid behavior.
+   *
+   * @param size The size of the rigid particle.
+   * @param impulse The initial impulse of the rigid particle.
+   * @param engine A reference to the physics engine of the world for update purposes.
+   * @param life The life of the particle.
+   * @param easing The easing function of the particle.
+   * @param isEnabled Whether the behavior is enabled.
+   */
   constructor(
-    public size: number,
-    public impulse: number,
-    public engine: Engine,
+    size: number,
+    impulse: number,
+    engine: Engine,
     life?: unknown,
     easing?: unknown,
     isEnabled = true
   ) {
     super(life, easing, "Rigid", isEnabled);
+
+    this.size = size;
+    this.impulse = impulse;
+    this.engine = engine;
   }
 
   initialize(particle: any) {
@@ -63,15 +96,56 @@ class Rigid extends Behaviour {
   }
 }
 
+/**
+ * Parameters to create a block break particle system.
+ */
 export type BlockBreakParticlesParams = {
+  /**
+   * The minimum count of a particle to be emitted per block break. Defaults to `15`.
+   */
   minCount: number;
+
+  /**
+   * The maximum count of a particle to be emitted per block break. Defaults to `25`.
+   */
   maxCount: number;
+
+  /**
+   * The maximum block breaks for a regular particle emission. Otherwise, a burst is emitted.
+   * Defaults to `5`.
+   */
   capSize: number;
+
+  /**
+   * The scale of which the lifespans of the particles that are emitted in bursts are scaled.
+   * Defaults to `0.1`.
+   */
   capScale: number;
+
+  /**
+   * The size of the rigid particles. Defaults to `0.1`.
+   */
   scale: number;
+
+  /**
+   * The initial impulse of the rigid particles. Defaults to `3`.
+   */
   impulse: number;
+
+  /**
+   * The minimum lifespan of the particles. Defaults to `2`.
+   */
   minLife: number;
+
+  /**
+   * The maximum lifespan of the particles. Defaults to `4`.
+   */
   maxLife: number;
+
+  /**
+   * Around the center of the block break, the dimension of the box-sized zone in which the particles
+   * are emitted from. Defaults to `1`.
+   */
   zoneWidth: number;
 };
 
@@ -87,9 +161,41 @@ const defaultParams: BlockBreakParticlesParams = {
   zoneWidth: 1,
 };
 
+/**
+ * A particle system that emits particles when a block is broken. This system implements `NetIntercept` and
+ * listens to any `UPDATE` type message which indicates a block break. Remember to call `network.register` to
+ * register this system to listen to incoming network packets.
+ *
+ * This module depends on the [`three-nebula`](https://three-nebula.org/) package.
+ *
+ * # Example
+ * ```ts
+ * import { MeshRenderer } from "three-nebula";
+ *
+ * const particleRenderer = new MeshRenderer(world, THREE);
+ * const particles = new VOXELIZE.BlockBreakParticles(world, { ... });
+ * particles.addRenderer(particleRenderer);
+ *
+ * // In the animate loop
+ * particles.update();
+ * ```
+ *
+ * ![Block break particles](/img/block-break-particles.png)
+ *
+ * @category Particles
+ */
 export class BlockBreakParticles extends System implements NetIntercept {
+  /**
+   * Parameters to create a block break particle system.
+   */
   private params: BlockBreakParticlesParams;
 
+  /**
+   * Create a new block break particle system.
+   *
+   * @param world The world that the particle system is in.
+   * @param params Parameters to create a block break particle system.
+   */
   constructor(
     public world: World,
     params: Partial<BlockBreakParticlesParams> = {}
