@@ -75,7 +75,7 @@ impl BlockRotation {
     }
 
     /// Rotate a 3D position with this block rotation.
-    pub fn rotate_node(&self, node: &mut [f32; 3], translate: bool) {
+    pub fn rotate_node(&self, node: &mut [f32; 3], y_rotate: bool, translate: bool) {
         match self {
             BlockRotation::PX(_) => {
                 self.rotate_z(node, -PI_2);
@@ -92,7 +92,7 @@ impl BlockRotation {
                 }
             }
             BlockRotation::PY(rot) => {
-                if (*rot).abs() > f32::EPSILON {
+                if y_rotate && (*rot).abs() > f32::EPSILON {
                     node[0] -= 0.5;
                     node[2] -= 0.5;
                     self.rotate_y(node, *rot);
@@ -101,7 +101,7 @@ impl BlockRotation {
                 }
             }
             BlockRotation::NY(rot) => {
-                if (*rot).abs() > f32::EPSILON {
+                if y_rotate && (*rot).abs() > f32::EPSILON {
                     node[0] -= 0.5;
                     node[2] -= 0.5;
                     self.rotate_y(node, *rot);
@@ -152,7 +152,7 @@ impl BlockRotation {
             let min4 = [aabb.max_x, aabb.min_y, aabb.max_z];
 
             [min1, min2, min3, min4].into_iter().for_each(|mut node| {
-                self.rotate_node(&mut node, true);
+                self.rotate_node(&mut node, true, true);
 
                 if min_x.is_none() || node[0] < min_x.unwrap() {
                     min_x = Some(node[0]);
@@ -169,7 +169,7 @@ impl BlockRotation {
             let max4 = [aabb.max_x, aabb.max_y, aabb.max_z];
 
             [max1, max2, max3, max4].into_iter().for_each(|mut node| {
-                self.rotate_node(&mut node, true);
+                self.rotate_node(&mut node, true, true);
 
                 if max_x.is_none() || node[0] > max_x.unwrap() {
                     max_x = Some(node[0]);
@@ -181,8 +181,8 @@ impl BlockRotation {
             });
         }
 
-        self.rotate_node(&mut min, translate);
-        self.rotate_node(&mut max, translate);
+        self.rotate_node(&mut min, false, translate);
+        self.rotate_node(&mut max, false, translate);
 
         AABB {
             min_x: min_x.unwrap_or(min[0].min(max[0])),
@@ -199,8 +199,8 @@ impl BlockRotation {
         let mut positive = [1.0, 2.0, 3.0];
         let mut negative = [4.0, 5.0, 6.0];
 
-        self.rotate_node(&mut positive, false);
-        self.rotate_node(&mut negative, false);
+        self.rotate_node(&mut positive, true, false);
+        self.rotate_node(&mut negative, true, false);
 
         let p: Vec<bool> = positive
             .into_iter()

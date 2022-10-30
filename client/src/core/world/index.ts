@@ -379,31 +379,43 @@ export class World extends Scene implements NetIntercept {
 
   updateVoxels = (updates: BlockUpdate[]) => {
     this.chunks.toUpdate.push(
-      ...updates.filter((update) => {
-        if (update.vy < 0 || update.vy >= this.params.maxHeight) {
-          return false;
-        }
+      ...updates
+        .filter((update) => {
+          if (update.vy < 0 || update.vy >= this.params.maxHeight) {
+            return false;
+          }
 
-        const { vx, vy, vz, type, rotation, yRotation } = update;
+          const { vx, vy, vz, type, rotation, yRotation } = update;
 
-        const currId = this.getVoxelByVoxel(vx, vy, vz);
-        const currRot = this.getVoxelRotationByVoxel(vx, vy, vz);
+          const currId = this.getVoxelByVoxel(vx, vy, vz);
+          const currRot = this.getVoxelRotationByVoxel(vx, vy, vz);
 
-        if (!this.getBlockById(type)) {
-          console.warn(`Block ID ${type} does not exist.`);
-          return false;
-        }
+          if (!this.getBlockById(type)) {
+            console.warn(`Block ID ${type} does not exist.`);
+            return false;
+          }
 
-        if (
-          currId === type &&
-          (rotation !== undefined ? currRot.value === rotation : false) &&
-          (yRotation !== undefined ? currRot.yRotation === yRotation : false)
-        ) {
-          return false;
-        }
+          if (
+            currId === type &&
+            (rotation !== undefined ? currRot.value === rotation : false) &&
+            (yRotation !== undefined ? currRot.yRotation === yRotation : false)
+          ) {
+            return false;
+          }
 
-        return true;
-      })
+          return true;
+        })
+        .map((update) => {
+          if (isNaN(update.rotation)) {
+            update.rotation = 0;
+          }
+
+          if (!this.getBlockById(update.type).yRotatable) {
+            update.yRotation = 0;
+          }
+
+          return update;
+        })
     );
   };
 
