@@ -11,7 +11,7 @@ import {
 import * as THREE from "three";
 import { MeshRenderer } from "three-nebula";
 
-import { setupWorld } from "src/core/world";
+import { setupWorld } from "../core/world";
 import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
 import LolImage from "../assets/lol.png";
@@ -188,7 +188,8 @@ const App = () => {
     });
 
     const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
-      // potentialVisuals: true,
+      highlightType: "outline",
+      potentialVisuals: true,
       inverseDirection: true,
     });
     world.add(voxelInteract);
@@ -220,7 +221,7 @@ const App = () => {
       }
     );
 
-    let hand = "Test";
+    let hand = "Slate";
     let radius = 1;
     let circular = true;
 

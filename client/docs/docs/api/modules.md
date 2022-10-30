@@ -156,13 +156,13 @@ ___
 
 ### defaultParams
 
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184)
+• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210)
 
 ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-184)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-210)[]
 
 ___
 
@@ -229,18 +229,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-184)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-210)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-184) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-210) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-184)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-210)\>
 
 ___
 
@@ -317,7 +317,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-184) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-210) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
@@ -494,7 +494,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-184) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-210) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -552,7 +552,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-184) & [`WorldServerParams`](modules.md#worldserverparams-184)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-210) & [`WorldServerParams`](modules.md#worldserverparams-210)
 
 ___
 
@@ -575,7 +575,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-184) or [applyTexturesByNames](classes/World.md#applytexturesbynames-184) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-210) or [applyTexturesByNames](classes/World.md#applytexturesbynames-210) to load a block texture.
 
 #### Type declaration
 
@@ -605,15 +605,17 @@ ___
 
 Ƭ **ArrowParams**: `Object`
 
+Parameters to create an arrow.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `radius` | `number` |
-| `height` | `number` |
-| `coneRadius` | `number` |
-| `coneHeight` | `number` |
-| `color` | `string` \| `Color` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `radius` | `number` | The radius of the body of the arrow. Defaults to `0.1`. |
+| `height` | `number` | The height of the body of the arrow. Defaults to `0.8`. |
+| `coneRadius` | `number` | The radius of the head of the arrow. Defaults to `0.2`. |
+| `coneHeight` | `number` | The height of the head of the arrow. Defaults to `0.2`. |
+| `color` | `string` \| `Color` | The color of the arrow. Defaults to `red`. |
 
 ___
 
@@ -667,25 +669,25 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210) & { `neckGap?`: `number`  }
 
 ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210)
 
 ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210) & { `betweenLegsGap?`: `number`  }
 
 ___
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-184) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-210) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 ___
 
@@ -702,10 +704,10 @@ ___
 | `idleArmSwing?` | `number` |
 | `positionLerp?` | `number` |
 | `rotationLerp?` | `number` |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-184)\> |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-184)\> |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-184)\> |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-184)\> |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-210)\> |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-210)\> |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-210)\> |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-210)\> |
 
 ___
 
@@ -721,7 +723,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-184) |
+| `dimensions` | [`Coords3`](modules.md#coords3-210) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -762,11 +764,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-184) |
-| `max` | [`Coords3`](modules.md#coords3-184) |
-| `realMin` | [`Coords3`](modules.md#coords3-184) |
-| `realMax` | [`Coords3`](modules.md#coords3-184) |
-| `dimensions` | [`Coords3`](modules.md#coords3-184) |
+| `min` | [`Coords3`](modules.md#coords3-210) |
+| `max` | [`Coords3`](modules.md#coords3-210) |
+| `realMin` | [`Coords3`](modules.md#coords3-210) |
+| `realMax` | [`Coords3`](modules.md#coords3-210) |
+| `dimensions` | [`Coords3`](modules.md#coords3-210) |
 
 ___
 

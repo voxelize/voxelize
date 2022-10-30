@@ -463,7 +463,7 @@ ___
 Updates the size of this effect.
 
 You may override this method if you want to be informed about the size of the backbuffer/canvas.
-This method is called before [initialize](BlockOverlayEffect.md#initialize-184) and every time the size of the {@link EffectComposer} changes.
+This method is called before [initialize](BlockOverlayEffect.md#initialize-210) and every time the size of the {@link EffectComposer} changes.
 
 #### Parameters
 

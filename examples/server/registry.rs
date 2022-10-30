@@ -38,7 +38,7 @@ pub fn setup_registry() -> Registry {
         Block::new("Granite").id(21).build(),
         Block::new("Graphite").id(22).build(),
         Block::new("Andesite").id(23).green_light_level(10).build(),
-        Block::new("Slate").id(24).build(),
+        Block::new("Slate").id(24).blue_light_level(10).build(),
         Block::new("Oak Planks").id(40).build(),
         Block::new("Oak Slab Top")
             .id(41)

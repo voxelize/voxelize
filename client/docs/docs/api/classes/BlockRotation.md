@@ -40,7 +40,7 @@ Create a new block rotation.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `value` | `number` | The axis this block is pointing towards. |
-| `yRotation` | `number` | The rotation around the axis this block is pointing towards, rounded to the nearest |
+| `yRotation` | `number` | The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees. |
 
 ## Methods
 
@@ -96,7 +96,7 @@ Rotate a 3D coordinate by this block rotation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-184) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `node` | [`Coords3`](../modules.md#coords3-210) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
 | `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
 | `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 

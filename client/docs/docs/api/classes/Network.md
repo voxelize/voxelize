@@ -54,7 +54,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-184)
+• **params**: [`NetworkParams`](../modules.md#networkparams-210)
 
 Parameters to start the network connection, passed in to `connect`.
 
@@ -62,7 +62,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-184)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-210)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 
@@ -208,7 +208,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `params` | [`NetworkParams`](../modules.md#networkparams-184) | Parameters to customize the connection to a Voxelize server. |
+| `params` | [`NetworkParams`](../modules.md#networkparams-210) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 

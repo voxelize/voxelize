@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-184)
+• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-210)
 
 ___
 
@@ -68,7 +68,7 @@ ___
 | :------ | :------ |
 | `controls` | [`RigidControls`](RigidControls.md) |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-184)\> |
+| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-210)\> |
 
 ## Methods
 

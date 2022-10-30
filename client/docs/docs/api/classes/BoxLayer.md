@@ -89,7 +89,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `face` | [`BoxSides`](../modules.md#boxsides-184) |
+| `face` | [`BoxSides`](../modules.md#boxsides-210) |
 
 #### Returns
 
@@ -105,8 +105,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-184) \| [`BoxSides`](../modules.md#boxsides-184)[] |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-184) \| `Color` |
+| `side` | [`BoxSides`](../modules.md#boxsides-210) \| [`BoxSides`](../modules.md#boxsides-210)[] |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-210) \| `Color` |
 
 #### Returns
 

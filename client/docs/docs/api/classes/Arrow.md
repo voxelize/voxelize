@@ -6,6 +6,22 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A helper for visualizing a direction. This is useful for debugging.
+
+This arrow is essentially a Voxelize version of the [`ArrowHelper`][https://threejs.org/docs/#api/en/helpers/ArrowHelper] from Three.js.
+
+# Example
+```ts
+const arrow = new VOXELIZE.Arrow();
+
+arrow.position.set(10, 0, 10);
+arrow.setDirection(new THREE.Vector3(1, 0, 0));
+
+world.add(arrow);
+```
+
+![Arrow](/img/arrow.png)
+
 ## Hierarchy
 
 - `ArrowHelper`
@@ -16,7 +32,9 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`ArrowParams`](../modules.md#arrowparams-184)
+• **params**: [`ArrowParams`](../modules.md#arrowparams-210)
+
+Parameters used to create the arrow.
 
 ___
 
@@ -514,11 +532,13 @@ ArrowHelper.cone
 
 • **new Arrow**(`params?`)
 
+Create a new arrow.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-184)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-210)\> | Parameters to create the arrow. |
 
 #### Overrides
 
