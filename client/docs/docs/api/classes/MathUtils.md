@@ -6,7 +6,7 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-A helper class for basic math operations
+A utility class for doing math operations.
 
 ## Constructors
 
@@ -20,22 +20,20 @@ A helper class for basic math operations
 
 ▸ `Static` **round**(`n`, `digits`): `number`
 
-Round a number to a certain digit
-
-**`static`**
-
-**`memberof`** MathUtils
+Round a number to a given precision.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `n` | `number` | The number to round from |
-| `digits` | `number` | The number of digits to round to |
+| `n` | `number` | The number to round. |
+| `digits` | `number` | The number of digits after decimal to round to. |
 
 #### Returns
 
 `number`
+
+The rounded number.
 
 ___
 
@@ -43,15 +41,19 @@ ___
 
 ▸ `Static` **normalizeAngle**(`angle`): `number`
 
+Normalizes an angle to be between -2PI and 2PI.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `angle` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `angle` | `number` | The angle to normalize. |
 
 #### Returns
 
 `number`
+
+The normalized angle.
 
 ___
 
@@ -59,14 +61,18 @@ ___
 
 ▸ `Static` **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
 
+Convert a direction vector to a quaternion.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `dx` | `number` |
-| `dy` | `number` |
-| `dz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `dx` | `number` | X component of the direction vector. |
+| `dy` | `number` | Y component of the direction vector. |
+| `dz` | `number` | Z component of the direction vector. |
 
 #### Returns
 
 `Quaternion`
+
+The quaternion representing the direction vector.

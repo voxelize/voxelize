@@ -428,7 +428,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
-    const coords = ChunkUtils.mapVoxelPosToChunkPos(
+    const coords = ChunkUtils.mapVoxelToChunk(
       [vx, vy, vz],
       this.params.chunkSize
     );
@@ -443,7 +443,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   getVoxelByWorld = (wx: number, wy: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getVoxelByVoxel(...voxel);
   };
 
@@ -489,7 +489,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   getLightColorByWorld = (wx: number, wy: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getLightColorByVoxel(...voxel);
   };
 
@@ -510,7 +510,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   getBlockByWorld = (wx: number, wy: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getBlockByVoxel(...voxel);
   };
 
@@ -527,7 +527,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   getMaxHeightByWorld = (wx: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, 0, wz]);
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, 0, wz]);
     return this.getMaxHeightByVoxel(voxel[0], voxel[2]);
   };
 
@@ -537,7 +537,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   getPreviousVoxelByWorld = (wx: number, wy: number, wz: number) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getPreviousVoxelByVoxel(...voxel);
   };
 
@@ -566,7 +566,7 @@ export class World extends Scene implements NetIntercept {
     wz: number,
     ignoreFluid = false
   ) => {
-    const voxel = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getBlockAABBsByVoxel(...voxel, ignoreFluid);
   };
 
@@ -709,8 +709,8 @@ export class World extends Scene implements NetIntercept {
   private calculateCurrChunk = (center: Vector3) => {
     const { chunkSize } = this.params;
 
-    const coords = ChunkUtils.mapVoxelPosToChunkPos(
-      ChunkUtils.mapWorldPosToVoxelPos([center.x, center.y, center.z]),
+    const coords = ChunkUtils.mapVoxelToChunk(
+      ChunkUtils.mapWorldToVoxel([center.x, center.y, center.z]),
       chunkSize
     );
 
@@ -859,7 +859,7 @@ export class World extends Scene implements NetIntercept {
       0.01;
 
     this.physics.bodies.forEach((body) => {
-      const coords = ChunkUtils.mapVoxelPosToChunkPos(
+      const coords = ChunkUtils.mapVoxelToChunk(
         body.getPosition() as Coords3,
         this.params.chunkSize
       );

@@ -61,7 +61,7 @@ export class Shadow extends Mesh {
 
     const result = raycast(
       (wx, wy, wz) => {
-        const [vx, vy, vz] = ChunkUtils.mapWorldPosToVoxelPos([wx, wy, wz]);
+        const [vx, vy, vz] = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
         const { isFluid, isPassable, aabbs } = this.world.getBlockByVoxel(
           vx,
           vy,

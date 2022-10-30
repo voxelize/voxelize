@@ -34,7 +34,7 @@ ___
 
 ### params
 
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-40)
+• **params**: [`CloudsParams`](../modules.md#cloudsparams-90)
 
 ___
 
@@ -526,7 +526,7 @@ Group.isGroup
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-40)\> |
+| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-90)\> |
 
 #### Overrides
 

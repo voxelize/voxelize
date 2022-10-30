@@ -58,7 +58,7 @@ export class LightShined {
     if (color === null) {
       obj.getWorldPosition(position);
 
-      const voxel = ChunkUtils.mapWorldPosToVoxelPos(position.toArray());
+      const voxel = ChunkUtils.mapWorldToVoxel(position.toArray());
       const chunk = this.world.getChunkByVoxel(...voxel);
 
       if (!chunk) return;

@@ -2,97 +2,101 @@ import vec3 from "gl-vec3";
 
 import { Coords2, Coords3 } from "../types";
 
+/**
+ * A utility class for all things related to chunks and chunk coordinates.
+ *
+ * # Example
+ * ```ts
+ * // Get the chunk coordinates of a voxel, (0, 0) with `chunkSize=16`.
+ * const chunkCoords = ChunkUtils.mapVoxelToChunk([1, 10, 12]);
+ * ```
+ *
+ * @category Utils
+ */
 export class ChunkUtils {
   /**
-   * Given a coordinate of a chunk, return the chunk representation.
+   * Convert a 2D chunk coordinate to a string representation.
    *
-   * @param {Coords2} coords
-   * @param {string} [concat='|']
-   * @returns
+   * @param coords The coordinates to convert.
+   * @param concat The concatenation string to use.
+   * @returns The string representation of the coordinates.
    */
-  public static getChunkName = (coords: Coords2, concat = "|") => {
+  static getChunkName = (coords: Coords2, concat = "|") => {
     return coords[0] + concat + coords[1];
   };
 
   /**
-   * Given a coordinate of a voxel, return the voxel representation.
+   * Convert a 3D voxel coordinate to a string representation.
    *
-   * @param {Coords3} coords
-   * @param {string} [concat='|']
-   * @returns
+   * @param coords The coordinates to convert.
+   * @param concat The concatenation string to use.
+   * @returns The string representation of the coordinates.
    */
-  public static getVoxelName = (coords: Coords3, concat = "|") => {
+  static getVoxelName = (coords: Coords3, concat = "|") => {
     return coords[0] + concat + coords[1] + concat + coords[2];
   };
 
   /**
-   * Given a chunk name, return the coordinates of the chunk
+   * Given a chunk representation, parse the chunk coordinates.
    *
-   * @param {string} name
-   * @param {string} [concat='|']
-   * @returns
+   * @param name The string representation of the chunk.
+   * @param concat The concatenation string used.
+   * @returns The parsed chunk coordinates.
    */
-  public static parseChunkName = (name: string, concat = "|") => {
+  static parseChunkName = (name: string, concat = "|") => {
     return name.split(concat).map((s: string) => parseInt(s, 10));
   };
 
   /**
-   * Scale coordinates and floor them.
+   * Scale and floor a 3D coordinate.
    *
-   * @param {Coords3} coords
-   * @param {number} factor
-   * @returns
+   * @param coords The coordinates to scale and floor.
+   * @param factor The factor to scale by.
+   * @returns The scaled and floored coordinates.
    */
-  public static scaleCoordsF = (coords: Coords3, factor: number): Coords3 => {
+  static scaleCoordsF = (coords: Coords3, factor: number): Coords3 => {
     const result = [0, 0, 0];
     const scaled = vec3.scale(result, coords, factor);
     return <Coords3>vec3.floor(scaled, scaled);
   };
 
   /**
-   * Map voxel position to local position in current chunk.
+   * Map a 3D voxel coordinate to the local 3D voxel coordinate in the situated chunk.
    *
-   * @param {Coords3} worldPos
-   * @param {Chunk} chunk
-   * @returns {Coords3}
+   * @param voxelPos The voxel coordinate to map.
+   * @param chunkSize The horizontal dimension of a chunk.
+   * @returns The mapped coordinate.
    */
-  public static mapVoxelPosToChunkLocalPos = (
+  static mapVoxelToChunkLocal = (
     voxelPos: Coords3,
     chunkSize: number
   ): Coords3 => {
-    const [cx, cz] = ChunkUtils.mapVoxelPosToChunkPos(voxelPos, chunkSize);
+    const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxelPos, chunkSize);
     const [vx, vy, vz] = voxelPos;
 
     return [vx - cx * chunkSize, vy, vz - cz * chunkSize];
   };
 
   /**
-   * Map voxel position to the current chunk position.
+   * Map a 3D voxel coordinate to the 2D chunk coordinate.
    *
-   * @param {Coords3} worldPos
-   * @param {number} chunkSize
-   * @returns {Coords2}
+   * @param voxelPos The voxel coordinate to map.
+   * @param chunkSize  The horizontal dimension of a chunk.
+   * @returns The mapped coordinate.
    */
-  public static mapVoxelPosToChunkPos = (
-    voxelPos: Coords3,
-    chunkSize: number
-  ): Coords2 => {
+  static mapVoxelToChunk = (voxelPos: Coords3, chunkSize: number): Coords2 => {
     const coords3 = ChunkUtils.scaleCoordsF(voxelPos, 1 / chunkSize);
     return [coords3[0], coords3[2]];
   };
 
   /**
-   * Get the voxel position of a chunk position.
+   * Map a 2D chunk coordinate to the 3D voxel coordinate.
    *
-   * @static
-   * @param {Coords2} chunkPos
-   * @param {number} chunkSize
-   * @memberof Helper
+   * @param chunkPos The chunk coordinate to map.
+   * @param chunkSize The horizontal dimension of a chunk.
+   * @returns The mapped coordinate.
    */
-  public static mapChunkPosToVoxelPos = (
-    chunkPos: Coords2,
-    chunkSize: number
-  ): Coords3 => {
+  static mapChunkToVoxel = (chunkPos: Coords2, chunkSize: number): Coords3 => {
     const result = <Coords3>[0, 0, 0];
 
     vec3.copy(result, [chunkPos[0], 0, chunkPos[1]]);
@@ -102,12 +106,13 @@ export class ChunkUtils {
   };
 
   /**
-   * Map world position to voxel position.
+   * Map a 3D world coordinate to the 3D voxel coordinate. Since a voxel is
+   * exactly 1 unit in size, this is just a floor operation.
    *
-   * @param {Coords3} worldPos
-   * @returns {Coords3}
+   * @param worldPos The world coordinate to map.
+   * @returns The mapped coordinate.
    */
-  public static mapWorldPosToVoxelPos = (worldPos: Coords3): Coords3 => {
+  static mapWorldToVoxel = (worldPos: Coords3): Coords3 => {
     return ChunkUtils.scaleCoordsF(worldPos, 1);
   };
 }

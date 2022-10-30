@@ -141,7 +141,7 @@ export class VoxelInteract extends Group {
     const { voxel, normal } = result;
 
     const [nx, ny, nz] = normal;
-    const newTarget = ChunkUtils.mapWorldPosToVoxelPos(<Coords3>voxel);
+    const newTarget = ChunkUtils.mapWorldToVoxel(<Coords3>voxel);
 
     // Pointing at air.
     const newLookingID = this.world.getVoxelByVoxel(...newTarget);

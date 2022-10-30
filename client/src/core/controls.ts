@@ -744,11 +744,7 @@ export class RigidControls extends EventEmitter {
   get voxel() {
     const [x, y, z] = this.body.getPosition();
 
-    return ChunkUtils.mapWorldPosToVoxelPos([
-      x,
-      y - this.params.bodyHeight * 0.5,
-      z,
-    ]);
+    return ChunkUtils.mapWorldToVoxel([x, y - this.params.bodyHeight * 0.5, z]);
   }
 
   get position() {
@@ -761,10 +757,7 @@ export class RigidControls extends EventEmitter {
    * The chunk that the client is situated in.
    */
   get chunk() {
-    return ChunkUtils.mapVoxelPosToChunkPos(
-      this.voxel,
-      this.world.params.chunkSize
-    );
+    return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.params.chunkSize);
   }
 
   private moveRigidBody = () => {

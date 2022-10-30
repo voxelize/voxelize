@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### parse
 
-▸ `Static` **parse**(`rest`): [`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-40)]
+▸ `Static` **parse**(`rest`): [`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-90)]
 
 #### Parameters
 
@@ -20,7 +20,7 @@ custom_edit_url: null
 
 #### Returns
 
-[`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-40)]
+[`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-90)]
 
 ___
 
@@ -35,7 +35,7 @@ ___
 | `imgURL` | `string` |
 | `world` | [`World`](World.md) |
 | `position` | `Vector3` |
-| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-40) |
+| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-90) |
 
 #### Returns
 

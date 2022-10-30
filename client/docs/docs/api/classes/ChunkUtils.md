@@ -6,6 +6,14 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A utility class for all things related to chunks and chunk coordinates.
+
+# Example
+```ts
+// Get the chunk coordinates of a voxel, (0, 0) with `chunkSize=16`.
+const chunkCoords = ChunkUtils.mapVoxelToChunk([1, 10, 12]);
+```
+
 ## Constructors
 
 ### constructor
@@ -18,18 +26,20 @@ custom_edit_url: null
 
 ▸ `Static` **getChunkName**(`coords`, `concat?`): `string`
 
-Given a coordinate of a chunk, return the chunk representation.
+Convert a 2D chunk coordinate to a string representation.
 
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-40) | `undefined` |
-| `concat` | `string` | `"|"` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `coords` | [`Coords2`](../modules.md#coords2-90) | `undefined` | The coordinates to convert. |
+| `concat` | `string` | `"|"` | The concatenation string to use. |
 
 #### Returns
 
 `string`
+
+The string representation of the coordinates.
 
 ___
 
@@ -37,18 +47,20 @@ ___
 
 ▸ `Static` **getVoxelName**(`coords`, `concat?`): `string`
 
-Given a coordinate of a voxel, return the voxel representation.
+Convert a 3D voxel coordinate to a string representation.
 
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `coords` | [`Coords3`](../modules.md#coords3-40) | `undefined` |
-| `concat` | `string` | `"|"` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `coords` | [`Coords3`](../modules.md#coords3-90) | `undefined` | The coordinates to convert. |
+| `concat` | `string` | `"|"` | The concatenation string to use. |
 
 #### Returns
 
 `string`
+
+The string representation of the coordinates.
 
 ___
 
@@ -56,113 +68,122 @@ ___
 
 ▸ `Static` **parseChunkName**(`name`, `concat?`): `number`[]
 
-Given a chunk name, return the coordinates of the chunk
+Given a chunk representation, parse the chunk coordinates.
 
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `name` | `string` | `undefined` |
-| `concat` | `string` | `"|"` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `name` | `string` | `undefined` | The string representation of the chunk. |
+| `concat` | `string` | `"|"` | The concatenation string used. |
 
 #### Returns
 
 `number`[]
 
+The parsed chunk coordinates.
+
 ___
 
 ### scaleCoordsF
 
-▸ `Static` **scaleCoordsF**(`coords`, `factor`): [`Coords3`](../modules.md#coords3-40)
+▸ `Static` **scaleCoordsF**(`coords`, `factor`): [`Coords3`](../modules.md#coords3-90)
 
-Scale coordinates and floor them.
+Scale and floor a 3D coordinate.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `coords` | [`Coords3`](../modules.md#coords3-40) |
-| `factor` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `coords` | [`Coords3`](../modules.md#coords3-90) | The coordinates to scale and floor. |
+| `factor` | `number` | The factor to scale by. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-40)
+[`Coords3`](../modules.md#coords3-90)
+
+The scaled and floored coordinates.
 
 ___
 
-### mapVoxelPosToChunkLocalPos
+### mapVoxelToChunkLocal
 
-▸ `Static` **mapVoxelPosToChunkLocalPos**(`voxelPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-40)
+▸ `Static` **mapVoxelToChunkLocal**(`voxelPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-90)
 
-Map voxel position to local position in current chunk.
+Map a 3D voxel coordinate to the local 3D voxel coordinate in the situated chunk.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `voxelPos` | [`Coords3`](../modules.md#coords3-40) |
-| `chunkSize` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxelPos` | [`Coords3`](../modules.md#coords3-90) | The voxel coordinate to map. |
+| `chunkSize` | `number` | The horizontal dimension of a chunk. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-40)
+[`Coords3`](../modules.md#coords3-90)
+
+The mapped coordinate.
 
 ___
 
-### mapVoxelPosToChunkPos
+### mapVoxelToChunk
 
-▸ `Static` **mapVoxelPosToChunkPos**(`voxelPos`, `chunkSize`): [`Coords2`](../modules.md#coords2-40)
+▸ `Static` **mapVoxelToChunk**(`voxelPos`, `chunkSize`): [`Coords2`](../modules.md#coords2-90)
 
-Map voxel position to the current chunk position.
+Map a 3D voxel coordinate to the 2D chunk coordinate.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `voxelPos` | [`Coords3`](../modules.md#coords3-40) |
-| `chunkSize` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxelPos` | [`Coords3`](../modules.md#coords3-90) | The voxel coordinate to map. |
+| `chunkSize` | `number` | The horizontal dimension of a chunk. |
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-40)
+[`Coords2`](../modules.md#coords2-90)
+
+The mapped coordinate.
 
 ___
 
-### mapChunkPosToVoxelPos
+### mapChunkToVoxel
 
-▸ `Static` **mapChunkPosToVoxelPos**(`chunkPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-40)
+▸ `Static` **mapChunkToVoxel**(`chunkPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-90)
 
-Get the voxel position of a chunk position.
-
-**`static`**
-
-**`memberof`** Helper
+Map a 2D chunk coordinate to the 3D voxel coordinate.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `chunkPos` | [`Coords2`](../modules.md#coords2-40) |
-| `chunkSize` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `chunkPos` | [`Coords2`](../modules.md#coords2-90) | The chunk coordinate to map. |
+| `chunkSize` | `number` | The horizontal dimension of a chunk. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-40)
+[`Coords3`](../modules.md#coords3-90)
+
+The mapped coordinate.
 
 ___
 
-### mapWorldPosToVoxelPos
+### mapWorldToVoxel
 
-▸ `Static` **mapWorldPosToVoxelPos**(`worldPos`): [`Coords3`](../modules.md#coords3-40)
+▸ `Static` **mapWorldToVoxel**(`worldPos`): [`Coords3`](../modules.md#coords3-90)
 
-Map world position to voxel position.
+Map a 3D world coordinate to the 3D voxel coordinate. Since a voxel is
+exactly 1 unit in size, this is just a floor operation.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `worldPos` | [`Coords3`](../modules.md#coords3-40) |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `worldPos` | [`Coords3`](../modules.md#coords3-90) | The world coordinate to map. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-40)
+[`Coords3`](../modules.md#coords3-90)
+
+The mapped coordinate.

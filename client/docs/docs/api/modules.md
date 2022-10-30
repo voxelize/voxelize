@@ -44,14 +44,14 @@ custom_edit_url: null
 - [SpriteText](classes/SpriteText.md)
 - [VoxelInteract](classes/VoxelInteract.md)
 - [WorkerPool](classes/WorkerPool.md)
-- [ChunkUtils](classes/ChunkUtils.md)
-- [DOMUtils](classes/DOMUtils.md)
-- [MathUtils](classes/MathUtils.md)
 
 ## Utils Classes
 
 - [BlockUtils](classes/BlockUtils.md)
+- [ChunkUtils](classes/ChunkUtils.md)
+- [DOMUtils](classes/DOMUtils.md)
 - [LightUtils](classes/LightUtils.md)
+- [MathUtils](classes/MathUtils.md)
 
 ## Interfaces
 
@@ -139,13 +139,13 @@ ___
 
 ### defaultParams
 
-• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-40)
+• `Const` **defaultParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-90)
 
 ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-40)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-90)[]
 
 ___
 
@@ -212,18 +212,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-40)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-90)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-40) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-90) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-40)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-90)\>
 
 ___
 
@@ -300,7 +300,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-40) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-90) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
@@ -461,7 +461,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-40) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-90) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -519,7 +519,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-40) & [`WorldServerParams`](modules.md#worldserverparams-40)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-90) & [`WorldServerParams`](modules.md#worldserverparams-90)
 
 ___
 
@@ -542,7 +542,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-40) or [applyTexturesByNames](classes/World.md#applytexturesbynames-40) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-90) or [applyTexturesByNames](classes/World.md#applytexturesbynames-90) to load a block texture.
 
 #### Type declaration
 
@@ -634,25 +634,25 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-40) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-90) & { `neckGap?`: `number`  }
 
 ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-40)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-90)
 
 ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-40) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-90) & { `betweenLegsGap?`: `number`  }
 
 ___
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-40) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-90) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 ___
 
@@ -669,10 +669,10 @@ ___
 | `idleArmSwing?` | `number` |
 | `positionLerp?` | `number` |
 | `rotationLerp?` | `number` |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-40)\> |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-40)\> |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-40)\> |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-40)\> |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-90)\> |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-90)\> |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-90)\> |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-90)\> |
 
 ___
 
@@ -688,7 +688,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-40) |
+| `dimensions` | [`Coords3`](modules.md#coords3-90) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -729,11 +729,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-40) |
-| `max` | [`Coords3`](modules.md#coords3-40) |
-| `realMin` | [`Coords3`](modules.md#coords3-40) |
-| `realMax` | [`Coords3`](modules.md#coords3-40) |
-| `dimensions` | [`Coords3`](modules.md#coords3-40) |
+| `min` | [`Coords3`](modules.md#coords3-90) |
+| `max` | [`Coords3`](modules.md#coords3-90) |
+| `realMin` | [`Coords3`](modules.md#coords3-90) |
+| `realMax` | [`Coords3`](modules.md#coords3-90) |
+| `dimensions` | [`Coords3`](modules.md#coords3-90) |
 
 ___
 
