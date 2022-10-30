@@ -18,7 +18,7 @@ The default Voxelize character.
 
 ### params
 
-• **params**: [`CharacterParams`](../modules.md#characterparams-14)
+• **params**: [`CharacterParams`](../modules.md#characterparams-40)
 
 ___
 
@@ -640,7 +640,7 @@ Group.isGroup
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-14)\> |
+| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-40)\> |
 
 #### Overrides
 

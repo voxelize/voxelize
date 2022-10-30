@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`DebugParams`](../modules.md#debugparams-14)
+• **params**: [`DebugParams`](../modules.md#debugparams-40)
 
 ___
 
@@ -533,7 +533,7 @@ Group.isGroup
 | Name | Type | Default value |
 | :------ | :------ | :------ |
 | `domElement` | `HTMLElement` | `document.body` |
-| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-14)\> | `{}` |
+| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-40)\> | `{}` |
 
 #### Overrides
 

@@ -318,7 +318,7 @@ class Chunk {
   };
 
   setVoxel = (vx: number, vy: number, vz: number, id: number) => {
-    const value = BlockUtils.insertId(0, id);
+    const value = BlockUtils.insertID(0, id);
     this.setRawValue(vx, vy, vz, value);
     return id;
   };

@@ -5,38 +5,89 @@ const Y_ROTATION_MASK = 0xff0fffff;
 const STAGE_MASK = 0xf0ffffff;
 
 /**
- * Utility class to extract voxel data from a single number
+ * A utility class for extracting and inserting voxel data from and into numbers.
  *
- * Bit lineup as such (from right to left):
- * - `1 - 16 bits`: ID (0x0000FFFF)
- * - `17 - 20 bit`: rotation (0x000F0000)
- * - `21 - 32 bit`: stage (0xFFF00000)
+ * The voxel data is stored in the following format:
+ * - Voxel type: `0x0000ffff`
+ * - Rotation: `0x000f0000`
+ * - Y-rotation: `0x00f00000`
+ * - Stage: `0xff000000`
+ *
+ * TODO-DOCS
+ * For more information about voxel data, see [here](/)
+ *
+ * # Example
+ * ```ts
+ * // Insert a voxel type 13 into zero.
+ * const number = VoxelUtils.insertID(0, 13);
+ * ```
+ *
+ * @category Utils
  */
 export class BlockUtils {
+  /**
+   * Extract the voxel id from a number.
+   *
+   * @param voxel The voxel value to extract from.
+   * @returns The extracted voxel id.
+   */
   static extractID = (voxel: number) => {
     return voxel & 0xffff;
   };
 
-  static insertId = (voxel: number, id: number) => {
+  /**
+   * Insert a voxel id into a number.
+   *
+   * @param voxel The voxel value to insert the id into.
+   * @param id The voxel id to insert.
+   * @returns The inserted voxel value.
+   */
+  static insertID = (voxel: number, id: number) => {
     return (voxel & 0xffff0000) | (id & 0xffff);
   };
 
+  /**
+   * Extract the voxel rotation from a number.
+   *
+   * @param voxel The voxel value to extract from.
+   * @returns The extracted voxel rotation.
+   */
   static extractRotation = (voxel: number) => {
     const rotation = (voxel >> 16) & 0xf;
     const yRot = (voxel >> 20) & 0xf;
     return BlockRotation.encode(rotation, yRot);
   };
 
+  /**
+   * Insert a voxel rotation into a number.
+   *
+   * @param voxel The voxel value to insert the rotation into.
+   * @param rotation The voxel rotation to insert.
+   * @returns The inserted voxel value.
+   */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
     const [rot, yRot] = BlockRotation.decode(rotation);
     const value = (voxel & ROTATION_MASK) | ((rot & 0xf) << 16);
     return (value & Y_ROTATION_MASK) | ((yRot & 0xf) << 20);
   };
 
+  /**
+   * Extract the voxel stage from a number.
+   *
+   * @param voxel The voxel value to extract from.
+   * @returns The extracted voxel stage.
+   */
   static extractStage = (voxel: number) => {
     return (voxel >> 24) & 0xf;
   };
 
+  /**
+   * Insert a voxel stage into a number.
+   *
+   * @param voxel The voxel value to insert the stage into.
+   * @param stage The voxel stage to insert.
+   * @returns The inserted voxel value.
+   */
   static insertStage = (voxel: number, stage: number) => {
     return (voxel & STAGE_MASK) | (stage << 24);
   };

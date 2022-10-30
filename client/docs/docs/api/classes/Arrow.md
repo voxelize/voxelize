@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`ArrowParams`](../modules.md#arrowparams-14)
+• **params**: [`ArrowParams`](../modules.md#arrowparams-40)
 
 ___
 
@@ -518,7 +518,7 @@ ArrowHelper.cone
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-14)\> |
+| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-40)\> |
 
 #### Overrides
 

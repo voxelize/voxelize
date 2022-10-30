@@ -16,11 +16,11 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-14)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-40)
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-14)
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-40)
 
 ___
 
@@ -30,7 +30,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-14)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-40)
 
 ___
 
@@ -40,7 +40,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-14)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-40)
 
 ___
 
@@ -50,7 +50,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-14)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-40)
 
 ___
 
@@ -60,7 +60,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-14)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-40)
 
 ___
 
@@ -84,7 +84,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[scaleColor](CanvasBox.md#scalecolor-14)
+[CanvasBox](CanvasBox.md).[scaleColor](CanvasBox.md#scalecolor-40)
 
 ___
 
@@ -144,7 +144,7 @@ Unique number of this object instance.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[id](CanvasBox.md#id-14)
+[CanvasBox](CanvasBox.md).[id](CanvasBox.md#id-40)
 
 ___
 
@@ -154,7 +154,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[uuid](CanvasBox.md#uuid-14)
+[CanvasBox](CanvasBox.md).[uuid](CanvasBox.md#uuid-40)
 
 ___
 
@@ -168,7 +168,7 @@ Optional name of the object (doesn't need to be unique).
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[name](CanvasBox.md#name-14)
+[CanvasBox](CanvasBox.md).[name](CanvasBox.md#name-40)
 
 ___
 
@@ -182,7 +182,7 @@ Object's parent in the scene graph.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[parent](CanvasBox.md#parent-14)
+[CanvasBox](CanvasBox.md).[parent](CanvasBox.md#parent-40)
 
 ___
 
@@ -196,7 +196,7 @@ Array with object's children.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[children](CanvasBox.md#children-14)
+[CanvasBox](CanvasBox.md).[children](CanvasBox.md#children-40)
 
 ___
 
@@ -210,7 +210,7 @@ Up direction.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[up](CanvasBox.md#up-14)
+[CanvasBox](CanvasBox.md).[up](CanvasBox.md#up-40)
 
 ___
 
@@ -224,7 +224,7 @@ Object's local position.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[position](CanvasBox.md#position-14)
+[CanvasBox](CanvasBox.md).[position](CanvasBox.md#position-40)
 
 ___
 
@@ -238,7 +238,7 @@ Object's local rotation (Euler angles), in radians.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[rotation](CanvasBox.md#rotation-14)
+[CanvasBox](CanvasBox.md).[rotation](CanvasBox.md#rotation-40)
 
 ___
 
@@ -252,7 +252,7 @@ Object's local rotation as a Quaternion.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[quaternion](CanvasBox.md#quaternion-14)
+[CanvasBox](CanvasBox.md).[quaternion](CanvasBox.md#quaternion-40)
 
 ___
 
@@ -266,7 +266,7 @@ Object's local scale.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[scale](CanvasBox.md#scale-14)
+[CanvasBox](CanvasBox.md).[scale](CanvasBox.md#scale-40)
 
 ___
 
@@ -278,7 +278,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[modelViewMatrix](CanvasBox.md#modelviewmatrix-14)
+[CanvasBox](CanvasBox.md).[modelViewMatrix](CanvasBox.md#modelviewmatrix-40)
 
 ___
 
@@ -290,7 +290,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[normalMatrix](CanvasBox.md#normalmatrix-14)
+[CanvasBox](CanvasBox.md).[normalMatrix](CanvasBox.md#normalmatrix-40)
 
 ___
 
@@ -304,7 +304,7 @@ Local transform.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[matrix](CanvasBox.md#matrix-14)
+[CanvasBox](CanvasBox.md).[matrix](CanvasBox.md#matrix-40)
 
 ___
 
@@ -318,7 +318,7 @@ The global transform of the object. If the Object3d has no parent, then it's ide
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[matrixWorld](CanvasBox.md#matrixworld-14)
+[CanvasBox](CanvasBox.md).[matrixWorld](CanvasBox.md#matrixworld-40)
 
 ___
 
@@ -333,7 +333,7 @@ recalculates the matrixWorld property.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[matrixAutoUpdate](CanvasBox.md#matrixautoupdate-14)
+[CanvasBox](CanvasBox.md).[matrixAutoUpdate](CanvasBox.md#matrixautoupdate-40)
 
 ___
 
@@ -347,7 +347,7 @@ When this is set, it calculates the matrixWorld in that frame and resets this pr
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[matrixWorldNeedsUpdate](CanvasBox.md#matrixworldneedsupdate-14)
+[CanvasBox](CanvasBox.md).[matrixWorldNeedsUpdate](CanvasBox.md#matrixworldneedsupdate-40)
 
 ___
 
@@ -359,7 +359,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[layers](CanvasBox.md#layers-14)
+[CanvasBox](CanvasBox.md).[layers](CanvasBox.md#layers-40)
 
 ___
 
@@ -373,7 +373,7 @@ Object gets rendered if true.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[visible](CanvasBox.md#visible-14)
+[CanvasBox](CanvasBox.md).[visible](CanvasBox.md#visible-40)
 
 ___
 
@@ -387,7 +387,7 @@ Gets rendered into shadow map.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[castShadow](CanvasBox.md#castshadow-14)
+[CanvasBox](CanvasBox.md).[castShadow](CanvasBox.md#castshadow-40)
 
 ___
 
@@ -401,7 +401,7 @@ Material gets baked in shadow receiving.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[receiveShadow](CanvasBox.md#receiveshadow-14)
+[CanvasBox](CanvasBox.md).[receiveShadow](CanvasBox.md#receiveshadow-40)
 
 ___
 
@@ -416,7 +416,7 @@ If set to false the object gets rendered every frame even if it is not in the fr
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[frustumCulled](CanvasBox.md#frustumculled-14)
+[CanvasBox](CanvasBox.md).[frustumCulled](CanvasBox.md#frustumculled-40)
 
 ___
 
@@ -432,7 +432,7 @@ When this property is set for an instance of Group, all descendants objects will
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[renderOrder](CanvasBox.md#renderorder-14)
+[CanvasBox](CanvasBox.md).[renderOrder](CanvasBox.md#renderorder-40)
 
 ___
 
@@ -446,7 +446,7 @@ Array with animation clips.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[animations](CanvasBox.md#animations-14)
+[CanvasBox](CanvasBox.md).[animations](CanvasBox.md#animations-40)
 
 ___
 
@@ -464,7 +464,7 @@ An object that can be used to store custom data about the Object3d. It should no
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[userData](CanvasBox.md#userdata-14)
+[CanvasBox](CanvasBox.md).[userData](CanvasBox.md#userdata-40)
 
 ___
 
@@ -479,7 +479,7 @@ transparent texture with alphaTest, you must specify a customDepthMaterial for p
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[customDepthMaterial](CanvasBox.md#customdepthmaterial-14)
+[CanvasBox](CanvasBox.md).[customDepthMaterial](CanvasBox.md#customdepthmaterial-40)
 
 ___
 
@@ -491,7 +491,7 @@ Same as customDepthMaterial, but used with PointLight.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[customDistanceMaterial](CanvasBox.md#customdistancematerial-14)
+[CanvasBox](CanvasBox.md).[customDistanceMaterial](CanvasBox.md#customdistancematerial-40)
 
 ___
 
@@ -504,7 +504,7 @@ You should not change this, as it is used internally for optimisation.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[isObject3D](CanvasBox.md#isobject3d-14)
+[CanvasBox](CanvasBox.md).[isObject3D](CanvasBox.md#isobject3d-40)
 
 ___
 
@@ -535,7 +535,7 @@ Calls before rendering object
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[onBeforeRender](CanvasBox.md#onbeforerender-14)
+[CanvasBox](CanvasBox.md).[onBeforeRender](CanvasBox.md#onbeforerender-40)
 
 ___
 
@@ -566,7 +566,7 @@ Calls after rendering object
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[onAfterRender](CanvasBox.md#onafterrender-14)
+[CanvasBox](CanvasBox.md).[onAfterRender](CanvasBox.md#onafterrender-40)
 
 ___
 
@@ -576,7 +576,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[DefaultUp](CanvasBox.md#defaultup-14)
+[CanvasBox](CanvasBox.md).[DefaultUp](CanvasBox.md#defaultup-40)
 
 ___
 
@@ -586,7 +586,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[DefaultMatrixAutoUpdate](CanvasBox.md#defaultmatrixautoupdate-14)
+[CanvasBox](CanvasBox.md).[DefaultMatrixAutoUpdate](CanvasBox.md#defaultmatrixautoupdate-40)
 
 ___
 
@@ -596,7 +596,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[type](CanvasBox.md#type-14)
+[CanvasBox](CanvasBox.md).[type](CanvasBox.md#type-40)
 
 ___
 
@@ -606,7 +606,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[isGroup](CanvasBox.md#isgroup-14)
+[CanvasBox](CanvasBox.md).[isGroup](CanvasBox.md#isgroup-40)
 
 ## Methods
 
@@ -620,7 +620,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[makeBoxes](CanvasBox.md#makeboxes-14)
+[CanvasBox](CanvasBox.md).[makeBoxes](CanvasBox.md#makeboxes-40)
 
 ___
 
@@ -632,8 +632,8 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | `undefined` |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) \| `Color` | `undefined` |
+| `side` | [`BoxSides`](../modules.md#boxsides-40) \| [`BoxSides`](../modules.md#boxsides-40)[] | `undefined` |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-40) \| `Color` | `undefined` |
 | `layer` | `number` | `0` |
 
 #### Returns
@@ -642,7 +642,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-14)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-40)
 
 ___
 
@@ -697,7 +697,7 @@ Adds a listener to an event type.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[addEventListener](CanvasBox.md#addeventlistener-14)
+[CanvasBox](CanvasBox.md).[addEventListener](CanvasBox.md#addeventlistener-40)
 
 ___
 
@@ -726,7 +726,7 @@ Checks if listener is added to an event type.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[hasEventListener](CanvasBox.md#haseventlistener-14)
+[CanvasBox](CanvasBox.md).[hasEventListener](CanvasBox.md#haseventlistener-40)
 
 ___
 
@@ -755,7 +755,7 @@ Removes a listener from an event type.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[removeEventListener](CanvasBox.md#removeeventlistener-14)
+[CanvasBox](CanvasBox.md).[removeEventListener](CanvasBox.md#removeeventlistener-40)
 
 ___
 
@@ -777,7 +777,7 @@ Fire an event type.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[dispatchEvent](CanvasBox.md#dispatchevent-14)
+[CanvasBox](CanvasBox.md).[dispatchEvent](CanvasBox.md#dispatchevent-40)
 
 ___
 
@@ -799,7 +799,7 @@ Applies the matrix transform to the object and updates the object's position, ro
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[applyMatrix4](CanvasBox.md#applymatrix4-14)
+[CanvasBox](CanvasBox.md).[applyMatrix4](CanvasBox.md#applymatrix4-40)
 
 ___
 
@@ -821,7 +821,7 @@ Applies the rotation represented by the quaternion to the object.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[applyQuaternion](CanvasBox.md#applyquaternion-14)
+[CanvasBox](CanvasBox.md).[applyQuaternion](CanvasBox.md#applyquaternion-40)
 
 ___
 
@@ -845,7 +845,7 @@ angle -- angle in radians
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[setRotationFromAxisAngle](CanvasBox.md#setrotationfromaxisangle-14)
+[CanvasBox](CanvasBox.md).[setRotationFromAxisAngle](CanvasBox.md#setrotationfromaxisangle-40)
 
 ___
 
@@ -867,7 +867,7 @@ Calls setRotationFromEuler(euler) on the .quaternion.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[setRotationFromEuler](CanvasBox.md#setrotationfromeuler-14)
+[CanvasBox](CanvasBox.md).[setRotationFromEuler](CanvasBox.md#setrotationfromeuler-40)
 
 ___
 
@@ -891,7 +891,7 @@ Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, u
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[setRotationFromMatrix](CanvasBox.md#setrotationfrommatrix-14)
+[CanvasBox](CanvasBox.md).[setRotationFromMatrix](CanvasBox.md#setrotationfrommatrix-40)
 
 ___
 
@@ -913,7 +913,7 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[setRotationFromQuaternion](CanvasBox.md#setrotationfromquaternion-14)
+[CanvasBox](CanvasBox.md).[setRotationFromQuaternion](CanvasBox.md#setrotationfromquaternion-40)
 
 ___
 
@@ -936,7 +936,7 @@ Rotate an object along an axis in object space. The axis is assumed to be normal
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[rotateOnAxis](CanvasBox.md#rotateonaxis-14)
+[CanvasBox](CanvasBox.md).[rotateOnAxis](CanvasBox.md#rotateonaxis-40)
 
 ___
 
@@ -959,7 +959,7 @@ Rotate an object along an axis in world space. The axis is assumed to be normali
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[rotateOnWorldAxis](CanvasBox.md#rotateonworldaxis-14)
+[CanvasBox](CanvasBox.md).[rotateOnWorldAxis](CanvasBox.md#rotateonworldaxis-40)
 
 ___
 
@@ -981,7 +981,7 @@ Rotates the object around x axis in local space.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[rotateX](CanvasBox.md#rotatex-14)
+[CanvasBox](CanvasBox.md).[rotateX](CanvasBox.md#rotatex-40)
 
 ___
 
@@ -1003,7 +1003,7 @@ Rotates the object around y axis in local space.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[rotateY](CanvasBox.md#rotatey-14)
+[CanvasBox](CanvasBox.md).[rotateY](CanvasBox.md#rotatey-40)
 
 ___
 
@@ -1025,7 +1025,7 @@ Rotates the object around z axis in local space.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[rotateZ](CanvasBox.md#rotatez-14)
+[CanvasBox](CanvasBox.md).[rotateZ](CanvasBox.md#rotatez-40)
 
 ___
 
@@ -1048,7 +1048,7 @@ Translate an object by distance along an axis in object space. The axis is assum
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[translateOnAxis](CanvasBox.md#translateonaxis-14)
+[CanvasBox](CanvasBox.md).[translateOnAxis](CanvasBox.md#translateonaxis-40)
 
 ___
 
@@ -1070,7 +1070,7 @@ Translates object along x axis by distance.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[translateX](CanvasBox.md#translatex-14)
+[CanvasBox](CanvasBox.md).[translateX](CanvasBox.md#translatex-40)
 
 ___
 
@@ -1092,7 +1092,7 @@ Translates object along y axis by distance.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[translateY](CanvasBox.md#translatey-14)
+[CanvasBox](CanvasBox.md).[translateY](CanvasBox.md#translatey-40)
 
 ___
 
@@ -1114,7 +1114,7 @@ Translates object along z axis by distance.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[translateZ](CanvasBox.md#translatez-14)
+[CanvasBox](CanvasBox.md).[translateZ](CanvasBox.md#translatez-40)
 
 ___
 
@@ -1136,7 +1136,7 @@ Updates the vector from local space to world space.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[localToWorld](CanvasBox.md#localtoworld-14)
+[CanvasBox](CanvasBox.md).[localToWorld](CanvasBox.md#localtoworld-40)
 
 ___
 
@@ -1158,7 +1158,7 @@ Updates the vector from world space to local space.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[worldToLocal](CanvasBox.md#worldtolocal-14)
+[CanvasBox](CanvasBox.md).[worldToLocal](CanvasBox.md#worldtolocal-40)
 
 ___
 
@@ -1184,7 +1184,7 @@ This method does not support objects having non-uniformly-scaled parent(s).
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[lookAt](CanvasBox.md#lookat-14)
+[CanvasBox](CanvasBox.md).[lookAt](CanvasBox.md#lookat-40)
 
 ___
 
@@ -1206,7 +1206,7 @@ Adds object as child of this object.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[add](CanvasBox.md#add-14)
+[CanvasBox](CanvasBox.md).[add](CanvasBox.md#add-40)
 
 ___
 
@@ -1228,7 +1228,7 @@ Removes object as child of this object.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[remove](CanvasBox.md#remove-14)
+[CanvasBox](CanvasBox.md).[remove](CanvasBox.md#remove-40)
 
 ___
 
@@ -1244,7 +1244,7 @@ Removes this object from its current parent.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[removeFromParent](CanvasBox.md#removefromparent-14)
+[CanvasBox](CanvasBox.md).[removeFromParent](CanvasBox.md#removefromparent-40)
 
 ___
 
@@ -1260,7 +1260,7 @@ Removes all child objects.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[clear](CanvasBox.md#clear-14)
+[CanvasBox](CanvasBox.md).[clear](CanvasBox.md#clear-40)
 
 ___
 
@@ -1282,7 +1282,7 @@ Adds object as a child of this, while maintaining the object's world transform.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[attach](CanvasBox.md#attach-14)
+[CanvasBox](CanvasBox.md).[attach](CanvasBox.md#attach-40)
 
 ___
 
@@ -1304,7 +1304,7 @@ Searches through the object's children and returns the first with a matching id.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getObjectById](CanvasBox.md#getobjectbyid-14)
+[CanvasBox](CanvasBox.md).[getObjectById](CanvasBox.md#getobjectbyid-40)
 
 ___
 
@@ -1326,7 +1326,7 @@ Searches through the object's children and returns the first with a matching nam
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getObjectByName](CanvasBox.md#getobjectbyname-14)
+[CanvasBox](CanvasBox.md).[getObjectByName](CanvasBox.md#getobjectbyname-40)
 
 ___
 
@@ -1347,7 +1347,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getObjectByProperty](CanvasBox.md#getobjectbyproperty-14)
+[CanvasBox](CanvasBox.md).[getObjectByProperty](CanvasBox.md#getobjectbyproperty-40)
 
 ___
 
@@ -1367,7 +1367,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getWorldPosition](CanvasBox.md#getworldposition-14)
+[CanvasBox](CanvasBox.md).[getWorldPosition](CanvasBox.md#getworldposition-40)
 
 ___
 
@@ -1387,7 +1387,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getWorldQuaternion](CanvasBox.md#getworldquaternion-14)
+[CanvasBox](CanvasBox.md).[getWorldQuaternion](CanvasBox.md#getworldquaternion-40)
 
 ___
 
@@ -1407,7 +1407,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getWorldScale](CanvasBox.md#getworldscale-14)
+[CanvasBox](CanvasBox.md).[getWorldScale](CanvasBox.md#getworldscale-40)
 
 ___
 
@@ -1427,7 +1427,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[getWorldDirection](CanvasBox.md#getworlddirection-14)
+[CanvasBox](CanvasBox.md).[getWorldDirection](CanvasBox.md#getworlddirection-40)
 
 ___
 
@@ -1448,7 +1448,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[raycast](CanvasBox.md#raycast-14)
+[CanvasBox](CanvasBox.md).[raycast](CanvasBox.md#raycast-40)
 
 ___
 
@@ -1468,7 +1468,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[traverse](CanvasBox.md#traverse-14)
+[CanvasBox](CanvasBox.md).[traverse](CanvasBox.md#traverse-40)
 
 ___
 
@@ -1488,7 +1488,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[traverseVisible](CanvasBox.md#traversevisible-14)
+[CanvasBox](CanvasBox.md).[traverseVisible](CanvasBox.md#traversevisible-40)
 
 ___
 
@@ -1508,7 +1508,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[traverseAncestors](CanvasBox.md#traverseancestors-14)
+[CanvasBox](CanvasBox.md).[traverseAncestors](CanvasBox.md#traverseancestors-40)
 
 ___
 
@@ -1524,7 +1524,7 @@ Updates local transform.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[updateMatrix](CanvasBox.md#updatematrix-14)
+[CanvasBox](CanvasBox.md).[updateMatrix](CanvasBox.md#updatematrix-40)
 
 ___
 
@@ -1546,7 +1546,7 @@ Updates global transform of the object and its children.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[updateMatrixWorld](CanvasBox.md#updatematrixworld-14)
+[CanvasBox](CanvasBox.md).[updateMatrixWorld](CanvasBox.md#updatematrixworld-40)
 
 ___
 
@@ -1569,7 +1569,7 @@ Updates the global transform of the object.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[updateWorldMatrix](CanvasBox.md#updateworldmatrix-14)
+[CanvasBox](CanvasBox.md).[updateWorldMatrix](CanvasBox.md#updateworldmatrix-40)
 
 ___
 
@@ -1593,7 +1593,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[toJSON](CanvasBox.md#tojson-14)
+[CanvasBox](CanvasBox.md).[toJSON](CanvasBox.md#tojson-40)
 
 ___
 
@@ -1613,7 +1613,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[clone](CanvasBox.md#clone-14)
+[CanvasBox](CanvasBox.md).[clone](CanvasBox.md#clone-40)
 
 ___
 
@@ -1634,7 +1634,7 @@ ___
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[copy](CanvasBox.md#copy-14)
+[CanvasBox](CanvasBox.md).[copy](CanvasBox.md#copy-40)
 
 ## Accessors
 
@@ -1665,4 +1665,4 @@ CanvasBox.boxMaterials
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-14)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-40)

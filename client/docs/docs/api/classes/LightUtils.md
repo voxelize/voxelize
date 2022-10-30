@@ -9,10 +9,10 @@ custom_edit_url: null
 A utility class for extracting and inserting light data from and into numbers.
 
 The light data is stored in the following format:
-- Sunlight: `0xffff000000000000`
-- Red light: `0x0000ffff00000000`
-- Green light: `0x00000000ffff0000`
-- Blue light: `0x000000000000ffff`
+- Sunlight: `0xff000000`
+- Red light: `0x00ff0000`
+- Green light: `0x0000ff00`
+- Blue light: `0x000000ff`
 
 TODO-DOCS
 For more information about lighting data, see [here](/)

@@ -751,7 +751,7 @@ export class World extends Scene implements NetIntercept {
             }
 
             let raw = 0;
-            raw = BlockUtils.insertId(raw, update.type);
+            raw = BlockUtils.insertID(raw, update.type);
 
             if (!isNaN(update.rotation) || !isNaN(update.yRotation)) {
               raw = BlockUtils.insertRotation(
