@@ -7,56 +7,9 @@ import {
   Vector3,
 } from "three";
 
-import { DOMUtils } from "../utils";
-
 import { CanvasBox } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
-
-export function drawSun(
-  context: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
-) {
-  const radius = 50;
-  const sunColor = "#f8ffb5";
-
-  const color = new Color(sunColor);
-
-  context.save();
-
-  // bg glow
-  context.beginPath();
-  let x = canvas.width / 2;
-  let y = canvas.height / 2;
-  const grd = context.createRadialGradient(x, y, 1, x, y, radius * 2);
-  grd.addColorStop(0, DOMUtils.rgba(1, 1, 1, 0.3));
-  grd.addColorStop(1, DOMUtils.rgba(1, 1, 1, 0));
-  context.arc(x, y, radius * 3, 0, 2 * Math.PI, false);
-  context.fillStyle = grd;
-  context.fill();
-  context.closePath();
-
-  // outer sun
-  context.beginPath();
-  x = canvas.width / 2 - radius / 2;
-  y = canvas.height / 2 - radius / 2;
-  context.rect(x, y, radius, radius);
-  context.fillStyle = DOMUtils.rgba(color.r, color.g, color.b, 1);
-  context.fill();
-  context.closePath();
-
-  // inner sun
-  context.beginPath();
-  const r = radius / 1.6;
-  x = canvas.width / 2 - r / 2;
-  y = canvas.height / 2 - r / 2;
-  context.rect(x, y, r, r);
-  context.fillStyle = DOMUtils.rgba(1, 1, 1, 0.5);
-  context.fill();
-  context.closePath();
-
-  context.restore();
-}
 
 export class Sky extends CanvasBox {
   public uTopColor: {

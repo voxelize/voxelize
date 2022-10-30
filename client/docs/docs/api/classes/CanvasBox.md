@@ -19,12 +19,9 @@ box.paint("all", (ctx, canvas) => {
 });
 ```
 
-<div style={{width: "100%", display: "flex", flexDirection: "column", alignItems: "center"}}>
+![Bobby from King of the Hill](/img/bobby-canvas-box.png)
 
- ![Bobby from King of the Hill](/img/bobby-canvas-box.png)
-
- <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Bobby from King of the Hill rendered in CanvasBoxes</p>
-</div>
+<p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Bobby from King of the Hill rendered in CanvasBoxes</p>
 
 ## Hierarchy
 
@@ -38,7 +35,7 @@ box.paint("all", (ctx, canvas) => {
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-394)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-556)
 
 Parameters for creating a canvas box.
 
@@ -86,7 +83,7 @@ Create a new canvas box.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-394)\> | The parameters for creating a canvas box. |
+| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-556)\> | The parameters for creating a canvas box. |
 
 #### Overrides
 
@@ -104,8 +101,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-394) \| [`BoxSides`](../modules.md#boxsides-394)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-394) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-556) \| [`BoxSides`](../modules.md#boxsides-556)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-556) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

@@ -1052,7 +1052,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `object` | `Object3D`<`Event`\> |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-394)\> |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-556)\> |
 
 #### Returns
 

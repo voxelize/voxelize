@@ -95,7 +95,7 @@ const App = () => {
     inputs.setNamespace("menu");
 
     const sky = new VOXELIZE.Sky(2000);
-    sky.paint("top", VOXELIZE.drawSun);
+    sky.paint("top", VOXELIZE.artFunctions.drawSun);
     world.add(sky);
 
     const clouds = new VOXELIZE.Clouds({
@@ -150,8 +150,6 @@ const App = () => {
       world,
       {
         initialPosition: [0, 12, 0],
-        bodyHeight: character.totalHeight,
-        eyeHeight: character.eyeHeight / character.totalHeight,
       }
     );
 

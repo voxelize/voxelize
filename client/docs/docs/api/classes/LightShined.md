@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-394)
+• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-556)
 
 ___
 
@@ -41,7 +41,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-394)\> |
+| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-556)\> |
 
 ## Methods
 

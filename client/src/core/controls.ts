@@ -727,6 +727,15 @@ export class RigidControls extends EventEmitter {
     character.params.positionLerp = newLerpFactor;
     character.params.rotationLerp = newLerpFactor;
 
+    this.params.bodyHeight = character.totalHeight;
+    this.params.bodyWidth = character.body.width;
+    this.params.bodyDepth = character.body.depth;
+    this.params.eyeHeight = character.eyeHeight / character.totalHeight;
+
+    this.body.aabb.maxX = this.body.aabb.minX + this.params.bodyWidth;
+    this.body.aabb.maxY = this.body.aabb.minY + this.params.bodyHeight;
+    this.body.aabb.maxZ = this.body.aabb.minZ + this.params.bodyDepth;
+
     this.world.add(character);
     this.character = character;
   };

@@ -163,9 +163,24 @@ ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-394)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-556)[]
 
 The six default faces of a canvas box.
+
+___
+
+### artFunctions
+
+• `Const` **artFunctions**: `Object`
+
+A preset of art functions to draw on canvas boxes.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `drawCrown` | [`ArtFunction`](modules.md#artfunction-556) |
+| `drawSun` | [`ArtFunction`](modules.md#artfunction-556) |
 
 ___
 
@@ -232,35 +247,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-394)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-556)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-394) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-556) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-394)\>
-
-___
-
-### drawSun
-
-▸ **drawSun**(`context`, `canvas`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `context` | `CanvasRenderingContext2D` |
-| `canvas` | `HTMLCanvasElement` |
-
-#### Returns
-
-`void`
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-556)\>
 
 ## Type Aliases
 
@@ -320,7 +318,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-394) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-556) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
@@ -497,7 +495,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-394) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-556) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -555,7 +553,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-394) & [`WorldServerParams`](modules.md#worldserverparams-394)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-556) & [`WorldServerParams`](modules.md#worldserverparams-556)
 
 ___
 
@@ -578,7 +576,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-394) or [applyTexturesByNames](classes/World.md#applytexturesbynames-394) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-556) or [applyTexturesByNames](classes/World.md#applytexturesbynames-556) to load a block texture.
 
 #### Type declaration
 
@@ -670,33 +668,99 @@ ___
 
 ### BoxSides
 
-Ƭ **BoxSides**: ``"back"`` \| ``"front"`` \| ``"top"`` \| ``"bottom"`` \| ``"left"`` \| ``"right"`` \| ``"all"``
+Ƭ **BoxSides**: ``"back"`` \| ``"front"`` \| ``"top"`` \| ``"bottom"`` \| ``"left"`` \| ``"right"`` \| ``"sides"`` \| ``"all"``
 
 The sides of a canvas box.
+
+`"all"` means all six sides, and `"sides"` means all the sides except the top and bottom.
 
 ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-556) & { `neckGap?`: `number`  }
+
+Parameters to create a character's head.
+Defaults to:
+```ts
+{
+  gap: 0.1,
+  layers: 1,
+  side: THREE.DoubleSide,
+  width: 0.5,
+  widthSegments: 16,
+  height: 0.25,
+  heightSegments: 8,
+  depth: 0.5,
+  depthSegments: 16,
+  neckGap: 0.05,
+}
+```
 
 ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-556)
+
+Parameters to create a character's body.
+Defaults to:
+```ts
+{
+  gap: 0.1,
+  layers: 1,
+  side: THREE.DoubleSide,
+  width: 1,
+  widthSegments: 16,
+}
+```
 
 ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-556) & { `betweenLegsGap?`: `number`  }
+
+Parameters to create the legs of a character.
+Defaults to:
+```ts
+{
+  gap: 0.1,
+  layers: 1,
+  side: THREE.DoubleSide,
+  width: 0.25,
+  widthSegments: 3,
+  height: 0.25,
+  heightSegments: 3,
+  depth: 0.25,
+  depthSegments: 3,
+  betweenLegsGap: 0.2,
+}
+```
 
 ___
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-394) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-556) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+
+Parameters to create a character's arms.
+Defaults to:
+```ts
+{
+  gap: 0.1,
+  layers: 1,
+  side: THREE.DoubleSide,
+  width: 0.25,
+  widthSegments: 8,
+  height: 0.5,
+  heightSegments: 16,
+  depth: 0.25,
+  depthSegments: 8,
+  shoulderGap: 0.05,
+  shoulderDrop: 0.25,
+}
+```
 
 ___
 
@@ -704,19 +768,21 @@ ___
 
 Ƭ **CharacterParams**: `Object`
 
+Parameters to create a character.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `swingLerp?` | `number` |
-| `walkingSpeed?` | `number` |
-| `idleArmSwing?` | `number` |
-| `positionLerp?` | `number` |
-| `rotationLerp?` | `number` |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-394)\> |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-394)\> |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-394)\> |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-394)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `swingLerp?` | `number` | The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`. |
+| `walkingSpeed?` | `number` | The speed at which the arms swing when the character is moving. Defaults to `1.4`. |
+| `idleArmSwing?` | `number` | The speed at which the arms swing when the character is idle. Defaults to `0.06`. |
+| `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
+| `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-556)\> | Parameters to create the character's head. |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-556)\> | Parameters to create the character's body. |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-556)\> | Parameters to create the character's legs. |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-556)\> | Parameters to create the character's arms. |
 
 ___
 
@@ -732,7 +798,7 @@ ___
 | `width` | `number` |
 | `height` | `number` |
 | `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-394) |
+| `dimensions` | [`Coords3`](modules.md#coords3-556) |
 | `threshold` | `number` |
 | `lerpFactor` | `number` |
 | `speedFactor` | `number` |
@@ -773,11 +839,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-394) |
-| `max` | [`Coords3`](modules.md#coords3-394) |
-| `realMin` | [`Coords3`](modules.md#coords3-394) |
-| `realMax` | [`Coords3`](modules.md#coords3-394) |
-| `dimensions` | [`Coords3`](modules.md#coords3-394) |
+| `min` | [`Coords3`](modules.md#coords3-556) |
+| `max` | [`Coords3`](modules.md#coords3-556) |
+| `realMin` | [`Coords3`](modules.md#coords3-556) |
+| `realMax` | [`Coords3`](modules.md#coords3-556) |
+| `dimensions` | [`Coords3`](modules.md#coords3-556) |
 
 ___
 

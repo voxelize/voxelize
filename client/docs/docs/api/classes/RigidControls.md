@@ -474,7 +474,7 @@ ___
 
 ### params
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-394)
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-556)
 
 Parameters to initialize the Voxelize controls.
 
@@ -490,7 +490,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-394)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-556)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -541,13 +541,13 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-394)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-556)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-394)
+[`Coords3`](../modules.md#coords3-556)
 
 ___
 
@@ -563,10 +563,10 @@ ___
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-394)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-556)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-394)
+[`Coords2`](../modules.md#coords2-556)

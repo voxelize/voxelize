@@ -1,4 +1,4 @@
-import { Color, MathUtils, sRGBEncoding } from "three";
+import { Color, sRGBEncoding } from "three";
 import {
   BoxGeometry,
   FrontSide,
@@ -11,6 +11,8 @@ import {
   Side,
   Texture,
 } from "three";
+
+import { DOMUtils } from "../utils";
 
 /**
  * Parameters to create a canvas box.
@@ -80,6 +82,8 @@ export type ArtFunction = (
 
 /**
  * The sides of a canvas box.
+ *
+ * `"all"` means all six sides, and `"sides"` means all the sides except the top and bottom.
  */
 export type BoxSides =
   | "back"
@@ -88,6 +92,7 @@ export type BoxSides =
   | "bottom"
   | "left"
   | "right"
+  | "sides"
   | "all";
 
 const defaultParams: CanvasBoxParams = {
@@ -117,6 +122,8 @@ export const BOX_SIDES: BoxSides[] = [
 
 /**
  * A layer of a canvas box. This is a group of six canvases that are rendered as a single mesh.
+ *
+ * @noInheritDoc
  */
 export class BoxLayer extends Mesh {
   /**
@@ -222,7 +229,13 @@ export class BoxLayer extends Mesh {
    */
   paint = (side: BoxSides[] | BoxSides, art: ArtFunction | Color | Texture) => {
     const actualSides =
-      side === "all" ? BOX_SIDES : Array.isArray(side) ? side : [side];
+      side === "all"
+        ? BOX_SIDES
+        : side === "sides"
+        ? (["front", "back", "left", "right"] as BoxSides[])
+        : Array.isArray(side)
+        ? side
+        : [side];
 
     for (const face of actualSides) {
       const material = this.materials.get(face);
@@ -327,12 +340,9 @@ export class BoxLayer extends Mesh {
  * });
  * ```
  *
- * <div style={{width: "100%", display: "flex", flexDirection: "column", alignItems: "center"}}>
+ * ![Bobby from King of the Hill](/img/bobby-canvas-box.png)
  *
- *  ![Bobby from King of the Hill](/img/bobby-canvas-box.png)
- *
- *  <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Bobby from King of the Hill rendered in CanvasBoxes</p>
- * </div>
+ * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Bobby from King of the Hill rendered in CanvasBoxes</p>
  *
  * @noInheritDoc
  */
@@ -442,3 +452,108 @@ export class CanvasBox extends Group {
     }
   };
 }
+
+/**
+ * Draw a sun to a canvas box. This can be used on sky, as sky is essentially a canvas box.
+ *
+ * @param context The canvas context to draw on.
+ * @param canvas The canvas to draw on.
+ */
+const drawSun: ArtFunction = (
+  context: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement
+) => {
+  const radius = 50;
+  const sunColor = "#f8ffb5";
+
+  const color = new Color(sunColor);
+
+  context.save();
+
+  // bg glow
+  context.beginPath();
+  let x = canvas.width / 2;
+  let y = canvas.height / 2;
+  const grd = context.createRadialGradient(x, y, 1, x, y, radius * 2);
+  grd.addColorStop(0, DOMUtils.rgba(1, 1, 1, 0.3));
+  grd.addColorStop(1, DOMUtils.rgba(1, 1, 1, 0));
+  context.arc(x, y, radius * 3, 0, 2 * Math.PI, false);
+  context.fillStyle = grd;
+  context.fill();
+  context.closePath();
+
+  // outer sun
+  context.beginPath();
+  x = canvas.width / 2 - radius / 2;
+  y = canvas.height / 2 - radius / 2;
+  context.rect(x, y, radius, radius);
+  context.fillStyle = DOMUtils.rgba(color.r, color.g, color.b, 1);
+  context.fill();
+  context.closePath();
+
+  // inner sun
+  context.beginPath();
+  const r = radius / 1.6;
+  x = canvas.width / 2 - r / 2;
+  y = canvas.height / 2 - r / 2;
+  context.rect(x, y, r, r);
+  context.fillStyle = DOMUtils.rgba(1, 1, 1, 0.5);
+  context.fill();
+  context.closePath();
+
+  context.restore();
+};
+
+/**
+ * An art function to draw a crown to a canvas box.
+ *
+ * @param context The canvas context to draw on.
+ *
+ * # Example
+ * ```ts
+ * const box = new VOXELIZE.CanvasBox();
+ * box.paint("sides", VOXELIZE.drawCrown);
+ */
+const drawCrown: ArtFunction = (context: CanvasRenderingContext2D) => {
+  const gold = [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [1, 2],
+    [2, 2],
+    [2, 1],
+    [3, 0],
+    [3, 2],
+    [4, 0],
+    [4, 2],
+    [5, 1],
+    [5, 2],
+    [6, 2],
+    [7, 0],
+    [7, 1],
+    [7, 2],
+  ];
+
+  const blue = [
+    [1, 1],
+    [6, 1],
+  ];
+
+  context.fillStyle = "#f7ea00";
+  gold.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+
+  context.fillStyle = "#51c2d5";
+  blue.forEach(([x, y]) => context.fillRect(x, y, 1, 1));
+
+  context.fillStyle = "#ff005c";
+  context.fillRect(3, 1, 1, 1);
+  context.fillRect(4, 1, 1, 1);
+};
+
+/**
+ * A preset of art functions to draw on canvas boxes.
+ */
+export const artFunctions = {
+  drawCrown,
+  drawSun,
+};
