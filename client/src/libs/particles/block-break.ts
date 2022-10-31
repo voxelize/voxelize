@@ -176,7 +176,10 @@ const defaultParams: BlockBreakParticlesParams = {
  * const particles = new VOXELIZE.BlockBreakParticles(world, { ... });
  * particles.addRenderer(particleRenderer);
  *
- * // In the animate loop
+ * // Listen to incoming network packets.
+ * network.register(particles);
+ *
+ * // In the animate loop.
  * particles.update();
  * ```
  *

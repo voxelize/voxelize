@@ -6,6 +6,31 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A network interceptor that gives flexible control over the chat feature of
+the game. This also allows for custom commands to be added.
+
+# Example
+```ts
+const chat = new VOXELIZE.Chat();
+
+// Listen to incoming chat messages.
+chat.onChat = (chat: ChatMessage) => {
+  console.log(chat);
+};
+
+// Sending a chat message.
+chat.send({
+  type: "CLIENT",
+  sender: "Mr. Robot",
+  body: "Hello world!",
+});
+
+// Register to the network.
+network.register(chat);
+```
+
+![Chat](/img/chat.png)
+
 ## Implements
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
@@ -22,12 +47,11 @@ custom_edit_url: null
 
 • **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
 
-An array of packets to be sent to the server. These packets will be
-sent to the server after every `network.flush()` call.
+An array of network packets that will be sent on `network.flush` calls.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-556)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-74)
 
 ___
 
@@ -55,11 +79,13 @@ ___
 
 ▸ **send**(`chat`): `void`
 
+Send a chat to the server.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `chat` | `ChatProtocol` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `chat` | `ChatProtocol` | The chat message to send. |
 
 #### Returns
 
@@ -78,7 +104,7 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor-556) | `undefined` | The process run when this command is triggered. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor-74) | `undefined` | The process run when this command is triggered. |
 | `aliases` | `string`[] | `[]` | - |
 
 #### Returns
@@ -123,7 +149,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-556)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-74)
 
 ## Accessors
 

@@ -226,6 +226,8 @@ const defaultLegsParams: LegParams = {
  * # Example
  * ```ts
  * const character = new VOXELIZE.Character();
+ *
+ * // Set the nametag content.
  * character.username = "<placeholder>";
  *
  * // Load a texture to paint on the face.
@@ -233,12 +235,13 @@ const defaultLegsParams: LegParams = {
  *   character.head.paint("front", texture);
  * })
  *
+ * // Attach the character to a rigid controls.
  * controls.attachCharacter(character);
  * ```
  *
  * ![Character](/img/character.png)
  *
- * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A character with a funny face.</p>
+ * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A character with a funny face</p>
  *
  * @noInheritDoc
  */

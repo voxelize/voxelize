@@ -4,6 +4,26 @@
 const darkCodeTheme = require("prism-react-renderer/themes/dracula");
 const lightCodeTheme = require("prism-react-renderer/themes/github");
 
+const sharedTypeDocConfig = (name) => ({
+  excludePrivate: true,
+  excludeProtected: true,
+  entryDocument: "none",
+  disableSources: true,
+  sort: ["source-order", "alphabetical"],
+  categorizeByGroup: true,
+  sidebar: {
+    fullNames: false,
+    categoryLabel: name,
+    indexLabel: undefined,
+    readmeLabel: "Readme",
+    position: null,
+    autoConfiguration: true,
+  },
+  plugin: ["typedoc-plugin-no-inherit"],
+  watch: process.env.TYPEDOC_WATCH,
+  preserveWatchOutput: true,
+});
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Voxelize",
@@ -134,30 +154,20 @@ const config = {
     [
       "docusaurus-plugin-typedoc",
       {
+        entryPoints: ["../../transport/src/index.ts"],
+        id: "@voxelize/transport",
+        out: "transport",
+        tsconfig: "../../transport/tsconfig.json",
+        ...sharedTypeDocConfig("Transport API"),
+      },
+    ],
+    [
+      "docusaurus-plugin-typedoc",
+      {
         entryPoints: ["../src/index.ts"],
+        id: "@voxelize/client",
         tsconfig: "../tsconfig.json",
-        excludePrivate: true,
-        excludeProtected: true,
-        entryDocument: "none",
-        disableSources: true,
-        sort: ["source-order", "alphabetical"],
-        categorizeByGroup: true,
-        sidebar: {
-          fullNames: false,
-          categoryLabel: "Client API",
-          indexLabel: undefined,
-          readmeLabel: "Readme",
-          position: null,
-          autoConfiguration: true,
-        },
-        externalSymbolLinkMappings: {
-          three: {
-            Scene: "https://threejs.org/docs/#api/en/scenes/Scene",
-          },
-        },
-        plugin: ["typedoc-plugin-no-inherit"],
-        watch: process.env.TYPEDOC_WATCH,
-        preserveWatchOutput: true,
+        ...sharedTypeDocConfig("Client API"),
       },
     ],
   ],

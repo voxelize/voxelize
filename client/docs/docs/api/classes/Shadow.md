@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`ShadowParams`](../modules.md#shadowparams-556)
+• **params**: [`ShadowParams`](../modules.md#shadowparams-74)
 
 ___
 
@@ -571,7 +571,7 @@ Mesh.type
 | Name | Type |
 | :------ | :------ |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-556)\> |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-74)\> |
 
 #### Overrides
 

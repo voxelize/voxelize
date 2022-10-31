@@ -60,6 +60,8 @@ const defaultParams: ArrowParams = {
  * ```
  *
  * ![Arrow](/img/arrow.png)
+ *
+ * @noInheritDoc
  */
 export class Arrow extends ArrowHelper {
   /**

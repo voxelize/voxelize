@@ -121,8 +121,8 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            .faces(&BlockFace::six_faces().scale_y(0.8).build())
-            .aabbs(&[AABB::new().scale_y(0.8).build()])
+            // .faces(&BlockFace::six_faces().scale_y(0.8).build())
+            // .aabbs(&[AABB::new().scale_y(0.8).build()])
             .build(),
         Block::new("Glass")
             .id(160)

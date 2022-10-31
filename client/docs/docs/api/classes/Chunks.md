@@ -142,7 +142,7 @@ Returns an iterable of entries in the map.
 
 #### Inherited from
 
-Map.\_\_@iterator@8902
+Map.\_\_@iterator@11649
 
 ___
 
@@ -210,7 +210,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@toStringTag@8957
+Map.\_\_@toStringTag@12176
 
 ___
 
@@ -220,7 +220,7 @@ ___
 
 #### Inherited from
 
-Map.\_\_@species@8950
+Map.\_\_@species@12158
 
 ___
 
@@ -244,7 +244,7 @@ ___
 
 ### toUpdate
 
-• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-556)[] = `[]`
+• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-74)[] = `[]`
 
 ___
 
@@ -256,7 +256,7 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-556)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-74)
 
 ## Constructors
 

@@ -16,6 +16,8 @@ body will be lerp to the new rotation. This is to create a more natural looking 
 # Example
 ```ts
 const character = new VOXELIZE.Character();
+
+// Set the nametag content.
 character.username = "<placeholder>";
 
 // Load a texture to paint on the face.
@@ -23,12 +25,13 @@ world.loader.addTexture(FunnyImageSrc, (texture) => {
   character.head.paint("front", texture);
 })
 
+// Attach the character to a rigid controls.
 controls.attachCharacter(character);
 ```
 
 ![Character](/img/character.png)
 
-<p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A character with a funny face.</p>
+<p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A character with a funny face</p>
 
 ## Hierarchy
 
@@ -40,7 +43,7 @@ controls.attachCharacter(character);
 
 ### params
 
-• **params**: [`CharacterParams`](../modules.md#characterparams-556)
+• **params**: [`CharacterParams`](../modules.md#characterparams-74)
 
 Parameters to create a Voxelize character.
 
@@ -226,7 +229,7 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-556)\> | Parameters to create a Voxelize character. |
+| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-74)\> | Parameters to create a Voxelize character. |
 
 #### Overrides
 

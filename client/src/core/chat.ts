@@ -7,13 +7,55 @@ import { NetIntercept } from "./network";
  */
 export type CommandProcessor = (rest: string) => void;
 
+/**
+ * A network interceptor that gives flexible control over the chat feature of
+ * the game. This also allows for custom commands to be added.
+ *
+ * # Example
+ * ```ts
+ * const chat = new VOXELIZE.Chat();
+ *
+ * // Listen to incoming chat messages.
+ * chat.onChat = (chat: ChatMessage) => {
+ *   console.log(chat);
+ * };
+ *
+ * // Sending a chat message.
+ * chat.send({
+ *   type: "CLIENT",
+ *   sender: "Mr. Robot",
+ *   body: "Hello world!",
+ * });
+ *
+ * // Register to the network.
+ * network.register(chat);
+ * ```
+ *
+ * ![Chat](/img/chat.png)
+ *
+ * @category Core
+ */
 export class Chat implements NetIntercept {
+  /**
+   * A list of commands added by `addCommand`.
+   */
   private commands: Map<string, CommandProcessor> = new Map();
 
+  /**
+   * An array of network packets that will be sent on `network.flush` calls.
+   */
   public packets: MessageProtocol[] = [];
 
+  /**
+   * The symbol that is used to trigger commands.
+   */
   private _commandSymbol: string;
 
+  /**
+   * Send a chat to the server.
+   *
+   * @param chat The chat message to send.
+   */
   public send = (chat: ChatProtocol) => {
     if (chat.body.startsWith(this._commandSymbol)) {
       const words = chat.body

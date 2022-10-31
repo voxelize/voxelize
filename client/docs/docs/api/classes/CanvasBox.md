@@ -13,6 +13,7 @@ You can then paint on each canvas individually by calling `box.paint()`.
 # Example
 ```ts
 const box = new VOXELIZE.CanvasBox();
+
 box.paint("all", (ctx, canvas) => {
   ctx.fillStyle = "red";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -35,7 +36,7 @@ box.paint("all", (ctx, canvas) => {
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-556)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-74)
 
 Parameters for creating a canvas box.
 
@@ -83,7 +84,7 @@ Create a new canvas box.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-556)\> | The parameters for creating a canvas box. |
+| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-74)\> | The parameters for creating a canvas box. |
 
 #### Overrides
 
@@ -101,8 +102,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-556) \| [`BoxSides`](../modules.md#boxsides-556)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-556) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-74) \| [`BoxSides`](../modules.md#boxsides-74)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-74) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

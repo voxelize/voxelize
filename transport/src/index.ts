@@ -13,6 +13,9 @@ export * from "./types";
 
 const { Message } = protocol.protocol;
 
+/**
+ * @noInheritDoc
+ */
 export class Transport extends WebSocket {
   public connection: WebSocketConnection;
 
