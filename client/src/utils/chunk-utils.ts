@@ -115,4 +115,8 @@ export class ChunkUtils {
   static mapWorldToVoxel = (worldPos: Coords3): Coords3 => {
     return ChunkUtils.scaleCoordsF(worldPos, 1);
   };
+
+  private constructor() {
+    // NOTHING
+  }
 }

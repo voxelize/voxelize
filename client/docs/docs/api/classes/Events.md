@@ -11,7 +11,7 @@ mind that one event can only have one listener!
 
 ## Hierarchy
 
-- `Map`<`string`, [`EventHandler`](../modules.md#eventhandler)\>
+- `Map`<`string`, [`EventHandler`](../modules.md#eventhandler-16)\>
 
   ↳ **`Events`**
 
@@ -63,7 +63,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `callbackfn` | (`value`: [`EventHandler`](../modules.md#eventhandler), `key`: `string`, `map`: `Map`<`string`, [`EventHandler`](../modules.md#eventhandler)\>) => `void` |
+| `callbackfn` | (`value`: [`EventHandler`](../modules.md#eventhandler-16), `key`: `string`, `map`: `Map`<`string`, [`EventHandler`](../modules.md#eventhandler-16)\>) => `void` |
 | `thisArg?` | `any` |
 
 #### Returns
@@ -78,7 +78,7 @@ ___
 
 ### get
 
-▸ **get**(`key`): [`EventHandler`](../modules.md#eventhandler)
+▸ **get**(`key`): [`EventHandler`](../modules.md#eventhandler-16)
 
 #### Parameters
 
@@ -88,7 +88,7 @@ ___
 
 #### Returns
 
-[`EventHandler`](../modules.md#eventhandler)
+[`EventHandler`](../modules.md#eventhandler-16)
 
 #### Inherited from
 
@@ -125,7 +125,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `key` | `string` |
-| `value` | [`EventHandler`](../modules.md#eventhandler) |
+| `value` | [`EventHandler`](../modules.md#eventhandler-16) |
 
 #### Returns
 
@@ -139,13 +139,13 @@ ___
 
 ### [iterator]
 
-▸ **[iterator]**(): `IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler)]\>
+▸ **[iterator]**(): `IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-16)]\>
 
 Returns an iterable of entries in the map.
 
 #### Returns
 
-`IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler)]\>
+`IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-16)]\>
 
 #### Inherited from
 
@@ -155,13 +155,13 @@ ___
 
 ### entries
 
-▸ **entries**(): `IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler)]\>
+▸ **entries**(): `IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-16)]\>
 
 Returns an iterable of key, value pairs for every entry in the map.
 
 #### Returns
 
-`IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler)]\>
+`IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-16)]\>
 
 #### Inherited from
 
@@ -187,13 +187,13 @@ ___
 
 ### values
 
-▸ **values**(): `IterableIterator`<[`EventHandler`](../modules.md#eventhandler)\>
+▸ **values**(): `IterableIterator`<[`EventHandler`](../modules.md#eventhandler-16)\>
 
 Returns an iterable of values in the map
 
 #### Returns
 
-`IterableIterator`<[`EventHandler`](../modules.md#eventhandler)\>
+`IterableIterator`<[`EventHandler`](../modules.md#eventhandler-16)\>
 
 #### Inherited from
 
@@ -219,7 +219,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-16)
 
 ___
 
@@ -227,7 +227,7 @@ ___
 
 ▸ **addEventListener**(`name`, `handler`): `void`
 
-Synonym for [on](Events.md#on), adds a listener to a Voxelize server event.
+Synonym for [on](Events.md#on-16), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -235,7 +235,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler-16) | What to do when this event is received? |
 
 #### Returns
 
@@ -247,7 +247,7 @@ ___
 
 ▸ **on**(`name`, `handler`): `void`
 
-Synonym for [addEventListener](Events.md#addeventlistener), adds a listener to a Voxelize server event.
+Synonym for [addEventListener](Events.md#addeventlistener-16), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -255,7 +255,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler-16) | What to do when this event is received? |
 
 #### Returns
 
@@ -301,7 +301,7 @@ Map.\_\_@species@12158
 
 | Name | Type |
 | :------ | :------ |
-| `entries?` | readonly readonly [`string`, [`EventHandler`](../modules.md#eventhandler)][] |
+| `entries?` | readonly readonly [`string`, [`EventHandler`](../modules.md#eventhandler-16)][] |
 
 #### Inherited from
 
@@ -313,7 +313,7 @@ Map<string, EventHandler\>.constructor
 
 | Name | Type |
 | :------ | :------ |
-| `iterable?` | `Iterable`<readonly [`string`, [`EventHandler`](../modules.md#eventhandler)]\> |
+| `iterable?` | `Iterable`<readonly [`string`, [`EventHandler`](../modules.md#eventhandler-16)]\> |
 
 #### Inherited from
 

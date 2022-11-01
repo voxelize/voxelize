@@ -23,12 +23,6 @@ For more information about voxel data, see [here](/)
 const number = VoxelUtils.insertID(0, 13);
 ```
 
-## Constructors
-
-### constructor
-
-• **new BlockUtils**()
-
 ## Methods
 
 ### extractID

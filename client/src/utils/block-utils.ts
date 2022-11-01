@@ -91,4 +91,8 @@ export class BlockUtils {
   static insertStage = (voxel: number, stage: number) => {
     return (voxel & STAGE_MASK) | (stage << 24);
   };
+
+  private constructor() {
+    // NOTHING
+  }
 }

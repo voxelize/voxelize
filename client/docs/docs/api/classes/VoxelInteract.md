@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`VoxelInteractParams`](../modules.md#voxelinteractparams)
+• **params**: [`VoxelInteractParams`](../modules.md#voxelinteractparams-16)
 
 ___
 
@@ -28,7 +28,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../modules.md#coords3-16) |
 | `rotation` | `number` |
 | `yRotation` | `number` |
 
@@ -36,7 +36,7 @@ ___
 
 ### target
 
-• **target**: [`Coords3`](../modules.md#coords3)
+• **target**: [`Coords3`](../modules.md#coords3-16)
 
 ___
 
@@ -536,7 +536,7 @@ Group.isGroup
 | :------ | :------ |
 | `object` | `Object3D`<`Event`\> |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`VoxelInteractParams`](../modules.md#voxelinteractparams)\> |
+| `params` | `Partial`<[`VoxelInteractParams`](../modules.md#voxelinteractparams-16)\> |
 
 #### Overrides
 
@@ -1538,8 +1538,8 @@ Group.copy
 
 ### lookingAt
 
-• `get` **lookingAt**(): [`Block`](../modules.md#block)
+• `get` **lookingAt**(): [`Block`](../modules.md#block-16)
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-16)

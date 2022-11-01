@@ -51,9 +51,3 @@ Create a CSS color string from numbers.
 `string`
 
 A CSS color string
-
-## Constructors
-
-### constructor
-
-• **new DOMUtils**()

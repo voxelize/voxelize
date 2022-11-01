@@ -8,12 +8,6 @@ custom_edit_url: null
 
 A utility class for doing math operations.
 
-## Constructors
-
-### constructor
-
-• **new MathUtils**()
-
 ## Methods
 
 ### round

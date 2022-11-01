@@ -102,6 +102,10 @@ export class LightUtils {
   static insertBlueLight = (light: number, level: number) => {
     return (light & 0xfff0) | level;
   };
+
+  private constructor() {
+    // NOTHING
+  }
 }
 
 /**

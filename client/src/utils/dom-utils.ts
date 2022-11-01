@@ -42,4 +42,8 @@ export class DOMUtils {
   static rgba = (r: number, g: number, b: number, a: number) => {
     return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
   };
+
+  private constructor() {
+    // NOTHING
+  }
 }

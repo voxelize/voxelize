@@ -53,4 +53,8 @@ export class MathUtils {
 
     return toQuaternion();
   };
+
+  private constructor() {
+    // NOTHING
+  }
 }

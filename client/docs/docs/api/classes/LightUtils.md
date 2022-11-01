@@ -23,12 +23,6 @@ For more information about lighting data, see [here](/)
 const number = LightUtils.insertSunlight(0, 13);
 ```
 
-## Constructors
-
-### constructor
-
-• **new LightUtils**()
-
 ## Methods
 
 ### extractSunlight
