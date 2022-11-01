@@ -6,227 +6,25 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+`Chunks` is a map of chunks that are currently loaded or being loaded. This is
+used completely within [World](World.md) and shouldn't be modified by anything else.
+
+One can use [Debug](Debug.md) to view different chunk statuses.
+
 ## Hierarchy
 
 - `Map`<`string`, [`Chunk`](Chunk.md)\>
 
   ↳ **`Chunks`**
 
-## Methods
-
-### clear
-
-▸ **clear**(): `void`
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Map.clear
-
-___
-
-### delete
-
-▸ **delete**(`key`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-Map.delete
-
-___
-
-### forEach
-
-▸ **forEach**(`callbackfn`, `thisArg?`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callbackfn` | (`value`: [`Chunk`](Chunk.md), `key`: `string`, `map`: `Map`<`string`, [`Chunk`](Chunk.md)\>) => `void` |
-| `thisArg?` | `any` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Map.forEach
-
-___
-
-### get
-
-▸ **get**(`key`): [`Chunk`](Chunk.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-
-#### Returns
-
-[`Chunk`](Chunk.md)
-
-#### Inherited from
-
-Map.get
-
-___
-
-### has
-
-▸ **has**(`key`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-Map.has
-
-___
-
-### set
-
-▸ **set**(`key`, `value`): [`Chunks`](Chunks.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-| `value` | [`Chunk`](Chunk.md) |
-
-#### Returns
-
-[`Chunks`](Chunks.md)
-
-#### Inherited from
-
-Map.set
-
-___
-
-### [iterator]
-
-▸ **[iterator]**(): `IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
-
-Returns an iterable of entries in the map.
-
-#### Returns
-
-`IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
-
-#### Inherited from
-
-Map.\_\_@iterator@11649
-
-___
-
-### entries
-
-▸ **entries**(): `IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
-
-Returns an iterable of key, value pairs for every entry in the map.
-
-#### Returns
-
-`IterableIterator`<[`string`, [`Chunk`](Chunk.md)]\>
-
-#### Inherited from
-
-Map.entries
-
-___
-
-### keys
-
-▸ **keys**(): `IterableIterator`<`string`\>
-
-Returns an iterable of keys in the map
-
-#### Returns
-
-`IterableIterator`<`string`\>
-
-#### Inherited from
-
-Map.keys
-
-___
-
-### values
-
-▸ **values**(): `IterableIterator`<[`Chunk`](Chunk.md)\>
-
-Returns an iterable of values in the map
-
-#### Returns
-
-`IterableIterator`<[`Chunk`](Chunk.md)\>
-
-#### Inherited from
-
-Map.values
-
 ## Properties
-
-### size
-
-• `Readonly` **size**: `number`
-
-#### Inherited from
-
-Map.size
-
-___
-
-### [toStringTag]
-
-• `Readonly` **[toStringTag]**: `string`
-
-#### Inherited from
-
-Map.\_\_@toStringTag@12176
-
-___
-
-### [species]
-
-▪ `Static` `Readonly` **[species]**: `MapConstructor`
-
-#### Inherited from
-
-Map.\_\_@species@12158
-
-___
 
 ### requested
 
 • **requested**: `Map`<`string`, `number`\>
+
+The map of requested chunks corresponding to how many times the world has attempted
+to re-request the chunk.
 
 ___
 
@@ -234,17 +32,28 @@ ___
 
 • **toRequest**: `string`[] = `[]`
 
+A list of chunk representations ready to be sent to the server to be loaded. The rate at which
+this list is taken out can be configured at {@link WorldClientParams.maxRequestsPerTick}. Items of
+this list will be taken out whenever the server responds with any corresponding chunks.
+
 ___
 
 ### toProcess
 
 • **toProcess**: [`ChunkProtocol`, `number`][] = `[]`
 
+A list of {@link ChunkProtocol} objects that are received from the server and are waiting to be
+loaded into meshes within the world and actual chunk instances. This list empties out at the rate
+defined at {@link WorldClientParams.maxProcessesPerTick}.
+
 ___
 
 ### toUpdate
 
-• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-16)[] = `[]`
+• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-74)[] = `[]`
+
+A list of [BlockUpdate](../modules.md#blockupdate-74) objects that awaits to be sent to the server to make actual voxel
+updates. This list empties out at the rate defined at {@link WorldClientParams.maxUpdatesPerTick}.
 
 ___
 
@@ -252,36 +61,14 @@ ___
 
 • **toAdd**: `string`[] = `[]`
 
+A list of chunk representations that are ready to be added into the THREE.js scene. This list empties
+out at the rate defined at {@link WorldClientParams.maxAddsPerTick}.
+
 ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-16)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-74)
 
-## Constructors
-
-### constructor
-
-• **new Chunks**(`entries?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `entries?` | readonly readonly [`string`, [`Chunk`](Chunk.md)][] |
-
-#### Inherited from
-
-Map<string, Chunk\>.constructor
-
-• **new Chunks**(`iterable?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `iterable?` | `Iterable`<readonly [`string`, [`Chunk`](Chunk.md)]\> |
-
-#### Inherited from
-
-Map<string, Chunk\>.constructor
+The current chunk that is used as the center of the world. This is used to determine which chunks
+should be requested and loaded.
