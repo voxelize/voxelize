@@ -32,7 +32,7 @@ const config = {
   baseUrl: "/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
-  favicon: "img/logo/tree_transparent.svg",
+  favicon: "img/logo/logo_circle.png",
   deploymentBranch: "gh-pages",
 
   // GitHub pages deployment config.
@@ -82,7 +82,7 @@ const config = {
         title: "Voxelize",
         logo: {
           alt: "Voxelize Logo",
-          src: "img/logo/tree_transparent_compressed.svg",
+          src: "img/logo/logo_circle.png",
         },
         items: [
           {
