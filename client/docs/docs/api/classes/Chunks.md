@@ -244,7 +244,7 @@ ___
 
 ### toUpdate
 
-• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-74)[] = `[]`
+• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate)[] = `[]`
 
 ___
 
@@ -256,7 +256,7 @@ ___
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-74)
+• **currentChunk**: [`Coords2`](../modules.md#coords2)
 
 ## Constructors
 

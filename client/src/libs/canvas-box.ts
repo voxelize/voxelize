@@ -34,12 +34,12 @@ export type CanvasBoxParams = {
   width: number;
 
   /**
-   * The height of the box. Defaults to `1`.
+   * The height of the box. Defaults to whatever `width` is.
    */
   height?: number;
 
   /**
-   * The depth of the box. Defaults to `1`.
+   * The depth of the box. Defaults to whatever `width` is.
    */
   depth?: number;
 
@@ -51,13 +51,13 @@ export type CanvasBoxParams = {
 
   /**
    * The height segments of the box, which is the number of pixels of the canvases along the height.
-   * Defaults to `8`.
+   * Defaults to whatever `widthSegments` is.
    */
   heightSegments?: number;
 
   /**
    * The depth segments of the box, which is the number of pixels of the canvases along the depth.
-   * Defaults to `8`.
+   * Defaults to whatever `widthSegments` is.
    */
   depthSegments?: number;
 
@@ -100,10 +100,6 @@ const defaultParams: CanvasBoxParams = {
   layers: 1,
   width: 1,
   widthSegments: 8,
-  height: 1,
-  heightSegments: 8,
-  depth: 1,
-  depthSegments: 8,
   side: FrontSide,
   transparent: false,
 };
