@@ -20,7 +20,7 @@ custom_edit_url: null
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams-74) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams-198) = `{}`
 
 ___
 
@@ -97,10 +97,10 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-74) |
-| `transparent?` | { `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-74) ; `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-74)  } |
-| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-74) |
-| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-74) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-198) |
+| `transparent?` | { `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-198) ; `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-198)  } |
+| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-198) |
+| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-198) |
 
 ___
 
@@ -113,7 +113,7 @@ sent to the server after every `network.flush()` call.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-74)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-198)
 
 ___
 
@@ -669,7 +669,7 @@ Scene.isScene
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-74)\> |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-198)\> |
 
 #### Overrides
 
@@ -687,7 +687,7 @@ A listener to be implemented to handle incoming packets.
 
 | Name | Type |
 | :------ | :------ |
-| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-74)[] ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-74);  } ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-74)  }, `any`, `any`, `any`\> |
+| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-198)[] ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-198);  } ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-198)  }, `any`, `any`, `any`\> |
 
 #### Returns
 
@@ -695,7 +695,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-74)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-198)
 
 ___
 
@@ -719,7 +719,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-74)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-198)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -737,7 +737,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-74) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-198) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -747,7 +747,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-74)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-198)
 
 Get the block information by its name.
 
@@ -759,13 +759,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-74)
+[`Block`](../modules.md#block-198)
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-74)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-198)
 
 Get the block information by its ID.
 
@@ -777,13 +777,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-74)
+[`Block`](../modules.md#block-198)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-74)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-198)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -795,7 +795,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-74)
+[`Block`](../modules.md#block-198)
 
 ___
 
@@ -812,7 +812,7 @@ Caution: do not call this after game started!
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`WorldServerParams`](../modules.md#worldserverparams-74) |
+| `data` | [`WorldServerParams`](../modules.md#worldserverparams-198) |
 
 #### Returns
 
@@ -883,7 +883,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-74)[] |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-198)[] |
 
 #### Returns
 
@@ -1079,7 +1079,7 @@ ___
 | `vx` | `number` |
 | `vy` | `number` |
 | `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor-74) |
+| `color` | [`LightColor`](../modules.md#lightcolor-198) |
 
 #### Returns
 
@@ -1089,7 +1089,7 @@ ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-74)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-198)
 
 #### Parameters
 
@@ -1101,13 +1101,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-74)
+[`Block`](../modules.md#block-198)
 
 ___
 
 ### getBlockByWorld
 
-▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-74)
+▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-198)
 
 #### Parameters
 
@@ -1119,7 +1119,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-74)
+[`Block`](../modules.md#block-198)
 
 ___
 
@@ -1281,7 +1281,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-74) |
+| `coords` | [`Coords2`](../modules.md#coords2-198) |
 | `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` |
 
 #### Returns

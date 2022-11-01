@@ -12,7 +12,7 @@ import {
 import { TextureRange } from "./registry";
 
 /**
- * Parameters to create a new texture atlas.
+ * Parameters to create a new {@link TextureAtlas} instance.
  */
 export type TextureAtlasParams = {
   /**

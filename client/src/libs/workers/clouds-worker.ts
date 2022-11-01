@@ -37,7 +37,16 @@ function noise(
 onmessage = function (e) {
   const {
     data,
-    configs: { min, max, scale, threshold, stride, octaves, falloff, seed },
+    configs: {
+      min,
+      max,
+      noiseScale,
+      threshold,
+      stride,
+      octaves,
+      falloff,
+      seed,
+    },
   } = e.data;
 
   instance.seed(seed);
@@ -49,8 +58,13 @@ onmessage = function (e) {
     for (let vz = startZ, lz = 0; vz < endZ; ++vz, ++lz) {
       for (let vy = startY, ly = 0; vy < endY; ++vy, ++ly) {
         const value =
-          noise(vx * scale, vy * scale, vz * scale, octaves, falloff) >
-          threshold
+          noise(
+            vx * noiseScale,
+            vy * noiseScale,
+            vz * noiseScale,
+            octaves,
+            falloff
+          ) > threshold
             ? 1
             : 0;
         set(data, lx, ly, lz, stride, value);

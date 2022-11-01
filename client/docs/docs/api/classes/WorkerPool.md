@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-74)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-198)[] = `[]`
 
 ___
 
@@ -32,7 +32,7 @@ ___
 
 ### params
 
-• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-74) = `defaultParams`
+• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-198) = `defaultParams`
 
 ## Constructors
 
@@ -45,7 +45,7 @@ ___
 | Name | Type | Default value |
 | :------ | :------ | :------ |
 | `Proto` | () => `Worker` | `undefined` |
-| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-74) | `defaultParams` |
+| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-198) | `defaultParams` |
 
 ## Methods
 
@@ -57,7 +57,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-74) |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-198) |
 
 #### Returns
 

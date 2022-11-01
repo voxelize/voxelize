@@ -163,7 +163,7 @@ ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-74)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-198)[]
 
 The six default faces of a canvas box.
 
@@ -179,8 +179,8 @@ A preset of art functions to draw on canvas boxes.
 
 | Name | Type |
 | :------ | :------ |
-| `drawCrown` | [`ArtFunction`](modules.md#artfunction-74) |
-| `drawSun` | [`ArtFunction`](modules.md#artfunction-74) |
+| `drawCrown` | [`ArtFunction`](modules.md#artfunction-198) |
+| `drawSun` | [`ArtFunction`](modules.md#artfunction-198) |
 
 ___
 
@@ -247,18 +247,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-74)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-198)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-74) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-198) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-74)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-198)\>
 
 ## Type Aliases
 
@@ -318,7 +318,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `sensitivity` | `number` | The mouse sensitivity. Defaults to `100`. |
 | `minPolarAngle` | `number` | Minimum polar angle that camera can look down to. Defaults to `Math.PI * 0.01`. |
 | `maxPolarAngle` | `number` | Maximum polar angle that camera can look up to. Defaults to `Math.PI * 0.99` |
-| `initialPosition` | [`Coords3`](modules.md#coords3-74) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-198) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `rotationLerp` | `number` | The interpolation factor of the client's rotation. Defaults to `0.9`. |
 | `fluidPushForce` | `number` | The force upwards when a client tries to jump in water. Defaults to `0.3`. |
 | `positionLerp` | `number` | The interpolation factor of the client's position. Defaults to `0.9`. |
@@ -428,7 +428,7 @@ ___
 
 Ƭ **TextureAtlasParams**: `Object`
 
-Parameters to create a new texture atlas.
+Parameters to create a new [TextureAtlas](classes/TextureAtlas.md) instance.
 
 #### Type declaration
 
@@ -511,7 +511,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-74) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-198) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -569,7 +569,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-74) & [`WorldServerParams`](modules.md#worldserverparams-74)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-198) & [`WorldServerParams`](modules.md#worldserverparams-198)
 
 ___
 
@@ -592,7 +592,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-74) or [applyTexturesByNames](classes/World.md#applytexturesbynames-74) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-198) or [applyTexturesByNames](classes/World.md#applytexturesbynames-198) to load a block texture.
 
 #### Type declaration
 
@@ -694,7 +694,7 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-74) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-198) & { `neckGap?`: `number`  }
 
 Parameters to create a character's head.
 Defaults to:
@@ -717,7 +717,7 @@ ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-74)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-198)
 
 Parameters to create a character's body.
 Defaults to:
@@ -735,7 +735,7 @@ ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-74) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-198) & { `betweenLegsGap?`: `number`  }
 
 Parameters to create the legs of a character.
 Defaults to:
@@ -758,7 +758,7 @@ ___
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-74) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-198) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 Parameters to create a character's arms.
 Defaults to:
@@ -795,10 +795,10 @@ Parameters to create a character.
 | `idleArmSwing?` | `number` | The speed at which the arms swing when the character is idle. Defaults to `0.06`. |
 | `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
 | `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-74)\> | Parameters to create the character's head. |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-74)\> | Parameters to create the character's body. |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-74)\> | Parameters to create the character's legs. |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-74)\> | Parameters to create the character's arms. |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-198)\> | Parameters to create the character's head. |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-198)\> | Parameters to create the character's body. |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-198)\> | Parameters to create the character's legs. |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-198)\> | Parameters to create the character's arms. |
 
 ___
 
@@ -806,30 +806,32 @@ ___
 
 Ƭ **CloudsParams**: `Object`
 
+Parameters used to create a new [Clouds](classes/Clouds.md) instance.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `scale` | `number` |
-| `width` | `number` |
-| `height` | `number` |
-| `worldHeight` | `number` |
-| `dimensions` | [`Coords3`](modules.md#coords3-74) |
-| `threshold` | `number` |
-| `lerpFactor` | `number` |
-| `speedFactor` | `number` |
-| `color` | `string` |
-| `alpha` | `number` |
-| `seed` | `number` |
-| `count` | `number` |
-| `octaves` | `number` |
-| `falloff` | `number` |
-| `uFogNear?` | { `value`: `number`  } |
-| `uFogNear.value` | `number` |
-| `uFogFar?` | { `value`: `number`  } |
-| `uFogFar.value` | `number` |
-| `uFogColor?` | { `value`: `Color`  } |
-| `uFogColor.value` | `Color` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `noiseScale` | `number` | The scale of the noise used to generate the clouds. Defaults to `0.08`. |
+| `width` | `number` | The horizontal count of how many cloud blocks are in a cloud cell. Defaults to `8`. |
+| `height` | `number` | The vertical count of how many cloud blocks are in a cloud cell. This is also used to determine the overall count of cloud blocks of all the clouds. Defaults to `3`. |
+| `cloudHeight` | `number` | The y-height at which the clouds are generated. Defaults to `256`. |
+| `dimensions` | [`Coords3`](modules.md#coords3-198) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
+| `threshold` | `number` | The threshold at which noise values are considered to be "cloudy" and should generate a new cloud block. Defaults to `0.05`. |
+| `lerpFactor` | `number` | The lerp factor used to translate cloud blocks from their original position to their new position. Defaults to `0.3`. |
+| `speedFactor` | `number` | The speed at which the clouds move. Defaults to `8`. |
+| `color` | `string` | The color of the clouds. Defaults to `#fff`. |
+| `alpha` | `number` | The opacity of the clouds. Defaults to `0.8`. |
+| `seed` | `number` | The seed used to generate the clouds. Defaults to `-1`. |
+| `count` | `number` | The number of cloud cells to generate, `count` * `count`. Defaults to `16`. |
+| `octaves` | `number` | The number of octaves used to generate the noise. Defaults to `5`. |
+| `falloff` | `number` | The noise falloff factor used to generate the clouds. Defaults to `0.9`. |
+| `uFogNear?` | { `value`: `number`  } | An object that is used as the uniform for the clouds fog near shader. |
+| `uFogNear.value` | `number` | - |
+| `uFogFar?` | { `value`: `number`  } | An object that is used as the uniform for the clouds fog far shader. |
+| `uFogFar.value` | `number` | - |
+| `uFogColor?` | { `value`: `Color`  } | An object that is used as the uniform for the clouds fog color shader. |
+| `uFogColor.value` | `Color` | - |
 
 ___
 
@@ -855,11 +857,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `min` | [`Coords3`](modules.md#coords3-74) |
-| `max` | [`Coords3`](modules.md#coords3-74) |
-| `realMin` | [`Coords3`](modules.md#coords3-74) |
-| `realMax` | [`Coords3`](modules.md#coords3-74) |
-| `dimensions` | [`Coords3`](modules.md#coords3-74) |
+| `min` | [`Coords3`](modules.md#coords3-198) |
+| `max` | [`Coords3`](modules.md#coords3-198) |
+| `realMin` | [`Coords3`](modules.md#coords3-198) |
+| `realMax` | [`Coords3`](modules.md#coords3-198) |
+| `dimensions` | [`Coords3`](modules.md#coords3-198) |
 
 ___
 
