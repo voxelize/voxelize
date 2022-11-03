@@ -81,7 +81,7 @@ ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-14)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-82)[]
 
 The six default faces of a canvas box.
 
@@ -214,14 +214,14 @@ A preset of art functions to draw on canvas boxes.
 
 | Name | Type |
 | :------ | :------ |
-| `drawCrown` | [`ArtFunction`](modules.md#artfunction-14) |
-| `drawSun` | [`ArtFunction`](modules.md#artfunction-14) |
+| `drawCrown` | [`ArtFunction`](modules.md#artfunction-82) |
+| `drawSun` | [`ArtFunction`](modules.md#artfunction-82) |
 
 ## Type Aliases
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-82) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 Parameters to create a character's arms.
 Defaults to:
@@ -362,7 +362,7 @@ ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-82)
 
 Parameters to create a character's body.
 Defaults to:
@@ -429,11 +429,11 @@ Parameters to create a character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-14)\> | Parameters to create the character's arms. |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-14)\> | Parameters to create the character's body. |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-14)\> | Parameters to create the character's head. |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-82)\> | Parameters to create the character's arms. |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-82)\> | Parameters to create the character's body. |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-82)\> | Parameters to create the character's head. |
 | `idleArmSwing?` | `number` | The speed at which the arms swing when the character is idle. Defaults to `0.06`. |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-14)\> | Parameters to create the character's legs. |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-82)\> | Parameters to create the character's legs. |
 | `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
 | `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
 | `swingLerp?` | `number` | The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`. |
@@ -479,7 +479,7 @@ Parameters used to create a new [Clouds](classes/Clouds.md) instance.
 | `cloudHeight` | `number` | The y-height at which the clouds are generated. Defaults to `256`. |
 | `color` | `string` | The color of the clouds. Defaults to `#fff`. |
 | `count` | `number` | The number of cloud cells to generate, `count` * `count`. Defaults to `16`. |
-| `dimensions` | [`Coords3`](modules.md#coords3-14) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
+| `dimensions` | [`Coords3`](modules.md#coords3-82) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
 | `falloff` | `number` | The noise falloff factor used to generate the clouds. Defaults to `0.9`. |
 | `height` | `number` | The vertical count of how many cloud blocks are in a cloud cell. This is also used to determine the overall count of cloud blocks of all the clouds. Defaults to `3`. |
 | `lerpFactor` | `number` | The lerp factor used to translate cloud blocks from their original position to their new position. Defaults to `0.3`. |
@@ -540,11 +540,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `dimensions` | [`Coords3`](modules.md#coords3-14) |
-| `max` | [`Coords3`](modules.md#coords3-14) |
-| `min` | [`Coords3`](modules.md#coords3-14) |
-| `realMax` | [`Coords3`](modules.md#coords3-14) |
-| `realMin` | [`Coords3`](modules.md#coords3-14) |
+| `dimensions` | [`Coords3`](modules.md#coords3-82) |
+| `max` | [`Coords3`](modules.md#coords3-82) |
+| `min` | [`Coords3`](modules.md#coords3-82) |
+| `realMax` | [`Coords3`](modules.md#coords3-82) |
+| `realMin` | [`Coords3`](modules.md#coords3-82) |
 
 ___
 
@@ -560,20 +560,22 @@ ___
 
 Ƭ **DebugParams**: `Object`
 
+Parameters to create a [Debug](classes/Debug.md) instance.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `dataClass` | `string` |
-| `dataStyles` | `Partial`<`CSSStyleDeclaration`\> |
-| `entryClass` | `string` |
-| `entryStyles` | `Partial`<`CSSStyleDeclaration`\> |
-| `lineClass` | `string` |
-| `lineStyles` | `Partial`<`CSSStyleDeclaration`\> |
-| `onByDefault` | `boolean` |
-| `showVoxelize` | `boolean` |
-| `stats` | `boolean` |
-| `tweakpane` | `boolean` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `dataClass` | `string` | A class to add to the wrapper of the top-left debug panel. |
+| `dataStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to the wrapper of the top-left debug panel. |
+| `entryClass` | `string` | A class to add to the wrapper of all debug entries. |
+| `entryStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to the wrapper of all debug entries. |
+| `lineClass` | `string` | A class to add to each of the debug entry line (top left). |
+| `lineStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to each of the debug entry line (top left). |
+| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [Debug.toggle](classes/Debug.md#toggle-82). |
+| `showVoxelize` | `boolean` | Whether or not should `Voxelize x.x.x` be displayed in the top-left debug panel. Defaults to `true`. |
+| `stats` | `boolean` | Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`. |
+| `tweakpane` | `boolean` | Whether or not should [tweakpane](https://cocopon.github.io/tweakpane/) be enabled. Defaults to `true`. |
 
 ___
 
@@ -628,7 +630,7 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-82) & { `neckGap?`: `number`  }
 
 Parameters to create a character's head.
 Defaults to:
@@ -676,7 +678,7 @@ ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-14) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-82) & { `betweenLegsGap?`: `number`  }
 
 Parameters to create the legs of a character.
 Defaults to:
@@ -840,7 +842,7 @@ Parameters to initialize the Voxelize {@link Controls}.
 | `flyImpulse` | `number` | The level impulse of which a client flies at. Defaults to `2.5`. |
 | `flyInertia` | `number` | The inertia of a client when they're flying. Defaults to `6`. |
 | `flySpeed` | `number` | The level of speed at which a client flies at. Defaults to `40`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-14) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-82) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `jumpForce` | `number` | The level of force applied to the client when jumping. Defaults to `1`. |
 | `jumpImpulse` | `number` | The level of impulse at which the client jumps upwards. Defaults to `8`. |
 | `jumpTime` | `number` | The time, in milliseconds, that a client can be jumping. Defaults to `50`ms. |
@@ -874,7 +876,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-14) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-82) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -897,7 +899,7 @@ ___
 
 Ƭ **TextureData**: `Object`
 
-Data passed to [applyTextureByName](classes/World.md#applytexturebyname-14) or [applyTexturesByNames](classes/World.md#applytexturesbynames-14) to load a block texture.
+Data passed to [applyTextureByName](classes/World.md#applytexturebyname-82) or [applyTexturesByNames](classes/World.md#applytexturesbynames-82) to load a block texture.
 
 #### Type declaration
 
@@ -994,7 +996,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-14) & [`WorldServerParams`](modules.md#worldserverparams-14)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-82) & [`WorldServerParams`](modules.md#worldserverparams-82)
 
 ___
 
@@ -1051,15 +1053,15 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-14)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-82)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-14) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-82) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-14)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-82)\>

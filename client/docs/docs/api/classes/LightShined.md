@@ -75,7 +75,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-14)\> |
+| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-82)\> |
 
 ## Properties
 
@@ -93,7 +93,7 @@ ___
 
 ### params
 
-• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-14)
+• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-82)
 
 ___
 

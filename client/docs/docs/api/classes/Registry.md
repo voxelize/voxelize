@@ -20,7 +20,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-14) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-82) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -38,7 +38,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-14)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-82)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -64,7 +64,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-14)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-82)
 
 Get the block information by its ID.
 
@@ -76,13 +76,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-14)
+[`Block`](../modules.md#block-82)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-14)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-82)
 
 Get the block information by its name.
 
@@ -94,13 +94,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-14)
+[`Block`](../modules.md#block-82)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-14)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-82)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -112,7 +112,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-14)
+[`Block`](../modules.md#block-82)
 
 ___
 
@@ -135,7 +135,7 @@ ___
 
 ### blocksById
 
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-14)\>
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-82)\>
 
 A map of blocks by their IDs.
 
@@ -143,7 +143,7 @@ ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-14)\>
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-82)\>
 
 A map of blocks by their names.
 
@@ -151,7 +151,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-14)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-82)\>
 
 A map of UV ranges for all registered blocks.
 

@@ -216,7 +216,7 @@ Get the colored torch light level at a given voxel coordinate.
 | `vx` | `number` | The x voxel coordinate |
 | `vy` | `number` | The y voxel coordinate |
 | `vz` | `number` | The z voxel coordinate |
-| `color` | [`LightColor`](../modules.md#lightcolor-14) | The color of the light to get at the given voxel coordinate. |
+| `color` | [`LightColor`](../modules.md#lightcolor-82) | The color of the light to get at the given voxel coordinate. |
 
 #### Returns
 
@@ -476,7 +476,7 @@ Note: This method is purely client-side and does not affect the actual values on
 | `vy` | `number` | The y voxel coordinate |
 | `vz` | `number` | The z voxel coordinate |
 | `level` | `number` | The light level to set at the given voxel coordinate. |
-| `color` | [`LightColor`](../modules.md#lightcolor-14) | The color of the light to set at the given voxel coordinate. |
+| `color` | [`LightColor`](../modules.md#lightcolor-82) | The color of the light to set at the given voxel coordinate. |
 
 #### Returns
 
@@ -569,7 +569,7 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2-14)
+• **coords**: [`Coords2`](../modules.md#coords2-82)
 
 The chunk's 2D coordinates in the word. This coordinate is the voxel coordinate divided by the chunk size then floored.
 
@@ -593,7 +593,7 @@ ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3-14)
+• **max**: [`Coords3`](../modules.md#coords3-82)
 
 The maximum 3D voxel coordinate within this chunk, exclusive.
 
@@ -609,7 +609,7 @@ ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3-14)
+• **min**: [`Coords3`](../modules.md#coords3-82)
 
 The minimum 3D voxel coordinate within this chunk, inclusive.
 
@@ -620,13 +620,13 @@ ___
 • **name**: `string`
 
 The name of the chunk, which is converted from the chunk's coordinates into a string representation
-through [ChunkUtils.getChunkName](ChunkUtils.md#getchunkname-14).
+through [ChunkUtils.getChunkName](ChunkUtils.md#getchunkname-82).
 
 ___
 
 ### params
 
-• **params**: [`ChunkParams`](../modules.md#chunkparams-14)
+• **params**: [`ChunkParams`](../modules.md#chunkparams-82)
 
 Parameters to create a new chunk.
 
@@ -653,7 +653,7 @@ Create a new chunk with the given parameters.
 | `id` | `string` | The ID of the chunk generated on the server-side. |
 | `x` | `number` | The x coordinate of the chunk. |
 | `z` | `number` | The z coordinate of the chunk. |
-| `params` | [`ChunkParams`](../modules.md#chunkparams-14) | The parameters to create a new chunk. |
+| `params` | [`ChunkParams`](../modules.md#chunkparams-82) | The parameters to create a new chunk. |
 
 ## Accessors
 

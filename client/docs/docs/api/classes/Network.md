@@ -16,10 +16,10 @@ const network = new VOXELIZE.Network();
 network
  .connect("ws://localhost:5000")
  .then(() => {
-  network.join("my-world").then(() => {
-   console.log("Joined world!");
-  });
- });
+   network.join("my-world").then(() => {
+     console.log("Joined world!");
+   });
+});
 ```
 
 ## Methods
@@ -57,7 +57,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `params` | [`NetworkParams`](../modules.md#networkparams-14) | Parameters to customize the connection to a Voxelize server. |
+| `params` | [`NetworkParams`](../modules.md#networkparams-82) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -347,7 +347,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-14)
+• **params**: [`NetworkParams`](../modules.md#networkparams-82)
 
 Parameters to start the network connection, passed in to `connect`.
 
@@ -382,7 +382,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-14)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-82)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 

@@ -49,10 +49,10 @@ export type NetworkParams = {
  * network
  *  .connect("ws://localhost:5000")
  *  .then(() => {
- *   network.join("my-world").then(() => {
- *    console.log("Joined world!");
- *   });
- *  });
+ *    network.join("my-world").then(() => {
+ *      console.log("Joined world!");
+ *    });
+ * });
  * ```
  *
  * @category Core

@@ -22,7 +22,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-14)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-82)
 
 ___
 
@@ -34,7 +34,7 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-14)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-82)
 
 ___
 
@@ -52,7 +52,7 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-14)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-82)
 
 ___
 
@@ -64,13 +64,13 @@ ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-14)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-82)
 
 Parameters for creating a canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-14)
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-82)
 
 ___
 
@@ -118,7 +118,7 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-14)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-82)
 
 ## Accessors
 
@@ -153,7 +153,7 @@ Create a new canvas box.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-14)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-82)
 
 ## Methods
 
@@ -177,8 +177,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-82) \| [`BoxSides`](../modules.md#boxsides-82)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-82) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -187,7 +187,7 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-14)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-82)
 
 ___
 

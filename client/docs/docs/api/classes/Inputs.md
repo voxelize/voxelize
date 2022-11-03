@@ -67,7 +67,7 @@ Register a key-bind event listener.
 | `namespace` | `T` \| ``"*"`` | The namespace in which the to fire this event. |
 | `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
 | `specifics.identifier?` | `string` | Whether or not should this be a special key event. Defaults to "". |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) | Which pressing occasion should the event be fired. Defaults to "keydown". |
 
 #### Returns
 
@@ -91,7 +91,7 @@ Register a new click event listener.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype-14) | Which mouse button to register on. |
+| `type` | [`ClickType`](../modules.md#clicktype-82) | Which mouse button to register on. |
 | `callback` | () => `void` | What to do when that button is clicked. |
 | `namespace` | `T` \| ``"*"`` | Which namespace should this event be fired? |
 
@@ -306,7 +306,7 @@ ___
 | `newName` | `string` |
 | `specifics` | `Object` |
 | `specifics.identifier?` | `string` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) |
 
 #### Returns
 
@@ -433,7 +433,7 @@ ___
 | `keyB` | `string` |
 | `specifics` | `Object` |
 | `specifics.identifier?` | `string` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) |
 
 #### Returns
 
@@ -452,7 +452,7 @@ ___
 | `key` | `string` |
 | `specifics` | `Object` |
 | `specifics.identifier?` | `string` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-14) |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) |
 
 #### Returns
 

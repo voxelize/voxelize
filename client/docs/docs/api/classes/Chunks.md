@@ -21,7 +21,7 @@ One can use [Debug](Debug.md) to view different chunk statuses.
 
 ### currentChunk
 
-• **currentChunk**: [`Coords2`](../modules.md#coords2-14)
+• **currentChunk**: [`Coords2`](../modules.md#coords2-82)
 
 The current chunk that is used as the center of the world. This is used to determine which chunks
 should be requested and loaded.
@@ -68,7 +68,7 @@ ___
 
 ### toUpdate
 
-• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-14)[] = `[]`
+• **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-82)[] = `[]`
 
-A list of [BlockUpdate](../modules.md#blockupdate-14) objects that awaits to be sent to the server to make actual voxel
+A list of [BlockUpdate](../modules.md#blockupdate-82) objects that awaits to be sent to the server to make actual voxel
 updates. This list empties out at the rate defined at {@link WorldClientParams.maxUpdatesPerTick}.
