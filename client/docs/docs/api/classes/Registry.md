@@ -8,67 +8,7 @@ custom_edit_url: null
 
 A **built-in** block registry for Voxelize.
 
-## Constructors
-
-### constructor
-
-• **new Registry**()
-
-## Properties
-
-### ranges
-
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-198)\>
-
-A map of UV ranges for all registered blocks.
-
-___
-
-### blocksByName
-
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-198)\>
-
-A map of blocks by their names.
-
-___
-
-### blocksById
-
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-198)\>
-
-A map of blocks by their IDs.
-
-___
-
-### sources
-
-• **sources**: `Map`<`string`, `string` \| `Color`\>
-
-___
-
-### textures
-
-• **textures**: `Set`<`string`\>
-
 ## Methods
-
-### applyTexturesByNames
-
-▸ **applyTexturesByNames**(`textures`): `void`
-
-Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-198)[] | List of data to load into the game before the game starts. |
-
-#### Returns
-
-`void`
-
-___
 
 ### applyTextureByName
 
@@ -80,7 +20,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-198) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-14) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -88,27 +28,43 @@ Apply a texture onto a face/side of a block.
 
 ___
 
-### getBlockByName
+### applyTexturesByNames
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-198)
+▸ **applyTexturesByNames**(`textures`): `void`
 
-Get the block information by its name.
+Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `name` | `string` | The name of the block to get. |
+| `textures` | [`TextureData`](../modules.md#texturedata-14)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
-[`Block`](../modules.md#block-198)
+`void`
+
+___
+
+### checkHeight
+
+▸ **checkHeight**(`id`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `number` |
+
+#### Returns
+
+`boolean`
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-198)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-14)
 
 Get the block information by its ID.
 
@@ -120,13 +76,31 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-198)
+[`Block`](../modules.md#block-14)
+
+___
+
+### getBlockByName
+
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-14)
+
+Get the block information by its name.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block to get. |
+
+#### Returns
+
+[`Block`](../modules.md#block-14)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-198)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-14)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -138,7 +112,7 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-198)
+[`Block`](../modules.md#block-14)
 
 ___
 
@@ -157,21 +131,47 @@ ___
 
 `string`
 
+## Properties
+
+### blocksById
+
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-14)\>
+
+A map of blocks by their IDs.
+
 ___
 
-### checkHeight
+### blocksByName
 
-▸ **checkHeight**(`id`): `boolean`
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-14)\>
 
-#### Parameters
+A map of blocks by their names.
 
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
+___
 
-#### Returns
+### ranges
 
-`boolean`
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-14)\>
+
+A map of UV ranges for all registered blocks.
+
+___
+
+### sources
+
+• **sources**: `Map`<`string`, `string` \| `Color`\>
+
+___
+
+### textures
+
+• **textures**: `Set`<`string`\>
+
+## Constructors
+
+### constructor
+
+• **new Registry**()
 
 ## Accessors
 

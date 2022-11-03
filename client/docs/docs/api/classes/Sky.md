@@ -14,18 +14,6 @@ custom_edit_url: null
 
 ## Properties
 
-### params
-
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-198)
-
-Parameters for creating a canvas box.
-
-#### Inherited from
-
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-198)
-
-___
-
 ### boxLayers
 
 • **boxLayers**: [`BoxLayer`](BoxLayer.md)[] = `[]`
@@ -34,31 +22,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-198)
-
-___
-
-### width
-
-• **width**: `number`
-
-The width of the canvas box.
-
-#### Inherited from
-
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-198)
-
-___
-
-### height
-
-• **height**: `number`
-
-The height of the canvas box.
-
-#### Inherited from
-
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-198)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-14)
 
 ___
 
@@ -70,13 +34,49 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-198)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-14)
 
 ___
 
-### uTopColor
+### dimension
 
-• **uTopColor**: `Object`
+• **dimension**: `number` = `2000`
+
+___
+
+### height
+
+• **height**: `number`
+
+The height of the canvas box.
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-14)
+
+___
+
+### lerpFactor
+
+• **lerpFactor**: `number` = `0.01`
+
+___
+
+### params
+
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-14)
+
+Parameters for creating a canvas box.
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-14)
+
+___
+
+### uBottomColor
+
+• **uBottomColor**: `Object`
 
 #### Type declaration
 
@@ -98,9 +98,9 @@ ___
 
 ___
 
-### uBottomColor
+### uTopColor
 
-• **uBottomColor**: `Object`
+• **uTopColor**: `Object`
 
 #### Type declaration
 
@@ -110,65 +110,15 @@ ___
 
 ___
 
-### dimension
+### width
 
-• **dimension**: `number` = `2000`
+• **width**: `number`
 
-___
-
-### lerpFactor
-
-• **lerpFactor**: `number` = `0.01`
-
-## Methods
-
-### paint
-
-▸ **paint**(`side`, `art`, `layer?`): `void`
-
-Add art to the canvas(s) of this box layer.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-198) \| [`BoxSides`](../modules.md#boxsides-198)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-198) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
-| `layer` | `number` | `0` | The layer to draw on. |
-
-#### Returns
-
-`void`
+The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-198)
-
-___
-
-### getMiddleColor
-
-▸ **getMiddleColor**(): `Color`
-
-#### Returns
-
-`Color`
-
-___
-
-### update
-
-▸ **update**(`position`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `position` | `Vector3` |
-
-#### Returns
-
-`void`
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-14)
 
 ## Accessors
 
@@ -203,4 +153,54 @@ Create a new canvas box.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-198)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-14)
+
+## Methods
+
+### getMiddleColor
+
+▸ **getMiddleColor**(): `Color`
+
+#### Returns
+
+`Color`
+
+___
+
+### paint
+
+▸ **paint**(`side`, `art`, `layer?`): `void`
+
+Add art to the canvas(s) of this box layer.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `layer` | `number` | `0` | The layer to draw on. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-14)
+
+___
+
+### update
+
+▸ **update**(`position`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `position` | `Vector3` |
+
+#### Returns
+
+`void`

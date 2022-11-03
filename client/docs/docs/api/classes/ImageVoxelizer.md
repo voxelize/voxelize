@@ -8,22 +8,6 @@ custom_edit_url: null
 
 ## Methods
 
-### parse
-
-▸ `Static` **parse**(`rest`): [`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-198)]
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `rest` | `string` |
-
-#### Returns
-
-[`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-198)]
-
-___
-
 ### build
 
 ▸ `Static` **build**(`imgURL`, `world`, `position`, `params`): `Promise`<`boolean`\>
@@ -35,11 +19,27 @@ ___
 | `imgURL` | `string` |
 | `world` | [`World`](World.md) |
 | `position` | `Vector3` |
-| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-198) |
+| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-14) |
 
 #### Returns
 
 `Promise`<`boolean`\>
+
+___
+
+### parse
+
+▸ `Static` **parse**(`rest`): [`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-14)]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `rest` | `string` |
+
+#### Returns
+
+[`string`, [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-14)]
 
 ## Constructors
 

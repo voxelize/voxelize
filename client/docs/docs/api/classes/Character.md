@@ -41,19 +41,11 @@ controls.attachCharacter(character);
 
 ## Properties
 
-### params
+### body
 
-• **params**: [`CharacterParams`](../modules.md#characterparams-198)
+• **body**: [`CanvasBox`](CanvasBox.md)
 
-Parameters to create a Voxelize character.
-
-___
-
-### headGroup
-
-• **headGroup**: `Group`
-
-The sub-mesh holding the character's head.
+The actual body mesh as a paint-able `CanvasBox`.
 
 ___
 
@@ -65,38 +57,6 @@ The sub-mesh holding the character's body.
 
 ___
 
-### leftArmGroup
-
-• **leftArmGroup**: `Group`
-
-The sub-mesh holding the character's left arm.
-
-___
-
-### rightArmGroup
-
-• **rightArmGroup**: `Group`
-
-The sub-mesh holding the character's right arm.
-
-___
-
-### leftLegGroup
-
-• **leftLegGroup**: `Group`
-
-The sub-mesh holding the character's left leg.
-
-___
-
-### rightLegGroup
-
-• **rightLegGroup**: `Group`
-
-The sub-mesh holding the character's right leg.
-
-___
-
 ### head
 
 • **head**: [`CanvasBox`](CanvasBox.md)
@@ -105,11 +65,11 @@ The actual head mesh as a paint-able `CanvasBox`.
 
 ___
 
-### body
+### headGroup
 
-• **body**: [`CanvasBox`](CanvasBox.md)
+• **headGroup**: `Group`
 
-The actual body mesh as a paint-able `CanvasBox`.
+The sub-mesh holding the character's head.
 
 ___
 
@@ -121,11 +81,11 @@ The actual left arm mesh as a paint-able `CanvasBox`.
 
 ___
 
-### rightArm
+### leftArmGroup
 
-• **rightArm**: [`CanvasBox`](CanvasBox.md)
+• **leftArmGroup**: `Group`
 
-The actual right arm mesh as a paint-able `CanvasBox`.
+The sub-mesh holding the character's left arm.
 
 ___
 
@@ -137,11 +97,11 @@ The actual left leg mesh as a paint-able `CanvasBox`.
 
 ___
 
-### rightLeg
+### leftLegGroup
 
-• **rightLeg**: [`CanvasBox`](CanvasBox.md)
+• **leftLegGroup**: `Group`
 
-The actual right leg mesh as a paint-able `CanvasBox`.
+The sub-mesh holding the character's left leg.
 
 ___
 
@@ -150,24 +110,6 @@ ___
 • **nametag**: [`NameTag`](NameTag.md)
 
 The nametag of the character that floats right above the head.
-
-___
-
-### speed
-
-• **speed**: `number` = `0`
-
-The speed where the character has detected movements at. When speed is 0, the
-arms swing slowly in idle mode, and when speed is greater than 0, the arms swing
-faster depending on the passed-in parameters.
-
-___
-
-### newPosition
-
-• **newPosition**: `Vector3`
-
-The new position of the character. This is used to lerp the character's position
 
 ___
 
@@ -187,19 +129,11 @@ The new head direction of the character. This is used to lerp the character's he
 
 ___
 
-### onMove
+### newPosition
 
-• **onMove**: () => `void`
+• **newPosition**: `Vector3`
 
-#### Type declaration
-
-▸ (): `void`
-
-A listener called when a character starts moving.
-
-##### Returns
-
-`void`
+The new position of the character. This is used to lerp the character's position
 
 ___
 
@@ -217,6 +151,72 @@ A listener called when a character stops moving.
 
 `void`
 
+___
+
+### onMove
+
+• **onMove**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
+
+A listener called when a character starts moving.
+
+##### Returns
+
+`void`
+
+___
+
+### params
+
+• **params**: [`CharacterParams`](../modules.md#characterparams-14)
+
+Parameters to create a Voxelize character.
+
+___
+
+### rightArm
+
+• **rightArm**: [`CanvasBox`](CanvasBox.md)
+
+The actual right arm mesh as a paint-able `CanvasBox`.
+
+___
+
+### rightArmGroup
+
+• **rightArmGroup**: `Group`
+
+The sub-mesh holding the character's right arm.
+
+___
+
+### rightLeg
+
+• **rightLeg**: [`CanvasBox`](CanvasBox.md)
+
+The actual right leg mesh as a paint-able `CanvasBox`.
+
+___
+
+### rightLegGroup
+
+• **rightLegGroup**: `Group`
+
+The sub-mesh holding the character's right leg.
+
+___
+
+### speed
+
+• **speed**: `number` = `0`
+
+The speed where the character has detected movements at. When speed is 0, the
+arms swing slowly in idle mode, and when speed is greater than 0, the arms swing
+faster depending on the passed-in parameters.
+
 ## Constructors
 
 ### constructor
@@ -229,49 +229,38 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-198)\> | Parameters to create a Voxelize character. |
+| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-14)\> | Parameters to create a Voxelize character. |
 
 #### Overrides
 
 Group.constructor
 
-## Methods
+## Accessors
 
-### update
+### eyeHeight
 
-▸ **update**(): `void`
+• `get` **eyeHeight**(): `number`
 
-Update the character's animation and rotation. After `set` is called, `update` must be called to
-actually lerp to the new position and rotation. Note that when a character is attached to a control,
-`update` is called automatically within the control's update loop.
+Get the height at which the eye of the character is situated at.
 
 #### Returns
 
-`void`
+`number`
 
 ___
 
-### set
+### totalHeight
 
-▸ **set**(`position`, `direction`): `void`
+• `get` **totalHeight**(): `number`
 
-Set the character's position and direction that its body is situated at and the head is looking
-at. This uses `MathUtils.directionToQuaternion` to slerp the head's rotation to the new direction.
-
-The `update` needs to be called to actually lerp to the new position and rotation.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `position` | `number`[] | The new position of the character. |
-| `direction` | `number`[] | The new direction of the character. |
+Get the total height of the character, in other words, the sum of the heights of
+the head, body, and legs.
 
 #### Returns
 
-`void`
+`number`
 
-## Accessors
+___
 
 ### username
 
@@ -297,27 +286,38 @@ Change the content of the user's nametag. If the nametag is empty, nothing will 
 
 `void`
 
-___
+## Methods
 
-### eyeHeight
+### set
 
-• `get` **eyeHeight**(): `number`
+▸ **set**(`position`, `direction`): `void`
 
-Get the height at which the eye of the character is situated at.
+Set the character's position and direction that its body is situated at and the head is looking
+at. This uses `MathUtils.directionToQuaternion` to slerp the head's rotation to the new direction.
 
-#### Returns
+The `update` needs to be called to actually lerp to the new position and rotation.
 
-`number`
+#### Parameters
 
-___
-
-### totalHeight
-
-• `get` **totalHeight**(): `number`
-
-Get the total height of the character, in other words, the sum of the heights of
-the head, body, and legs.
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `position` | `number`[] | The new position of the character. |
+| `direction` | `number`[] | The new direction of the character. |
 
 #### Returns
 
-`number`
+`void`
+
+___
+
+### update
+
+▸ **update**(): `void`
+
+Update the character's animation and rotation. After `set` is called, `update` must be called to
+actually lerp to the new position and rotation. Note that when a character is attached to a control,
+`update` is called automatically within the control's update loop.
+
+#### Returns
+
+`void`

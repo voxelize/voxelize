@@ -45,6 +45,46 @@ The extracted voxel id.
 
 ___
 
+### extractRotation
+
+▸ `Static` **extractRotation**(`voxel`): [`BlockRotation`](BlockRotation.md)
+
+Extract the voxel rotation from a number.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to extract from. |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+The extracted voxel rotation.
+
+___
+
+### extractStage
+
+▸ `Static` **extractStage**(`voxel`): `number`
+
+Extract the voxel stage from a number.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to extract from. |
+
+#### Returns
+
+`number`
+
+The extracted voxel stage.
+
+___
+
 ### insertID
 
 ▸ `Static` **insertID**(`voxel`, `id`): `number`
@@ -66,26 +106,6 @@ The inserted voxel value.
 
 ___
 
-### extractRotation
-
-▸ `Static` **extractRotation**(`voxel`): [`BlockRotation`](BlockRotation.md)
-
-Extract the voxel rotation from a number.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `voxel` | `number` | The voxel value to extract from. |
-
-#### Returns
-
-[`BlockRotation`](BlockRotation.md)
-
-The extracted voxel rotation.
-
-___
-
 ### insertRotation
 
 ▸ `Static` **insertRotation**(`voxel`, `rotation`): `number`
@@ -104,26 +124,6 @@ Insert a voxel rotation into a number.
 `number`
 
 The inserted voxel value.
-
-___
-
-### extractStage
-
-▸ `Static` **extractStage**(`voxel`): `number`
-
-Extract the voxel stage from a number.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `voxel` | `number` | The voxel value to extract from. |
-
-#### Returns
-
-`number`
-
-The extracted voxel stage.
 
 ___
 

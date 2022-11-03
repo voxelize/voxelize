@@ -14,21 +14,115 @@ custom_edit_url: null
 
 ## Properties
 
-### connection
-
-• **connection**: `connection`
-
-___
-
 ### MessageTypes
 
 ▪ `Static` **MessageTypes**: typeof `Type` = `Message.Type`
 
 ___
 
-### reconnectTimeout
+### connection
 
-• `Optional` **reconnectTimeout**: `number`
+• **connection**: `connection`
+
+___
+
+### onAction
+
+• `Optional` **onAction**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+
+#### Type declaration
+
+▸ (`event`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onChat
+
+• `Optional` **onChat**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+
+#### Type declaration
+
+▸ (`event`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onEntity
+
+• `Optional` **onEntity**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+
+#### Type declaration
+
+▸ (`event`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onError
+
+• `Optional` **onError**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+
+#### Type declaration
+
+▸ (`event`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onEvent
+
+• `Optional` **onEvent**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+
+#### Type declaration
+
+▸ (`event`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+##### Returns
+
+`void`
 
 ___
 
@@ -92,9 +186,29 @@ ___
 
 ___
 
-### onError
+### onLoad
 
-• `Optional` **onError**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onLoad**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+
+#### Type declaration
+
+▸ (`event`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onMethod
+
+• `Optional` **onMethod**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
 
 #### Type declaration
 
@@ -132,29 +246,9 @@ ___
 
 ___
 
-### onEntity
+### onTransport
 
-• `Optional` **onEntity**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
-
-#### Type declaration
-
-▸ (`event`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onLoad
-
-• `Optional` **onLoad**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onTransport**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
 
 #### Type declaration
 
@@ -212,119 +306,9 @@ ___
 
 ___
 
-### onMethod
+### reconnectTimeout
 
-• `Optional` **onMethod**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
-
-#### Type declaration
-
-▸ (`event`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onChat
-
-• `Optional` **onChat**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
-
-#### Type declaration
-
-▸ (`event`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onTransport
-
-• `Optional` **onTransport**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
-
-#### Type declaration
-
-▸ (`event`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onEvent
-
-• `Optional` **onEvent**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
-
-#### Type declaration
-
-▸ (`event`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onAction
-
-• `Optional` **onAction**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\>) => `void`
-
-#### Type declaration
-
-▸ (`event`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-##### Returns
-
-`void`
-
-## Constructors
-
-### constructor
-
-• **new Transport**(`reconnectTimeout?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `reconnectTimeout?` | `number` |
-
-#### Overrides
-
-WebSocket.constructor
+• `Optional` **reconnectTimeout**: `number`
 
 ## Methods
 
@@ -346,32 +330,6 @@ WebSocket.constructor
 #### Overrides
 
 WebSocket.connect
-
-___
-
-### send
-
-▸ **send**(`event`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
-
-#### Returns
-
-`void`
-
-___
-
-### tryReconnect
-
-▸ **tryReconnect**(): `void`
-
-#### Returns
-
-`void`
 
 ___
 
@@ -404,3 +362,45 @@ ___
 #### Returns
 
 `Uint8Array`
+
+___
+
+### send
+
+▸ **send**(`event`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol)<`any`, `any`, `any`, `any`\> |
+
+#### Returns
+
+`void`
+
+___
+
+### tryReconnect
+
+▸ **tryReconnect**(): `void`
+
+#### Returns
+
+`void`
+
+## Constructors
+
+### constructor
+
+• **new Transport**(`reconnectTimeout?`)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `reconnectTimeout?` | `number` |
+
+#### Overrides
+
+WebSocket.constructor

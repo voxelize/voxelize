@@ -34,14 +34,6 @@ box.paint("all", (ctx, canvas) => {
 
 ## Properties
 
-### params
-
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-198)
-
-Parameters for creating a canvas box.
-
-___
-
 ### boxLayers
 
 • **boxLayers**: [`BoxLayer`](BoxLayer.md)[] = `[]`
@@ -50,11 +42,11 @@ The inner layers of the canvas box.
 
 ___
 
-### width
+### depth
 
-• **width**: `number`
+• **depth**: `number`
 
-The width of the canvas box.
+The depth of the canvas box.
 
 ___
 
@@ -66,11 +58,31 @@ The height of the canvas box.
 
 ___
 
-### depth
+### params
 
-• **depth**: `number`
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-14)
 
-The depth of the canvas box.
+Parameters for creating a canvas box.
+
+___
+
+### width
+
+• **width**: `number`
+
+The width of the canvas box.
+
+## Accessors
+
+### boxMaterials
+
+• `get` **boxMaterials**(): `Map`<`string`, `MeshBasicMaterial`\>
+
+The first layer of the canvas box.
+
+#### Returns
+
+`Map`<`string`, `MeshBasicMaterial`\>
 
 ## Constructors
 
@@ -84,7 +96,7 @@ Create a new canvas box.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-198)\> | The parameters for creating a canvas box. |
+| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-14)\> | The parameters for creating a canvas box. |
 
 #### Overrides
 
@@ -102,22 +114,10 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-198) \| [`BoxSides`](../modules.md#boxsides-198)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-198) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
 
 `void`
-
-## Accessors
-
-### boxMaterials
-
-• `get` **boxMaterials**(): `Map`<`string`, `MeshBasicMaterial`\>
-
-The first layer of the canvas box.
-
-#### Returns
-
-`Map`<`string`, `MeshBasicMaterial`\>

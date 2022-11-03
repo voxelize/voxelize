@@ -8,9 +8,9 @@ custom_edit_url: null
 
 ## Properties
 
-### params
+### INPUT\_IDENTIFIER
 
-• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-198)
+▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-perspective"``
 
 ___
 
@@ -20,21 +20,9 @@ ___
 
 ___
 
-### world
-
-• **world**: [`World`](World.md)
-
-___
-
 ### inputs
 
 • `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
-
-___
-
-### INPUT\_IDENTIFIER
-
-▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-perspective"``
 
 ___
 
@@ -56,19 +44,17 @@ ___
 
 `void`
 
-## Constructors
+___
 
-### constructor
+### params
 
-• **new Perspective**(`controls`, `world`, `params?`)
+• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-14)
 
-#### Parameters
+___
 
-| Name | Type |
-| :------ | :------ |
-| `controls` | [`RigidControls`](RigidControls.md) |
-| `world` | [`World`](World.md) |
-| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-198)\> |
+### world
+
+• **world**: [`World`](World.md)
 
 ## Methods
 
@@ -106,6 +92,20 @@ ___
 #### Returns
 
 `void`
+
+## Constructors
+
+### constructor
+
+• **new Perspective**(`controls`, `world`, `params?`)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `controls` | [`RigidControls`](RigidControls.md) |
+| `world` | [`World`](World.md) |
+| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-14)\> |
 
 ## Accessors
 

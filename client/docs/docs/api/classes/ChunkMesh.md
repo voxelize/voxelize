@@ -18,6 +18,12 @@ This module is used internally by the `Chunk` class.
 
 ## Properties
 
+### chunk
+
+• **chunk**: [`Chunk`](Chunk.md)
+
+___
+
 ### opaque
 
 • **opaque**: `Map`<`number`, `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>\>
@@ -32,12 +38,6 @@ ___
 
 The map for transparent sub-chunk meshes in this chunk. Transparent meshes are deeper separated
 into individual block types within each sub-chunk.
-
-___
-
-### chunk
-
-• **chunk**: [`Chunk`](Chunk.md)
 
 ## Constructors
 
@@ -59,6 +59,18 @@ Group.constructor
 
 ## Methods
 
+### dispose
+
+▸ **dispose**(): `void`
+
+Dispose the geometries of the chunk mesh.
+
+#### Returns
+
+`void`
+
+___
+
 ### set
 
 ▸ **set**(`meshData`, `materials`): `void`
@@ -73,20 +85,8 @@ Set the chunk mesh's data from a protocol.
 | `materials` | `Object` | The shared chunk materials. |
 | `materials.opaque?` | `Material` | - |
 | `materials.transparent?` | `Object` | - |
-| `materials.transparent.front` | `Material` | - |
 | `materials.transparent.back` | `Material` | - |
-
-#### Returns
-
-`void`
-
-___
-
-### dispose
-
-▸ **dispose**(): `void`
-
-Dispose the geometries of the chunk mesh.
+| `materials.transparent.front` | `Material` | - |
 
 #### Returns
 

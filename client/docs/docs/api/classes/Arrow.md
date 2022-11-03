@@ -8,7 +8,7 @@ custom_edit_url: null
 
 A helper for visualizing a direction. This is useful for debugging.
 
-This arrow is essentially a Voxelize version of the [`ArrowHelper`][https://threejs.org/docs/#api/en/helpers/ArrowHelper] from Three.js.
+This arrow is essentially a Voxelize version of the [`ArrowHelper`](https://threejs.org/docs/#api/en/helpers/ArrowHelper) from Three.js.
 
 # Example
 ```ts
@@ -28,14 +28,6 @@ world.add(arrow);
 
   ↳ **`Arrow`**
 
-## Properties
-
-### params
-
-• **params**: [`ArrowParams`](../modules.md#arrowparams-198)
-
-Parameters used to create the arrow.
-
 ## Constructors
 
 ### constructor
@@ -48,8 +40,16 @@ Create a new arrow.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-198)\> | Parameters to create the arrow. |
+| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-14)\> | Parameters to create the arrow. |
 
 #### Overrides
 
 ArrowHelper.constructor
+
+## Properties
+
+### params
+
+• **params**: [`ArrowParams`](../modules.md#arrowparams-14)
+
+Parameters used to create the arrow.

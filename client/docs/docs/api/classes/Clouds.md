@@ -10,7 +10,7 @@ A class that generates and manages clouds. Clouds are essentially a 2D grid of c
 cloud blocks. This 2D grid move altogether in the `+x` direction, and is generated at the start asynchronously using
 web workers using simplex noise.
 
-When using [Clouds.update](Clouds.md#update-198), new clouds will be generated if the center of the grid
+When using [Clouds.update](Clouds.md#update-14), new clouds will be generated if the center of the grid
 does not match the passed in position.
 
 ![Clouds](/img/clouds.png)
@@ -21,21 +21,39 @@ does not match the passed in position.
 
   ↳ **`Clouds`**
 
+## Constructors
+
+### constructor
+
+• **new Clouds**(`params?`)
+
+Create a new [Clouds](Clouds.md) instance, initializing it asynchronously automatically.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-14)\> | Parameters used to create a new [Clouds](Clouds.md) instance. |
+
+#### Overrides
+
+Group.constructor
+
 ## Properties
-
-### params
-
-• **params**: [`CloudsParams`](../modules.md#cloudsparams-198)
-
-Parameters used to create a new [Clouds](Clouds.md) instance.
-
-___
 
 ### initialized
 
 • **initialized**: `boolean` = `false`
 
 Whether or not are the clouds done generating.
+
+___
+
+### locatedCell
+
+• **locatedCell**: `number`[]
+
+The cell that this cloud is currently centered around.
 
 ___
 
@@ -55,12 +73,20 @@ A 2D array of cloud meshes. The first dimension is the x-axis, and the second di
 
 ___
 
+### params
+
+• **params**: [`CloudsParams`](../modules.md#cloudsparams-14)
+
+Parameters used to create a new [Clouds](Clouds.md) instance.
+
+___
+
 ### xOffset
 
 • **xOffset**: `number` = `0`
 
 The x-offset of the clouds since initialization. This is determined by diffing the `locatedCell` and the
-position passed into [Clouds.update](Clouds.md#update-198).
+position passed into [Clouds.update](Clouds.md#update-14).
 
 ___
 
@@ -69,33 +95,7 @@ ___
 • **zOffset**: `number` = `0`
 
 The z-offset of the clouds since initialization. This is determined by diffing the `locatedCell` and the
-position passed into [Clouds.update](Clouds.md#update-198).
-
-___
-
-### locatedCell
-
-• **locatedCell**: `number`[]
-
-The cell that this cloud is currently centered around.
-
-## Constructors
-
-### constructor
-
-• **new Clouds**(`params?`)
-
-Create a new [Clouds](Clouds.md) instance, initializing it asynchronously automatically.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `params` | `Partial`<[`CloudsParams`](../modules.md#cloudsparams-198)\> | Parameters used to create a new [Clouds](Clouds.md) instance. |
-
-#### Overrides
-
-Group.constructor
+position passed into [Clouds.update](Clouds.md#update-14).
 
 ## Methods
 

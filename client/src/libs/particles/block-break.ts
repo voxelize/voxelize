@@ -185,7 +185,7 @@ const defaultParams: BlockBreakParticlesParams = {
  *
  * ![Block break particles](/img/block-break-particles.png)
  *
- * @category Particles
+ * @category Effects
  */
 export class BlockBreakParticles extends System implements NetIntercept {
   /**

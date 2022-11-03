@@ -10,24 +10,25 @@ A utility class for doing math operations.
 
 ## Methods
 
-### round
+### directionToQuaternion
 
-▸ `Static` **round**(`n`, `digits`): `number`
+▸ `Static` **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
 
-Round a number to a given precision.
+Convert a direction vector to a quaternion.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `n` | `number` | The number to round. |
-| `digits` | `number` | The number of digits after decimal to round to. |
+| `dx` | `number` | X component of the direction vector. |
+| `dy` | `number` | Y component of the direction vector. |
+| `dz` | `number` | Z component of the direction vector. |
 
 #### Returns
 
-`number`
+`Quaternion`
 
-The rounded number.
+The quaternion representing the direction vector.
 
 ___
 
@@ -51,22 +52,21 @@ The normalized angle.
 
 ___
 
-### directionToQuaternion
+### round
 
-▸ `Static` **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
+▸ `Static` **round**(`n`, `digits`): `number`
 
-Convert a direction vector to a quaternion.
+Round a number to a given precision.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `dx` | `number` | X component of the direction vector. |
-| `dy` | `number` | Y component of the direction vector. |
-| `dz` | `number` | Z component of the direction vector. |
+| `n` | `number` | The number to round. |
+| `digits` | `number` | The number of digits after decimal to round to. |
 
 #### Returns
 
-`Quaternion`
+`number`
 
-The quaternion representing the direction vector.
+The rounded number.

@@ -9,7 +9,10 @@ const sharedTypeDocConfig = (name) => ({
   excludeProtected: true,
   entryDocument: "none",
   disableSources: true,
-  sort: ["source-order", "alphabetical"],
+  sort: [
+    // "source-order",
+    "alphabetical",
+  ],
   categorizeByGroup: true,
   sidebar: {
     fullNames: false,

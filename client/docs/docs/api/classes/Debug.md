@@ -14,339 +14,23 @@ custom_edit_url: null
 
 ## Properties
 
-### params
+### DefaultMatrixAutoUpdate
 
-• **params**: [`DebugParams`](../modules.md#debugparams-198)
-
-___
-
-### gui
-
-• `Optional` **gui**: `Pane`
-
-___
-
-### stats
-
-• `Optional` **stats**: `Stats`
-
-___
-
-### dataWrapper
-
-• **dataWrapper**: `HTMLDivElement`
-
-___
-
-### entryWrapper
-
-• **entryWrapper**: `HTMLDivElement`
-
-___
-
-### domElement
-
-• **domElement**: `HTMLElement` = `document.body`
-
-___
-
-### id
-
-• **id**: `number`
-
-Unique number of this object instance.
+▪ `Static` **DefaultMatrixAutoUpdate**: `boolean`
 
 #### Inherited from
 
-Group.id
+Group.DefaultMatrixAutoUpdate
 
 ___
 
-### uuid
+### DefaultUp
 
-• **uuid**: `string`
-
-#### Inherited from
-
-Group.uuid
-
-___
-
-### name
-
-• **name**: `string`
-
-Optional name of the object (doesn't need to be unique).
-
-**`default`** ''
+▪ `Static` **DefaultUp**: `Vector3`
 
 #### Inherited from
 
-Group.name
-
-___
-
-### parent
-
-• **parent**: `Object3D`<`Event`\>
-
-Object's parent in the scene graph.
-
-**`default`** null
-
-#### Inherited from
-
-Group.parent
-
-___
-
-### children
-
-• **children**: `Object3D`<`Event`\>[]
-
-Array with object's children.
-
-**`default`** []
-
-#### Inherited from
-
-Group.children
-
-___
-
-### up
-
-• **up**: `Vector3`
-
-Up direction.
-
-**`default`** THREE.Object3D.DefaultUp.clone()
-
-#### Inherited from
-
-Group.up
-
-___
-
-### position
-
-• `Readonly` **position**: `Vector3`
-
-Object's local position.
-
-**`default`** new THREE.Vector3()
-
-#### Inherited from
-
-Group.position
-
-___
-
-### rotation
-
-• `Readonly` **rotation**: `Euler`
-
-Object's local rotation (Euler angles), in radians.
-
-**`default`** new THREE.Euler()
-
-#### Inherited from
-
-Group.rotation
-
-___
-
-### quaternion
-
-• `Readonly` **quaternion**: `Quaternion`
-
-Object's local rotation as a Quaternion.
-
-**`default`** new THREE.Quaternion()
-
-#### Inherited from
-
-Group.quaternion
-
-___
-
-### scale
-
-• `Readonly` **scale**: `Vector3`
-
-Object's local scale.
-
-**`default`** new THREE.Vector3()
-
-#### Inherited from
-
-Group.scale
-
-___
-
-### modelViewMatrix
-
-• `Readonly` **modelViewMatrix**: `Matrix4`
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Group.modelViewMatrix
-
-___
-
-### normalMatrix
-
-• `Readonly` **normalMatrix**: `Matrix3`
-
-**`default`** new THREE.Matrix3()
-
-#### Inherited from
-
-Group.normalMatrix
-
-___
-
-### matrix
-
-• **matrix**: `Matrix4`
-
-Local transform.
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Group.matrix
-
-___
-
-### matrixWorld
-
-• **matrixWorld**: `Matrix4`
-
-The global transform of the object. If the Object3d has no parent, then it's identical to the local transform.
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Group.matrixWorld
-
-___
-
-### matrixAutoUpdate
-
-• **matrixAutoUpdate**: `boolean`
-
-When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
-recalculates the matrixWorld property.
-
-**`default`** THREE.Object3D.DefaultMatrixAutoUpdate
-
-#### Inherited from
-
-Group.matrixAutoUpdate
-
-___
-
-### matrixWorldNeedsUpdate
-
-• **matrixWorldNeedsUpdate**: `boolean`
-
-When this is set, it calculates the matrixWorld in that frame and resets this property to false.
-
-**`default`** false
-
-#### Inherited from
-
-Group.matrixWorldNeedsUpdate
-
-___
-
-### layers
-
-• **layers**: `Layers`
-
-**`default`** new THREE.Layers()
-
-#### Inherited from
-
-Group.layers
-
-___
-
-### visible
-
-• **visible**: `boolean`
-
-Object gets rendered if true.
-
-**`default`** true
-
-#### Inherited from
-
-Group.visible
-
-___
-
-### castShadow
-
-• **castShadow**: `boolean`
-
-Gets rendered into shadow map.
-
-**`default`** false
-
-#### Inherited from
-
-Group.castShadow
-
-___
-
-### receiveShadow
-
-• **receiveShadow**: `boolean`
-
-Material gets baked in shadow receiving.
-
-**`default`** false
-
-#### Inherited from
-
-Group.receiveShadow
-
-___
-
-### frustumCulled
-
-• **frustumCulled**: `boolean`
-
-When this is set, it checks every frame if the object is in the frustum of the camera before rendering the object.
-If set to false the object gets rendered every frame even if it is not in the frustum of the camera.
-
-**`default`** true
-
-#### Inherited from
-
-Group.frustumCulled
-
-___
-
-### renderOrder
-
-• **renderOrder**: `number`
-
-Overrides the default rendering order of scene graph objects, from lowest to highest renderOrder.
-Opaque and transparent objects remain sorted independently though.
-When this property is set for an instance of Group, all descendants objects will be sorted and rendered together.
-
-**`default`** 0
-
-#### Inherited from
-
-Group.renderOrder
+Group.DefaultUp
 
 ___
 
@@ -364,21 +48,31 @@ Group.animations
 
 ___
 
-### userData
+### castShadow
 
-• **userData**: `Object`
+• **castShadow**: `boolean`
 
-An object that can be used to store custom data about the Object3d. It should not hold references to functions as these will not be cloned.
+Gets rendered into shadow map.
 
-**`default`** {}
-
-#### Index signature
-
-▪ [key: `string`]: `any`
+**`default`** false
 
 #### Inherited from
 
-Group.userData
+Group.castShadow
+
+___
+
+### children
+
+• **children**: `Object3D`<`Event`\>[]
+
+Array with object's children.
+
+**`default`** []
+
+#### Inherited from
+
+Group.children
 
 ___
 
@@ -409,6 +103,67 @@ Group.customDistanceMaterial
 
 ___
 
+### dataWrapper
+
+• **dataWrapper**: `HTMLDivElement`
+
+___
+
+### domElement
+
+• **domElement**: `HTMLElement` = `document.body`
+
+___
+
+### entryWrapper
+
+• **entryWrapper**: `HTMLDivElement`
+
+___
+
+### frustumCulled
+
+• **frustumCulled**: `boolean`
+
+When this is set, it checks every frame if the object is in the frustum of the camera before rendering the object.
+If set to false the object gets rendered every frame even if it is not in the frustum of the camera.
+
+**`default`** true
+
+#### Inherited from
+
+Group.frustumCulled
+
+___
+
+### gui
+
+• `Optional` **gui**: `Pane`
+
+___
+
+### id
+
+• **id**: `number`
+
+Unique number of this object instance.
+
+#### Inherited from
+
+Group.id
+
+___
+
+### isGroup
+
+• `Readonly` **isGroup**: ``true``
+
+#### Inherited from
+
+Group.isGroup
+
+___
+
 ### isObject3D
 
 • `Readonly` **isObject3D**: ``true``
@@ -422,34 +177,110 @@ Group.isObject3D
 
 ___
 
-### onBeforeRender
+### layers
 
-• **onBeforeRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
+• **layers**: `Layers`
 
-#### Type declaration
-
-▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
-
-Calls before rendering object
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `renderer` | `WebGLRenderer` |
-| `scene` | `Scene` |
-| `camera` | `Camera` |
-| `geometry` | `BufferGeometry` |
-| `material` | `Material` |
-| `group` | `Group` |
-
-##### Returns
-
-`void`
+**`default`** new THREE.Layers()
 
 #### Inherited from
 
-Group.onBeforeRender
+Group.layers
+
+___
+
+### matrix
+
+• **matrix**: `Matrix4`
+
+Local transform.
+
+**`default`** new THREE.Matrix4()
+
+#### Inherited from
+
+Group.matrix
+
+___
+
+### matrixAutoUpdate
+
+• **matrixAutoUpdate**: `boolean`
+
+When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
+recalculates the matrixWorld property.
+
+**`default`** THREE.Object3D.DefaultMatrixAutoUpdate
+
+#### Inherited from
+
+Group.matrixAutoUpdate
+
+___
+
+### matrixWorld
+
+• **matrixWorld**: `Matrix4`
+
+The global transform of the object. If the Object3d has no parent, then it's identical to the local transform.
+
+**`default`** new THREE.Matrix4()
+
+#### Inherited from
+
+Group.matrixWorld
+
+___
+
+### matrixWorldNeedsUpdate
+
+• **matrixWorldNeedsUpdate**: `boolean`
+
+When this is set, it calculates the matrixWorld in that frame and resets this property to false.
+
+**`default`** false
+
+#### Inherited from
+
+Group.matrixWorldNeedsUpdate
+
+___
+
+### modelViewMatrix
+
+• `Readonly` **modelViewMatrix**: `Matrix4`
+
+**`default`** new THREE.Matrix4()
+
+#### Inherited from
+
+Group.modelViewMatrix
+
+___
+
+### name
+
+• **name**: `string`
+
+Optional name of the object (doesn't need to be unique).
+
+**`default`** ''
+
+#### Inherited from
+
+Group.name
+
+___
+
+### normalMatrix
+
+• `Readonly` **normalMatrix**: `Matrix3`
+
+**`default`** new THREE.Matrix3()
+
+#### Inherited from
+
+Group.normalMatrix
 
 ___
 
@@ -484,23 +315,146 @@ Group.onAfterRender
 
 ___
 
-### DefaultUp
+### onBeforeRender
 
-▪ `Static` **DefaultUp**: `Vector3`
+• **onBeforeRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
+
+#### Type declaration
+
+▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
+
+Calls before rendering object
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `renderer` | `WebGLRenderer` |
+| `scene` | `Scene` |
+| `camera` | `Camera` |
+| `geometry` | `BufferGeometry` |
+| `material` | `Material` |
+| `group` | `Group` |
+
+##### Returns
+
+`void`
 
 #### Inherited from
 
-Group.DefaultUp
+Group.onBeforeRender
 
 ___
 
-### DefaultMatrixAutoUpdate
+### params
 
-▪ `Static` **DefaultMatrixAutoUpdate**: `boolean`
+• **params**: [`DebugParams`](../modules.md#debugparams-14)
+
+___
+
+### parent
+
+• **parent**: `Object3D`<`Event`\>
+
+Object's parent in the scene graph.
+
+**`default`** null
 
 #### Inherited from
 
-Group.DefaultMatrixAutoUpdate
+Group.parent
+
+___
+
+### position
+
+• `Readonly` **position**: `Vector3`
+
+Object's local position.
+
+**`default`** new THREE.Vector3()
+
+#### Inherited from
+
+Group.position
+
+___
+
+### quaternion
+
+• `Readonly` **quaternion**: `Quaternion`
+
+Object's local rotation as a Quaternion.
+
+**`default`** new THREE.Quaternion()
+
+#### Inherited from
+
+Group.quaternion
+
+___
+
+### receiveShadow
+
+• **receiveShadow**: `boolean`
+
+Material gets baked in shadow receiving.
+
+**`default`** false
+
+#### Inherited from
+
+Group.receiveShadow
+
+___
+
+### renderOrder
+
+• **renderOrder**: `number`
+
+Overrides the default rendering order of scene graph objects, from lowest to highest renderOrder.
+Opaque and transparent objects remain sorted independently though.
+When this property is set for an instance of Group, all descendants objects will be sorted and rendered together.
+
+**`default`** 0
+
+#### Inherited from
+
+Group.renderOrder
+
+___
+
+### rotation
+
+• `Readonly` **rotation**: `Euler`
+
+Object's local rotation (Euler angles), in radians.
+
+**`default`** new THREE.Euler()
+
+#### Inherited from
+
+Group.rotation
+
+___
+
+### scale
+
+• `Readonly` **scale**: `Vector3`
+
+Object's local scale.
+
+**`default`** new THREE.Vector3()
+
+#### Inherited from
+
+Group.scale
+
+___
+
+### stats
+
+• `Optional` **stats**: `Stats`
 
 ___
 
@@ -514,117 +468,81 @@ Group.type
 
 ___
 
-### isGroup
+### up
 
-• `Readonly` **isGroup**: ``true``
+• **up**: `Vector3`
+
+Up direction.
+
+**`default`** THREE.Object3D.DefaultUp.clone()
 
 #### Inherited from
 
-Group.isGroup
+Group.up
 
-## Constructors
+___
 
-### constructor
+### userData
 
-• **new Debug**(`domElement?`, `params?`)
+• **userData**: `Object`
 
-#### Parameters
+An object that can be used to store custom data about the Object3d. It should not hold references to functions as these will not be cloned.
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `domElement` | `HTMLElement` | `document.body` |
-| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-198)\> | `{}` |
+**`default`** {}
 
-#### Overrides
+#### Index signature
 
-Group.constructor
+▪ [key: `string`]: `any`
+
+#### Inherited from
+
+Group.userData
+
+___
+
+### uuid
+
+• **uuid**: `string`
+
+#### Inherited from
+
+Group.uuid
+
+___
+
+### visible
+
+• **visible**: `boolean`
+
+Object gets rendered if true.
+
+**`default`** true
+
+#### Inherited from
+
+Group.visible
 
 ## Methods
 
-### registerDisplay
+### add
 
-▸ **registerDisplay**(`title`, `object?`, `attribute?`, `formatter?`): `this`
+▸ **add**(...`object`): [`Debug`](Debug.md)
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `title` | `string` |
-| `object?` | `any` |
-| `attribute?` | `string` |
-| `formatter` | (`str`: `string`) => `string` |
-
-#### Returns
-
-`this`
-
-___
-
-### removeDisplay
-
-▸ **removeDisplay**(`title`): `void`
+Adds object as child of this object.
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `title` | `string` |
+| `...object` | `Object3D`<`Event`\>[] |
 
 #### Returns
 
-`void`
+[`Debug`](Debug.md)
 
-___
+#### Inherited from
 
-### displayTitle
-
-▸ **displayTitle**(`title`): `this`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `title` | `string` |
-
-#### Returns
-
-`this`
-
-___
-
-### displayNewline
-
-▸ **displayNewline**(): `this`
-
-#### Returns
-
-`this`
-
-___
-
-### toggle
-
-▸ **toggle**(`force?`): `void`
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `force` | `any` | `null` |
-
-#### Returns
-
-`void`
-
-___
-
-### update
-
-▸ **update**(): `void`
-
-#### Returns
-
-`void`
+Group.add
 
 ___
 
@@ -654,86 +572,6 @@ Adds a listener to an event type.
 #### Inherited from
 
 Group.addEventListener
-
-___
-
-### hasEventListener
-
-▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
-
-Checks if listener is added to an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The function that gets called when the event is fired. |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-Group.hasEventListener
-
-___
-
-### removeEventListener
-
-▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
-
-Removes a listener from an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The listener function that gets removed. |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Group.removeEventListener
-
-___
-
-### dispatchEvent
-
-▸ **dispatchEvent**(`event`): `void`
-
-Fire an event type.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | `Event` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Group.dispatchEvent
 
 ___
 
@@ -781,87 +619,96 @@ Group.applyQuaternion
 
 ___
 
-### setRotationFromAxisAngle
+### attach
 
-▸ **setRotationFromAxisAngle**(`axis`, `angle`): `void`
+▸ **attach**(`object`): [`Debug`](Debug.md)
 
-axis -- A normalized vector in object space.
-angle -- angle in radians
+Adds object as a child of this, while maintaining the object's world transform.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `axis` | `Vector3` | A normalized vector in object space. |
-| `angle` | `number` | angle in radians |
+| Name | Type |
+| :------ | :------ |
+| `object` | `Object3D`<`Event`\> |
 
 #### Returns
 
-`void`
+[`Debug`](Debug.md)
 
 #### Inherited from
 
-Group.setRotationFromAxisAngle
+Group.attach
 
 ___
 
-### setRotationFromEuler
+### clear
 
-▸ **setRotationFromEuler**(`euler`): `void`
+▸ **clear**(): [`Debug`](Debug.md)
 
-Calls setRotationFromEuler(euler) on the .quaternion.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `euler` | `Euler` | Euler angle specifying rotation amount. |
+Removes all child objects.
 
 #### Returns
 
-`void`
+[`Debug`](Debug.md)
 
 #### Inherited from
 
-Group.setRotationFromEuler
+Group.clear
 
 ___
 
-### setRotationFromMatrix
+### clone
 
-▸ **setRotationFromMatrix**(`m`): `void`
-
-Calls setFromRotationMatrix(m) on the .quaternion.
-
-Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, unscaled).
+▸ **clone**(`recursive?`): [`Debug`](Debug.md)
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `m` | `Matrix4` | rotate the quaternion by the rotation component of the matrix. |
+| Name | Type |
+| :------ | :------ |
+| `recursive?` | `boolean` |
 
 #### Returns
 
-`void`
+[`Debug`](Debug.md)
 
 #### Inherited from
 
-Group.setRotationFromMatrix
+Group.clone
 
 ___
 
-### setRotationFromQuaternion
+### copy
 
-▸ **setRotationFromQuaternion**(`q`): `void`
-
-Copy the given quaternion into .quaternion.
+▸ **copy**(`source`, `recursive?`): [`Debug`](Debug.md)
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `q` | `Quaternion` | normalized Quaternion |
+| Name | Type |
+| :------ | :------ |
+| `source` | [`Debug`](Debug.md) |
+| `recursive?` | `boolean` |
+
+#### Returns
+
+[`Debug`](Debug.md)
+
+#### Inherited from
+
+Group.copy
+
+___
+
+### dispatchEvent
+
+▸ **dispatchEvent**(`event`): `void`
+
+Fire an event type.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | `Event` |
 
 #### Returns
 
@@ -869,7 +716,378 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-Group.setRotationFromQuaternion
+Group.dispatchEvent
+
+___
+
+### displayNewline
+
+▸ **displayNewline**(): `this`
+
+#### Returns
+
+`this`
+
+___
+
+### displayTitle
+
+▸ **displayTitle**(`title`): `this`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+
+#### Returns
+
+`this`
+
+___
+
+### getObjectById
+
+▸ **getObjectById**(`id`): `Object3D`<`Event`\>
+
+Searches through the object's children and returns the first with a matching id.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | Unique number of the object instance |
+
+#### Returns
+
+`Object3D`<`Event`\>
+
+#### Inherited from
+
+Group.getObjectById
+
+___
+
+### getObjectByName
+
+▸ **getObjectByName**(`name`): `Object3D`<`Event`\>
+
+Searches through the object's children and returns the first with a matching name.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | String to match to the children's Object3d.name property. |
+
+#### Returns
+
+`Object3D`<`Event`\>
+
+#### Inherited from
+
+Group.getObjectByName
+
+___
+
+### getObjectByProperty
+
+▸ **getObjectByProperty**(`name`, `value`): `Object3D`<`Event`\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `name` | `string` |
+| `value` | `string` |
+
+#### Returns
+
+`Object3D`<`Event`\>
+
+#### Inherited from
+
+Group.getObjectByProperty
+
+___
+
+### getWorldDirection
+
+▸ **getWorldDirection**(`target`): `Vector3`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Vector3` |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Group.getWorldDirection
+
+___
+
+### getWorldPosition
+
+▸ **getWorldPosition**(`target`): `Vector3`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Vector3` |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Group.getWorldPosition
+
+___
+
+### getWorldQuaternion
+
+▸ **getWorldQuaternion**(`target`): `Quaternion`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Quaternion` |
+
+#### Returns
+
+`Quaternion`
+
+#### Inherited from
+
+Group.getWorldQuaternion
+
+___
+
+### getWorldScale
+
+▸ **getWorldScale**(`target`): `Vector3`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Vector3` |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Group.getWorldScale
+
+___
+
+### hasEventListener
+
+▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
+
+Checks if listener is added to an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of event to listen to. |
+| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The function that gets called when the event is fired. |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+Group.hasEventListener
+
+___
+
+### localToWorld
+
+▸ **localToWorld**(`vector`): `Vector3`
+
+Updates the vector from local space to world space.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vector` | `Vector3` | A local vector. |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Group.localToWorld
+
+___
+
+### lookAt
+
+▸ **lookAt**(`vector`, `y?`, `z?`): `void`
+
+Optionally, the x, y and z components of the world space position.
+Rotates the object to face a point in world space.
+This method does not support objects having non-uniformly-scaled parent(s).
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vector` | `number` \| `Vector3` | A world vector to look at. |
+| `y?` | `number` | - |
+| `z?` | `number` | - |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.lookAt
+
+___
+
+### raycast
+
+▸ **raycast**(`raycaster`, `intersects`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `raycaster` | `Raycaster` |
+| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.raycast
+
+___
+
+### registerDisplay
+
+▸ **registerDisplay**(`title`, `object?`, `attribute?`, `formatter?`): `this`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+| `object?` | `any` |
+| `attribute?` | `string` |
+| `formatter` | (`str`: `string`) => `string` |
+
+#### Returns
+
+`this`
+
+___
+
+### remove
+
+▸ **remove**(...`object`): [`Debug`](Debug.md)
+
+Removes object as child of this object.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `...object` | `Object3D`<`Event`\>[] |
+
+#### Returns
+
+[`Debug`](Debug.md)
+
+#### Inherited from
+
+Group.remove
+
+___
+
+### removeDisplay
+
+▸ **removeDisplay**(`title`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `title` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### removeEventListener
+
+▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
+
+Removes a listener from an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of the listener that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`Debug`](Debug.md)\> | The listener function that gets removed. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.removeEventListener
+
+___
+
+### removeFromParent
+
+▸ **removeFromParent**(): [`Debug`](Debug.md)
+
+Removes this object from its current parent.
+
+#### Returns
+
+[`Debug`](Debug.md)
+
+#### Inherited from
+
+Group.removeFromParent
 
 ___
 
@@ -985,6 +1203,138 @@ Group.rotateZ
 
 ___
 
+### setRotationFromAxisAngle
+
+▸ **setRotationFromAxisAngle**(`axis`, `angle`): `void`
+
+axis -- A normalized vector in object space.
+angle -- angle in radians
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `axis` | `Vector3` | A normalized vector in object space. |
+| `angle` | `number` | angle in radians |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.setRotationFromAxisAngle
+
+___
+
+### setRotationFromEuler
+
+▸ **setRotationFromEuler**(`euler`): `void`
+
+Calls setRotationFromEuler(euler) on the .quaternion.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `euler` | `Euler` | Euler angle specifying rotation amount. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.setRotationFromEuler
+
+___
+
+### setRotationFromMatrix
+
+▸ **setRotationFromMatrix**(`m`): `void`
+
+Calls setFromRotationMatrix(m) on the .quaternion.
+
+Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, unscaled).
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `m` | `Matrix4` | rotate the quaternion by the rotation component of the matrix. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.setRotationFromMatrix
+
+___
+
+### setRotationFromQuaternion
+
+▸ **setRotationFromQuaternion**(`q`): `void`
+
+Copy the given quaternion into .quaternion.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `q` | `Quaternion` | normalized Quaternion |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.setRotationFromQuaternion
+
+___
+
+### toJSON
+
+▸ **toJSON**(`meta?`): `any`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `meta?` | `Object` |
+| `meta.geometries` | `any` |
+| `meta.images` | `any` |
+| `meta.materials` | `any` |
+| `meta.textures` | `any` |
+
+#### Returns
+
+`any`
+
+#### Inherited from
+
+Group.toJSON
+
+___
+
+### toggle
+
+▸ **toggle**(`force?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `force` | `any` | `null` |
+
+#### Returns
+
+`void`
+
+___
+
 ### translateOnAxis
 
 ▸ **translateOnAxis**(`axis`, `distance`): [`Debug`](Debug.md)
@@ -1074,340 +1424,6 @@ Group.translateZ
 
 ___
 
-### localToWorld
-
-▸ **localToWorld**(`vector`): `Vector3`
-
-Updates the vector from local space to world space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `Vector3` | A local vector. |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Group.localToWorld
-
-___
-
-### worldToLocal
-
-▸ **worldToLocal**(`vector`): `Vector3`
-
-Updates the vector from world space to local space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `Vector3` | A world vector. |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Group.worldToLocal
-
-___
-
-### lookAt
-
-▸ **lookAt**(`vector`, `y?`, `z?`): `void`
-
-Optionally, the x, y and z components of the world space position.
-Rotates the object to face a point in world space.
-This method does not support objects having non-uniformly-scaled parent(s).
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `number` \| `Vector3` | A world vector to look at. |
-| `y?` | `number` | - |
-| `z?` | `number` | - |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Group.lookAt
-
-___
-
-### add
-
-▸ **add**(...`object`): [`Debug`](Debug.md)
-
-Adds object as child of this object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `...object` | `Object3D`<`Event`\>[] |
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-#### Inherited from
-
-Group.add
-
-___
-
-### remove
-
-▸ **remove**(...`object`): [`Debug`](Debug.md)
-
-Removes object as child of this object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `...object` | `Object3D`<`Event`\>[] |
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-#### Inherited from
-
-Group.remove
-
-___
-
-### removeFromParent
-
-▸ **removeFromParent**(): [`Debug`](Debug.md)
-
-Removes this object from its current parent.
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-#### Inherited from
-
-Group.removeFromParent
-
-___
-
-### clear
-
-▸ **clear**(): [`Debug`](Debug.md)
-
-Removes all child objects.
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-#### Inherited from
-
-Group.clear
-
-___
-
-### attach
-
-▸ **attach**(`object`): [`Debug`](Debug.md)
-
-Adds object as a child of this, while maintaining the object's world transform.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `object` | `Object3D`<`Event`\> |
-
-#### Returns
-
-[`Debug`](Debug.md)
-
-#### Inherited from
-
-Group.attach
-
-___
-
-### getObjectById
-
-▸ **getObjectById**(`id`): `Object3D`<`Event`\>
-
-Searches through the object's children and returns the first with a matching id.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `number` | Unique number of the object instance |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Group.getObjectById
-
-___
-
-### getObjectByName
-
-▸ **getObjectByName**(`name`): `Object3D`<`Event`\>
-
-Searches through the object's children and returns the first with a matching name.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `name` | `string` | String to match to the children's Object3d.name property. |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Group.getObjectByName
-
-___
-
-### getObjectByProperty
-
-▸ **getObjectByProperty**(`name`, `value`): `Object3D`<`Event`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
-| `value` | `string` |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Group.getObjectByProperty
-
-___
-
-### getWorldPosition
-
-▸ **getWorldPosition**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Group.getWorldPosition
-
-___
-
-### getWorldQuaternion
-
-▸ **getWorldQuaternion**(`target`): `Quaternion`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Quaternion` |
-
-#### Returns
-
-`Quaternion`
-
-#### Inherited from
-
-Group.getWorldQuaternion
-
-___
-
-### getWorldScale
-
-▸ **getWorldScale**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Group.getWorldScale
-
-___
-
-### getWorldDirection
-
-▸ **getWorldDirection**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Group.getWorldDirection
-
-___
-
-### raycast
-
-▸ **raycast**(`raycaster`, `intersects`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `raycaster` | `Raycaster` |
-| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Group.raycast
-
-___
-
 ### traverse
 
 ▸ **traverse**(`callback`): `void`
@@ -1425,6 +1441,26 @@ ___
 #### Inherited from
 
 Group.traverse
+
+___
+
+### traverseAncestors
+
+▸ **traverseAncestors**(`callback`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.traverseAncestors
 
 ___
 
@@ -1448,23 +1484,13 @@ Group.traverseVisible
 
 ___
 
-### traverseAncestors
+### update
 
-▸ **traverseAncestors**(`callback`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
+▸ **update**(): `void`
 
 #### Returns
 
 `void`
-
-#### Inherited from
-
-Group.traverseAncestors
 
 ___
 
@@ -1529,65 +1555,39 @@ Group.updateWorldMatrix
 
 ___
 
-### toJSON
+### worldToLocal
 
-▸ **toJSON**(`meta?`): `any`
+▸ **worldToLocal**(`vector`): `Vector3`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `meta?` | `Object` |
-| `meta.geometries` | `any` |
-| `meta.materials` | `any` |
-| `meta.textures` | `any` |
-| `meta.images` | `any` |
-
-#### Returns
-
-`any`
-
-#### Inherited from
-
-Group.toJSON
-
-___
-
-### clone
-
-▸ **clone**(`recursive?`): [`Debug`](Debug.md)
+Updates the vector from world space to local space.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `recursive?` | `boolean` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vector` | `Vector3` | A world vector. |
 
 #### Returns
 
-[`Debug`](Debug.md)
+`Vector3`
 
 #### Inherited from
 
-Group.clone
+Group.worldToLocal
 
-___
+## Constructors
 
-### copy
+### constructor
 
-▸ **copy**(`source`, `recursive?`): [`Debug`](Debug.md)
+• **new Debug**(`domElement?`, `params?`)
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `source` | [`Debug`](Debug.md) |
-| `recursive?` | `boolean` |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `domElement` | `HTMLElement` | `document.body` |
+| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-14)\> | `{}` |
 
-#### Returns
+#### Overrides
 
-[`Debug`](Debug.md)
-
-#### Inherited from
-
-Group.copy
+Group.constructor

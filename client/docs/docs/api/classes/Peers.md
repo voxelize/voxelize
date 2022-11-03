@@ -25,90 +25,6 @@ A **built-in** manager for the peer clients in the same Voxelize world.
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
-## Properties
-
-### ownID
-
-• **ownID**: `string` = `""`
-
-___
-
-### ownUsername
-
-• **ownUsername**: `string` = `""`
-
-___
-
-### packets
-
-• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
-
-An array of packets to be sent to the server. These packets will be
-sent to the server after every `network.flush()` call.
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-198)
-
-___
-
-### object
-
-• `Optional` **object**: `Object3D`<`Event`\>
-
-___
-
-### params
-
-• **params**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `countSelf` | `boolean` |
-
-___
-
-### createPeer
-
-• **createPeer**: (`id`: `string`) => `C`
-
-#### Type declaration
-
-▸ (`id`): `C`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `string` |
-
-##### Returns
-
-`C`
-
-___
-
-### onPeerUpdate
-
-• **onPeerUpdate**: (`object`: `C`, `data`: `T`) => `void`
-
-#### Type declaration
-
-▸ (`object`, `data`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `object` | `C` |
-| `data` | `T` |
-
-##### Returns
-
-`void`
-
 ## Constructors
 
 ### constructor
@@ -134,7 +50,115 @@ ___
 
 Group.constructor
 
+## Properties
+
+### createPeer
+
+• **createPeer**: (`id`: `string`) => `C`
+
+#### Type declaration
+
+▸ (`id`): `C`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+
+##### Returns
+
+`C`
+
+___
+
+### object
+
+• `Optional` **object**: `Object3D`<`Event`\>
+
+___
+
+### onPeerUpdate
+
+• **onPeerUpdate**: (`object`: `C`, `data`: `T`) => `void`
+
+#### Type declaration
+
+▸ (`object`, `data`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `object` | `C` |
+| `data` | `T` |
+
+##### Returns
+
+`void`
+
+___
+
+### ownID
+
+• **ownID**: `string` = `""`
+
+___
+
+### ownUsername
+
+• **ownUsername**: `string` = `""`
+
+___
+
+### packets
+
+• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
+
+An array of packets to be sent to the server. These packets will be
+sent to the server after every `network.flush()` call.
+
+#### Implementation of
+
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-14)
+
+___
+
+### params
+
+• **params**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `countSelf` | `boolean` |
+
 ## Methods
+
+### onMessage
+
+▸ **onMessage**(`message`, `__namedParameters`): `void`
+
+A listener to be implemented to handle incoming packets.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `message` | `MessageProtocol`<{ `id`: `string`  }, `T`, `any`, `any`\> |
+| `__namedParameters` | `Object` |
+| `__namedParameters.username` | `string` |
+
+#### Returns
+
+`void`
+
+#### Implementation of
+
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-14)
+
+___
 
 ### onPeerJoin
 
@@ -165,30 +189,6 @@ ___
 #### Returns
 
 `void`
-
-___
-
-### onMessage
-
-▸ **onMessage**(`message`, `__namedParameters`): `void`
-
-A listener to be implemented to handle incoming packets.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `message` | `MessageProtocol`<{ `id`: `string`  }, `T`, `any`, `any`\> |
-| `__namedParameters` | `Object` |
-| `__namedParameters.username` | `string` |
-
-#### Returns
-
-`void`
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-198)
 
 ___
 

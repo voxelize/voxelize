@@ -14,288 +14,533 @@ custom_edit_url: null
 
   ↳↳ [`NameTag`](NameTag.md)
 
-## Constructors
+## Properties
 
-### constructor
+### DefaultMatrixAutoUpdate
 
-• **new SpriteText**(`text?`, `textHeight?`)
+▪ `Static` **DefaultMatrixAutoUpdate**: `boolean`
 
-#### Parameters
+#### Inherited from
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `text` | `string` | `""` |
-| `textHeight` | `number` | `10` |
-
-#### Overrides
-
-Sprite.constructor
-
-## Accessors
-
-### text
-
-• `get` **text**(): `string`
-
-#### Returns
-
-`string`
-
-• `set` **text**(`text`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `text` | `string` |
-
-#### Returns
-
-`void`
+Sprite.DefaultMatrixAutoUpdate
 
 ___
 
-### textHeight
+### DefaultUp
 
-• `get` **textHeight**(): `number`
+▪ `Static` **DefaultUp**: `Vector3`
 
-#### Returns
+#### Inherited from
 
-`number`
-
-• `set` **textHeight**(`textHeight`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `textHeight` | `number` |
-
-#### Returns
-
-`void`
+Sprite.DefaultUp
 
 ___
 
-### backgroundColor
+### animations
 
-• `get` **backgroundColor**(): `string` \| ``false``
+• **animations**: `AnimationClip`[]
 
-#### Returns
+Array with animation clips.
 
-`string` \| ``false``
+**`default`** []
 
-• `set` **backgroundColor**(`color`): `void`
+#### Inherited from
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `color` | `string` \| ``false`` |
-
-#### Returns
-
-`void`
+Sprite.animations
 
 ___
 
-### padding
+### castShadow
 
-• `get` **padding**(): `number`
+• **castShadow**: `boolean`
 
-#### Returns
+Gets rendered into shadow map.
 
-`number`
+**`default`** false
 
-• `set` **padding**(`padding`): `void`
+#### Inherited from
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `padding` | `number` |
-
-#### Returns
-
-`void`
+Sprite.castShadow
 
 ___
 
-### borderWidth
+### center
 
-• `get` **borderWidth**(): `number`
+• **center**: `Vector2`
 
-#### Returns
+#### Inherited from
 
-`number`
-
-• `set` **borderWidth**(`borderWidth`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `borderWidth` | `number` |
-
-#### Returns
-
-`void`
+Sprite.center
 
 ___
 
-### borderRadius
+### children
 
-• `get` **borderRadius**(): `number`
+• **children**: `Object3D`<`Event`\>[]
 
-#### Returns
+Array with object's children.
 
-`number`
+**`default`** []
 
-• `set` **borderRadius**(`borderRadius`): `void`
+#### Inherited from
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `borderRadius` | `number` |
-
-#### Returns
-
-`void`
+Sprite.children
 
 ___
 
-### borderColor
+### customDepthMaterial
 
-• `get` **borderColor**(): `string`
+• **customDepthMaterial**: `Material`
 
-#### Returns
+Custom depth material to be used when rendering to the depth map. Can only be used in context of meshes.
+When shadow-casting with a DirectionalLight or SpotLight, if you are (a) modifying vertex positions in
+the vertex shader, (b) using a displacement map, (c) using an alpha map with alphaTest, or (d) using a
+transparent texture with alphaTest, you must specify a customDepthMaterial for proper shadows.
 
-`string`
+#### Inherited from
 
-• `set` **borderColor**(`borderColor`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `borderColor` | `string` |
-
-#### Returns
-
-`void`
+Sprite.customDepthMaterial
 
 ___
 
-### fontFace
+### customDistanceMaterial
 
-• `get` **fontFace**(): `string`
+• **customDistanceMaterial**: `Material`
 
-#### Returns
+Same as customDepthMaterial, but used with PointLight.
 
-`string`
+#### Inherited from
 
-• `set` **fontFace**(`fontFace`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `fontFace` | `string` |
-
-#### Returns
-
-`void`
+Sprite.customDistanceMaterial
 
 ___
 
-### fontSize
+### frustumCulled
 
-• `get` **fontSize**(): `number`
+• **frustumCulled**: `boolean`
 
-#### Returns
+When this is set, it checks every frame if the object is in the frustum of the camera before rendering the object.
+If set to false the object gets rendered every frame even if it is not in the frustum of the camera.
 
-`number`
+**`default`** true
 
-• `set` **fontSize**(`fontSize`): `void`
+#### Inherited from
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `fontSize` | `number` |
-
-#### Returns
-
-`void`
+Sprite.frustumCulled
 
 ___
 
-### fontWeight
+### geometry
 
-• `get` **fontWeight**(): `string`
+• **geometry**: `BufferGeometry`
 
-#### Returns
+#### Inherited from
 
-`string`
-
-• `set` **fontWeight**(`fontWeight`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `fontWeight` | `string` |
-
-#### Returns
-
-`void`
+Sprite.geometry
 
 ___
 
-### strokeWidth
+### id
 
-• `get` **strokeWidth**(): `number`
+• **id**: `number`
 
-#### Returns
+Unique number of this object instance.
 
-`number`
+#### Inherited from
 
-• `set` **strokeWidth**(`strokeWidth`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `strokeWidth` | `number` |
-
-#### Returns
-
-`void`
+Sprite.id
 
 ___
 
-### strokeColor
+### isObject3D
 
-• `get` **strokeColor**(): `string`
+• `Readonly` **isObject3D**: ``true``
 
-#### Returns
+Used to check whether this or derived classes are Object3Ds. Default is true.
+You should not change this, as it is used internally for optimisation.
 
-`string`
+#### Inherited from
 
-• `set` **strokeColor**(`strokeColor`): `void`
+Sprite.isObject3D
 
-#### Parameters
+___
+
+### isSprite
+
+• `Readonly` **isSprite**: ``true``
+
+#### Inherited from
+
+Sprite.isSprite
+
+___
+
+### layers
+
+• **layers**: `Layers`
+
+**`default`** new THREE.Layers()
+
+#### Inherited from
+
+Sprite.layers
+
+___
+
+### material
+
+• **material**: `SpriteMaterial`
+
+#### Inherited from
+
+Sprite.material
+
+___
+
+### matrix
+
+• **matrix**: `Matrix4`
+
+Local transform.
+
+**`default`** new THREE.Matrix4()
+
+#### Inherited from
+
+Sprite.matrix
+
+___
+
+### matrixAutoUpdate
+
+• **matrixAutoUpdate**: `boolean`
+
+When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
+recalculates the matrixWorld property.
+
+**`default`** THREE.Object3D.DefaultMatrixAutoUpdate
+
+#### Inherited from
+
+Sprite.matrixAutoUpdate
+
+___
+
+### matrixWorld
+
+• **matrixWorld**: `Matrix4`
+
+The global transform of the object. If the Object3d has no parent, then it's identical to the local transform.
+
+**`default`** new THREE.Matrix4()
+
+#### Inherited from
+
+Sprite.matrixWorld
+
+___
+
+### matrixWorldNeedsUpdate
+
+• **matrixWorldNeedsUpdate**: `boolean`
+
+When this is set, it calculates the matrixWorld in that frame and resets this property to false.
+
+**`default`** false
+
+#### Inherited from
+
+Sprite.matrixWorldNeedsUpdate
+
+___
+
+### modelViewMatrix
+
+• `Readonly` **modelViewMatrix**: `Matrix4`
+
+**`default`** new THREE.Matrix4()
+
+#### Inherited from
+
+Sprite.modelViewMatrix
+
+___
+
+### name
+
+• **name**: `string`
+
+Optional name of the object (doesn't need to be unique).
+
+**`default`** ''
+
+#### Inherited from
+
+Sprite.name
+
+___
+
+### normalMatrix
+
+• `Readonly` **normalMatrix**: `Matrix3`
+
+**`default`** new THREE.Matrix3()
+
+#### Inherited from
+
+Sprite.normalMatrix
+
+___
+
+### onAfterRender
+
+• **onAfterRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
+
+#### Type declaration
+
+▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
+
+Calls after rendering object
+
+##### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `strokeColor` | `string` |
+| `renderer` | `WebGLRenderer` |
+| `scene` | `Scene` |
+| `camera` | `Camera` |
+| `geometry` | `BufferGeometry` |
+| `material` | `Material` |
+| `group` | `Group` |
 
-#### Returns
+##### Returns
 
 `void`
+
+#### Inherited from
+
+Sprite.onAfterRender
+
+___
+
+### onBeforeRender
+
+• **onBeforeRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
+
+#### Type declaration
+
+▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
+
+Calls before rendering object
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `renderer` | `WebGLRenderer` |
+| `scene` | `Scene` |
+| `camera` | `Camera` |
+| `geometry` | `BufferGeometry` |
+| `material` | `Material` |
+| `group` | `Group` |
+
+##### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.onBeforeRender
+
+___
+
+### parent
+
+• **parent**: `Object3D`<`Event`\>
+
+Object's parent in the scene graph.
+
+**`default`** null
+
+#### Inherited from
+
+Sprite.parent
+
+___
+
+### position
+
+• `Readonly` **position**: `Vector3`
+
+Object's local position.
+
+**`default`** new THREE.Vector3()
+
+#### Inherited from
+
+Sprite.position
+
+___
+
+### quaternion
+
+• `Readonly` **quaternion**: `Quaternion`
+
+Object's local rotation as a Quaternion.
+
+**`default`** new THREE.Quaternion()
+
+#### Inherited from
+
+Sprite.quaternion
+
+___
+
+### receiveShadow
+
+• **receiveShadow**: `boolean`
+
+Material gets baked in shadow receiving.
+
+**`default`** false
+
+#### Inherited from
+
+Sprite.receiveShadow
+
+___
+
+### renderOrder
+
+• **renderOrder**: `number`
+
+Overrides the default rendering order of scene graph objects, from lowest to highest renderOrder.
+Opaque and transparent objects remain sorted independently though.
+When this property is set for an instance of Group, all descendants objects will be sorted and rendered together.
+
+**`default`** 0
+
+#### Inherited from
+
+Sprite.renderOrder
+
+___
+
+### rotation
+
+• `Readonly` **rotation**: `Euler`
+
+Object's local rotation (Euler angles), in radians.
+
+**`default`** new THREE.Euler()
+
+#### Inherited from
+
+Sprite.rotation
+
+___
+
+### scale
+
+• `Readonly` **scale**: `Vector3`
+
+Object's local scale.
+
+**`default`** new THREE.Vector3()
+
+#### Inherited from
+
+Sprite.scale
+
+___
+
+### type
+
+• **type**: ``"Sprite"``
+
+#### Inherited from
+
+Sprite.type
+
+___
+
+### up
+
+• **up**: `Vector3`
+
+Up direction.
+
+**`default`** THREE.Object3D.DefaultUp.clone()
+
+#### Inherited from
+
+Sprite.up
+
+___
+
+### userData
+
+• **userData**: `Object`
+
+An object that can be used to store custom data about the Object3d. It should not hold references to functions as these will not be cloned.
+
+**`default`** {}
+
+#### Index signature
+
+▪ [key: `string`]: `any`
+
+#### Inherited from
+
+Sprite.userData
+
+___
+
+### uuid
+
+• **uuid**: `string`
+
+#### Inherited from
+
+Sprite.uuid
+
+___
+
+### visible
+
+• **visible**: `boolean`
+
+Object gets rendered if true.
+
+**`default`** true
+
+#### Inherited from
+
+Sprite.visible
 
 ## Methods
+
+### add
+
+▸ **add**(...`object`): [`SpriteText`](SpriteText.md)
+
+Adds object as child of this object.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `...object` | `Object3D`<`Event`\>[] |
+
+#### Returns
+
+[`SpriteText`](SpriteText.md)
+
+#### Inherited from
+
+Sprite.add
+
+___
 
 ### addEventListener
 
@@ -323,86 +568,6 @@ Adds a listener to an event type.
 #### Inherited from
 
 Sprite.addEventListener
-
-___
-
-### hasEventListener
-
-▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
-
-Checks if listener is added to an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`SpriteText`](SpriteText.md)\> | The function that gets called when the event is fired. |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-Sprite.hasEventListener
-
-___
-
-### removeEventListener
-
-▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
-
-Removes a listener from an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`SpriteText`](SpriteText.md)\> | The listener function that gets removed. |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Sprite.removeEventListener
-
-___
-
-### dispatchEvent
-
-▸ **dispatchEvent**(`event`): `void`
-
-Fire an event type.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | `Event` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Sprite.dispatchEvent
 
 ___
 
@@ -450,87 +615,95 @@ Sprite.applyQuaternion
 
 ___
 
-### setRotationFromAxisAngle
+### attach
 
-▸ **setRotationFromAxisAngle**(`axis`, `angle`): `void`
+▸ **attach**(`object`): [`SpriteText`](SpriteText.md)
 
-axis -- A normalized vector in object space.
-angle -- angle in radians
+Adds object as a child of this, while maintaining the object's world transform.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `axis` | `Vector3` | A normalized vector in object space. |
-| `angle` | `number` | angle in radians |
+| Name | Type |
+| :------ | :------ |
+| `object` | `Object3D`<`Event`\> |
 
 #### Returns
 
-`void`
+[`SpriteText`](SpriteText.md)
 
 #### Inherited from
 
-Sprite.setRotationFromAxisAngle
+Sprite.attach
 
 ___
 
-### setRotationFromEuler
+### clear
 
-▸ **setRotationFromEuler**(`euler`): `void`
+▸ **clear**(): [`SpriteText`](SpriteText.md)
 
-Calls setRotationFromEuler(euler) on the .quaternion.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `euler` | `Euler` | Euler angle specifying rotation amount. |
+Removes all child objects.
 
 #### Returns
 
-`void`
+[`SpriteText`](SpriteText.md)
 
 #### Inherited from
 
-Sprite.setRotationFromEuler
+Sprite.clear
 
 ___
 
-### setRotationFromMatrix
+### clone
 
-▸ **setRotationFromMatrix**(`m`): `void`
-
-Calls setFromRotationMatrix(m) on the .quaternion.
-
-Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, unscaled).
+▸ **clone**(`recursive?`): [`SpriteText`](SpriteText.md)
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `m` | `Matrix4` | rotate the quaternion by the rotation component of the matrix. |
+| Name | Type |
+| :------ | :------ |
+| `recursive?` | `boolean` |
 
 #### Returns
 
-`void`
+[`SpriteText`](SpriteText.md)
 
 #### Inherited from
 
-Sprite.setRotationFromMatrix
+Sprite.clone
 
 ___
 
-### setRotationFromQuaternion
+### copy
 
-▸ **setRotationFromQuaternion**(`q`): `void`
-
-Copy the given quaternion into .quaternion.
+▸ **copy**(`source`): [`SpriteText`](SpriteText.md)
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `q` | `Quaternion` | normalized Quaternion |
+| Name | Type |
+| :------ | :------ |
+| `source` | [`SpriteText`](SpriteText.md) |
+
+#### Returns
+
+[`SpriteText`](SpriteText.md)
+
+#### Inherited from
+
+Sprite.copy
+
+___
+
+### dispatchEvent
+
+▸ **dispatchEvent**(`event`): `void`
+
+Fire an event type.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | `Event` |
 
 #### Returns
 
@@ -538,7 +711,317 @@ Copy the given quaternion into .quaternion.
 
 #### Inherited from
 
-Sprite.setRotationFromQuaternion
+Sprite.dispatchEvent
+
+___
+
+### getObjectById
+
+▸ **getObjectById**(`id`): `Object3D`<`Event`\>
+
+Searches through the object's children and returns the first with a matching id.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `number` | Unique number of the object instance |
+
+#### Returns
+
+`Object3D`<`Event`\>
+
+#### Inherited from
+
+Sprite.getObjectById
+
+___
+
+### getObjectByName
+
+▸ **getObjectByName**(`name`): `Object3D`<`Event`\>
+
+Searches through the object's children and returns the first with a matching name.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | String to match to the children's Object3d.name property. |
+
+#### Returns
+
+`Object3D`<`Event`\>
+
+#### Inherited from
+
+Sprite.getObjectByName
+
+___
+
+### getObjectByProperty
+
+▸ **getObjectByProperty**(`name`, `value`): `Object3D`<`Event`\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `name` | `string` |
+| `value` | `string` |
+
+#### Returns
+
+`Object3D`<`Event`\>
+
+#### Inherited from
+
+Sprite.getObjectByProperty
+
+___
+
+### getWorldDirection
+
+▸ **getWorldDirection**(`target`): `Vector3`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Vector3` |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Sprite.getWorldDirection
+
+___
+
+### getWorldPosition
+
+▸ **getWorldPosition**(`target`): `Vector3`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Vector3` |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Sprite.getWorldPosition
+
+___
+
+### getWorldQuaternion
+
+▸ **getWorldQuaternion**(`target`): `Quaternion`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Quaternion` |
+
+#### Returns
+
+`Quaternion`
+
+#### Inherited from
+
+Sprite.getWorldQuaternion
+
+___
+
+### getWorldScale
+
+▸ **getWorldScale**(`target`): `Vector3`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | `Vector3` |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Sprite.getWorldScale
+
+___
+
+### hasEventListener
+
+▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
+
+Checks if listener is added to an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of event to listen to. |
+| `listener` | `EventListener`<`Event`, `T`, [`SpriteText`](SpriteText.md)\> | The function that gets called when the event is fired. |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+Sprite.hasEventListener
+
+___
+
+### localToWorld
+
+▸ **localToWorld**(`vector`): `Vector3`
+
+Updates the vector from local space to world space.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vector` | `Vector3` | A local vector. |
+
+#### Returns
+
+`Vector3`
+
+#### Inherited from
+
+Sprite.localToWorld
+
+___
+
+### lookAt
+
+▸ **lookAt**(`vector`, `y?`, `z?`): `void`
+
+Optionally, the x, y and z components of the world space position.
+Rotates the object to face a point in world space.
+This method does not support objects having non-uniformly-scaled parent(s).
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vector` | `number` \| `Vector3` | A world vector to look at. |
+| `y?` | `number` | - |
+| `z?` | `number` | - |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.lookAt
+
+___
+
+### raycast
+
+▸ **raycast**(`raycaster`, `intersects`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `raycaster` | `Raycaster` |
+| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.raycast
+
+___
+
+### remove
+
+▸ **remove**(...`object`): [`SpriteText`](SpriteText.md)
+
+Removes object as child of this object.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `...object` | `Object3D`<`Event`\>[] |
+
+#### Returns
+
+[`SpriteText`](SpriteText.md)
+
+#### Inherited from
+
+Sprite.remove
+
+___
+
+### removeEventListener
+
+▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
+
+Removes a listener from an event type.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `T` | The type of the listener that gets removed. |
+| `listener` | `EventListener`<`Event`, `T`, [`SpriteText`](SpriteText.md)\> | The listener function that gets removed. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.removeEventListener
+
+___
+
+### removeFromParent
+
+▸ **removeFromParent**(): [`SpriteText`](SpriteText.md)
+
+Removes this object from its current parent.
+
+#### Returns
+
+[`SpriteText`](SpriteText.md)
+
+#### Inherited from
+
+Sprite.removeFromParent
 
 ___
 
@@ -654,6 +1137,122 @@ Sprite.rotateZ
 
 ___
 
+### setRotationFromAxisAngle
+
+▸ **setRotationFromAxisAngle**(`axis`, `angle`): `void`
+
+axis -- A normalized vector in object space.
+angle -- angle in radians
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `axis` | `Vector3` | A normalized vector in object space. |
+| `angle` | `number` | angle in radians |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.setRotationFromAxisAngle
+
+___
+
+### setRotationFromEuler
+
+▸ **setRotationFromEuler**(`euler`): `void`
+
+Calls setRotationFromEuler(euler) on the .quaternion.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `euler` | `Euler` | Euler angle specifying rotation amount. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.setRotationFromEuler
+
+___
+
+### setRotationFromMatrix
+
+▸ **setRotationFromMatrix**(`m`): `void`
+
+Calls setFromRotationMatrix(m) on the .quaternion.
+
+Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, unscaled).
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `m` | `Matrix4` | rotate the quaternion by the rotation component of the matrix. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.setRotationFromMatrix
+
+___
+
+### setRotationFromQuaternion
+
+▸ **setRotationFromQuaternion**(`q`): `void`
+
+Copy the given quaternion into .quaternion.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `q` | `Quaternion` | normalized Quaternion |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.setRotationFromQuaternion
+
+___
+
+### toJSON
+
+▸ **toJSON**(`meta?`): `any`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `meta?` | `Object` |
+| `meta.geometries` | `any` |
+| `meta.images` | `any` |
+| `meta.materials` | `any` |
+| `meta.textures` | `any` |
+
+#### Returns
+
+`any`
+
+#### Inherited from
+
+Sprite.toJSON
+
+___
+
 ### translateOnAxis
 
 ▸ **translateOnAxis**(`axis`, `distance`): [`SpriteText`](SpriteText.md)
@@ -743,319 +1342,6 @@ Sprite.translateZ
 
 ___
 
-### localToWorld
-
-▸ **localToWorld**(`vector`): `Vector3`
-
-Updates the vector from local space to world space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `Vector3` | A local vector. |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Sprite.localToWorld
-
-___
-
-### worldToLocal
-
-▸ **worldToLocal**(`vector`): `Vector3`
-
-Updates the vector from world space to local space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `Vector3` | A world vector. |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Sprite.worldToLocal
-
-___
-
-### lookAt
-
-▸ **lookAt**(`vector`, `y?`, `z?`): `void`
-
-Optionally, the x, y and z components of the world space position.
-Rotates the object to face a point in world space.
-This method does not support objects having non-uniformly-scaled parent(s).
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `number` \| `Vector3` | A world vector to look at. |
-| `y?` | `number` | - |
-| `z?` | `number` | - |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Sprite.lookAt
-
-___
-
-### add
-
-▸ **add**(...`object`): [`SpriteText`](SpriteText.md)
-
-Adds object as child of this object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `...object` | `Object3D`<`Event`\>[] |
-
-#### Returns
-
-[`SpriteText`](SpriteText.md)
-
-#### Inherited from
-
-Sprite.add
-
-___
-
-### remove
-
-▸ **remove**(...`object`): [`SpriteText`](SpriteText.md)
-
-Removes object as child of this object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `...object` | `Object3D`<`Event`\>[] |
-
-#### Returns
-
-[`SpriteText`](SpriteText.md)
-
-#### Inherited from
-
-Sprite.remove
-
-___
-
-### removeFromParent
-
-▸ **removeFromParent**(): [`SpriteText`](SpriteText.md)
-
-Removes this object from its current parent.
-
-#### Returns
-
-[`SpriteText`](SpriteText.md)
-
-#### Inherited from
-
-Sprite.removeFromParent
-
-___
-
-### clear
-
-▸ **clear**(): [`SpriteText`](SpriteText.md)
-
-Removes all child objects.
-
-#### Returns
-
-[`SpriteText`](SpriteText.md)
-
-#### Inherited from
-
-Sprite.clear
-
-___
-
-### attach
-
-▸ **attach**(`object`): [`SpriteText`](SpriteText.md)
-
-Adds object as a child of this, while maintaining the object's world transform.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `object` | `Object3D`<`Event`\> |
-
-#### Returns
-
-[`SpriteText`](SpriteText.md)
-
-#### Inherited from
-
-Sprite.attach
-
-___
-
-### getObjectById
-
-▸ **getObjectById**(`id`): `Object3D`<`Event`\>
-
-Searches through the object's children and returns the first with a matching id.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `number` | Unique number of the object instance |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Sprite.getObjectById
-
-___
-
-### getObjectByName
-
-▸ **getObjectByName**(`name`): `Object3D`<`Event`\>
-
-Searches through the object's children and returns the first with a matching name.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `name` | `string` | String to match to the children's Object3d.name property. |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Sprite.getObjectByName
-
-___
-
-### getObjectByProperty
-
-▸ **getObjectByProperty**(`name`, `value`): `Object3D`<`Event`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
-| `value` | `string` |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Sprite.getObjectByProperty
-
-___
-
-### getWorldPosition
-
-▸ **getWorldPosition**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Sprite.getWorldPosition
-
-___
-
-### getWorldQuaternion
-
-▸ **getWorldQuaternion**(`target`): `Quaternion`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Quaternion` |
-
-#### Returns
-
-`Quaternion`
-
-#### Inherited from
-
-Sprite.getWorldQuaternion
-
-___
-
-### getWorldScale
-
-▸ **getWorldScale**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Sprite.getWorldScale
-
-___
-
-### getWorldDirection
-
-▸ **getWorldDirection**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Sprite.getWorldDirection
-
-___
-
 ### traverse
 
 ▸ **traverse**(`callback`): `void`
@@ -1076,26 +1362,6 @@ Sprite.traverse
 
 ___
 
-### traverseVisible
-
-▸ **traverseVisible**(`callback`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Sprite.traverseVisible
-
-___
-
 ### traverseAncestors
 
 ▸ **traverseAncestors**(`callback`): `void`
@@ -1113,6 +1379,26 @@ ___
 #### Inherited from
 
 Sprite.traverseAncestors
+
+___
+
+### traverseVisible
+
+▸ **traverseVisible**(`callback`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Sprite.traverseVisible
 
 ___
 
@@ -1177,589 +1463,303 @@ Sprite.updateWorldMatrix
 
 ___
 
-### toJSON
+### worldToLocal
 
-▸ **toJSON**(`meta?`): `any`
+▸ **worldToLocal**(`vector`): `Vector3`
+
+Updates the vector from world space to local space.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `meta?` | `Object` |
-| `meta.geometries` | `any` |
-| `meta.materials` | `any` |
-| `meta.textures` | `any` |
-| `meta.images` | `any` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vector` | `Vector3` | A world vector. |
 
 #### Returns
 
-`any`
+`Vector3`
 
 #### Inherited from
 
-Sprite.toJSON
+Sprite.worldToLocal
 
-___
+## Accessors
 
-### clone
+### backgroundColor
 
-▸ **clone**(`recursive?`): [`SpriteText`](SpriteText.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `recursive?` | `boolean` |
+• `get` **backgroundColor**(): `string` \| ``false``
 
 #### Returns
 
-[`SpriteText`](SpriteText.md)
+`string` \| ``false``
 
-#### Inherited from
-
-Sprite.clone
-
-___
-
-### raycast
-
-▸ **raycast**(`raycaster`, `intersects`): `void`
+• `set` **backgroundColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `raycaster` | `Raycaster` |
-| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
+| `color` | `string` \| ``false`` |
 
 #### Returns
 
 `void`
 
-#### Inherited from
-
-Sprite.raycast
-
 ___
 
-### copy
+### borderColor
 
-▸ **copy**(`source`): [`SpriteText`](SpriteText.md)
+• `get` **borderColor**(): `string`
+
+#### Returns
+
+`string`
+
+• `set` **borderColor**(`borderColor`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `source` | [`SpriteText`](SpriteText.md) |
+| `borderColor` | `string` |
 
 #### Returns
 
-[`SpriteText`](SpriteText.md)
-
-#### Inherited from
-
-Sprite.copy
-
-## Properties
-
-### id
-
-• **id**: `number`
-
-Unique number of this object instance.
-
-#### Inherited from
-
-Sprite.id
+`void`
 
 ___
 
-### uuid
+### borderRadius
 
-• **uuid**: `string`
+• `get` **borderRadius**(): `number`
 
-#### Inherited from
+#### Returns
 
-Sprite.uuid
+`number`
 
-___
+• `set` **borderRadius**(`borderRadius`): `void`
 
-### name
-
-• **name**: `string`
-
-Optional name of the object (doesn't need to be unique).
-
-**`default`** ''
-
-#### Inherited from
-
-Sprite.name
-
-___
-
-### parent
-
-• **parent**: `Object3D`<`Event`\>
-
-Object's parent in the scene graph.
-
-**`default`** null
-
-#### Inherited from
-
-Sprite.parent
-
-___
-
-### children
-
-• **children**: `Object3D`<`Event`\>[]
-
-Array with object's children.
-
-**`default`** []
-
-#### Inherited from
-
-Sprite.children
-
-___
-
-### up
-
-• **up**: `Vector3`
-
-Up direction.
-
-**`default`** THREE.Object3D.DefaultUp.clone()
-
-#### Inherited from
-
-Sprite.up
-
-___
-
-### position
-
-• `Readonly` **position**: `Vector3`
-
-Object's local position.
-
-**`default`** new THREE.Vector3()
-
-#### Inherited from
-
-Sprite.position
-
-___
-
-### rotation
-
-• `Readonly` **rotation**: `Euler`
-
-Object's local rotation (Euler angles), in radians.
-
-**`default`** new THREE.Euler()
-
-#### Inherited from
-
-Sprite.rotation
-
-___
-
-### quaternion
-
-• `Readonly` **quaternion**: `Quaternion`
-
-Object's local rotation as a Quaternion.
-
-**`default`** new THREE.Quaternion()
-
-#### Inherited from
-
-Sprite.quaternion
-
-___
-
-### scale
-
-• `Readonly` **scale**: `Vector3`
-
-Object's local scale.
-
-**`default`** new THREE.Vector3()
-
-#### Inherited from
-
-Sprite.scale
-
-___
-
-### modelViewMatrix
-
-• `Readonly` **modelViewMatrix**: `Matrix4`
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Sprite.modelViewMatrix
-
-___
-
-### normalMatrix
-
-• `Readonly` **normalMatrix**: `Matrix3`
-
-**`default`** new THREE.Matrix3()
-
-#### Inherited from
-
-Sprite.normalMatrix
-
-___
-
-### matrix
-
-• **matrix**: `Matrix4`
-
-Local transform.
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Sprite.matrix
-
-___
-
-### matrixWorld
-
-• **matrixWorld**: `Matrix4`
-
-The global transform of the object. If the Object3d has no parent, then it's identical to the local transform.
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Sprite.matrixWorld
-
-___
-
-### matrixAutoUpdate
-
-• **matrixAutoUpdate**: `boolean`
-
-When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
-recalculates the matrixWorld property.
-
-**`default`** THREE.Object3D.DefaultMatrixAutoUpdate
-
-#### Inherited from
-
-Sprite.matrixAutoUpdate
-
-___
-
-### matrixWorldNeedsUpdate
-
-• **matrixWorldNeedsUpdate**: `boolean`
-
-When this is set, it calculates the matrixWorld in that frame and resets this property to false.
-
-**`default`** false
-
-#### Inherited from
-
-Sprite.matrixWorldNeedsUpdate
-
-___
-
-### layers
-
-• **layers**: `Layers`
-
-**`default`** new THREE.Layers()
-
-#### Inherited from
-
-Sprite.layers
-
-___
-
-### visible
-
-• **visible**: `boolean`
-
-Object gets rendered if true.
-
-**`default`** true
-
-#### Inherited from
-
-Sprite.visible
-
-___
-
-### castShadow
-
-• **castShadow**: `boolean`
-
-Gets rendered into shadow map.
-
-**`default`** false
-
-#### Inherited from
-
-Sprite.castShadow
-
-___
-
-### receiveShadow
-
-• **receiveShadow**: `boolean`
-
-Material gets baked in shadow receiving.
-
-**`default`** false
-
-#### Inherited from
-
-Sprite.receiveShadow
-
-___
-
-### frustumCulled
-
-• **frustumCulled**: `boolean`
-
-When this is set, it checks every frame if the object is in the frustum of the camera before rendering the object.
-If set to false the object gets rendered every frame even if it is not in the frustum of the camera.
-
-**`default`** true
-
-#### Inherited from
-
-Sprite.frustumCulled
-
-___
-
-### renderOrder
-
-• **renderOrder**: `number`
-
-Overrides the default rendering order of scene graph objects, from lowest to highest renderOrder.
-Opaque and transparent objects remain sorted independently though.
-When this property is set for an instance of Group, all descendants objects will be sorted and rendered together.
-
-**`default`** 0
-
-#### Inherited from
-
-Sprite.renderOrder
-
-___
-
-### animations
-
-• **animations**: `AnimationClip`[]
-
-Array with animation clips.
-
-**`default`** []
-
-#### Inherited from
-
-Sprite.animations
-
-___
-
-### userData
-
-• **userData**: `Object`
-
-An object that can be used to store custom data about the Object3d. It should not hold references to functions as these will not be cloned.
-
-**`default`** {}
-
-#### Index signature
-
-▪ [key: `string`]: `any`
-
-#### Inherited from
-
-Sprite.userData
-
-___
-
-### customDepthMaterial
-
-• **customDepthMaterial**: `Material`
-
-Custom depth material to be used when rendering to the depth map. Can only be used in context of meshes.
-When shadow-casting with a DirectionalLight or SpotLight, if you are (a) modifying vertex positions in
-the vertex shader, (b) using a displacement map, (c) using an alpha map with alphaTest, or (d) using a
-transparent texture with alphaTest, you must specify a customDepthMaterial for proper shadows.
-
-#### Inherited from
-
-Sprite.customDepthMaterial
-
-___
-
-### customDistanceMaterial
-
-• **customDistanceMaterial**: `Material`
-
-Same as customDepthMaterial, but used with PointLight.
-
-#### Inherited from
-
-Sprite.customDistanceMaterial
-
-___
-
-### isObject3D
-
-• `Readonly` **isObject3D**: ``true``
-
-Used to check whether this or derived classes are Object3Ds. Default is true.
-You should not change this, as it is used internally for optimisation.
-
-#### Inherited from
-
-Sprite.isObject3D
-
-___
-
-### onBeforeRender
-
-• **onBeforeRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
-
-#### Type declaration
-
-▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
-
-Calls before rendering object
-
-##### Parameters
+#### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `renderer` | `WebGLRenderer` |
-| `scene` | `Scene` |
-| `camera` | `Camera` |
-| `geometry` | `BufferGeometry` |
-| `material` | `Material` |
-| `group` | `Group` |
+| `borderRadius` | `number` |
 
-##### Returns
+#### Returns
 
 `void`
 
-#### Inherited from
-
-Sprite.onBeforeRender
-
 ___
 
-### onAfterRender
+### borderWidth
 
-• **onAfterRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
+• `get` **borderWidth**(): `number`
 
-#### Type declaration
+#### Returns
 
-▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
+`number`
 
-Calls after rendering object
+• `set` **borderWidth**(`borderWidth`): `void`
 
-##### Parameters
+#### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `renderer` | `WebGLRenderer` |
-| `scene` | `Scene` |
-| `camera` | `Camera` |
-| `geometry` | `BufferGeometry` |
-| `material` | `Material` |
-| `group` | `Group` |
+| `borderWidth` | `number` |
 
-##### Returns
+#### Returns
 
 `void`
 
-#### Inherited from
+___
 
-Sprite.onAfterRender
+### fontFace
+
+• `get` **fontFace**(): `string`
+
+#### Returns
+
+`string`
+
+• `set` **fontFace**(`fontFace`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `fontFace` | `string` |
+
+#### Returns
+
+`void`
 
 ___
 
-### DefaultUp
+### fontSize
 
-▪ `Static` **DefaultUp**: `Vector3`
+• `get` **fontSize**(): `number`
 
-#### Inherited from
+#### Returns
 
-Sprite.DefaultUp
+`number`
 
-___
+• `set` **fontSize**(`fontSize`): `void`
 
-### DefaultMatrixAutoUpdate
+#### Parameters
 
-▪ `Static` **DefaultMatrixAutoUpdate**: `boolean`
+| Name | Type |
+| :------ | :------ |
+| `fontSize` | `number` |
 
-#### Inherited from
+#### Returns
 
-Sprite.DefaultMatrixAutoUpdate
-
-___
-
-### type
-
-• **type**: ``"Sprite"``
-
-#### Inherited from
-
-Sprite.type
+`void`
 
 ___
 
-### isSprite
+### fontWeight
 
-• `Readonly` **isSprite**: ``true``
+• `get` **fontWeight**(): `string`
 
-#### Inherited from
+#### Returns
 
-Sprite.isSprite
+`string`
 
-___
+• `set` **fontWeight**(`fontWeight`): `void`
 
-### geometry
+#### Parameters
 
-• **geometry**: `BufferGeometry`
+| Name | Type |
+| :------ | :------ |
+| `fontWeight` | `string` |
 
-#### Inherited from
+#### Returns
 
-Sprite.geometry
-
-___
-
-### material
-
-• **material**: `SpriteMaterial`
-
-#### Inherited from
-
-Sprite.material
+`void`
 
 ___
 
-### center
+### padding
 
-• **center**: `Vector2`
+• `get` **padding**(): `number`
 
-#### Inherited from
+#### Returns
 
-Sprite.center
+`number`
+
+• `set` **padding**(`padding`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `padding` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### strokeColor
+
+• `get` **strokeColor**(): `string`
+
+#### Returns
+
+`string`
+
+• `set` **strokeColor**(`strokeColor`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `strokeColor` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### strokeWidth
+
+• `get` **strokeWidth**(): `number`
+
+#### Returns
+
+`number`
+
+• `set` **strokeWidth**(`strokeWidth`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `strokeWidth` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### text
+
+• `get` **text**(): `string`
+
+#### Returns
+
+`string`
+
+• `set` **text**(`text`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `text` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### textHeight
+
+• `get` **textHeight**(): `number`
+
+#### Returns
+
+`number`
+
+• `set` **textHeight**(`textHeight`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `textHeight` | `number` |
+
+#### Returns
+
+`void`
+
+## Constructors
+
+### constructor
+
+• **new SpriteText**(`text?`, `textHeight?`)
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `text` | `string` | `""` |
+| `textHeight` | `number` | `10` |
+
+#### Overrides
+
+Sprite.constructor

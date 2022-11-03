@@ -47,7 +47,7 @@ const defaultParams: ArrowParams = {
 /**
  * A helper for visualizing a direction. This is useful for debugging.
  *
- * This arrow is essentially a Voxelize version of the [`ArrowHelper`][https://threejs.org/docs/#api/en/helpers/ArrowHelper] from Three.js.
+ * This arrow is essentially a Voxelize version of the [`ArrowHelper`](https://threejs.org/docs/#api/en/helpers/ArrowHelper) from Three.js.
  *
  * # Example
  * ```ts

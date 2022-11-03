@@ -21,35 +21,155 @@ console.log(client.controls.voxel);
 
   ↳ **`RigidControls`**
 
+## Properties
+
+### INPUT\_IDENTIFIER
+
+▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
+
+___
+
+### body
+
+• **body**: `RigidBody`
+
+The physical rigid body of the client, dimensions described by:
+- `params.bodyWidth`
+- `params.bodyHeight`
+- `params.bodyDepth`
+
+___
+
+### camera
+
+• **camera**: `PerspectiveCamera`
+
+Reference linking to the Voxelize camera instance.
+
+___
+
+### character
+
+• `Optional` **character**: [`Character`](Character.md)
+
+___
+
+### defaultMaxListeners
+
+▪ `Static` **defaultMaxListeners**: `number`
+
+___
+
+### domElement
+
+• **domElement**: `HTMLElement`
+
+___
+
+### inputs
+
+• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
+
+___
+
+### isLocked
+
+• **isLocked**: `boolean` = `false`
+
+Flag indicating whether pointerlock controls have control over the cursor.
+
+___
+
+### object
+
+• **object**: `Group`
+
+A THREE.JS object, parent to the camera for pointerlock controls.
+
+___
+
+### params
+
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-14)
+
+Parameters to initialize the Voxelize controls.
+
+___
+
+### state
+
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-14)
+
+The state of the control, indicating things like whether or not the client is running.
+
+___
+
+### world
+
+• **world**: [`World`](World.md)
+
+Reference linking to the Voxelize world instance.
+
 ## Methods
 
-### on
+### addListener
 
-▸ **on**(`event`, `listener`): [`RigidControls`](RigidControls.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | ``"lock"`` |
-| `listener` | () => `void` |
-
-#### Returns
-
-[`RigidControls`](RigidControls.md)
-
-▸ **on**(`event`, `listener`): [`RigidControls`](RigidControls.md)
+▸ **addListener**(`type`, `listener`): [`RigidControls`](RigidControls.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `event` | ``"unlock"`` |
-| `listener` | () => `void` |
+| `type` | `string` \| `number` |
+| `listener` | `Listener` |
 
 #### Returns
 
 [`RigidControls`](RigidControls.md)
+
+___
+
+### attachCharacter
+
+▸ **attachCharacter**(`character`, `newLerpFactor?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `character` | [`Character`](Character.md) | `undefined` |
+| `newLerpFactor` | `number` | `1` |
+
+#### Returns
+
+`void`
+
+___
+
+### emit
+
+▸ **emit**(`type`, ...`args`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `type` | `string` \| `number` |
+| `...args` | `any`[] |
+
+#### Returns
+
+`boolean`
+
+___
+
+### eventNames
+
+▸ **eventNames**(): (`string` \| `number`)[]
+
+#### Returns
+
+(`string` \| `number`)[]
 
 ___
 
@@ -65,6 +185,65 @@ Get the direction that the client is looking at.
 
 ___
 
+### getMaxListeners
+
+▸ **getMaxListeners**(): `number`
+
+#### Returns
+
+`number`
+
+___
+
+### listenerCount
+
+▸ `Static` **listenerCount**(`emitter`, `type`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `emitter` | `EventEmitter` |
+| `type` | `string` \| `number` |
+
+#### Returns
+
+`number`
+
+___
+
+### listenerCount
+
+▸ **listenerCount**(`type`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `type` | `string` \| `number` |
+
+#### Returns
+
+`number`
+
+___
+
+### listeners
+
+▸ **listeners**(`type`): `Listener`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `type` | `string` \| `number` |
+
+#### Returns
+
+`Listener`[]
+
+___
+
 ### lock
 
 ▸ **lock**(`callback?`): `void`
@@ -77,53 +256,6 @@ Needs to be called within a DOM event listener callback!
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `callback?` | () => `void` | Callback to be run once done. |
-
-#### Returns
-
-`void`
-
-___
-
-### unlock
-
-▸ **unlock**(`callback?`): `void`
-
-Unlock the cursor from the game, calling `exitPointerLock` on `document`. Needs to be
-called within a DOM event listener callback!
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `callback?` | () => `void` | Callback to be run once done. |
-
-#### Returns
-
-`void`
-
-___
-
-### teleport
-
-▸ **teleport**(`vx`, `vy`, `vz`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
-
-#### Returns
-
-`void`
-
-___
-
-### teleportToTop
-
-▸ **teleportToTop**(): `void`
 
 #### Returns
 
@@ -151,130 +283,9 @@ Make the client look at a coordinate.
 
 ___
 
-### resetMovements
+### off
 
-▸ **resetMovements**(): `void`
-
-Reset all of the control's movements.
-
-#### Returns
-
-`void`
-
-___
-
-### toggleGhostMode
-
-▸ **toggleGhostMode**(): `void`
-
-Toggle ghost mode. Ghost mode is when a client can fly through blocks.
-
-#### Returns
-
-`void`
-
-___
-
-### toggleFly
-
-▸ **toggleFly**(): `void`
-
-#### Returns
-
-`void`
-
-___
-
-### attachCharacter
-
-▸ **attachCharacter**(`character`, `newLerpFactor?`): `void`
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `character` | [`Character`](Character.md) | `undefined` |
-| `newLerpFactor` | `number` | `1` |
-
-#### Returns
-
-`void`
-
-___
-
-### listenerCount
-
-▸ `Static` **listenerCount**(`emitter`, `type`): `number`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `emitter` | `EventEmitter` |
-| `type` | `string` \| `number` |
-
-#### Returns
-
-`number`
-
-___
-
-### eventNames
-
-▸ **eventNames**(): (`string` \| `number`)[]
-
-#### Returns
-
-(`string` \| `number`)[]
-
-___
-
-### setMaxListeners
-
-▸ **setMaxListeners**(`n`): [`RigidControls`](RigidControls.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `n` | `number` |
-
-#### Returns
-
-[`RigidControls`](RigidControls.md)
-
-___
-
-### getMaxListeners
-
-▸ **getMaxListeners**(): `number`
-
-#### Returns
-
-`number`
-
-___
-
-### emit
-
-▸ **emit**(`type`, ...`args`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `...args` | `any`[] |
-
-#### Returns
-
-`boolean`
-
-___
-
-### addListener
-
-▸ **addListener**(`type`, `listener`): [`RigidControls`](RigidControls.md)
+▸ **off**(`type`, `listener`): [`RigidControls`](RigidControls.md)
 
 #### Parameters
 
@@ -282,6 +293,36 @@ ___
 | :------ | :------ |
 | `type` | `string` \| `number` |
 | `listener` | `Listener` |
+
+#### Returns
+
+[`RigidControls`](RigidControls.md)
+
+___
+
+### on
+
+▸ **on**(`event`, `listener`): [`RigidControls`](RigidControls.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | ``"lock"`` |
+| `listener` | () => `void` |
+
+#### Returns
+
+[`RigidControls`](RigidControls.md)
+
+▸ **on**(`event`, `listener`): [`RigidControls`](RigidControls.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `event` | ``"unlock"`` |
+| `listener` | () => `void` |
 
 #### Returns
 
@@ -340,37 +381,19 @@ ___
 
 ___
 
-### removeListener
+### rawListeners
 
-▸ **removeListener**(`type`, `listener`): [`RigidControls`](RigidControls.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`RigidControls`](RigidControls.md)
-
-___
-
-### off
-
-▸ **off**(`type`, `listener`): [`RigidControls`](RigidControls.md)
+▸ **rawListeners**(`type`): `Listener`[]
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `type` | `string` \| `number` |
-| `listener` | `Listener` |
 
 #### Returns
 
-[`RigidControls`](RigidControls.md)
+`Listener`[]
 
 ___
 
@@ -390,142 +413,131 @@ ___
 
 ___
 
-### listeners
+### removeListener
 
-▸ **listeners**(`type`): `Listener`[]
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-
-#### Returns
-
-`Listener`[]
-
-___
-
-### listenerCount
-
-▸ **listenerCount**(`type`): `number`
+▸ **removeListener**(`type`, `listener`): [`RigidControls`](RigidControls.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `type` | `string` \| `number` |
+| `listener` | `Listener` |
 
 #### Returns
 
-`number`
+[`RigidControls`](RigidControls.md)
 
 ___
 
-### rawListeners
+### resetMovements
 
-▸ **rawListeners**(`type`): `Listener`[]
+▸ **resetMovements**(): `void`
+
+Reset all of the control's movements.
+
+#### Returns
+
+`void`
+
+___
+
+### setMaxListeners
+
+▸ **setMaxListeners**(`n`): [`RigidControls`](RigidControls.md)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `type` | `string` \| `number` |
+| `n` | `number` |
 
 #### Returns
 
-`Listener`[]
-
-## Properties
-
-### camera
-
-• **camera**: `PerspectiveCamera`
-
-Reference linking to the Voxelize camera instance.
+[`RigidControls`](RigidControls.md)
 
 ___
 
-### inputs
+### teleport
 
-• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
+▸ **teleport**(`vx`, `vy`, `vz`): `void`
 
-___
+#### Parameters
 
-### character
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
 
-• `Optional` **character**: [`Character`](Character.md)
+#### Returns
 
-___
-
-### domElement
-
-• **domElement**: `HTMLElement`
-
-___
-
-### world
-
-• **world**: [`World`](World.md)
-
-Reference linking to the Voxelize world instance.
+`void`
 
 ___
 
-### params
+### teleportToTop
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-198)
+▸ **teleportToTop**(): `void`
 
-Parameters to initialize the Voxelize controls.
+#### Returns
 
-___
-
-### object
-
-• **object**: `Group`
-
-A THREE.JS object, parent to the camera for pointerlock controls.
+`void`
 
 ___
 
-### state
+### toggleFly
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-198)
+▸ **toggleFly**(): `void`
 
-The state of the control, indicating things like whether or not the client is running.
+#### Returns
 
-___
-
-### isLocked
-
-• **isLocked**: `boolean` = `false`
-
-Flag indicating whether pointerlock controls have control over the cursor.
+`void`
 
 ___
 
-### body
+### toggleGhostMode
 
-• **body**: `RigidBody`
+▸ **toggleGhostMode**(): `void`
 
-The physical rigid body of the client, dimensions described by:
-- `params.bodyWidth`
-- `params.bodyHeight`
-- `params.bodyDepth`
+Toggle ghost mode. Ghost mode is when a client can fly through blocks.
 
-___
+#### Returns
 
-### INPUT\_IDENTIFIER
-
-▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
+`void`
 
 ___
 
-### defaultMaxListeners
+### unlock
 
-▪ `Static` **defaultMaxListeners**: `number`
+▸ **unlock**(`callback?`): `void`
+
+Unlock the cursor from the game, calling `exitPointerLock` on `document`. Needs to be
+called within a DOM event listener callback!
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `callback?` | () => `void` | Callback to be run once done. |
+
+#### Returns
+
+`void`
 
 ## Accessors
+
+### chunk
+
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-14)
+
+The chunk that the client is situated in.
+
+#### Returns
+
+[`Coords2`](../modules.md#coords2-14)
+
+___
 
 ### ghostMode
 
@@ -539,18 +551,6 @@ Whether if the client is in ghost mode. Ghost mode means client can fly through 
 
 ___
 
-### voxel
-
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-198)
-
-The voxel coordinates that the client is on.
-
-#### Returns
-
-[`Coords3`](../modules.md#coords3-198)
-
-___
-
 ### position
 
 • `get` **position**(): `Vector3`
@@ -561,12 +561,12 @@ ___
 
 ___
 
-### chunk
+### voxel
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-198)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-14)
 
-The chunk that the client is situated in.
+The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-198)
+[`Coords3`](../modules.md#coords3-14)

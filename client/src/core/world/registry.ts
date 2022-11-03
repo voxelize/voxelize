@@ -40,8 +40,19 @@ type RegistryParams = {
   dimension: number;
 };
 
+/**
+ * The default symbols for 6-faced block face data.
+ */
 export const ALL_FACES = ["px", "nx", "py", "ny", "pz", "nz"];
+
+/**
+ * The default symbols for the 4 sides excluding the top and bottom.
+ */
 export const SIDE_FACES = ["px", "nx", "pz", "nz"];
+
+/**
+ * The default symbols for two diagonal sides.
+ */
 export const DIAGONAL_FACES = ["one", "two"];
 
 /**
@@ -72,7 +83,7 @@ class Registry {
   private typeMap: Map<string, number> = new Map();
 
   /**
-   * Load blocks from the server and generate atlas. Emits "registry-loaded" event on client once done.
+   * Load blocks from the server and generate atlas.
    *
    * @hidden
    * @internal

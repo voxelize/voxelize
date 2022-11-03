@@ -35,63 +35,7 @@ network.register(chat);
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
-## Constructors
-
-### constructor
-
-• **new Chat**()
-
-## Properties
-
-### packets
-
-• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
-
-An array of network packets that will be sent on `network.flush` calls.
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-198)
-
-___
-
-### onChat
-
-• **onChat**: (`chat`: `ChatProtocol`) => `void`
-
-#### Type declaration
-
-▸ (`chat`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `chat` | `ChatProtocol` |
-
-##### Returns
-
-`void`
-
 ## Methods
-
-### send
-
-▸ **send**(`chat`): `void`
-
-Send a chat to the server.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `chat` | `ChatProtocol` | The chat message to send. |
-
-#### Returns
-
-`void`
-
-___
 
 ### addCommand
 
@@ -104,30 +48,12 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor-198) | `undefined` | The process run when this command is triggered. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor-14) | `undefined` | The process run when this command is triggered. |
 | `aliases` | `string`[] | `[]` | - |
 
 #### Returns
 
 `void`
-
-___
-
-### removeCommand
-
-▸ **removeCommand**(`trigger`): `boolean`
-
-Remove a command from the chat system. Case sensitive.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `trigger` | `string` | The trigger to remove. |
-
-#### Returns
-
-`boolean`
 
 ___
 
@@ -149,7 +75,43 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-198)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-14)
+
+___
+
+### removeCommand
+
+▸ **removeCommand**(`trigger`): `boolean`
+
+Remove a command from the chat system. Case sensitive.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `trigger` | `string` | The trigger to remove. |
+
+#### Returns
+
+`boolean`
+
+___
+
+### send
+
+▸ **send**(`chat`): `void`
+
+Send a chat to the server.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `chat` | `ChatProtocol` | The chat message to send. |
+
+#### Returns
+
+`void`
 
 ## Accessors
 
@@ -160,3 +122,41 @@ A listener to be implemented to handle incoming packets.
 #### Returns
 
 `string`
+
+## Constructors
+
+### constructor
+
+• **new Chat**()
+
+## Properties
+
+### onChat
+
+• **onChat**: (`chat`: `ChatProtocol`) => `void`
+
+#### Type declaration
+
+▸ (`chat`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `chat` | `ChatProtocol` |
+
+##### Returns
+
+`void`
+
+___
+
+### packets
+
+• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
+
+An array of network packets that will be sent on `network.flush` calls.
+
+#### Implementation of
+
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-14)

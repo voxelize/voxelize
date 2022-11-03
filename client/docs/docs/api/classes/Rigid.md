@@ -14,31 +14,6 @@ A rigid behavior makes the particle act like a rigid body in the voxel physics e
 
   ↳ **`Rigid`**
 
-## Properties
-
-### size
-
-• **size**: `number`
-
-The size of the rigid particle.
-
-___
-
-### impulse
-
-• **impulse**: `number`
-
-The initial impulse of the rigid particle, which goes in a random direction with this impulse as
-the magnitude of impulse.
-
-___
-
-### engine
-
-• **engine**: `Engine`
-
-A reference to the physics engine of the world for update purposes.
-
 ## Constructors
 
 ### constructor
@@ -61,6 +36,31 @@ Creates a new rigid behavior.
 #### Overrides
 
 Behaviour.constructor
+
+## Properties
+
+### engine
+
+• **engine**: `Engine`
+
+A reference to the physics engine of the world for update purposes.
+
+___
+
+### impulse
+
+• **impulse**: `number`
+
+The initial impulse of the rigid particle, which goes in a random direction with this impulse as
+the magnitude of impulse.
+
+___
+
+### size
+
+• **size**: `number`
+
+The size of the rigid particle.
 
 ## Methods
 

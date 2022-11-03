@@ -12,33 +12,17 @@ custom_edit_url: null
 
 ## Type Aliases
 
-### GeometryProtocol
+### ChatProtocol
 
-Ƭ **GeometryProtocol**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `identifier` | `number` |
-| `positions` | `number`[] |
-| `uvs` | `number`[] |
-| `indices` | `number`[] |
-| `lights` | `number`[] |
-
-___
-
-### MeshProtocol
-
-Ƭ **MeshProtocol**: `Object`
+Ƭ **ChatProtocol**: `Object`
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `level` | `number` |
-| `opaque` | [`GeometryProtocol`](modules.md#geometryprotocol) |
-| `transparent` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
+| `body` | `string` |
+| `sender?` | `string` |
+| `type` | `string` |
 
 ___
 
@@ -50,32 +34,12 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `x` | `number` |
-| `z` | `number` |
 | `id` | `string` |
+| `lights` | `Uint32Array` |
 | `meshes` | [`MeshProtocol`](modules.md#meshprotocol)[] |
 | `voxels` | `Uint32Array` |
-| `lights` | `Uint32Array` |
-
-___
-
-### PeerProtocol
-
-Ƭ **PeerProtocol**<`T`\>: `Object`
-
-#### Type parameters
-
-| Name |
-| :------ |
-| `T` |
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `string` |
-| `username` | `string` |
-| `metadata` | `T` |
+| `x` | `number` |
+| `z` | `number` |
 
 ___
 
@@ -94,8 +58,8 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `type` | `string` |
 | `metadata` | `T` |
+| `type` | `string` |
 
 ___
 
@@ -118,33 +82,33 @@ ___
 
 ___
 
-### UpdateProtocol
+### GeometryProtocol
 
-Ƭ **UpdateProtocol**: `Object`
+Ƭ **GeometryProtocol**: `Object`
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
-| `voxel?` | `number` |
-| `light?` | `number` |
+| `identifier` | `number` |
+| `indices` | `number`[] |
+| `lights` | `number`[] |
+| `positions` | `number`[] |
+| `uvs` | `number`[] |
 
 ___
 
-### ChatProtocol
+### MeshProtocol
 
-Ƭ **ChatProtocol**: `Object`
+Ƭ **MeshProtocol**: `Object`
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `type` | `string` |
-| `sender?` | `string` |
-| `body` | `string` |
+| `level` | `number` |
+| `opaque` | [`GeometryProtocol`](modules.md#geometryprotocol) |
+| `transparent` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
 
 ___
 
@@ -165,12 +129,48 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` |
-| `json?` | `T` |
-| `text?` | `string` |
 | `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
-| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)<`Peer`\>[] |
-| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)<`Entity`\>[] |
 | `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
+| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)<`Entity`\>[] |
 | `events?` | [`EventProtocol`](modules.md#eventprotocol)<`Event`\>[] |
+| `json?` | `T` |
+| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)<`Peer`\>[] |
+| `text?` | `string` |
+| `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` |
 | `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
+
+___
+
+### PeerProtocol
+
+Ƭ **PeerProtocol**<`T`\>: `Object`
+
+#### Type parameters
+
+| Name |
+| :------ |
+| `T` |
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+| `metadata` | `T` |
+| `username` | `string` |
+
+___
+
+### UpdateProtocol
+
+Ƭ **UpdateProtocol**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `light?` | `number` |
+| `voxel?` | `number` |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |

@@ -34,8 +34,8 @@ A listener to be implemented to handle incoming packets.
 | :------ | :------ | :------ |
 | `message` | `MessageProtocol`<`any`, `any`, `any`, `any`\> | The message received from the server. |
 | `clientInfo` | `Object` | The client information. |
-| `clientInfo.username` | `string` | - |
 | `clientInfo.id` | `string` | - |
+| `clientInfo.username` | `string` | - |
 
 #### Returns
 

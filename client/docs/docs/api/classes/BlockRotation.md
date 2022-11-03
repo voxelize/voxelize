@@ -10,23 +10,6 @@ A block rotation consists of two rotations: one is the axis this block is pointi
 and the other is the rotation around that axis (y-rotation). Y-rotation is only applicable
 to the positive and negative x-axis.
 
-## Properties
-
-### value
-
-• **value**: `number`
-
-The axis this block is pointing towards.
-
-___
-
-### yRotation
-
-• **yRotation**: `number`
-
-The rotation around the axis this block is pointing towards, rounded to the nearest
-(360 / 16) degrees.
-
 ## Constructors
 
 ### constructor
@@ -43,27 +26,6 @@ Create a new block rotation.
 | `yRotation` | `number` | The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees. |
 
 ## Methods
-
-### encode
-
-▸ `Static` **encode**(`value`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
-
-Encode two rotations into a new block rotation instance.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `value` | `number` | `undefined` | The axis this block is pointing towards. |
-| `yRotation` | `number` | `0` | The rotation around the axis this block is pointing towards. |
-
-#### Returns
-
-[`BlockRotation`](BlockRotation.md)
-
-A new block rotation.
-
-___
 
 ### decode
 
@@ -86,23 +48,24 @@ Two values, the first is the axis this block is pointing towards, and
 
 ___
 
-### rotateNode
+### encode
 
-▸ **rotateNode**(`node`, `yRotate?`, `translate?`): `void`
+▸ `Static` **encode**(`value`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
 
-Rotate a 3D coordinate by this block rotation.
+Encode two rotations into a new block rotation instance.
 
 #### Parameters
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-198) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
-| `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
-| `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
+| `value` | `number` | `undefined` | The axis this block is pointing towards. |
+| `yRotation` | `number` | `0` | The rotation around the axis this block is pointing towards. |
 
 #### Returns
 
-`void`
+[`BlockRotation`](BlockRotation.md)
+
+A new block rotation.
 
 ___
 
@@ -126,3 +89,40 @@ maximum and minimum coordinates to this AABB.
 `AABB`
 
 A new axis aligned bounding box.
+
+___
+
+### rotateNode
+
+▸ **rotateNode**(`node`, `yRotate?`, `translate?`): `void`
+
+Rotate a 3D coordinate by this block rotation.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `node` | [`Coords3`](../modules.md#coords3-14) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
+| `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
+
+#### Returns
+
+`void`
+
+## Properties
+
+### value
+
+• **value**: `number`
+
+The axis this block is pointing towards.
+
+___
+
+### yRotation
+
+• **yRotation**: `number`
+
+The rotation around the axis this block is pointing towards, rounded to the nearest
+(360 / 16) degrees.

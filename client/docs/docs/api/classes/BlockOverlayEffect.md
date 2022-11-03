@@ -33,37 +33,6 @@ composer.addPass(
 
   ↳ **`BlockOverlayEffect`**
 
-## Constructors
-
-### constructor
-
-• **new BlockOverlayEffect**(`world`, `camera`)
-
-Create a new block overlay effect.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world that the effect is in. |
-| `camera` | `PerspectiveCamera` | The camera that the effect is applied to. |
-
-#### Overrides
-
-Effect.constructor
-
-## Properties
-
-### world
-
-• **world**: [`World`](World.md)
-
-___
-
-### camera
-
-• **camera**: `PerspectiveCamera`
-
 ## Methods
 
 ### addOverlay
@@ -83,3 +52,34 @@ Add a new overlay to a certain voxel type.
 #### Returns
 
 `void`
+
+## Properties
+
+### camera
+
+• **camera**: `PerspectiveCamera`
+
+___
+
+### world
+
+• **world**: [`World`](World.md)
+
+## Constructors
+
+### constructor
+
+• **new BlockOverlayEffect**(`world`, `camera`)
+
+Create a new block overlay effect.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `world` | [`World`](World.md) | The world that the effect is in. |
+| `camera` | `PerspectiveCamera` | The camera that the effect is applied to. |
+
+#### Overrides
+
+Effect.constructor

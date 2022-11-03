@@ -14,62 +14,6 @@ A layer of a canvas box. This is a group of six canvases that are rendered as a 
 
   ↳ **`BoxLayer`**
 
-## Properties
-
-### materials
-
-• **materials**: `Map`<`string`, `MeshBasicMaterial`\>
-
-The materials of the six faces of this box layer.
-
-___
-
-### width
-
-• **width**: `number`
-
-The width of the box layer.
-
-___
-
-### height
-
-• **height**: `number`
-
-The height of the box layer.
-
-___
-
-### depth
-
-• **depth**: `number`
-
-The depth of the box layer.
-
-___
-
-### widthSegments
-
-• **widthSegments**: `number`
-
-The width segments of the box layer.
-
-___
-
-### heightSegments
-
-• **heightSegments**: `number`
-
-The height segments of the box layer.
-
-___
-
-### depthSegments
-
-• **depthSegments**: `number`
-
-The depth segments of the box layer.
-
 ## Constructors
 
 ### constructor
@@ -95,6 +39,62 @@ Create a six-sided canvas box layer.
 
 Mesh.constructor
 
+## Properties
+
+### depth
+
+• **depth**: `number`
+
+The depth of the box layer.
+
+___
+
+### depthSegments
+
+• **depthSegments**: `number`
+
+The depth segments of the box layer.
+
+___
+
+### height
+
+• **height**: `number`
+
+The height of the box layer.
+
+___
+
+### heightSegments
+
+• **heightSegments**: `number`
+
+The height segments of the box layer.
+
+___
+
+### materials
+
+• **materials**: `Map`<`string`, `MeshBasicMaterial`\>
+
+The materials of the six faces of this box layer.
+
+___
+
+### width
+
+• **width**: `number`
+
+The width of the box layer.
+
+___
+
+### widthSegments
+
+• **widthSegments**: `number`
+
+The width segments of the box layer.
+
 ## Methods
 
 ### paint
@@ -107,8 +107,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-198) \| [`BoxSides`](../modules.md#boxsides-198)[] | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-198) \| `Color` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) \| `Color` | The art or art function to draw on the box layer's side. |
 
 #### Returns
 

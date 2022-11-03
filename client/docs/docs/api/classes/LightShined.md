@@ -6,43 +6,6 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-## Properties
-
-### params
-
-• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-198)
-
-___
-
-### list
-
-• **list**: `Set`<`Object3D`<`Event`\>\>
-
-___
-
-### ignored
-
-• **ignored**: `Set`<`any`\>
-
-___
-
-### world
-
-• **world**: [`World`](World.md)
-
-## Constructors
-
-### constructor
-
-• **new LightShined**(`world`, `params?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `world` | [`World`](World.md) |
-| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-198)\> |
-
 ## Methods
 
 ### add
@@ -54,6 +17,22 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `obj` | `Object3D`<`Event`\> |
+
+#### Returns
+
+`void`
+
+___
+
+### ignore
+
+▸ **ignore**(...`types`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `...types` | `any`[] |
 
 #### Returns
 
@@ -85,18 +64,39 @@ ___
 
 `void`
 
-___
+## Constructors
 
-### ignore
+### constructor
 
-▸ **ignore**(...`types`): `void`
+• **new LightShined**(`world`, `params?`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `...types` | `any`[] |
+| `world` | [`World`](World.md) |
+| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-14)\> |
 
-#### Returns
+## Properties
 
-`void`
+### ignored
+
+• **ignored**: `Set`<`any`\>
+
+___
+
+### list
+
+• **list**: `Set`<`Object3D`<`Event`\>\>
+
+___
+
+### params
+
+• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-14)
+
+___
+
+### world
+
+• **world**: [`World`](World.md)
