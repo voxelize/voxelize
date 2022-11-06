@@ -6,6 +6,9 @@ import { ColorText } from "./color-text";
  * A sprite that can be used to display text. This is highly inspired by the
  * [THREE.SpriteText](https://github.com/vasturiano/three-spritetext) library.
  *
+ * Sprite text uses {@link ColorText} internally to generate the texture that supports
+ * multiple colors in the same text.
+ *
  * ![Sprite text](/img/sprite-text.png)
  *
  * @noInheritDoc
@@ -29,6 +32,12 @@ export class SpriteText extends Sprite {
 
   private _canvas = document.createElement("canvas");
 
+  /**
+   * Creates a new sprite text.
+   *
+   * @param text The text to display.
+   * @param textHeight The height of the text in pixels.
+   */
   constructor(text = "", textHeight = 10) {
     super(new SpriteMaterial());
 
@@ -39,91 +48,193 @@ export class SpriteText extends Sprite {
     this.generate();
   }
 
+  /**
+   * Get the text rendered in the sprite.
+   */
   get text() {
     return this._text;
   }
+
+  /**
+   * Set the text to display. This will regenerate the sprite.
+   */
   set text(text) {
     this._text = text;
     this.generate();
   }
+
+  /**
+   * Get the text height in pixels.
+   */
   get textHeight() {
     return this._textHeight;
   }
+
+  /**
+   * Set the text height to display. This will regenerate the sprite.
+   */
   set textHeight(textHeight) {
     this._textHeight = textHeight;
     this.generate();
   }
+
+  /**
+   * Get the background color of the sprite text.
+   */
   get backgroundColor() {
     return this._backgroundColor;
   }
+
+  /**
+   * Set the background color of the sprite text. This will regenerate the sprite.
+   */
   set backgroundColor(color) {
     this._backgroundColor = color;
     this.generate();
   }
+
+  /**
+   * Get the padding of the sprite text. This is the space between the text and
+   * the border.
+   */
   get padding() {
     return this._padding;
   }
+
+  /**
+   * Set the padding of the sprite text. This is the space between the text and
+   * the border. This will regenerate the sprite.
+   */
   set padding(padding) {
     this._padding = padding;
     this.generate();
   }
+
+  /**
+   * Get the border width of the sprite text.
+   */
   get borderWidth() {
     return this._borderWidth;
   }
+
+  /**
+   * Set the border width of the sprite text. This will regenerate the sprite.
+   */
   set borderWidth(borderWidth) {
     this._borderWidth = borderWidth;
     this.generate();
   }
+
+  /**
+   * Get the border radius of the sprite text.
+   */
   get borderRadius() {
     return this._borderRadius;
   }
+
+  /**
+   * Set the border radius of the sprite text. This will regenerate the sprite.
+   */
   set borderRadius(borderRadius) {
     this._borderRadius = borderRadius;
     this.generate();
   }
+
+  /**
+   * Get the border color of the sprite text.
+   */
   get borderColor() {
     return this._borderColor;
   }
+
+  /**
+   * Set the border color of the sprite text. This will regenerate the sprite.
+   */
   set borderColor(borderColor) {
     this._borderColor = borderColor;
     this.generate();
   }
+
+  /**
+   * Get the font face of the sprite text.
+   */
   get fontFace() {
     return this._fontFace;
   }
+
+  /**
+   * Set the font face of the sprite text. This will regenerate the sprite.
+   */
   set fontFace(fontFace) {
     this._fontFace = fontFace;
     this.generate();
   }
+
+  /**
+   * Get the font size of the sprite text.
+   */
   get fontSize() {
     return this._fontSize;
   }
+
+  /**
+   * Set the font size of the sprite text. This will regenerate the sprite.
+   */
   set fontSize(fontSize) {
     this._fontSize = fontSize;
     this.generate();
   }
+
+  /**
+   * Get the font weight of the sprite text.
+   */
   get fontWeight() {
     return this._fontWeight;
   }
+
+  /**
+   * Set the font weight of the sprite text. This will regenerate the sprite.
+   */
   set fontWeight(fontWeight) {
     this._fontWeight = fontWeight;
     this.generate();
   }
+
+  /**
+   * Get the stroke width of the sprite text.
+   */
   get strokeWidth() {
     return this._strokeWidth;
   }
+
+  /**
+   * Set the stroke width of the sprite text. This will regenerate the sprite.
+   */
   set strokeWidth(strokeWidth) {
     this._strokeWidth = strokeWidth;
     this.generate();
   }
+
+  /**
+   * Get the stroke color of the sprite text. In other words, the color of the
+   * text.
+   */
   get strokeColor() {
     return this._strokeColor;
   }
+
+  /**
+   * Set the stroke color of the sprite text. In other words, the color of the
+   * text. This will regenerate the sprite.
+   */
   set strokeColor(strokeColor) {
     this._strokeColor = strokeColor;
     this.generate();
   }
 
+  /**
+   * Regenerate the sprite text.
+   */
   private generate = () => {
     const canvas = this._canvas;
     const ctx = canvas.getContext("2d");

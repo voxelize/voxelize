@@ -25,7 +25,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-472)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-480)
 
 ___
 
@@ -37,7 +37,7 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-472)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-480)
 
 ___
 
@@ -57,7 +57,7 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-472)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-480)
 
 ___
 
@@ -72,13 +72,13 @@ ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-472)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-480)
 
 Parameters for creating a canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-472)
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-480)
 
 ___
 
@@ -86,7 +86,7 @@ ___
 
 • **uBottomColor**: `Object`
 
-The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-30).
+The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-38).
 
 #### Type declaration
 
@@ -100,7 +100,7 @@ ___
 
 • **uMiddleColor**: `Object`
 
-The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-30).
+The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-38).
 
 #### Type declaration
 
@@ -114,7 +114,7 @@ ___
 
 • **uTopColor**: `Object`
 
-The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-34).
+The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-42).
 
 #### Type declaration
 
@@ -132,7 +132,7 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-472)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-480)
 
 ## Accessors
 
@@ -167,7 +167,7 @@ The internal current color of the top of the sky gradient.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-472)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-480)
 
 ## Methods
 
@@ -224,8 +224,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-472) \| [`BoxSides`](../modules.md#boxsides-472)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-472) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-480) \| [`BoxSides`](../modules.md#boxsides-480)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-480) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -234,7 +234,7 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-472)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-480)
 
 ___
 

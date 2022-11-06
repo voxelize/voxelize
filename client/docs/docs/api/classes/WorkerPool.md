@@ -26,13 +26,13 @@ ___
 
 ### params
 
-• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-472) = `defaultParams`
+• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-480) = `defaultParams`
 
 ___
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-472)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-480)[] = `[]`
 
 ## Methods
 
@@ -44,7 +44,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-472) |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-480) |
 
 #### Returns
 
@@ -71,7 +71,7 @@ ___
 | Name | Type | Default value |
 | :------ | :------ | :------ |
 | `Proto` | () => `Worker` | `undefined` |
-| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-472) | `defaultParams` |
+| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-480) | `defaultParams` |
 
 ## Accessors
 
