@@ -1,6 +1,5 @@
 import { Group } from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
-import { Pane } from "tweakpane";
 
 import { DOMUtils } from "../utils";
 
@@ -12,11 +11,6 @@ export type DebugParams = {
    * Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`.
    */
   stats: boolean;
-
-  /**
-   * Whether or not should [tweakpane](https://cocopon.github.io/tweakpane/) be enabled. Defaults to `true`.
-   */
-  tweakpane: boolean;
 
   /**
    * Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`.
@@ -62,7 +56,6 @@ export type DebugParams = {
 
 const defaultParams: DebugParams = {
   stats: true,
-  tweakpane: true,
   onByDefault: true,
   entryStyles: {},
   entryClass: "",
@@ -101,11 +94,6 @@ export class Debug extends Group {
    * Parameters to create a {@link Debug} instance.
    */
   public params: DebugParams;
-
-  /**
-   * The tweakpane instance, situated in the top-right corner.
-   */
-  public gui?: Pane;
 
   /**
    * The stats.js instance, situated in the top-left corner after the data entries.
@@ -255,10 +243,6 @@ export class Debug extends Group {
     if (this.stats) {
       this.stats.dom.style.visibility = newVisibility;
     }
-
-    if (this.gui?.element) {
-      this.gui.element.style.visibility = newVisibility;
-    }
   };
 
   /**
@@ -360,26 +344,6 @@ export class Debug extends Group {
    * Final setup of the debug panel.
    */
   private setup = () => {
-    if (this.params.tweakpane) {
-      this.gui = new Pane({
-        title: "Voxelize Debug Panel",
-        expanded: false,
-      });
-
-      DOMUtils.applyStyles(this.gui.element, {
-        position: "fixed",
-        top: "10px",
-        right: "10px",
-        zIndex: "1000000000000",
-      });
-
-      // detach tweakpane from it's default parent
-      const parentElement = this.gui.element;
-      if (parentElement) {
-        parentElement.parentNode?.removeChild(parentElement);
-      }
-    }
-
     if (this.params.showVoxelize) {
       this.displayTitle(`Voxelize ${"__buildVersion__"}`);
       this.displayNewline();
@@ -397,9 +361,5 @@ export class Debug extends Group {
     }
 
     this.domElement.appendChild(this.dataWrapper);
-
-    if (this.gui?.element) {
-      this.domElement.appendChild(this.gui.element);
-    }
   };
 }

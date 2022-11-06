@@ -92,6 +92,9 @@ const App = () => {
       character.head.paint("front", texture);
     });
 
+    inputs.on("namespace", (namespace) => {
+      console.log("namespace changed", namespace);
+    });
     inputs.setNamespace("menu");
 
     const sky = new VOXELIZE.Sky(2000);
@@ -193,7 +196,6 @@ const App = () => {
     world.add(voxelInteract);
 
     const debug = new VOXELIZE.Debug(document.body, {
-      tweakpane: false,
       showVoxelize: false,
     });
 

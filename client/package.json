@@ -22,11 +22,9 @@
     "docs:deploy": "cd docs && yarn && yarn run deploy"
   },
   "peerDependencies": {
-    "@tweakpane/core": "^1.0.8",
     "postprocessing": "^6.26.3",
     "three": "^0.142.0",
-    "three-nebula": "10.0.3",
-    "tweakpane": "3.1.0"
+    "three-nebula": "10.0.3"
   },
   "devDependencies": {
     "@types/gl-vec3": "^1.1.1",
@@ -49,7 +47,6 @@
     "ndarray": "^1.0.19",
     "regenerator-runtime": "^0.13.9",
     "socket.io-client": "^4.4.1",
-    "tweakpane": "^3.0.7",
     "uuid": "^8.3.2"
   }
 }

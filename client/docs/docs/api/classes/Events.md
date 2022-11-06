@@ -6,8 +6,26 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-A **built-in** manager for the events sent from the Voxelize server. Keep in
-mind that one event can only have one listener!
+A manager for any events interacting with the Voxelize server. This is useful
+for any defined game events that are sent from or needs to be broadcasted to
+the server.
+
+# Example
+```ts
+const events = new VOXELIZE.Events();
+
+// Define the behavior to handle a game-over event. Keep in mind that this
+// event is most likely sent from the server, so check out the documentations
+// for creating and emitting custom events fullstack.
+events.on("game-over", (payload) => {
+  // Do something about the game over event.
+});
+
+// Register the interceptor with the network.
+network.register(events);
+```
+
+TODO-DOC
 
 ## Hierarchy
 
@@ -20,22 +38,6 @@ mind that one event can only have one listener!
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
 ## Methods
-
-### [iterator]
-
-▸ **[iterator]**(): `IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-82)]\>
-
-Returns an iterable of entries in the map.
-
-#### Returns
-
-`IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-82)]\>
-
-#### Inherited from
-
-Map.\_\_@iterator@11647
-
-___
 
 ### addEventListener
 
@@ -57,133 +59,6 @@ If the payload cannot be parsed by JSON, `null` is set.
 
 ___
 
-### clear
-
-▸ **clear**(): `void`
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Map.clear
-
-___
-
-### delete
-
-▸ **delete**(`key`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-Map.delete
-
-___
-
-### entries
-
-▸ **entries**(): `IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-82)]\>
-
-Returns an iterable of key, value pairs for every entry in the map.
-
-#### Returns
-
-`IterableIterator`<[`string`, [`EventHandler`](../modules.md#eventhandler-82)]\>
-
-#### Inherited from
-
-Map.entries
-
-___
-
-### forEach
-
-▸ **forEach**(`callbackfn`, `thisArg?`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callbackfn` | (`value`: [`EventHandler`](../modules.md#eventhandler-82), `key`: `string`, `map`: `Map`<`string`, [`EventHandler`](../modules.md#eventhandler-82)\>) => `void` |
-| `thisArg?` | `any` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Map.forEach
-
-___
-
-### get
-
-▸ **get**(`key`): [`EventHandler`](../modules.md#eventhandler-82)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-
-#### Returns
-
-[`EventHandler`](../modules.md#eventhandler-82)
-
-#### Inherited from
-
-Map.get
-
-___
-
-### has
-
-▸ **has**(`key`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-
-#### Returns
-
-`boolean`
-
-#### Inherited from
-
-Map.has
-
-___
-
-### keys
-
-▸ **keys**(): `IterableIterator`<`string`\>
-
-Returns an iterable of keys in the map
-
-#### Returns
-
-`IterableIterator`<`string`\>
-
-#### Inherited from
-
-Map.keys
-
-___
-
 ### on
 
 ▸ **on**(`name`, `handler`): `void`
@@ -201,120 +76,3 @@ If the payload cannot be parsed by JSON, `null` is set.
 #### Returns
 
 `void`
-
-___
-
-### onMessage
-
-▸ **onMessage**(`message`): `void`
-
-A listener to be implemented to handle incoming packets.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `message` | `MessageProtocol`<`any`, `any`, `any`, `any`\> |
-
-#### Returns
-
-`void`
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-82)
-
-___
-
-### set
-
-▸ **set**(`key`, `value`): [`Events`](Events.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-| `value` | [`EventHandler`](../modules.md#eventhandler-82) |
-
-#### Returns
-
-[`Events`](Events.md)
-
-#### Inherited from
-
-Map.set
-
-___
-
-### values
-
-▸ **values**(): `IterableIterator`<[`EventHandler`](../modules.md#eventhandler-82)\>
-
-Returns an iterable of values in the map
-
-#### Returns
-
-`IterableIterator`<[`EventHandler`](../modules.md#eventhandler-82)\>
-
-#### Inherited from
-
-Map.values
-
-## Properties
-
-### [species]
-
-▪ `Static` `Readonly` **[species]**: `MapConstructor`
-
-#### Inherited from
-
-Map.\_\_@species@12156
-
-___
-
-### [toStringTag]
-
-• `Readonly` **[toStringTag]**: `string`
-
-#### Inherited from
-
-Map.\_\_@toStringTag@12174
-
-___
-
-### size
-
-• `Readonly` **size**: `number`
-
-#### Inherited from
-
-Map.size
-
-## Constructors
-
-### constructor
-
-• **new Events**(`entries?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `entries?` | readonly readonly [`string`, [`EventHandler`](../modules.md#eventhandler-82)][] |
-
-#### Inherited from
-
-Map<string, EventHandler\>.constructor
-
-• **new Events**(`iterable?`)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `iterable?` | `Iterable`<readonly [`string`, [`EventHandler`](../modules.md#eventhandler-82)]\> |
-
-#### Inherited from
-
-Map<string, EventHandler\>.constructor

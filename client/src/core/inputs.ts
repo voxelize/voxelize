@@ -12,6 +12,22 @@ export type ClickType = "left" | "middle" | "right";
  */
 export type InputOccasion = "keydown" | "keypress" | "keyup";
 
+/**
+ * The specific parameters of the key to listen to.
+ */
+export type InputSpecifics = {
+  /**
+   * A special identifier to tag this input with. This is useful for removing specific
+   * inputs from the input listener later on.
+   */
+  identifier?: string;
+
+  /**
+   * The occasion that the input should be fired. Defaults to `keydown`.
+   */
+  occasion?: InputOccasion;
+};
+
 type ClickCallbacks = Map<string, { callback: () => void; namespace: string }>;
 type ScrollCallbacks = Map<
   string,
@@ -22,41 +38,75 @@ type ScrollCallbacks = Map<
   }
 >;
 
-export declare interface Inputs<T extends string> {
-  on(event: "namespace", listener: (namespace: string) => void): this;
-}
-
 /**
- * A **built-in** key-bind manager for Voxelize. Uses the [mousetrap](https://github.com/ccampbell/mousetrap)
- * library internally.
+ * A key and mouse binding manager for Voxelize.
+ *
+ * Inputs allow you to bind keys and mouse buttons to functions
+ * and also gives an organized way to manage keyboard and mouse inputs using namespaces. Namespaces are used to
+ * separate groups of inputs. For example, you can have a namespace for the main menu
+ * and another namespace for the game. You can then bind keys and mouse buttons to functions for each namespace.
+ *
+ * Another use of inputs is to bind keys and mouse buttons for some built-in functionality. As of now, the following
+ * requires inputs to be bound:
+ * - [RigidControls.connect](/docs/api/classes/RigidControls#connect): <kbd>WASD</kbd> and <kbd>Space</kbd> for movement, <kbd>Shift</kbd> for going down and <kbd>R</kbd> for sprinting.
+ * - [Perspective.connect](/docs/api/classes/Perspective#connect): <kbd>C</kbd> for switching between perspectives.
+ *
+ * You can change the above bindings by calling {@link Inputs.remap} with the corresponding input identifiers, namely
+ * `RigidControls.INPUT_IDENTIFIER` and `Perspectives.INPUT_IDENTIFIER`.
  *
  * ## Example
- * Print "Hello world" on <kbd>p</kbd> presses:
  * ```typescript
- * client.inputs.bind(
- *   "p",
- *   () => {
- *     console.log("Hello world");
- *   },
- *   "*"
- * );
+ * // Create a new inputs manager.
+ * const inputs = new VOXELIZE.Inputs();
+ *
+ * // Bind the space bar to a function.
+ * inputs.bind(" ", () => {
+ *   console.log("Space bar pressed!");
+ * });
+ *
+ * // Bind rigid controls to the inputs manager.
+ * rigidControls.connect(inputs);
  * ```
  *
+ * @noInheritDoc
+ * @param T The list of input namespaces. For instance, `T` could be "menu" and "game".
  * @category Core
  */
 export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * The namespace that the Voxelize inputs is in. Use `setNamespace` to
-   * set the namespace for namespace checking.
+   * set the namespace to something else.
    */
   public namespace: T | "*";
 
+  /**
+   * A map for click callbacks.
+   */
   private clickCallbacks: Map<ClickType, ClickCallbacks> = new Map();
+
+  /**
+   * A map for scroll callbacks.
+   */
   private scrollCallbacks: ScrollCallbacks = new Map();
+
+  /**
+   * A map for keydown callbacks.
+   */
   private keyDownCallbacks: Map<string, (() => void)[]> = new Map();
+
+  /**
+   * A map for keyup callbacks.
+   */
   private keyUpCallbacks: Map<string, (() => void)[]> = new Map();
+
+  /**
+   * A map for key press callbacks.
+   */
   private keyPressCallbacks: Map<string, (() => void)[]> = new Map();
 
+  /**
+   * A map for key binds.
+   */
   private keyBounds = new Map<
     string,
     {
@@ -67,12 +117,27 @@ export class Inputs<T extends string = any> extends EventEmitter {
       };
     }
   >();
+
+  /**
+   * A list of functions to unbind all inputs.
+   */
   private unbinds: (() => void)[] = [];
 
   /**
-   * Construct a Voxelize inputs instance.
+   * Listen to an event emitted by the input instance. The following events are emitted:
+   * - `namespace`: Emitted when the namespace is changed.
    *
-   * @hidden
+   * @param event An event to listen on.
+   * @param listener A listener to call when the event is emitted.
+   * @returns The input instance for chaining.
+   */
+  on(event: "namespace", listener: (namespace: string) => void) {
+    super.on(event, listener);
+    return this;
+  }
+
+  /**
+   * Construct a Voxelize inputs instance.
    */
   constructor() {
     super();
@@ -83,29 +148,31 @@ export class Inputs<T extends string = any> extends EventEmitter {
   }
 
   /**
-   * Register a new click event listener.
+   * Add a mouse click event listener.
    *
-   * @param type - Which mouse button to register on.
-   * @param callback - What to do when that button is clicked.
-   * @param namespace - Which namespace should this event be fired?
+   * @param type The type of click to listen for. Either "left", "middle" or "right".
+   * @param callback The callback to call when the click is fired.
+   * @param namespace The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace.
+   * @returns A function to unbind the click.
    */
-  click = (type: ClickType, callback: () => void, namespace: T | "*") => {
+  click = (type: ClickType, callback: () => void, namespace: T | "*" = "*") => {
     const id = uuidv4();
     this.clickCallbacks.get(type)?.set(id, { namespace, callback });
     return () => this.clickCallbacks.get(type).delete(id);
   };
 
   /**
-   * Register a new scroll event listener.
+   * Add a scroll event listener.
    *
-   * @param up - What to do when scrolled upwards.
-   * @param down - What to do when scrolled downwards.
-   * @param namespace - Which namespace should this even be fired?
+   * @param up The callback to call when the scroll wheel is scrolled up.
+   * @param down The callback to call when the scroll wheel is scrolled down.
+   * @param namespace The namespace to bind the scroll to. Defaults to "*", which means that the scroll will be fired regardless of the namespace.
+   * @returns A function to unbind the scroll.
    */
   scroll = (
     up: (delta?: number) => void,
     down: (delta?: number) => void,
-    namespace: T | "*"
+    namespace: T | "*" = "*"
   ) => {
     const id = uuidv4();
     this.scrollCallbacks.set(id, { up, down, namespace });
@@ -113,23 +180,19 @@ export class Inputs<T extends string = any> extends EventEmitter {
   };
 
   /**
-   * Register a key-bind event listener.
+   * Bind a keyboard key to a callback.
    *
-   * @param key - The key to listen on.
-   * @param callback - What to do when the key/combo is pressed.
-   * @param namespace - The namespace in which the to fire this event.
-   * @param specifics - Used to specify in more details when/where the press occurs.
-   * @param specifics.occasion - Which pressing occasion should the event be fired. Defaults to "keydown".
-   * @param specifics.identifier - Whether or not should this be a special key event. Defaults to "".
+   * @param key The key to listen for. This checks the `event.key` or the `event.code` property.
+   * @param callback The callback to call when the key is pressed.
+   * @param namespace The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace.
+   * @param specifics The specific parameters of the key to listen for.
+   * @returns A function to unbind the key.
    */
   bind = (
     key: string,
     callback: () => void,
-    namespace: T | "*",
-    specifics: {
-      occasion?: InputOccasion;
-      identifier?: string;
-    } = {}
+    namespace: T | "*" = "*",
+    specifics: InputSpecifics = {}
   ) => {
     key = this.modifyKey(key);
 
@@ -203,10 +266,14 @@ export class Inputs<T extends string = any> extends EventEmitter {
     return unbind;
   };
 
-  unbind = (
-    key: string,
-    specifics: { occasion?: InputOccasion; identifier?: string } = {}
-  ) => {
+  /**
+   * Unbind a keyboard key.
+   *
+   * @param key The key to unbind.
+   * @param specifics The specifics of the key to unbind.
+   * @returns Whether or not if the unbinding was successful.
+   */
+  unbind = (key: string, specifics: InputSpecifics = {}) => {
     key = this.modifyKey(key);
 
     const { occasion = "keydown", identifier = "default" } = specifics;
@@ -223,6 +290,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     return false;
   };
 
+  /**
+   * Swap two keys with each other.
+   *
+   * @param keyA The first key to swap.
+   * @param keyB The second key to swap.
+   * @param specifics The specifics of the keys to swap.
+   */
   swap = (
     keyA: string,
     keyB: string,
@@ -261,16 +335,23 @@ export class Inputs<T extends string = any> extends EventEmitter {
     this.bind(keyA, callbackB, namespaceB, specifics);
   };
 
+  /**
+   * Remap a key to another key.
+   *
+   * @param oldKey The old key to replace.
+   * @param newKey The new key to replace the old key with.
+   * @param specifics The specifics of the keys to replace.
+   */
   remap = (
-    key: string,
-    newName: string,
+    oldKey: string,
+    newKey: string,
     specifics: { occasion?: InputOccasion; identifier?: string } = {}
   ) => {
-    key = this.modifyKey(key);
+    oldKey = this.modifyKey(oldKey);
 
     const { occasion = "keydown", identifier = "default" } = specifics;
 
-    const name = key + occasion;
+    const name = oldKey + occasion;
     const bounds = (this.keyBounds.get(name) || {})[identifier];
 
     if (!bounds) {
@@ -280,13 +361,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const { unbind, callback, namespace } = bounds;
 
     unbind();
-    this.bind(newName, callback, namespace, specifics);
+    this.bind(newKey, callback, namespace, specifics);
   };
 
   /**
-   * Set the namespace of the inputs instance, also checks if the namespace is valid.
+   * Set the namespace of the input instance. This emits a "namespace" event.
    *
-   * @param namespace - The namespace to set to.
+   * @param namespace The new namespace to set.
    */
   setNamespace = (namespace: T) => {
     this.namespace = namespace;
@@ -294,15 +375,16 @@ export class Inputs<T extends string = any> extends EventEmitter {
   };
 
   /**
-   * Reset and dispose all event listeners.
-   *
-   * @internal
+   * Reset all keyboard keys by unbinding all keys.
    */
   reset = () => {
     this.keyBounds.forEach((b) => Object.values(b).forEach((e) => e.unbind()));
     this.unbinds.forEach((fn) => fn());
   };
 
+  /**
+   * Make everything lower case.
+   */
   private modifyKey = (key: string) => {
     // Make first character upper case
     return (
@@ -310,6 +392,9 @@ export class Inputs<T extends string = any> extends EventEmitter {
     ).toLowerCase();
   };
 
+  /**
+   * Initialize the keyboard input listeners.
+   */
   private initKeyListener = () => {
     // Handle all three types of key events while checking namespace.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
@@ -335,6 +420,9 @@ export class Inputs<T extends string = any> extends EventEmitter {
     document.addEventListener("keypress", keyListener("keypress"));
   };
 
+  /**
+   * Initialize the mouse input listeners.
+   */
   private initClickListener = () => {
     (["left", "middle", "right"] as ClickType[]).forEach((type) =>
       this.clickCallbacks.set(type, new Map())
@@ -360,6 +448,9 @@ export class Inputs<T extends string = any> extends EventEmitter {
     );
   };
 
+  /**
+   * Initialize the mouse scroll listeners.
+   */
   private initScrollListener = () => {
     const listener = ({ deltaY }: any) => {
       this.scrollCallbacks.forEach(({ up, down, namespace }) => {

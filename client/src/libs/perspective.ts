@@ -52,7 +52,7 @@ export class Perspective {
 
   onChangeState: (state: "first" | "second" | "third") => void;
 
-  connect = (inputs: Inputs<any>, namespace = "*") => {
+  connect = (inputs: Inputs, namespace = "*") => {
     inputs.bind("c", this.toggle, namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
     });

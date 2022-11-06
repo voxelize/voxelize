@@ -9,6 +9,7 @@ custom_edit_url: null
 ## Core Classes
 
 - [Chat](classes/Chat.md)
+- [Entities](classes/Entities.md)
 - [Inputs](classes/Inputs.md)
 - [Network](classes/Network.md)
 - [Peers](classes/Peers.md)
@@ -35,7 +36,6 @@ custom_edit_url: null
 - [Chunks](classes/Chunks.md)
 - [Clouds](classes/Clouds.md)
 - [Debug](classes/Debug.md)
-- [Entities](classes/Entities.md)
 - [Events](classes/Events.md)
 - [ImageVoxelizer](classes/ImageVoxelizer.md)
 - [NameTag](classes/NameTag.md)
@@ -575,7 +575,6 @@ Parameters to create a [Debug](classes/Debug.md) instance.
 | `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [Debug.toggle](classes/Debug.md#toggle-82). |
 | `showVoxelize` | `boolean` | Whether or not should `Voxelize x.x.x` be displayed in the top-left debug panel. Defaults to `true`. |
 | `stats` | `boolean` | Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`. |
-| `tweakpane` | `boolean` | Whether or not should [tweakpane](https://cocopon.github.io/tweakpane/) be enabled. Defaults to `true`. |
 
 ___
 
@@ -595,7 +594,7 @@ ___
 
 Ƭ **Event**: `Object`
 
-A Voxelize event.
+A Voxelize event from the server.
 
 #### Type declaration
 
@@ -673,6 +672,21 @@ ___
 Ƭ **InputOccasion**: ``"keydown"`` \| ``"keypress"`` \| ``"keyup"``
 
 The occasion that the input should be fired.
+
+___
+
+### InputSpecifics
+
+Ƭ **InputSpecifics**: `Object`
+
+The specific parameters of the key to listen to.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `identifier?` | `string` | A special identifier to tag this input with. This is useful for removing specific inputs from the input listener later on. |
+| `occasion?` | [`InputOccasion`](modules.md#inputoccasion-82) | The occasion that the input should be fired. Defaults to `keydown`. |
 
 ___
 

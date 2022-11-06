@@ -6,13 +6,29 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-A **built-in** map representing living entities on the server.
+A network interceptor that can be used to handle `ENTITY` messages. This is useful
+for creating custom entities that can be sent over the network.
+
+TODO-DOCS
+
+# Example
+```ts
+const entities = new VOXELIZE.Entities<{ position: VOXELIZE.Coords3 }>();
+
+// Define the behavior to handle an entity message.
+entities.onEntity = ({ id, type, metadata }) => {
+  // Do something about `metadata.position`.
+};
+
+// Register the interceptor with the network.
+network.register(entities);
+```
 
 ## Type parameters
 
-| Name |
-| :------ |
-| `T` |
+| Name | Description |
+| :------ | :------ |
+| `T` | The type of metadata to expect, needs to be serializable. |
 
 ## Implements
 
@@ -40,6 +56,8 @@ A **built-in** map representing living entities on the server.
 
 ▸ (`entity`): `void`
 
+The handler for any incoming entity data from the server.
+
 ##### Parameters
 
 | Name | Type |
@@ -49,25 +67,3 @@ A **built-in** map representing living entities on the server.
 ##### Returns
 
 `void`
-
-## Methods
-
-### onMessage
-
-▸ **onMessage**(`message`): `void`
-
-A listener to be implemented to handle incoming packets.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `message` | `MessageProtocol`<`any`, `any`, `T`, `any`\> |
-
-#### Returns
-
-`void`
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-82)

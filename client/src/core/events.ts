@@ -3,7 +3,7 @@ import { MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "./network";
 
 /**
- * A Voxelize event.
+ * A Voxelize event from the server.
  */
 export type Event = {
   /**
@@ -23,10 +23,38 @@ export type Event = {
 export type EventHandler = (payload: any | null) => void;
 
 /**
- * A **built-in** manager for the events sent from the Voxelize server. Keep in
- * mind that one event can only have one listener!
+ * A manager for any events interacting with the Voxelize server. This is useful
+ * for any defined game events that are sent from or needs to be broadcasted to
+ * the server.
+ *
+ * # Example
+ * ```ts
+ * const events = new VOXELIZE.Events();
+ *
+ * // Define the behavior to handle a game-over event. Keep in mind that this
+ * // event is most likely sent from the server, so check out the documentations
+ * // for creating and emitting custom events fullstack.
+ * events.on("game-over", (payload) => {
+ *   // Do something about the game over event.
+ * });
+ *
+ * // Register the interceptor with the network.
+ * network.register(events);
+ * ```
+ *
+ * TODO-DOC
+ *
+ * @noInheritDoc
  */
 export class Events extends Map<string, EventHandler> implements NetIntercept {
+  /**
+   * The network intercept implementation for events.
+   *
+   * DO NOT CALL THIS METHOD OR CHANGE IT UNLESS YOU KNOW WHAT YOU ARE DOING.
+   *
+   * @hidden
+   * @param message The message to intercept.
+   */
   public onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {
@@ -45,8 +73,8 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * Synonym for {@link on}, adds a listener to a Voxelize server event.
    * If the payload cannot be parsed by JSON, `null` is set.
    *
-   * @param name - The name of the event to listen on. Case sensitive.
-   * @param handler - What to do when this event is received?
+   * @param name The name of the event to listen on. Case sensitive.
+   * @param handler What to do when this event is received?
    */
   public addEventListener = (name: string, handler: EventHandler) => {
     this.on(name, handler);
@@ -56,8 +84,8 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * Synonym for {@link addEventListener}, adds a listener to a Voxelize server event.
    * If the payload cannot be parsed by JSON, `null` is set.
    *
-   * @param name - The name of the event to listen on. Case sensitive.
-   * @param handler - What to do when this event is received?
+   * @param name The name of the event to listen on. Case sensitive.
+   * @param handler What to do when this event is received?
    */
   public on = (name: string, handler: EventHandler) => {
     if (this.has(name)) {
@@ -73,7 +101,6 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
   /**
    * The handler for network packages to distribute to the event handlers.
    *
-   * @internal
    * @hidden
    */
   public handle = (name: string, payload: string) => {

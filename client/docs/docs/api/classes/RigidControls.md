@@ -146,6 +146,47 @@ ___
 
 ___
 
+### connect
+
+▸ **connect**(`inputs`, `namespace?`): `void`
+
+Sets up all event listeners for controls, including:
+- Mouse move event
+- Pointer-lock events
+- Canvas click event
+- Key up/down events
+- Control lock/unlock events
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` |
+| `namespace` | `string` | `"*"` |
+
+#### Returns
+
+`void`
+
+___
+
+### disconnect
+
+▸ **disconnect**(): `void`
+
+Removes all event listeners for controls, including:
+- Mouse move event
+- Pointer-lock events
+- Canvas click event
+- Key up/down events
+- Control lock/unlock events
+
+#### Returns
+
+`void`
+
+___
+
 ### emit
 
 ▸ **emit**(`type`, ...`args`): `boolean`
@@ -520,6 +561,24 @@ called within a DOM event listener callback!
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `callback?` | () => `void` | Callback to be run once done. |
+
+#### Returns
+
+`void`
+
+___
+
+### update
+
+▸ **update**(`delta`): `void`
+
+Update for the camera of the game.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `delta` | `number` |
 
 #### Returns
 

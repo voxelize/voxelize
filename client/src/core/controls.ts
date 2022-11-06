@@ -412,8 +412,6 @@ export class RigidControls extends EventEmitter {
 
   /**
    * Update for the camera of the game.
-   *
-   * @hidden
    */
   update = (delta: number) => {
     // Normalize the delta
@@ -446,8 +444,6 @@ export class RigidControls extends EventEmitter {
    * - Canvas click event
    * - Key up/down events
    * - Control lock/unlock events
-   *
-   * @hidden
    */
   connect = (inputs: Inputs, namespace = "*") => {
     this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
@@ -505,8 +501,6 @@ export class RigidControls extends EventEmitter {
    * - Canvas click event
    * - Key up/down events
    * - Control lock/unlock events
-   *
-   * @hidden
    */
   disconnect = () => {
     this.domElement.removeEventListener("mousemove", (event: MouseEvent) => {

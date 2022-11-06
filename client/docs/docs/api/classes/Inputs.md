@@ -6,26 +6,40 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
-A **built-in** key-bind manager for Voxelize. Uses the [mousetrap](https://github.com/ccampbell/mousetrap)
-library internally.
+A key and mouse binding manager for Voxelize.
+
+Inputs allow you to bind keys and mouse buttons to functions
+and also gives an organized way to manage keyboard and mouse inputs using namespaces. Namespaces are used to
+separate groups of inputs. For example, you can have a namespace for the main menu
+and another namespace for the game. You can then bind keys and mouse buttons to functions for each namespace.
+
+Another use of inputs is to bind keys and mouse buttons for some built-in functionality. As of now, the following
+requires inputs to be bound:
+- [RigidControls.connect](/docs/api/classes/RigidControls#connect): <kbd>WASD</kbd> and <kbd>Space</kbd> for movement, <kbd>Shift</kbd> for going down and <kbd>R</kbd> for sprinting.
+- [Perspective.connect](/docs/api/classes/Perspective#connect): <kbd>C</kbd> for switching between perspectives.
+
+You can change the above bindings by calling [Inputs.remap](Inputs.md#remap-82) with the corresponding input identifiers, namely
+`RigidControls.INPUT_IDENTIFIER` and `Perspectives.INPUT_IDENTIFIER`.
 
 ## Example
-Print "Hello world" on <kbd>p</kbd> presses:
 ```typescript
-client.inputs.bind(
-  "p",
-  () => {
-    console.log("Hello world");
-  },
-  "*"
-);
+// Create a new inputs manager.
+const inputs = new VOXELIZE.Inputs();
+
+// Bind the space bar to a function.
+inputs.bind(" ", () => {
+  console.log("Space bar pressed!");
+});
+
+// Bind rigid controls to the inputs manager.
+rigidControls.connect(inputs);
 ```
 
 ## Type parameters
 
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `T` | extends `string` = `any` | The list of input namespaces. For instance, `T` could be "menu" and "game". |
 
 ## Hierarchy
 
@@ -35,43 +49,26 @@ client.inputs.bind(
 
 ## Methods
 
-### addListener
-
-▸ **addListener**(`type`, `listener`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
 ### bind
 
-▸ **bind**(`key`, `callback`, `namespace`, `specifics?`): () => `void`
+▸ **bind**(`key`, `callback`, `namespace?`, `specifics?`): () => `void`
 
-Register a key-bind event listener.
+Bind a keyboard key to a callback.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `key` | `string` | The key to listen on. |
-| `callback` | () => `void` | What to do when the key/combo is pressed. |
-| `namespace` | `T` \| ``"*"`` | The namespace in which the to fire this event. |
-| `specifics` | `Object` | Used to specify in more details when/where the press occurs. |
-| `specifics.identifier?` | `string` | Whether or not should this be a special key event. Defaults to "". |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) | Which pressing occasion should the event be fired. Defaults to "keydown". |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `key` | `string` | `undefined` | The key to listen for. This checks the `event.key` or the `event.code` property. |
+| `callback` | () => `void` | `undefined` | The callback to call when the key is pressed. |
+| `namespace` | `T` \| ``"*"`` | `"*"` | The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace. |
+| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics-34) | `{}` | The specific parameters of the key to listen for. |
 
 #### Returns
 
 `fn`
+
+A function to unbind the key.
 
 ▸ (): `void`
 
@@ -83,21 +80,23 @@ ___
 
 ### click
 
-▸ **click**(`type`, `callback`, `namespace`): () => `boolean`
+▸ **click**(`type`, `callback`, `namespace?`): () => `boolean`
 
-Register a new click event listener.
+Add a mouse click event listener.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype-82) | Which mouse button to register on. |
-| `callback` | () => `void` | What to do when that button is clicked. |
-| `namespace` | `T` \| ``"*"`` | Which namespace should this event be fired? |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `type` | [`ClickType`](../modules.md#clicktype-82) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
+| `callback` | () => `void` | `undefined` | The callback to call when the click is fired. |
+| `namespace` | `T` \| ``"*"`` | `"*"` | The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace. |
 
 #### Returns
 
 `fn`
+
+A function to unbind the click.
 
 ▸ (): `boolean`
 
@@ -107,206 +106,47 @@ Register a new click event listener.
 
 ___
 
-### emit
-
-▸ **emit**(`type`, ...`args`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `...args` | `any`[] |
-
-#### Returns
-
-`boolean`
-
-___
-
-### eventNames
-
-▸ **eventNames**(): (`string` \| `number`)[]
-
-#### Returns
-
-(`string` \| `number`)[]
-
-___
-
-### getMaxListeners
-
-▸ **getMaxListeners**(): `number`
-
-#### Returns
-
-`number`
-
-___
-
-### listenerCount
-
-▸ `Static` **listenerCount**(`emitter`, `type`): `number`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `emitter` | `EventEmitter` |
-| `type` | `string` \| `number` |
-
-#### Returns
-
-`number`
-
-___
-
-### listenerCount
-
-▸ **listenerCount**(`type`): `number`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-
-#### Returns
-
-`number`
-
-___
-
-### listeners
-
-▸ **listeners**(`type`): `Listener`[]
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-
-#### Returns
-
-`Listener`[]
-
-___
-
-### off
-
-▸ **off**(`type`, `listener`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
 ### on
 
 ▸ **on**(`event`, `listener`): [`Inputs`](Inputs.md)<`T`\>
 
+Listen to an event emitted by the input instance. The following events are emitted:
+- `namespace`: Emitted when the namespace is changed.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `event` | ``"namespace"`` |
-| `listener` | (`namespace`: `string`) => `void` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `event` | ``"namespace"`` | An event to listen on. |
+| `listener` | (`namespace`: `string`) => `void` | A listener to call when the event is emitted. |
 
 #### Returns
 
 [`Inputs`](Inputs.md)<`T`\>
 
-___
+The input instance for chaining.
 
-### once
+#### Overrides
 
-▸ **once**(`type`, `listener`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
-### prependListener
-
-▸ **prependListener**(`type`, `listener`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
-### prependOnceListener
-
-▸ **prependOnceListener**(`type`, `listener`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
-### rawListeners
-
-▸ **rawListeners**(`type`): `Listener`[]
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-
-#### Returns
-
-`Listener`[]
+EventEmitter.on
 
 ___
 
 ### remap
 
-▸ **remap**(`key`, `newName`, `specifics?`): `void`
+▸ **remap**(`oldKey`, `newKey`, `specifics?`): `void`
+
+Remap a key to another key.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-| `newName` | `string` |
-| `specifics` | `Object` |
-| `specifics.identifier?` | `string` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `oldKey` | `string` | The old key to replace. |
+| `newKey` | `string` | The new key to replace the old key with. |
+| `specifics` | `Object` | The specifics of the keys to replace. |
+| `specifics.identifier?` | `string` | - |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) | - |
 
 #### Returns
 
@@ -314,46 +154,11 @@ ___
 
 ___
 
-### removeAllListeners
-
-▸ **removeAllListeners**(`type?`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type?` | `string` \| `number` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
-### removeListener
-
-▸ **removeListener**(`type`, `listener`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `type` | `string` \| `number` |
-| `listener` | `Listener` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
 ### reset
 
 ▸ **reset**(): `void`
 
-Reset and dispose all event listeners.
-
-**`internal`**
+Reset all keyboard keys by unbinding all keys.
 
 #### Returns
 
@@ -363,21 +168,23 @@ ___
 
 ### scroll
 
-▸ **scroll**(`up`, `down`, `namespace`): () => `boolean`
+▸ **scroll**(`up`, `down`, `namespace?`): () => `boolean`
 
-Register a new scroll event listener.
+Add a scroll event listener.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `up` | (`delta?`: `number`) => `void` | What to do when scrolled upwards. |
-| `down` | (`delta?`: `number`) => `void` | What to do when scrolled downwards. |
-| `namespace` | `T` \| ``"*"`` | Which namespace should this even be fired? |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `up` | (`delta?`: `number`) => `void` | `undefined` | The callback to call when the scroll wheel is scrolled up. |
+| `down` | (`delta?`: `number`) => `void` | `undefined` | The callback to call when the scroll wheel is scrolled down. |
+| `namespace` | `T` \| ``"*"`` | `"*"` | The namespace to bind the scroll to. Defaults to "*", which means that the scroll will be fired regardless of the namespace. |
 
 #### Returns
 
 `fn`
+
+A function to unbind the scroll.
 
 ▸ (): `boolean`
 
@@ -387,33 +194,17 @@ Register a new scroll event listener.
 
 ___
 
-### setMaxListeners
-
-▸ **setMaxListeners**(`n`): [`Inputs`](Inputs.md)<`T`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `n` | `number` |
-
-#### Returns
-
-[`Inputs`](Inputs.md)<`T`\>
-
-___
-
 ### setNamespace
 
 ▸ **setNamespace**(`namespace`): `void`
 
-Set the namespace of the inputs instance, also checks if the namespace is valid.
+Set the namespace of the input instance. This emits a "namespace" event.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `namespace` | `T` | The namespace to set to. |
+| `namespace` | `T` | The new namespace to set. |
 
 #### Returns
 
@@ -425,15 +216,17 @@ ___
 
 ▸ **swap**(`keyA`, `keyB`, `specifics?`): `void`
 
+Swap two keys with each other.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `keyA` | `string` |
-| `keyB` | `string` |
-| `specifics` | `Object` |
-| `specifics.identifier?` | `string` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `keyA` | `string` | The first key to swap. |
+| `keyB` | `string` | The second key to swap. |
+| `specifics` | `Object` | The specifics of the keys to swap. |
+| `specifics.identifier?` | `string` | - |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) | - |
 
 #### Returns
 
@@ -445,30 +238,44 @@ ___
 
 ▸ **unbind**(`key`, `specifics?`): `boolean`
 
+Unbind a keyboard key.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `key` | `string` |
-| `specifics` | `Object` |
-| `specifics.identifier?` | `string` |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-82) |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `key` | `string` | The key to unbind. |
+| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics-34) | The specifics of the key to unbind. |
 
 #### Returns
 
 `boolean`
 
+Whether or not if the unbinding was successful.
+
+## Constructors
+
+### constructor
+
+• **new Inputs**<`T`\>()
+
+Construct a Voxelize inputs instance.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `string` = `any` |
+
+#### Overrides
+
+EventEmitter.constructor
+
 ## Properties
-
-### defaultMaxListeners
-
-▪ `Static` **defaultMaxListeners**: `number`
-
-___
 
 ### namespace
 
 • **namespace**: `T` \| ``"*"``
 
 The namespace that the Voxelize inputs is in. Use `setNamespace` to
-set the namespace for namespace checking.
+set the namespace to something else.

@@ -35,7 +35,55 @@ const defaultParams: ImageVoxelizerParams = {
   orientation: "x",
 };
 
+/**
+ * A class that turns a given image into a mosaic of block textures registered in the {@link World}.
+ *
+ * # Example
+ * ```ts
+ * ImageVoxelizer.build(
+ *   "https://i.imgur.com/0Z0Z0Z0.png",
+ *   world,
+ *   new THREE.Vector3(0, 0, 0),
+ *   {
+ *     width: 64,
+ *     height: 64,
+ *     lockedRatio: true,
+ *     orientation: "x",
+ *   }
+ * ).then((success) => {
+ *   if (success) {
+ *     console.log("Image voxelized successfully!");
+ *   } else {
+ *     console.log("Image voxelization failed.");
+ *   }
+ * });
+ * ```
+ *
+ * ![ImageVoxelizer example](/img/image-voxelizer.png)
+ */
 export class ImageVoxelizer {
+  /**
+   * Parse a command line string into image voxelization parameters.
+   *
+   * @example
+   * ```js
+   * // Parsing a command line string
+   * // https://example.com/image.png { "width": 64, "height": 64, "lockedRatio": true, "orientation": "x" }
+   * // Turns into this object
+   * {
+   *   url: "https://example.com/image.png",
+   *   params: {
+   *     width: 64,
+   *     height: 64,
+   *     lockedRatio: true,
+   *     orientation: "x"
+   *   }
+   * }
+   * ```
+   *
+   * @param rest The rest of the command string to be parsed.
+   * @returns
+   */
   static parse = (rest: string) => {
     const index = rest.indexOf("{") === -1 ? rest.length : rest.indexOf("{");
 
@@ -56,15 +104,24 @@ export class ImageVoxelizer {
       throw new Error("Image voxelizer could not parse parameters.");
     }
 
-    return [
-      imgURL,
-      {
+    return {
+      url: imgURL,
+      params: {
         ...defaultParams,
         ...params,
-      },
-    ] as [string, ImageVoxelizerParams];
+      } as ImageVoxelizerParams,
+    };
   };
 
+  /**
+   * Build a list of block updates that corresponds to a mosaic of the given image using the textures registered in the given world's registry.
+   *
+   * @param imgURL The URL of the image to be voxelized. This will be used to create an `Image` object.
+   * @param world The world to be updated.
+   * @param position The position to start voxelizing the image. This will be the bottom middle of the voxelized image.
+   * @param params The extra parameters to process the image voxelization.
+   * @returns A list of block updates that corresponds to a mosaic of the given image.
+   */
   static build = async (
     imgURL: string,
     world: World,
@@ -228,4 +285,8 @@ export class ImageVoxelizer {
 
     return true;
   };
+
+  private constructor() {
+    // do nothing
+  }
 }

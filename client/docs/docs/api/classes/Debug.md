@@ -78,14 +78,6 @@ A HTML element wrapping all registered debug entries.
 
 ___
 
-### gui
-
-• `Optional` **gui**: `Pane`
-
-The tweakpane instance, situated in the top-right corner.
-
-___
-
 ### params
 
 • **params**: [`DebugParams`](../modules.md#debugparams-82)

@@ -39,7 +39,6 @@ export default {
               three: "THREE",
               "three/examples/jsm/libs/stats.module.js": "Stats",
               "three-nebula": "Nebula",
-              tweakpane: "Tweakpane",
               postprocessing: "postprocessing",
             },
           },
