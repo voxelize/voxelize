@@ -26,7 +26,7 @@ Iterator
 
 #### Inherited from
 
-Array.\_\_@iterator@11622
+Array.\_\_@iterator@11620
 
 ___
 
@@ -53,7 +53,7 @@ when they will be absent when used in a 'with' statement.
 
 #### Inherited from
 
-Array.\_\_@unscopables@11624
+Array.\_\_@unscopables@11622
 
 ___
 
@@ -66,7 +66,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `object` | `Object3D`<`Event`\> |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-82)\> |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-156)\> |
 
 #### Returns
 
@@ -1066,7 +1066,7 @@ Array.values
 
 #### Inherited from
 
-Array.\_\_@species@12131
+Array.\_\_@species@12129
 
 ___
 

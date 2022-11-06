@@ -90,7 +90,7 @@ ___
 
 ### params
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-82)
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-156)
 
 Parameters to initialize the Voxelize controls.
 
@@ -98,7 +98,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-82)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-156)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -588,13 +588,13 @@ Update for the camera of the game.
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-82)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-156)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-82)
+[`Coords2`](../modules.md#coords2-156)
 
 ___
 
@@ -622,10 +622,10 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-82)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-156)
 
 The voxel coordinates that the client is on.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-82)
+[`Coords3`](../modules.md#coords3-156)

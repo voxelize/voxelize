@@ -48,7 +48,7 @@ ___
 
 ### params
 
-• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-82)
+• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-156)
 
 ___
 
@@ -105,7 +105,7 @@ ___
 | :------ | :------ |
 | `controls` | [`RigidControls`](RigidControls.md) |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-82)\> |
+| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-156)\> |
 
 ## Accessors
 
