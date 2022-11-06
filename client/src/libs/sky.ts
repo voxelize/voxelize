@@ -11,22 +11,65 @@ import { CanvasBox } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
 
+/**
+ * Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a {@link CanvasBox} that renders custom sky textures (
+ * for a sky box) within the dodecahedron sky.
+ */
 export class Sky extends CanvasBox {
+  /**
+   * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.
+   */
   public uTopColor: {
     value: Color;
   };
+
+  /**
+   * The middle color of the sky gradient. Change this by calling {@link Sky.setMiddleColor}.
+   */
   public uMiddleColor: {
     value: Color;
   };
+
+  /**
+   * The bottom color of the sky gradient. Change this by calling {@link Sky.setBottomColor}.
+   */
   public uBottomColor: {
     value: Color;
   };
 
+  /**
+   * The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
+   */
+  public dimension: number;
+
+  /**
+   * The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
+   * set by the `setTopColor`, `setMiddleColor`, and `setBottomColor` methods.
+   */
+  public lerpFactor: number;
+
+  /**
+   * The internal new color of the top of the sky gradient.
+   */
   private newTopColor: Color;
+
+  /**
+   * The internal new color of the middle of the sky gradient.
+   */
   private newMiddleColor: Color;
+
+  /**
+   * The internal new color of the bottom of the sky gradient.
+   */
   private newBottomColor: Color;
 
-  constructor(public dimension: number = 2000, public lerpFactor = 0.01) {
+  /**
+   * The internal current color of the top of the sky gradient.
+   *
+   * @param dimension The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
+   * @param lerpFactor The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
+   */
+  constructor(dimension = 2000, lerpFactor = 0.01) {
     super({
       width: dimension * 0.8,
       side: BackSide,
@@ -36,6 +79,9 @@ export class Sky extends CanvasBox {
       depthSegments: 512,
     });
 
+    this.dimension = dimension;
+    this.lerpFactor = lerpFactor;
+
     this.boxMaterials.forEach((m) => (m.depthWrite = false));
     this.frustumCulled = false;
     this.renderOrder = -1;
@@ -43,10 +89,69 @@ export class Sky extends CanvasBox {
     this.createSkyShading();
   }
 
-  getMiddleColor() {
-    return this.uMiddleColor.value;
-  }
+  /**
+   * Set the new top color of the sky gradient. This will not affect the sky gradient immediately, but
+   * will instead lerp the current color to the new color.
+   *
+   * @param color The new color of the top of the sky gradient.
+   */
+  setTopColor = (color: Color) => {
+    this.newTopColor = color;
+  };
 
+  /**
+   * Set the new middle color of the sky gradient. This will not affect the sky gradient immediately, but
+   * will instead lerp the current color to the new color.
+   *
+   * @param color The new color of the middle of the sky gradient.
+   */
+  setMiddleColor = (color: Color) => {
+    this.newMiddleColor = color;
+  };
+
+  /**
+   * Set the new bottom color of the sky gradient. This will not affect the sky gradient immediately, but
+   * will instead lerp the current color to the new color.
+   *
+   * @param color The new color of the bottom of the sky gradient.
+   */
+  setBottomColor = (color: Color) => {
+    this.newBottomColor = color;
+  };
+
+  /**
+   * Get the current top color of the sky gradient. This can be used as shader uniforms's value.
+   *
+   * @returns The current top color of the sky gradient.
+   */
+  getTopColor = () => {
+    return this.uTopColor.value;
+  };
+
+  /**
+   * Get the current middle color of the sky gradient. This can be used as shader uniforms's value. For instance,
+   * this can be used to set the color of the fog in the world.
+   *
+   * @returns The current middle color of the sky gradient.
+   */
+  getMiddleColor = () => {
+    return this.uMiddleColor.value;
+  };
+
+  /**
+   * Get the current bottom color of the sky gradient. This can be used as shader uniforms's value.
+   *
+   * @returns The current bottom color of the sky gradient.
+   */
+  getBottomColor = () => {
+    return this.uBottomColor.value;
+  };
+
+  /**
+   * Update the position of the sky box to the camera's x/z position, and lerp the sky gradient colors.
+   *
+   * @param position The new position to center the sky at.
+   */
   update = (position: Vector3) => {
     const { uTopColor, uMiddleColor, uBottomColor } = this;
 
@@ -65,6 +170,9 @@ export class Sky extends CanvasBox {
     }
   };
 
+  /**
+   * Create the dodecahedron sky gradient.
+   */
   private createSkyShading = () => {
     const {
       color: { top, middle, bottom },

@@ -40,7 +40,7 @@ Create a new arrow.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-410)\> | Parameters to create the arrow. |
+| `params` | `Partial`<[`ArrowParams`](../modules.md#arrowparams-472)\> | Parameters to create the arrow. |
 
 #### Overrides
 
@@ -50,6 +50,6 @@ ArrowHelper.constructor
 
 ### params
 
-• **params**: [`ArrowParams`](../modules.md#arrowparams-410)
+• **params**: [`ArrowParams`](../modules.md#arrowparams-472)
 
 Parameters used to create the arrow.

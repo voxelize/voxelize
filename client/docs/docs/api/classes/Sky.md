@@ -6,6 +6,9 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a [CanvasBox](CanvasBox.md) that renders custom sky textures (
+for a sky box) within the dodecahedron sky.
+
 ## Hierarchy
 
 - [`CanvasBox`](CanvasBox.md)
@@ -22,7 +25,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-410)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-472)
 
 ___
 
@@ -34,13 +37,15 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-410)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-472)
 
 ___
 
 ### dimension
 
-• **dimension**: `number` = `2000`
+• **dimension**: `number`
+
+The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
 
 ___
 
@@ -52,31 +57,36 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-410)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-472)
 
 ___
 
 ### lerpFactor
 
-• **lerpFactor**: `number` = `0.01`
+• **lerpFactor**: `number`
+
+The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
+set by the `setTopColor`, `setMiddleColor`, and `setBottomColor` methods.
 
 ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-410)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-472)
 
 Parameters for creating a canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-410)
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-472)
 
 ___
 
 ### uBottomColor
 
 • **uBottomColor**: `Object`
+
+The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-30).
 
 #### Type declaration
 
@@ -90,6 +100,8 @@ ___
 
 • **uMiddleColor**: `Object`
 
+The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-30).
+
 #### Type declaration
 
 | Name | Type |
@@ -101,6 +113,8 @@ ___
 ### uTopColor
 
 • **uTopColor**: `Object`
+
+The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-34).
 
 #### Type declaration
 
@@ -118,7 +132,7 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-410)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-472)
 
 ## Accessors
 
@@ -142,28 +156,61 @@ CanvasBox.boxMaterials
 
 • **new Sky**(`dimension?`, `lerpFactor?`)
 
-Create a new canvas box.
+The internal current color of the top of the sky gradient.
 
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `dimension` | `number` | `2000` |
-| `lerpFactor` | `number` | `0.01` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `dimension` | `number` | `2000` | The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension. |
+| `lerpFactor` | `number` | `0.01` | The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color. |
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-410)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-472)
 
 ## Methods
+
+### getBottomColor
+
+▸ **getBottomColor**(): `Color`
+
+Get the current bottom color of the sky gradient. This can be used as shader uniforms's value.
+
+#### Returns
+
+`Color`
+
+The current bottom color of the sky gradient.
+
+___
 
 ### getMiddleColor
 
 ▸ **getMiddleColor**(): `Color`
 
+Get the current middle color of the sky gradient. This can be used as shader uniforms's value. For instance,
+this can be used to set the color of the fog in the world.
+
 #### Returns
 
 `Color`
+
+The current middle color of the sky gradient.
+
+___
+
+### getTopColor
+
+▸ **getTopColor**(): `Color`
+
+Get the current top color of the sky gradient. This can be used as shader uniforms's value.
+
+#### Returns
+
+`Color`
+
+The current top color of the sky gradient.
 
 ___
 
@@ -177,8 +224,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-410) \| [`BoxSides`](../modules.md#boxsides-410)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-410) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-472) \| [`BoxSides`](../modules.md#boxsides-472)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-472) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -187,7 +234,64 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-410)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-472)
+
+___
+
+### setBottomColor
+
+▸ **setBottomColor**(`color`): `void`
+
+Set the new bottom color of the sky gradient. This will not affect the sky gradient immediately, but
+will instead lerp the current color to the new color.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `color` | `Color` | The new color of the bottom of the sky gradient. |
+
+#### Returns
+
+`void`
+
+___
+
+### setMiddleColor
+
+▸ **setMiddleColor**(`color`): `void`
+
+Set the new middle color of the sky gradient. This will not affect the sky gradient immediately, but
+will instead lerp the current color to the new color.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `color` | `Color` | The new color of the middle of the sky gradient. |
+
+#### Returns
+
+`void`
+
+___
+
+### setTopColor
+
+▸ **setTopColor**(`color`): `void`
+
+Set the new top color of the sky gradient. This will not affect the sky gradient immediately, but
+will instead lerp the current color to the new color.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `color` | `Color` | The new color of the top of the sky gradient. |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -195,11 +299,13 @@ ___
 
 ▸ **update**(`position`): `void`
 
+Update the position of the sky box to the camera's x/z position, and lerp the sky gradient colors.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `position` | `Vector3` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `position` | `Vector3` | The new position to center the sky at. |
 
 #### Returns
 
