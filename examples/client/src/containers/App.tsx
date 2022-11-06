@@ -70,7 +70,6 @@ const App = () => {
     if (!domRef.current || !canvasRef.current) return;
     if (worldRef.current) return;
 
-    const clock = new THREE.Clock();
     const world = new VOXELIZE.World({
       textureDimension: 32,
       maxUpdatesPerTick: 10000,
@@ -414,13 +413,13 @@ const App = () => {
     shadows.add(character);
 
     // Create a test for atlas
-    // setTimeout(() => {
-    //   const plane = new THREE.Mesh(
-    //     new THREE.PlaneBufferGeometry(100, 100),
-    //     world.atlas.material
-    //   );
-    //   world.add(plane);
-    // }, 1000);
+    setTimeout(() => {
+      const plane = new THREE.Mesh(
+        new THREE.PlaneBufferGeometry(100, 100),
+        world.atlas.material
+      );
+      world.add(plane);
+    }, 1000);
 
     network
       .register(chat)
@@ -435,14 +434,12 @@ const App = () => {
             const animate = () => {
               requestAnimationFrame(animate);
 
-              const delta = clock.getDelta();
-
               peers.update();
-              controls.update(delta);
+              controls.update();
 
-              clouds.update(camera.position, delta);
+              clouds.update(camera.position);
               sky.update(camera.position);
-              world.update(controls.object.position, delta);
+              world.update(controls.object.position);
 
               network.flush();
 

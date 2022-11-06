@@ -44,6 +44,8 @@ const defaultParams: NameTagParams = {
  * A class that allows you to create a name tag mesh. This name tag mesh also supports colored text
  * using the {@link ColorText} syntax. Name tags can be treated like any other mesh.
  *
+ * ![Name tag](/img/nametag.png)
+ *
  * @noInheritDoc
  */
 export class NameTag extends SpriteText {

@@ -1,6 +1,7 @@
 import ndarray, { NdArray } from "ndarray";
 import {
   BufferGeometry,
+  Clock,
   Color,
   Float32BufferAttribute,
   FrontSide,
@@ -198,6 +199,11 @@ export class Clouds extends Group {
   });
 
   /**
+   * A inner THREE.JS clock used to determine the time delta between frames.
+   */
+  private clock = new Clock();
+
+  /**
    * Create a new {@link Clouds} instance, initializing it asynchronously automatically.
    *
    * @param params Parameters used to create a new {@link Clouds} instance.
@@ -254,13 +260,12 @@ export class Clouds extends Group {
    * cells at any side, new clouds are generated.
    *
    * @param position The new position that this cloud should be centered around.
-   * @param delta The delta time since the last update.
    */
-  update = (position: Vector3, delta = 0) => {
+  update = (position: Vector3) => {
     if (!this.initialized) return;
 
     // Normalize the delta
-    delta = Math.min(0.1, delta);
+    const delta = Math.min(0.1, this.clock.getDelta());
 
     const { speedFactor, count, dimensions } = this.params;
 

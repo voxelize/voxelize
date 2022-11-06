@@ -20,24 +20,15 @@ type TextureData = {
   name: string;
 
   /**
-   * The sides that this data loads onto.
+   * The side(s) that this data loads onto.
    */
   sides: string[] | string;
 
   /**
-   * Either the URL to the source image, or a ThreeJS color instance.
+   * Either the URL to the source image, or a ThreeJS color instance. If a color is provided, the
+   * texture will be a solid color.
    */
   data: string | Color;
-};
-
-/**
- * Parameters to initialize the registry.
- */
-type RegistryParams = {
-  /**
-   * The dimension of each registered block texture. Defaults to `8`.
-   */
-  dimension: number;
 };
 
 /**
@@ -56,13 +47,26 @@ export const SIDE_FACES = ["px", "nx", "pz", "nz"];
 export const DIAGONAL_FACES = ["one", "two"];
 
 /**
- * A **built-in** block registry for Voxelize.
+ * A client-side manager for blocks. This class will receive block data on connecting to a server, and will
+ * be responsible for loading the block textures and creating the block instances that can be queried.
+ *
+ * Registry is by default created by the world and is available as {@link World.registry}.
+ *
+ * # Example
+ * ```ts
+ * // Register a new texture to all faces of type "Test".
+ * world.registry.applyTextureByName({
+ *   name: "Test",
+ *   sides: VOXELIZE.ALL_FACES,
+ *   data: "https://example.com/test.png"
+ * });
+ * ```
  *
  * @category Core
  */
 class Registry {
   /**
-   * A map of UV ranges for all registered blocks.
+   * A map of UV ranges for all registered blocks. This is generated and loaded from the server, then passed into creating the texture atlas.
    */
   public ranges: Map<string, TextureRange> = new Map();
 
@@ -76,17 +80,31 @@ class Registry {
    */
   public blocksById: Map<number, Block> = new Map();
 
+  /**
+   * A map of side names to their corresponding texture sources.
+   */
   public sources: Map<string, string | Color> = new Map();
 
+  /**
+   * A set of side names that are currently registered.
+   */
   public textures: Set<string> = new Set();
+
+  /**
+   * A map of block ID to block name.
+   */
   private nameMap: Map<number, string> = new Map();
+
+  /**
+   * A map of block name to block ID.
+   */
   private typeMap: Map<string, number> = new Map();
 
   /**
-   * Load blocks from the server and generate atlas.
+   * Load blocks from the server and generate atlas. This is called automatically by the world.
    *
-   * @hidden
-   * @internal
+   * @param blocks A list of blocks received from the server.
+   * @param ranges A map of UV ranges for all registered blocks. This is generated and loaded from the server, then passed into creating the texture atlas.
    */
   load = (blocks: Block[], ranges: { [key: string]: TextureRange }) => {
     Object.values(blocks).forEach((block) => {
@@ -101,7 +119,7 @@ class Registry {
   /**
    * Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
    *
-   * @param textures - List of data to load into the game before the game starts.
+   * @param textures List of data to load into the game before the game starts.
    */
   applyTexturesByNames = (textures: TextureData[]) => {
     textures.forEach((texture) => {
@@ -112,10 +130,14 @@ class Registry {
   /**
    * Apply a texture onto a face/side of a block.
    *
-   * @param texture - The data of the texture and where the texture is applying to.
+   * @param texture The data of the texture and where the texture is applying to.
    */
   applyTextureByName = (texture: TextureData) => {
     const { name, sides, data } = texture;
+
+    if (!name || !sides || !data) {
+      throw new Error("Invalid texture data provided.");
+    }
 
     (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
       this.sources.set(this.makeSideName(name, side), data);
@@ -123,27 +145,30 @@ class Registry {
   };
 
   /**
-   * Get the block information by its name.
+   * Get the block information by its name. Call this after connecting to the server, or else
+   * no blocks will be loaded yet.
    *
-   * @param name - The name of the block to get.
+   * @param name The name of the block to get.
    */
   getBlockByName = (name: string) => {
     return this.blocksByName.get(name.toLowerCase());
   };
 
   /**
-   * Get the block information by its ID.
+   * Get the block information by its ID. Call this after connecting to the server, or else
+   * no blocks will be loaded yet.
    *
-   * @param id - The ID of the block to get.
+   * @param id The ID of the block to get.
    */
   getBlockById = (id: number) => {
     return this.blocksById.get(id);
   };
 
   /**
-   * Reverse engineer to get the block information from a texture name.
+   * Reverse engineer to get the block information from a texture name. Call this after connecting to the server, or else
+   * no blocks will be loaded yet.
    *
-   * @param textureName - The texture name that the block has.
+   * @param textureName The texture name that the block has.
    */
   getBlockByTextureName = (textureName: string) => {
     for (const [name, block] of this.blocksByName) {
@@ -157,10 +182,23 @@ class Registry {
     return null;
   };
 
+  /**
+   * Generate a key for the block's side.
+   *
+   * @param name The name of the block.
+   * @param side The side of the block.
+   * @returns A string representing the side's texture key.
+   */
   makeSideName = (name: string, side: string) => {
     return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
+  /**
+   * Check if a block ID should be counted as a potential max height block.
+   *
+   * @param id The ID of the block.
+   * @returns Whether or not should this block be counted as a potential max height at the voxel column.
+   */
   checkHeight = (id: number) => {
     return id !== 0;
   };
@@ -177,6 +215,9 @@ class Registry {
     return i;
   }
 
+  /**
+   * Record a block into the registry.
+   */
   private recordBlock = (block: Block) => {
     const { name, id, faces, aabbs } = block;
 
@@ -196,8 +237,15 @@ class Registry {
       this.textures.add(sideName);
     }
   };
+
+  /**
+   * @hidden
+   */
+  constructor() {
+    // DO NOTHING
+  }
 }
 
-export type { RegistryParams, TextureData };
+export type { TextureData };
 
 export { Registry };

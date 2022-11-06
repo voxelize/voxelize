@@ -61,35 +61,3 @@ ___
 • **size**: `number`
 
 The size of the rigid particle.
-
-## Methods
-
-### initialize
-
-▸ **initialize**(`particle`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `particle` | `any` |
-
-#### Returns
-
-`void`
-
-___
-
-### mutate
-
-▸ **mutate**(`particle`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `particle` | `any` |
-
-#### Returns
-
-`void`

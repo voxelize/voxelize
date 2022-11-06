@@ -330,7 +330,7 @@ ___
 
 ### params
 
-• **params**: [`VoxelInteractParams`](../modules.md#voxelinteractparams-156)
+• **params**: [`VoxelInteractParams`](../modules.md#voxelinteractparams-410)
 
 ___
 
@@ -371,7 +371,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `rotation` | `number` |
-| `voxel` | [`Coords3`](../modules.md#coords3-156) |
+| `voxel` | [`Coords3`](../modules.md#coords3-410) |
 | `yRotation` | `number` |
 
 ___
@@ -450,7 +450,7 @@ ___
 
 ### target
 
-• **target**: [`Coords3`](../modules.md#coords3-156)
+• **target**: [`Coords3`](../modules.md#coords3-410)
 
 ___
 
@@ -1528,7 +1528,7 @@ Group.worldToLocal
 | :------ | :------ |
 | `object` | `Object3D`<`Event`\> |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`VoxelInteractParams`](../modules.md#voxelinteractparams-156)\> |
+| `params` | `Partial`<[`VoxelInteractParams`](../modules.md#voxelinteractparams-410)\> |
 
 #### Overrides
 
@@ -1538,8 +1538,8 @@ Group.constructor
 
 ### lookingAt
 
-• `get` **lookingAt**(): [`Block`](../modules.md#block-156)
+• `get` **lookingAt**(): [`Block`](../modules.md#block-410)
 
 #### Returns
 
-[`Block`](../modules.md#block-156)
+[`Block`](../modules.md#block-410)

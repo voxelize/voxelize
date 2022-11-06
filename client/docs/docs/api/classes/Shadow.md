@@ -386,7 +386,7 @@ ___
 
 ### params
 
-• **params**: [`ShadowParams`](../modules.md#shadowparams-156)
+• **params**: [`ShadowParams`](../modules.md#shadowparams-410)
 
 ___
 
@@ -1561,7 +1561,7 @@ Mesh.worldToLocal
 | Name | Type |
 | :------ | :------ |
 | `world` | [`World`](World.md) |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-156)\> |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-410)\> |
 
 #### Overrides
 

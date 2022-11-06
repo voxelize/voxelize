@@ -64,6 +64,12 @@ export class Rigid extends Behaviour {
     this.engine = engine;
   }
 
+  /**
+   * Called by `three-nebula` when the particle is created.
+   *
+   * @param particle The particle being initialized.
+   * @hidden
+   */
   initialize(particle: any) {
     particle.rigidbody = new RigidBody(
       new AABB(0, 0, 0, this.size, this.size, this.size),
@@ -88,6 +94,12 @@ export class Rigid extends Behaviour {
     );
   }
 
+  /**
+   * Called by `three-nebula` when the particle is updated.
+   *
+   * @param particle The particle being updated.
+   * @hidden
+   */
   mutate(particle: any) {
     const delta = particle.clock.getDelta();
     this.engine.iterateBody(particle.rigidbody, delta, false);

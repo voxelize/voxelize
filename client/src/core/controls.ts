@@ -2,7 +2,14 @@ import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
-import { Euler, Vector3, Group, Quaternion, PerspectiveCamera } from "three";
+import {
+  Euler,
+  Vector3,
+  Group,
+  Quaternion,
+  PerspectiveCamera,
+  Clock,
+} from "three";
 
 import { Character } from "../libs";
 import { Coords3 } from "../types";
@@ -37,7 +44,7 @@ function rotateY(a: number[], b: number[], c: number) {
 /**
  * The state of which a Voxelize {@link Controls} is in.
  */
-type RigidControlState = {
+export type RigidControlState = {
   /**
    * In radians, the heading y-rotation of the client. Defaults to `0`.
    */
@@ -78,8 +85,6 @@ type RigidControlState = {
    */
   currentJumpTime: number;
 };
-
-export type { RigidControlState };
 
 const defaultControlState: RigidControlState = {
   heading: 0,
@@ -128,9 +133,14 @@ export type RigidControlsParams = {
   fluidPushForce: number;
 
   /**
-   * The interpolation factor of the client's position. Defaults to `0.9`.
+   * The interpolation factor of the client's position. Defaults to `1.0`.
    */
   positionLerp: number;
+
+  /**
+   * The interpolation factor when the client is auto-stepping. Defaults to `0.6`.
+   */
+  stepLerp: number;
 
   /**
    * The width of the client's avatar. Defaults to `0.8` blocks.
@@ -148,7 +158,7 @@ export type RigidControlsParams = {
   bodyDepth: number;
 
   /**
-   * The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.919`.
+   * The ratio to `bodyHeight` at which the camera is placed from the ground. Defaults at `0.9193548387096774`.
    */
   eyeHeight: number;
 
@@ -208,7 +218,7 @@ export type RigidControlsParams = {
   crouchFactor: number;
 
   /**
-   * Sprint factor would be on always.
+   * Sprint factor would be on always. Defaults to `false`.
    */
   alwaysSprint: boolean;
 
@@ -250,6 +260,7 @@ const defaultParams: RigidControlsParams = {
   initialPosition: [0, 80, 10],
   rotationLerp: 0.9,
   positionLerp: 1.0,
+  stepLerp: 0.6,
 
   bodyWidth: 0.8,
   bodyHeight: 1.55,
@@ -280,19 +291,23 @@ const defaultParams: RigidControlsParams = {
   stepHeight: 0.5,
 };
 
-export declare interface RigidControls {
-  on(event: "lock", listener: () => void): this;
-  on(event: "unlock", listener: () => void): this;
-}
-
 /**
- * Inspired by THREE.JS's PointerLockControls, the **built-in** main control of the game
- * so that the player can move freely around the world.
+ * Inspired by THREE.JS's PointerLockControls, a rigid body based first person controls.
  *
  * ## Example
- * Printing the voxel that the client is in:
  * ```ts
- * console.log(client.controls.voxel);
+ * // Create the controls.
+ * const controls = new RigidControls(
+ *   camera,
+ *   renderer.domElement,
+ *   world
+ * );
+ *
+ * // Printing the voxel that the client is in.
+ * console.log(controls.voxel);
+ *
+ * // Call the controls update function in the render loop.
+ * controls.update();
  * ```
  *
  * @noInheritDoc
@@ -300,15 +315,20 @@ export declare interface RigidControls {
  */
 export class RigidControls extends EventEmitter {
   /**
+   * Parameters to initialize the Voxelize controls.
+   */
+  public params: RigidControlsParams;
+
+  /**
    * Reference linking to the Voxelize camera instance.
    */
   public camera: PerspectiveCamera;
 
-  public inputs?: Inputs<any>;
-
-  public character?: Character;
-
-  public domElement: HTMLElement;
+  /**
+   * Reference linking to the Voxelize {@link Inputs} instance. You can link an inputs manager by calling
+   * {@link RigidControls.connect}, which registers the keyboard inputs for the controls.
+   */
+  public inputs?: Inputs;
 
   /**
    * Reference linking to the Voxelize world instance.
@@ -316,9 +336,16 @@ export class RigidControls extends EventEmitter {
   public world: World;
 
   /**
-   * Parameters to initialize the Voxelize controls.
+   * A potential link to a {@link Character} instance. This can be added by
+   * calling {@link RigidControls.attachCharacter} to add a mesh for 2nd and 3rd person
+   * view.
    */
-  public params: RigidControlsParams;
+  public character?: Character;
+
+  /**
+   * The DOM element that pointerlock controls are applied to.
+   */
+  public domElement: HTMLElement;
 
   /**
    * A THREE.JS object, parent to the camera for pointerlock controls.
@@ -340,10 +367,17 @@ export class RigidControls extends EventEmitter {
    * - `params.bodyWidth`
    * - `params.bodyHeight`
    * - `params.bodyDepth`
+   *
+   * Keep in mind that by calling {@link RigidControls.attachCharacter}, the body is
+   * resized to match the character's bounding box.
    */
   public body: RigidBody;
 
-  private movements = {
+  /**
+   * Whether or not the client has certain movement potentials. For example, if the forward
+   * key is pressed, then "front" would be `true`. Vice versa for "back".
+   */
+  public movements = {
     up: false,
     down: false,
     left: false,
@@ -353,22 +387,61 @@ export class RigidControls extends EventEmitter {
     sprint: false,
   };
 
+  /**
+   * The callback to locking the pointer.
+   */
   private lockCallback: () => void;
+
+  /**
+   * The callback to unlocking the pointer.
+   */
   private unlockCallback: () => void;
 
+  /**
+   * An internal euler for sharing rotation calculations.
+   */
   private euler = new Euler(0, 0, 0, "YXZ");
+
+  /**
+   * An internal quaternion for sharing position calculations.
+   */
   private quaternion = new Quaternion();
+
+  /**
+   * An internal vector for sharing position calculations.
+   */
   private vector = new Vector3();
 
+  /**
+   * The new position of the controls. This is used to lerp the position of the controls.
+   */
   private newPosition = new Vector3();
+
+  /**
+   * Whether or not is the first movement back on lock. This is because Chrome has a bug where
+   * movementX and movementY becomes 60+ on the first movement back.
+   */
   private justUnlocked = false;
 
+  /**
+   * An internal clock instance for calculating delta time.
+   */
+  private clock = new Clock();
+
+  /**
+   * This is the identifier that is used to bind the rigid controls' keyboard inputs
+   * when {@link RigidControls.connect} is called.
+   */
   public static readonly INPUT_IDENTIFIER = "voxelize-rigid-controls";
 
   /**
-   * Construct a Voxelize controls.
+   * Construct a Voxelize rigid body based first person controls. This adds a rigid body
+   * to the world's physics engine, and applies movement to the camera.
    *
-   * @hidden
+   * @param camera The camera to apply the controls to.
+   * @param domElement The DOM element to apply the controls to.
+   * @param world The world to apply the controls to.
+   * @param options The options to initialize the controls with.
    */
   constructor(
     camera: PerspectiveCamera,
@@ -394,9 +467,9 @@ export class RigidControls extends EventEmitter {
     this.body = world.physics.addBody({
       aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
       onStep: (newAABB) => {
-        const { positionLerp } = this.params;
+        const { positionLerp, stepLerp } = this.params;
 
-        this.params.positionLerp = 0.6;
+        this.params.positionLerp = stepLerp;
         this.body.aabb = newAABB.clone();
 
         const stepTimeout = setTimeout(() => {
@@ -411,11 +484,27 @@ export class RigidControls extends EventEmitter {
   }
 
   /**
-   * Update for the camera of the game.
+   * An event handler for when the pointerlock is locked/unlocked.
+   * The events supported so far are:
+   * - `lock`: When the pointerlock is locked.
+   * - `unlock`: When the pointerlock is unlocked.
+   *
+   * @param event The event name, either `lock` or `unlock`.
+   * @param listener The listener to call when the event is emitted.
+   * @returns The controls instance for chaining.
    */
-  update = (delta: number) => {
+  on(event: "lock" | "unlock", listener: () => void) {
+    return super.on(event, listener);
+  }
+
+  /**
+   * Update for the camera of the game. This should be called in the game update loop.
+   * What this does is that it updates the rigid body, and then interpolates the camera's position and rotation
+   * to the new position and rotation. If a character is attached, then the character is also updated.
+   */
+  update = () => {
     // Normalize the delta
-    delta = Math.min(0.1, delta);
+    const delta = Math.min(0.1, this.clock.getDelta());
 
     this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
     this.object.position.lerp(this.newPosition, this.params.positionLerp);
@@ -444,6 +533,9 @@ export class RigidControls extends EventEmitter {
    * - Canvas click event
    * - Key up/down events
    * - Control lock/unlock events
+   *
+   * @params inputs {@link Inputs} instance to bind the controls to.
+   * @params namespace The namespace to bind the controls to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
     this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
@@ -528,7 +620,9 @@ export class RigidControls extends EventEmitter {
         });
       });
     } else {
-      console.warn("Controls is not connected to any inputs.");
+      console.warn(
+        "Disconnecting controls without connecting it first (no Inputs found)."
+      );
     }
   };
 
@@ -542,7 +636,7 @@ export class RigidControls extends EventEmitter {
   };
 
   /**
-   * Lock the cursor to the game, calling `requestPointerLock` on `client.container.domElement`.
+   * Lock the cursor to the game, calling `requestPointerLock` on the dom element.
    * Needs to be called within a DOM event listener callback!
    *
    * @param callback - Callback to be run once done.
@@ -556,8 +650,8 @@ export class RigidControls extends EventEmitter {
   };
 
   /**
-   * Unlock the cursor from the game, calling `exitPointerLock` on `document`. Needs to be
-   * called within a DOM event listener callback!
+   * Unlock the cursor from the game, calling `exitPointerLock` on the HTML document.
+   * Needs to be called within a DOM event listener callback!
    *
    * @param callback - Callback to be run once done.
    */
@@ -569,6 +663,13 @@ export class RigidControls extends EventEmitter {
     }
   };
 
+  /**
+   * Teleport this rigid controls to a new voxel coordinate.
+   *
+   * @param vx The x voxel coordinate to teleport to.
+   * @param vy The y voxel coordinate to teleport to.
+   * @param vz The z voxel coordinate to teleport to.
+   */
   teleport = (vx: number, vy: number, vz: number) => {
     const { bodyHeight, eyeHeight } = this.params;
     this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight + 1, vz + 0.5);
@@ -578,6 +679,9 @@ export class RigidControls extends EventEmitter {
     }
   };
 
+  /**
+   * Teleport the rigid controls to the top of this voxel column.
+   */
   teleportToTop = () => {
     const { x, z } = this.object.position;
     const maxHeight = this.world.getMaxHeightByWorld(x, z);
@@ -587,9 +691,9 @@ export class RigidControls extends EventEmitter {
   /**
    * Make the client look at a coordinate.
    *
-   * @param x - X-coordinate to look at.
-   * @param y - Y-coordinate to look at.
-   * @param z - Z-coordinate to look at.
+   * @param x X-coordinate to look at.
+   * @param y Y-coordinate to look at.
+   * @param z Z-coordinate to look at.
    */
   lookAt = (x: number, y: number, z: number) => {
     const vec = this.object.position
@@ -643,6 +747,9 @@ export class RigidControls extends EventEmitter {
     }
   };
 
+  /**
+   * Toggle fly mode. Fly mode is like ghost mode, but the client can't fly through blocks.
+   */
   toggleFly = () => {
     if (!this.ghostMode) {
       const isFlying = this.body.gravityMultiplier === 0;
@@ -658,10 +765,7 @@ export class RigidControls extends EventEmitter {
   };
 
   /**
-   * Reset the controls instance.
-   *
-   * @internal
-   * @hidden
+   * Reset the controls instance. This will reset the camera's position and rotation, and reset all movements.
    */
   reset = () => {
     this.teleport(...this.params.initialPosition);
@@ -672,9 +776,6 @@ export class RigidControls extends EventEmitter {
 
   /**
    * Disposal of `Controls`, disconnects all event listeners.
-   *
-   * @internal
-   * @hidden
    */
   dispose = () => {
     this.disconnect();
@@ -683,8 +784,6 @@ export class RigidControls extends EventEmitter {
   /**
    * Move the client forward/backward by a certain distance.
    *
-   * @internal
-   * @hidden
    * @param distance - Distance to move forward by.
    */
   moveForward = (distance: number) => {
@@ -701,8 +800,6 @@ export class RigidControls extends EventEmitter {
   /**
    * Move the client left/right by a certain distance.
    *
-   * @internal
-   * @hidden
    * @param distance - Distance to move left/right by.
    */
   moveRight = (distance: number) => {
@@ -711,6 +808,12 @@ export class RigidControls extends EventEmitter {
     this.object.position.addScaledVector(this.vector, distance);
   };
 
+  /**
+   * Attach a {@link Character} to this controls instance. This can be seen in 2nd/3rd person mode.
+   *
+   * @param character The {@link Character} to attach to this controls instance.
+   * @param newLerpFactor The new lerp factor to use for the character.
+   */
   attachCharacter = (character: Character, newLerpFactor = 1) => {
     if (!(character instanceof Character)) {
       console.warn("Character not attached: not a default character.");
@@ -742,7 +845,15 @@ export class RigidControls extends EventEmitter {
   }
 
   /**
-   * The voxel coordinates that the client is on.
+   * Whether if the client is in fly mode. Fly mode means client can fly but not through blocks.
+   */
+  get flyMode() {
+    return this.body.gravityMultiplier === 0 && !this.ghostMode;
+  }
+
+  /**
+   * The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
+   * floored to the voxel coordinate.
    */
   get voxel() {
     const [x, y, z] = this.body.getPosition();
@@ -750,6 +861,9 @@ export class RigidControls extends EventEmitter {
     return ChunkUtils.mapWorldToVoxel([x, y - this.params.bodyHeight * 0.5, z]);
   }
 
+  /**
+   * The 3D world coordinates that the client is at. This is where the bottom of the client's body is located.
+   */
   get position() {
     const position = new Vector3(...this.body.getPosition());
     position.y -= this.params.bodyHeight * 0.5;
@@ -763,6 +877,9 @@ export class RigidControls extends EventEmitter {
     return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.params.chunkSize);
   }
 
+  /**
+   * Move the client's rigid body according to the current movement state.
+   */
   private moveRigidBody = () => {
     const { object, state } = this;
 
@@ -826,6 +943,9 @@ export class RigidControls extends EventEmitter {
     }
   };
 
+  /**
+   * Update the rigid body by the physics engine.
+   */
   private updateRigidBody = (dt: number) => {
     const {
       airJumps,
@@ -1004,82 +1124,9 @@ export class RigidControls extends EventEmitter {
     this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
   };
 
-  private onKeyDown = ({ code }: KeyboardEvent) => {
-    if (!this.isLocked) return;
-
-    switch (code) {
-      case "KeyR":
-        this.movements.sprint = true;
-
-        break;
-      case "ArrowUp":
-      case "KeyW":
-        this.movements.front = true;
-        break;
-
-      case "ArrowLeft":
-      case "KeyA":
-        this.movements.left = true;
-        break;
-
-      case "ArrowDown":
-      case "KeyS":
-        this.movements.back = true;
-        break;
-
-      case "ArrowRight":
-      case "KeyD":
-        this.movements.right = true;
-        break;
-
-      case "Space":
-        this.movements.up = true;
-        break;
-
-      case "ShiftLeft":
-        this.movements.down = true;
-        break;
-    }
-  };
-
-  private onKeyUp = ({ code }: KeyboardEvent) => {
-    if (!this.isLocked) return;
-
-    switch (code) {
-      case "KeyR":
-        this.movements.sprint = false;
-
-        break;
-      case "ArrowUp":
-      case "KeyW":
-        this.movements.front = false;
-        break;
-
-      case "ArrowLeft":
-      case "KeyA":
-        this.movements.left = false;
-        break;
-
-      case "ArrowDown":
-      case "KeyS":
-        this.movements.back = false;
-        break;
-
-      case "ArrowRight":
-      case "KeyD":
-        this.movements.right = false;
-        break;
-
-      case "Space":
-        this.movements.up = false;
-        break;
-
-      case "ShiftLeft":
-        this.movements.down = false;
-        break;
-    }
-  };
-
+  /**
+   * The mouse move handler. This is active when the pointer is locked.
+   */
   private onMouseMove = (event: MouseEvent) => {
     if (this.isLocked === false) return;
 
@@ -1106,6 +1153,9 @@ export class RigidControls extends EventEmitter {
     this.quaternion.setFromEuler(this.euler);
   };
 
+  /**
+   * When the pointer change event is fired, this will be called.
+   */
   private onPointerlockChange = () => {
     if (this.domElement.ownerDocument.pointerLockElement === this.domElement) {
       this.onLock();
@@ -1128,19 +1178,31 @@ export class RigidControls extends EventEmitter {
     }
   };
 
+  /**
+   * This happens when you try to lock the pointer too recently.
+   */
   private onPointerlockError = () => {
-    console.error("THREE.PointerLockControls: Unable to use Pointer Lock API");
+    console.error("VOXELIZE.RigidControls: Unable to use Pointer Lock API");
   };
 
+  /**
+   * Locks the pointer.
+   */
   private onDocumentClick = () => {
     if (this.isLocked) return;
     this.lock();
   };
 
+  /**
+   * When the pointer is locked, this will be called.
+   */
   private onLock = () => {
     this.emit("lock");
   };
 
+  /**
+   * When the pointer is unlocked, this will be called.
+   */
   private onUnlock = () => {
     this.emit("unlock");
     this.justUnlocked = true;

@@ -51,4 +51,11 @@ export class Chunks extends Map<string, Chunk> {
    * should be requested and loaded.
    */
   public currentChunk: Coords2;
+
+  /**
+   * @hidden
+   */
+  constructor() {
+    super();
+  }
 }

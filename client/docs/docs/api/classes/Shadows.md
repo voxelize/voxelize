@@ -66,7 +66,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `object` | `Object3D`<`Event`\> |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-156)\> |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-410)\> |
 
 #### Returns
 

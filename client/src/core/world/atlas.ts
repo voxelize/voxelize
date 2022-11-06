@@ -30,6 +30,12 @@ export type TextureAtlasParams = {
  * A texture atlas is a collection of textures that are packed into a single texture.
  * This is useful for reducing the number of draw calls required to render a scene, since
  * all block textures can be rendered with a single draw call.
+ *
+ * By default, the texture atlas creates an additional border around each texture to prevent
+ * texture bleeding.
+ *
+ * ![Texture bleeding](/img/texture-bleeding.png)
+ *
  */
 export class TextureAtlas {
   /**

@@ -3,6 +3,7 @@ import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import {
   BackSide,
   BufferGeometry,
+  Clock,
   Color,
   Float32BufferAttribute,
   FrontSide,
@@ -176,6 +177,8 @@ export class World extends Scene implements NetIntercept {
   private chunkInitListeners = new Map<string, ((chunk: Chunk) => void)[]>();
 
   private _renderRadius = 8;
+
+  private clock = new Clock();
 
   private callTick = 0;
 
@@ -674,9 +677,9 @@ export class World extends Scene implements NetIntercept {
     return mesh;
   };
 
-  update = (center: Vector3, delta: number) => {
+  update = (center: Vector3) => {
     // Normalize the delta
-    delta = Math.min(delta, 0.1);
+    const delta = Math.min(this.clock.getDelta(), 0.1);
 
     this.calculateCurrChunk(center);
 

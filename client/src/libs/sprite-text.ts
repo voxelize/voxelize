@@ -2,6 +2,14 @@ import { LinearFilter, Sprite, SpriteMaterial, Texture } from "three";
 
 import { ColorText } from "./color-text";
 
+/**
+ * A sprite that can be used to display text. This is highly inspired by the
+ * [THREE.SpriteText](https://github.com/vasturiano/three-spritetext) library.
+ *
+ * ![Sprite text](/img/sprite-text.png)
+ *
+ * @noInheritDoc
+ */
 export class SpriteText extends Sprite {
   private _text: string;
   private _textHeight: number;
