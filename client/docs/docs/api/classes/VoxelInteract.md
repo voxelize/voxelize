@@ -8,8 +8,8 @@ custom_edit_url: null
 
 The VoxelInteract class is used to interact with voxels in the [World](World.md) instance. It consists of two main parts:
 
-- [VoxelInteract.potential](VoxelInteract.md#potential-384): The potential block placement. This is the data of a block's orientation that can be placed.
-- [VoxelInteract.target](VoxelInteract.md#target-384): The targeted block. This is the voxel that the camera is looking at.
+- [VoxelInteract.potential](VoxelInteract.md#potential): The potential block placement. This is the data of a block's orientation that can be placed.
+- [VoxelInteract.target](VoxelInteract.md#target): The targeted block. This is the voxel that the camera is looking at.
 
 You can use these two properties to place blocks, remove blocks, and more.
 
@@ -57,7 +57,7 @@ ___
 
 ### params
 
-• **params**: [`VoxelInteractParams`](../modules.md#voxelinteractparams-384)
+• **params**: [`VoxelInteractParams`](../modules.md#voxelinteractparams)
 
 Parameters to customize the [VoxelInteract](VoxelInteract.md) instance.
 
@@ -74,14 +74,14 @@ The potential orientation and location of the block placement. If no block place
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `rotation` | `number` | The rotation that the block placement's major axis should be facing. |
-| `voxel` | [`Coords3`](../modules.md#coords3-384) | The 3D coordinates of the potential block placement. |
-| `yRotation` | `number` | The rotation along the Y axis that the block placement's major axis should be facing. This only works if rotation is [PY_ROTATION](../modules.md#py_rotation-384) or [NY_ROTATION](../modules.md#ny_rotation-384). |
+| `voxel` | [`Coords3`](../modules.md#coords3) | The 3D coordinates of the potential block placement. |
+| `yRotation` | `number` | The rotation along the Y axis that the block placement's major axis should be facing. This only works if rotation is [PY_ROTATION](../modules.md#py_rotation) or [NY_ROTATION](../modules.md#ny_rotation). |
 
 ___
 
 ### target
 
-• **target**: [`Coords3`](../modules.md#coords3-384)
+• **target**: [`Coords3`](../modules.md#coords3)
 
 The targeted voxel coordinates of the block that the camera is looking at. If no block is targeted, this will be `null`.
 
@@ -105,7 +105,7 @@ Create a new VoxelInteract instance.
 | :------ | :------ | :------ |
 | `object` | `Object3D`<`Event`\> | The object that the interactions should be raycasting from. |
 | `world` | [`World`](World.md) | The [World](World.md) instance that the interactions should be raycasting in. |
-| `params` | `Partial`<[`VoxelInteractParams`](../modules.md#voxelinteractparams-384)\> | Parameters to customize the [VoxelInteract](VoxelInteract.md) instance. |
+| `params` | `Partial`<[`VoxelInteractParams`](../modules.md#voxelinteractparams)\> | Parameters to customize the [VoxelInteract](VoxelInteract.md) instance. |
 
 #### Overrides
 
@@ -115,13 +115,13 @@ Group.constructor
 
 ### lookingAt
 
-• `get` **lookingAt**(): [`Block`](../modules.md#block-384)
+• `get` **lookingAt**(): [`Block`](../modules.md#block)
 
 Get the voxel ID of the targeted voxel. `null` if no voxel is targeted.
 
 #### Returns
 
-[`Block`](../modules.md#block-384)
+[`Block`](../modules.md#block)
 
 ## Methods
 
@@ -148,7 +148,7 @@ ___
 ▸ **update**(): `void`
 
 Raycasts from the given object's position and direction to find the targeted voxel and potential block placement.
-If no block is targeted, then [VoxelInteract.target](VoxelInteract.md#target-384) and [VoxelInteract.potential](VoxelInteract.md#potential-384) will both be `null`.
+If no block is targeted, then [VoxelInteract.target](VoxelInteract.md#target) and [VoxelInteract.potential](VoxelInteract.md#potential) will both be `null`.
 
 #### Returns
 

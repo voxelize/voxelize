@@ -34,13 +34,13 @@ ___
 
 ### params
 
-• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-384) = `defaultParams`
+• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams) = `defaultParams`
 
 ___
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-384)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
 
@@ -56,7 +56,7 @@ Append a new job to be executed by a worker.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-384) | The job to queue. |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob) | The job to queue. |
 
 #### Returns
 
@@ -75,7 +75,7 @@ Create a new worker pool.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `Proto` | () => `Worker` | `undefined` | The worker class to create. |
-| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-384) | `defaultParams` | The parameters to create the worker pool. |
+| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams) | `defaultParams` | The parameters to create the worker pool. |
 
 ## Accessors
 

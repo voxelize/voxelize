@@ -96,7 +96,7 @@ const config = {
           },
           { to: "/blog", label: "Blog", position: "left" },
           {
-            href: "https://github.com/shaoruu/voxelize",
+            href: "https://github.com/voxelize/voxelize",
             label: "GitHub",
             position: "right",
           },
@@ -140,7 +140,7 @@ const config = {
               },
               {
                 label: "GitHub",
-                href: "https://github.com/shaoruu/voxelize",
+                href: "https://github.com/voxelize/voxelize",
               },
             ],
           },
