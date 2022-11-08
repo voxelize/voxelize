@@ -20,7 +20,7 @@ A rigid behavior makes the particle act like a rigid body in the voxel physics e
 
 • **new Rigid**(`size`, `impulse`, `engine`, `life?`, `easing?`, `isEnabled?`)
 
-Creates a new rigid behavior.
+Create a new rigid behavior.
 
 #### Parameters
 

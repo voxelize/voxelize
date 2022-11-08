@@ -261,10 +261,10 @@ The shared material instances for chunks.
 
 | Name | Type |
 | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-480) |
-| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-480) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-480)  } |
-| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-480) |
-| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-480) |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-94) |
+| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-94) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-94)  } |
+| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-94) |
+| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-94) |
 
 ___
 
@@ -448,13 +448,13 @@ sent to the server after every `network.flush()` call.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-480)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-94)
 
 ___
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams-480) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams-94) = `{}`
 
 ___
 
@@ -691,7 +691,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-480) |
+| `coords` | [`Coords2`](../modules.md#coords2-94) |
 | `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` |
 
 #### Returns
@@ -783,7 +783,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-480) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-94) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -801,7 +801,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-480)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-94)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -969,7 +969,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-480)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-94)
 
 Get the block information by its ID.
 
@@ -981,13 +981,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-480)
+[`Block`](../modules.md#block-94)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-480)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-94)
 
 Get the block information by its name.
 
@@ -999,13 +999,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-480)
+[`Block`](../modules.md#block-94)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-480)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-94)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -1017,13 +1017,13 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-480)
+[`Block`](../modules.md#block-94)
 
 ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-480)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-94)
 
 #### Parameters
 
@@ -1035,13 +1035,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-480)
+[`Block`](../modules.md#block-94)
 
 ___
 
 ### getBlockByWorld
 
-▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-480)
+▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-94)
 
 #### Parameters
 
@@ -1053,7 +1053,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-480)
+[`Block`](../modules.md#block-94)
 
 ___
 
@@ -1318,7 +1318,7 @@ ___
 | `vx` | `number` |
 | `vy` | `number` |
 | `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor-480) |
+| `color` | [`LightColor`](../modules.md#lightcolor-94) |
 
 #### Returns
 
@@ -1617,7 +1617,7 @@ A listener to be implemented to handle incoming packets.
 
 | Name | Type |
 | :------ | :------ |
-| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-480)[] ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-480) ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-480);  }  }, `any`, `any`, `any`\> |
+| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-94)[] ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-94) ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-94);  }  }, `any`, `any`, `any`\> |
 
 #### Returns
 
@@ -1625,7 +1625,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-480)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-94)
 
 ___
 
@@ -1902,7 +1902,7 @@ Caution: do not call this after game started!
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`WorldServerParams`](../modules.md#worldserverparams-480) |
+| `data` | [`WorldServerParams`](../modules.md#worldserverparams-94) |
 
 #### Returns
 
@@ -2270,7 +2270,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-480)[] |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-94)[] |
 
 #### Returns
 
@@ -2331,7 +2331,7 @@ Scene.worldToLocal
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-480)\> |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-94)\> |
 
 #### Overrides
 

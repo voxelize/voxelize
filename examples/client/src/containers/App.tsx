@@ -220,7 +220,7 @@ const App = () => {
       }
     );
 
-    let hand = "Slate";
+    let hand = "Test";
     let radius = 1;
     let circular = true;
 
@@ -407,6 +407,10 @@ const App = () => {
           color.toUpperCase() as any
         );
       });
+    });
+
+    inputs.bind("p", () => {
+      voxelInteract.toggle();
     });
 
     const shadows = new VOXELIZE.Shadows(world);

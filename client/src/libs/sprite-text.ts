@@ -33,7 +33,7 @@ export class SpriteText extends Sprite {
   private _canvas = document.createElement("canvas");
 
   /**
-   * Creates a new sprite text.
+   * Create a new sprite text.
    *
    * @param text The text to display.
    * @param textHeight The height of the text in pixels.

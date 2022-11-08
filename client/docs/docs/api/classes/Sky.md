@@ -9,6 +9,25 @@ custom_edit_url: null
 Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a [CanvasBox](CanvasBox.md) that renders custom sky textures (
 for a sky box) within the dodecahedron sky.
 
+# Example
+```ts
+// Create the sky texture.
+const sky = new VOXELIZE.Sky();
+
+// Load a texture and paint it to the top of the sky.
+world.addTexture(ExampleImage, (texture) => {
+  sky.paint("top", texture);
+})
+
+// Add the sky to the scene.
+world.add(sky);
+
+// Update the sky per frame.
+sky.update(camera.position);
+```
+
+![Sky](/img/sky.png)
+
 ## Hierarchy
 
 - [`CanvasBox`](CanvasBox.md)
@@ -25,7 +44,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-480)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-94)
 
 ___
 
@@ -37,7 +56,7 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-480)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-94)
 
 ___
 
@@ -57,7 +76,7 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-480)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-94)
 
 ___
 
@@ -72,13 +91,13 @@ ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-480)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-94)
 
 Parameters for creating a canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-480)
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-94)
 
 ___
 
@@ -86,7 +105,7 @@ ___
 
 • **uBottomColor**: `Object`
 
-The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-38).
+The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-94).
 
 #### Type declaration
 
@@ -100,7 +119,7 @@ ___
 
 • **uMiddleColor**: `Object`
 
-The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-38).
+The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-94).
 
 #### Type declaration
 
@@ -114,7 +133,7 @@ ___
 
 • **uTopColor**: `Object`
 
-The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-42).
+The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-94).
 
 #### Type declaration
 
@@ -132,7 +151,7 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-480)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-94)
 
 ## Accessors
 
@@ -156,7 +175,7 @@ CanvasBox.boxMaterials
 
 • **new Sky**(`dimension?`, `lerpFactor?`)
 
-The internal current color of the top of the sky gradient.
+Create a new sky instance.
 
 #### Parameters
 
@@ -167,7 +186,7 @@ The internal current color of the top of the sky gradient.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-480)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-94)
 
 ## Methods
 
@@ -224,8 +243,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-480) \| [`BoxSides`](../modules.md#boxsides-480)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-480) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-94) \| [`BoxSides`](../modules.md#boxsides-94)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-94) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -234,7 +253,7 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-480)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-94)
 
 ___
 

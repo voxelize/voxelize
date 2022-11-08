@@ -14,6 +14,26 @@ import SkyVertexShader from "./shaders/sky/vertex.glsl";
 /**
  * Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a {@link CanvasBox} that renders custom sky textures (
  * for a sky box) within the dodecahedron sky.
+ *
+ * # Example
+ * ```ts
+ * // Create the sky texture.
+ * const sky = new VOXELIZE.Sky();
+ *
+ * // Load a texture and paint it to the top of the sky.
+ * world.addTexture(ExampleImage, (texture) => {
+ *   sky.paint("top", texture);
+ * })
+ *
+ * // Add the sky to the scene.
+ * world.add(sky);
+ *
+ * // Update the sky per frame.
+ * sky.update(camera.position);
+ * ```
+ *
+ * ![Sky](/img/sky.png)
+ *
  */
 export class Sky extends CanvasBox {
   /**
@@ -64,7 +84,7 @@ export class Sky extends CanvasBox {
   private newBottomColor: Color;
 
   /**
-   * The internal current color of the top of the sky gradient.
+   * Create a new sky instance.
    *
    * @param dimension The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
    * @param lerpFactor The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.

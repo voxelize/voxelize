@@ -40,7 +40,7 @@ export class Rigid extends Behaviour {
   public engine: Engine;
 
   /**
-   * Creates a new rigid behavior.
+   * Create a new rigid behavior.
    *
    * @param size The size of the rigid particle.
    * @param impulse The initial impulse of the rigid particle.

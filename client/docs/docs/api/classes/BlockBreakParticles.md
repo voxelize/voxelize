@@ -56,7 +56,7 @@ Create a new block break particle system.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world that the particle system is in. |
-| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams-480)\> | Parameters to create a block break particle system. |
+| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams-94)\> | Parameters to create a block break particle system. |
 
 #### Overrides
 
@@ -82,7 +82,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-480)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-94)
 
 ## Properties
 

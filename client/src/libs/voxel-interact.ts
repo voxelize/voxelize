@@ -26,15 +26,55 @@ import { ChunkUtils, MathUtils } from "../utils";
 
 import { Arrow } from "./arrow";
 
+/**
+ * Parameters to customize the {@link VoxelInteract} instance.
+ */
 export type VoxelInteractParams = {
+  /**
+   * The maximum distance of reach for the {@link VoxelInteract} instance. Defaults to `32`.
+   */
   reachDistance: number;
+
+  /**
+   * Whether or not should the {@link VoxelInteract} instance ignore fluids when raycasting. Defaults to `true`.
+   */
   ignoreFluid: boolean;
+
+  /**
+   * Whether or not should the {@link VoxelInteract} instance reverse the raycasting direction. Defaults to `false`.
+   */
   inverseDirection: boolean;
+
+  /**
+   * The scale of the block highlight. Defaults to `1.002`.
+   */
   highlightScale: number;
+
+  /**
+   * The type of the block highlight. Box would be a semi-transparent box, while outline would be 12 lines that outline the block's AABB union.
+   * Defaults to `"box"`.
+   */
   highlightType: "box" | "outline";
+
+  /**
+   * The lerping factor of the highlight. Defaults to `0.8`.
+   */
   highlightLerp: number;
+
+  /**
+   * The color of the highlight. Defaults to `0xffffff`.
+   */
   highlightColor: Color;
+
+  /**
+   * The opacity of the highlight. Defaults to `0.8`.
+   */
   highlightOpacity: number;
+
+  /**
+   * @debug
+   * Whether or not should there be arrows indicating the potential block placement's orientations. Defaults to `false`.
+   */
   potentialVisuals: boolean;
 };
 
@@ -50,12 +90,67 @@ const defaultParams: VoxelInteractParams = {
   potentialVisuals: false,
 };
 
+/**
+ * The VoxelInteract class is used to interact with voxels in the {@link World} instance. It consists of two main parts:
+ *
+ * - {@link VoxelInteract.potential}: The potential block placement. This is the data of a block's orientation that can be placed.
+ * - {@link VoxelInteract.target}: The targeted block. This is the voxel that the camera is looking at.
+ *
+ * You can use these two properties to place blocks, remove blocks, and more.
+ *
+ * # Example
+ * ```ts
+ * // Create a new VoxelInteract instance.
+ * const voxelInteract = new VoxelInteract(camera, world);
+ *
+ * // Add the voxel interact to the scene.
+ * world.add(voxelInteract);
+ *
+ * // Set the target block to air.
+ * if (voxelInteract.target) {
+ *   const [vx, vy, vz] = voxelInteract.target;
+ *   world.updateVoxel({
+ *     vx, vy, vz, type: 0,
+ *   });
+ * }
+ *
+ * // Update the interaction every frame.
+ * voxelInteract.update();
+ * ```
+ *
+ * ![VoxelInteract](/img/voxel-interact.png)
+ *
+ * @noInheritDoc
+ */
 export class VoxelInteract extends Group {
+  /**
+   * Parameters to customize the {@link VoxelInteract} instance.
+   */
   public params: VoxelInteractParams;
 
+  /**
+   * Whether or not is this {@link VoxelInteract} instance currently active.
+   */
+  public active = true;
+
+  /**
+   * The potential orientation and location of the block placement. If no block placement is possible, this will be `null`.
+   */
   public potential: {
+    /**
+     * The 3D coordinates of the potential block placement.
+     */
     voxel: Coords3;
+
+    /**
+     * The rotation that the block placement's major axis should be facing.
+     */
     rotation: number;
+
+    /**
+     * The rotation along the Y axis that the block placement's major axis should be facing.
+     * This only works if rotation is {@link PY_ROTATION} or {@link NY_ROTATION}.
+     */
     yRotation: number;
   } | null = {
     voxel: [0, 0, 0],
@@ -63,17 +158,48 @@ export class VoxelInteract extends Group {
     yRotation: 0,
   };
 
+  /**
+   * The targeted voxel coordinates of the block that the camera is looking at. If no block is targeted, this will be `null`.
+   */
   public target: Coords3 | null = [0, 0, 0];
 
+  /**
+   * The new scale of the target for highlighting.
+   */
   private newTargetScale = new Vector3();
+
+  /**
+   * The new position of the target for highlighting.
+   */
   private newTargetPosition = new Vector3();
 
+  /**
+   * A Three.js group that contains the target block's highlight.
+   */
   private targetGroup = new Group();
+
+  /**
+   * A Three.js group that contains the potential block placement's arrows.
+   */
   private potentialGroup = new Group();
 
+  /**
+   * An arrow that points to the major axis of the potential block placement.
+   */
   private potentialArrow: ArrowHelper;
+
+  /**
+   * An arrow that points to the y axis rotation of the potential block placement.
+   */
   private yRotArrow: ArrowHelper;
 
+  /**
+   * Create a new VoxelInteract instance.
+   *
+   * @param object The object that the interactions should be raycasting from.
+   * @param world The {@link World} instance that the interactions should be raycasting in.
+   * @param params Parameters to customize the {@link VoxelInteract} instance.
+   */
   constructor(
     public object: Object3D,
     public world: World,
@@ -92,13 +218,27 @@ export class VoxelInteract extends Group {
     this.potentialGroup.visible = potentialVisuals;
   }
 
+  /**
+   * Toggle on/off of this {@link VoxelInteract} instance.
+   *
+   * @param force Whether or not should it be a forceful toggle on/off. Defaults to `null`.
+   */
   toggle = (force = null) => {
-    this.visible = force !== null ? force : !this.visible;
+    this.active = force === null ? !this.active : force;
+
     this.potential = null;
     this.target = null;
+
+    this.visible = this.active;
   };
 
+  /**
+   * Raycasts from the given object's position and direction to find the targeted voxel and potential block placement.
+   * If no block is targeted, then {@link VoxelInteract.target} and {@link VoxelInteract.potential} will both be `null`.
+   */
   update = () => {
+    if (!this.active) return;
+
     const { reachDistance, highlightScale } = this.params;
 
     this.targetGroup.scale.lerp(this.newTargetScale, this.params.highlightLerp);
@@ -134,7 +274,7 @@ export class VoxelInteract extends Group {
 
     // No target.
     if (!result) {
-      this.toggle(false);
+      this.visible = false;
       return;
     }
 
@@ -146,7 +286,7 @@ export class VoxelInteract extends Group {
     // Pointing at air.
     const newLookingID = this.world.getVoxelByVoxel(...newTarget);
     if (newLookingID === 0) {
-      this.toggle(false);
+      this.visible = false;
       return;
     }
 
@@ -215,14 +355,8 @@ export class VoxelInteract extends Group {
         ];
 
         let angle =
-          vy >= ty
-            ? ny > 0
-              ? Math.atan2(vx - tx, vz - tz)
-              : Math.atan2(vz - tz, vx - tx)
-            : ny > 0
-            ? Math.atan2(tz - vz, tx - vx)
-            : Math.atan2(tx - vx, tz - vz);
-        if (ny < 0) angle += Math.PI;
+          ny > 0 ? Math.atan2(vx - tx, vz - tz) : Math.atan2(vz - tz, vx - tx);
+        if (ny < 0) angle += Math.PI / 2;
         const normalized = MathUtils.normalizeAngle(angle);
 
         let min = Infinity;
@@ -237,8 +371,10 @@ export class VoxelInteract extends Group {
           }
         });
 
-        const x = Math.sin(closestA);
-        const z = Math.cos(closestA);
+        const x =
+          ny < 0 ? Math.cos(closestA - Math.PI / 2) : Math.sin(closestA);
+        const z =
+          ny < 0 ? Math.sin(closestA - Math.PI / 2) : Math.cos(closestA);
         this.yRotArrow.setDirection(new Vector3(x, 0, z).normalize());
         return closest;
       }
@@ -264,6 +400,9 @@ export class VoxelInteract extends Group {
     }
   };
 
+  /**
+   * Get the voxel ID of the targeted voxel. `null` if no voxel is targeted.
+   */
   get lookingAt() {
     if (this.target) {
       return this.world.getBlockByVoxel(
@@ -276,6 +415,9 @@ export class VoxelInteract extends Group {
     return null;
   }
 
+  /**
+   * Setup the highlighter.
+   */
   private setup = () => {
     const { highlightType, highlightScale, highlightColor, highlightOpacity } =
       this.params;

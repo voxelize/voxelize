@@ -344,7 +344,7 @@ Set the text height to display. This will regenerate the sprite.
 
 • **new SpriteText**(`text?`, `textHeight?`)
 
-Creates a new sprite text.
+Create a new sprite text.
 
 #### Parameters
 
