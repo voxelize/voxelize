@@ -37,7 +37,7 @@ controls.update();
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [RigidControls.connect](RigidControls.md#connect-128) is called.
+when [RigidControls.connect](RigidControls.md#connect-156) is called.
 
 ___
 
@@ -50,7 +50,7 @@ The physical rigid body of the client, dimensions described by:
 - `params.bodyHeight`
 - `params.bodyDepth`
 
-Keep in mind that by calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-128), the body is
+Keep in mind that by calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-156), the body is
 resized to match the character's bounding box.
 
 ___
@@ -68,7 +68,7 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-128) to add a mesh for 2nd and 3rd person
+calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-156) to add a mesh for 2nd and 3rd person
 view.
 
 ___
@@ -86,7 +86,7 @@ ___
 • `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[RigidControls.connect](RigidControls.md#connect-128), which registers the keyboard inputs for the controls.
+[RigidControls.connect](RigidControls.md#connect-156), which registers the keyboard inputs for the controls.
 
 ___
 
@@ -129,7 +129,7 @@ ___
 
 ### params
 
-• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-128)
+• **params**: [`RigidControlsParams`](../modules.md#rigidcontrolsparams-156)
 
 Parameters to initialize the Voxelize controls.
 
@@ -137,7 +137,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-128)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-156)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -457,13 +457,13 @@ to the new position and rotation. If a character is attached, then the character
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-128)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-156)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-128)
+[`Coords2`](../modules.md#coords2-156)
 
 ___
 
@@ -505,14 +505,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-128)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-156)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-128)
+[`Coords3`](../modules.md#coords3-156)
 
 ## Constructors
 
@@ -530,7 +530,7 @@ to the world's physics engine, and applies movement to the camera.
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
 | `world` | [`World`](World.md) | The world to apply the controls to. |
-| `options` | `Partial`<[`RigidControlsParams`](../modules.md#rigidcontrolsparams-128)\> | The options to initialize the controls with. |
+| `options` | `Partial`<[`RigidControlsParams`](../modules.md#rigidcontrolsparams-156)\> | The options to initialize the controls with. |
 
 #### Overrides
 

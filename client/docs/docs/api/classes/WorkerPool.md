@@ -6,6 +6,12 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A pool of web workers that can be used to execute jobs. The pool will create
+workers up to the maximum number of workers specified in the parameters.
+When a job is queued, the pool will find the first available worker and
+execute the job. If no workers are available, the job will be queued until
+a worker becomes available.
+
 ## Properties
 
 ### Proto
@@ -22,17 +28,21 @@ ___
 
 ▪ `Static` **WORKING\_COUNT**: `number` = `0`
 
+A static count of working web workers across all worker pools.
+
 ___
 
 ### params
 
-• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-128) = `defaultParams`
+• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-156) = `defaultParams`
 
 ___
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-128)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-156)[] = `[]`
+
+The queue of jobs that are waiting to be executed.
 
 ## Methods
 
@@ -40,21 +50,13 @@ ___
 
 ▸ **addJob**(`job`): `void`
 
+Append a new job to be executed by a worker.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-128) |
-
-#### Returns
-
-`void`
-
-___
-
-### process
-
-▸ **process**(): `void`
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-156) | The job to queue. |
 
 #### Returns
 
@@ -66,18 +68,22 @@ ___
 
 • **new WorkerPool**(`Proto`, `params?`)
 
+Create a new worker pool.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `Proto` | () => `Worker` | `undefined` |
-| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-128) | `defaultParams` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `Proto` | () => `Worker` | `undefined` | The worker class to create. |
+| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-156) | `defaultParams` | The parameters to create the worker pool. |
 
 ## Accessors
 
 ### isBusy
 
 • `get` **isBusy**(): `boolean`
+
+Whether or not are there no available workers.
 
 #### Returns
 
@@ -88,6 +94,8 @@ ___
 ### workingCount
 
 • `get` **workingCount**(): `number`
+
+The number of workers that are simultaneously working.
 
 #### Returns
 

@@ -173,6 +173,11 @@ export class Network {
   private joinReject: (reason: string) => void = null;
 
   /**
+   * The last received packet.
+   */
+  private lastPacket: any = null;
+
+  /**
    * Create a new network instance.
    */
   constructor() {

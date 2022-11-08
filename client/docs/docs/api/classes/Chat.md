@@ -48,7 +48,7 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor-128) | `undefined` | The process run when this command is triggered. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor-156) | `undefined` | The process run when this command is triggered. |
 | `aliases` | `string`[] | `[]` | - |
 
 #### Returns
@@ -75,7 +75,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-128)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-156)
 
 ___
 
@@ -159,4 +159,4 @@ An array of network packets that will be sent on `network.flush` calls.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-128)
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-156)
