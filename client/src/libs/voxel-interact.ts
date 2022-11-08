@@ -109,9 +109,7 @@ const defaultParams: VoxelInteractParams = {
  * // Set the target block to air.
  * if (voxelInteract.target) {
  *   const [vx, vy, vz] = voxelInteract.target;
- *   world.updateVoxel({
- *     vx, vy, vz, type: 0,
- *   });
+ *   world.updateVoxel(vx, vy, vz, 0);
  * }
  *
  * // Update the interaction every frame.

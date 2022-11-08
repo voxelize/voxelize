@@ -92,43 +92,162 @@ const defaultParams: WorldClientParams = {
 export type WorldParams = WorldClientParams & WorldServerParams;
 
 /**
+ * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
+ * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
+ * This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
+ * also implements {@link NetIntercept}, which means it intercepts chunk-related packets from the server
+ * and constructs chunk meshes from them.
+ *
+ * There are a couple important components that are by default created by the world:
+ * - {@link World.registry}: A block registry that handles block textures and block instances.
+ * - {@link World.chunks}: A chunk manager that stores all the chunks in the world.
+ * - {@link World.physics}: A physics engine that handles voxel AABB physics simulation of client-side physics.
+ * - {@link World.loader}: An asset loader that handles loading textures and other assets.
+ * - {@link World.atlas}: A texture atlas that handles texture packing.
+ *
+ * One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
+ * This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
+ *
+ * # Example
+ * ```ts
+ * const world = new VOXELIZE.World();
+ *
+ * // Update a voxel in the world across the network.
+ * world.updateVoxel({
+ *   vx: 0,
+ *   vy: 0,
+ *   vz: 0,
+ *   type: 12,
+ * });
+ *
+ * // Register the interceptor with the network.
+ * network.register(world);
+ *
+ * // Register an image to block sides.
+ * world.registry.applyTextureByName({
+ *   name: "Test",
+ *   sides: VOXELIZE.ALL_FACES,
+ *   data: "https://example.com/test.png"
+ * });
+ *
+ * // Update the world every frame.
+ * world.update(controls.object.position);
+ * ```
+ *
+ * ![World](/img/world.png)
+ *
  * @category Core
+ * @noInheritDoc
  */
 export class World extends Scene implements NetIntercept {
+  /**
+   * Parameters to configure the world. This is a combination of the client-side parameters, {@link WorldClientParams},
+   * and the server-side parameters, {@link WorldServerParams}. The server-side parameters are defined on the server, and
+   * are sent to the client when the client connects to the server.
+   */
   // @ts-ignore
   public params: WorldParams = {};
 
+  /**
+   * Whether or not this world is connected to a server and has configurations and block data loaded from the server.
+   */
   public initialized = false;
 
+  /**
+   * A chunk manager that stores useful information about chunks, such as the chunk mesh and chunk data.
+   */
   public chunks: Chunks;
 
+  /**
+   * The block registry that handles block textures and block instances.
+   */
+  public registry: Registry;
+
+  /**
+   * A voxel AABB physics engine that handles physics simulation of client-side physics. You can use `world.physics.iterateBody`
+   * individually to iterate over a rigid body.
+   */
   public physics: PhysicsEngine;
+
+  /**
+   * An asset loader that handles loading textures and other assets.
+   */
+  public loader: Loader = new Loader();
 
   /**
    * The generated texture atlas built from all registered block textures.
    */
   public atlas: TextureAtlas;
 
+  /**
+   * The WebGL uniforms that are used in the chunk shader.
+   */
   public uniforms: {
+    /**
+     * The fog color that is applied onto afar chunks. It is recommended to set this to the
+     * middle color of the sky. Defaults to a new THREE.JS white color instance.
+     */
     fogColor: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: Color;
     };
+    /**
+     * The near distance of the fog. Defaults to `100` units.
+     */
     fogNear: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: number;
     };
+    /**
+     * The far distance of the fog. Defaults to `200` units.
+     */
     fogFar: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: number;
     };
+    /**
+     * The 2D texture atlas that is used to render the chunk. This will be set after
+     * {@link World.atlas} is generated.
+     */
     atlas: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: Texture | null;
     };
+    /**
+     * The ambient occlusion levels that are applied onto the chunk meshes. Check out [this article](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/)
+     * for more information on ambient occlusion for voxel worlds. Defaults to `new Vector4(100.0, 170.0, 210.0, 255.0)`.
+     */
     ao: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: Vector4;
     };
+    /**
+     * The minimum brightness of the world at light level `0`. Defaults to `0.2`.
+     */
     minBrightness: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: number;
     };
+    /**
+     * The sunlight intensity of the world. Changing this to `0` would effectively simulate night time
+     * in Voxelize. Defaults to `1.0`.
+     */
     sunlightIntensity: {
+      /**
+       * The value passed into the chunk shader.
+       */
       value: number;
     };
   } = {
@@ -155,33 +274,71 @@ export class World extends Scene implements NetIntercept {
     },
   };
 
+  /**
+   * This is a map that keeps track of the block IDs before they are updated to any new block IDs.
+   * Use {@link World.getPreviousVoxelByVoxel} and {@link World.getPreviousVoxelByWorld} to get the previous
+   * block ID, if it exists.
+   */
   public blockCache = new Map<string, number>();
-
-  public registry: Registry;
 
   /**
    * The shared material instances for chunks.
    */
   public materials: {
+    /**
+     * The chunk material that is used to render the opaque portions of the chunk meshes.
+     */
     opaque?: CustomShaderMaterial;
+
+    /**
+     * The chunk materials that are used to render the transparent portions of the chunk meshes.
+     * This consists of two sides of the chunk mesh, front and back.
+     */
     transparent?: {
+      /**
+       * The front side of the chunk mesh's transparent material.
+       */
       front: CustomShaderMaterial;
+
+      /**
+       * The back side of the chunk mesh's transparent material.
+       */
       back: CustomShaderMaterial;
     };
   } = {};
 
+  /**
+   * An array of network packets that will be sent on `network.flush` calls.
+   *
+   * @hidden
+   */
   public packets: MessageProtocol[] = [];
 
-  public loader: Loader = new Loader();
-
+  /**
+   * A list of listeners that are called when certain chunks are loaded.
+   */
   private chunkInitListeners = new Map<string, ((chunk: Chunk) => void)[]>();
 
+  /**
+   * Internal radius to load chunks around the player.
+   */
   private _renderRadius = 8;
 
+  /**
+   * Internal clock instance for delta time.
+   */
   private clock = new Clock();
 
+  /**
+   * A tick counter to schedule chunk updates by tick.
+   */
   private callTick = 0;
 
+  /**
+   * Create a new world instance.
+   *
+   * @param params The client-side parameters to configure the world.
+   */
   constructor(params: Partial<WorldClientParams> = {}) {
     super();
 
@@ -205,6 +362,14 @@ export class World extends Scene implements NetIntercept {
     this.setupPhysics();
   }
 
+  /**
+   * The network intercept implementation for world.
+   *
+   * DO NOT CALL THIS METHOD OR CHANGE IT UNLESS YOU KNOW WHAT YOU ARE DOING.
+   *
+   * @hidden
+   * @param message The message to intercept.
+   */
   onMessage = (
     message: MessageProtocol<{
       blocks: Block[];
@@ -270,6 +435,9 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
+  /**
+   * Reset the world's chunk and block caches.
+   */
   reset = () => {
     this.chunks.forEach((chunk) => {
       chunk.removeFromScene(this);
@@ -288,7 +456,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
    *
-   * @param textures - List of data to load into the game before the game starts.
+   * @param textures List of data to load into the game before the game starts.
    */
   applyTexturesByNames = (textures: TextureData[]) => {
     textures.forEach((texture) => {
@@ -299,7 +467,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * Apply a texture onto a face/side of a block.
    *
-   * @param texture - The data of the texture and where the texture is applying to.
+   * @param texture The data of the texture and where the texture is applying to.
    */
   applyTextureByName = (texture: TextureData) => {
     const { data } = texture;
@@ -315,7 +483,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * Get the block information by its name.
    *
-   * @param name - The name of the block to get.
+   * @param name The name of the block to get.
    */
   getBlockByName = (name: string) => {
     return this.registry.getBlockByName(name);
@@ -324,7 +492,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * Get the block information by its ID.
    *
-   * @param id - The ID of the block to get.
+   * @param id The ID of the block to get.
    */
   getBlockById = (id: number) => {
     return this.registry.getBlockById(id);
@@ -333,30 +501,16 @@ export class World extends Scene implements NetIntercept {
   /**
    * Reverse engineer to get the block information from a texture name.
    *
-   * @param textureName - The texture name that the block has.
+   * @param textureName The texture name that the block has.
    */
   getBlockByTextureName = (textureName: string) => {
     return this.registry.getBlockByTextureName(textureName);
   };
 
   /**
-   * Applies the server settings onto this world.
-   * Caution: do not call this after game started!
+   * Set the farthest distance for the fog. Fog starts fogging up the chunks 50% from the farthest.
    *
-   * @memberof World
-   */
-  setParams = (data: WorldServerParams) => {
-    this.initialized = true;
-
-    Object.keys(data).forEach((key) => {
-      this.params[key] = data[key];
-    });
-  };
-
-  /**
-   * Set the farthest distance for the fog. Fog starts fogging up 50% from the farthest.
-   *
-   * @param distance - The maximum distance that the fog fully fogs up.
+   * @param distance The maximum distance that the fog fully fogs up.
    */
   setFogDistance = (distance: number) => {
     const { chunkSize } = this.params;
@@ -365,10 +519,32 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.fogFar.value = distance * chunkSize;
   };
 
+  /**
+   * Set the fog color that is applied to the chunks.
+   *
+   * @param color The color reference to link the fog to.
+   */
   setFogColor = (color: Color) => {
     this.uniforms.fogColor.value.copy(color);
   };
 
+  /**
+   * This sends a block update to the server and updates across the network. Block updates are queued to
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick} times
+   * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
+   * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
+   * - Y-rotation: 0 to {@link Y_ROT_SEGMENTS} - 1.
+   *
+   * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
+   * block is not {@link Block | Block.yRotatable}).
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @param type The type of the voxel.
+   * @param rotation The major axis rotation of the voxel.
+   * @param yRotation The Y rotation on the major axis. Applies to blocks with major axis of PY or NY.
+   */
   updateVoxel = (
     vx: number,
     vy: number,
@@ -380,6 +556,19 @@ export class World extends Scene implements NetIntercept {
     this.updateVoxels([{ vx, vy, vz, type, rotation, yRotation }]);
   };
 
+  /**
+   * This sends a list of block updates to the server and updates across the network. Block updates are queued to
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick} times
+   * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
+   *
+   * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
+   * - Y-rotation: 0 to {@link Y_ROT_SEGMENTS} - 1.
+   *
+   * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
+   * block is not {@link Block | Block.yRotatable}).
+   *
+   * @param updates A list of updates to send to the server.
+   */
   updateVoxels = (updates: BlockUpdate[]) => {
     this.chunks.toUpdate.push(
       ...updates
@@ -422,14 +611,35 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
+  /**
+   * Get a chunk instance by its 2D coordinates.
+   *
+   * @param cx The 2D chunk X position.
+   * @param cz The 2D chunk Z position.
+   * @returns The chunk at the given coordinate.
+   */
   getChunk = (cx: number, cz: number) => {
     return this.getChunkByName(ChunkUtils.getChunkName([cx, cz]));
   };
 
+  /**
+   * Get a chunk instance by its coordinate representation.
+   *
+   * @param name The 2D coordinate representation of the chunk.
+   * @returns The chunk at the given coordinate.
+   */
   getChunkByName = (name: string) => {
     return this.chunks.get(name);
   };
 
+  /**
+   * Get a chunk by a 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The chunk at the given voxel coordinate.
+   */
   getChunkByVoxel = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelToChunk(
       [vx, vy, vz],
@@ -439,40 +649,125 @@ export class World extends Scene implements NetIntercept {
     return this.getChunk(...coords);
   };
 
+  /**
+   * Get the voxel ID at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The voxel's ID at the given coordinate.
+   */
   getVoxelByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getVoxel(vx, vy, vz);
   };
 
+  /**
+   * Get the voxel ID at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The voxel's ID at the given coordinate.
+   */
   getVoxelByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getVoxelByVoxel(...voxel);
   };
 
+  /**
+   * Get the voxel rotation at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The voxel's rotation at the given coordinate.
+   */
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return new BlockRotation(0, 0);
     return chunk.getVoxelRotation(vx, vy, vz);
   };
 
+  /**
+   * Get the voxel rotation at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The voxel's rotation at the given coordinate.
+   */
   getVoxelRotationByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getVoxelRotationByVoxel(...voxel);
   };
 
+  /**
+   * Get the voxel's stage at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The voxel stage at the given coordinate.
+   */
   getVoxelStageByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getVoxelStage(vx, vy, vz);
   };
 
+  /**
+   * Get the voxel's stage at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The voxel stage at the given coordinate.
+   */
+  getVoxelStageByWorld = (wx: number, wy: number, wz: number) => {
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
+    return this.getVoxelStageByVoxel(...voxel);
+  };
+
+  /**
+   * Get the voxel's sunlight level at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The voxel's sunlight level at the given coordinate.
+   */
   getSunlightByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getSunlight(vx, vy, vz);
   };
 
+  /**
+   * Get the voxel's sunlight level at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The voxel's sunlight level at the given coordinate.
+   */
+  getSunlightByWorld = (wx: number, wy: number, wz: number) => {
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
+    return this.getSunlightByVoxel(...voxel);
+  };
+
+  /**
+   * Get a color instance that represents what an object would be like
+   * if it were rendered at the given 3D voxel coordinate. This is useful
+   * to dynamically shade objects based on their position in the world. Also
+   * used in {@link LightShined}.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The voxel's light color at the given coordinate.
+   */
   getLightColorByVoxel = (vx: number, vy: number, vz: number) => {
     const sunlight = this.getSunlightByVoxel(vx, vy, vz);
     const redLight = this.getTorchLightByVoxel(vx, vy, vz, "RED");
@@ -496,11 +791,30 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
+  /**
+   * Get a color instance that represents what an object would be like if it
+   * were rendered at the given 3D world coordinate. This is useful to dynamically
+   * shade objects based on their position in the world. Also used in {@link LightShined}.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The voxel's light color at the given coordinate.
+   */
   getLightColorByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getLightColorByVoxel(...voxel);
   };
 
+  /**
+   * Get the voxel's torch light level at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @param color The color of the torch light to get.
+   * @returns The voxel's torch light level at the given coordinate.
+   */
   getTorchLightByVoxel = (
     vx: number,
     vy: number,
@@ -512,16 +826,58 @@ export class World extends Scene implements NetIntercept {
     return chunk.getTorchLight(vx, vy, vz, color);
   };
 
+  /**
+   * Get the voxel's torch light level at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @param color The color of the torch light to get.
+   * @returns The voxel's torch light level at the given coordinate.
+   */
+  getTorchLightByWorld = (
+    wx: number,
+    wy: number,
+    wz: number,
+    color: LightColor
+  ) => {
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
+    return this.getTorchLightByVoxel(...voxel, color);
+  };
+
+  /**
+   * Get the block data at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The block type data at the given coordinate.
+   */
   getBlockByVoxel = (vx: number, vy: number, vz: number) => {
     const voxel = this.getVoxelByVoxel(vx, vy, vz);
     return this.registry.getBlockById(voxel);
   };
 
+  /**
+   * Get the block data at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The block type data at the given coordinate.
+   */
   getBlockByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getBlockByVoxel(...voxel);
   };
 
+  /**
+   * Get the maximum height of the block column at the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vz The voxel's Z position.
+   * @returns The max height at the given coordinate.
+   */
   getMaxHeightByVoxel = (vx: number, vz: number) => {
     for (let vy = this.params.maxHeight - 1; vy >= 0; vy--) {
       const id = this.getVoxelByVoxel(vx, vy, vz);
@@ -534,21 +890,53 @@ export class World extends Scene implements NetIntercept {
     return 0;
   };
 
+  /**
+   * Get the maximum height of the block column at the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The max height at the given coordinate.
+   */
   getMaxHeightByWorld = (wx: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, 0, wz]);
     return this.getMaxHeightByVoxel(voxel[0], voxel[2]);
   };
 
+  /**
+   * Get the previous voxel ID before the latest update was made.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @returns The voxel ID that was previously at the given coordinate.
+   */
   getPreviousVoxelByVoxel = (vx: number, vy: number, vz: number) => {
     const name = ChunkUtils.getVoxelName([vx, vy, vz]);
     return this.blockCache.get(name);
   };
 
+  /**
+   * Get the previous voxel ID before the latest update was made.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @returns The voxel ID that was previously at the given coordinate.
+   */
   getPreviousVoxelByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
     return this.getPreviousVoxelByVoxel(...voxel);
   };
 
+  /**
+   * Get the block AABBs by the given 3D voxel coordinate.
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @param ignoreFluid Whether to ignore fluid blocks.
+   * @returns The AABB of the block at the given coordinate.
+   */
   getBlockAABBsByVoxel = (
     vx: number,
     vy: number,
@@ -568,6 +956,15 @@ export class World extends Scene implements NetIntercept {
       : aabbs.map((aabb) => rotation.rotateAABB(aabb));
   };
 
+  /**
+   * Get the block AABBs by the given 3D world coordinate.
+   *
+   * @param wx The voxel's un-floored X position.
+   * @param wy The voxel's un-floored Y position.
+   * @param wz The voxel's un-floored Z position.
+   * @param ignoreFluid Whether to ignore fluid blocks.
+   * @returns The AABB of the block at the given coordinate.
+   */
   getBlockAABBsByWorld = (
     wx: number,
     wy: number,
@@ -578,14 +975,38 @@ export class World extends Scene implements NetIntercept {
     return this.getBlockAABBsByVoxel(...voxel, ignoreFluid);
   };
 
+  /**
+   * Get the uniform value of the minimum brightness at sunlight `0` voxels.
+   *
+   * @returns The minimum brightness of the chunk.
+   */
+  getMinBrightness = () => {
+    return this.uniforms.minBrightness.value;
+  };
+
+  /**
+   * Set the uniform value of the minimum brightness at sunlight level of `0` voxels.
+   *
+   * @param minBrightness The minimum brightness value.
+   */
   setMinBrightness = (minBrightness: number) => {
     this.uniforms.minBrightness.value = minBrightness;
   };
 
+  /**
+   * Get the uniform value of the intensity of sunlight.
+   *
+   * @returns The intensity of the sun.
+   */
   getSunlightIntensity = () => {
     return this.uniforms.sunlightIntensity.value;
   };
 
+  /**
+   * Set the uniform value of the intensity of sunlight.
+   *
+   * @param intensity The intensity of the sun.
+   */
   setSunlightIntensity = (intensity: number) => {
     if (intensity < 0 || intensity > this.params.maxLightLevel) {
       throw new Error(
@@ -596,6 +1017,13 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.sunlightIntensity.value = intensity;
   };
 
+  /**
+   * Add a listener to a chunk. This listener will be called when this chunk is loaded and ready to be rendered.
+   * This is useful for, for example, teleporting the player to the top of the chunk when the player just joined.
+   *
+   * @param coords The chunk coordinates to listen to.
+   * @param listener The listener to add.
+   */
   addChunkInitListener = (
     coords: Coords2,
     listener: (chunk: Chunk) => void
@@ -606,6 +1034,14 @@ export class World extends Scene implements NetIntercept {
     this.chunkInitListeners.set(name, listeners);
   };
 
+  /**
+   * Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
+   * is within {@link WorldServerParams | WorldServerParams.minChunk} and {@link WorldServerParams | WorldServerParams.maxChunk}.
+   *
+   * @param cx The chunk's X position.
+   * @param cz The chunk's Z position.
+   * @returns Whether or not this chunk is within the bounds of the world.
+   */
   isWithinWorld = (cx: number, cz: number) => {
     const { minChunk, maxChunk } = this.params;
 
@@ -617,6 +1053,16 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
+  /**
+   * This checks if the chunk is within the given x/z directions by testing of the given chunk
+   * coordinate is within `3 * Math.PI / 5` radians of the given direction.
+   *
+   * @param cx The chunk's X position.
+   * @param cz The chunk's Z position.
+   * @param dx The x direction that is being checked.
+   * @param dz The z direction that is being checked.
+   * @returns Whether or not the chunk is within the render view.
+   */
   isChunkInView = (cx: number, cz: number, dx: number, dz: number) => {
     const [pcx, pcz] = this.chunks.currentChunk;
 
@@ -631,12 +1077,12 @@ export class World extends Scene implements NetIntercept {
     return Math.abs(angle) < (Math.PI * 3) / 5;
   };
 
-  canPlace = (vx: number, vy: number, vz: number, type: number) => {
-    const current = this.getBlockByVoxel(vx, vy, vz);
-
-    return this.getVoxelByVoxel(vx, vy, vz) === 0 || current.isFluid;
-  };
-
+  /**
+   * Get a mesh of the model of the given block.
+   *
+   * @param id The ID of the block.
+   * @returns A 3D mesh of the block model.
+   */
   makeBlockMesh = (id: number) => {
     const block = this.registry.getBlockById(id);
     if (!block) return null;
@@ -682,6 +1128,13 @@ export class World extends Scene implements NetIntercept {
     return mesh;
   };
 
+  /**
+   * The updater of the world. This requests the chunks around the given coordinates and meshes any
+   * new chunks that are received from the server. This should be called every frame.
+   *
+   * @param center The center of the update. That is, the center that the chunks should
+   *    be requested around.
+   */
   update = (center: Vector3) => {
     // Normalize the delta
     const delta = Math.min(this.clock.getDelta(), 0.1);
@@ -690,7 +1143,7 @@ export class World extends Scene implements NetIntercept {
 
     if (this.callTick % 2 === 0) {
       this.surroundChunks();
-    } else if (this.callTick % 3 === 0) {
+    } else {
       this.meshChunks();
     }
 
@@ -705,15 +1158,35 @@ export class World extends Scene implements NetIntercept {
     this.callTick++;
   };
 
+  /**
+   * The render radius that this world is requesting chunks at.
+   */
   get renderRadius() {
     return this._renderRadius;
   }
 
+  /**
+   * Set the render radius that this world is requesting chunks at.
+   */
   set renderRadius(radius: number) {
     this._renderRadius = radius;
     this.setFogDistance(radius);
   }
 
+  /**
+   * Applies the server settings onto this world.
+   */
+  private setParams = (data: WorldServerParams) => {
+    this.initialized = true;
+
+    Object.keys(data).forEach((key) => {
+      this.params[key] = data[key];
+    });
+  };
+
+  /**
+   * Calculate the current chunk that the world is centered around.
+   */
   private calculateCurrChunk = (center: Vector3) => {
     const { chunkSize } = this.params;
 
@@ -725,6 +1198,9 @@ export class World extends Scene implements NetIntercept {
     this.chunks.currentChunk = coords;
   };
 
+  /**
+   * Scaffold the server updates onto the network, including chunk requests and block updates.
+   */
   private emitServerUpdates = () => {
     // Update server voxels
     if (this.chunks.toUpdate.length >= 0) {
@@ -778,6 +1254,9 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
+  /**
+   * Go around the center chunk and request chunks that are not already requested.
+   */
   private surroundChunks = () => {
     const [cx, cz] = this.chunks.currentChunk;
 
@@ -834,6 +1313,9 @@ export class World extends Scene implements NetIntercept {
     })();
   };
 
+  /**
+   * Setup the physics engine for this world.
+   */
   private setupPhysics = () => {
     // initialize the physics engine with server provided parameters.
     this.physics = new PhysicsEngine(
@@ -857,6 +1339,9 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
+  /**
+   * Update the physics engine by ticking all inner AABBs.
+   */
   private updatePhysics = (delta: number) => {
     if (!this.physics || !this.params.gravity) return;
 
@@ -881,6 +1366,9 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
+  /**
+   * Actually requesting chunks from the server.
+   */
   private requestChunks = () => {
     const { maxRequestsPerTick } = this.params;
     const toRequest = this.chunks.toRequest.splice(
@@ -902,6 +1390,9 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
+  /**
+   * Mesh the received chunk data.
+   */
   private meshChunks = () => {
     const { maxProcessesPerTick, updateTimeout } = this.params;
 
@@ -938,6 +1429,9 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
+  /**
+   * Mesh a single chunk data.
+   */
   private meshChunk = (data: ChunkProtocol) => {
     const { x, z, id } = data;
 
@@ -970,6 +1464,9 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
+  /**
+   * Scaffold add chunks to the scene.
+   */
   private addChunks = () => {
     const toAdd = this.chunks.toAdd.splice(0, this.params.maxAddsPerTick);
 
@@ -1010,6 +1507,9 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
+  /**
+   * Load the texture atlas.
+   */
   private loadAtlas = () => {
     if (this.atlas && this.atlas.texture) {
       this.atlas.texture.dispose();
@@ -1071,6 +1571,10 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
+  /**
+   * Handle any server chunk data by either meshing it immediately or adding it
+   * to the queue.
+   */
   private handleServerChunk = (data: ChunkProtocol, urgent = false) => {
     if (urgent) {
       this.meshChunk(data);
@@ -1079,6 +1583,9 @@ export class World extends Scene implements NetIntercept {
     }
   };
 
+  /**
+   * Make a chunk shader material with the current atlas.
+   */
   private makeShaderMaterial = () => {
     const material = new ShaderMaterial({
       vertexColors: true,

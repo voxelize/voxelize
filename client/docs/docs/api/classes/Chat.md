@@ -48,34 +48,12 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor-156) | `undefined` | The process run when this command is triggered. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor-384) | `undefined` | The process run when this command is triggered. |
 | `aliases` | `string`[] | `[]` | - |
 
 #### Returns
 
 `void`
-
-___
-
-### onMessage
-
-▸ **onMessage**(`message`): `void`
-
-A listener to be implemented to handle incoming packets.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `message` | `MessageProtocol`<`any`, `any`, `any`, `any`\> |
-
-#### Returns
-
-`void`
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-156)
 
 ___
 
@@ -119,6 +97,8 @@ Send a chat to the server.
 
 • `get` **commandSymbol**(): `string`
 
+The symbol that is used to trigger commands.
+
 #### Returns
 
 `string`
@@ -148,15 +128,3 @@ Send a chat to the server.
 ##### Returns
 
 `void`
-
-___
-
-### packets
-
-• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
-
-An array of network packets that will be sent on `network.flush` calls.
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-156)

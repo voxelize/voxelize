@@ -96,6 +96,8 @@ export class Peers<
 
   /**
    * A list of packets that will be sent to the server.
+   *
+   * @hidden
    */
   public packets: MessageProtocol<any, any, any, any>[] = [];
 

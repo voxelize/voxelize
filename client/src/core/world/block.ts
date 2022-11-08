@@ -189,6 +189,8 @@ export const NZ_ROTATION = 5;
 /**
  * The amount of Y-rotation segments should be allowed for y-rotatable blocks. In other words,
  * the amount of times the block can be rotated around the y-axis within 360 degrees.
+ *
+ * The accepted Y-rotation values will be from `0` to `Y_ROTATION_SEGMENTS - 1`.
  */
 export const Y_ROT_SEGMENTS = 16;
 

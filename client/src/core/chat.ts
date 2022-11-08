@@ -43,6 +43,8 @@ export class Chat implements NetIntercept {
 
   /**
    * An array of network packets that will be sent on `network.flush` calls.
+   *
+   * @hidden
    */
   public packets: MessageProtocol[] = [];
 
@@ -123,6 +125,14 @@ export class Chat implements NetIntercept {
     return !!this.commands.delete(trigger);
   };
 
+  /**
+   * The network intercept implementation for chats.
+   *
+   * DO NOT CALL THIS METHOD OR CHANGE IT UNLESS YOU KNOW WHAT YOU ARE DOING.
+   *
+   * @hidden
+   * @param message The message to intercept.
+   */
   public onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "INIT": {
@@ -138,6 +148,9 @@ export class Chat implements NetIntercept {
     }
   };
 
+  /**
+   * The symbol that is used to trigger commands.
+   */
   get commandSymbol(): string {
     return this._commandSymbol;
   }

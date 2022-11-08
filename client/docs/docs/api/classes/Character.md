@@ -171,7 +171,7 @@ ___
 
 ### params
 
-• **params**: [`CharacterParams`](../modules.md#characterparams-156)
+• **params**: [`CharacterParams`](../modules.md#characterparams-384)
 
 Parameters to create a Voxelize character.
 
@@ -229,7 +229,7 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-156)\> | Parameters to create a Voxelize character. |
+| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-384)\> | Parameters to create a Voxelize character. |
 
 #### Overrides
 

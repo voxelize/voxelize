@@ -21,7 +21,7 @@ import SkyVertexShader from "./shaders/sky/vertex.glsl";
  * const sky = new VOXELIZE.Sky();
  *
  * // Load a texture and paint it to the top of the sky.
- * world.addTexture(ExampleImage, (texture) => {
+ * world.loader.addTexture(ExampleImage, (texture) => {
  *   sky.paint("top", texture);
  * })
  *

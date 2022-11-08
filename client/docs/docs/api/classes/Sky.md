@@ -15,7 +15,7 @@ for a sky box) within the dodecahedron sky.
 const sky = new VOXELIZE.Sky();
 
 // Load a texture and paint it to the top of the sky.
-world.addTexture(ExampleImage, (texture) => {
+world.loader.addTexture(ExampleImage, (texture) => {
   sky.paint("top", texture);
 })
 
@@ -44,7 +44,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-156)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-384)
 
 ___
 
@@ -56,7 +56,7 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-156)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-384)
 
 ___
 
@@ -76,7 +76,7 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-156)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-384)
 
 ___
 
@@ -91,13 +91,13 @@ ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-156)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-384)
 
 Parameters for creating a canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-156)
+[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params-384)
 
 ___
 
@@ -105,7 +105,7 @@ ___
 
 • **uBottomColor**: `Object`
 
-The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-156).
+The bottom color of the sky gradient. Change this by calling [Sky.setBottomColor](Sky.md#setbottomcolor-384).
 
 #### Type declaration
 
@@ -119,7 +119,7 @@ ___
 
 • **uMiddleColor**: `Object`
 
-The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-156).
+The middle color of the sky gradient. Change this by calling [Sky.setMiddleColor](Sky.md#setmiddlecolor-384).
 
 #### Type declaration
 
@@ -133,7 +133,7 @@ ___
 
 • **uTopColor**: `Object`
 
-The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-156).
+The top color of the sky gradient. Change this by calling [Sky.setTopColor](Sky.md#settopcolor-384).
 
 #### Type declaration
 
@@ -151,7 +151,7 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-156)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-384)
 
 ## Accessors
 
@@ -186,7 +186,7 @@ Create a new sky instance.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-156)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-384)
 
 ## Methods
 
@@ -243,8 +243,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-156) \| [`BoxSides`](../modules.md#boxsides-156)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-156) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-384) \| [`BoxSides`](../modules.md#boxsides-384)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-384) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -253,7 +253,7 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-156)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-384)
 
 ___
 

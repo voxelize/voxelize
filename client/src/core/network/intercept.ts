@@ -15,7 +15,16 @@ export interface NetIntercept {
    */
   onMessage: (
     message: MessageProtocol,
-    clientInfo: { username: string; id: string }
+    clientInfo: {
+      /**
+       * The client's username.
+       */
+      username: string;
+      /**
+       * The client's ID.
+       */
+      id: string;
+    }
   ) => void;
 
   /**

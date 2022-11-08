@@ -22,7 +22,7 @@ export class Chunks extends Map<string, Chunk> {
 
   /**
    * A list of chunk representations ready to be sent to the server to be loaded. The rate at which
-   * this list is taken out can be configured at {@link WorldClientParams.maxRequestsPerTick}. Items of
+   * this list is taken out can be configured at {@link WorldClientParams | WorldClientParams.maxRequestsPerTick}. Items of
    * this list will be taken out whenever the server responds with any corresponding chunks.
    */
   public toRequest: string[] = [];
@@ -30,19 +30,19 @@ export class Chunks extends Map<string, Chunk> {
   /**
    * A list of {@link ChunkProtocol} objects that are received from the server and are waiting to be
    * loaded into meshes within the world and actual chunk instances. This list empties out at the rate
-   * defined at {@link WorldClientParams.maxProcessesPerTick}.
+   * defined at {@link WorldClientParams | WorldClientParams.maxProcessesPerTick}.
    */
   public toProcess: [ChunkProtocol, number][] = [];
 
   /**
    * A list of {@link BlockUpdate} objects that awaits to be sent to the server to make actual voxel
-   * updates. This list empties out at the rate defined at {@link WorldClientParams.maxUpdatesPerTick}.
+   * updates. This list empties out at the rate defined at {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick}.
    */
   public toUpdate: BlockUpdate[] = [];
 
   /**
    * A list of chunk representations that are ready to be added into the THREE.js scene. This list empties
-   * out at the rate defined at {@link WorldClientParams.maxAddsPerTick}.
+   * out at the rate defined at {@link WorldClientParams | WorldClientParams.maxAddsPerTick}.
    */
   public toAdd: string[] = [];
 

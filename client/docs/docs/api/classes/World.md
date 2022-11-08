@@ -6,6 +6,50 @@ sidebar_position: 0
 custom_edit_url: null
 ---
 
+A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
+**This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
+This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
+also implements [NetIntercept](../interfaces/NetIntercept.md), which means it intercepts chunk-related packets from the server
+and constructs chunk meshes from them.
+
+There are a couple important components that are by default created by the world:
+- [World.registry](World.md#registry-384): A block registry that handles block textures and block instances.
+- [World.chunks](World.md#chunks-384): A chunk manager that stores all the chunks in the world.
+- [World.physics](World.md#physics-384): A physics engine that handles voxel AABB physics simulation of client-side physics.
+- [World.loader](World.md#loader-384): An asset loader that handles loading textures and other assets.
+- [World.atlas](World.md#atlas-384): A texture atlas that handles texture packing.
+
+One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
+This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
+
+# Example
+```ts
+const world = new VOXELIZE.World();
+
+// Update a voxel in the world across the network.
+world.updateVoxel({
+  vx: 0,
+  vy: 0,
+  vz: 0,
+  type: 12,
+});
+
+// Register the interceptor with the network.
+network.register(world);
+
+// Register an image to block sides.
+world.registry.applyTextureByName({
+  name: "Test",
+  sides: VOXELIZE.ALL_FACES,
+  data: "https://example.com/test.png"
+});
+
+// Update the world every frame.
+world.update(controls.object.position);
+```
+
+![World](/img/world.png)
+
 ## Hierarchy
 
 - `Scene`
@@ -16,760 +60,25 @@ custom_edit_url: null
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
-## Properties
-
-### DefaultMatrixAutoUpdate
-
-▪ `Static` **DefaultMatrixAutoUpdate**: `boolean`
-
-#### Inherited from
-
-Scene.DefaultMatrixAutoUpdate
-
-___
-
-### DefaultUp
-
-▪ `Static` **DefaultUp**: `Vector3`
-
-#### Inherited from
-
-Scene.DefaultUp
-
-___
-
-### animations
-
-• **animations**: `AnimationClip`[]
-
-Array with animation clips.
-
-**`default`** []
-
-#### Inherited from
-
-Scene.animations
-
-___
-
-### atlas
-
-• **atlas**: [`TextureAtlas`](TextureAtlas.md)
-
-The generated texture atlas built from all registered block textures.
-
-___
-
-### autoUpdate
-
-• **autoUpdate**: `boolean`
-
-**`default`** true
-
-#### Inherited from
-
-Scene.autoUpdate
-
-___
-
-### background
-
-• **background**: `Texture` \| `Color`
-
-**`default`** null
-
-#### Inherited from
-
-Scene.background
-
-___
-
-### blockCache
-
-• **blockCache**: `Map`<`string`, `number`\>
-
-___
-
-### castShadow
-
-• **castShadow**: `boolean`
-
-Gets rendered into shadow map.
-
-**`default`** false
-
-#### Inherited from
-
-Scene.castShadow
-
-___
-
-### children
-
-• **children**: `Object3D`<`Event`\>[]
-
-Array with object's children.
-
-**`default`** []
-
-#### Inherited from
-
-Scene.children
-
-___
-
-### chunks
-
-• **chunks**: [`Chunks`](Chunks.md)
-
-___
-
-### customDepthMaterial
-
-• **customDepthMaterial**: `Material`
-
-Custom depth material to be used when rendering to the depth map. Can only be used in context of meshes.
-When shadow-casting with a DirectionalLight or SpotLight, if you are (a) modifying vertex positions in
-the vertex shader, (b) using a displacement map, (c) using an alpha map with alphaTest, or (d) using a
-transparent texture with alphaTest, you must specify a customDepthMaterial for proper shadows.
-
-#### Inherited from
-
-Scene.customDepthMaterial
-
-___
-
-### customDistanceMaterial
-
-• **customDistanceMaterial**: `Material`
-
-Same as customDepthMaterial, but used with PointLight.
-
-#### Inherited from
-
-Scene.customDistanceMaterial
-
-___
-
-### environment
-
-• **environment**: `Texture`
-
-**`default`** null
-
-#### Inherited from
-
-Scene.environment
-
-___
-
-### fog
-
-• **fog**: `FogBase`
-
-A fog instance defining the type of fog that affects everything rendered in the scene. Default is null.
-
-**`default`** null
-
-#### Inherited from
-
-Scene.fog
-
-___
-
-### frustumCulled
-
-• **frustumCulled**: `boolean`
-
-When this is set, it checks every frame if the object is in the frustum of the camera before rendering the object.
-If set to false the object gets rendered every frame even if it is not in the frustum of the camera.
-
-**`default`** true
-
-#### Inherited from
-
-Scene.frustumCulled
-
-___
-
-### id
-
-• **id**: `number`
-
-Unique number of this object instance.
-
-#### Inherited from
-
-Scene.id
-
-___
-
-### initialized
-
-• **initialized**: `boolean` = `false`
-
-___
-
-### isObject3D
-
-• `Readonly` **isObject3D**: ``true``
-
-Used to check whether this or derived classes are Object3Ds. Default is true.
-You should not change this, as it is used internally for optimisation.
-
-#### Inherited from
-
-Scene.isObject3D
-
-___
-
-### isScene
-
-• `Readonly` **isScene**: ``true``
-
-#### Inherited from
-
-Scene.isScene
-
-___
-
-### layers
-
-• **layers**: `Layers`
-
-**`default`** new THREE.Layers()
-
-#### Inherited from
-
-Scene.layers
-
-___
-
-### loader
-
-• **loader**: `Loader`
-
-___
-
-### materials
-
-• **materials**: `Object` = `{}`
-
-The shared material instances for chunks.
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-156) |
-| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-156) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-156)  } |
-| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-156) |
-| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-156) |
-
-___
-
-### matrix
-
-• **matrix**: `Matrix4`
-
-Local transform.
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Scene.matrix
-
-___
-
-### matrixAutoUpdate
-
-• **matrixAutoUpdate**: `boolean`
-
-When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
-recalculates the matrixWorld property.
-
-**`default`** THREE.Object3D.DefaultMatrixAutoUpdate
-
-#### Inherited from
-
-Scene.matrixAutoUpdate
-
-___
-
-### matrixWorld
-
-• **matrixWorld**: `Matrix4`
-
-The global transform of the object. If the Object3d has no parent, then it's identical to the local transform.
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Scene.matrixWorld
-
-___
-
-### matrixWorldNeedsUpdate
-
-• **matrixWorldNeedsUpdate**: `boolean`
-
-When this is set, it calculates the matrixWorld in that frame and resets this property to false.
-
-**`default`** false
-
-#### Inherited from
-
-Scene.matrixWorldNeedsUpdate
-
-___
-
-### modelViewMatrix
-
-• `Readonly` **modelViewMatrix**: `Matrix4`
-
-**`default`** new THREE.Matrix4()
-
-#### Inherited from
-
-Scene.modelViewMatrix
-
-___
-
-### name
-
-• **name**: `string`
-
-Optional name of the object (doesn't need to be unique).
-
-**`default`** ''
-
-#### Inherited from
-
-Scene.name
-
-___
-
-### normalMatrix
-
-• `Readonly` **normalMatrix**: `Matrix3`
-
-**`default`** new THREE.Matrix3()
-
-#### Inherited from
-
-Scene.normalMatrix
-
-___
-
-### onAfterRender
-
-• **onAfterRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
-
-#### Type declaration
-
-▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
-
-Calls after rendering object
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `renderer` | `WebGLRenderer` |
-| `scene` | `Scene` |
-| `camera` | `Camera` |
-| `geometry` | `BufferGeometry` |
-| `material` | `Material` |
-| `group` | `Group` |
-
-##### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.onAfterRender
-
-___
-
-### onBeforeRender
-
-• **onBeforeRender**: (`renderer`: `WebGLRenderer`, `scene`: `Scene`, `camera`: `Camera`, `geometry`: `BufferGeometry`, `material`: `Material`, `group`: `Group`) => `void`
-
-#### Type declaration
-
-▸ (`renderer`, `scene`, `camera`, `geometry`, `material`, `group`): `void`
-
-Calls before rendering object
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `renderer` | `WebGLRenderer` |
-| `scene` | `Scene` |
-| `camera` | `Camera` |
-| `geometry` | `BufferGeometry` |
-| `material` | `Material` |
-| `group` | `Group` |
-
-##### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.onBeforeRender
-
-___
-
-### overrideMaterial
-
-• **overrideMaterial**: `Material`
-
-If not null, it will force everything in the scene to be rendered with that material. Default is null.
-
-**`default`** null
-
-#### Inherited from
-
-Scene.overrideMaterial
-
-___
-
-### packets
-
-• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`\>[] = `[]`
-
-An array of packets to be sent to the server. These packets will be
-sent to the server after every `network.flush()` call.
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-156)
-
-___
-
-### params
-
-• **params**: [`WorldParams`](../modules.md#worldparams-156) = `{}`
-
-___
-
-### parent
-
-• **parent**: `Object3D`<`Event`\>
-
-Object's parent in the scene graph.
-
-**`default`** null
-
-#### Inherited from
-
-Scene.parent
-
-___
-
-### physics
-
-• **physics**: `Engine`
-
-___
-
-### position
-
-• `Readonly` **position**: `Vector3`
-
-Object's local position.
-
-**`default`** new THREE.Vector3()
-
-#### Inherited from
-
-Scene.position
-
-___
-
-### quaternion
-
-• `Readonly` **quaternion**: `Quaternion`
-
-Object's local rotation as a Quaternion.
-
-**`default`** new THREE.Quaternion()
-
-#### Inherited from
-
-Scene.quaternion
-
-___
-
-### receiveShadow
-
-• **receiveShadow**: `boolean`
-
-Material gets baked in shadow receiving.
-
-**`default`** false
-
-#### Inherited from
-
-Scene.receiveShadow
-
-___
-
-### registry
-
-• **registry**: [`Registry`](Registry.md)
-
-___
-
-### renderOrder
-
-• **renderOrder**: `number`
-
-Overrides the default rendering order of scene graph objects, from lowest to highest renderOrder.
-Opaque and transparent objects remain sorted independently though.
-When this property is set for an instance of Group, all descendants objects will be sorted and rendered together.
-
-**`default`** 0
-
-#### Inherited from
-
-Scene.renderOrder
-
-___
-
-### rotation
-
-• `Readonly` **rotation**: `Euler`
-
-Object's local rotation (Euler angles), in radians.
-
-**`default`** new THREE.Euler()
-
-#### Inherited from
-
-Scene.rotation
-
-___
-
-### scale
-
-• `Readonly` **scale**: `Vector3`
-
-Object's local scale.
-
-**`default`** new THREE.Vector3()
-
-#### Inherited from
-
-Scene.scale
-
-___
-
-### type
-
-• **type**: ``"Scene"``
-
-#### Inherited from
-
-Scene.type
-
-___
-
-### uniforms
-
-• **uniforms**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `ao` | { `value`: `Vector4`  } |
-| `ao.value` | `Vector4` |
-| `atlas` | { `value`: `Texture`  } |
-| `atlas.value` | `Texture` |
-| `fogColor` | { `value`: `Color`  } |
-| `fogColor.value` | `Color` |
-| `fogFar` | { `value`: `number`  } |
-| `fogFar.value` | `number` |
-| `fogNear` | { `value`: `number`  } |
-| `fogNear.value` | `number` |
-| `minBrightness` | { `value`: `number`  } |
-| `minBrightness.value` | `number` |
-| `sunlightIntensity` | { `value`: `number`  } |
-| `sunlightIntensity.value` | `number` |
-
-___
-
-### up
-
-• **up**: `Vector3`
-
-Up direction.
-
-**`default`** THREE.Object3D.DefaultUp.clone()
-
-#### Inherited from
-
-Scene.up
-
-___
-
-### userData
-
-• **userData**: `Object`
-
-An object that can be used to store custom data about the Object3d. It should not hold references to functions as these will not be cloned.
-
-**`default`** {}
-
-#### Index signature
-
-▪ [key: `string`]: `any`
-
-#### Inherited from
-
-Scene.userData
-
-___
-
-### uuid
-
-• **uuid**: `string`
-
-#### Inherited from
-
-Scene.uuid
-
-___
-
-### visible
-
-• **visible**: `boolean`
-
-Object gets rendered if true.
-
-**`default`** true
-
-#### Inherited from
-
-Scene.visible
-
 ## Methods
-
-### add
-
-▸ **add**(...`object`): [`World`](World.md)
-
-Adds object as child of this object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `...object` | `Object3D`<`Event`\>[] |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.add
-
-___
 
 ### addChunkInitListener
 
 ▸ **addChunkInitListener**(`coords`, `listener`): `void`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-156) |
-| `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` |
-
-#### Returns
-
-`void`
-
-___
-
-### addEventListener
-
-▸ **addEventListener**<`T`\>(`type`, `listener`): `void`
-
-Adds a listener to an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
+Add a listener to a chunk. This listener will be called when this chunk is loaded and ready to be rendered.
+This is useful for, for example, teleporting the player to the top of the chunk when the player just joined.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`World`](World.md)\> | The function that gets called when the event is fired. |
+| `coords` | [`Coords2`](../modules.md#coords2-384) | The chunk coordinates to listen to. |
+| `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` | The listener to add. |
 
 #### Returns
 
 `void`
-
-#### Inherited from
-
-Scene.addEventListener
-
-___
-
-### applyMatrix4
-
-▸ **applyMatrix4**(`matrix`): `void`
-
-Applies the matrix transform to the object and updates the object's position, rotation and scale.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `matrix` | `Matrix4` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.applyMatrix4
-
-___
-
-### applyQuaternion
-
-▸ **applyQuaternion**(`quaternion`): [`World`](World.md)
-
-Applies the rotation represented by the quaternion to the object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `quaternion` | `Quaternion` |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.applyQuaternion
 
 ___
 
@@ -783,7 +92,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-156) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-384) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -801,131 +110,11 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-156)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-384)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
 `void`
-
-___
-
-### attach
-
-▸ **attach**(`object`): [`World`](World.md)
-
-Adds object as a child of this, while maintaining the object's world transform.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `object` | `Object3D`<`Event`\> |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.attach
-
-___
-
-### canPlace
-
-▸ **canPlace**(`vx`, `vy`, `vz`, `type`): `boolean`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
-| `type` | `number` |
-
-#### Returns
-
-`boolean`
-
-___
-
-### clear
-
-▸ **clear**(): [`World`](World.md)
-
-Removes all child objects.
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.clear
-
-___
-
-### clone
-
-▸ **clone**(`recursive?`): [`World`](World.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `recursive?` | `boolean` |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.clone
-
-___
-
-### copy
-
-▸ **copy**(`source`, `recursive?`): [`World`](World.md)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `source` | [`World`](World.md) |
-| `recursive?` | `boolean` |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.copy
-
-___
-
-### dispatchEvent
-
-▸ **dispatchEvent**(`event`): `void`
-
-Fire an event type.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `event` | `Event` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.dispatchEvent
 
 ___
 
@@ -933,18 +122,22 @@ ___
 
 ▸ **getBlockAABBsByVoxel**(`vx`, `vy`, `vz`, `ignoreFluid?`): `AABB`[]
 
+Get the block AABBs by the given 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `vx` | `number` | `undefined` |
-| `vy` | `number` | `undefined` |
-| `vz` | `number` | `undefined` |
-| `ignoreFluid` | `boolean` | `false` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `vx` | `number` | `undefined` | The voxel's X position. |
+| `vy` | `number` | `undefined` | The voxel's Y position. |
+| `vz` | `number` | `undefined` | The voxel's Z position. |
+| `ignoreFluid` | `boolean` | `false` | Whether to ignore fluid blocks. |
 
 #### Returns
 
 `AABB`[]
+
+The AABB of the block at the given coordinate.
 
 ___
 
@@ -952,24 +145,28 @@ ___
 
 ▸ **getBlockAABBsByWorld**(`wx`, `wy`, `wz`, `ignoreFluid?`): `AABB`[]
 
+Get the block AABBs by the given 3D world coordinate.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `wx` | `number` | `undefined` |
-| `wy` | `number` | `undefined` |
-| `wz` | `number` | `undefined` |
-| `ignoreFluid` | `boolean` | `false` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `wx` | `number` | `undefined` | The voxel's un-floored X position. |
+| `wy` | `number` | `undefined` | The voxel's un-floored Y position. |
+| `wz` | `number` | `undefined` | The voxel's un-floored Z position. |
+| `ignoreFluid` | `boolean` | `false` | Whether to ignore fluid blocks. |
 
 #### Returns
 
 `AABB`[]
 
+The AABB of the block at the given coordinate.
+
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-156)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-384)
 
 Get the block information by its ID.
 
@@ -981,13 +178,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-156)
+[`Block`](../modules.md#block-384)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-156)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-384)
 
 Get the block information by its name.
 
@@ -999,13 +196,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-156)
+[`Block`](../modules.md#block-384)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-156)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-384)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -1017,43 +214,51 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-156)
+[`Block`](../modules.md#block-384)
 
 ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-156)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-384)
+
+Get the block data at the given 3D voxel coordinate.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
-[`Block`](../modules.md#block-156)
+[`Block`](../modules.md#block-384)
+
+The block type data at the given coordinate.
 
 ___
 
 ### getBlockByWorld
 
-▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-156)
+▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-384)
+
+Get the block data at the given 3D world coordinate.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `wx` | `number` |
-| `wy` | `number` |
-| `wz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
-[`Block`](../modules.md#block-156)
+[`Block`](../modules.md#block-384)
+
+The block type data at the given coordinate.
 
 ___
 
@@ -1061,16 +266,20 @@ ___
 
 ▸ **getChunk**(`cx`, `cz`): [`Chunk`](Chunk.md)
 
+Get a chunk instance by its 2D coordinates.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `cx` | `number` |
-| `cz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `cx` | `number` | The 2D chunk X position. |
+| `cz` | `number` | The 2D chunk Z position. |
 
 #### Returns
 
 [`Chunk`](Chunk.md)
+
+The chunk at the given coordinate.
 
 ___
 
@@ -1078,15 +287,19 @@ ___
 
 ▸ **getChunkByName**(`name`): [`Chunk`](Chunk.md)
 
+Get a chunk instance by its coordinate representation.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The 2D coordinate representation of the chunk. |
 
 #### Returns
 
 [`Chunk`](Chunk.md)
+
+The chunk at the given coordinate.
 
 ___
 
@@ -1094,17 +307,21 @@ ___
 
 ▸ **getChunkByVoxel**(`vx`, `vy`, `vz`): [`Chunk`](Chunk.md)
 
+Get a chunk by a 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 [`Chunk`](Chunk.md)
+
+The chunk at the given voxel coordinate.
 
 ___
 
@@ -1112,17 +329,24 @@ ___
 
 ▸ **getLightColorByVoxel**(`vx`, `vy`, `vz`): `Color`
 
+Get a color instance that represents what an object would be like
+if it were rendered at the given 3D voxel coordinate. This is useful
+to dynamically shade objects based on their position in the world. Also
+used in [LightShined](LightShined.md).
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 `Color`
+
+The voxel's light color at the given coordinate.
 
 ___
 
@@ -1130,17 +354,23 @@ ___
 
 ▸ **getLightColorByWorld**(`wx`, `wy`, `wz`): `Color`
 
+Get a color instance that represents what an object would be like if it
+were rendered at the given 3D world coordinate. This is useful to dynamically
+shade objects based on their position in the world. Also used in [LightShined](LightShined.md).
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `wx` | `number` |
-| `wy` | `number` |
-| `wz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
 `Color`
+
+The voxel's light color at the given coordinate.
 
 ___
 
@@ -1148,16 +378,20 @@ ___
 
 ▸ **getMaxHeightByVoxel**(`vx`, `vz`): `number`
 
+Get the maximum height of the block column at the given 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 `number`
+
+The max height at the given coordinate.
 
 ___
 
@@ -1165,81 +399,34 @@ ___
 
 ▸ **getMaxHeightByWorld**(`wx`, `wz`): `number`
 
+Get the maximum height of the block column at the given 3D world coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `wx` | `number` |
-| `wz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
 `number`
 
-___
-
-### getObjectById
-
-▸ **getObjectById**(`id`): `Object3D`<`Event`\>
-
-Searches through the object's children and returns the first with a matching id.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `number` | Unique number of the object instance |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Scene.getObjectById
+The max height at the given coordinate.
 
 ___
 
-### getObjectByName
+### getMinBrightness
 
-▸ **getObjectByName**(`name`): `Object3D`<`Event`\>
+▸ **getMinBrightness**(): `number`
 
-Searches through the object's children and returns the first with a matching name.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `name` | `string` | String to match to the children's Object3d.name property. |
+Get the uniform value of the minimum brightness at sunlight `0` voxels.
 
 #### Returns
 
-`Object3D`<`Event`\>
+`number`
 
-#### Inherited from
-
-Scene.getObjectByName
-
-___
-
-### getObjectByProperty
-
-▸ **getObjectByProperty**(`name`, `value`): `Object3D`<`Event`\>
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
-| `value` | `string` |
-
-#### Returns
-
-`Object3D`<`Event`\>
-
-#### Inherited from
-
-Scene.getObjectByProperty
+The minimum brightness of the chunk.
 
 ___
 
@@ -1247,17 +434,21 @@ ___
 
 ▸ **getPreviousVoxelByVoxel**(`vx`, `vy`, `vz`): `number`
 
+Get the previous voxel ID before the latest update was made.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 `number`
+
+The voxel ID that was previously at the given coordinate.
 
 ___
 
@@ -1265,17 +456,21 @@ ___
 
 ▸ **getPreviousVoxelByWorld**(`wx`, `wy`, `wz`): `number`
 
+Get the previous voxel ID before the latest update was made.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `wx` | `number` |
-| `wy` | `number` |
-| `wz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
 `number`
+
+The voxel ID that was previously at the given coordinate.
 
 ___
 
@@ -1283,17 +478,43 @@ ___
 
 ▸ **getSunlightByVoxel**(`vx`, `vy`, `vz`): `number`
 
+Get the voxel's sunlight level at the given 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 `number`
+
+The voxel's sunlight level at the given coordinate.
+
+___
+
+### getSunlightByWorld
+
+▸ **getSunlightByWorld**(`wx`, `wy`, `wz`): `number`
+
+Get the voxel's sunlight level at the given 3D world coordinate.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
+
+#### Returns
+
+`number`
+
+The voxel's sunlight level at the given coordinate.
 
 ___
 
@@ -1301,9 +522,13 @@ ___
 
 ▸ **getSunlightIntensity**(): `number`
 
+Get the uniform value of the intensity of sunlight.
+
 #### Returns
 
 `number`
+
+The intensity of the sun.
 
 ___
 
@@ -1311,18 +536,45 @@ ___
 
 ▸ **getTorchLightByVoxel**(`vx`, `vy`, `vz`, `color`): `number`
 
+Get the voxel's torch light level at the given 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor-156) |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
+| `color` | [`LightColor`](../modules.md#lightcolor-384) | The color of the torch light to get. |
 
 #### Returns
 
 `number`
+
+The voxel's torch light level at the given coordinate.
+
+___
+
+### getTorchLightByWorld
+
+▸ **getTorchLightByWorld**(`wx`, `wy`, `wz`, `color`): `number`
+
+Get the voxel's torch light level at the given 3D world coordinate.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
+| `color` | [`LightColor`](../modules.md#lightcolor-384) | The color of the torch light to get. |
+
+#### Returns
+
+`number`
+
+The voxel's torch light level at the given coordinate.
 
 ___
 
@@ -1330,17 +582,21 @@ ___
 
 ▸ **getVoxelByVoxel**(`vx`, `vy`, `vz`): `number`
 
+Get the voxel ID at the given 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 `number`
+
+The voxel's ID at the given coordinate.
 
 ___
 
@@ -1348,17 +604,21 @@ ___
 
 ▸ **getVoxelByWorld**(`wx`, `wy`, `wz`): `number`
 
+Get the voxel ID at the given 3D world coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `wx` | `number` |
-| `wy` | `number` |
-| `wz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
 `number`
+
+The voxel's ID at the given coordinate.
 
 ___
 
@@ -1366,17 +626,21 @@ ___
 
 ▸ **getVoxelRotationByVoxel**(`vx`, `vy`, `vz`): [`BlockRotation`](BlockRotation.md)
 
+Get the voxel rotation at the given 3D voxel coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
 [`BlockRotation`](BlockRotation.md)
+
+The voxel's rotation at the given coordinate.
 
 ___
 
@@ -1384,17 +648,21 @@ ___
 
 ▸ **getVoxelRotationByWorld**(`wx`, `wy`, `wz`): [`BlockRotation`](BlockRotation.md)
 
+Get the voxel rotation at the given 3D world coordinate.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `wx` | `number` |
-| `wy` | `number` |
-| `wz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
 [`BlockRotation`](BlockRotation.md)
+
+The voxel's rotation at the given coordinate.
 
 ___
 
@@ -1402,126 +670,43 @@ ___
 
 ▸ **getVoxelStageByVoxel**(`vx`, `vy`, `vz`): `number`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `vx` | `number` |
-| `vy` | `number` |
-| `vz` | `number` |
-
-#### Returns
-
-`number`
-
-___
-
-### getWorldDirection
-
-▸ **getWorldDirection**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Scene.getWorldDirection
-
-___
-
-### getWorldPosition
-
-▸ **getWorldPosition**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Scene.getWorldPosition
-
-___
-
-### getWorldQuaternion
-
-▸ **getWorldQuaternion**(`target`): `Quaternion`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Quaternion` |
-
-#### Returns
-
-`Quaternion`
-
-#### Inherited from
-
-Scene.getWorldQuaternion
-
-___
-
-### getWorldScale
-
-▸ **getWorldScale**(`target`): `Vector3`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `target` | `Vector3` |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Scene.getWorldScale
-
-___
-
-### hasEventListener
-
-▸ **hasEventListener**<`T`\>(`type`, `listener`): `boolean`
-
-Checks if listener is added to an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
+Get the voxel's stage at the given 3D voxel coordinate.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | `T` | The type of event to listen to. |
-| `listener` | `EventListener`<`Event`, `T`, [`World`](World.md)\> | The function that gets called when the event is fired. |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
-`boolean`
+`number`
 
-#### Inherited from
+The voxel stage at the given coordinate.
 
-Scene.hasEventListener
+___
+
+### getVoxelStageByWorld
+
+▸ **getVoxelStageByWorld**(`wx`, `wy`, `wz`): `number`
+
+Get the voxel's stage at the given 3D world coordinate.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
+
+#### Returns
+
+`number`
+
+The voxel stage at the given coordinate.
 
 ___
 
@@ -1529,18 +714,23 @@ ___
 
 ▸ **isChunkInView**(`cx`, `cz`, `dx`, `dz`): `boolean`
 
+This checks if the chunk is within the given x/z directions by testing of the given chunk
+coordinate is within `3 * Math.PI / 5` radians of the given direction.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `cx` | `number` |
-| `cz` | `number` |
-| `dx` | `number` |
-| `dz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `cx` | `number` | The chunk's X position. |
+| `cz` | `number` | The chunk's Z position. |
+| `dx` | `number` | The x direction that is being checked. |
+| `dz` | `number` | The z direction that is being checked. |
 
 #### Returns
 
 `boolean`
+
+Whether or not the chunk is within the render view.
 
 ___
 
@@ -1548,64 +738,21 @@ ___
 
 ▸ **isWithinWorld**(`cx`, `cz`): `boolean`
 
+Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
+is within [WorldServerParams.minChunk](../modules.md#worldserverparams-384) and [WorldServerParams.maxChunk](../modules.md#worldserverparams-384).
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `cx` | `number` |
-| `cz` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `cx` | `number` | The chunk's X position. |
+| `cz` | `number` | The chunk's Z position. |
 
 #### Returns
 
 `boolean`
 
-___
-
-### localToWorld
-
-▸ **localToWorld**(`vector`): `Vector3`
-
-Updates the vector from local space to world space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `Vector3` | A local vector. |
-
-#### Returns
-
-`Vector3`
-
-#### Inherited from
-
-Scene.localToWorld
-
-___
-
-### lookAt
-
-▸ **lookAt**(`vector`, `y?`, `z?`): `void`
-
-Optionally, the x, y and z components of the world space position.
-Rotates the object to face a point in world space.
-This method does not support objects having non-uniformly-scaled parent(s).
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vector` | `number` \| `Vector3` | A world vector to look at. |
-| `y?` | `number` | - |
-| `z?` | `number` | - |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.lookAt
+Whether or not this chunk is within the bounds of the world.
 
 ___
 
@@ -1613,125 +760,19 @@ ___
 
 ▸ **makeBlockMesh**(`id`): `Mesh`<`BufferGeometry`, `MeshBasicMaterial`\>
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `id` | `number` |
-
-#### Returns
-
-`Mesh`<`BufferGeometry`, `MeshBasicMaterial`\>
-
-___
-
-### onMessage
-
-▸ **onMessage**(`message`): `void`
-
-A listener to be implemented to handle incoming packets.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `message` | `MessageProtocol`<{ `blocks`: [`Block`](../modules.md#block-156)[] ; `params`: [`WorldServerParams`](../modules.md#worldserverparams-156) ; `ranges`: { `[key: string]`: [`TextureRange`](../modules.md#texturerange-156);  }  }, `any`, `any`, `any`\> |
-
-#### Returns
-
-`void`
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-156)
-
-___
-
-### raycast
-
-▸ **raycast**(`raycaster`, `intersects`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `raycaster` | `Raycaster` |
-| `intersects` | `Intersection`<`Object3D`<`Event`\>\>[] |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.raycast
-
-___
-
-### remove
-
-▸ **remove**(...`object`): [`World`](World.md)
-
-Removes object as child of this object.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `...object` | `Object3D`<`Event`\>[] |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.remove
-
-___
-
-### removeEventListener
-
-▸ **removeEventListener**<`T`\>(`type`, `listener`): `void`
-
-Removes a listener from an event type.
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | extends `string` |
+Get a mesh of the model of the given block.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `type` | `T` | The type of the listener that gets removed. |
-| `listener` | `EventListener`<`Event`, `T`, [`World`](World.md)\> | The listener function that gets removed. |
+| `id` | `number` | The ID of the block. |
 
 #### Returns
 
-`void`
+`Mesh`<`BufferGeometry`, `MeshBasicMaterial`\>
 
-#### Inherited from
-
-Scene.removeEventListener
-
-___
-
-### removeFromParent
-
-▸ **removeFromParent**(): [`World`](World.md)
-
-Removes this object from its current parent.
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.removeFromParent
+A 3D mesh of the block model.
 
 ___
 
@@ -1739,121 +780,11 @@ ___
 
 ▸ **reset**(): `void`
 
+Reset the world's chunk and block caches.
+
 #### Returns
 
 `void`
-
-___
-
-### rotateOnAxis
-
-▸ **rotateOnAxis**(`axis`, `angle`): [`World`](World.md)
-
-Rotate an object along an axis in object space. The axis is assumed to be normalized.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `axis` | `Vector3` | A normalized vector in object space. |
-| `angle` | `number` | The angle in radians. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.rotateOnAxis
-
-___
-
-### rotateOnWorldAxis
-
-▸ **rotateOnWorldAxis**(`axis`, `angle`): [`World`](World.md)
-
-Rotate an object along an axis in world space. The axis is assumed to be normalized. Method Assumes no rotated parent.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `axis` | `Vector3` | A normalized vector in object space. |
-| `angle` | `number` | The angle in radians. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.rotateOnWorldAxis
-
-___
-
-### rotateX
-
-▸ **rotateX**(`angle`): [`World`](World.md)
-
-Rotates the object around x axis in local space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `angle` | `number` | the angle to rotate in radians. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.rotateX
-
-___
-
-### rotateY
-
-▸ **rotateY**(`angle`): [`World`](World.md)
-
-Rotates the object around y axis in local space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `angle` | `number` | the angle to rotate in radians. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.rotateY
-
-___
-
-### rotateZ
-
-▸ **rotateZ**(`angle`): [`World`](World.md)
-
-Rotates the object around z axis in local space.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `angle` | `number` | the angle to rotate in radians. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.rotateZ
 
 ___
 
@@ -1861,11 +792,13 @@ ___
 
 ▸ **setFogColor**(`color`): `void`
 
+Set the fog color that is applied to the chunks.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `color` | `Color` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `color` | `Color` | The color reference to link the fog to. |
 
 #### Returns
 
@@ -1877,7 +810,7 @@ ___
 
 ▸ **setFogDistance**(`distance`): `void`
 
-Set the farthest distance for the fog. Fog starts fogging up 50% from the farthest.
+Set the farthest distance for the fog. Fog starts fogging up the chunks 50% from the farthest.
 
 #### Parameters
 
@@ -1895,128 +828,17 @@ ___
 
 ▸ **setMinBrightness**(`minBrightness`): `void`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `minBrightness` | `number` |
-
-#### Returns
-
-`void`
-
-___
-
-### setParams
-
-▸ **setParams**(`data`): `void`
-
-Applies the server settings onto this world.
-Caution: do not call this after game started!
-
-**`memberof`** World
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `data` | [`WorldServerParams`](../modules.md#worldserverparams-156) |
-
-#### Returns
-
-`void`
-
-___
-
-### setRotationFromAxisAngle
-
-▸ **setRotationFromAxisAngle**(`axis`, `angle`): `void`
-
-axis -- A normalized vector in object space.
-angle -- angle in radians
+Set the uniform value of the minimum brightness at sunlight level of `0` voxels.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `axis` | `Vector3` | A normalized vector in object space. |
-| `angle` | `number` | angle in radians |
+| `minBrightness` | `number` | The minimum brightness value. |
 
 #### Returns
 
 `void`
-
-#### Inherited from
-
-Scene.setRotationFromAxisAngle
-
-___
-
-### setRotationFromEuler
-
-▸ **setRotationFromEuler**(`euler`): `void`
-
-Calls setRotationFromEuler(euler) on the .quaternion.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `euler` | `Euler` | Euler angle specifying rotation amount. |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.setRotationFromEuler
-
-___
-
-### setRotationFromMatrix
-
-▸ **setRotationFromMatrix**(`m`): `void`
-
-Calls setFromRotationMatrix(m) on the .quaternion.
-
-Note that this assumes that the upper 3x3 of m is a pure rotation matrix (i.e, unscaled).
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `m` | `Matrix4` | rotate the quaternion by the rotation component of the matrix. |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.setRotationFromMatrix
-
-___
-
-### setRotationFromQuaternion
-
-▸ **setRotationFromQuaternion**(`q`): `void`
-
-Copy the given quaternion into .quaternion.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `q` | `Quaternion` | normalized Quaternion |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.setRotationFromQuaternion
 
 ___
 
@@ -2024,184 +846,17 @@ ___
 
 ▸ **setSunlightIntensity**(`intensity`): `void`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `intensity` | `number` |
-
-#### Returns
-
-`void`
-
-___
-
-### toJSON
-
-▸ **toJSON**(`meta?`): `any`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `meta?` | `any` |
-
-#### Returns
-
-`any`
-
-#### Inherited from
-
-Scene.toJSON
-
-___
-
-### translateOnAxis
-
-▸ **translateOnAxis**(`axis`, `distance`): [`World`](World.md)
-
-Translate an object by distance along an axis in object space. The axis is assumed to be normalized.
+Set the uniform value of the intensity of sunlight.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `axis` | `Vector3` | A normalized vector in object space. |
-| `distance` | `number` | The distance to translate. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.translateOnAxis
-
-___
-
-### translateX
-
-▸ **translateX**(`distance`): [`World`](World.md)
-
-Translates object along x axis by distance.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `distance` | `number` | Distance. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.translateX
-
-___
-
-### translateY
-
-▸ **translateY**(`distance`): [`World`](World.md)
-
-Translates object along y axis by distance.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `distance` | `number` | Distance. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.translateY
-
-___
-
-### translateZ
-
-▸ **translateZ**(`distance`): [`World`](World.md)
-
-Translates object along z axis by distance.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `distance` | `number` | Distance. |
-
-#### Returns
-
-[`World`](World.md)
-
-#### Inherited from
-
-Scene.translateZ
-
-___
-
-### traverse
-
-▸ **traverse**(`callback`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
+| `intensity` | `number` | The intensity of the sun. |
 
 #### Returns
 
 `void`
-
-#### Inherited from
-
-Scene.traverse
-
-___
-
-### traverseAncestors
-
-▸ **traverseAncestors**(`callback`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.traverseAncestors
-
-___
-
-### traverseVisible
-
-▸ **traverseVisible**(`callback`): `void`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `callback` | (`object`: `Object3D`<`Event`\>) => `any` |
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.traverseVisible
 
 ___
 
@@ -2209,53 +864,18 @@ ___
 
 ▸ **update**(`center`): `void`
 
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `center` | `Vector3` |
-
-#### Returns
-
-`void`
-
-___
-
-### updateMatrix
-
-▸ **updateMatrix**(): `void`
-
-Updates local transform.
-
-#### Returns
-
-`void`
-
-#### Inherited from
-
-Scene.updateMatrix
-
-___
-
-### updateMatrixWorld
-
-▸ **updateMatrixWorld**(`force?`): `void`
-
-Updates global transform of the object and its children.
+The updater of the world. This requests the chunks around the given coordinates and meshes any
+new chunks that are received from the server. This should be called every frame.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `force?` | `boolean` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `center` | `Vector3` | The center of the update. That is, the center that the chunks should    be requested around. |
 
 #### Returns
 
 `void`
-
-#### Inherited from
-
-Scene.updateMatrixWorld
 
 ___
 
@@ -2263,16 +883,25 @@ ___
 
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
 
+This sends a block update to the server and updates across the network. Block updates are queued to
+[World.chunks.toUpdate](World.md#chunks-384) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-384) times
+per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-384) | [NX_ROTATION](../modules.md#nx_rotation-384) | [PY_ROTATION](../modules.md#py_rotation-384) | [NY_ROTATION](../modules.md#ny_rotation-384) | [PZ_ROTATION](../modules.md#pz_rotation-384) | [NZ_ROTATION](../modules.md#nz_rotation-384)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-384) - 1.
+
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-384) (Same for if
+block is not [Block.yRotatable](../modules.md#block-384)).
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `vx` | `number` | `undefined` |
-| `vy` | `number` | `undefined` |
-| `vz` | `number` | `undefined` |
-| `type` | `number` | `undefined` |
-| `rotation` | `number` | `PY_ROTATION` |
-| `yRotation` | `number` | `0` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `vx` | `number` | `undefined` | The voxel's X position. |
+| `vy` | `number` | `undefined` | The voxel's Y position. |
+| `vz` | `number` | `undefined` | The voxel's Z position. |
+| `type` | `number` | `undefined` | The type of the voxel. |
+| `rotation` | `number` | `PY_ROTATION` | The major axis rotation of the voxel. |
+| `yRotation` | `number` | `0` | The Y rotation on the major axis. Applies to blocks with major axis of PY or NY. |
 
 #### Returns
 
@@ -2284,60 +913,138 @@ ___
 
 ▸ **updateVoxels**(`updates`): `void`
 
-#### Parameters
+This sends a list of block updates to the server and updates across the network. Block updates are queued to
+[World.chunks.toUpdate](World.md#chunks-384) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-384) times
+per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
-| Name | Type |
-| :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-156)[] |
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-384) | [NX_ROTATION](../modules.md#nx_rotation-384) | [PY_ROTATION](../modules.md#py_rotation-384) | [NY_ROTATION](../modules.md#ny_rotation-384) | [PZ_ROTATION](../modules.md#pz_rotation-384) | [NZ_ROTATION](../modules.md#nz_rotation-384)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-384) - 1.
 
-#### Returns
-
-`void`
-
-___
-
-### updateWorldMatrix
-
-▸ **updateWorldMatrix**(`updateParents`, `updateChildren`): `void`
-
-Updates the global transform of the object.
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-384) (Same for if
+block is not [Block.yRotatable](../modules.md#block-384)).
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `updateParents` | `boolean` | recursively updates global transform of ancestors. |
-| `updateChildren` | `boolean` | recursively updates global transform of descendants. |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-384)[] | A list of updates to send to the server. |
 
 #### Returns
 
 `void`
 
-#### Inherited from
+## Properties
 
-Scene.updateWorldMatrix
+### atlas
+
+• **atlas**: [`TextureAtlas`](TextureAtlas.md)
+
+The generated texture atlas built from all registered block textures.
 
 ___
 
-### worldToLocal
+### blockCache
 
-▸ **worldToLocal**(`vector`): `Vector3`
+• **blockCache**: `Map`<`string`, `number`\>
 
-Updates the vector from world space to local space.
+This is a map that keeps track of the block IDs before they are updated to any new block IDs.
+Use [World.getPreviousVoxelByVoxel](World.md#getpreviousvoxelbyvoxel-384) and [World.getPreviousVoxelByWorld](World.md#getpreviousvoxelbyworld-384) to get the previous
+block ID, if it exists.
 
-#### Parameters
+___
+
+### chunks
+
+• **chunks**: [`Chunks`](Chunks.md)
+
+A chunk manager that stores useful information about chunks, such as the chunk mesh and chunk data.
+
+___
+
+### initialized
+
+• **initialized**: `boolean` = `false`
+
+Whether or not this world is connected to a server and has configurations and block data loaded from the server.
+
+___
+
+### loader
+
+• **loader**: `Loader`
+
+An asset loader that handles loading textures and other assets.
+
+___
+
+### materials
+
+• **materials**: `Object` = `{}`
+
+The shared material instances for chunks.
+
+#### Type declaration
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `vector` | `Vector3` | A world vector. |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-384) | The chunk material that is used to render the opaque portions of the chunk meshes. |
+| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-384) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-384)  } | The chunk materials that are used to render the transparent portions of the chunk meshes. This consists of two sides of the chunk mesh, front and back. |
+| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-384) | The back side of the chunk mesh's transparent material. |
+| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-384) | The front side of the chunk mesh's transparent material. |
 
-#### Returns
+___
 
-`Vector3`
+### params
 
-#### Inherited from
+• **params**: [`WorldParams`](../modules.md#worldparams-384) = `{}`
 
-Scene.worldToLocal
+Parameters to configure the world. This is a combination of the client-side parameters, [WorldClientParams](../modules.md#worldclientparams-384),
+and the server-side parameters, [WorldServerParams](../modules.md#worldserverparams-384). The server-side parameters are defined on the server, and
+are sent to the client when the client connects to the server.
+
+___
+
+### physics
+
+• **physics**: `Engine`
+
+A voxel AABB physics engine that handles physics simulation of client-side physics. You can use `world.physics.iterateBody`
+individually to iterate over a rigid body.
+
+___
+
+### registry
+
+• **registry**: [`Registry`](Registry.md)
+
+The block registry that handles block textures and block instances.
+
+___
+
+### uniforms
+
+• **uniforms**: `Object`
+
+The WebGL uniforms that are used in the chunk shader.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `ao` | { `value`: `Vector4`  } | The ambient occlusion levels that are applied onto the chunk meshes. Check out [this article](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/) for more information on ambient occlusion for voxel worlds. Defaults to `new Vector4(100.0, 170.0, 210.0, 255.0)`. |
+| `ao.value` | `Vector4` | The value passed into the chunk shader. |
+| `atlas` | { `value`: `Texture`  } | The 2D texture atlas that is used to render the chunk. This will be set after [World.atlas](World.md#atlas-384) is generated. |
+| `atlas.value` | `Texture` | The value passed into the chunk shader. |
+| `fogColor` | { `value`: `Color`  } | The fog color that is applied onto afar chunks. It is recommended to set this to the middle color of the sky. Defaults to a new THREE.JS white color instance. |
+| `fogColor.value` | `Color` | The value passed into the chunk shader. |
+| `fogFar` | { `value`: `number`  } | The far distance of the fog. Defaults to `200` units. |
+| `fogFar.value` | `number` | The value passed into the chunk shader. |
+| `fogNear` | { `value`: `number`  } | The near distance of the fog. Defaults to `100` units. |
+| `fogNear.value` | `number` | The value passed into the chunk shader. |
+| `minBrightness` | { `value`: `number`  } | The minimum brightness of the world at light level `0`. Defaults to `0.2`. |
+| `minBrightness.value` | `number` | The value passed into the chunk shader. |
+| `sunlightIntensity` | { `value`: `number`  } | The sunlight intensity of the world. Changing this to `0` would effectively simulate night time in Voxelize. Defaults to `1.0`. |
+| `sunlightIntensity.value` | `number` | The value passed into the chunk shader. |
 
 ## Constructors
 
@@ -2345,11 +1052,13 @@ Scene.worldToLocal
 
 • **new World**(`params?`)
 
+Create a new world instance.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-156)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-384)\> | The client-side parameters to configure the world. |
 
 #### Overrides
 
@@ -2361,11 +1070,15 @@ Scene.constructor
 
 • `get` **renderRadius**(): `number`
 
+The render radius that this world is requesting chunks at.
+
 #### Returns
 
 `number`
 
 • `set` **renderRadius**(`radius`): `void`
+
+Set the render radius that this world is requesting chunks at.
 
 #### Parameters
 
