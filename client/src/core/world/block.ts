@@ -3,7 +3,7 @@ import { AABB } from "@voxelize/aabb";
 import { Coords3 } from "../../types";
 
 /**
- * A block type in the world.
+ * A block type in the world. This is defined by the server.
  */
 export type Block = {
   /**

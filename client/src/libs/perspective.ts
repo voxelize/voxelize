@@ -25,12 +25,24 @@ export type PerspectiveParams = {
    * The lerping factor for the camera's position. Defaults to `0.5`.
    */
   lerpFactor: number;
+
+  /**
+   * Whether or not should the camera ignore see-through block collisions. Defaults to `true`.
+   */
+  ignoreSeeThrough: boolean;
+
+  /**
+   * Whether or not should the camera ignore fluid block collisions. Defaults to `true`.
+   */
+  ignoreFluids: boolean;
 };
 
 const defaultParams: PerspectiveParams = {
   maxDistance: 5,
   blockMargin: 0.3,
   lerpFactor: 0.5,
+  ignoreSeeThrough: true,
+  ignoreFluids: true,
 };
 
 /**
@@ -186,10 +198,19 @@ export class Perspective {
           }
 
           const id = this.world.getVoxelByVoxel(vx, vy, vz);
-          const rotation = this.world.getVoxelRotationByVoxel(vx, vy, vz);
-          const { aabbs, isFluid } = this.world.getBlockById(id);
+          const { aabbs, isFluid, isSeeThrough } = this.world.getBlockById(id);
 
-          return isFluid ? [] : aabbs.map((aabb) => rotation.rotateAABB(aabb));
+          if (this.params.ignoreSeeThrough && isSeeThrough) {
+            return [];
+          }
+
+          if (this.params.ignoreFluids && isFluid) {
+            return [];
+          }
+
+          const rotation = this.world.getVoxelRotationByVoxel(vx, vy, vz);
+
+          return aabbs.map((aabb) => rotation.rotateAABB(aabb));
         },
         [pos.x, pos.y, pos.z],
         [dir.x, dir.y, dir.z],

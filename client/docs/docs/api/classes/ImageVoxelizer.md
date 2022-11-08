@@ -46,7 +46,7 @@ Build a list of block updates that corresponds to a mosaic of the given image us
 | `imgURL` | `string` | The URL of the image to be voxelized. This will be used to create an `Image` object. |
 | `world` | [`World`](World.md) | The world to be updated. |
 | `position` | `Vector3` | The position to start voxelizing the image. This will be the bottom middle of the voxelized image. |
-| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-94) | The extra parameters to process the image voxelization. |
+| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-128) | The extra parameters to process the image voxelization. |
 
 #### Returns
 
@@ -90,5 +90,5 @@ Parse a command line string into image voxelization parameters.
 
 | Name | Type |
 | :------ | :------ |
-| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-94) |
+| `params` | [`ImageVoxelizerParams`](../modules.md#imagevoxelizerparams-128) |
 | `url` | `string` |

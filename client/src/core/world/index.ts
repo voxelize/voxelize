@@ -456,6 +456,11 @@ export class World extends Scene implements NetIntercept {
     return chunk.getVoxelRotation(vx, vy, vz);
   };
 
+  getVoxelRotationByWorld = (wx: number, wy: number, wz: number) => {
+    const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
+    return this.getVoxelRotationByVoxel(...voxel);
+  };
+
   getVoxelStageByVoxel = (vx: number, vy: number, vz: number) => {
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;

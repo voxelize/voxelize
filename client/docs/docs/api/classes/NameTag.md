@@ -30,8 +30,8 @@ Create a new sprite text.
 | Name | Type |
 | :------ | :------ |
 | `text` | `string` |
-| `params` | `Partial`<[`NameTagParams`](../modules.md#nametagparams-94)\> |
+| `params` | `Partial`<[`NameTagParams`](../modules.md#nametagparams-128)\> |
 
 #### Overrides
 
-[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-94)
+[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-128)
