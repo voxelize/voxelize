@@ -20,15 +20,19 @@ packets to the server.
 - [`Peers`](../classes/Peers.md)
 - [`World`](../classes/World.md)
 
-## Methods
+## Properties
 
 ### onMessage
 
-▸ **onMessage**(`message`, `clientInfo`): `void`
+• **onMessage**: (`message`: `MessageProtocol`<`any`, `any`, `any`, `any`\>, `clientInfo`: { `id`: `string` ; `username`: `string`  }) => `void`
+
+#### Type declaration
+
+▸ (`message`, `clientInfo`): `void`
 
 A listener to be implemented to handle incoming packets.
 
-#### Parameters
+##### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
@@ -37,11 +41,11 @@ A listener to be implemented to handle incoming packets.
 | `clientInfo.id` | `string` | The client's ID. |
 | `clientInfo.username` | `string` | The client's username. |
 
-#### Returns
+##### Returns
 
 `void`
 
-## Properties
+___
 
 ### packets
 

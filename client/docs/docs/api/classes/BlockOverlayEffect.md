@@ -59,11 +59,15 @@ Add a new overlay to a certain voxel type.
 
 • **camera**: `PerspectiveCamera`
 
+The camera that the effect is applied to.
+
 ___
 
 ### world
 
 • **world**: [`World`](World.md)
+
+The world that the effect is in.
 
 ## Constructors
 

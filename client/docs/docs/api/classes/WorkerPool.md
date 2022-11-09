@@ -22,6 +22,8 @@ a worker becomes available.
 
 • **new WorkerPool**()
 
+The worker class to create.
+
 ___
 
 ### WORKING\_COUNT
@@ -34,13 +36,15 @@ ___
 
 ### params
 
-• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams) = `defaultParams`
+• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams-8) = `defaultParams`
+
+The parameters to create the worker pool.
 
 ___
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-8)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
 
@@ -56,7 +60,7 @@ Append a new job to be executed by a worker.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob) | The job to queue. |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-8) | The job to queue. |
 
 #### Returns
 
@@ -75,7 +79,7 @@ Create a new worker pool.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `Proto` | () => `Worker` | `undefined` | The worker class to create. |
-| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams) | `defaultParams` | The parameters to create the worker pool. |
+| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams-8) | `defaultParams` | The parameters to create the worker pool. |
 
 ## Accessors
 

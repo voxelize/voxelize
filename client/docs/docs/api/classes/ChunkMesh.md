@@ -22,6 +22,8 @@ This module is used internally by the `Chunk` class.
 
 • **chunk**: [`Chunk`](Chunk.md)
 
+The chunk to link this chunk mesh to.
+
 ___
 
 ### opaque

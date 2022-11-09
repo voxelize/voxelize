@@ -22,8 +22,6 @@ box.paint("all", (ctx, canvas) => {
 
 ![Bobby from King of the Hill](/img/bobby-canvas-box.png)
 
-<p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Bobby from King of the Hill rendered in CanvasBoxes</p>
-
 ## Hierarchy
 
 - `Group`
@@ -60,7 +58,7 @@ ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-8)
 
 Parameters for creating a canvas box.
 
@@ -96,7 +94,7 @@ Create a new canvas box.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams)\> | The parameters for creating a canvas box. |
+| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-8)\> | The parameters for creating a canvas box. |
 
 #### Overrides
 
@@ -114,8 +112,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-8) \| [`BoxSides`](../modules.md#boxsides-8)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-8) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

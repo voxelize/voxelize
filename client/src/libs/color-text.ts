@@ -26,8 +26,6 @@
  *
  * ![ColorText](/img/colortext.png)
  *
- * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Colored text used in nametags.</p>
- *
  * @category Effects
  */
 export class ColorText {

@@ -262,8 +262,6 @@ export class ChunkMesh extends Group {
  *
  * ![Chunk](/img/chunk.png)
  *
- * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A visualization of one single chunk</p>
- *
  */
 export class Chunk {
   /**

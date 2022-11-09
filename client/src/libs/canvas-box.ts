@@ -339,8 +339,6 @@ export class BoxLayer extends Mesh {
  *
  * ![Bobby from King of the Hill](/img/bobby-canvas-box.png)
  *
- * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Bobby from King of the Hill rendered in CanvasBoxes</p>
- *
  * @noInheritDoc
  */
 export class CanvasBox extends Group {

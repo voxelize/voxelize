@@ -50,7 +50,8 @@ ___
 
 Ignore a certain type of object from being affected by this effect.
 
-**`example`**
+**`Example`**
+
 ```ts
 // Ignore all shadows. (This is done by default)
 lightShined.ignore(VOXELIZE.Shadow);
@@ -112,7 +113,7 @@ Construct a light shined effect manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world that the effect is applied to. |
-| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams)\> | Parameters to customize the effect. |
+| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-8)\> | Parameters to customize the effect. |
 
 ## Properties
 
@@ -134,7 +135,7 @@ ___
 
 ### params
 
-• **params**: [`LightShinedParams`](../modules.md#lightshinedparams)
+• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-8)
 
 Parameters to customize the effect.
 
@@ -143,3 +144,5 @@ ___
 ### world
 
 • **world**: [`World`](World.md)
+
+The world that the effect is applied to.

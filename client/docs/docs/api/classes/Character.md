@@ -31,8 +31,6 @@ controls.attachCharacter(character);
 
 ![Character](/img/character.png)
 
-<p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A character with a funny face</p>
-
 ## Hierarchy
 
 - `Group`
@@ -171,7 +169,7 @@ ___
 
 ### params
 
-• **params**: [`CharacterParams`](../modules.md#characterparams)
+• **params**: [`CharacterParams`](../modules.md#characterparams-8)
 
 Parameters to create a Voxelize character.
 
@@ -229,7 +227,7 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams)\> | Parameters to create a Voxelize character. |
+| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams-8)\> | Parameters to create a Voxelize character. |
 
 #### Overrides
 

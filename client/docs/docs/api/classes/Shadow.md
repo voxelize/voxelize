@@ -66,7 +66,9 @@ ___
 
 Array with animation clips.
 
-**`default`** []
+**`Default`**
+
+[]
 
 #### Inherited from
 
@@ -80,7 +82,9 @@ ___
 
 Gets rendered into shadow map.
 
-**`default`** false
+**`Default`**
+
+false
 
 #### Inherited from
 
@@ -94,7 +98,9 @@ ___
 
 Array with object's children.
 
-**`default`** []
+**`Default`**
+
+[]
 
 #### Inherited from
 
@@ -136,7 +142,9 @@ ___
 When this is set, it checks every frame if the object is in the frustum of the camera before rendering the object.
 If set to false the object gets rendered every frame even if it is not in the frustum of the camera.
 
-**`default`** true
+**`Default`**
+
+true
 
 #### Inherited from
 
@@ -193,7 +201,9 @@ ___
 
 • **layers**: `Layers`
 
-**`default`** new THREE.Layers()
+**`Default`**
+
+new THREE.Layers()
 
 #### Inherited from
 
@@ -217,7 +227,9 @@ ___
 
 Local transform.
 
-**`default`** new THREE.Matrix4()
+**`Default`**
+
+new THREE.Matrix4()
 
 #### Inherited from
 
@@ -232,7 +244,9 @@ ___
 When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
 recalculates the matrixWorld property.
 
-**`default`** THREE.Object3D.DefaultMatrixAutoUpdate
+**`Default`**
+
+THREE.Object3D.DefaultMatrixAutoUpdate
 
 #### Inherited from
 
@@ -246,7 +260,9 @@ ___
 
 The global transform of the object. If the Object3d has no parent, then it's identical to the local transform.
 
-**`default`** new THREE.Matrix4()
+**`Default`**
+
+new THREE.Matrix4()
 
 #### Inherited from
 
@@ -260,7 +276,9 @@ ___
 
 When this is set, it calculates the matrixWorld in that frame and resets this property to false.
 
-**`default`** false
+**`Default`**
+
+false
 
 #### Inherited from
 
@@ -272,7 +290,9 @@ ___
 
 • `Readonly` **modelViewMatrix**: `Matrix4`
 
-**`default`** new THREE.Matrix4()
+**`Default`**
+
+new THREE.Matrix4()
 
 #### Inherited from
 
@@ -310,7 +330,9 @@ ___
 
 Optional name of the object (doesn't need to be unique).
 
-**`default`** ''
+**`Default`**
+
+''
 
 #### Inherited from
 
@@ -322,7 +344,9 @@ ___
 
 • `Readonly` **normalMatrix**: `Matrix3`
 
-**`default`** new THREE.Matrix3()
+**`Default`**
+
+new THREE.Matrix3()
 
 #### Inherited from
 
@@ -394,7 +418,7 @@ ___
 
 ### params
 
-• **params**: [`ShadowParams`](../modules.md#shadowparams)
+• **params**: [`ShadowParams`](../modules.md#shadowparams-8)
 
 The parameters of the shadow.
 
@@ -406,7 +430,9 @@ ___
 
 Object's parent in the scene graph.
 
-**`default`** null
+**`Default`**
+
+null
 
 #### Inherited from
 
@@ -420,7 +446,9 @@ ___
 
 Object's local position.
 
-**`default`** new THREE.Vector3()
+**`Default`**
+
+new THREE.Vector3()
 
 #### Inherited from
 
@@ -434,7 +462,9 @@ ___
 
 Object's local rotation as a Quaternion.
 
-**`default`** new THREE.Quaternion()
+**`Default`**
+
+new THREE.Quaternion()
 
 #### Inherited from
 
@@ -448,7 +478,9 @@ ___
 
 Material gets baked in shadow receiving.
 
-**`default`** false
+**`Default`**
+
+false
 
 #### Inherited from
 
@@ -464,7 +496,9 @@ Overrides the default rendering order of scene graph objects, from lowest to hig
 Opaque and transparent objects remain sorted independently though.
 When this property is set for an instance of Group, all descendants objects will be sorted and rendered together.
 
-**`default`** 0
+**`Default`**
+
+0
 
 #### Inherited from
 
@@ -478,7 +512,9 @@ ___
 
 Object's local rotation (Euler angles), in radians.
 
-**`default`** new THREE.Euler()
+**`Default`**
+
+new THREE.Euler()
 
 #### Inherited from
 
@@ -492,7 +528,9 @@ ___
 
 Object's local scale.
 
-**`default`** new THREE.Vector3()
+**`Default`**
+
+new THREE.Vector3()
 
 #### Inherited from
 
@@ -516,7 +554,9 @@ ___
 
 Up direction.
 
-**`default`** THREE.Object3D.DefaultUp.clone()
+**`Default`**
+
+THREE.Object3D.DefaultUp.clone()
 
 #### Inherited from
 
@@ -530,7 +570,7 @@ ___
 
 An object that can be used to store custom data about the Object3d. It should not hold references to functions as these will not be cloned.
 
-**`default`** {}
+**`Default`**
 
 #### Index signature
 
@@ -558,7 +598,9 @@ ___
 
 Object gets rendered if true.
 
-**`default`** true
+**`Default`**
+
+true
 
 #### Inherited from
 
@@ -569,6 +611,8 @@ ___
 ### world
 
 • **world**: [`World`](World.md)
+
+The world to cast shadows in.
 
 ## Methods
 
@@ -1575,7 +1619,7 @@ Create a shadow instance.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world to cast shadows in. |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams)\> | The parameters of the shadow. |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-8)\> | The parameters of the shadow. |
 
 #### Overrides
 

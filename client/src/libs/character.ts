@@ -241,8 +241,6 @@ const defaultLegsParams: LegParams = {
  *
  * ![Character](/img/character.png)
  *
- * <p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>A character with a funny face</p>
- *
  * @noInheritDoc
  */
 export class Character extends Group {

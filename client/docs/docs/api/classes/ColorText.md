@@ -33,8 +33,6 @@ const splitted = ColorText.split(text);
 
 ![ColorText](/img/colortext.png)
 
-<p style={{textAlign: "center", color: "gray", fontSize: "0.8rem"}}>Colored text used in nametags.</p>
-
 ## Properties
 
 ### SPLITTER
@@ -55,7 +53,7 @@ The symbol used to separate a text into a colored text object array.
 
 ▸ `Static` **split**(`text`, `defaultColor?`): { `color`: `string` ; `text`: `string`  }[]
 
-Split a text into a colored text object array by [ColorText.SPLITTER](ColorText.md#splitter).
+Split a text into a colored text object array by [SPLITTER](ColorText.md#splitter-8).
 
 #### Parameters
 

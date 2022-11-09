@@ -35,7 +35,7 @@ const config = {
   baseUrl: "/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
-  favicon: "img/logo/logo_circle-min.png",
+  favicon: "img/logo/logo_circle-min_10.png",
   deploymentBranch: "gh-pages",
 
   // GitHub pages deployment config.
@@ -82,17 +82,17 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: "Voxelize",
+        title: "VOXELIZE",
         logo: {
           alt: "Voxelize Logo",
-          src: "img/logo/logo_circle-min.png",
+          src: "img/logo/logo_circle-min_10.png",
         },
         items: [
           {
             type: "doc",
             docId: "intro/what-is-voxelize",
             position: "left",
-            label: "Tutorial",
+            label: "Docs",
           },
           { to: "/blog", label: "Blog", position: "left" },
           {
