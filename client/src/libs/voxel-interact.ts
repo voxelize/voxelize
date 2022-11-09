@@ -116,7 +116,7 @@ const defaultParams: VoxelInteractParams = {
  * voxelInteract.update();
  * ```
  *
- * ![VoxelInteract](/img/voxel-interact.png)
+ * ![VoxelInteract](/img/docs/voxel-interact.png)
  *
  * @noInheritDoc
  */

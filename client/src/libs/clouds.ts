@@ -144,7 +144,7 @@ const defaultParams: CloudsParams = {
  * When using {@link Clouds.update}, new clouds will be generated if the center of the grid
  * does not match the passed in position.
  *
- * ![Clouds](/img/clouds.png)
+ * ![Clouds](/img/docs/clouds.png)
  *
  * @noInheritDoc
  */

@@ -134,7 +134,7 @@ export type WorldParams = WorldClientParams & WorldServerParams;
  * world.update(controls.object.position);
  * ```
  *
- * ![World](/img/world.png)
+ * ![World](/img/docs/world.png)
  *
  * @category Core
  * @noInheritDoc

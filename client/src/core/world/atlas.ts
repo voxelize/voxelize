@@ -34,7 +34,7 @@ export type TextureAtlasParams = {
  * By default, the texture atlas creates an additional border around each texture to prevent
  * texture bleeding.
  *
- * ![Texture bleeding](/img/texture-bleeding.png)
+ * ![Texture bleeding](/img/docs/texture-bleeding.png)
  *
  */
 export class TextureAtlas {

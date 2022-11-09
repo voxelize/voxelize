@@ -9,7 +9,7 @@ import { ColorText } from "./color-text";
  * Sprite text uses {@link ColorText} internally to generate the texture that supports
  * multiple colors in the same text.
  *
- * ![Sprite text](/img/sprite-text.png)
+ * ![Sprite text](/img/docs/sprite-text.png)
  *
  * @noInheritDoc
  */

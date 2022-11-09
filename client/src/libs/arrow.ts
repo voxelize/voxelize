@@ -59,7 +59,7 @@ const defaultParams: ArrowParams = {
  * world.add(arrow);
  * ```
  *
- * ![Arrow](/img/arrow.png)
+ * ![Arrow](/img/docs/arrow.png)
  *
  * @noInheritDoc
  */

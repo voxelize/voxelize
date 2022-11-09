@@ -31,7 +31,7 @@ export type CommandProcessor = (rest: string) => void;
  * network.register(chat);
  * ```
  *
- * ![Chat](/img/chat.png)
+ * ![Chat](/img/docs/chat.png)
  *
  * @category Core
  */

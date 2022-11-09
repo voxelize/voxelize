@@ -260,7 +260,7 @@ export class ChunkMesh extends Group {
  * A chunk is a `chunkSize` x `maxHeight` x `chunkSize` region of blocks. The data of each chunk is generated
  * and sent from the server to the client, then the client renders the chunks surrounding the client.
  *
- * ![Chunk](/img/chunk.png)
+ * ![Chunk](/img/docs/chunk.png)
  *
  */
 export class Chunk {

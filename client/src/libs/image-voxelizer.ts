@@ -59,7 +59,7 @@ const defaultParams: ImageVoxelizerParams = {
  * });
  * ```
  *
- * ![ImageVoxelizer example](/img/image-voxelizer.png)
+ * ![ImageVoxelizer example](/img/docs/image-voxelizer.png)
  */
 export class ImageVoxelizer {
   /**

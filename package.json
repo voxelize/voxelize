@@ -3,6 +3,7 @@
   "license": "MIT",
   "private": true,
   "workspaces": [
+    "docs",
     "client",
     "transport"
   ],
@@ -14,7 +15,7 @@
     "demo:ts": "cd examples/client && yarn && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "lint": "eslint --fix --ext js,ts,tsx .",
-    "docs": "cd client && yarn run docs"
+    "docs": "cd docs && yarn run start"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",

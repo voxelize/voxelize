@@ -195,7 +195,7 @@ const defaultParams: BlockBreakParticlesParams = {
  * particles.update();
  * ```
  *
- * ![Block break particles](/img/block-break-particles.png)
+ * ![Block break particles](/img/docs/block-break-particles.png)
  *
  * @category Effects
  */

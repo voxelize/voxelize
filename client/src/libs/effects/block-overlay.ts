@@ -24,7 +24,7 @@ import OverlayFragmentShader from "../shaders/effects/overlay.frag.glsl";
  * );
  * ```
  *
- * ![Block overlay effect](/img/overlay.png)
+ * ![Block overlay effect](/img/docs/overlay.png)
  *
  * @noInheritDoc
  * @category Effects

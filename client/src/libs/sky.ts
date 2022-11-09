@@ -32,7 +32,7 @@ import SkyVertexShader from "./shaders/sky/vertex.glsl";
  * sky.update(camera.position);
  * ```
  *
- * ![Sky](/img/sky.png)
+ * ![Sky](/img/docs/sky.png)
  *
  */
 export class Sky extends CanvasBox {

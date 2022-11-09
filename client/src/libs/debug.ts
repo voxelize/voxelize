@@ -85,7 +85,7 @@ const defaultParams: DebugParams = {
  * debug.update();
  * ```
  *
- * ![Debug](/img/debug.png)
+ * ![Debug](/img/docs/debug.png)
  *
  * @noInheritDoc
  */

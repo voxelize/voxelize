@@ -38,7 +38,7 @@ const defaultParams: LightShinedParams = {
  * lightShined.update();
  * ```
  *
- * ![Example](/img/light-shined.png)
+ * ![Example](/img/docs/light-shined.png)
  *
  * @category Effects
  */

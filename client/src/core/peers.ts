@@ -65,7 +65,7 @@ const defaultParams: PeersParams = {
  * peers.update();
  * ```
  *
- * ![Example](/img/peers.png)
+ * ![Example](/img/docs/peers.png)
  *
  * @noInheritDoc
  * @param C The type of the character. Defaults to `Object3D`.

@@ -24,7 +24,7 @@
  * // ]
  * ```
  *
- * ![ColorText](/img/colortext.png)
+ * ![ColorText](/img/docs/colortext.png)
  *
  * @category Effects
  */

@@ -239,7 +239,7 @@ const defaultLegsParams: LegParams = {
  * controls.attachCharacter(character);
  * ```
  *
- * ![Character](/img/character.png)
+ * ![Character](/img/docs/character.png)
  *
  * @noInheritDoc
  */

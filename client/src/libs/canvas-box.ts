@@ -337,7 +337,7 @@ export class BoxLayer extends Mesh {
  * });
  * ```
  *
- * ![Bobby from King of the Hill](/img/bobby-canvas-box.png)
+ * ![Bobby from King of the Hill](/img/docs/bobby-canvas-box.png)
  *
  * @noInheritDoc
  */
