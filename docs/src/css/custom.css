@@ -41,15 +41,6 @@
   width: 2rem;
 }
 
-/* 3D button */
-button {
-  @apply inline-block relative text-center text-white font-bold py-2 px-4 rounded;
-  @apply transition duration-300 ease-in-out;
-  @apply transform hover:scale-105;
-  @apply bg-sky-500 hover:bg-sky-600;
-  @apply border border-sky-500 hover:border-sky-600;
-}
-
 p > img {
   @apply w-auto m-auto place-self-center;
 }

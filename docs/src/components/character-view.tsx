@@ -1,13 +1,7 @@
 import React, { useEffect, useRef } from "react";
 
 import * as VOXELIZE from "@voxelize/client";
-import styled from "styled-components";
 import * as THREE from "three";
-
-const LogoCanvas = styled.canvas`
-  width: 100%;
-  height: 100%;
-`;
 
 export const CharacterView = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,7 +30,7 @@ export const CharacterView = () => {
     const CAMERA_OFFSET_Y = 0.5;
 
     camera.position.set(0, CAMERA_OFFSET_Y, 2.5);
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(0, -CAMERA_OFFSET_Y, 0);
 
     const character = new VOXELIZE.Character();
     // character.position.y += character.eyeHeight;
@@ -48,8 +42,9 @@ export const CharacterView = () => {
       mouseY = 0;
 
     function onDocumentMouseMove(event: MouseEvent) {
-      mouseX = event.clientX - (canvas.offsetLeft + canvas.clientWidth / 2);
-      mouseY = event.clientY - (canvas.offsetTop + canvas.clientHeight / 2);
+      const rect = canvas.getBoundingClientRect();
+      mouseX = event.clientX - (rect.x + canvas.clientWidth / 2);
+      mouseY = event.clientY - (rect.y + canvas.clientHeight / 2);
     }
 
     document.addEventListener("mousemove", onDocumentMouseMove, false);
@@ -57,8 +52,6 @@ export const CharacterView = () => {
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
-      // controls.update();
-      renderer.render(scene, camera);
 
       target.x = mouseX * 0.02;
       target.y = -mouseY * 0.02;
@@ -66,9 +59,11 @@ export const CharacterView = () => {
 
       character.set(
         [0, 0, 0],
-        [target.x, target.y + CAMERA_OFFSET_Y, target.z]
+        [target.x, target.y - CAMERA_OFFSET_Y * 2, target.z]
       );
       character.update();
+
+      renderer.render(scene, camera);
     };
 
     animate();
@@ -78,5 +73,5 @@ export const CharacterView = () => {
     };
   }, [canvasRef]);
 
-  return <LogoCanvas ref={canvasRef} />;
+  return <canvas className="w-full h-full" ref={canvasRef} />;
 };

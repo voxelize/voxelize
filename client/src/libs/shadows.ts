@@ -1,7 +1,7 @@
 import { raycast } from "@voxelize/raycast";
 import { World } from "core";
 import {
-  CircleBufferGeometry,
+  CircleGeometry,
   DoubleSide,
   Mesh,
   MeshBasicMaterial,
@@ -54,10 +54,7 @@ export class Shadow extends Mesh {
   /**
    * The shared geometry for all shadows.
    */
-  static readonly GEOMETRY = new CircleBufferGeometry(
-    defaultParams.maxRadius,
-    30
-  );
+  static readonly GEOMETRY = new CircleGeometry(defaultParams.maxRadius, 30);
 
   /**
    * The y-offset of the shadow from the ground.

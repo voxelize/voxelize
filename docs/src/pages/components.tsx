@@ -68,8 +68,6 @@ export default () => {
           </tbody>
         </table>
         <button>Button</button>
-        <br />
-        <img src="https://via.placeholder.com/500x300" alt="Placeholder" />
       </div>
     </Layout>
   );

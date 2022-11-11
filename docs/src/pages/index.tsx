@@ -5,6 +5,7 @@ import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
 import Layout from "@theme/Layout";
+import { TypeAnimation } from "react-type-animation";
 import styled from "styled-components";
 
 import { H1 } from "../components/headings";
@@ -13,24 +14,31 @@ const HomepageHeader = () => {
   const { siteConfig } = useDocusaurusContext();
 
   return (
-    <div className="flex flex-col justify-center min-h-[60vh]">
-      <div className="flex flex-col justify-center items-center text-center">
-        <div
-          style={{ width: "400px", height: "400px" }}
-          // className="flex justify-center items-center"
-        >
-          <BrowserOnly>
-            {() => {
-              const CharacterView =
-                require("../components/character-view").CharacterView;
-              return <CharacterView />;
-            }}
-          </BrowserOnly>
-        </div>
+    <div className="flex justify-center items-center min-h-[80vh]">
+      <div className="flex flex-col justify-center items-start">
         <div className="my-10">
           <H1>{siteConfig.title}</H1>
-          <p className="text-2xl">{siteConfig.tagline}</p>
+          <TypeAnimation
+            sequence={[
+              "A multiplayer voxel game engine",
+              1000,
+              "An immersive 3D web experience",
+              1000,
+              "A 3D web framework",
+              1000,
+              "A full-stack game framework",
+              1000,
+              "A 3D voxel editor",
+              1000,
+            ]}
+            wrapper="div"
+            cursor={false}
+            speed={50}
+            repeat={Infinity}
+            className="font-body text-2xl"
+          />
         </div>
+
         <Link to="/docs/intro/what-is-voxelize">
           <button
             className="button button--secondary button--lg"
@@ -39,6 +47,16 @@ const HomepageHeader = () => {
             Get Started &rarr;
           </button>
         </Link>
+      </div>
+
+      <div className="w-[400px] h-[600px]">
+        <BrowserOnly>
+          {() => {
+            const CharacterView =
+              require("../components/character-view").CharacterView;
+            return <CharacterView />;
+          }}
+        </BrowserOnly>
       </div>
     </div>
   );

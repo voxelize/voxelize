@@ -74,7 +74,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: "Voxelize",
+        title: "VOXELIZE",
         logo: {
           alt: "Voxelize Logo",
           src: "img/logo/circle-min.png",
