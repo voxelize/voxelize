@@ -13,11 +13,11 @@ also implements [NetIntercept](../interfaces/NetIntercept.md), which means it in
 and constructs chunk meshes from them.
 
 There are a couple important components that are by default created by the world:
-- [registry](World.md#registry-2): A block registry that handles block textures and block instances.
-- [chunks](World.md#chunks-2): A chunk manager that stores all the chunks in the world.
-- [physics](World.md#physics-2): A physics engine that handles voxel AABB physics simulation of client-side physics.
-- [loader](World.md#loader-2): An asset loader that handles loading textures and other assets.
-- [atlas](World.md#atlas-2): A texture atlas that handles texture packing.
+- [registry](World.md#registry): A block registry that handles block textures and block instances.
+- [chunks](World.md#chunks): A chunk manager that stores all the chunks in the world.
+- [physics](World.md#physics): A physics engine that handles voxel AABB physics simulation of client-side physics.
+- [loader](World.md#loader): An asset loader that handles loading textures and other assets.
+- [atlas](World.md#atlas): A texture atlas that handles texture packing.
 
 One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
 This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
@@ -73,7 +73,7 @@ This is useful for, for example, teleporting the player to the top of the chunk 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-2) | The chunk coordinates to listen to. |
+| `coords` | [`Coords2`](../modules.md#coords2) | The chunk coordinates to listen to. |
 | `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` | The listener to add. |
 
 #### Returns
@@ -92,7 +92,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata-2) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -110,7 +110,7 @@ Apply a list of textures to a list of blocks' faces. The textures are loaded in 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-2)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -166,7 +166,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-2)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
 
 Get the block information by its ID.
 
@@ -178,13 +178,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-2)
+[`Block`](../modules.md#block)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-2)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block)
 
 Get the block information by its name.
 
@@ -196,13 +196,13 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-2)
+[`Block`](../modules.md#block)
 
 ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block-2)
+▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block)
 
 Reverse engineer to get the block information from a texture name.
 
@@ -214,13 +214,13 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block-2)
+[`Block`](../modules.md#block)
 
 ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-2)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block)
 
 Get the block data at the given 3D voxel coordinate.
 
@@ -234,7 +234,7 @@ Get the block data at the given 3D voxel coordinate.
 
 #### Returns
 
-[`Block`](../modules.md#block-2)
+[`Block`](../modules.md#block)
 
 The block type data at the given coordinate.
 
@@ -242,7 +242,7 @@ ___
 
 ### getBlockByWorld
 
-▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-2)
+▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block)
 
 Get the block data at the given 3D world coordinate.
 
@@ -256,7 +256,7 @@ Get the block data at the given 3D world coordinate.
 
 #### Returns
 
-[`Block`](../modules.md#block-2)
+[`Block`](../modules.md#block)
 
 The block type data at the given coordinate.
 
@@ -545,7 +545,7 @@ Get the voxel's torch light level at the given 3D voxel coordinate.
 | `vx` | `number` | The voxel's X position. |
 | `vy` | `number` | The voxel's Y position. |
 | `vz` | `number` | The voxel's Z position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-2) | The color of the torch light to get. |
+| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the torch light to get. |
 
 #### Returns
 
@@ -568,7 +568,7 @@ Get the voxel's torch light level at the given 3D world coordinate.
 | `wx` | `number` | The voxel's un-floored X position. |
 | `wy` | `number` | The voxel's un-floored Y position. |
 | `wz` | `number` | The voxel's un-floored Z position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-2) | The color of the torch light to get. |
+| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the torch light to get. |
 
 #### Returns
 
@@ -739,7 +739,7 @@ ___
 ▸ **isWithinWorld**(`cx`, `cz`): `boolean`
 
 Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
-is within [WorldServerParams.minChunk](../modules.md#worldserverparams-2) and [WorldServerParams.maxChunk](../modules.md#worldserverparams-2).
+is within [WorldServerParams.minChunk](../modules.md#worldserverparams) and [WorldServerParams.maxChunk](../modules.md#worldserverparams).
 
 #### Parameters
 
@@ -884,13 +884,13 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-2) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-2) times
+[World.chunks.toUpdate](World.md#chunks) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-2) | [NX_ROTATION](../modules.md#nx_rotation-2) | [PY_ROTATION](../modules.md#py_rotation-2) | [NY_ROTATION](../modules.md#ny_rotation-2) | [PZ_ROTATION](../modules.md#pz_rotation-2) | [NZ_ROTATION](../modules.md#nz_rotation-2)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-2) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation) | [NX_ROTATION](../modules.md#nx_rotation) | [PY_ROTATION](../modules.md#py_rotation) | [NY_ROTATION](../modules.md#ny_rotation) | [PZ_ROTATION](../modules.md#pz_rotation) | [NZ_ROTATION](../modules.md#nz_rotation)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-2) (Same for if
-block is not [Block.yRotatable](../modules.md#block-2)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block) (Same for if
+block is not [Block.yRotatable](../modules.md#block)).
 
 #### Parameters
 
@@ -914,20 +914,20 @@ ___
 ▸ **updateVoxels**(`updates`): `void`
 
 This sends a list of block updates to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-2) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-2) times
+[World.chunks.toUpdate](World.md#chunks) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-2) | [NX_ROTATION](../modules.md#nx_rotation-2) | [PY_ROTATION](../modules.md#py_rotation-2) | [NY_ROTATION](../modules.md#ny_rotation-2) | [PZ_ROTATION](../modules.md#pz_rotation-2) | [NZ_ROTATION](../modules.md#nz_rotation-2)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-2) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation) | [NX_ROTATION](../modules.md#nx_rotation) | [PY_ROTATION](../modules.md#py_rotation) | [NY_ROTATION](../modules.md#ny_rotation) | [PZ_ROTATION](../modules.md#pz_rotation) | [NZ_ROTATION](../modules.md#nz_rotation)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-2) (Same for if
-block is not [Block.yRotatable](../modules.md#block-2)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block) (Same for if
+block is not [Block.yRotatable](../modules.md#block)).
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-2)[] | A list of updates to send to the server. |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate)[] | A list of updates to send to the server. |
 
 #### Returns
 
@@ -948,7 +948,7 @@ ___
 • **blockCache**: `Map`<`string`, `number`\>
 
 This is a map that keeps track of the block IDs before they are updated to any new block IDs.
-Use [getPreviousVoxelByVoxel](World.md#getpreviousvoxelbyvoxel-2) and [getPreviousVoxelByWorld](World.md#getpreviousvoxelbyworld-2) to get the previous
+Use [getPreviousVoxelByVoxel](World.md#getpreviousvoxelbyvoxel) and [getPreviousVoxelByWorld](World.md#getpreviousvoxelbyworld) to get the previous
 block ID, if it exists.
 
 ___
@@ -987,19 +987,19 @@ The shared material instances for chunks.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-2) | The chunk material that is used to render the opaque portions of the chunk meshes. |
-| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-2) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-2)  } | The chunk materials that are used to render the transparent portions of the chunk meshes. This consists of two sides of the chunk mesh, front and back. |
-| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-2) | The back side of the chunk mesh's transparent material. |
-| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial-2) | The front side of the chunk mesh's transparent material. |
+| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) | The chunk material that is used to render the opaque portions of the chunk meshes. |
+| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  } | The chunk materials that are used to render the transparent portions of the chunk meshes. This consists of two sides of the chunk mesh, front and back. |
+| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) | The back side of the chunk mesh's transparent material. |
+| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) | The front side of the chunk mesh's transparent material. |
 
 ___
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams-2) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams) = `{}`
 
-Parameters to configure the world. This is a combination of the client-side parameters, [WorldClientParams](../modules.md#worldclientparams-2),
-and the server-side parameters, [WorldServerParams](../modules.md#worldserverparams-2). The server-side parameters are defined on the server, and
+Parameters to configure the world. This is a combination of the client-side parameters, [WorldClientParams](../modules.md#worldclientparams),
+and the server-side parameters, [WorldServerParams](../modules.md#worldserverparams). The server-side parameters are defined on the server, and
 are sent to the client when the client connects to the server.
 
 ___
@@ -1033,7 +1033,7 @@ The WebGL uniforms that are used in the chunk shader.
 | :------ | :------ | :------ |
 | `ao` | { `value`: `Vector4`  } | The ambient occlusion levels that are applied onto the chunk meshes. Check out [this article](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/) for more information on ambient occlusion for voxel worlds. Defaults to `new Vector4(100.0, 170.0, 210.0, 255.0)`. |
 | `ao.value` | `Vector4` | The value passed into the chunk shader. |
-| `atlas` | { `value`: `Texture`  } | The 2D texture atlas that is used to render the chunk. This will be set after [atlas](World.md#atlas-2) is generated. |
+| `atlas` | { `value`: `Texture`  } | The 2D texture atlas that is used to render the chunk. This will be set after [atlas](World.md#atlas) is generated. |
 | `atlas.value` | `Texture` | The value passed into the chunk shader. |
 | `fogColor` | { `value`: `Color`  } | The fog color that is applied onto afar chunks. It is recommended to set this to the middle color of the sky. Defaults to a new THREE.JS white color instance. |
 | `fogColor.value` | `Color` | The value passed into the chunk shader. |
@@ -1058,7 +1058,7 @@ Create a new world instance.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-2)\> | The client-side parameters to configure the world. |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams)\> | The client-side parameters to configure the world. |
 
 #### Overrides
 

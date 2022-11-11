@@ -58,7 +58,7 @@ ___
 
 ### params
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams-2)
+• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams)
 
 Parameters for creating a canvas box.
 
@@ -94,7 +94,7 @@ Create a new canvas box.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams-2)\> | The parameters for creating a canvas box. |
+| `params` | `Partial`<[`CanvasBoxParams`](../modules.md#canvasboxparams)\> | The parameters for creating a canvas box. |
 
 #### Overrides
 
@@ -112,8 +112,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-2) \| [`BoxSides`](../modules.md#boxsides-2)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction-2) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Texture` \| [`ArtFunction`](../modules.md#artfunction) \| `Color` | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

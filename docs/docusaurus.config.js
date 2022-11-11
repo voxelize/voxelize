@@ -30,12 +30,12 @@ const sharedTypeDocConfig = (name) => ({
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Voxelize",
-  tagline: "A god damn voxel sandbox",
+  tagline: "A voxel browser experience",
   url: "https://docs.voxelize.io",
   baseUrl: "/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
-  favicon: "img/favicon.ico",
+  favicon: "img/logo/circle-min.png",
   deploymentBranch: "gh-pages",
   organizationName: "voxelize",
   projectName: "voxelize",
@@ -74,21 +74,21 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: "VOXELIZE",
+        title: "Voxelize",
         logo: {
           alt: "Voxelize Logo",
-          src: "img/logo.svg",
+          src: "img/logo/circle-min.png",
         },
         items: [
           {
             type: "doc",
             docId: "intro/what-is-voxelize",
             position: "left",
-            label: "Docs",
+            label: "Tutorial",
           },
           { to: "/blog", label: "Blog", position: "left" },
           {
-            href: "https://github.com/facebook/docusaurus",
+            href: "https://github.com/voxelize/voxelize",
             label: "GitHub",
             position: "right",
           },
@@ -102,7 +102,7 @@ const config = {
             items: [
               {
                 label: "Tutorial",
-                to: "/docs/intro",
+                to: "/docs/intro/what-is-voxelize",
               },
             ],
           },
@@ -142,6 +142,7 @@ const config = {
       prism: {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
+        additionalLanguages: ["toml", "rust"],
       },
     }),
   plugins: [
@@ -164,6 +165,17 @@ const config = {
         ...sharedTypeDocConfig("Client API"),
       },
     ],
+    async function myPlugin(context, options) {
+      return {
+        name: "docusaurus-tailwindcss",
+        configurePostCss(postcssOptions) {
+          // Appends TailwindCSS and AutoPrefixer.
+          postcssOptions.plugins.push(require("tailwindcss"));
+          postcssOptions.plugins.push(require("autoprefixer"));
+          return postcssOptions;
+        },
+      };
+    },
   ],
 };
 

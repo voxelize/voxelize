@@ -11,7 +11,7 @@ a [NetIntercept](../interfaces/NetIntercept.md) that intercepts all peer-related
 the behavior of multiplayer functionality. This class also extends a `THREE.Group` that allows
 you to dynamically turn on/off multiplayer visibility.
 
-Override [packInfo](Peers.md#packinfo-2) to customize the information that is sent to other peers.
+Override [packInfo](Peers.md#packinfo) to customize the information that is sent to other peers.
 
 TODO-DOC
 
@@ -78,7 +78,7 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object?` | `Object3D`<`Event`\> | The object that is used to send client's own data back to the server. |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-2)\> | Parameters to customize the effect. |
+| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams)\> | Parameters to customize the effect. |
 
 #### Overrides
 
@@ -180,7 +180,7 @@ ___
 
 ### params
 
-• **params**: [`PeersParams`](../modules.md#peersparams-2)
+• **params**: [`PeersParams`](../modules.md#peersparams)
 
 Parameters to customize the peers manager.
 
@@ -191,7 +191,7 @@ Parameters to customize the peers manager.
 ▸ **onPeerJoin**(`id`): `void`
 
 A function called when a player joins the game. This function has a default implementation and
-should not be overridden unless you know what you are doing. Internally, this calls [createPeer](Peers.md#createpeer-2)
+should not be overridden unless you know what you are doing. Internally, this calls [createPeer](Peers.md#createpeer)
 to create a new peer object and adds it to the peers group itself.
 
 #### Parameters

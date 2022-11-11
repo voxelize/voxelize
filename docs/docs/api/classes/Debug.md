@@ -45,7 +45,7 @@ Create a new [Debug](Debug.md) instance.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `domElement` | `HTMLElement` | `document.body` | The DOM element to append the debug panel to. |
-| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-2)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
+| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
 
 #### Overrides
 
@@ -80,7 +80,7 @@ ___
 
 ### params
 
-• **params**: [`DebugParams`](../modules.md#debugparams-2)
+• **params**: [`DebugParams`](../modules.md#debugparams)
 
 Parameters to create a [Debug](Debug.md) instance.
 
@@ -132,7 +132,7 @@ ___
 
 ▸ **registerDisplay**(`title`, `object?`, `attribute?`, `formatter?`): `this`
 
-Register a new object attribute to track. Needs to call [update](Debug.md#update-2) in the game loop
+Register a new object attribute to track. Needs to call [update](Debug.md#update) in the game loop
 to update the value.
 
 #### Parameters
