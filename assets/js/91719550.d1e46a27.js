@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[7679],{9878:t=>{t.exports=JSON.parse('{"title":"Extras","slug":"/category/extras","permalink":"/docs/category/extras","navigation":{"previous":{"title":"typescript-transport","permalink":"/docs/intermediate/typescript-transport"},"next":{"title":"Placeholder","permalink":"/docs/extras/test"}}}')}}]);
