@@ -68,6 +68,16 @@ export const CharacterView = () => {
 
     animate();
 
+    const parent = canvas.parentElement;
+
+    window.addEventListener("resize", () => {
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+      camera.aspect = parent.clientWidth / parent.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(parent.clientWidth, parent.clientHeight);
+    });
+
     return () => {
       document.removeEventListener("mousemove", onDocumentMouseMove, false);
     };

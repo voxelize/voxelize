@@ -3,21 +3,20 @@ import React from "react";
 import BrowserOnly from "@docusaurus/BrowserOnly";
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
-import HomepageFeatures from "@site/src/components/HomepageFeatures";
 import Layout from "@theme/Layout";
 import { TypeAnimation } from "react-type-animation";
 import styled from "styled-components";
-
-import { H1 } from "../components/headings";
 
 const HomepageHeader = () => {
   const { siteConfig } = useDocusaurusContext();
 
   return (
-    <div className="flex justify-center items-center min-h-[80vh]">
-      <div className="flex flex-col justify-center items-start">
-        <div className="my-10">
-          <H1>{siteConfig.title}</H1>
+    <div className="flex flex-col-reverse justify-end items-center min-h-[100vh] lg:flex-row md:min-h-[80vh]">
+      <div className="flex flex-col justify-start items-center lg:items-start">
+        <div className="my-10 flex flex-col items-center lg:items-start">
+          <h1 className="font-display font-black text-6xl mb-3 md:text-8xl">
+            {siteConfig.title}
+          </h1>
           <TypeAnimation
             sequence={[
               "A multiplayer voxel game engine",
@@ -35,7 +34,7 @@ const HomepageHeader = () => {
             cursor={false}
             speed={50}
             repeat={Infinity}
-            className="font-body text-2xl"
+            className="font-body text-2xl text-center lg:text-start"
           />
         </div>
 
@@ -49,7 +48,7 @@ const HomepageHeader = () => {
         </Link>
       </div>
 
-      <div className="w-[400px] h-[600px]">
+      <div className="w-[400px] h-[400px] lg:h-[600px]">
         <BrowserOnly>
           {() => {
             const CharacterView =
@@ -80,45 +79,6 @@ export default () => {
     >
       <Wrapper>
         <HomepageHeader />
-
-        <main>
-          <section>
-            <h3>Get to know Voxelize</h3>
-            <nav
-              className="pagination-nav"
-              style={{ gridTemplateColumns: "1fr 1fr 1fr", gridGap: "1rem" }}
-            >
-              <div className="pagination-nav__item">
-                <Link
-                  className="pagination-nav__link"
-                  to="/docs/intro/what-is-voxelize"
-                >
-                  <div className="pagination-nav__sublabel">
-                    What is Voxelize?
-                  </div>
-                  <div className="pagination-nav__label">
-                    A quick introduction to Voxelize
-                  </div>
-                </Link>
-              </div>
-              <div className="pagination-nav__item pagination-nav__item--next">
-                <Link
-                  className="pagination-nav__link"
-                  to="/docs/basics/create-the-server"
-                >
-                  <div className="pagination-nav__sublabel">
-                    Create a Server
-                  </div>
-                  <div className="pagination-nav__label">
-                    Make your first Voxelize server!
-                  </div>
-                </Link>
-              </div>
-            </nav>
-          </section>
-
-          <HomepageFeatures />
-        </main>
       </Wrapper>
     </Layout>
   );

@@ -104,6 +104,14 @@ const config = {
                 label: "Tutorial",
                 to: "/docs/intro/what-is-voxelize",
               },
+              {
+                label: "Client API",
+                to: "/docs/api/modules",
+              },
+              {
+                label: "Server API",
+                to: "https://docs.rs/voxelize/0.4.2/voxelize/",
+              },
             ],
           },
           {
@@ -111,15 +119,15 @@ const config = {
             items: [
               {
                 label: "Stack Overflow",
-                href: "https://stackoverflow.com/questions/tagged/docusaurus",
+                href: "https://stackoverflow.com/questions/tagged/voxelize",
               },
               {
                 label: "Discord",
-                href: "https://discordapp.com/invite/docusaurus",
+                href: "https://discord.gg/6AfEkpjsTS",
               },
               {
                 label: "Twitter",
-                href: "https://twitter.com/docusaurus",
+                href: "https://twitter.com/voxelizee",
               },
             ],
           },
@@ -137,7 +145,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} Voxelize. All rights reserved.`,
       },
       prism: {
         theme: lightCodeTheme,
