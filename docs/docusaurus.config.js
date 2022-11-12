@@ -50,18 +50,20 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          sidebarPath: require.resolve("./sidebars.js"),
+          sidebarPath: require.resolve("./sidebars-api.js"),
+          path: "docs",
+          routeBasePath: "api",
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
+            "https://github.com/voxelize/voxelize/tree/main/packages/create-docusaurus/templates/shared/",
         },
         blog: {
           showReadingTime: true,
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            "https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/",
+            "https://github.com/voxelize/voxelize/tree/main/packages/create-docusaurus/templates/shared/",
         },
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
@@ -73,6 +75,11 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      docs: {
+        sidebar: {
+          hideable: true,
+        },
+      },
       navbar: {
         title: "VOXELIZE",
         logo: {
@@ -81,10 +88,21 @@ const config = {
         },
         items: [
           {
-            type: "doc",
-            docId: "intro/what-is-voxelize",
+            to: "tutorials/intro/what-is-voxelize",
             position: "left",
             label: "Tutorial",
+          },
+          // {
+          //   type: "docSidebar",
+          //   position: "left",
+          //   sidebarId: "docs/tutorials/intro/what-is-voxelize",
+          //   label: "Tutorial",
+          // },
+          {
+            type: "doc",
+            docId: "api/client/modules",
+            position: "left",
+            label: "API",
           },
           { to: "/blog", label: "Blog", position: "left" },
           {
@@ -155,11 +173,22 @@ const config = {
     }),
   plugins: [
     [
+      "@docusaurus/plugin-content-docs",
+      /** @type {import('@docusaurus/plugin-content-docs').Options} */
+      {
+        id: "tutorials",
+        path: "docs/tutorials",
+        routeBasePath: "tutorials",
+        sidebarPath: require.resolve("./sidebars-tutorials.js"),
+        // ... other options
+      },
+    ],
+    [
       "docusaurus-plugin-typedoc",
       {
         entryPoints: ["../transport/src/index.ts"],
         id: "@voxelize/transport",
-        out: "transport",
+        out: "api/transport",
         tsconfig: "../transport/tsconfig.json",
         ...sharedTypeDocConfig("Transport API"),
       },
@@ -169,10 +198,12 @@ const config = {
       {
         entryPoints: ["../client/src/index.ts"],
         id: "@voxelize/client",
+        out: "api/client",
         tsconfig: "../client/tsconfig.json",
         ...sharedTypeDocConfig("Client API"),
       },
     ],
+
     async function myPlugin(context, options) {
       return {
         name: "docusaurus-tailwindcss",

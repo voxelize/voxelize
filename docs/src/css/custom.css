@@ -67,11 +67,3 @@ p:has(img[class*="MDX"]) {
 
 th {
 }
-
-/* Card */
-.card {
-  @apply bg-white dark:bg-gray-800;
-  @apply shadow-lg;
-  @apply rounded-lg;
-  @apply overflow-hidden;
-}
