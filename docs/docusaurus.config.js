@@ -49,15 +49,7 @@ const config = {
       "classic",
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
-        docs: {
-          sidebarPath: require.resolve("./sidebars-api.js"),
-          path: "docs",
-          routeBasePath: "api",
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            "https://github.com/voxelize/voxelize/tree/main/packages/create-docusaurus/templates/shared/",
-        },
+        docs: false,
         blog: {
           showReadingTime: true,
           // Please change this to your repo.
@@ -75,11 +67,6 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      docs: {
-        sidebar: {
-          hideable: true,
-        },
-      },
       navbar: {
         title: "VOXELIZE",
         logo: {
@@ -88,19 +75,12 @@ const config = {
         },
         items: [
           {
-            to: "tutorials/intro/what-is-voxelize",
+            to: "/tutorials/intro/what-is-voxelize",
             position: "left",
             label: "Tutorial",
           },
-          // {
-          //   type: "docSidebar",
-          //   position: "left",
-          //   sidebarId: "docs/tutorials/intro/what-is-voxelize",
-          //   label: "Tutorial",
-          // },
           {
-            type: "doc",
-            docId: "api/client/modules",
+            to: "/api/client/modules",
             position: "left",
             label: "API",
           },
@@ -120,7 +100,7 @@ const config = {
             items: [
               {
                 label: "Tutorial",
-                to: "/docs/intro/what-is-voxelize",
+                to: "/docs/tutorials/intro/what-is-voxelize",
               },
               {
                 label: "Client API",
@@ -172,6 +152,20 @@ const config = {
       },
     }),
   plugins: [
+    [
+      "@docusaurus/plugin-content-docs",
+      /** @type {import('@docusaurus/plugin-content-docs').Options} */
+      {
+        // id: "api",
+        sidebarPath: require.resolve("./sidebars-api.js"),
+        path: "docs/api",
+        routeBasePath: "api",
+        // Please change this to your repo.
+        // Remove this to remove the "edit this page" links.
+        editUrl:
+          "https://github.com/voxelize/voxelize/tree/main/packages/create-docusaurus/templates/shared/",
+      },
+    ],
     [
       "@docusaurus/plugin-content-docs",
       /** @type {import('@docusaurus/plugin-content-docs').Options} */

@@ -38,7 +38,7 @@ const HomepageHeader = () => {
           />
         </div>
 
-        <Link to="/docs/intro/what-is-voxelize">
+        <Link to="/tutorials/intro/what-is-voxelize">
           <button
             className="button button--secondary button--lg"
             style={{ verticalAlign: "middle" }}
