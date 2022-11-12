@@ -100,11 +100,11 @@ const config = {
             items: [
               {
                 label: "Tutorial",
-                to: "/docs/tutorials/intro/what-is-voxelize",
+                to: "/tutorials/intro/what-is-voxelize",
               },
               {
                 label: "Client API",
-                to: "/docs/api/modules",
+                to: "/api/client/modules",
               },
               {
                 label: "Server API",
