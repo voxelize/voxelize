@@ -321,7 +321,7 @@ export class Network {
 
   /**
    * Send an `ACTION` type message to the server. For more information about the protocol
-   * buffer message system, see [here](/docs/basics/protocol-networking).
+   * buffer message system, see [here](/tutorials/basics/protocol-networking).
    *
    * @param type The type of action to perform.
    * @param data The specific data attached to this action.

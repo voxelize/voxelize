@@ -56,7 +56,7 @@ Create a new block break particle system.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world that the particle system is in. |
-| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams)\> | Parameters to create a block break particle system. |
+| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams-6)\> | Parameters to create a block break particle system. |
 
 #### Overrides
 

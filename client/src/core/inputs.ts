@@ -48,8 +48,8 @@ type ScrollCallbacks = Map<
  *
  * Another use of inputs is to bind keys and mouse buttons for some built-in functionality. As of now, the following
  * requires inputs to be bound:
- * - [RigidControls.connect](/docs/api/classes/RigidControls#connect): <kbd>WASD</kbd> and <kbd>Space</kbd> for movement, <kbd>Shift</kbd> for going down and <kbd>R</kbd> for sprinting.
- * - [Perspective.connect](/docs/api/classes/Perspective#connect): <kbd>C</kbd> for switching between perspectives.
+ * - [RigidControls.connect](/api/client/classes/RigidControls#connect): <kbd>WASD</kbd> and <kbd>Space</kbd> for movement, <kbd>Shift</kbd> for going down and <kbd>R</kbd> for sprinting.
+ * - [Perspective.connect](/api/client/classes/Perspective#connect): <kbd>C</kbd> for switching between perspectives.
  *
  * You can change the above bindings by calling {@link Inputs.remap} with the corresponding input identifiers, namely
  * `RigidControls.INPUT_IDENTIFIER` and `Perspectives.INPUT_IDENTIFIER`.

@@ -29,7 +29,7 @@ network
 ▸ **action**(`type`, `data?`): `Promise`<`void`\>
 
 Send an `ACTION` type message to the server. For more information about the protocol
-buffer message system, see [here](/docs/basics/protocol-networking).
+buffer message system, see [here](/tutorials/basics/protocol-networking).
 
 #### Parameters
 
@@ -57,7 +57,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `params` | [`NetworkParams`](../modules.md#networkparams) | Parameters to customize the connection to a Voxelize server. |
+| `params` | [`NetworkParams`](../modules.md#networkparams-6) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -347,7 +347,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams)
+• **params**: [`NetworkParams`](../modules.md#networkparams-6)
 
 Parameters to start the network connection, passed in to `connect`.
 
@@ -382,7 +382,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-6)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 
