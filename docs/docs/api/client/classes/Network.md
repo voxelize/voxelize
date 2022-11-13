@@ -57,7 +57,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `params` | [`NetworkParams`](../modules.md#networkparams-6) | Parameters to customize the connection to a Voxelize server. |
+| `params` | [`NetworkParams`](../modules.md#networkparams) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -153,7 +153,7 @@ ___
 ▸ **send**(`event`): `void`
 
 Send a raw network packet to the server. Must be a valid network packet, or else
-the server may crash. For more details on network protocol messaging, see [here](/docs/basics/protocol-networking).
+the server may crash. For more details on network protocol messaging, see [here](/tutorials/basics/protocol-networking).
 
 #### Parameters
 
@@ -347,7 +347,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-6)
+• **params**: [`NetworkParams`](../modules.md#networkparams)
 
 Parameters to start the network connection, passed in to `connect`.
 
@@ -382,7 +382,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-6)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 

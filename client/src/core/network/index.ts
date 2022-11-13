@@ -407,7 +407,7 @@ export class Network {
 
   /**
    * Send a raw network packet to the server. Must be a valid network packet, or else
-   * the server may crash. For more details on network protocol messaging, see [here](/docs/basics/protocol-networking).
+   * the server may crash. For more details on network protocol messaging, see [here](/tutorials/basics/protocol-networking).
    *
    * @param event The event packet to send to the server.
    */

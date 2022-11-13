@@ -81,7 +81,7 @@ ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-6)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides)[]
 
 The six default faces of a canvas box.
 
@@ -216,14 +216,14 @@ A preset of art functions to draw on canvas boxes.
 
 | Name | Type |
 | :------ | :------ |
-| `drawCrown` | [`ArtFunction`](modules.md#artfunction-6) |
-| `drawSun` | [`ArtFunction`](modules.md#artfunction-6) |
+| `drawCrown` | [`ArtFunction`](modules.md#artfunction) |
+| `drawSun` | [`ArtFunction`](modules.md#artfunction) |
 
 ## Type Aliases
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-6) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 Parameters to create a character's arms.
 Defaults to:
@@ -364,7 +364,7 @@ ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-6)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams)
 
 Parameters to create a character's body.
 Defaults to:
@@ -431,11 +431,11 @@ Parameters to create a character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-6)\> | Parameters to create the character's arms. |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-6)\> | Parameters to create the character's body. |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-6)\> | Parameters to create the character's head. |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams)\> | Parameters to create the character's arms. |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams)\> | Parameters to create the character's body. |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams)\> | Parameters to create the character's head. |
 | `idleArmSwing?` | `number` | The speed at which the arms swing when the character is idle. Defaults to `0.06`. |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-6)\> | Parameters to create the character's legs. |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams)\> | Parameters to create the character's legs. |
 | `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
 | `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
 | `swingLerp?` | `number` | The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`. |
@@ -481,7 +481,7 @@ Parameters used to create a new [Clouds](classes/Clouds.md) instance.
 | `cloudHeight` | `number` | The y-height at which the clouds are generated. Defaults to `256`. |
 | `color` | `string` | The color of the clouds. Defaults to `#fff`. |
 | `count` | `number` | The number of cloud cells to generate, `count` * `count`. Defaults to `16`. |
-| `dimensions` | [`Coords3`](modules.md#coords3-6) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
+| `dimensions` | [`Coords3`](modules.md#coords3) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
 | `falloff` | `number` | The noise falloff factor used to generate the clouds. Defaults to `0.9`. |
 | `height` | `number` | The vertical count of how many cloud blocks are in a cloud cell. This is also used to determine the overall count of cloud blocks of all the clouds. Defaults to `3`. |
 | `lerpFactor` | `number` | The lerp factor used to translate cloud blocks from their original position to their new position. Defaults to `0.3`. |
@@ -542,11 +542,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `dimensions` | [`Coords3`](modules.md#coords3-6) |
-| `max` | [`Coords3`](modules.md#coords3-6) |
-| `min` | [`Coords3`](modules.md#coords3-6) |
-| `realMax` | [`Coords3`](modules.md#coords3-6) |
-| `realMin` | [`Coords3`](modules.md#coords3-6) |
+| `dimensions` | [`Coords3`](modules.md#coords3) |
+| `max` | [`Coords3`](modules.md#coords3) |
+| `min` | [`Coords3`](modules.md#coords3) |
+| `realMax` | [`Coords3`](modules.md#coords3) |
+| `realMin` | [`Coords3`](modules.md#coords3) |
 
 ___
 
@@ -574,7 +574,7 @@ Parameters to create a [Debug](classes/Debug.md) instance.
 | `entryStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to the wrapper of all debug entries. |
 | `lineClass` | `string` | A class to add to each of the debug entry line (top left). |
 | `lineStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to each of the debug entry line (top left). |
-| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [toggle](classes/Debug.md#toggle-6). |
+| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [toggle](classes/Debug.md#toggle). |
 | `showVoxelize` | `boolean` | Whether or not should `Voxelize x.x.x` be displayed in the top-left debug panel. Defaults to `true`. |
 | `stats` | `boolean` | Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`. |
 
@@ -631,7 +631,7 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-6) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams) & { `neckGap?`: `number`  }
 
 Parameters to create a character's head.
 Defaults to:
@@ -688,13 +688,13 @@ The specific parameters of the key to listen to.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `identifier?` | `string` | A special identifier to tag this input with. This is useful for removing specific inputs from the input listener later on. |
-| `occasion?` | [`InputOccasion`](modules.md#inputoccasion-6) | The occasion that the input should be fired. Defaults to `keydown`. |
+| `occasion?` | [`InputOccasion`](modules.md#inputoccasion) | The occasion that the input should be fired. Defaults to `keydown`. |
 
 ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-6) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams) & { `betweenLegsGap?`: `number`  }
 
 Parameters to create the legs of a character.
 Defaults to:
@@ -883,7 +883,7 @@ Parameters to initialize the Voxelize Controls.
 | `flyImpulse` | `number` | The level impulse of which a client flies at. Defaults to `2.5`. |
 | `flyInertia` | `number` | The inertia of a client when they're flying. Defaults to `6`. |
 | `flySpeed` | `number` | The level of speed at which a client flies at. Defaults to `40`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-6) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `jumpForce` | `number` | The level of force applied to the client when jumping. Defaults to `1`. |
 | `jumpImpulse` | `number` | The level of impulse at which the client jumps upwards. Defaults to `8`. |
 | `jumpTime` | `number` | The time, in milliseconds, that a client can be jumping. Defaults to `50`ms. |
@@ -920,7 +920,7 @@ ___
 
 ### SkyFace
 
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-6) \| `Color` \| `string` \| ``null``
+Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction) \| `Color` \| `string` \| ``null``
 
 ___
 
@@ -1046,7 +1046,7 @@ ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-6) & [`WorldServerParams`](modules.md#worldserverparams-6)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams) & [`WorldServerParams`](modules.md#worldserverparams)
 
 ___
 
@@ -1103,15 +1103,15 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-6)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-6) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-6)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype)\>
