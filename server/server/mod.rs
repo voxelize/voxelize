@@ -263,8 +263,7 @@ impl Server {
 
     /// Handler for client's message.
     pub(crate) fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
-        if data.r#type == MessageType::Transport as i32 || self.transport_sessions.contains_key(id)
-        {
+        if data.r#type == MessageType::Transport as i32 {
             if !self.transport_sessions.contains_key(id) {
                 return Some(
                     "Someone who isn't a transport server is attempting to transport.".to_owned(),
