@@ -6,8 +6,8 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, VoxelUpdate,
-    WorldConfig,
+    Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Trees, Vec2, Vec3, VoxelAccess,
+    VoxelUpdate, WorldConfig,
 };
 
 pub struct Resources<'a> {
@@ -93,21 +93,30 @@ impl ChunkStage for DebugStage {
 }
 
 /// A preset chunk stage to set a flat land.
+#[derive(Default)]
 pub struct FlatlandStage {
-    height: i32,
-    top: u32,
-    middle: u32,
-    bottom: u32,
+    top_height: u32,
+    soiling: Vec<u32>,
 }
 
 impl FlatlandStage {
-    pub fn new(height: i32, top: u32, middle: u32, bottom: u32) -> Self {
+    pub fn new() -> Self {
         Self {
-            height,
-            top,
-            middle,
-            bottom,
+            top_height: 0,
+            soiling: vec![],
         }
+    }
+
+    pub fn add_soiling(&mut self, block: u32, height: usize) {
+        for i in (self.top_height)..(self.top_height + height as u32) {
+            self.soiling[i as usize] = block;
+        }
+
+        self.top_height += height as u32;
+    }
+
+    pub fn query_soiling(&self, y: u32) -> Option<u32> {
+        self.soiling.get(y as usize).copied()
     }
 }
 
@@ -122,13 +131,9 @@ impl ChunkStage for FlatlandStage {
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                for vy in 0..self.height {
-                    if vy == 0 {
-                        chunk.set_voxel(vx, vy, vz, self.bottom);
-                    } else if vy == self.height - 1 {
-                        chunk.set_voxel(vx, vy, vz, self.top);
-                    } else {
-                        chunk.set_voxel(vx, vy, vz, self.middle);
+                for vy in 0..self.top_height {
+                    if let Some(soiling) = self.query_soiling(vy) {
+                        chunk.set_voxel(vx, vy as i32, vz, soiling);
                     }
                 }
             }
