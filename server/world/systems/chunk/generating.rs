@@ -81,7 +81,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         let mut processes = vec![];
 
-        while processes.len() < max_chunks_per_tick && !pipeline.queue.is_empty() {
+        while processes.len() < max_chunks_per_tick
+            && !pipeline.queue.is_empty()
+            && !pipeline.stages.is_empty()
+        {
             let coords = pipeline.get().unwrap();
             let chunk = chunks.raw(&coords);
 
