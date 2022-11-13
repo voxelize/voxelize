@@ -108,8 +108,8 @@ impl FlatlandStage {
     }
 
     pub fn add_soiling(&mut self, block: u32, height: usize) {
-        for i in (self.top_height)..(self.top_height + height as u32) {
-            self.soiling[i as usize] = block;
+        for _ in 0..height {
+            self.soiling.push(block);
         }
 
         self.top_height += height as u32;
