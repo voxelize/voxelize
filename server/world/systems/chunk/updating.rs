@@ -339,9 +339,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             })
         }
 
-        // Time the chunk update
-        let start = std::time::Instant::now();
-
         if !red_flood.is_empty() {
             Lights::flood_light(
                 &mut *chunks,
@@ -410,13 +407,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 .collect::<Vec<_>>();
 
             mesher.process(processes, &registry, &config);
-        }
-
-        // Print the time it took to update
-        let elapsed = start.elapsed();
-        let ms = elapsed.as_secs() as f64 * 1000.0 + elapsed.subsec_nanos() as f64 / 1_000_000.0;
-        if ms >= 0.0 {
-            info!("Update took {}ms", ms);
         }
 
         let results = results
