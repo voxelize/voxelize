@@ -181,8 +181,6 @@ impl Mesher {
         registry: &Registry,
         transparent: bool,
     ) -> Option<Geometry> {
-        let start = Instant::now();
-
         let mut positions = Vec::<f32>::new();
         let mut indices = Vec::<i32>::new();
         let mut uvs = Vec::<f32>::new();
@@ -270,14 +268,6 @@ impl Mesher {
                 }
             }
         }
-
-        let elapsed = start.elapsed();
-        let ms = elapsed.as_secs() as f64 * 1000.0 + elapsed.subsec_nanos() as f64 / 1_000_000.0;
-        info!(
-            "Meshing space with {} vertices took {:?}",
-            positions.len() / 3,
-            ms
-        );
 
         if indices.is_empty() {
             return None;
