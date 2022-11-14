@@ -382,6 +382,10 @@ const App = () => {
 
     inputs.bind("j", debug.toggle, "*");
 
+    inputs.bind("l", () => {
+      network.action("create_world", "new_world");
+    });
+
     debug.registerDisplay("Position", controls, "voxel");
 
     debug.registerDisplay("Sunlight", () => {
