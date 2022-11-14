@@ -11,7 +11,7 @@ import {
 import * as THREE from "three";
 import { MeshRenderer } from "three-nebula";
 
-import { setupWorld } from "../core/world";
+import { setupWorld } from "../core";
 import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
 import LolImage from "../assets/lol.png";
@@ -71,8 +71,9 @@ const App = () => {
     if (worldRef.current) return;
 
     const world = new VOXELIZE.World({
-      textureDimension: 32,
+      textureDimension: 16,
       maxUpdatesPerTick: 10000,
+      defaultRenderRadius: 5,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -103,9 +104,9 @@ const App = () => {
     const clouds = new VOXELIZE.Clouds({
       uFogColor: sky.uMiddleColor,
     });
-    world.add(clouds);
 
-    world.uniforms.fogColor.value.copy(sky.uMiddleColor.value);
+    world.add(clouds);
+    world.setFogColor(sky.getMiddleColor());
 
     const camera = new THREE.PerspectiveCamera(
       90,
@@ -122,7 +123,7 @@ const App = () => {
       renderer.domElement.offsetWidth,
       renderer.domElement.offsetHeight
     );
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setPixelRatio(1);
 
     renderer.outputEncoding = sRGBEncoding;
 
@@ -417,13 +418,13 @@ const App = () => {
     shadows.add(character);
 
     // Create a test for atlas
-    setTimeout(() => {
-      const plane = new THREE.Mesh(
-        new THREE.PlaneBufferGeometry(100, 100),
-        world.atlas.material
-      );
-      world.add(plane);
-    }, 1000);
+    // setTimeout(() => {
+    //   const plane = new THREE.Mesh(
+    //     new THREE.PlaneBufferGeometry(100, 100),
+    //     world.atlas.material
+    //   );
+    //   world.add(plane);
+    // }, 1000);
 
     network
       .register(chat)

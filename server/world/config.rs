@@ -12,7 +12,7 @@ pub struct WorldConfig {
     /// The horizontal dimension of the chunks in this world. Default is 16 blocks wide.
     pub chunk_size: usize,
 
-    /// The number of sub chunks a chunk is divided into to mesh more efficiently. Defaults to 4.
+    /// The number of sub chunks a chunk is divided into to mesh more efficiently. Defaults to 8.
     pub sub_chunks: usize,
 
     /// The minimum inclusive chunk on this world. Default is [i32::MIN, i32::MIN].
@@ -207,7 +207,7 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the number of sub chunks a chunk is divided into. Default is 16 sub-chunks.
+    /// Configure the number of sub chunks a chunk is divided into. Default is 8 sub-chunks.
     pub fn sub_chunks(mut self, sub_chunks: usize) -> Self {
         self.sub_chunks = sub_chunks;
         self

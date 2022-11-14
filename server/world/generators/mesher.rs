@@ -1,13 +1,14 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, sync::Arc, time::Instant};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
-use itertools::izip;
+use log::info;
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    Block, BlockFace, BlockRotation, Chunk, CornerData, Geometry, LightUtils, MeshProtocol,
-    Registry, Space, Vec2, Vec3, VoxelAccess, WorldConfig, AABB, UV,
+    world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
+    Geometry, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
+    VoxelAccess, WorldConfig, AABB, UV,
 };
 
 use super::lights::Lights;
@@ -25,14 +26,18 @@ fn vertex_ao(side1: bool, side2: bool, corner: bool) -> i32 {
 }
 
 fn get_block_by_voxel<'a>(
-    vx: i32,
-    vy: i32,
-    vz: i32,
-    space: &Space,
+    ox: i32,
+    oy: i32,
+    oz: i32,
+    neighbors: &Neighbors,
     registry: &'a Registry,
 ) -> &'a Block {
-    registry.get_block_by_id(space.get_voxel(vx, vy, vz))
+    registry.get_block_by_id(neighbors.get_voxel(&Vec3(ox, oy, oz)))
 }
+
+const RED: LightColor = LightColor::Red;
+const GREEN: LightColor = LightColor::Green;
+const BLUE: LightColor = LightColor::Blue;
 
 /// A meshing helper to mesh chunks.
 pub struct Mesher {
@@ -172,10 +177,12 @@ impl Mesher {
     pub fn mesh_space(
         min: &Vec3<i32>,
         max: &Vec3<i32>,
-        space: &Space,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         transparent: bool,
     ) -> Option<Geometry> {
+        let start = Instant::now();
+
         let mut positions = Vec::<f32>::new();
         let mut indices = Vec::<i32>::new();
         let mut uvs = Vec::<f32>::new();
@@ -194,50 +201,83 @@ impl Mesher {
 
                 for vy in (min_y..=(max_y - 1).min(height) as i32).rev() {
                     let voxel_id = space.get_voxel(vx, vy, vz);
+
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = registry.get_block_by_id(voxel_id);
 
                     let Block {
                         is_see_through,
+                        is_opaque,
                         is_empty,
                         ..
                     } = block.to_owned();
+
+                    if is_empty {
+                        continue;
+                    }
+
+                    // Skip blocks that are completely covered with opaque blocks.
+                    if is_opaque {
+                        if !(VOXEL_NEIGHBORS
+                            .into_iter()
+                            .find(|&[x, y, z]| {
+                                let x = vx + x;
+                                let y = vy + y;
+                                let z = vz + z;
+
+                                let id = space.get_voxel(x, y, z);
+
+                                let block = registry.get_block_by_id(id);
+
+                                !block.is_opaque
+                            })
+                            .is_some())
+                        {
+                            continue;
+                        }
+                    }
 
                     if if transparent {
                         is_see_through
                     } else {
                         !is_see_through
                     } {
-                        if !is_empty {
-                            let Block { faces, .. } = block.to_owned();
+                        let Block { faces, .. } = block.to_owned();
 
-                            let uv_map = registry.get_uv_map(block);
+                        let uv_map = registry.get_uv_map(block);
 
-                            faces.iter().for_each(|face| {
-                                Mesher::process_face(
-                                    vx,
-                                    vy,
-                                    vz,
-                                    voxel_id,
-                                    &rotation,
-                                    face,
-                                    block,
-                                    &uv_map,
-                                    &registry,
-                                    &space,
-                                    transparent,
-                                    &mut positions,
-                                    &mut indices,
-                                    &mut uvs,
-                                    &mut lights,
-                                    min,
-                                )
-                            });
-                        }
+                        faces.iter().for_each(|face| {
+                            Mesher::process_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                &rotation,
+                                face,
+                                block,
+                                &uv_map,
+                                &registry,
+                                space,
+                                transparent,
+                                &mut positions,
+                                &mut indices,
+                                &mut uvs,
+                                &mut lights,
+                                min,
+                            )
+                        });
                     }
                 }
             }
         }
+
+        let elapsed = start.elapsed();
+        let ms = elapsed.as_secs() as f64 * 1000.0 + elapsed.subsec_nanos() as f64 / 1_000_000.0;
+        info!(
+            "Meshing space with {} vertices took {:?}",
+            positions.len() / 3,
+            ms
+        );
 
         if indices.is_empty() {
             return None;
@@ -256,7 +296,7 @@ impl Mesher {
     pub fn typed_mesh_space(
         min: &Vec3<i32>,
         max: &Vec3<i32>,
-        space: &Space,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         transparent: bool,
     ) -> Vec<Geometry> {
@@ -275,6 +315,7 @@ impl Mesher {
 
                 for vy in (min_y..=(max_y - 1).min(height) as i32).rev() {
                     let voxel_id = space.get_voxel(vx, vy, vz);
+
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = registry.get_block_by_id(voxel_id);
 
@@ -284,44 +325,46 @@ impl Mesher {
                         ..
                     } = block.to_owned();
 
+                    if is_empty {
+                        continue;
+                    }
+
                     if if transparent {
                         is_see_through
                     } else {
                         !is_see_through
                     } {
-                        if !is_empty {
-                            let Block { faces, .. } = block.to_owned();
+                        let Block { faces, .. } = block.to_owned();
 
-                            let mut geometry = map.remove(&voxel_id).unwrap_or_default();
+                        let mut geometry = map.remove(&voxel_id).unwrap_or_default();
 
-                            // !: Could break, since u32 has larger upper limit than i32.
-                            geometry.identifier = voxel_id as i32;
+                        // !: Could break, since u32 has larger upper limit than i32.
+                        geometry.identifier = voxel_id as i32;
 
-                            let uv_map = registry.get_uv_map(block);
+                        let uv_map = registry.get_uv_map(block);
 
-                            faces.iter().for_each(|face| {
-                                Mesher::process_face(
-                                    vx,
-                                    vy,
-                                    vz,
-                                    voxel_id,
-                                    &rotation,
-                                    face,
-                                    block,
-                                    &uv_map,
-                                    &registry,
-                                    &space,
-                                    transparent,
-                                    &mut geometry.positions,
-                                    &mut geometry.indices,
-                                    &mut geometry.uvs,
-                                    &mut geometry.lights,
-                                    min,
-                                )
-                            });
+                        faces.iter().for_each(|face| {
+                            Mesher::process_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                &rotation,
+                                face,
+                                block,
+                                &uv_map,
+                                &registry,
+                                space,
+                                transparent,
+                                &mut geometry.positions,
+                                &mut geometry.indices,
+                                &mut geometry.uvs,
+                                &mut geometry.lights,
+                                min,
+                            )
+                        });
 
-                            map.insert(voxel_id, geometry);
-                        }
+                        map.insert(voxel_id, geometry);
                     }
                 }
             }
@@ -341,7 +384,7 @@ impl Mesher {
         block: &Block,
         uv_map: &HashMap<String, &UV>,
         registry: &Registry,
-        space: &Space,
+        space: &dyn VoxelAccess,
         transparent: bool,
         positions: &mut Vec<f32>,
         indices: &mut Vec<i32>,
@@ -401,7 +444,7 @@ impl Mesher {
                     || (neighbor_id != voxel_id
                         && (is_see_through || n_block_type.is_see_through))
                     || ({
-                        if is_see_through && n_block_type.is_opaque {
+                        if is_see_through && !is_opaque && n_block_type.is_opaque {
                             let self_bounding = AABB::union(&block.aabbs);
                             let mut n_bounding = AABB::union(&n_block_type.aabbs);
                             n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
@@ -454,49 +497,77 @@ impl Mesher {
                 let dy = if dy == 0 { -1 } else { 1 };
                 let dz = if dz == 0 { -1 } else { 1 };
 
-                let mut sum_sunlight = vec![];
+                let mut sum_sunlights = vec![];
                 let mut sum_red_lights = vec![];
                 let mut sum_green_lights = vec![];
                 let mut sum_blue_lights = vec![];
 
-                let b011 = get_block_by_voxel(vx, vy + dy, vz + dz, space, registry);
-                let b011 = !b011.is_opaque;
-                let b101 = get_block_by_voxel(vx + dx, vy, vz + dz, space, registry);
-                let b101 = !b101.is_opaque;
-                let b110 = get_block_by_voxel(vx + dx, vy + dy, vz, space, registry);
-                let b110 = !b110.is_opaque;
-                let b111 = get_block_by_voxel(vx + dx, vy + dy, vz + dz, space, registry);
-                let b111 = !b111.is_opaque;
+                let neighbors = Neighbors::populate(Vec3(vx, vy, vz), space);
 
-                if is_see_through {
-                    face_aos.push(3);
+                let b011 = !get_block_by_voxel(0, dy, dz, &neighbors, registry).is_opaque;
+                let b101 = !get_block_by_voxel(dx, 0, dz, &neighbors, registry).is_opaque;
+                let b110 = !get_block_by_voxel(dx, dy, 0, &neighbors, registry).is_opaque;
+                let b111 = !get_block_by_voxel(dx, dy, dz, &neighbors, registry).is_opaque;
+
+                let ao = if is_see_through {
+                    3
                 } else if dir[0].abs() == 1 {
-                    face_aos.push(vertex_ao(b110, b101, b111));
+                    vertex_ao(b110, b101, b111)
                 } else if dir[1].abs() == 1 {
-                    face_aos.push(vertex_ao(b110, b011, b111));
+                    vertex_ao(b110, b011, b111)
                 } else {
-                    face_aos.push(vertex_ao(b011, b101, b111));
-                }
+                    vertex_ao(b011, b101, b111)
+                };
+
+                let sunlight;
+                let red_light;
+                let green_light;
+                let blue_light;
 
                 if is_see_through {
-                    four_sunlights.push(space.get_sunlight(vx, vy, vz) as i32);
-                    four_red_lights.push(space.get_red_light(vx, vy, vz) as i32);
-                    four_green_lights.push(space.get_green_light(vx, vy, vz) as i32);
-                    four_blue_lights.push(space.get_blue_light(vx, vy, vz) as i32);
+                    let center = Vec3(0, 0, 0);
+                    sunlight = neighbors.get_sunlight(&center);
+                    red_light = neighbors.get_torch_light(&center, &RED);
+                    green_light = neighbors.get_torch_light(&center, &GREEN);
+                    blue_light = neighbors.get_torch_light(&center, &BLUE);
                 } else {
-                    // Loop through all 8 neighbors of this vertex.
+                    // Loop through all 9 neighbors (including self) of this vertex.
                     for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
                         for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
                             for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
+                                let offset = Vec3(ddx, ddy, ddz);
+
+                                let local_sunlight = neighbors.get_sunlight(&offset);
+                                let local_red_light = neighbors.get_torch_light(&offset, &RED);
+                                let local_green_light = neighbors.get_torch_light(&offset, &GREEN);
+                                let local_blue_light = neighbors.get_torch_light(&offset, &BLUE);
+
+                                if local_sunlight == 0
+                                    && local_red_light == 0
+                                    && local_green_light == 0
+                                    && local_blue_light == 0
+                                {
+                                    continue;
+                                }
+
+                                let diagonal4 =
+                                    get_block_by_voxel(ddx, ddy, ddz, &neighbors, registry);
+
+                                let is_transparent = !diagonal4.is_opaque;
+
+                                if !is_transparent {
+                                    continue;
+                                }
+
                                 // The block that we're checking is on the side that the face is facing, so
                                 // check if the diagonal block would be blocking this block's potential light.
                                 // Perpendicular check done by crossing the vectors.
                                 if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
                                     let facing = get_block_by_voxel(
-                                        vx + ddx * dir[0],
-                                        vy + ddy * dir[1],
-                                        vz + ddz * dir[2],
-                                        space,
+                                        ddx * dir[0],
+                                        ddy * dir[1],
+                                        ddz * dir[2],
+                                        &neighbors,
                                         registry,
                                     );
 
@@ -508,11 +579,11 @@ impl Mesher {
                                 // Diagonal light leaking fix.
                                 if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
                                     let diagonal_yz =
-                                        get_block_by_voxel(vx, vy + ddy, vz + ddz, space, registry);
+                                        get_block_by_voxel(0, ddy, ddz, &neighbors, registry);
                                     let diagonal_xz =
-                                        get_block_by_voxel(vx + ddx, vy, vz + ddz, space, registry);
+                                        get_block_by_voxel(ddx, 0, ddz, &neighbors, registry);
                                     let diagonal_xy =
-                                        get_block_by_voxel(vx + ddx, vy + ddy, vz, space, registry);
+                                        get_block_by_voxel(ddx, ddy, 0, &neighbors, registry);
 
                                     // Three corners all blocked
                                     if diagonal_yz.is_opaque
@@ -525,9 +596,9 @@ impl Mesher {
                                     // Two corners blocked
                                     if diagonal_xy.is_opaque && diagonal_xz.is_opaque {
                                         let neighbor_y =
-                                            get_block_by_voxel(vx, vy + ddy, vz, space, registry);
+                                            get_block_by_voxel(0, ddy, 0, &neighbors, registry);
                                         let neighbor_z =
-                                            get_block_by_voxel(vx, vy, vz + ddz, space, registry);
+                                            get_block_by_voxel(0, 0, ddz, &neighbors, registry);
                                         if neighbor_y.is_opaque && neighbor_z.is_opaque {
                                             continue;
                                         }
@@ -535,9 +606,9 @@ impl Mesher {
 
                                     if diagonal_xy.is_opaque && diagonal_yz.is_opaque {
                                         let neighbor_x =
-                                            get_block_by_voxel(vx + ddx, vy, vz, space, registry);
+                                            get_block_by_voxel(ddx, 0, 0, &neighbors, registry);
                                         let neighbor_z =
-                                            get_block_by_voxel(vx, vy, vz + ddz, space, registry);
+                                            get_block_by_voxel(0, 0, ddz, &neighbors, registry);
                                         if neighbor_x.is_opaque && neighbor_z.is_opaque {
                                             continue;
                                         }
@@ -545,71 +616,48 @@ impl Mesher {
 
                                     if diagonal_xz.is_opaque && diagonal_yz.is_opaque {
                                         let neighbor_x =
-                                            get_block_by_voxel(vx + ddx, vy, vz, space, registry);
+                                            get_block_by_voxel(ddx, 0, 0, &neighbors, registry);
                                         let neighbor_y =
-                                            get_block_by_voxel(vx, vy + ddy, vz, space, registry);
+                                            get_block_by_voxel(0, ddy, 0, &neighbors, registry);
                                         if neighbor_x.is_opaque && neighbor_y.is_opaque {
                                             continue;
                                         }
                                     }
                                 }
 
-                                let diagonal4 = get_block_by_voxel(
-                                    vx + ddx,
-                                    vy + ddy,
-                                    vz + ddz,
-                                    space,
-                                    registry,
-                                );
-
-                                let is_transparent = !diagonal4.is_opaque;
-
-                                if is_transparent {
-                                    sum_sunlight.push(space.get_sunlight(
-                                        vx + ddx,
-                                        vy + ddy,
-                                        vz + ddz,
-                                    ));
-                                    sum_red_lights.push(space.get_red_light(
-                                        vx + ddx,
-                                        vy + ddy,
-                                        vz + ddz,
-                                    ));
-                                    sum_green_lights.push(space.get_green_light(
-                                        vx + ddx,
-                                        vy + ddy,
-                                        vz + ddz,
-                                    ));
-                                    sum_blue_lights.push(space.get_blue_light(
-                                        vx + ddx,
-                                        vy + ddy,
-                                        vz + ddz,
-                                    ));
-                                }
+                                sum_sunlights.push(local_sunlight);
+                                sum_red_lights.push(local_red_light);
+                                sum_green_lights.push(local_green_light);
+                                sum_blue_lights.push(local_blue_light);
                             }
                         }
                     }
 
-                    four_sunlights.push(
-                        (sum_sunlight.iter().sum::<u32>() as f32 / sum_sunlight.len() as f32)
-                            as i32,
-                    );
+                    sunlight = (sum_sunlights.iter().sum::<u32>() as f32
+                        / sum_sunlights.len() as f32) as u32;
 
-                    four_red_lights.push(
-                        (sum_red_lights.iter().sum::<u32>() as f32 / sum_red_lights.len() as f32)
-                            as i32,
-                    );
+                    red_light = (sum_red_lights.iter().sum::<u32>() as f32
+                        / sum_red_lights.len() as f32) as u32;
 
-                    four_green_lights.push(
-                        (sum_green_lights.iter().sum::<u32>() as f32
-                            / sum_green_lights.len() as f32) as i32,
-                    );
+                    green_light = (sum_green_lights.iter().sum::<u32>() as f32
+                        / sum_green_lights.len() as f32) as u32;
 
-                    four_blue_lights.push(
-                        (sum_blue_lights.iter().sum::<u32>() as f32 / sum_blue_lights.len() as f32)
-                            as i32,
-                    );
+                    blue_light = (sum_blue_lights.iter().sum::<u32>() as f32
+                        / sum_blue_lights.len() as f32) as u32;
                 }
+
+                let mut light = 0;
+                light = LightUtils::insert_red_light(light, red_light);
+                light = LightUtils::insert_green_light(light, green_light);
+                light = LightUtils::insert_blue_light(light, blue_light);
+                light = LightUtils::insert_sunlight(light, sunlight);
+                lights.push(light as i32 | ao << 16);
+
+                four_sunlights.push(sunlight);
+                four_red_lights.push(red_light);
+                four_green_lights.push(green_light);
+                four_blue_lights.push(blue_light);
+                face_aos.push(ao);
             }
 
             let a_rt = four_red_lights[0];
@@ -680,22 +728,6 @@ impl Mesher {
                 indices.push(ndx + 2);
                 indices.push(ndx + 1);
                 indices.push(ndx + 3);
-            }
-
-            let mut ao_i = 0;
-            for (s, r, g, b) in izip!(
-                &four_sunlights,
-                &four_red_lights,
-                &four_green_lights,
-                &four_blue_lights
-            ) {
-                let mut light = 0;
-                light = LightUtils::insert_red_light(light, *r as u32);
-                light = LightUtils::insert_green_light(light, *g as u32);
-                light = LightUtils::insert_blue_light(light, *b as u32);
-                light = LightUtils::insert_sunlight(light, *s as u32);
-                lights.push(light as i32 | face_aos[ao_i] << 16);
-                ao_i += 1;
             }
         }
     }

@@ -34,16 +34,15 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         ReadExpect<'a, Registry>,
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, Chunks>,
+        WriteExpect<'a, Mesher>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, mut message_queue, mut chunks) = data;
+        let (config, registry, mut message_queue, mut chunks, mut mesher) = data;
 
         if chunks.updates.is_empty() {
             return;
         }
-
-        let mut count = 0;
 
         let max_height = config.max_height as i32;
         let max_light_level = config.max_light_level;
@@ -57,9 +56,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut blue_flood = VecDeque::default();
         let mut sun_flood = VecDeque::default();
 
-        while count < config.max_updates_per_tick && !chunks.updates.is_empty() {
-            count += 1;
-
+        while !chunks.updates.is_empty() {
             let (voxel, raw) = chunks.updates.pop_front().unwrap();
             let Vec3(vx, vy, vz) = voxel;
 
@@ -342,6 +339,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             })
         }
 
+        // Time the chunk update
+        let start = std::time::Instant::now();
+
         if !red_flood.is_empty() {
             Lights::flood_light(
                 &mut *chunks,
@@ -390,6 +390,35 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             );
         }
 
+        if !chunks.cache.is_empty() {
+            let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
+
+            let processes = cache
+                .into_iter()
+                .filter(|coords| chunks.is_chunk_ready(coords))
+                .map(|coords| {
+                    let space = chunks
+                        .make_space(&coords, config.max_light_level as usize)
+                        .needs_height_maps()
+                        .needs_voxels()
+                        .needs_lights()
+                        .build();
+                    let chunk = chunks.raw(&coords).unwrap().to_owned();
+
+                    return (chunk, space);
+                })
+                .collect::<Vec<_>>();
+
+            mesher.process(processes, &registry, &config);
+        }
+
+        // Print the time it took to update
+        let elapsed = start.elapsed();
+        let ms = elapsed.as_secs() as f64 * 1000.0 + elapsed.subsec_nanos() as f64 / 1_000_000.0;
+        if ms >= 0.0 {
+            info!("Update took {}ms", ms);
+        }
+
         let results = results
             .into_iter()
             .map(|mut update| {
@@ -398,71 +427,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 update
             })
             .collect::<Vec<UpdateProtocol>>();
-
-        if !chunks.cache.is_empty() {
-            let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
-
-            cache.into_iter().for_each(|coords| {
-                if !chunks.is_chunk_ready(&coords) {
-                    return;
-                }
-
-                // Remesh chunk
-                let space = chunks
-                    .make_space(&coords, config.max_light_level as usize)
-                    .needs_height_maps()
-                    .needs_voxels()
-                    .needs_lights()
-                    .build();
-
-                let chunk = chunks.raw_mut(&coords).unwrap();
-
-                let Vec3(min_x, _, min_z) = chunk.min;
-                let Vec3(max_x, _, max_z) = chunk.max;
-
-                let blocks_per_sub_chunk =
-                    (space.params.max_height / space.params.sub_chunks) as i32;
-
-                let sub_chunks: Vec<_> = chunk.updated_levels.clone().into_iter().collect();
-
-                sub_chunks
-                    .into_par_iter()
-                    .map(|level| {
-                        let level = level as i32;
-
-                        let min = Vec3(min_x, level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, (level + 1) * blocks_per_sub_chunk, max_z);
-
-                        let opaque = Mesher::mesh_space(&min, &max, &space, &registry, false);
-                        let transparent =
-                            Mesher::typed_mesh_space(&min, &max, &space, &registry, true);
-
-                        (opaque, transparent, level)
-                    })
-                    .collect::<Vec<(Option<Geometry>, Vec<Geometry>, i32)>>()
-                    .into_iter()
-                    .for_each(|(opaque, transparent, level)| {
-                        if chunk.meshes.is_none() {
-                            chunk.meshes = Some(HashMap::new());
-                        }
-
-                        chunk.meshes.as_mut().unwrap().insert(
-                            level as u32,
-                            MeshProtocol {
-                                level,
-                                opaque,
-                                transparent,
-                            },
-                        );
-                    });
-
-                if config.saving {
-                    chunks.add_chunk_to_save(&coords, true);
-                }
-
-                chunks.add_chunk_to_send(&coords, &MessageType::Update, true);
-            });
-        }
 
         if !results.is_empty() {
             let new_message = Message::new(&MessageType::Update).updates(&results).build();

@@ -273,6 +273,8 @@ export class VoxelInteract extends Group {
     // No target.
     if (!result) {
       this.visible = false;
+      this.target = null;
+      this.potential = null;
       return;
     }
 
@@ -285,6 +287,8 @@ export class VoxelInteract extends Group {
     const newLookingID = this.world.getVoxelByVoxel(...newTarget);
     if (newLookingID === 0) {
       this.visible = false;
+      this.target = null;
+      this.potential = null;
       return;
     }
 

@@ -71,17 +71,6 @@ pub struct Space {
 }
 
 impl Space {
-    /// Check if space contains this coordinate
-    pub fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
-        let (coords, _) = self.to_local(vx, vy, vz);
-
-        vy >= 0
-            && vy < self.params.max_height as i32
-            && (self.lights.contains_key(&coords)
-                || self.voxels.contains_key(&coords)
-                || self.height_maps.contains_key(&coords))
-    }
-
     /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
     fn to_local(&self, vx: i32, vy: i32, vz: i32) -> (Vec2<i32>, Vec3<usize>) {
         let SpaceParams { chunk_size, .. } = self.params;
@@ -348,5 +337,16 @@ impl VoxelAccess for Space {
     /// Get a reference of lighting n-dimensional array.
     fn get_lights(&self, cx: i32, cz: i32) -> Option<&Ndarray<u32>> {
         self.lights.get(&Vec2(cx, cz))
+    }
+
+    /// Check if space contains this coordinate
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        let (coords, _) = self.to_local(vx, vy, vz);
+
+        vy >= 0
+            && vy < self.params.max_height as i32
+            && (self.lights.contains_key(&coords)
+                || self.voxels.contains_key(&coords)
+                || self.height_maps.contains_key(&coords))
     }
 }

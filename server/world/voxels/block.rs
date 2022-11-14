@@ -823,7 +823,7 @@ pub struct Neighbors {
 }
 
 impl Neighbors {
-    pub fn populate(center: Vec3<i32>, space: &mut dyn VoxelAccess) -> Self {
+    pub fn populate(center: Vec3<i32>, space: &dyn VoxelAccess) -> Self {
         let mut map = HashMap::new();
         let Vec3(vx, vy, vz) = center.clone();
 
@@ -840,28 +840,28 @@ impl Neighbors {
         Self { map, center }
     }
 
-    pub fn get_voxel(&self, offset: Vec3<i32>) -> u32 {
-        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+    pub fn get_voxel(&self, offset: &Vec3<i32>) -> u32 {
+        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
         BlockUtils::extract_id(value[0])
     }
 
-    pub fn get_rotation(&self, offset: Vec3<i32>) -> BlockRotation {
-        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+    pub fn get_rotation(&self, offset: &Vec3<i32>) -> BlockRotation {
+        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
         BlockUtils::extract_rotation(value[0])
     }
 
-    pub fn get_stage(&self, offset: Vec3<i32>) -> u32 {
-        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+    pub fn get_stage(&self, offset: &Vec3<i32>) -> u32 {
+        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
         BlockUtils::extract_stage(value[0])
     }
 
-    pub fn get_sunlight(&self, offset: Vec3<i32>) -> u32 {
-        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+    pub fn get_sunlight(&self, offset: &Vec3<i32>) -> u32 {
+        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
         LightUtils::extract_sunlight(value[1])
     }
 
-    pub fn get_torch_light(&self, offset: Vec3<i32>, color: &LightColor) -> u32 {
-        let value = *self.map.get(&offset).unwrap_or(&[0, 0]);
+    pub fn get_torch_light(&self, offset: &Vec3<i32>, color: &LightColor) -> u32 {
+        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
 
         match *color {
             LightColor::Red => LightUtils::extract_red_light(value[1]),

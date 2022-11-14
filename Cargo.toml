@@ -38,7 +38,6 @@ crossbeam-channel = "0.5.4"
 fastrand = "1.8.0"
 hashbrown = {version = "0.12.0", features = ["serde"]}
 indicatif = "0.17.0"
-itertools = "0.10.3"
 kdtree = "0.6.0"
 libflate = "1.2.0"
 nalgebra = "0.31.0"
