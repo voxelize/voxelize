@@ -263,23 +263,7 @@ impl Server {
 
     /// Handler for client's message.
     pub(crate) fn on_request(&mut self, id: &str, data: Message) -> Option<String> {
-        if data.r#type == MessageType::Transport as i32 {
-            if !self.transport_sessions.contains_key(id) {
-                return Some(
-                    "Someone who isn't a transport server is attempting to transport.".to_owned(),
-                );
-            }
-
-            if let Some(world) = self.get_world_mut(&data.text) {
-                world.on_request(id, data);
-
-                return None;
-            } else {
-                return Some(
-                    "Transport message did not have a world. Use the 'text' field.".to_owned(),
-                );
-            }
-        } else if data.r#type == MessageType::Join as i32 {
+        if data.r#type == MessageType::Join as i32 {
             let json: OnJoinRequest = serde_json::from_str(&data.json)
                 .expect("`on_join` error. Could not read JSON string.");
 
@@ -317,6 +301,24 @@ impl Server {
             self.on_action(id, &data);
 
             return None;
+        } else if data.r#type == MessageType::Transport as i32
+            || self.transport_sessions.contains_key(id)
+        {
+            if !self.transport_sessions.contains_key(id) {
+                return Some(
+                    "Someone who isn't a transport server is attempting to transport.".to_owned(),
+                );
+            }
+
+            if let Some(world) = self.get_world_mut(&data.text) {
+                world.on_request(id, data);
+
+                return None;
+            } else {
+                return Some(
+                    "Transport message did not have a world. Use the 'text' field.".to_owned(),
+                );
+            }
         }
 
         let connection = self.connections.get(id);
