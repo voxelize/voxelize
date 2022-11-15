@@ -14,6 +14,7 @@ import {
   ShaderMaterial,
   sRGBEncoding,
   Texture,
+  Uniform,
   UniformsUtils,
   Vector3,
   Vector4,
@@ -36,6 +37,7 @@ export * from "./block";
 export * from "./chunk";
 export * from "./chunks";
 export * from "./registry";
+export * from "./shaders";
 
 export type SkyFace = ArtFunction | Color | string | null;
 
@@ -88,6 +90,103 @@ const defaultParams: WorldClientParams = {
   textureDimension: 8,
   updateTimeout: 1.5, // ms
 };
+
+/**
+ * This is the default shaders used for the chunks.
+ */
+export const DEFAULT_CHUNK_SHADERS = {
+  vertex: ShaderLib.basic.vertexShader
+    .replace(
+      "#include <common>",
+      `
+attribute int light;
+
+varying float vAO;
+varying vec4 vLight;
+varying vec4 vWorldPosition;
+uniform vec4 uAOTable;
+uniform float uTime;
+
+vec4 unpackLight(int l) {
+  float r = float((l >> 8) & 0xF) / 15.0;
+  float g = float((l >> 4) & 0xF) / 15.0;
+  float b = float(l & 0xF) / 15.0;
+  float s = float((l >> 12) & 0xF) / 15.0;
+  return vec4(r, g, b, s);
+}
+
+#include <common>
+`
+    )
+    .replace(
+      "#include <color_vertex>",
+      `
+#include <color_vertex>
+
+int ao = light >> 16;
+
+vAO = ((ao == 0) ? uAOTable.x :
+    (ao == 1) ? uAOTable.y :
+    (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
+
+vLight = unpackLight(light & ((1 << 16) - 1));
+`
+    )
+    .replace(
+      "#include <worldpos_vertex>",
+      `
+vec4 worldPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  worldPosition = instanceMatrix * worldPosition;
+#endif
+worldPosition = modelMatrix * worldPosition;
+vWorldPosition = worldPosition;
+`
+    ),
+  fragment: ShaderLib.basic.fragmentShader
+    .replace(
+      "#include <common>",
+      `
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+uniform float uSunlightIntensity;
+uniform float uMinBrightness;
+uniform float uTime;
+varying float vAO;
+varying vec4 vLight; 
+varying vec4 vWorldPosition;
+
+#include <common>
+`
+    )
+    .replace(
+      "#include <envmap_fragment>",
+      `
+#include <envmap_fragment>
+
+// Intensity of light is wavelength ** 2 
+float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinBrightness) + uMinBrightness, 1.0);
+float scale = 2.0;
+
+outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
+outgoingLight *= vAO;
+`
+    )
+    .replace(
+      "#include <fog_fragment>",
+      `
+vec3 fogOrigin = cameraPosition;
+
+float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
+float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+
+gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+`
+    ),
+};
+
+console.log(DEFAULT_CHUNK_SHADERS.vertex);
 
 export type WorldParams = WorldClientParams & WorldServerParams;
 
@@ -250,6 +349,15 @@ export class World extends Scene implements NetIntercept {
        */
       value: number;
     };
+    /**
+     * The time constant `performance.now()` that is used to animate the world. Defaults to `performance.now()`.
+     */
+    time: {
+      /**
+       * The value passed into the chunk shader.
+       */
+      value: number;
+    };
   } = {
     fogColor: {
       value: new Color("#fff"),
@@ -272,6 +380,9 @@ export class World extends Scene implements NetIntercept {
     sunlightIntensity: {
       value: 1,
     },
+    time: {
+      value: performance.now(),
+    },
   };
 
   /**
@@ -292,20 +403,18 @@ export class World extends Scene implements NetIntercept {
 
     /**
      * The chunk materials that are used to render the transparent portions of the chunk meshes.
-     * This consists of two sides of the chunk mesh, front and back.
+     * This is a map of the block ID (identifier) to the material instances (front & back).
      */
-    transparent?: {
-      /**
-       * The front side of the chunk mesh's transparent material.
-       */
-      front: CustomShaderMaterial;
-
-      /**
-       * The back side of the chunk mesh's transparent material.
-       */
-      back: CustomShaderMaterial;
-    };
-  } = {};
+    transparent: Map<
+      number,
+      {
+        front: CustomShaderMaterial;
+        back: CustomShaderMaterial;
+      }
+    >;
+  } = {
+    transparent: new Map(),
+  };
 
   /**
    * An array of network packets that will be sent on `network.flush` calls.
@@ -1129,6 +1238,107 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
+   * Get the transparent material instances for this specific block. If this set of material instances
+   * does not exist, then they will be created.
+   *
+   * @param identifier The identifier of the block.
+   * @returns The material instances related to the block.
+   */
+  getTransparentMaterials = (identifier: number) => {
+    return this.materials.transparent.has(identifier)
+      ? this.materials.transparent.get(identifier)
+      : this.overwriteTransparentMaterial(identifier);
+  };
+
+  /**
+   * Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
+   * blocks such as grass to wave in the wind.
+   *
+   * @param identifier The identifier of the block, which is the ID you want to overwrite.
+   * @param shaders The shaders to use for the block.
+   * @param shaders.vertexShader The vertex shader to use for the block.
+   * @param shaders.fragmentShader The fragment shader to use for the block.
+   */
+  overwriteTransparentMaterial = (
+    identifier: number,
+    data: {
+      vertexShader: string;
+      fragmentShader: string;
+      uniforms?: { [key: string]: Uniform };
+    } = {
+      vertexShader: DEFAULT_CHUNK_SHADERS.vertex,
+      fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
+      uniforms: {},
+    }
+  ) => {
+    const { transparent } = this.materials;
+
+    if (transparent.has(identifier)) {
+      const { front, back } = transparent.get(identifier);
+
+      if (data.vertexShader) {
+        front.vertexShader = data.vertexShader;
+        back.vertexShader = data.vertexShader;
+      }
+
+      if (data.fragmentShader) {
+        front.fragmentShader = data.fragmentShader;
+        back.fragmentShader = data.fragmentShader;
+      }
+
+      if (data.uniforms) {
+        front.uniforms = {
+          ...front.uniforms,
+          ...data.uniforms,
+        };
+
+        back.uniforms = {
+          ...back.uniforms,
+          ...data.uniforms,
+        };
+      }
+
+      front.needsUpdate = true;
+      back.needsUpdate = true;
+
+      return transparent.get(identifier);
+    }
+
+    const make = () => {
+      const mat = this.makeShaderMaterial(
+        data.fragmentShader || DEFAULT_CHUNK_SHADERS.fragment,
+        data.vertexShader || DEFAULT_CHUNK_SHADERS.vertex,
+        data.uniforms
+      );
+
+      mat.transparent = true;
+      mat.alphaTest = 0.1;
+
+      if (this.atlas && this.atlas.texture) {
+        mat.map = this.atlas.texture.clone();
+        mat.map.encoding = sRGBEncoding;
+      }
+
+      return mat;
+    };
+
+    const front = make();
+    front.side = FrontSide;
+
+    const back = make();
+    back.side = BackSide;
+
+    const materials = {
+      front,
+      back,
+    };
+
+    transparent.set(identifier, materials);
+
+    return materials;
+  };
+
+  /**
    * The updater of the world. This requests the chunks around the given coordinates and meshes any
    * new chunks that are received from the server. This should be called every frame.
    *
@@ -1154,6 +1364,8 @@ export class World extends Scene implements NetIntercept {
     this.emitServerUpdates();
 
     this.updatePhysics(delta);
+
+    this.updateUniforms();
 
     this.callTick++;
   };
@@ -1453,7 +1665,8 @@ export class World extends Scene implements NetIntercept {
       fresh = true;
     }
 
-    chunk.build(data, this.materials).then(() => {
+    // TODO: kinda ugly passing in the whole world here.
+    chunk.build(data, this).then(() => {
       if (!fresh) return;
 
       const listeners = this.chunkInitListeners.get(chunk.name);
@@ -1549,26 +1762,10 @@ export class World extends Scene implements NetIntercept {
       this.materials.opaque = this.makeShaderMaterial();
     }
 
-    if (this.materials.transparent) {
-      this.materials.transparent.front.map = this.atlas.texture.clone();
-      this.materials.transparent.back.map = this.atlas.texture.clone();
-    } else {
-      this.materials.transparent = {} as any;
-
-      const makeTransparentMat = () => {
-        const mat = this.makeShaderMaterial();
-        mat.transparent = true;
-        mat.alphaTest = 0.1;
-        // mat.depthWrite = false;
-        return mat;
-      };
-
-      this.materials.transparent.front = makeTransparentMat();
-      this.materials.transparent.back = makeTransparentMat();
-
-      this.materials.transparent.front.side = FrontSide;
-      this.materials.transparent.back.side = BackSide;
-    }
+    this.materials.transparent.forEach(({ front, back }) => {
+      front.map = this.atlas.texture.clone();
+      back.map = this.atlas.texture.clone();
+    });
   };
 
   /**
@@ -1584,89 +1781,24 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
+   * Update the uniform values.
+   */
+  private updateUniforms = () => {
+    this.uniforms.time.value = performance.now();
+  };
+
+  /**
    * Make a chunk shader material with the current atlas.
    */
-  private makeShaderMaterial = () => {
+  private makeShaderMaterial = (
+    fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
+    vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
+    uniforms: any = {}
+  ) => {
     const material = new ShaderMaterial({
       vertexColors: true,
-      fragmentShader: ShaderLib.basic.fragmentShader
-        .replace(
-          "#include <common>",
-          `
-#include <common>
-uniform vec3 uFogColor;
-uniform float uFogNear;
-uniform float uFogFar;
-uniform float uSunlightIntensity;
-uniform float uMinBrightness;
-varying float vAO;
-varying vec4 vLight; 
-varying vec4 vWorldPosition;
-`
-        )
-        .replace(
-          "#include <envmap_fragment>",
-          `
-#include <envmap_fragment>
-// Not sure why, but making this power of 2 makes it look better.
-float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinBrightness) + uMinBrightness, 1.0);
-float scale = 2.0;
-outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
-outgoingLight *= vAO;
-`
-        )
-        .replace(
-          "#include <fog_fragment>",
-          `
-vec3 fogOrigin = cameraPosition;
-float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
-
-// float depth = gl_FragCoord.z / gl_FragCoord.w;
-float fogFactor = smoothstep(uFogNear, uFogFar, depth);
-gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
-`
-        ),
-      vertexShader: ShaderLib.basic.vertexShader
-        .replace(
-          "#include <common>",
-          `
-attribute int light;
-varying float vAO;
-varying vec4 vLight;
-varying vec4 vWorldPosition;
-uniform vec4 uAOTable;
-vec4 unpackLight(int l) {
-  float r = float((l >> 8) & 0xF) / 15.0;
-  float g = float((l >> 4) & 0xF) / 15.0;
-  float b = float(l & 0xF) / 15.0;
-  float s = float((l >> 12) & 0xF) / 15.0;
-  return vec4(r, g, b, s);
-}
-#include <common>
-`
-        )
-        .replace(
-          "#include <color_vertex>",
-          `
-#include <color_vertex>
-int ao = light >> 16;
-vAO = ((ao == 0) ? uAOTable.x :
-    (ao == 1) ? uAOTable.y :
-    (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
-vLight = unpackLight(light & ((1 << 16) - 1));
-`
-        )
-        .replace(
-          "#include <worldpos_vertex>",
-          `
-vec4 worldPosition = vec4( transformed, 1.0 );
-#ifdef USE_INSTANCING
-  worldPosition = instanceMatrix * worldPosition;
-#endif
-worldPosition = modelMatrix * worldPosition;
-vWorldPosition = worldPosition;
-`
-        ),
+      fragmentShader,
+      vertexShader,
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         map: this.uniforms.atlas,
@@ -1676,11 +1808,17 @@ vWorldPosition = worldPosition;
         uFogNear: this.uniforms.fogNear,
         uFogFar: this.uniforms.fogFar,
         uFogColor: this.uniforms.fogColor,
+        uTime: this.uniforms.time,
+        ...uniforms,
       },
     }) as CustomShaderMaterial;
 
     material.map = this.uniforms.atlas.value;
-    material.map.encoding = sRGBEncoding;
+
+    if (material.map) {
+      material.map.encoding = sRGBEncoding;
+    }
+
     material.toneMapped = false;
 
     return material;

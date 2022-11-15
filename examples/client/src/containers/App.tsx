@@ -430,6 +430,20 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
+    world.overwriteTransparentMaterial(
+      1000,
+      VOXELIZE.customShaders.sway({
+        rooted: true,
+      })
+    );
+
+    world.overwriteTransparentMaterial(
+      44,
+      VOXELIZE.customShaders.sway({
+        yScale: 0,
+      })
+    );
+
     network
       .register(chat)
       .register(world)

@@ -1,18 +1,13 @@
 import { ChunkProtocol, MeshProtocol } from "@voxelize/transport/src/types";
 import ndarray, { NdArray } from "ndarray";
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Group,
-  Material,
-  Mesh,
-  Scene,
-} from "three";
+import { BufferAttribute, BufferGeometry, Group, Mesh, Scene } from "three";
 
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../../utils";
 
 import { BlockRotation } from "./block";
+
+import { World } from ".";
 
 /**
  * Parameters to construct a new chunk.
@@ -71,16 +66,7 @@ export class ChunkMesh extends Group {
    * @param meshData The data generated from the server.
    * @param materials The shared chunk materials.
    */
-  set = (
-    meshData: MeshProtocol,
-    materials: {
-      opaque?: Material;
-      transparent?: {
-        front: Material;
-        back: Material;
-      };
-    }
-  ) => {
+  set = (meshData: MeshProtocol, world: World) => {
     let { level } = meshData;
 
     if (!level) {
@@ -117,7 +103,7 @@ export class ChunkMesh extends Group {
       let mesh = map.get(level) as Mesh;
 
       if (!mesh) {
-        mesh = new Mesh(new BufferGeometry(), materials.opaque);
+        mesh = new Mesh(new BufferGeometry(), world.materials.opaque);
         mesh.name = `${this.chunk.name}-opaque`;
         mesh.matrixAutoUpdate = false;
         mesh.userData.isChunk = true;
@@ -177,17 +163,16 @@ export class ChunkMesh extends Group {
           const meshes = [];
 
           ["front", "back"].forEach((side) => {
-            const { positions, indices, uvs, lights } = meshData;
+            const { positions, indices, uvs, lights, identifier } = meshData;
 
             // No mesh actually
             if (positions.length === 0 || indices.length === 0) {
               return;
             }
 
-            const mesh = new Mesh(
-              new BufferGeometry(),
-              materials.transparent[side]
-            );
+            const materials = world.getTransparentMaterials(identifier);
+
+            const mesh = new Mesh(new BufferGeometry(), materials[side]);
 
             const geometry = mesh.geometry;
 
@@ -349,23 +334,7 @@ export class Chunk {
    * @param materials.transparent The transparent materials to use for the chunk mesh.
    * @returns A promise that resolves when the chunk mesh is generated.
    */
-  build = async (
-    data: ChunkProtocol,
-    materials: {
-      opaque?: Material;
-      transparent?: {
-        /**
-         * The material to use for the transparent front side of the chunk mesh.
-         */
-        front: Material;
-
-        /**
-         * The material to use for the transparent back side of the chunk mesh.
-         */
-        back: Material;
-      };
-    }
-  ) => {
+  build = async (data: ChunkProtocol, world: World) => {
     const { meshes, lights, voxels } = data;
 
     if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
@@ -379,7 +348,7 @@ export class Chunk {
           const data = meshes[index];
 
           if (data) {
-            this.mesh.set(data, materials);
+            this.mesh.set(data, world);
             frame = requestAnimationFrame(() => {
               update(index + 1);
             });

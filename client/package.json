@@ -23,7 +23,7 @@
   },
   "peerDependencies": {
     "postprocessing": "^6.26.3",
-    "three": "^0.142.0",
+    "three": "^0.146.0",
     "three-nebula": "10.0.3"
   },
   "devDependencies": {
