@@ -1,7 +1,7 @@
 import {
   ArrowHelper,
   Color,
-  CylinderBufferGeometry,
+  CylinderGeometry,
   Mesh,
   MeshBasicMaterial,
 } from "three";
@@ -91,13 +91,13 @@ export class Arrow extends ArrowHelper {
 
     this.add(
       new Mesh(
-        new CylinderBufferGeometry(radius, radius, height),
+        new CylinderGeometry(radius, radius, height),
         new MeshBasicMaterial({ color })
       )
     );
 
     const cone = new Mesh(
-      new CylinderBufferGeometry(0, coneRadius, coneHeight),
+      new CylinderGeometry(0, coneRadius, coneHeight),
       new MeshBasicMaterial({ color })
     );
     cone.position.y = (coneHeight + height) / 2;

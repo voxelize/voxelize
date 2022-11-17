@@ -1,4 +1,9 @@
-use std::{f32, marker::Sync, sync::Arc};
+use std::{
+    f32,
+    marker::Sync,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use hashbrown::HashMap;
 use log::info;
@@ -296,7 +301,24 @@ pub struct BlockFace {
     pub corners: [CornerData; 4],
 }
 
-impl BlockFace {
+pub struct BlockFaces {
+    pub faces: Vec<BlockFace>,
+}
+
+impl BlockFaces {
+    pub fn new() -> Self {
+        Self { faces: vec![] }
+    }
+
+    pub fn from_faces(faces: Vec<BlockFace>) -> Self {
+        Self { faces }
+    }
+
+    pub fn join(mut self, mut other: Self) -> Self {
+        self.faces.append(&mut other.faces);
+        self
+    }
+
     /// Create and customize a six-faced block face data.
     pub fn six_faces() -> SixFacesBuilder {
         SixFacesBuilder::new()
@@ -305,6 +327,20 @@ impl BlockFace {
     /// Create and customize a diagonal-faced block face data.
     pub fn diagonal_faces() -> DiagonalFacesBuilder {
         DiagonalFacesBuilder::new()
+    }
+}
+
+impl Deref for BlockFaces {
+    type Target = Vec<BlockFace>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.faces
+    }
+}
+
+impl DerefMut for BlockFaces {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.faces
     }
 }
 
@@ -383,7 +419,7 @@ impl DiagonalFacesBuilder {
     }
 
     /// Build the diagonal faces.
-    pub fn build(self) -> Vec<BlockFace> {
+    pub fn build(self) -> BlockFaces {
         let Self {
             scale_horizontal,
             scale_vertical,
@@ -416,7 +452,7 @@ impl DiagonalFacesBuilder {
         let h_min = (1.0 - scale_horizontal) / 2.0;
         let h_max = 1.0 - h_min;
 
-        vec![
+        BlockFaces::from_faces(vec![
             BlockFace {
                 name: make_name("one"),
                 dir: [0, 0, 0],
@@ -477,7 +513,7 @@ impl DiagonalFacesBuilder {
                     },
                 ],
             },
-        ]
+        ])
     }
 }
 
@@ -612,7 +648,7 @@ impl SixFacesBuilder {
     }
 
     /// Create the six faces of a block.
-    pub fn build(self) -> Vec<BlockFace> {
+    pub fn build(self) -> BlockFaces {
         let Self {
             offset_x,
             offset_y,
@@ -649,7 +685,7 @@ impl SixFacesBuilder {
             name
         };
 
-        vec![
+        BlockFaces::from_faces(vec![
             BlockFace {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
@@ -812,7 +848,7 @@ impl SixFacesBuilder {
                     },
                 ],
             },
-        ]
+        ])
     }
 }
 
@@ -1002,7 +1038,7 @@ impl BlockBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
-            faces: BlockFace::six_faces().build(),
+            faces: BlockFaces::six_faces().build().to_vec(),
             aabbs: vec![AABB::new().build()],
             ..Default::default()
         }

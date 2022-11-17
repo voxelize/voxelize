@@ -13,7 +13,7 @@ export type TextureRange = {
 /**
  * Data passed to {@link applyTextureByName} or {@link applyTexturesByNames} to load a block texture.
  */
-type TextureData = {
+export type TextureData = {
   /**
    * The name of the block to load. E.g. "Dirt".
    */
@@ -55,7 +55,7 @@ export const DIAGONAL_FACES = ["one", "two"];
  * # Example
  * ```ts
  * // Register a new texture to all faces of type "Test".
- * world.registry.applyTextureByName({
+ * world.registry.applyTextureByName(
  *   name: "Test",
  *   sides: VOXELIZE.ALL_FACES,
  *   data: "https://example.com/test.png"
@@ -64,7 +64,7 @@ export const DIAGONAL_FACES = ["one", "two"];
  *
  * @category Core
  */
-class Registry {
+export class Registry {
   /**
    * A map of UV ranges for all registered blocks. This is generated and loaded from the server, then passed into creating the texture atlas.
    */
@@ -84,6 +84,12 @@ class Registry {
    * A map of side names to their corresponding texture sources.
    */
   public sources: Map<string, string | Color> = new Map();
+
+  /**
+   * A map of side names to their corresponding keyframe sources.
+   */
+  public keyframes: Map<string, [[number, string | Color][], number]> =
+    new Map();
 
   /**
    * A set of side names that are currently registered.
@@ -117,17 +123,6 @@ class Registry {
   };
 
   /**
-   * Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
-   *
-   * @param textures List of data to load into the game before the game starts.
-   */
-  applyTexturesByNames = (textures: TextureData[]) => {
-    textures.forEach((texture) => {
-      this.applyTextureByName(texture);
-    });
-  };
-
-  /**
    * Apply a texture onto a face/side of a block.
    *
    * @param texture The data of the texture and where the texture is applying to.
@@ -140,7 +135,8 @@ class Registry {
     }
 
     (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
-      this.sources.set(this.makeSideName(name, side), data);
+      const sideName = Registry.makeSideName(name, side);
+      this.sources.set(sideName, data);
     });
   };
 
@@ -173,24 +169,13 @@ class Registry {
   getBlockByTextureName = (textureName: string) => {
     for (const [name, block] of this.blocksByName) {
       for (const face of block.faces) {
-        if (textureName === this.makeSideName(name, face.name)) {
+        if (textureName === Registry.makeSideName(name, face.name)) {
           return block;
         }
       }
     }
 
     return null;
-  };
-
-  /**
-   * Generate a key for the block's side.
-   *
-   * @param name The name of the block.
-   * @param side The side of the block.
-   * @returns A string representing the side's texture key.
-   */
-  makeSideName = (name: string, side: string) => {
-    return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
   /**
@@ -201,6 +186,17 @@ class Registry {
    */
   checkHeight = (id: number) => {
     return id !== 0;
+  };
+
+  /**
+   * Generate a key for the block's side.
+   *
+   * @param name The name of the block.
+   * @param side The side of the block.
+   * @returns A string representing the side's texture key.
+   */
+  static makeSideName = (name: string, side: string) => {
+    return `${name.toLowerCase().replace(/\s/g, "_")}__${side.toLowerCase()}`;
   };
 
   /**
@@ -233,7 +229,7 @@ class Registry {
     this.typeMap.set(lowerName, id);
 
     for (const side of faces) {
-      const sideName = this.makeSideName(name, side.name);
+      const sideName = Registry.makeSideName(name, side.name);
       this.textures.add(sideName);
     }
   };
@@ -245,7 +241,3 @@ class Registry {
     // DO NOTHING
   }
 }
-
-export type { TextureData };
-
-export { Registry };

@@ -1,32 +1,9 @@
-use voxelize::{Block, BlockFace, Registry, AABB};
+use voxelize::{Block, BlockFaces, Registry, AABB};
 
 const PLANT_SCALE: f32 = 0.6;
 
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
-
-    let mut root = BlockFace::six_faces()
-        .scale_x(0.3)
-        .offset_x(0.35)
-        .scale_z(0.3)
-        .offset_z(0.35)
-        .scale_y(0.2)
-        .prefix("bottom")
-        .concat("-")
-        .build();
-
-    root.append(
-        &mut BlockFace::six_faces()
-            .scale_x(0.4)
-            .offset_x(0.3)
-            .scale_z(0.4)
-            .offset_z(0.3)
-            .scale_y(0.3)
-            .offset_y(0.2)
-            .prefix("top")
-            .concat("-")
-            .build(),
-    );
 
     registry.register_blocks(&[
         Block::new("Dirt").id(1).build(),
@@ -47,7 +24,7 @@ pub fn setup_registry() -> Registry {
             .is_x_transparent(true)
             .is_z_transparent(true)
             .rotatable(true)
-            .faces(&BlockFace::six_faces().scale_y(0.5).offset_y(0.5).build())
+            .faces(&BlockFaces::six_faces().scale_y(0.5).offset_y(0.5).build())
             .aabbs(&[AABB::new().scale_y(0.5).offset_y(0.5).build()])
             .build(),
         Block::new("Oak Slab Bottom")
@@ -56,25 +33,20 @@ pub fn setup_registry() -> Registry {
             .is_ny_transparent(false)
             .is_x_transparent(true)
             .is_z_transparent(true)
-            .faces(&BlockFace::six_faces().scale_y(0.5).build())
+            .faces(&BlockFaces::six_faces().scale_y(0.5).build())
             .aabbs(&[AABB::new().scale_y(0.5).build()])
             .build(),
         Block::new("Oak Log").id(43).rotatable(true).build(),
         Block::new("Oak Leaves")
             .id(44)
             .faces(
-                &BlockFace::six_faces()
-                    .build()
-                    .iter()
-                    .chain(
-                        &BlockFace::diagonal_faces()
-                            .offset_x(0.1)
-                            .offset_z(0.1)
-                            .scale_horizontal(1.2)
-                            .build(),
-                    )
-                    .map(|x| x.to_owned())
-                    .collect::<Vec<_>>(),
+                &BlockFaces::six_faces().build().join(
+                    BlockFaces::diagonal_faces()
+                        .offset_x(0.1)
+                        .offset_z(0.1)
+                        .scale_horizontal(1.2)
+                        .build(),
+                ),
             )
             .is_transparent(true)
             .is_see_through(true)
@@ -88,7 +60,7 @@ pub fn setup_registry() -> Registry {
             .is_z_transparent(true)
             .rotatable(true)
             .faces(
-                &BlockFace::six_faces()
+                &BlockFaces::six_faces()
                     .scale_x(0.4)
                     .offset_x(0.3)
                     .scale_z(0.4)
@@ -121,8 +93,8 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            // .faces(&BlockFace::six_faces().scale_y(0.8).build())
-            // .aabbs(&[AABB::new().scale_y(0.8).build()])
+            .faces(&BlockFaces::six_faces().scale_y(0.8).build())
+            .aabbs(&[AABB::new().scale_y(0.8).build()])
             .build(),
         Block::new("Glass")
             .id(160)
@@ -131,7 +103,7 @@ pub fn setup_registry() -> Registry {
             .build(),
         Block::new("Lol")
             .id(200)
-            .faces(&BlockFace::six_faces().scale_y(0.2).offset_y(0.4).build())
+            .faces(&BlockFaces::six_faces().scale_y(0.2).offset_y(0.4).build())
             .aabbs(&[AABB::new().scale_y(0.2).offset_y(0.4).build()])
             .rotatable(true)
             .is_x_transparent(true)
@@ -141,7 +113,7 @@ pub fn setup_registry() -> Registry {
         Block::new("Color2").id(202).build(),
         Block::new("ChoGe")
             .id(300)
-            .faces(&BlockFace::six_faces().scale_x(0.2).offset_x(0.4).build())
+            .faces(&BlockFaces::six_faces().scale_x(0.2).offset_x(0.4).build())
             .aabbs(&[AABB::new().scale_x(0.2).offset_x(0.4).build()])
             // .rotatable(true)
             .is_x_transparent(true)
@@ -149,7 +121,29 @@ pub fn setup_registry() -> Registry {
             .build(),
         Block::new("Mushroom")
             .id(400)
-            .faces(&root)
+            .faces(
+                &BlockFaces::six_faces()
+                    .scale_x(0.3)
+                    .offset_x(0.35)
+                    .scale_z(0.3)
+                    .offset_z(0.35)
+                    .scale_y(0.2)
+                    .prefix("bottom")
+                    .concat("-")
+                    .build()
+                    .join(
+                        BlockFaces::six_faces()
+                            .scale_x(0.4)
+                            .offset_x(0.3)
+                            .scale_z(0.4)
+                            .offset_z(0.3)
+                            .scale_y(0.3)
+                            .offset_y(0.2)
+                            .prefix("top")
+                            .concat("-")
+                            .build(),
+                    ),
+            )
             .aabbs(&[
                 AABB::new()
                     .scale_x(0.3)
@@ -173,7 +167,7 @@ pub fn setup_registry() -> Registry {
         Block::new("Biggie")
             .id(500)
             .faces(
-                &BlockFace::six_faces()
+                &BlockFaces::six_faces()
                     .scale_x(4.0)
                     .scale_y(2.0)
                     .scale_z(0.1)
@@ -196,7 +190,7 @@ pub fn setup_registry() -> Registry {
                 .build()])
             .is_passable(true)
             .faces(
-                &BlockFace::diagonal_faces()
+                &BlockFaces::diagonal_faces()
                     .scale_horizontal(PLANT_SCALE)
                     .scale_vertical(PLANT_SCALE)
                     .build(),
@@ -208,7 +202,7 @@ pub fn setup_registry() -> Registry {
         Block::new("Test")
             .id(10000)
             .faces(
-                &BlockFace::six_faces()
+                &BlockFaces::six_faces()
                     .scale_x(0.2)
                     .offset_x(0.4)
                     .scale_z(0.2)

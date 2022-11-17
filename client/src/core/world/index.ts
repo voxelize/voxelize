@@ -12,7 +12,6 @@ import {
   Scene,
   ShaderLib,
   ShaderMaterial,
-  sRGBEncoding,
   Texture,
   Uniform,
   UniformsUtils,
@@ -25,14 +24,14 @@ import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 import { NetIntercept } from "../network";
 
-import { TextureAtlas } from "./atlas";
 import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Loader } from "./loader";
 import { Registry, TextureData, TextureRange } from "./registry";
+import { TextureAtlas } from "./texture";
 
-export * from "./atlas";
+export * from "./texture";
 export * from "./block";
 export * from "./chunk";
 export * from "./chunks";
@@ -223,11 +222,7 @@ export type WorldParams = WorldClientParams & WorldServerParams;
  * network.register(world);
  *
  * // Register an image to block sides.
- * world.registry.applyTextureByName({
- *   name: "Test",
- *   sides: VOXELIZE.ALL_FACES,
- *   data: "https://example.com/test.png"
- * });
+ * world.applyTextureByName("Test", VOXELIZE.ALL_FACES, "https://example.com/test.png");
  *
  * // Update the world every frame.
  * world.update(controls.object.position);
@@ -495,8 +490,11 @@ export class World extends Scene implements NetIntercept {
         this.registry.load(blocks, ranges);
 
         this.setParams(params);
-        this.loadAtlas();
         this.setFogDistance(this.renderRadius);
+
+        this.loader.load().then(() => {
+          this.loadAtlas();
+        });
 
         return;
       }
@@ -568,8 +566,16 @@ export class World extends Scene implements NetIntercept {
    * @param textures List of data to load into the game before the game starts.
    */
   applyTexturesByNames = (textures: TextureData[]) => {
+    if (this.initialized) {
+      throw new Error("Cannot apply textures after the world has started.");
+    }
+
     textures.forEach((texture) => {
-      this.applyTextureByName(texture);
+      if (typeof texture.data === "string") {
+        this.loader.addTexture(texture.data);
+      }
+
+      this.registry.applyTextureByName(texture);
     });
   };
 
@@ -578,15 +584,52 @@ export class World extends Scene implements NetIntercept {
    *
    * @param texture The data of the texture and where the texture is applying to.
    */
-  applyTextureByName = (texture: TextureData) => {
-    const { data } = texture;
+  applyTextureByName = (
+    name: string,
+    sides: string[] | string,
+    data: string | Color
+  ) => {
+    if (this.initialized) {
+      throw new Error("Cannot apply textures after the world has started.");
+    }
 
     // Offload texture loading to the loader for the loading screen
     if (typeof data === "string") {
       this.loader.addTexture(data);
     }
 
-    this.registry.applyTextureByName(texture);
+    this.registry.applyTextureByName({
+      name,
+      sides,
+      data,
+    });
+  };
+
+  /**
+   * Apply a block animation to a block.
+   *
+   * @param name The name of the block to apply the animation to.
+   * @param sides The side(s) of the block to apply the animation to.
+   * @param keyframes The keyframes of the animation. The first element is the duration of
+   * the animation, and the second element is the source to the texture to apply.
+   * @param fadeFrames The number of frames to fade between keyframes.
+   */
+  applyAnimationByName = (
+    name: string,
+    sides: string[] | string,
+    keyframes: [number, string | Color][],
+    fadeFrames = 0
+  ) => {
+    keyframes.forEach((keyframe) => {
+      if (typeof keyframe[1] === "string") {
+        this.loader.addTexture(keyframe[1]);
+      }
+    });
+
+    (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
+      const sideName = Registry.makeSideName(name, side);
+      this.registry.keyframes.set(sideName, [keyframes, fadeFrames]);
+    });
   };
 
   /**
@@ -1207,7 +1250,7 @@ export class World extends Scene implements NetIntercept {
     faces.forEach(({ corners, name }) => {
       const ndx = Math.floor(positions.length / 3);
       const { startU, endU, startV, endV } = this.registry.ranges.get(
-        this.registry.makeSideName(block.name, name)
+        Registry.makeSideName(block.name, name)
       );
 
       corners.forEach(({ uv, pos }) => {
@@ -1315,8 +1358,7 @@ export class World extends Scene implements NetIntercept {
       mat.alphaTest = 0.1;
 
       if (this.atlas && this.atlas.texture) {
-        mat.map = this.atlas.texture.clone();
-        mat.map.encoding = sRGBEncoding;
+        mat.map = this.atlas.texture;
       }
 
       return mat;
@@ -1733,23 +1775,42 @@ export class World extends Scene implements NetIntercept {
     /* -------------------------------------------------------------------------- */
     const { textureDimension } = this.params;
 
-    const { sources, ranges } = this.registry;
+    const { sources, keyframes, ranges } = this.registry;
 
     Array.from(ranges.keys()).forEach((key) => {
-      if (!sources.has(key)) {
+      if (!sources.has(key) && !keyframes.has(key)) {
         sources.set(key, null);
+        keyframes.set(key, null);
       }
     });
 
     const textures = new Map();
+
     Array.from(sources.entries()).forEach(([sideName, source]) => {
       textures.set(
         sideName,
-        source instanceof Color ? source : this.loader.getTexture(source)
+        source
+          ? // @ts-ignore
+            source.isColor
+            ? source
+            : this.loader.getTexture(source as string)
+          : null
       );
     });
 
-    this.atlas = TextureAtlas.create(textures, ranges, {
+    Array.from(keyframes.entries()).forEach(([sideName, keyframes]) => {
+      if (keyframes) {
+        keyframes[0].forEach((keyframe) => {
+          if (typeof keyframe[1] === "string") {
+            keyframe[1] = this.loader.getTexture(keyframe[1]) as any;
+          }
+        });
+
+        textures.set(sideName, keyframes);
+      }
+    });
+
+    this.atlas = new TextureAtlas(textures, ranges, {
       countPerSide: this.registry.perSide,
       dimension: textureDimension,
     });
@@ -1757,14 +1818,14 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.atlas.value = this.atlas.texture;
 
     if (this.materials.opaque) {
-      this.materials.opaque.map = this.atlas.texture.clone();
+      this.materials.opaque.map = this.atlas.texture;
     } else {
       this.materials.opaque = this.makeShaderMaterial();
     }
 
     this.materials.transparent.forEach(({ front, back }) => {
-      front.map = this.atlas.texture.clone();
-      back.map = this.atlas.texture.clone();
+      front.map = this.atlas.texture;
+      back.map = this.atlas.texture;
     });
   };
 
@@ -1814,10 +1875,6 @@ export class World extends Scene implements NetIntercept {
     }) as CustomShaderMaterial;
 
     material.map = this.uniforms.atlas.value;
-
-    if (material.map) {
-      material.map.encoding = sRGBEncoding;
-    }
 
     material.toneMapped = false;
 

@@ -32,6 +32,10 @@ import GlassImage from "../assets/pixel-perfection/glass.png";
 import GrassImage from "../assets/pixel-perfection/grass.png";
 import TechnoImage from "../assets/techno.png";
 import TestImage from "../assets/cat.jpeg";
+import Water1Image from "../assets/pixel-perfection/water1.png";
+import Water2Image from "../assets/pixel-perfection/water2.png";
+import Water3Image from "../assets/pixel-perfection/water3.png";
+import Water4Image from "../assets/pixel-perfection/water4.png";
 
 import { World } from "@voxelize/client";
 import { Color } from "three";
@@ -39,6 +43,28 @@ import { Color } from "three";
 export function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
+
+  world.applyAnimationByName(
+    "Water",
+    "py",
+    [
+      [500, Water1Image],
+      [500, Water2Image],
+      [500, Water3Image],
+      [500, Water4Image],
+    ],
+    300
+  );
+
+  world.applyAnimationByName(
+    "Dirt",
+    "py",
+    [
+      [500, DirtImage],
+      [500, SandImage],
+    ],
+    50
+  );
 
   world.applyTexturesByNames([
     { name: "Dirt", sides: all, data: DirtImage },

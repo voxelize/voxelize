@@ -422,13 +422,13 @@ const App = () => {
     shadows.add(character);
 
     // Create a test for atlas
-    // setTimeout(() => {
-    //   const plane = new THREE.Mesh(
-    //     new THREE.PlaneBufferGeometry(100, 100),
-    //     world.atlas.material
-    //   );
-    //   world.add(plane);
-    // }, 1000);
+    setTimeout(() => {
+      const plane = new THREE.Mesh(
+        new THREE.PlaneBufferGeometry(100, 100),
+        world.atlas.material
+      );
+      world.add(plane);
+    }, 1000);
 
     world.overwriteTransparentMaterial(
       1000,

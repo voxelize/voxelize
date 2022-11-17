@@ -123,7 +123,7 @@ transformed.x = position.x
             2
           )} * snoise(vec3(position.x * scale, position.y * scale * ${yScale.toFixed(
             2
-          )}, position.z * scale)) * ${amplitude.toFixed(2)};
+          )}, position.z * scale)) * 2.0 * ${amplitude.toFixed(2)};
 `
         ),
       fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
