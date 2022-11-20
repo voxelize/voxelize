@@ -189,11 +189,13 @@ pub fn sweep(
                 let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
 
-                if block.aabbs.is_empty() {
+                let aabbs = block.get_aabbs(&Vec3(vx, vy, vz), space, registry);
+
+                if aabbs.is_empty() {
                     continue;
                 }
 
-                block.aabbs.iter().for_each(|aabb| {
+                aabbs.iter().for_each(|aabb| {
                     let mut block_aabb = rotation.rotate_aabb(aabb, true, true);
                     block_aabb.translate(vx as f32, vy as f32, vz as f32);
                     let result = sweep_aabb(target, &block_aabb, &velocity);

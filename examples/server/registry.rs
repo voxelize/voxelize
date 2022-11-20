@@ -93,7 +93,7 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            .dynamic_fn(|center, space| {
+            .dynamic_fn(|center, space, registry| {
                 let Vec3(vx, vy, vz) = center;
 
                 let top_is_water = space.get_voxel(vx, vy + 1, vz) == 150;

@@ -73,14 +73,6 @@ async fn main() -> std::io::Result<()> {
             .expect("Could not create world.");
     });
 
-    let l_system = LSystem::new()
-        .axiom("FR")
-        .iterations(2)
-        .rule('F', "FRF")
-        .build();
-
-    info!("Result: {:?}", l_system.generate());
-
     // let config2 = WorldConfig::new()
     //     .min_chunk([-100, -100])
     //     .max_chunk([100, 100])

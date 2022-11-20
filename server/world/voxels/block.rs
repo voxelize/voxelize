@@ -9,7 +9,7 @@ use hashbrown::HashMap;
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockUtils, Chunks, LightColor, LightUtils, Vec3, VoxelAccess, AABB};
+use crate::{BlockUtils, Chunks, LightColor, LightUtils, Registry, Vec3, VoxelAccess, AABB};
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -976,7 +976,7 @@ pub struct Block {
     #[serde(skip)]
     pub dynamic_fn: Option<
         Arc<
-            dyn Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+            dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
                 + Send
                 + Sync,
         >,
@@ -988,17 +988,27 @@ impl Block {
         BlockBuilder::new(name)
     }
 
-    pub fn get_aabbs(&self, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> Vec<AABB> {
+    pub fn get_aabbs(
+        &self,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+    ) -> Vec<AABB> {
         if self.is_dynamic {
-            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space).1
+            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).1
         } else {
             self.aabbs.clone()
         }
     }
 
-    pub fn get_faces(&self, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> Vec<BlockFace> {
+    pub fn get_faces(
+        &self,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+    ) -> Vec<BlockFace> {
         if self.is_dynamic {
-            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space).0
+            (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).0
         } else {
             self.faces.clone()
         }
@@ -1043,7 +1053,7 @@ pub struct BlockBuilder {
     light_reduce: bool,
     dynamic_fn: Option<
         Arc<
-            dyn Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+            dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
                 + Send
                 + Sync,
         >,
@@ -1227,7 +1237,7 @@ impl BlockBuilder {
 
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
-        F: Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+        F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
             + 'static
             + Send
             + Sync,

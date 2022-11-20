@@ -344,6 +344,11 @@ export class World extends Scene implements NetIntercept {
   private callTick = 0;
 
   /**
+   * A temporary map to store dynamic functions registered before the world is initialized.
+   */
+  private tempDynamic = new Map<number, Block["dynamicFn"]>();
+
+  /**
    * Create a new world instance.
    *
    * @param params The client-side parameters to configure the world.
@@ -393,6 +398,9 @@ export class World extends Scene implements NetIntercept {
         } = message;
 
         this.registry.load(blocks, ranges);
+        this.tempDynamic.forEach((fn, id) => {
+          this.overwriteBlockDynamic(id, fn);
+        });
 
         this.setParams(params);
         this.setFogDistance(this.renderRadius);
@@ -1190,13 +1198,13 @@ export class World extends Scene implements NetIntercept {
    * Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
    * blocks such as grass to wave in the wind.
    *
-   * @param identifier The identifier of the block, which is the ID you want to overwrite.
+   * @param id The ID of the block, which is the ID you want to overwrite.
    * @param shaders The shaders to use for the block.
    * @param shaders.vertexShader The vertex shader to use for the block.
    * @param shaders.fragmentShader The fragment shader to use for the block.
    */
   overwriteTransparentMaterial = (
-    identifier: number,
+    id: number,
     data: {
       vertexShader: string;
       fragmentShader: string;
@@ -1209,8 +1217,8 @@ export class World extends Scene implements NetIntercept {
   ) => {
     const { transparent } = this.materials;
 
-    if (transparent.has(identifier)) {
-      const { front, back } = transparent.get(identifier);
+    if (transparent.has(id)) {
+      const { front, back } = transparent.get(id);
 
       if (data.vertexShader) {
         front.vertexShader = data.vertexShader;
@@ -1237,7 +1245,7 @@ export class World extends Scene implements NetIntercept {
       front.needsUpdate = true;
       back.needsUpdate = true;
 
-      return transparent.get(identifier);
+      return transparent.get(id);
     }
 
     const make = () => {
@@ -1268,41 +1276,32 @@ export class World extends Scene implements NetIntercept {
       back,
     };
 
-    transparent.set(identifier, materials);
+    transparent.set(id, materials);
 
     return materials;
   };
 
   /**
-   * The updater of the world. This requests the chunks around the given coordinates and meshes any
-   * new chunks that are received from the server. This should be called every frame.
+   * Overwrite the dynamic function for the block. That is, the function that is called to generate different AABBs and block faces
+   * for the block based on different conditions.
    *
-   * @param center The center of the update. That is, the center that the chunks should
-   *    be requested around.
+   * @param id The ID of the block.
+   * @param fn The dynamic function to use for the block.
    */
-  update = (center: Vector3) => {
-    // Normalize the delta
-    const delta = Math.min(this.clock.getDelta(), 0.1);
+  overwriteBlockDynamic = (id: number, fn: Block["dynamicFn"]) => {
+    if (this.initialized) {
+      const block = this.registry.getBlockById(id);
 
-    this.calculateCurrChunk(center);
+      if (!block) {
+        throw new Error(
+          `Block with ID ${id} does not exist, could not overwrite dynamic function.`
+        );
+      }
 
-    if (this.callTick % 2 === 0) {
-      this.surroundChunks();
+      block.dynamicFn = fn;
     } else {
-      this.meshChunks();
+      this.tempDynamic.set(id, fn);
     }
-
-    this.addChunks();
-    this.requestChunks();
-    this.maintainChunks(center);
-
-    this.emitServerUpdates();
-
-    this.updatePhysics(delta);
-
-    this.updateUniforms();
-
-    this.callTick++;
   };
 
   /**
@@ -1379,6 +1378,38 @@ export class World extends Scene implements NetIntercept {
       direction,
       maxDistance
     );
+  };
+
+  /**
+   * The updater of the world. This requests the chunks around the given coordinates and meshes any
+   * new chunks that are received from the server. This should be called every frame.
+   *
+   * @param center The center of the update. That is, the center that the chunks should
+   *    be requested around.
+   */
+  update = (center: Vector3) => {
+    // Normalize the delta
+    const delta = Math.min(this.clock.getDelta(), 0.1);
+
+    this.calculateCurrChunk(center);
+
+    if (this.callTick % 2 === 0) {
+      this.surroundChunks();
+    } else {
+      this.meshChunks();
+    }
+
+    this.addChunks();
+    this.requestChunks();
+    this.maintainChunks(center);
+
+    this.emitServerUpdates();
+
+    this.updatePhysics(delta);
+
+    this.updateUniforms();
+
+    this.callTick++;
   };
 
   /**
