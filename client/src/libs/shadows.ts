@@ -1,5 +1,3 @@
-import { raycast } from "@voxelize/raycast";
-import { World } from "core";
 import {
   CircleGeometry,
   DoubleSide,
@@ -9,7 +7,7 @@ import {
   Vector3,
 } from "three";
 
-import { ChunkUtils } from "../utils";
+import { World } from "../core/world/index";
 
 /**
  * Parameters to create a shadow.

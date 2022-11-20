@@ -100,14 +100,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             let updated_transparency = if updated_type.rotatable {
                 updated_type.get_rotated_transparency(&rotation)
             } else {
-                [
-                    updated_type.is_px_transparent,
-                    updated_type.is_py_transparent,
-                    updated_type.is_pz_transparent,
-                    updated_type.is_nx_transparent,
-                    updated_type.is_ny_transparent,
-                    updated_type.is_nz_transparent,
-                ]
+                updated_type.is_transparent
             };
 
             chunks.set_voxel(vx, vy, vz, updated_id);

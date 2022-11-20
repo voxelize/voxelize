@@ -74,34 +74,10 @@ export type Block = {
   isSeeThrough: boolean;
 
   /**
-   * Whether or not is this block transparent on the positive x direction.
+   * Whether or not is this block transparent viewing from all six sides. The sides
+   * are defined as PX, PY, PZ, NX, NY, NZ.
    */
-  isPxTransparent: boolean;
-
-  /**
-   * Whether or not is this block transparent on the negative x direction.
-   */
-  isNxTransparent: boolean;
-
-  /**
-   * Whether or not is this block transparent on the positive y direction.
-   */
-  isPyTransparent: boolean;
-
-  /**
-   * Whether or not is this block transparent on the negative y direction.
-   */
-  isNyTransparent: boolean;
-
-  /**
-   * Whether or not is this block transparent on the positive z direction.
-   */
-  isPzTransparent: boolean;
-
-  /**
-   * Whether or not is this block transparent on the negative z direction.
-   */
-  isNzTransparent: boolean;
+  isTransparent: boolean[];
 
   /**
    * A list of block face data that this block has.
@@ -129,16 +105,21 @@ export type Block = {
   isDynamic: boolean;
 
   /**
-   * If this block is dynamic, this function will be called to generate the faces and AABB's.
+   * If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this
+   * just returns the faces and AABB's that are defined in the block data.
    *
    * @param pos The position of the block.
    * @param world The world instance.
    * @returns The dynamic faces and AABB's of the block.
    */
-  dynamicFn?: (
+  dynamicFn: (
     pos: Coords3,
     world: World
-  ) => { faces: Block["faces"]; aabbs: Block["aabbs"] };
+  ) => {
+    faces: Block["faces"];
+    aabbs: Block["aabbs"];
+    isTransparent: Block["isTransparent"];
+  };
 };
 
 /**

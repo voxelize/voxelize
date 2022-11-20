@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFaces, Registry, AABB};
+use voxelize::{Block, BlockFaces, Registry, Vec3, AABB};
 
 const PLANT_SCALE: f32 = 0.6;
 
@@ -93,8 +93,22 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            .faces(&BlockFaces::six_faces().scale_y(0.8).build())
-            .aabbs(&[AABB::new().scale_y(0.8).build()])
+            .dynamic_fn(|center, space| {
+                let Vec3(vx, vy, vz) = center;
+
+                let top_is_water = space.get_voxel(vx, vy + 1, vz) == 150;
+
+                (
+                    BlockFaces::six_faces()
+                        .scale_y(if top_is_water { 1.0 } else { 0.8 })
+                        .build()
+                        .to_vec(),
+                    vec![AABB::new()
+                        .scale_y(if top_is_water { 1.0 } else { 0.8 })
+                        .build()],
+                    [true, true, true, true, true, true],
+                )
+            })
             .build(),
         Block::new("Glass")
             .id(160)

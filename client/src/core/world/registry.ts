@@ -215,13 +215,27 @@ export class Registry {
    * Record a block into the registry.
    */
   private recordBlock = (block: Block) => {
-    const { name, id, faces, aabbs } = block;
+    const { name, id, faces, aabbs, isDynamic } = block;
 
     const lowerName = name.toLowerCase();
     block.aabbs = aabbs.map(
       ({ minX, minY, minZ, maxX, maxY, maxZ }) =>
         new AABB(minX, minY, minZ, maxX, maxY, maxZ)
     );
+
+    if (isDynamic) {
+      block.dynamicFn = () => {
+        return {
+          aabbs: block.aabbs,
+          faces: block.faces,
+          isTransparent: block.isTransparent,
+        };
+      };
+
+      console.warn(
+        `A dynamic function is generated for block ${name}. Overwrite this function with "world.overwriteBlockDynamic" to customize its behaviors.`
+      );
+    }
 
     this.blocksByName.set(lowerName, block);
     this.blocksById.set(id, block);

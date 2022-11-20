@@ -30,6 +30,7 @@ import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Loader } from "./loader";
 import { Registry, TextureData, TextureRange } from "./registry";
+import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { TextureAtlas } from "./texture";
 
 export * from "./texture";
@@ -90,103 +91,6 @@ const defaultParams: WorldClientParams = {
   textureDimension: 8,
   updateTimeout: 1.5, // ms
 };
-
-/**
- * This is the default shaders used for the chunks.
- */
-export const DEFAULT_CHUNK_SHADERS = {
-  vertex: ShaderLib.basic.vertexShader
-    .replace(
-      "#include <common>",
-      `
-attribute int light;
-
-varying float vAO;
-varying vec4 vLight;
-varying vec4 vWorldPosition;
-uniform vec4 uAOTable;
-uniform float uTime;
-
-vec4 unpackLight(int l) {
-  float r = float((l >> 8) & 0xF) / 15.0;
-  float g = float((l >> 4) & 0xF) / 15.0;
-  float b = float(l & 0xF) / 15.0;
-  float s = float((l >> 12) & 0xF) / 15.0;
-  return vec4(r, g, b, s);
-}
-
-#include <common>
-`
-    )
-    .replace(
-      "#include <color_vertex>",
-      `
-#include <color_vertex>
-
-int ao = light >> 16;
-
-vAO = ((ao == 0) ? uAOTable.x :
-    (ao == 1) ? uAOTable.y :
-    (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
-
-vLight = unpackLight(light & ((1 << 16) - 1));
-`
-    )
-    .replace(
-      "#include <worldpos_vertex>",
-      `
-vec4 worldPosition = vec4( transformed, 1.0 );
-#ifdef USE_INSTANCING
-  worldPosition = instanceMatrix * worldPosition;
-#endif
-worldPosition = modelMatrix * worldPosition;
-vWorldPosition = worldPosition;
-`
-    ),
-  fragment: ShaderLib.basic.fragmentShader
-    .replace(
-      "#include <common>",
-      `
-uniform vec3 uFogColor;
-uniform float uFogNear;
-uniform float uFogFar;
-uniform float uSunlightIntensity;
-uniform float uMinBrightness;
-uniform float uTime;
-varying float vAO;
-varying vec4 vLight; 
-varying vec4 vWorldPosition;
-
-#include <common>
-`
-    )
-    .replace(
-      "#include <envmap_fragment>",
-      `
-#include <envmap_fragment>
-
-// Intensity of light is wavelength ** 2 
-float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinBrightness) + uMinBrightness, 1.0);
-float scale = 2.0;
-
-outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
-outgoingLight *= vAO;
-`
-    )
-    .replace(
-      "#include <fog_fragment>",
-      `
-vec3 fogOrigin = cameraPosition;
-
-float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
-float fogFactor = smoothstep(uFogNear, uFogFar, depth);
-
-gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
-`
-    ),
-};
-
-console.log(DEFAULT_CHUNK_SHADERS.vertex);
 
 export type WorldParams = WorldClientParams & WorldServerParams;
 

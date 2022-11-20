@@ -1,7 +1,6 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine, RigidBody } from "@voxelize/physics-engine";
 import { MessageProtocol } from "@voxelize/transport/src/types";
-import { NetIntercept } from "core";
 import { Clock } from "three";
 import {
   Behaviour,
@@ -16,6 +15,7 @@ import {
   System,
 } from "three-nebula";
 
+import { NetIntercept } from "../../core/network";
 import { World } from "../../core/world";
 import { BlockUtils } from "../../utils";
 

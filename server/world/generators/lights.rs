@@ -284,12 +284,7 @@ impl Lights {
 
                     let id = space.get_voxel(x + start_x, y, z + start_z);
                     let &Block {
-                        is_px_transparent,
-                        is_py_transparent,
-                        is_pz_transparent,
-                        is_nx_transparent,
-                        is_ny_transparent,
-                        is_nz_transparent,
+                        is_transparent,
                         is_opaque,
                         is_light,
                         red_light_level,
@@ -301,14 +296,7 @@ impl Lights {
 
                     let [px, py, pz, nx, ny, nz] = space
                         .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency([
-                            is_px_transparent,
-                            is_py_transparent,
-                            is_pz_transparent,
-                            is_nx_transparent,
-                            is_ny_transparent,
-                            is_nz_transparent,
-                        ]);
+                        .rotate_transparency(is_transparent);
 
                     if is_opaque {
                         mask[index] = 0;

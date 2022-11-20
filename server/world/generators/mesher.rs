@@ -432,7 +432,19 @@ impl Mesher {
                     && neighbor_id == voxel_id
                     && n_block_type.transparent_standalone)
                     || (neighbor_id != voxel_id
-                        && (is_see_through || n_block_type.is_see_through))))
+                        && (is_see_through || n_block_type.is_see_through))
+                    || ({
+                        if is_see_through && !is_opaque && n_block_type.is_opaque {
+                            let block_aabbs = block.get_aabbs(&Vec3(vx, vy, vz), space);
+                            let self_bounding = AABB::union(&block_aabbs);
+                            let mut n_bounding = AABB::union(&n_block_type.aabbs);
+                            n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
+                            !(self_bounding.intersects(&n_bounding)
+                                || self_bounding.touches(&n_bounding))
+                        } else {
+                            false
+                        }
+                    })))
             || (!transparent && (!is_opaque || !n_block_type.is_opaque))
         {
             let UV {

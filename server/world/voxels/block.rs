@@ -960,23 +960,9 @@ pub struct Block {
     /// Is the block overall see-through? Opacity equals 0.1 or something?
     pub is_see_through: bool,
 
-    /// Is the block transparent looking from the positive x-axis.
-    pub is_px_transparent: bool,
-
-    /// Is the block transparent looking from the negative x-axis.
-    pub is_nx_transparent: bool,
-
-    /// Is the block transparent looking from the positive y-axis.
-    pub is_py_transparent: bool,
-
-    /// Is the block transparent looking from the negative y-axis.
-    pub is_ny_transparent: bool,
-
-    /// Is the block transparent looking from the positive z-axis.
-    pub is_pz_transparent: bool,
-
-    /// Is the block transparent looking from the negative z-axis.
-    pub is_nz_transparent: bool,
+    /// Is this block transparent from looking from all 6 sides?
+    /// The order is: px, py, pz, nx, ny, nz.
+    pub is_transparent: [bool; 6],
 
     /// Does light reduce when passing through this block?
     pub light_reduce: bool,
@@ -989,7 +975,11 @@ pub struct Block {
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
     pub dynamic_fn: Option<
-        Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>) + Send + Sync>,
+        Arc<
+            dyn Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+                + Send
+                + Sync,
+        >,
     >,
 }
 
@@ -1024,14 +1014,7 @@ impl Block {
     }
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
-        rotation.rotate_transparency([
-            self.is_px_transparent,
-            self.is_py_transparent,
-            self.is_pz_transparent,
-            self.is_nx_transparent,
-            self.is_ny_transparent,
-            self.is_nz_transparent,
-        ])
+        rotation.rotate_transparency(self.is_transparent)
     }
 }
 
@@ -1059,7 +1042,11 @@ pub struct BlockBuilder {
     is_nz_transparent: bool,
     light_reduce: bool,
     dynamic_fn: Option<
-        Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>) + Send + Sync>,
+        Arc<
+            dyn Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+                + Send
+                + Sync,
+        >,
     >,
 }
 
@@ -1240,7 +1227,10 @@ impl BlockBuilder {
 
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
-        F: Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>) + 'static + Send + Sync,
+        F: Fn(Vec3<i32>, &dyn VoxelAccess) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+            + 'static
+            + Send
+            + Sync,
     >(
         mut self,
         dynamic_fn: F,
@@ -1275,12 +1265,14 @@ impl BlockBuilder {
             faces: self.faces,
             aabbs: self.aabbs,
             is_see_through: self.is_see_through,
-            is_px_transparent: self.is_px_transparent,
-            is_py_transparent: self.is_py_transparent,
-            is_pz_transparent: self.is_pz_transparent,
-            is_nx_transparent: self.is_nx_transparent,
-            is_ny_transparent: self.is_ny_transparent,
-            is_nz_transparent: self.is_nz_transparent,
+            is_transparent: [
+                self.is_px_transparent,
+                self.is_py_transparent,
+                self.is_pz_transparent,
+                self.is_nx_transparent,
+                self.is_ny_transparent,
+                self.is_nz_transparent,
+            ],
             light_reduce: self.light_reduce,
             is_dynamic: self.dynamic_fn.is_some(),
             dynamic_fn: self.dynamic_fn,
