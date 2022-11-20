@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use hashbrown::HashMap;
 use rapier3d::prelude::CollisionEvent;
@@ -10,7 +10,7 @@ use crate::{
         physics::Physics,
         registry::Registry,
         stats::Stats,
-        voxels::{Chunks, VoxelAccess},
+        voxels::Chunks,
         WorldConfig,
     },
     ClientFlag, CollisionsComp, InteractorComp, Vec3,
@@ -54,15 +54,6 @@ impl<'a> System<'a> for PhysicsSystem {
             mut positions,
         ) = data;
 
-        let chunks = Arc::new(chunks);
-
-        let get_voxel = |vx: i32, vy: i32, vz: i32| {
-            (
-                chunks.get_voxel(vx, vy, vz),
-                chunks.get_voxel_rotation(vx, vy, vz),
-            )
-        };
-
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).
@@ -73,7 +64,7 @@ impl<'a> System<'a> for PhysicsSystem {
                     return;
                 }
 
-                Physics::iterate_body(&mut body.0, stats.delta, &get_voxel, &registry, &config);
+                Physics::iterate_body(&mut body.0, stats.delta, chunks.deref(), &registry, &config);
 
                 let body_pos = body.0.get_position();
                 let Vec3(px, py, pz) = body_pos;

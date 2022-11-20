@@ -38,7 +38,7 @@ export type VoxelInteractParams = {
   /**
    * Whether or not should the {@link VoxelInteract} instance ignore fluids when raycasting. Defaults to `true`.
    */
-  ignoreFluid: boolean;
+  ignoreFluids: boolean;
 
   /**
    * Whether or not should the {@link VoxelInteract} instance reverse the raycasting direction. Defaults to `false`.
@@ -80,7 +80,7 @@ export type VoxelInteractParams = {
 
 const defaultParams: VoxelInteractParams = {
   reachDistance: 32,
-  ignoreFluid: true,
+  ignoreFluids: true,
   highlightType: "box",
   highlightScale: 1.002,
   highlightLerp: 0.8,
@@ -255,19 +255,13 @@ export class VoxelInteract extends Group {
       objDir.multiplyScalar(-1);
     }
 
-    const result = raycast(
-      (wx, wy, wz) => {
-        const aabbs = this.world.getBlockAABBsByWorld(
-          wx,
-          wy,
-          wz,
-          this.params.ignoreFluid
-        );
-        return aabbs;
-      },
-      [objPos.x, objPos.y, objPos.z],
-      [objDir.x, objDir.y, objDir.z],
-      reachDistance
+    const result = this.world.raycastVoxels(
+      objPos.toArray(),
+      objDir.toArray(),
+      reachDistance,
+      {
+        ignoreFluids: this.params.ignoreFluids,
+      }
     );
 
     // No target.

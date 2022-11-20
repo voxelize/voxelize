@@ -191,30 +191,14 @@ export class Perspective {
 
       pos.add(dir.clone().multiplyScalar(this.params.blockMargin));
 
-      const result = raycast(
-        (vx: number, vy: number, vz: number) => {
-          if (vy >= this.world.params.maxHeight || vy < 0) {
-            return [];
-          }
-
-          const id = this.world.getVoxelByVoxel(vx, vy, vz);
-          const { aabbs, isFluid, isSeeThrough } = this.world.getBlockById(id);
-
-          if (this.params.ignoreSeeThrough && isSeeThrough) {
-            return [];
-          }
-
-          if (this.params.ignoreFluids && isFluid) {
-            return [];
-          }
-
-          const rotation = this.world.getVoxelRotationByVoxel(vx, vy, vz);
-
-          return aabbs.map((aabb) => rotation.rotateAABB(aabb));
-        },
-        [pos.x, pos.y, pos.z],
-        [dir.x, dir.y, dir.z],
-        this.params.maxDistance
+      const result = this.world.raycastVoxels(
+        pos.toArray(),
+        dir.toArray(),
+        this.params.maxDistance,
+        {
+          ignoreFluids: this.params.ignoreFluids,
+          ignoreSeeThrough: this.params.ignoreSeeThrough,
+        }
       );
 
       if (!result) {

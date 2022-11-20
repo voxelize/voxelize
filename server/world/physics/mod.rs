@@ -8,7 +8,7 @@ use rapier3d::prelude::{
     RigidBodySet as RapierBodySet,
 };
 
-use crate::{approx_equals, BlockRotation, Vec3};
+use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
 
 use super::{registry::Registry, WorldConfig};
 
@@ -19,8 +19,6 @@ mod sweep;
 pub use aabb::*;
 pub use rigidbody::*;
 pub use sweep::*;
-
-pub type GetVoxelFunc<'a> = &'a dyn Fn(i32, i32, i32) -> (u32, BlockRotation);
 
 pub struct Physics {
     body_set: RapierBodySet,
@@ -136,7 +134,7 @@ impl Physics {
     pub fn iterate_body(
         body: &mut RigidBody,
         dt: f32,
-        get_voxel: GetVoxelFunc,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         config: &WorldConfig,
     ) {
@@ -163,7 +161,7 @@ impl Physics {
         // skip bodies if static or no velocity/forces/impulses
         let local_no_grav = no_gravity || approx_equals(body.gravity_multiplier, 0.0);
         let is_body_asleep =
-            Physics::is_body_asleep(get_voxel, registry, config, body, dt, local_no_grav);
+            Physics::is_body_asleep(space, registry, config, body, dt, local_no_grav);
         if is_body_asleep {
             return;
         }
@@ -172,7 +170,7 @@ impl Physics {
         let old_resting = body.resting.clone();
 
         // Check if under water, if so apply buoyancy and drag forces
-        Physics::apply_fluid_forces(get_voxel, registry, config, body);
+        Physics::apply_fluid_forces(space, registry, config, body);
 
         // semi-implicit Euler integration
 
@@ -228,12 +226,12 @@ impl Physics {
         };
 
         // sweeps aabb along dx and accounts for collisions
-        Physics::process_collisions(get_voxel, registry, &mut body.aabb, &dx, &mut body.resting);
+        Physics::process_collisions(space, registry, &mut body.aabb, &dx, &mut body.resting);
 
         // if autostep, and on ground, run collisions again with stepped up aabb
         if body.auto_step {
             let mut tmp_box = tmp_box.unwrap();
-            Physics::try_auto_stepping(get_voxel, registry, body, &mut tmp_box, &dx);
+            Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx);
         }
 
         let mut impacts: Vec3<f32> = Vec3::default();
@@ -274,7 +272,7 @@ impl Physics {
     }
 
     pub fn is_body_asleep(
-        get_voxel: GetVoxelFunc,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         config: &WorldConfig,
         body: &mut RigidBody,
@@ -304,7 +302,7 @@ impl Physics {
         let mut is_resting = false;
 
         sweep(
-            get_voxel,
+            space,
             registry,
             &mut body.aabb,
             &sleep_vec,
@@ -320,7 +318,7 @@ impl Physics {
     }
 
     fn apply_fluid_forces(
-        get_voxel: GetVoxelFunc,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         config: &WorldConfig,
         body: &mut RigidBody,
@@ -332,7 +330,7 @@ impl Physics {
         let y1 = aabb.max_y.floor() as i32;
 
         let test_fluid = |vx: i32, vy: i32, vz: i32| -> bool {
-            let (id, _) = get_voxel(vx, vy, vz);
+            let id = space.get_voxel(vx, vy, vz);
             let block = registry.get_block_by_id(id);
             block.is_fluid
         };
@@ -409,7 +407,7 @@ impl Physics {
     }
 
     fn process_collisions(
-        get_voxel: GetVoxelFunc,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         aabb: &mut AABB,
         velocity: &Vec3<f32>,
@@ -418,7 +416,7 @@ impl Physics {
         resting.set(0, 0, 0);
 
         sweep(
-            get_voxel,
+            space,
             registry,
             aabb,
             velocity,
@@ -433,7 +431,7 @@ impl Physics {
     }
 
     fn try_auto_stepping(
-        get_voxel: GetVoxelFunc,
+        space: &dyn VoxelAccess,
         registry: &Registry,
         body: &mut RigidBody,
         old_aabb: &mut AABB,
@@ -467,7 +465,7 @@ impl Physics {
 
         // move towards the target until the first x/z collision
         sweep(
-            get_voxel,
+            space,
             registry,
             &mut body.aabb,
             dx,
@@ -489,7 +487,7 @@ impl Physics {
         let mut collided = false;
 
         sweep(
-            get_voxel,
+            space,
             registry,
             &mut body.aabb,
             &up_vec,
@@ -513,13 +511,7 @@ impl Physics {
         );
         leftover[1] = 0.0;
         let mut tmp_resting = Vec3::default();
-        Physics::process_collisions(
-            get_voxel,
-            registry,
-            &mut body.aabb,
-            &leftover,
-            &mut tmp_resting,
-        );
+        Physics::process_collisions(space, registry, &mut body.aabb, &leftover, &mut tmp_resting);
 
         // bail if no movement happened in the originally blocked direction
         if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {

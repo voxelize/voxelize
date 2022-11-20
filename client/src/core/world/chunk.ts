@@ -422,6 +422,20 @@ export class Chunk {
   };
 
   /**
+   * Get the raw light value at a given voxel coordinate.
+   *
+   * @param vx The x voxel coordinate.
+   * @param vy The y voxel coordinate.
+   * @param vz The z voxel coordinate.
+   * @returns The raw light value at the given voxel coordinate.
+   */
+  getRawLight = (vx: number, vy: number, vz: number) => {
+    if (!this.contains(vx, vy, vz)) return 0;
+    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    return this.lights.get(lx, ly, lz);
+  };
+
+  /**
    * Set the raw light value at a given voxel coordinate.
    *
    * Note: This method is purely client-side and does not affect the actual values on the server.

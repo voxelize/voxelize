@@ -1,6 +1,6 @@
-use crate::{approx_equals, between, Registry, Vec3};
+use crate::{approx_equals, between, Registry, Vec3, VoxelAccess};
 
-use super::{aabb::AABB, GetVoxelFunc};
+use super::aabb::AABB;
 
 fn line_to_plane(unit: &Vec3<f32>, vector: &[f32; 3], normal: &[f32; 3]) -> f32 {
     let n_dot_u = normal[0] * unit[0] + normal[1] * unit[1] + normal[2] * unit[2];
@@ -122,7 +122,7 @@ fn sweep_aabb(target: &AABB, other: &AABB, vector: &Vec3<f32>) -> SweepResults {
 }
 
 pub fn sweep(
-    get_voxel: GetVoxelFunc,
+    space: &dyn VoxelAccess,
     registry: &Registry,
     target: &mut AABB,
     velocity: &Vec3<f32>,
@@ -185,7 +185,8 @@ pub fn sweep(
     for vx in (min_x as i32)..=(max_x as i32) {
         for vz in (min_z as i32)..=(max_z as i32) {
             for vy in (min_y as i32)..=(max_y as i32) {
-                let (id, rotation) = get_voxel(vx, vy, vz);
+                let id = space.get_voxel(vx, vy, vz);
+                let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
 
                 if block.aabbs.is_empty() {
@@ -245,7 +246,7 @@ pub fn sweep(
         0.0,
     ) {
         sweep(
-            get_voxel,
+            space,
             registry,
             target,
             &Vec3::from(&leftover),

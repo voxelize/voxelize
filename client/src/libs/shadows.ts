@@ -90,19 +90,8 @@ export class Shadow extends Mesh {
 
     const { maxDistance } = this.params;
 
-    const result = raycast(
-      (wx, wy, wz) => {
-        const [vx, vy, vz] = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
-        const { isFluid, isPassable, aabbs } = this.world.getBlockByVoxel(
-          vx,
-          vy,
-          vz
-        );
-        if (isFluid || isPassable) return [];
-        const rotation = this.world.getVoxelRotationByVoxel(vx, vy, vz);
-        return aabbs.map((aabb) => rotation.rotateAABB(aabb));
-      },
-      [position.x, position.y, position.z],
+    const result = this.world.raycastVoxels(
+      position.toArray(),
       [0, -1, 0],
       maxDistance
     );

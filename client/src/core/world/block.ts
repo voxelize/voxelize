@@ -2,6 +2,8 @@ import { AABB } from "@voxelize/aabb";
 
 import { Coords3 } from "../../types";
 
+import { World } from ".";
+
 /**
  * A block type in the world. This is defined by the server.
  */
@@ -119,6 +121,24 @@ export type Block = {
    * Whether or not should light reduce by 1 going through this block.
    */
   lightReduce: boolean;
+
+  /**
+   * Whether or not does the block generate dynamic faces or AABB's. If this is true, the block will use
+   * `dynamicFn` to generate the faces and AABB's.
+   */
+  isDynamic: boolean;
+
+  /**
+   * If this block is dynamic, this function will be called to generate the faces and AABB's.
+   *
+   * @param pos The position of the block.
+   * @param world The world instance.
+   * @returns The dynamic faces and AABB's of the block.
+   */
+  dynamicFn?: (
+    pos: Coords3,
+    world: World
+  ) => { faces: Block["faces"]; aabbs: Block["aabbs"] };
 };
 
 /**

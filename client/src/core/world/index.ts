@@ -1,4 +1,5 @@
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
+import { raycast } from "@voxelize/raycast";
 import { ChunkProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import {
   BackSide,
@@ -1089,23 +1090,16 @@ export class World extends Scene implements NetIntercept {
    * @param ignoreFluid Whether to ignore fluid blocks.
    * @returns The AABB of the block at the given coordinate.
    */
-  getBlockAABBsByVoxel = (
-    vx: number,
-    vy: number,
-    vz: number,
-    ignoreFluid = false
-  ) => {
+  getBlockAABBsByVoxel = (vx: number, vy: number, vz: number) => {
     if (vy >= this.params.maxHeight || vy < 0) {
       return [];
     }
 
     const id = this.getVoxelByVoxel(vx, vy, vz);
     const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
-    const { isFluid, aabbs } = this.getBlockById(id);
+    const { aabbs } = this.getBlockById(id);
 
-    return ignoreFluid && isFluid
-      ? []
-      : aabbs.map((aabb) => rotation.rotateAABB(aabb));
+    return aabbs.map((aabb) => rotation.rotateAABB(aabb));
   };
 
   /**
@@ -1117,14 +1111,9 @@ export class World extends Scene implements NetIntercept {
    * @param ignoreFluid Whether to ignore fluid blocks.
    * @returns The AABB of the block at the given coordinate.
    */
-  getBlockAABBsByWorld = (
-    wx: number,
-    wy: number,
-    wz: number,
-    ignoreFluid = false
-  ) => {
+  getBlockAABBsByWorld = (wx: number, wy: number, wz: number) => {
     const voxel = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
-    return this.getBlockAABBsByVoxel(...voxel, ignoreFluid);
+    return this.getBlockAABBsByVoxel(...voxel);
   };
 
   /**
@@ -1410,6 +1399,82 @@ export class World extends Scene implements NetIntercept {
     this.updateUniforms();
 
     this.callTick++;
+  };
+
+  /**
+   * Raycast through the world of voxels and return the details of the first block intersection.
+   *
+   * @param origin The origin of the ray.
+   * @param direction The direction of the ray.
+   * @param maxDistance The maximum distance of the ray.
+   * @param options The options for the ray.
+   * @param options.ignoreFluids Whether or not to ignore fluids. Defaults to `true`.
+   * @param options.ignorePassables Whether or not to ignore passable blocks. Defaults to `false`.
+   * @param options.ignoreSeeThrough Whether or not to ignore see through blocks. Defaults to `false`.
+   * @param options.ignoreList A list of blocks to ignore. Defaults to `[]`.
+   * @returns
+   */
+  raycastVoxels = (
+    origin: Coords3,
+    direction: Coords3,
+    maxDistance: number,
+    options: {
+      ignoreFluids?: boolean;
+      ignorePassables?: boolean;
+      ignoreSeeThrough?: boolean;
+      ignoreList?: number[];
+    } = {}
+  ) => {
+    const ignoreFluids = options.ignoreFluids || true;
+    const ignorePassables = options.ignorePassables || false;
+    const ignoreSeeThrough = options.ignoreSeeThrough || false;
+    const ignoreList = new Set(options.ignoreList || []);
+
+    return raycast(
+      (wx, wy, wz) => {
+        const [vx, vy, vz] = ChunkUtils.mapWorldToVoxel([wx, wy, wz]);
+        const {
+          id,
+          isFluid,
+          isPassable,
+          isSeeThrough,
+          aabbs,
+          dynamicFn,
+          isDynamic,
+        } = this.getBlockByVoxel(vx, vy, vz);
+
+        if (ignoreList.has(id)) {
+          return [];
+        }
+
+        if (isDynamic && !dynamicFn) {
+          console.warn(
+            `Block of ID ${id} is dynamic but has no dynamic function.`
+          );
+        }
+
+        if (
+          (isFluid && ignoreFluids) ||
+          (isPassable && ignorePassables) ||
+          (isSeeThrough && ignoreSeeThrough)
+        ) {
+          return [];
+        }
+
+        const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
+
+        return (
+          isDynamic
+            ? dynamicFn
+              ? dynamicFn([vx, vy, vz], this).aabbs
+              : aabbs
+            : aabbs
+        ).map((aabb) => rotation.rotateAABB(aabb));
+      },
+      origin,
+      direction,
+      maxDistance
+    );
   };
 
   /**
