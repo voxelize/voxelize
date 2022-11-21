@@ -8,7 +8,7 @@ use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, T
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
     GeometryProtocol, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig, AABB, UV,
+    VoxelAccess, WorldConfig, AABB, HIGH_RES_TICKET, UV,
 };
 
 use super::lights::Lights;
@@ -242,8 +242,9 @@ impl Mesher {
                         faces.iter().for_each(|face| {
                             let identifier = if face.high_res {
                                 format!(
-                                    "{}_{}_highres",
+                                    "{}{}{}",
                                     name.to_lowercase(),
+                                    HIGH_RES_TICKET,
                                     face.name.to_lowercase()
                                 )
                             } else {

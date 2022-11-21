@@ -177,7 +177,10 @@ export class Registry {
       }
     }
 
-    return null;
+    return {
+      block: null,
+      side: null,
+    };
   };
 
   /**

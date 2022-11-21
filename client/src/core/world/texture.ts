@@ -189,6 +189,10 @@ export class TextureAtlas {
 
       let texture = textureMap.get(textureName);
 
+      if (!texture) {
+        return;
+      }
+
       if ((texture as any as Color).isColor) {
         context.fillStyle = `#${(texture as any).getHexString()}`;
         context.fillRect(
@@ -267,7 +271,7 @@ export class TextureAtlas {
   drawImageToRange = (
     range: TextureRange,
     image: typeof Image | Color,
-    clearRect = this.params.countPerSide !== 1,
+    clearRect = true,
     opacity = 1.0
   ) => {
     const { startU, endV } = range;
@@ -281,6 +285,8 @@ export class TextureAtlas {
     const canvasHeight = this.canvas.height;
 
     context.globalAlpha = opacity;
+
+    if (opacity !== 1) context.globalCompositeOperation = "lighter";
 
     if (clearRect) {
       context.clearRect(
@@ -356,7 +362,11 @@ export class TextureAtlas {
     const start = (index = 0) => {
       const keyframe = animation.keyframes[index];
 
-      this.drawImageToRange(range, keyframe[1].image);
+      this.drawImageToRange(
+        range,
+        keyframe[1].image,
+        this.params.countPerSide !== 1
+      );
 
       entry.timer = setTimeout(() => {
         clearTimeout(entry.timer);

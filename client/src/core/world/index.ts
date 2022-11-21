@@ -96,6 +96,8 @@ const defaultParams: WorldClientParams = {
 
 export type WorldParams = WorldClientParams & WorldServerParams;
 
+export const HIGH_RES_TICKET = "_highres_";
+
 /**
  * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
  * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
@@ -1263,6 +1265,18 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
+   * Get the high resolution texture atlas of a certain block face by identifier.
+   *
+   * @param identifier The identifier of the block face.
+   * @returns The {@link TextureAtlas} instance linked to the block face.
+   */
+  getHighResTextureByIdentifier = (identifier: string) => {
+    const [name, side] = identifier.split(HIGH_RES_TICKET);
+    const sideName = Registry.makeSideName(name, side);
+    return this.highResTextures.get(sideName);
+  };
+
+  /**
    * Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
    * blocks such as grass to wave in the wind. Keep in mind that higher resolution block faces are separated from
    * its vanilla counterpart. In other words, with this method, you can only overwrite the material of the block
@@ -1312,7 +1326,7 @@ export class World extends Scene implements NetIntercept {
       return mats.get(identifier);
     }
 
-    const isHighRes = identifier.endsWith("highres");
+    const isHighRes = identifier.includes(HIGH_RES_TICKET);
 
     const make = () => {
       const mat = this.makeShaderMaterial(
@@ -1327,26 +1341,14 @@ export class World extends Scene implements NetIntercept {
       }
 
       if (isHighRes) {
-        const [name, side] = identifier
-          .substring(0, identifier.length - "_highres".length)
-          .split("_");
-        const sideName = Registry.makeSideName(name, side);
+        const existing = this.getHighResTextureByIdentifier(identifier);
 
-        const existing = this.highResTextures.get(sideName);
-        if (existing) {
-          // const mesh = new Mesh(
-          //   new PlaneBufferGeometry(5, 5),
-          //   existing.material
-          // );
-          // this.add(mesh);
-          mat.uniforms.map = { value: existing.texture };
-          mat.map = existing.texture;
-        }
+        if (existing) mat.map = existing.texture;
       } else if (this.atlas && this.atlas.texture) {
-        mat.uniforms.map = { value: this.atlas.texture };
         mat.map = this.atlas.texture;
       }
 
+      mat.uniforms.map = { value: mat.map };
       mat.highRes = isHighRes;
       mat.name = identifier;
       mat.needsUpdate = true;
@@ -1886,6 +1888,7 @@ export class World extends Scene implements NetIntercept {
 
     const textures = new Map();
 
+    // Load from the static sources first.
     Array.from(sources.entries()).forEach(([sideName, source]) => {
       const { block, side } = this.getBlockByTextureName(sideName);
       const actualSource = (
@@ -1897,6 +1900,8 @@ export class World extends Scene implements NetIntercept {
           : null
       ) as any;
 
+      // If block is high resolution, create a separate texture atlas for it. This
+      // will be a single-imaged texture atlas.
       if (block.highResFaces.has(side)) {
         const resolution =
           this.highResolutions.get(sideName) || this.params.textureDimension;
@@ -1904,6 +1909,7 @@ export class World extends Scene implements NetIntercept {
           dimension: resolution,
         });
         this.highResTextures.set(sideName, atlas);
+        return;
       }
 
       textures.set(sideName, actualSource);
@@ -1952,15 +1958,9 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.atlas.value = this.atlas.texture;
 
     const applyAtlas = (mat: CustomShaderMaterial) => {
-      if (mat.highRes) {
-        const [name, side] = mat.name
-          .substring(0, mat.name.length - "_highres".length)
-          .split("_");
-        const sideName = Registry.makeSideName(name, side);
-        mat.map = this.highResTextures.get(sideName).texture;
-      } else {
-        mat.map = this.atlas.texture;
-      }
+      if (mat.highRes)
+        mat.map = this.getHighResTextureByIdentifier(mat.name).texture;
+      else mat.map = this.atlas.texture;
 
       mat.uniforms.map = { value: mat.map };
       mat.needsUpdate = true;

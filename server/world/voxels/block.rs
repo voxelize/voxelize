@@ -943,6 +943,8 @@ impl Neighbors {
     }
 }
 
+pub const HIGH_RES_TICKET: &str = "_highres_";
+
 /// Serializable struct representing block data.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1286,8 +1288,8 @@ impl BlockBuilder {
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
-        if self.name.ends_with("highres") {
-            panic!("The suffix of a block name cannot be 'highres' as it is reserved.");
+        if self.name.contains(HIGH_RES_TICKET) {
+            panic!("The suffix of a block name cannot be '{HIGH_RES_TICKET}' as it is reserved.");
         }
 
         Block {
