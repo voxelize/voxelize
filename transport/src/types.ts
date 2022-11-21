@@ -8,7 +8,7 @@ export type GeometryProtocol = {
 
 export type MeshProtocol = {
   level: number;
-  opaque: GeometryProtocol;
+  opaque: GeometryProtocol[];
   transparent: GeometryProtocol[];
 };
 

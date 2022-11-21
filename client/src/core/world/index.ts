@@ -1241,6 +1241,8 @@ export class World extends Scene implements NetIntercept {
   ) => {
     const { transparent } = this.materials;
 
+    name = name.toLowerCase();
+
     if (transparent.has(name)) {
       const { front, back } = transparent.get(name);
 
@@ -1313,6 +1315,8 @@ export class World extends Scene implements NetIntercept {
    * @param fn The dynamic function to use for the block.
    */
   overwriteBlockDynamicByName = (name: string, fn: Block["dynamicFn"]) => {
+    name = name.toLowerCase();
+
     if (this.initialized) {
       const block = this.registry.getBlockByName(name);
 

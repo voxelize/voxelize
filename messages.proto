@@ -11,7 +11,7 @@ message Geometry {
 
 message Mesh {
   int32 level = 1;
-  Geometry opaque = 2;
+  repeated Geometry opaque = 2;
   repeated Geometry transparent = 3;
 }
 

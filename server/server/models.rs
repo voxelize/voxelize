@@ -64,7 +64,7 @@ pub struct Geometry {
 #[derive(Debug, Clone, Default)]
 pub struct MeshProtocol {
     pub level: i32,
-    pub opaque: Option<Geometry>,
+    pub opaque: Vec<Geometry>,
     pub transparent: Vec<Geometry>,
 }
 
@@ -234,30 +234,30 @@ impl MessageBuilder {
                     meshes: chunk
                         .meshes
                         .into_iter()
-                        .map(|mesh| {
-                            let opaque = mesh.opaque.as_ref();
-
-                            protocols::Mesh {
-                                level: mesh.level,
-                                opaque: opaque.map(|opaque| protocols::Geometry {
+                        .map(|mesh| protocols::Mesh {
+                            level: mesh.level,
+                            opaque: mesh
+                                .opaque
+                                .into_iter()
+                                .map(|opaque| protocols::Geometry {
                                     identifier: opaque.identifier,
                                     indices: opaque.indices.to_owned(),
                                     positions: opaque.positions.to_owned(),
                                     lights: opaque.lights.to_owned(),
                                     uvs: opaque.uvs.to_owned(),
-                                }),
-                                transparent: mesh
-                                    .transparent
-                                    .into_iter()
-                                    .map(|transparent| protocols::Geometry {
-                                        identifier: transparent.identifier,
-                                        indices: transparent.indices.to_owned(),
-                                        positions: transparent.positions.to_owned(),
-                                        lights: transparent.lights.to_owned(),
-                                        uvs: transparent.uvs.to_owned(),
-                                    })
-                                    .collect(),
-                            }
+                                })
+                                .collect(),
+                            transparent: mesh
+                                .transparent
+                                .into_iter()
+                                .map(|transparent| protocols::Geometry {
+                                    identifier: transparent.identifier,
+                                    indices: transparent.indices.to_owned(),
+                                    positions: transparent.positions.to_owned(),
+                                    lights: transparent.lights.to_owned(),
+                                    uvs: transparent.uvs.to_owned(),
+                                })
+                                .collect(),
                         })
                         .collect(),
                     lights: chunk.lights.unwrap_or_default().data,

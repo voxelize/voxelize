@@ -136,13 +136,14 @@ impl Mesher {
                             let max =
                                 Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                            let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
+                            let opaque =
+                                Self::typed_mesh_space(&min, &max, &space, &registry, false);
                             let transparent =
                                 Self::typed_mesh_space(&min, &max, &space, &registry, true);
 
                             (opaque, transparent, level)
                         })
-                        .collect::<Vec<(Option<Geometry>, Vec<Geometry>, i32)>>()
+                        .collect::<Vec<(Vec<Geometry>, Vec<Geometry>, i32)>>()
                         .into_iter()
                         .for_each(|(opaque, transparent, level)| {
                             if chunk.meshes.is_none() {
@@ -312,11 +313,33 @@ impl Mesher {
                     let Block {
                         is_see_through,
                         is_empty,
+                        is_opaque,
                         ..
                     } = block.to_owned();
 
                     if is_empty {
                         continue;
+                    }
+
+                    // Skip blocks that are completely covered with opaque blocks.
+                    if is_opaque {
+                        if !(VOXEL_NEIGHBORS
+                            .into_iter()
+                            .find(|&[x, y, z]| {
+                                let x = vx + x;
+                                let y = vy + y;
+                                let z = vz + z;
+
+                                let id = space.get_voxel(x, y, z);
+
+                                let block = registry.get_block_by_id(id);
+
+                                !block.is_opaque
+                            })
+                            .is_some())
+                        {
+                            continue;
+                        }
                     }
 
                     if if transparent {

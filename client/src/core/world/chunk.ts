@@ -43,7 +43,7 @@ export class ChunkMesh extends Group {
   /**
    * The map for opaque sub-chunk meshes in this chunk.
    */
-  public opaque = new Map<number, Mesh>();
+  public opaque = new Map<number, Mesh[][]>();
 
   /**
    * The map for transparent sub-chunk meshes in this chunk. Transparent meshes are deeper separated
@@ -81,63 +81,68 @@ export class ChunkMesh extends Group {
       const { opaque } = meshData;
       const map = this.opaque;
 
-      // If opaque DNE, means used to be a mesh but now there isn't. Remove it.
-      if (!opaque) {
-        const existing = map.get(level);
-
-        if (existing) {
-          this.remove(existing);
-        }
-
-        return;
+      // If transparent DNE, means used to be a mesh but now there isn't. Remove it.
+      const existing = map.get(level);
+      if (existing) {
+        existing.forEach((meshes) => {
+          meshes.forEach((mesh) => {
+            this.remove(mesh);
+          });
+        });
       }
+      map.delete(level);
 
-      const { positions, indices, uvs, lights } = opaque;
+      const arr = opaque
+        .map((meshData) => {
+          const meshes = [];
 
-      // No mesh actually
-      if (positions.length === 0 || indices.length === 0) {
-        return;
-      }
+          const { positions, indices, uvs, lights, identifier } = meshData;
 
-      // Process it.
-      let mesh = map.get(level) as Mesh;
+          // No mesh actually
+          if (positions.length === 0 || indices.length === 0) {
+            return;
+          }
 
-      if (!mesh) {
-        mesh = new Mesh(new BufferGeometry(), world.materials.opaque);
-        mesh.name = `${this.chunk.name}-opaque`;
-        mesh.matrixAutoUpdate = false;
-        mesh.userData.isChunk = true;
-        mesh.position.set(
-          this.chunk.min[0],
-          level * partition,
-          this.chunk.min[2]
-        );
-        mesh.updateMatrix();
-        map.set(level, mesh);
-      }
+          const mesh = new Mesh(new BufferGeometry(), world.materials.opaque);
 
-      if (!mesh.parent) {
-        this.add(mesh);
-      }
+          const geometry = mesh.geometry;
 
-      const geometry = mesh.geometry;
+          mesh.name = `${this.chunk.name}-opaque`;
+          mesh.matrixAutoUpdate = false;
+          mesh.userData.isChunk = true;
+          mesh.position.set(
+            this.chunk.min[0],
+            level * partition,
+            this.chunk.min[2]
+          );
+          mesh.updateMatrix();
 
-      geometry.setAttribute(
-        "position",
-        new BufferAttribute(new Float32Array(positions), 3)
-      );
-      geometry.setAttribute(
-        "uv",
-        new BufferAttribute(new Float32Array(uvs), 2)
-      );
-      geometry.setAttribute(
-        "light",
-        new BufferAttribute(new Int32Array(lights), 1)
-      );
-      geometry.setIndex(Array.from(new Uint32Array(indices)));
+          meshes.push(mesh);
 
-      geometry.computeBoundingBox();
-      geometry.computeBoundingSphere();
+          geometry.setAttribute(
+            "position",
+            new BufferAttribute(new Float32Array(positions), 3)
+          );
+          geometry.setAttribute(
+            "uv",
+            new BufferAttribute(new Float32Array(uvs), 2)
+          );
+          geometry.setAttribute(
+            "light",
+            new BufferAttribute(new Int32Array(lights), 1)
+          );
+          geometry.setIndex(Array.from(new Uint32Array(indices)));
+
+          geometry.computeBoundingBox();
+          geometry.computeBoundingSphere();
+
+          this.add(mesh);
+
+          return meshes;
+        })
+        .filter(Boolean);
+
+      map.set(level, arr);
     })();
 
     // Process transparent meshes next
@@ -219,8 +224,12 @@ export class ChunkMesh extends Group {
    * Dispose the geometries of the chunk mesh.
    */
   dispose = () => {
-    this.opaque.forEach((mesh) => {
-      mesh.geometry.dispose();
+    this.opaque.forEach((groups) => {
+      groups.forEach((group) => {
+        group.forEach((mesh) => {
+          mesh.geometry?.dispose();
+        });
+      });
     });
 
     this.transparent.forEach((groups) => {

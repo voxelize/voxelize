@@ -73,7 +73,6 @@ const App = () => {
 
     const world = new VOXELIZE.World({
       textureDimension: 16,
-      maxUpdatesPerTick: 10000,
       defaultRenderRadius: 5,
     });
     const chat = new VOXELIZE.Chat();
@@ -213,7 +212,7 @@ const App = () => {
       highlightType: "outline",
       // potentialVisuals: true,
       inverseDirection: true,
-      ignoreFluids: false,
+      // ignoreFluids: false,
     });
     world.add(voxelInteract);
 
