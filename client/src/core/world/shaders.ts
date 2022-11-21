@@ -97,7 +97,8 @@ gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
 
 export const customShaders = {
   /**
-   * Create a custom shader that sways the chunk with the wind.
+   * Create a custom shader that sways the chunk with the wind. This shader's swaying is based on the y axis
+   * subtracted by the floored y axis. Therefore, blocks on integer y axis values will not sway.
    *
    * @params params The parameters to pass into the shader.
    * @params params.speed The speed of the sway.

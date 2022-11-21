@@ -299,7 +299,7 @@ export class World extends Scene implements NetIntercept {
     /**
      * The chunk material that is used to render the opaque portions of the chunk meshes.
      */
-    opaque?: CustomShaderMaterial;
+    opaque?: Map<string, CustomShaderMaterial>;
 
     /**
      * The chunk materials that are used to render the transparent portions of the chunk meshes.
@@ -313,6 +313,7 @@ export class World extends Scene implements NetIntercept {
       }
     >;
   } = {
+    opaque: new Map(),
     transparent: new Map(),
   };
 
@@ -1205,17 +1206,21 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
-   * Get the transparent material instances for this specific block. If this set of material instances
-   * does not exist, then they will be created.
+   * Get a material by a given block ID. If this material does not exist, it will be created.
    *
    * @param identifier The identifier of the block.
    * @returns The material instances related to the block.
    */
-  getTransparentMaterials = (identifier: number) => {
+  getMaterialByIdentifier = (identifier: number, transparent = false) => {
     const name = this.registry.nameMap.get(identifier);
-    return this.materials.transparent.has(name)
-      ? this.materials.transparent.get(name)
-      : this.overwriteTransparentByName(name);
+
+    const mats = transparent
+      ? this.materials.transparent
+      : this.materials.opaque;
+
+    return mats.has(name)
+      ? mats.get(name)
+      : this.overwriteMaterialByName(name, transparent);
   };
 
   /**
@@ -1226,9 +1231,11 @@ export class World extends Scene implements NetIntercept {
    * @param shaders The shaders to use for the block.
    * @param shaders.vertexShader The vertex shader to use for the block.
    * @param shaders.fragmentShader The fragment shader to use for the block.
+   * @param shaders.uniforms The uniforms to use for the block material.
    */
-  overwriteTransparentByName = (
+  overwriteMaterialByName = (
     name: string,
+    transparent = false,
     data: {
       vertexShader: string;
       fragmentShader: string;
@@ -1239,39 +1246,29 @@ export class World extends Scene implements NetIntercept {
       uniforms: {},
     }
   ) => {
-    const { transparent } = this.materials;
-
     name = name.toLowerCase();
 
-    if (transparent.has(name)) {
-      const { front, back } = transparent.get(name);
+    const { transparent: transparentMats, opaque: opaqueMats } = this.materials;
 
-      if (data.vertexShader) {
-        front.vertexShader = data.vertexShader;
-        back.vertexShader = data.vertexShader;
-      }
+    const mats = transparent ? transparentMats : opaqueMats;
 
-      if (data.fragmentShader) {
-        front.fragmentShader = data.fragmentShader;
-        back.fragmentShader = data.fragmentShader;
-      }
+    if (mats.has(name)) {
+      const subMats = mats.get(name) as any;
+      const matArr = transparent ? [subMats.front, subMats.back] : [subMats];
 
-      if (data.uniforms) {
-        front.uniforms = {
-          ...front.uniforms,
-          ...data.uniforms,
-        };
+      matArr.forEach((mat) => {
+        if (data.vertexShader) mat.vertexShader = data.vertexShader;
+        if (data.fragmentShader) mat.fragmentShader = data.fragmentShader;
+        if (data.uniforms)
+          mat.uniforms = {
+            ...mat.uniforms,
+            ...data.uniforms,
+          };
 
-        back.uniforms = {
-          ...back.uniforms,
-          ...data.uniforms,
-        };
-      }
+        mat.needsUpdate = true;
+      });
 
-      front.needsUpdate = true;
-      back.needsUpdate = true;
-
-      return transparent.get(name);
+      return mats.get(name);
     }
 
     const make = () => {
@@ -1281,8 +1278,10 @@ export class World extends Scene implements NetIntercept {
         data.uniforms
       );
 
-      mat.transparent = true;
-      mat.alphaTest = 0.1;
+      if (transparent) {
+        mat.transparent = true;
+        mat.alphaTest = 0.1;
+      }
 
       if (this.atlas && this.atlas.texture) {
         mat.map = this.atlas.texture;
@@ -1291,20 +1290,25 @@ export class World extends Scene implements NetIntercept {
       return mat;
     };
 
-    const front = make();
-    front.side = FrontSide;
+    if (transparent) {
+      const front = make();
+      front.side = FrontSide;
 
-    const back = make();
-    back.side = BackSide;
+      const back = make();
+      back.side = BackSide;
 
-    const materials = {
-      front,
-      back,
-    };
+      const materials = {
+        front,
+        back,
+      } as any;
 
-    transparent.set(name, materials);
+      mats.set(name, materials);
+    } else {
+      const material = make() as any;
+      mats.set(name, material);
+    }
 
-    return materials;
+    return mats.get(name);
   };
 
   /**
@@ -1849,11 +1853,9 @@ export class World extends Scene implements NetIntercept {
 
     this.uniforms.atlas.value = this.atlas.texture;
 
-    if (this.materials.opaque) {
-      this.materials.opaque.map = this.atlas.texture;
-    } else {
-      this.materials.opaque = this.makeShaderMaterial();
-    }
+    this.materials.opaque.forEach((mat) => {
+      mat.map = this.atlas.texture;
+    });
 
     this.materials.transparent.forEach(({ front, back }) => {
       front.map = this.atlas.texture;

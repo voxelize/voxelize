@@ -451,15 +451,17 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
-    world.overwriteTransparentByName(
+    world.overwriteMaterialByName(
       "Grass",
+      true,
       VOXELIZE.customShaders.sway({
         rooted: true,
       })
     );
 
-    world.overwriteTransparentByName(
+    world.overwriteMaterialByName(
       "Oak Leaves",
+      true,
       VOXELIZE.customShaders.sway({
         yScale: 0,
       })

@@ -103,7 +103,9 @@ export class ChunkMesh extends Group {
             return;
           }
 
-          const mesh = new Mesh(new BufferGeometry(), world.materials.opaque);
+          const material = world.getMaterialByIdentifier(identifier);
+
+          const mesh = new Mesh(new BufferGeometry(), material as any);
 
           const geometry = mesh.geometry;
 
@@ -175,7 +177,7 @@ export class ChunkMesh extends Group {
               return;
             }
 
-            const materials = world.getTransparentMaterials(identifier);
+            const materials = world.getMaterialByIdentifier(identifier, true);
 
             const mesh = new Mesh(new BufferGeometry(), materials[side]);
 
