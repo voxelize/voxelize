@@ -93,10 +93,19 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            .dynamic_fn(|center, space, registry| {
+            .faces(&BlockFaces::six_faces().scale_y(0.8).build())
+            .dynamic_fn(|center, space, _| {
                 let Vec3(vx, vy, vz) = center;
 
-                let top_is_water = space.get_voxel(vx, vy + 1, vz) == 150;
+                let mut top_is_water = false;
+
+                for ox in -1..=1 {
+                    for oz in -1..=1 {
+                        if space.get_voxel(vx + ox, vy + 1, vz + oz) == 150 {
+                            top_is_water = true;
+                        }
+                    }
+                }
 
                 (
                     BlockFaces::six_faces()
@@ -109,6 +118,7 @@ pub fn setup_registry() -> Registry {
                     [true, true, true, true, true, true],
                 )
             })
+            .aabbs(&[AABB::new().scale_y(0.8).build()])
             .build(),
         Block::new("Glass")
             .id(160)

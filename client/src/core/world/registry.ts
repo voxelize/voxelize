@@ -1,5 +1,5 @@
 import { AABB } from "@voxelize/aabb";
-import { Color } from "three";
+import { Color, Texture } from "three";
 
 import { Block } from "./block";
 
@@ -88,8 +88,10 @@ export class Registry {
   /**
    * A map of side names to their corresponding keyframe sources.
    */
-  public keyframes: Map<string, [[number, string | Color][], number]> =
-    new Map();
+  public keyframes: Map<
+    string,
+    [[number, string | Color | Texture][], number]
+  > = new Map();
 
   /**
    * A set of side names that are currently registered.
@@ -99,12 +101,12 @@ export class Registry {
   /**
    * A map of block ID to block name.
    */
-  private nameMap: Map<number, string> = new Map();
+  public nameMap: Map<number, string> = new Map();
 
   /**
    * A map of block name to block ID.
    */
-  private typeMap: Map<string, number> = new Map();
+  public typeMap: Map<string, number> = new Map();
 
   /**
    * Load blocks from the server and generate atlas. This is called automatically by the world.

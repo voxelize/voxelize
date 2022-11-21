@@ -10,6 +10,7 @@ import {
 } from "postprocessing";
 import * as THREE from "three";
 import { MeshRenderer } from "three-nebula";
+import { AABB } from "@voxelize/aabb";
 
 import { setupWorld } from "../core";
 import { ColorText, Peers } from "@voxelize/client";
@@ -90,6 +91,26 @@ const App = () => {
 
     world.loader.addTexture(LolImage, (texture) => {
       character.head.paint("front", texture);
+    });
+
+    world.overwriteBlockDynamicByName("Water", (pos) => {
+      let [vx, vy, vz] = pos;
+
+      let topIsWater = false;
+
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oz = -1; oz <= 1; oz++) {
+          if (world.getBlockByVoxel(vx + ox, vy + 1, vz + oz)?.name === "Water")
+            topIsWater = true;
+        }
+      }
+
+      const originalAABB = world.registry.getBlockByName("Water");
+
+      return {
+        ...originalAABB,
+        aabbs: topIsWater ? [new AABB(0, 0, 0, 1, 1, 1)] : originalAABB.aabbs,
+      };
     });
 
     inputs.on("namespace", (namespace) => {
@@ -192,6 +213,7 @@ const App = () => {
       highlightType: "outline",
       // potentialVisuals: true,
       inverseDirection: true,
+      ignoreFluids: false,
     });
     world.add(voxelInteract);
 
@@ -430,15 +452,15 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
-    world.overwriteTransparentMaterial(
-      1000,
+    world.overwriteTransparentByName(
+      "Grass",
       VOXELIZE.customShaders.sway({
         rooted: true,
       })
     );
 
-    world.overwriteTransparentMaterial(
-      44,
+    world.overwriteTransparentByName(
+      "Oak Leaves",
       VOXELIZE.customShaders.sway({
         yScale: 0,
       })

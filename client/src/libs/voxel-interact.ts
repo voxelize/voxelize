@@ -1,5 +1,4 @@
 import { AABB } from "@voxelize/aabb";
-import { raycast } from "@voxelize/raycast";
 import {
   ArrowHelper,
   BoxGeometry,
@@ -292,7 +291,12 @@ export class VoxelInteract extends Group {
     const { lookingAt } = this;
 
     if (lookingAt && this.target) {
-      const { aabbs } = lookingAt;
+      const { isDynamic, dynamicFn } = lookingAt;
+
+      const aabbs = isDynamic
+        ? dynamicFn(voxel as Coords3, this.world).aabbs
+        : lookingAt.aabbs;
+
       if (!aabbs.length) return;
 
       const rotation = this.world.getVoxelRotationByVoxel(...this.target);

@@ -181,7 +181,7 @@ export class TextureAtlas {
       }
 
       if (context) {
-        this.drawTextureToRange(range, texture);
+        this.drawImageToRange(range, texture.image);
       }
     });
 
@@ -192,6 +192,7 @@ export class TextureAtlas {
     this.texture.minFilter = NearestFilter;
     this.texture.magFilter = NearestFilter;
     this.texture.generateMipmaps = false;
+    this.texture.premultiplyAlpha = false;
     this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
 
@@ -205,20 +206,16 @@ export class TextureAtlas {
    * Draw a texture to a range on the texture atlas.
    *
    * @param range The range on the texture atlas to draw the texture to.
-   * @param texture The texture to draw to the range.
+   * @param image The texture to draw to the range.
    */
-  drawTextureToRange = (
+  drawImageToRange = (
     range: TextureRange,
-    texture: Texture | Color,
+    image: typeof Image | Color,
     clearRect = true,
     opacity = 1.0
   ) => {
     const { startU, endV } = range;
     const { dimension } = this.params;
-
-    if (this.texture) {
-      this.texture.needsUpdate = true;
-    }
 
     const context = this.canvas.getContext("2d");
 
@@ -239,8 +236,8 @@ export class TextureAtlas {
       );
     }
 
-    if ((texture as any as Color).isColor) {
-      context.fillStyle = `#${(texture as any).getHexString()}`;
+    if ((image as any as Color).isColor) {
+      context.fillStyle = `#${(image as any).getHexString()}`;
       context.fillRect(
         (startU - this.offset) * canvasWidth + this.margin,
         (1 - endV - this.offset) * canvasHeight + this.margin,
@@ -251,13 +248,13 @@ export class TextureAtlas {
       return;
     }
 
-    const image = (texture as Texture).image;
+    const image2 = image as any as HTMLImageElement;
 
     // Draw a background first.
 
     if (clearRect) {
       context.drawImage(
-        image,
+        image2,
         (startU - this.offset) * canvasWidth,
         (1 - endV - this.offset) * canvasHeight,
         dimension * this.ratio + 2 * this.margin,
@@ -275,7 +272,7 @@ export class TextureAtlas {
 
     // Draw the actual texture.
     context.drawImage(
-      image,
+      image2,
       (startU - this.offset) * canvasWidth + this.margin,
       (1 - endV - this.offset) * canvasHeight + this.margin,
       dimension * this.ratio,
@@ -304,7 +301,7 @@ export class TextureAtlas {
     const start = (index = 0) => {
       const keyframe = animation.keyframes[index];
 
-      this.drawTextureToRange(range, keyframe[1]);
+      this.drawImageToRange(range, keyframe[1].image);
 
       entry.timer = setTimeout(() => {
         clearTimeout(entry.timer);
@@ -321,24 +318,32 @@ export class TextureAtlas {
             }
             requestAnimationFrame(() => fade(fraction + 1));
 
-            this.drawTextureToRange(
+            this.drawImageToRange(
               range,
-              nextKeyframe[1],
+              nextKeyframe[1].image,
               true,
               fraction / fadeFrames
             );
 
-            this.drawTextureToRange(
+            this.drawImageToRange(
               range,
-              keyframe[1],
+              keyframe[1].image,
               false,
               1 - fraction / fadeFrames
             );
+
+            if (this.texture) {
+              this.texture.needsUpdate = true;
+            }
           };
 
           fade();
         } else {
           start(nextIndex);
+        }
+
+        if (this.texture) {
+          this.texture.needsUpdate = true;
         }
       }, keyframe[0]);
     };

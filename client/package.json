@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/gl-vec3": "^1.1.1",
     "@types/ndarray": "^1.0.11",
+    "@types/omggif": "^1.0.3",
     "@types/three": "^0.141.0",
     "@types/uuid": "^8.3.4",
     "postprocessing": "^6.29.0"
@@ -45,6 +46,7 @@
     "fflate": "^0.7.3",
     "gl-vec3": "^1.1.3",
     "ndarray": "^1.0.19",
+    "omggif": "^1.0.10",
     "regenerator-runtime": "^0.13.9",
     "socket.io-client": "^4.4.1",
     "uuid": "^8.3.2"

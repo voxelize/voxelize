@@ -306,7 +306,7 @@ export class World extends Scene implements NetIntercept {
      * This is a map of the block ID (identifier) to the material instances (front & back).
      */
     transparent: Map<
-      number,
+      string,
       {
         front: CustomShaderMaterial;
         back: CustomShaderMaterial;
@@ -346,7 +346,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * A temporary map to store dynamic functions registered before the world is initialized.
    */
-  private tempDynamic = new Map<number, Block["dynamicFn"]>();
+  private tempDynamic = new Map<string, Block["dynamicFn"]>();
 
   /**
    * Create a new world instance.
@@ -398,15 +398,16 @@ export class World extends Scene implements NetIntercept {
         } = message;
 
         this.registry.load(blocks, ranges);
-        this.tempDynamic.forEach((fn, id) => {
-          this.overwriteBlockDynamic(id, fn);
-        });
 
         this.setParams(params);
         this.setFogDistance(this.renderRadius);
 
         this.loader.load().then(() => {
           this.loadAtlas();
+        });
+
+        this.tempDynamic.forEach((fn, name) => {
+          this.overwriteBlockDynamicByName(name, fn);
         });
 
         return;
@@ -527,7 +528,7 @@ export class World extends Scene implements NetIntercept {
    * the animation, and the second element is the source to the texture to apply.
    * @param fadeFrames The number of frames to fade between keyframes.
    */
-  applyAnimationByName = (
+  applyBlockAnimationByName = (
     name: string,
     sides: string[] | string,
     keyframes: [number, string | Color][],
@@ -542,6 +543,28 @@ export class World extends Scene implements NetIntercept {
     (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
       const sideName = Registry.makeSideName(name, side);
       this.registry.keyframes.set(sideName, [keyframes, fadeFrames]);
+    });
+  };
+
+  applyBlockGifByName = (
+    name: string,
+    sides: string[] | string,
+    source: string,
+    interval = 66.6666667
+  ) => {
+    if (!source.endsWith(".gif")) {
+      throw new Error("GIF source must be a GIF file.");
+    }
+
+    this.loader.addGifTexture(source, (textures) => {
+      const keyframes = textures.map(
+        (texture) => [interval, texture] as [number, Texture]
+      );
+
+      (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
+        const sideName = Registry.makeSideName(name, side);
+        this.registry.keyframes.set(sideName, [keyframes, 0]);
+      });
     });
   };
 
@@ -1189,22 +1212,23 @@ export class World extends Scene implements NetIntercept {
    * @returns The material instances related to the block.
    */
   getTransparentMaterials = (identifier: number) => {
-    return this.materials.transparent.has(identifier)
-      ? this.materials.transparent.get(identifier)
-      : this.overwriteTransparentMaterial(identifier);
+    const name = this.registry.nameMap.get(identifier);
+    return this.materials.transparent.has(name)
+      ? this.materials.transparent.get(name)
+      : this.overwriteTransparentByName(name);
   };
 
   /**
    * Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
    * blocks such as grass to wave in the wind.
    *
-   * @param id The ID of the block, which is the ID you want to overwrite.
+   * @param name The name of the block that is being overwritten.
    * @param shaders The shaders to use for the block.
    * @param shaders.vertexShader The vertex shader to use for the block.
    * @param shaders.fragmentShader The fragment shader to use for the block.
    */
-  overwriteTransparentMaterial = (
-    id: number,
+  overwriteTransparentByName = (
+    name: string,
     data: {
       vertexShader: string;
       fragmentShader: string;
@@ -1217,8 +1241,8 @@ export class World extends Scene implements NetIntercept {
   ) => {
     const { transparent } = this.materials;
 
-    if (transparent.has(id)) {
-      const { front, back } = transparent.get(id);
+    if (transparent.has(name)) {
+      const { front, back } = transparent.get(name);
 
       if (data.vertexShader) {
         front.vertexShader = data.vertexShader;
@@ -1245,7 +1269,7 @@ export class World extends Scene implements NetIntercept {
       front.needsUpdate = true;
       back.needsUpdate = true;
 
-      return transparent.get(id);
+      return transparent.get(name);
     }
 
     const make = () => {
@@ -1276,7 +1300,7 @@ export class World extends Scene implements NetIntercept {
       back,
     };
 
-    transparent.set(id, materials);
+    transparent.set(name, materials);
 
     return materials;
   };
@@ -1285,22 +1309,22 @@ export class World extends Scene implements NetIntercept {
    * Overwrite the dynamic function for the block. That is, the function that is called to generate different AABBs and block faces
    * for the block based on different conditions.
    *
-   * @param id The ID of the block.
+   * @param name The name of the block.
    * @param fn The dynamic function to use for the block.
    */
-  overwriteBlockDynamic = (id: number, fn: Block["dynamicFn"]) => {
+  overwriteBlockDynamicByName = (name: string, fn: Block["dynamicFn"]) => {
     if (this.initialized) {
-      const block = this.registry.getBlockById(id);
+      const block = this.registry.getBlockByName(name);
 
       if (!block) {
         throw new Error(
-          `Block with ID ${id} does not exist, could not overwrite dynamic function.`
+          `Block with ID ${name} does not exist, could not overwrite dynamic function.`
         );
       }
 
       block.dynamicFn = fn;
     } else {
-      this.tempDynamic.set(id, fn);
+      this.tempDynamic.set(name, fn);
     }
   };
 
@@ -1328,9 +1352,13 @@ export class World extends Scene implements NetIntercept {
       ignoreList?: number[];
     } = {}
   ) => {
-    const ignoreFluids = options.ignoreFluids || true;
-    const ignorePassables = options.ignorePassables || false;
-    const ignoreSeeThrough = options.ignoreSeeThrough || false;
+    const { ignoreFluids, ignorePassables, ignoreSeeThrough } = {
+      ignoreFluids: true,
+      ignorePassables: false,
+      ignoreSeeThrough: false,
+      ...options,
+    };
+
     const ignoreList = new Set(options.ignoreList || []);
 
     return raycast(

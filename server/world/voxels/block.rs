@@ -319,12 +319,14 @@ impl BlockFaces {
         self
     }
 
-    /// Create and customize a six-faced block face data.
+    /// Create and customize a six-faced block face data. The face orders are
+    /// the following: PX, PY, PZ, NX, NY, NZ.
     pub fn six_faces() -> SixFacesBuilder {
         SixFacesBuilder::new()
     }
 
-    /// Create and customize a diagonal-faced block face data.
+    /// Create and customize a diagonal-faced block face data. The face orders are
+    /// the following: one, two
     pub fn diagonal_faces() -> DiagonalFacesBuilder {
         DiagonalFacesBuilder::new()
     }
@@ -687,31 +689,6 @@ impl SixFacesBuilder {
 
         BlockFaces::from_faces(vec![
             BlockFace {
-                name: make_name("nx"),
-                dir: [-1, 0, 0],
-                corners: [
-                    CornerData {
-                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: [uv_offset_z, 1.0 * uv_scale_y + uv_offset_y],
-                    },
-                    CornerData {
-                        pos: [offset_x, offset_y, offset_z],
-                        uv: [uv_offset_z, uv_offset_y],
-                    },
-                    CornerData {
-                        pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
-                        uv: [
-                            uv_offset_z + 1.0 * uv_scale_z,
-                            uv_offset_y + 1.0 * uv_scale_y,
-                        ],
-                    },
-                    CornerData {
-                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
-                    },
-                ],
-            },
-            BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
                 corners: [
@@ -737,31 +714,6 @@ impl SixFacesBuilder {
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
                         uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
-                    },
-                ],
-            },
-            BlockFace {
-                name: make_name("ny"),
-                dir: [0, -1, 0],
-                corners: [
-                    CornerData {
-                        pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_z],
-                    },
-                    CornerData {
-                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: [uv_offset_x, uv_offset_z],
-                    },
-                    CornerData {
-                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
-                        uv: [
-                            uv_offset_x + 1.0 * uv_scale_x,
-                            uv_offset_z + 1.0 * uv_scale_z,
-                        ],
-                    },
-                    CornerData {
-                        pos: [offset_x, offset_y, offset_z],
-                        uv: [uv_offset_x, uv_offset_z + 1.0 * uv_scale_z],
                     },
                 ],
             },
@@ -795,31 +747,6 @@ impl SixFacesBuilder {
                 ],
             },
             BlockFace {
-                name: make_name("nz"),
-                dir: [0, 0, -1],
-                corners: [
-                    CornerData {
-                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
-                        uv: [uv_offset_x, uv_offset_y],
-                    },
-                    CornerData {
-                        pos: [offset_x, offset_y, offset_z],
-                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
-                    },
-                    CornerData {
-                        pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y],
-                    },
-                    CornerData {
-                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: [
-                            uv_offset_x + 1.0 * uv_scale_x,
-                            uv_offset_y + 1.0 * uv_scale_y,
-                        ],
-                    },
-                ],
-            },
-            BlockFace {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
                 corners: [
@@ -841,6 +768,81 @@ impl SixFacesBuilder {
                             1.0 * scale_y + offset_y,
                             1.0 * scale_z + offset_z,
                         ],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
+                    },
+                ],
+            },
+            BlockFace {
+                name: make_name("nx"),
+                dir: [-1, 0, 0],
+                corners: [
+                    CornerData {
+                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [uv_offset_z, 1.0 * uv_scale_y + uv_offset_y],
+                    },
+                    CornerData {
+                        pos: [offset_x, offset_y, offset_z],
+                        uv: [uv_offset_z, uv_offset_y],
+                    },
+                    CornerData {
+                        pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
+                        uv: [
+                            uv_offset_z + 1.0 * uv_scale_z,
+                            uv_offset_y + 1.0 * uv_scale_y,
+                        ],
+                    },
+                    CornerData {
+                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
+                    },
+                ],
+            },
+            BlockFace {
+                name: make_name("ny"),
+                dir: [0, -1, 0],
+                corners: [
+                    CornerData {
+                        pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_z],
+                    },
+                    CornerData {
+                        pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
+                        uv: [uv_offset_x, uv_offset_z],
+                    },
+                    CornerData {
+                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
+                        uv: [
+                            uv_offset_x + 1.0 * uv_scale_x,
+                            uv_offset_z + 1.0 * uv_scale_z,
+                        ],
+                    },
+                    CornerData {
+                        pos: [offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_z + 1.0 * uv_scale_z],
+                    },
+                ],
+            },
+            BlockFace {
+                name: make_name("nz"),
+                dir: [0, 0, -1],
+                corners: [
+                    CornerData {
+                        pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y],
+                    },
+                    CornerData {
+                        pos: [offset_x, offset_y, offset_z],
+                        uv: [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y],
+                    },
+                    CornerData {
+                        pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
+                        uv: [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y],
+                    },
+                    CornerData {
+                        pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
                         uv: [
                             uv_offset_x + 1.0 * uv_scale_x,
                             uv_offset_y + 1.0 * uv_scale_y,
