@@ -37,6 +37,7 @@ import Water2Image from "../assets/pixel-perfection/water2.png";
 import Water3Image from "../assets/pixel-perfection/water3.png";
 import Water4Image from "../assets/pixel-perfection/water4.png";
 import FunnyGif from "../assets/funny.gif";
+import RandomGif from "../assets/random.gif";
 
 import { World } from "@voxelize/client";
 import { Color } from "three";
@@ -46,6 +47,9 @@ export function setupWorld(world: World) {
   const side = ["px", "nx", "pz", "nz"];
 
   world.applyBlockGifByName("Grass Block", "py", FunnyGif);
+
+  world.applyBlockGifByName("Sand", "nx", RandomGif);
+  world.applyResolutionByName("Sand", "nx", 1024);
 
   world.applyBlockAnimationByName(
     "Water",

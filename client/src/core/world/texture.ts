@@ -267,7 +267,7 @@ export class TextureAtlas {
   drawImageToRange = (
     range: TextureRange,
     image: typeof Image | Color,
-    clearRect = true,
+    clearRect = this.params.countPerSide !== 1,
     opacity = 1.0
   ) => {
     const { startU, endV } = range;
@@ -281,7 +281,6 @@ export class TextureAtlas {
     const canvasHeight = this.canvas.height;
 
     context.globalAlpha = opacity;
-    context.globalCompositeOperation = "lighter";
 
     if (clearRect) {
       context.clearRect(
