@@ -492,7 +492,7 @@ export class FaceAnimation {
    */
   constructor(
     range: TextureRange,
-    keyframes: [number, Texture][],
+    keyframes: [number, Texture | Color][],
     fadeFrames = 0
   ) {
     if (!range) {
@@ -503,8 +503,27 @@ export class FaceAnimation {
       throw new Error("FaceAnimation must have at least two keyframe.");
     }
 
+    keyframes = keyframes.map((keyframe) => {
+      if (
+        keyframe[1] instanceof Color ||
+        (keyframe[1] as any as Color).isColor === true
+      ) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext("2d");
+        if (context) {
+          context.fillStyle = (keyframe[1] as any as Color).getStyle();
+          context.fillRect(0, 0, 1, 1);
+        }
+        return [keyframe[0], new CanvasTexture(canvas)];
+      } else {
+        return keyframe;
+      }
+    });
+
     this.range = range;
-    this.keyframes = keyframes;
+    this.keyframes = keyframes as any;
     this.fadeFrames = fadeFrames;
   }
 }

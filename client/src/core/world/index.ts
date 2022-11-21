@@ -598,6 +598,12 @@ export class World extends Scene implements NetIntercept {
     sides: string[] | string,
     resolution: number
   ) => {
+    if (resolution > 1024) {
+      console.warn(
+        "Generally, resolutions above 1024 are not recommended as it could cause framerate drops."
+      );
+    }
+
     (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
       const sideName = Registry.makeSideName(name, side);
       this.highResolutions.set(sideName, resolution);

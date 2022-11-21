@@ -36,8 +36,8 @@ import Water1Image from "../assets/pixel-perfection/water1.png";
 import Water2Image from "../assets/pixel-perfection/water2.png";
 import Water3Image from "../assets/pixel-perfection/water3.png";
 import Water4Image from "../assets/pixel-perfection/water4.png";
-import FunnyGif from "../assets/funny.gif";
-import RandomGif from "../assets/random.gif";
+// import FunnyGif from "../assets/funny.gif";
+// import RandomGif from "../assets/random.gif";
 
 import { World } from "@voxelize/client";
 import { Color } from "three";
@@ -46,10 +46,10 @@ export function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
-  world.applyBlockGifByName("Grass Block", "py", FunnyGif);
+  // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
 
-  world.applyBlockGifByName("Sand", "nx", RandomGif);
-  world.applyResolutionByName("Sand", "nx", 1024);
+  // world.applyBlockGifByName("Sand", "nx", RandomGif);
+  world.applyResolutionByName("Sand", "nx", 120);
 
   world.applyBlockAnimationByName(
     "Water",
@@ -63,15 +63,15 @@ export function setupWorld(world: World) {
     300
   );
 
-  world.applyBlockAnimationByName(
-    "Dirt",
-    "py",
-    [
-      [500, DirtImage],
-      [500, SandImage],
-    ],
-    50
-  );
+  // world.applyBlockAnimationByName(
+  //   "Dirt",
+  //   "py",
+  //   [
+  //     [500, DirtImage],
+  //     [500, SandImage],
+  //   ],
+  //   50
+  // );
 
   world.applyTexturesByNames([
     { name: "Dirt", sides: all, data: DirtImage },
@@ -142,6 +142,16 @@ export function setupWorld(world: World) {
     },
   ]);
 
-  world.applyTextureByName("Biggie", "pz", TechnoImage);
-  world.applyResolutionByName("Biggie", "pz", 4096);
+  // world.applyTextureByName("Biggie", "pz", TechnoImage);
+  world.applyResolutionByName("Biggie", "pz", 128);
+
+  world.applyBlockAnimationByName(
+    "Biggie",
+    "pz",
+    [
+      [500, TechnoImage],
+      [500, LolImage],
+    ],
+    20
+  );
 }
