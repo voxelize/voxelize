@@ -45,7 +45,7 @@ export function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
-  // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
+  world.applyBlockGifByName("Grass Block", "py", FunnyGif);
 
   world.applyBlockAnimationByName(
     "Water",
@@ -121,7 +121,6 @@ export function setupWorld(world: World) {
       data: new Color("#E4DCCF"),
     },
     { name: "Biggie", sides: all, data: new Color("#2C3639") },
-    { name: "Biggie", sides: ["pz"], data: TechnoImage },
     {
       name: "Test",
       sides: "py",
@@ -138,4 +137,7 @@ export function setupWorld(world: World) {
       data: new Color("purple"),
     },
   ]);
+
+  world.applyTextureByName("Biggie", "pz", TechnoImage);
+  world.applyResolutionByName("Biggie", "pz", 4096);
 }

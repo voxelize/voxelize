@@ -242,7 +242,7 @@ const App = () => {
       }
     );
 
-    let hand = "Test";
+    let hand = "Biggie";
     let radius = 1;
     let circular = true;
 
@@ -451,7 +451,7 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
-    world.overwriteMaterialByName(
+    world.overwriteMaterialByIdentifier(
       "Grass",
       true,
       VOXELIZE.customShaders.sway({
@@ -459,13 +459,15 @@ const App = () => {
       })
     );
 
-    world.overwriteMaterialByName(
+    world.overwriteMaterialByIdentifier(
       "Oak Leaves",
       true,
       VOXELIZE.customShaders.sway({
         yScale: 0,
       })
     );
+
+    world.applyResolutionByName("Grass Block", "py", 512);
 
     network
       .register(chat)
@@ -483,8 +485,8 @@ const App = () => {
               peers.update();
               controls.update();
 
-              clouds.update(camera.position);
-              sky.update(camera.position);
+              clouds.update(controls.object.position);
+              sky.update(controls.object.position);
               world.update(controls.object.position);
 
               network.flush();

@@ -9,7 +9,10 @@ pub fn setup_registry() -> Registry {
         Block::new("Dirt").id(1).build(),
         Block::new("Stone").id(2).build(),
         Block::new("Sand").id(3).build(),
-        Block::new("Grass Block").id(4).build(),
+        Block::new("Grass Block")
+            .id(4)
+            .faces(&BlockFaces::six_faces().build().make_high_res(1))
+            .build(),
         Block::new("Snow").id(5).build(),
         Block::new("Obsidian").id(20).build(),
         Block::new("Granite").id(21).build(),
@@ -196,7 +199,8 @@ pub fn setup_registry() -> Registry {
                     .scale_y(2.0)
                     .scale_z(0.1)
                     .offset_x(-1.5)
-                    .build(),
+                    .build()
+                    .make_high_res(2),
             )
             .aabbs(&[AABB::new().offset_x(0.4).scale_x(0.2).scale_z(0.1).build()])
             .rotatable(true)

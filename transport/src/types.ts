@@ -1,5 +1,5 @@
 export type GeometryProtocol = {
-  identifier: number;
+  identifier: string;
   positions: number[];
   uvs: number[];
   indices: number[];

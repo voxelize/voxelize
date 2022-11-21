@@ -10,6 +10,7 @@ import {
   FrontSide,
   Mesh,
   MeshBasicMaterial,
+  PlaneBufferGeometry,
   Scene,
   ShaderLib,
   ShaderMaterial,
@@ -46,6 +47,7 @@ export type SkyFace = ArtFunction | Color | string | null;
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
  */
 export type CustomShaderMaterial = ShaderMaterial & {
+  highRes: boolean;
   map: Texture;
 };
 
@@ -179,6 +181,11 @@ export class World extends Scene implements NetIntercept {
   public atlas: TextureAtlas;
 
   /**
+   * A map of specific high-resolution block faces.
+   */
+  public highResTextures: Map<string, TextureAtlas> = new Map();
+
+  /**
    * The WebGL uniforms that are used in the chunk shader.
    */
   public uniforms: {
@@ -299,7 +306,7 @@ export class World extends Scene implements NetIntercept {
     /**
      * The chunk material that is used to render the opaque portions of the chunk meshes.
      */
-    opaque?: Map<string, CustomShaderMaterial>;
+    opaque: Map<string, CustomShaderMaterial>;
 
     /**
      * The chunk materials that are used to render the transparent portions of the chunk meshes.
@@ -316,6 +323,11 @@ export class World extends Scene implements NetIntercept {
     opaque: new Map(),
     transparent: new Map(),
   };
+
+  /**
+   * The resolutions of the texture atlases for each high-resolution block face type.
+   */
+  public highResolutions = new Map<string, number>();
 
   /**
    * An array of network packets that will be sent on `network.flush` calls.
@@ -543,7 +555,7 @@ export class World extends Scene implements NetIntercept {
 
     (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
       const sideName = Registry.makeSideName(name, side);
-      this.registry.keyframes.set(sideName, [keyframes, fadeFrames]);
+      this.registry.keyframes.set(sideName, { data: keyframes, fadeFrames });
     });
   };
 
@@ -564,8 +576,29 @@ export class World extends Scene implements NetIntercept {
 
       (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
         const sideName = Registry.makeSideName(name, side);
-        this.registry.keyframes.set(sideName, [keyframes, 0]);
+        this.registry.keyframes.set(sideName, {
+          data: keyframes,
+          fadeFrames: 0,
+        });
       });
+    });
+  };
+
+  /**
+   * Apply a resolution to a block face type. Otherwise, the resolution will be the same as the texture
+   * parameter resolution.
+   *
+   * @param name The name of the block to apply the resolution to.
+   * @param resolution The resolution of the block.
+   */
+  applyResolutionByName = (
+    name: string,
+    sides: string[] | string,
+    resolution: number
+  ) => {
+    (Array.isArray(sides) ? sides : [sides]).forEach((side) => {
+      const sideName = Registry.makeSideName(name, side);
+      this.highResolutions.set(sideName, resolution);
     });
   };
 
@@ -1211,30 +1244,38 @@ export class World extends Scene implements NetIntercept {
    * @param identifier The identifier of the block.
    * @returns The material instances related to the block.
    */
-  getMaterialByIdentifier = (identifier: number, transparent = false) => {
-    const name = this.registry.nameMap.get(identifier);
-
+  getMaterialByIdentifier = (identifier: string, transparent = false) => {
     const mats = transparent
       ? this.materials.transparent
       : this.materials.opaque;
 
-    return mats.has(name)
-      ? mats.get(name)
-      : this.overwriteMaterialByName(name, transparent);
+    identifier = identifier.toLowerCase();
+
+    const mat = mats.has(identifier)
+      ? mats.get(identifier)
+      : this.overwriteMaterialByIdentifier(identifier, transparent);
+
+    if (!mat) {
+      throw new Error(`No material found for block ${identifier}`);
+    }
+
+    return mat;
   };
 
   /**
    * Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
-   * blocks such as grass to wave in the wind.
+   * blocks such as grass to wave in the wind. Keep in mind that higher resolution block faces are separated from
+   * its vanilla counterpart. In other words, with this method, you can only overwrite the material of the block
+   * faces that has not been separated or turned into higher resolution.
    *
-   * @param name The name of the block that is being overwritten.
+   * @param identifier The identifier of the block face. By default, should be the block's name.
    * @param shaders The shaders to use for the block.
    * @param shaders.vertexShader The vertex shader to use for the block.
    * @param shaders.fragmentShader The fragment shader to use for the block.
    * @param shaders.uniforms The uniforms to use for the block material.
    */
-  overwriteMaterialByName = (
-    name: string,
+  overwriteMaterialByIdentifier = (
+    identifier: string,
     transparent = false,
     data: {
       vertexShader: string;
@@ -1246,14 +1287,14 @@ export class World extends Scene implements NetIntercept {
       uniforms: {},
     }
   ) => {
-    name = name.toLowerCase();
+    identifier = identifier.toLowerCase();
 
     const { transparent: transparentMats, opaque: opaqueMats } = this.materials;
 
     const mats = transparent ? transparentMats : opaqueMats;
 
-    if (mats.has(name)) {
-      const subMats = mats.get(name) as any;
+    if (mats.has(identifier)) {
+      const subMats = mats.get(identifier) as any;
       const matArr = transparent ? [subMats.front, subMats.back] : [subMats];
 
       matArr.forEach((mat) => {
@@ -1268,8 +1309,10 @@ export class World extends Scene implements NetIntercept {
         mat.needsUpdate = true;
       });
 
-      return mats.get(name);
+      return mats.get(identifier);
     }
+
+    const isHighRes = identifier.endsWith("highres");
 
     const make = () => {
       const mat = this.makeShaderMaterial(
@@ -1283,9 +1326,30 @@ export class World extends Scene implements NetIntercept {
         mat.alphaTest = 0.1;
       }
 
-      if (this.atlas && this.atlas.texture) {
+      if (isHighRes) {
+        const [name, side] = identifier
+          .substring(0, identifier.length - "_highres".length)
+          .split("_");
+        const sideName = Registry.makeSideName(name, side);
+
+        const existing = this.highResTextures.get(sideName);
+        if (existing) {
+          // const mesh = new Mesh(
+          //   new PlaneBufferGeometry(5, 5),
+          //   existing.material
+          // );
+          // this.add(mesh);
+          mat.uniforms.map = { value: existing.texture };
+          mat.map = existing.texture;
+        }
+      } else if (this.atlas && this.atlas.texture) {
+        mat.uniforms.map = { value: this.atlas.texture };
         mat.map = this.atlas.texture;
       }
+
+      mat.highRes = isHighRes;
+      mat.name = identifier;
+      mat.needsUpdate = true;
 
       return mat;
     };
@@ -1302,13 +1366,13 @@ export class World extends Scene implements NetIntercept {
         back,
       } as any;
 
-      mats.set(name, materials);
+      mats.set(identifier, materials);
     } else {
       const material = make() as any;
-      mats.set(name, material);
+      mats.set(identifier, material);
     }
 
-    return mats.get(name);
+    return mats.get(identifier);
   };
 
   /**
@@ -1823,26 +1887,60 @@ export class World extends Scene implements NetIntercept {
     const textures = new Map();
 
     Array.from(sources.entries()).forEach(([sideName, source]) => {
-      textures.set(
-        sideName,
+      const { block, side } = this.getBlockByTextureName(sideName);
+      const actualSource = (
         source
           ? // @ts-ignore
             source.isColor
             ? source
             : this.loader.getTexture(source as string)
           : null
-      );
+      ) as any;
+
+      if (block.highResFaces.has(side)) {
+        const resolution =
+          this.highResolutions.get(sideName) || this.params.textureDimension;
+        const atlas = TextureAtlas.createSingle(sideName, actualSource, {
+          dimension: resolution,
+        });
+        this.highResTextures.set(sideName, atlas);
+      }
+
+      textures.set(sideName, actualSource);
     });
 
-    Array.from(keyframes.entries()).forEach(([sideName, keyframes]) => {
+    Array.from(keyframes.entries()).forEach(([sideName, entry]) => {
+      if (!entry) return;
+
+      const { data: keyframes, fadeFrames } = entry;
+
       if (keyframes) {
-        keyframes[0].forEach((keyframe) => {
+        keyframes.forEach((keyframe) => {
           if (typeof keyframe[1] === "string") {
             keyframe[1] = this.loader.getTexture(keyframe[1]) as any;
           }
         });
 
-        textures.set(sideName, keyframes);
+        const { block, side } = this.getBlockByTextureName(sideName);
+
+        if (block.highResFaces.has(side)) {
+          const resolution =
+            this.highResolutions.get(sideName) || this.params.textureDimension;
+          const atlas = TextureAtlas.createSingle(
+            sideName,
+            { data: keyframes as any, fadeFrames },
+            {
+              dimension: resolution,
+            }
+          );
+          this.highResTextures.set(sideName, atlas);
+          return;
+        }
+
+        textures.set(sideName, {
+          data: keyframes,
+          fadeFrames,
+        });
       }
     });
 
@@ -1853,13 +1951,25 @@ export class World extends Scene implements NetIntercept {
 
     this.uniforms.atlas.value = this.atlas.texture;
 
-    this.materials.opaque.forEach((mat) => {
-      mat.map = this.atlas.texture;
-    });
+    const applyAtlas = (mat: CustomShaderMaterial) => {
+      if (mat.highRes) {
+        const [name, side] = mat.name
+          .substring(0, mat.name.length - "_highres".length)
+          .split("_");
+        const sideName = Registry.makeSideName(name, side);
+        mat.map = this.highResTextures.get(sideName).texture;
+      } else {
+        mat.map = this.atlas.texture;
+      }
+
+      mat.uniforms.map = { value: mat.map };
+      mat.needsUpdate = true;
+    };
+
+    this.materials.opaque.forEach(applyAtlas);
 
     this.materials.transparent.forEach(({ front, back }) => {
-      front.map = this.atlas.texture;
-      back.map = this.atlas.texture;
+      [front, back].forEach(applyAtlas);
     });
   };
 
@@ -1896,7 +2006,7 @@ export class World extends Scene implements NetIntercept {
       vertexShader,
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-        map: this.uniforms.atlas,
+        // map: this.uniforms.atlas,
         uSunlightIntensity: this.uniforms.sunlightIntensity,
         uAOTable: this.uniforms.ao,
         uMinBrightness: this.uniforms.minBrightness,
@@ -1908,8 +2018,7 @@ export class World extends Scene implements NetIntercept {
       },
     }) as CustomShaderMaterial;
 
-    material.map = this.uniforms.atlas.value;
-
+    // material.map = this.uniforms.atlas.value;
     material.toneMapped = false;
 
     return material;

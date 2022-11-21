@@ -165,7 +165,7 @@ export class ImageVoxelizer {
     const metrics = new Map<string, [number, number, number, number]>();
 
     ranges.forEach(({ startU, startV, endU, endV }, name) => {
-      const block = world.getBlockByTextureName(name);
+      const { block } = world.getBlockByTextureName(name);
       if (!block.isOpaque) {
         return;
       }
@@ -257,7 +257,7 @@ export class ImageVoxelizer {
           for (let y = 0; y < height; y++) {
             const { r, g, b, a } = getPixelAt(context, x, y);
             const closest = getClosest([r, g, b, a]);
-            const block = world.getBlockByTextureName(closest);
+            const { block } = world.getBlockByTextureName(closest);
             updates.push({
               vx: orientation === "z" ? baseX : baseX - width / 2 + x,
               vy: baseY + height - y,

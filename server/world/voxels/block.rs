@@ -6,10 +6,9 @@ use std::{
 };
 
 use hashbrown::HashMap;
-use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockUtils, Chunks, LightColor, LightUtils, Registry, Vec3, VoxelAccess, AABB};
+use crate::{BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, AABB};
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -295,10 +294,27 @@ pub struct CornerData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct BlockFace {
     pub name: String,
+    pub high_res: bool,
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
+}
+
+impl BlockFace {
+    pub fn new(name: String, high_res: bool, dir: [i32; 3], corners: [CornerData; 4]) -> Self {
+        Self {
+            name,
+            high_res,
+            dir,
+            corners,
+        }
+    }
+
+    pub fn into_high_res(&mut self) {
+        self.high_res = true;
+    }
 }
 
 pub struct BlockFaces {
@@ -308,6 +324,15 @@ pub struct BlockFaces {
 impl BlockFaces {
     pub fn new() -> Self {
         Self { faces: vec![] }
+    }
+
+    pub fn make_high_res(mut self, index: usize) -> Self {
+        if index >= self.faces.len() {
+            return self;
+        }
+
+        self.faces[index].into_high_res();
+        self
     }
 
     pub fn from_faces(faces: Vec<BlockFace>) -> Self {
@@ -458,6 +483,7 @@ impl DiagonalFacesBuilder {
             BlockFace {
                 name: make_name("one"),
                 dir: [0, 0, 0],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -488,6 +514,7 @@ impl DiagonalFacesBuilder {
             BlockFace {
                 name: make_name("two"),
                 dir: [0, 0, 0],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -691,6 +718,7 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -720,6 +748,7 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("py"),
                 dir: [0, 1, 0],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -749,6 +778,7 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -778,6 +808,7 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -803,6 +834,7 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("ny"),
                 dir: [0, -1, 0],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -828,6 +860,7 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("nz"),
                 dir: [0, 0, -1],
+                high_res: false,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
@@ -1253,6 +1286,10 @@ impl BlockBuilder {
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
+        if self.name.ends_with("highres") {
+            panic!("The suffix of a block name cannot be 'highres' as it is reserved.");
+        }
+
         Block {
             id: self.id,
             name: self.name,

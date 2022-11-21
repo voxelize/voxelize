@@ -1,14 +1,10 @@
 use std::collections::VecDeque;
 
-use hashbrown::HashMap;
-use log::info;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
-    BlockUtils, ChunkUtils, Chunks, ClientFilter, Geometry, LightColor, LightNode, Lights,
-    MeshProtocol, Mesher, Message, MessageQueue, MessageType, Registry, UpdateProtocol, Vec2, Vec3,
-    VoxelAccess, WorldConfig,
+    BlockUtils, ChunkUtils, Chunks, ClientFilter, LightColor, LightNode, Lights, Mesher, Message,
+    MessageQueue, MessageType, Registry, UpdateProtocol, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [

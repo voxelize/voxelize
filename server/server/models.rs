@@ -52,8 +52,8 @@ pub fn decode_message(buf: &[u8]) -> Result<Message, prost::DecodeError> {
 
 /// Protocol buffer compatible geometry data structure.
 #[derive(Debug, Clone, Default)]
-pub struct Geometry {
-    pub identifier: i32,
+pub struct GeometryProtocol {
+    pub identifier: String,
     pub positions: Vec<f32>,
     pub indices: Vec<i32>,
     pub uvs: Vec<f32>,
@@ -64,8 +64,8 @@ pub struct Geometry {
 #[derive(Debug, Clone, Default)]
 pub struct MeshProtocol {
     pub level: i32,
-    pub opaque: Vec<Geometry>,
-    pub transparent: Vec<Geometry>,
+    pub opaque: Vec<GeometryProtocol>,
+    pub transparent: Vec<GeometryProtocol>,
 }
 
 /// Protocol buffer compatible chunk data structure.

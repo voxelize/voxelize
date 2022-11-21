@@ -7,7 +7,7 @@ use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, T
 
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
-    Geometry, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
+    GeometryProtocol, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
     VoxelAccess, WorldConfig, AABB, UV,
 };
 
@@ -136,14 +136,12 @@ impl Mesher {
                             let max =
                                 Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                            let opaque =
-                                Self::typed_mesh_space(&min, &max, &space, &registry, false);
-                            let transparent =
-                                Self::typed_mesh_space(&min, &max, &space, &registry, true);
+                            let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
+                            let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
 
                             (opaque, transparent, level)
                         })
-                        .collect::<Vec<(Vec<Geometry>, Vec<Geometry>, i32)>>()
+                        .collect::<Vec<(Vec<GeometryProtocol>, Vec<GeometryProtocol>, i32)>>()
                         .into_iter()
                         .for_each(|(opaque, transparent, level)| {
                             if chunk.meshes.is_none() {
@@ -173,19 +171,15 @@ impl Mesher {
         self.receiver.try_recv()
     }
 
-    /// Mesh a Space struct from specified voxel coordinates, generating the 3D data needed
-    /// to render a chunk/space.
+    /// Mesh this space and separate individual block types into their own meshes.
     pub fn mesh_space(
         min: &Vec3<i32>,
         max: &Vec3<i32>,
         space: &dyn VoxelAccess,
         registry: &Registry,
         transparent: bool,
-    ) -> Option<Geometry> {
-        let mut positions = Vec::<f32>::new();
-        let mut indices = Vec::<i32>::new();
-        let mut uvs = Vec::<f32>::new();
-        let mut lights = Vec::<i32>::new();
+    ) -> Vec<GeometryProtocol> {
+        let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
 
         let &Vec3(min_x, min_y, min_z) = min;
         let &Vec3(max_x, max_y, max_z) = max;
@@ -206,8 +200,9 @@ impl Mesher {
 
                     let Block {
                         is_see_through,
-                        is_opaque,
                         is_empty,
+                        is_opaque,
+                        name,
                         ..
                     } = block.to_owned();
 
@@ -242,121 +237,22 @@ impl Mesher {
                         !is_see_through
                     } {
                         let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
-
                         let uv_map = registry.get_uv_map(block);
 
                         faces.iter().for_each(|face| {
-                            Mesher::process_face(
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                &rotation,
-                                face,
-                                block,
-                                &uv_map,
-                                &registry,
-                                space,
-                                transparent,
-                                &mut positions,
-                                &mut indices,
-                                &mut uvs,
-                                &mut lights,
-                                min,
-                            )
-                        });
-                    }
-                }
-            }
-        }
+                            let identifier = if face.high_res {
+                                format!(
+                                    "{}_{}_highres",
+                                    name.to_lowercase(),
+                                    face.name.to_lowercase()
+                                )
+                            } else {
+                                name.to_lowercase()
+                            };
 
-        if indices.is_empty() {
-            return None;
-        }
+                            let mut geometry = map.remove(&identifier).unwrap_or_default();
+                            geometry.identifier = identifier;
 
-        Some(Geometry {
-            identifier: -1,
-            positions,
-            indices,
-            uvs,
-            lights,
-        })
-    }
-
-    /// Mesh this space and separate individual block types into their own meshes.
-    pub fn typed_mesh_space(
-        min: &Vec3<i32>,
-        max: &Vec3<i32>,
-        space: &dyn VoxelAccess,
-        registry: &Registry,
-        transparent: bool,
-    ) -> Vec<Geometry> {
-        let mut map: HashMap<u32, Geometry> = HashMap::new();
-
-        let &Vec3(min_x, min_y, min_z) = min;
-        let &Vec3(max_x, max_y, max_z) = max;
-
-        for vx in min_x..max_x {
-            for vz in min_z..max_z {
-                let height = space.get_max_height(vx, vz) as i32;
-
-                if min_y > height {
-                    continue;
-                }
-
-                for vy in (min_y..=(max_y - 1).min(height) as i32).rev() {
-                    let voxel_id = space.get_voxel(vx, vy, vz);
-
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
-                    let block = registry.get_block_by_id(voxel_id);
-
-                    let Block {
-                        is_see_through,
-                        is_empty,
-                        is_opaque,
-                        ..
-                    } = block.to_owned();
-
-                    if is_empty {
-                        continue;
-                    }
-
-                    // Skip blocks that are completely covered with opaque blocks.
-                    if is_opaque {
-                        if !(VOXEL_NEIGHBORS
-                            .into_iter()
-                            .find(|&[x, y, z]| {
-                                let x = vx + x;
-                                let y = vy + y;
-                                let z = vz + z;
-
-                                let id = space.get_voxel(x, y, z);
-
-                                let block = registry.get_block_by_id(id);
-
-                                !block.is_opaque
-                            })
-                            .is_some())
-                        {
-                            continue;
-                        }
-                    }
-
-                    if if transparent {
-                        is_see_through
-                    } else {
-                        !is_see_through
-                    } {
-                        let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
-
-                        let mut geometry = map.remove(&voxel_id).unwrap_or_default();
-
-                        // !: Could break, since u32 has larger upper limit than i32.
-                        geometry.identifier = voxel_id as i32;
-
-                        let uv_map = registry.get_uv_map(block);
-
-                        faces.iter().for_each(|face| {
                             Mesher::process_face(
                                 vx,
                                 vy,
@@ -374,10 +270,10 @@ impl Mesher {
                                 &mut geometry.uvs,
                                 &mut geometry.lights,
                                 min,
-                            )
-                        });
+                            );
 
-                        map.insert(voxel_id, geometry);
+                            map.insert(geometry.identifier.to_owned(), geometry);
+                        });
                     }
                 }
             }
@@ -414,7 +310,12 @@ impl Mesher {
             y_rotatable,
             ..
         } = block;
-        let BlockFace { dir, corners, .. } = face;
+        let BlockFace {
+            dir,
+            corners,
+            high_res,
+            ..
+        } = face;
 
         let mut dir = [dir[0] as f32, dir[1] as f32, dir[2] as f32];
 
@@ -499,8 +400,13 @@ impl Mesher {
                 positions.push(pos_y - min_y as f32 - dir[1] as f32 * scale);
                 positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
 
-                uvs.push(uv[0] * (end_u - start_u) + start_u);
-                uvs.push(uv[1] * (end_v - start_v) + start_v);
+                if *high_res {
+                    uvs.push(uv[0]);
+                    uvs.push(uv[1]);
+                } else {
+                    uvs.push(uv[0] * (end_u - start_u) + start_u);
+                    uvs.push(uv[1] * (end_v - start_v) + start_v);
+                }
 
                 // calculating the 8 voxels around this vertex
                 let dx = pos[0].round() as i32;

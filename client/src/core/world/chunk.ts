@@ -78,6 +78,7 @@ export class ChunkMesh extends Group {
     // Process opaque meshes first
     (() => {
       if (!meshData.opaque) return;
+
       const { opaque } = meshData;
       const map = this.opaque;
 

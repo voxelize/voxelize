@@ -90,7 +90,7 @@ export class Registry {
    */
   public keyframes: Map<
     string,
-    [[number, string | Color | Texture][], number]
+    { data: [number, string | Color | Texture][]; fadeFrames: number }
   > = new Map();
 
   /**
@@ -172,7 +172,7 @@ export class Registry {
     for (const [name, block] of this.blocksByName) {
       for (const face of block.faces) {
         if (textureName === Registry.makeSideName(name, face.name)) {
-          return block;
+          return { block, side: face.name };
         }
       }
     }
@@ -220,6 +220,15 @@ export class Registry {
     const { name, id, faces, aabbs, isDynamic } = block;
 
     const lowerName = name.toLowerCase();
+
+    block.highResFaces = new Set();
+
+    for (const face of faces) {
+      if (face.highRes) {
+        block.highResFaces.add(face.name);
+      }
+    }
+
     block.aabbs = aabbs.map(
       ({ minX, minY, minZ, maxX, maxY, maxZ }) =>
         new AABB(minX, minY, minZ, maxX, maxY, maxZ)

@@ -85,6 +85,47 @@ export class TextureAtlas {
   public animations: { animation: FaceAnimation; timer: any }[] = [];
 
   /**
+   * Create a texture atlas with only one texture.
+   *
+   * @param name The name of that single block on this atlas.
+   * @param data The data passed to create this texture atlas.
+   * @param fadeFrames The fading frames between each keyframe.
+   * @param params The parameters to create this single texture.
+   * @returns A new texture atlas instance with only one texture.
+   */
+  static createSingle = (
+    name: string,
+    content:
+      | Texture
+      | Color
+      | {
+          data: [number, Texture | Color][];
+          fadeFrames: number;
+        },
+    params: Omit<TextureAtlasParams, "countPerSide">
+  ) => {
+    const textureMap = new Map();
+    textureMap.set(name, content);
+
+    const ranges = new Map();
+    ranges.set(name, {
+      startU: 0.0,
+      endU: 1.0,
+      startV: 0.0,
+      endV: 1.0,
+    });
+
+    const atlas = new TextureAtlas(textureMap, ranges, {
+      ...params,
+      countPerSide: 1,
+    });
+
+    atlas.texture.name = name;
+
+    return atlas;
+  };
+
+  /**
    * Create a new texture this.
    *
    * @param textureMap A map that points a side name to a texture or color.
@@ -115,15 +156,22 @@ export class TextureAtlas {
       }
     });
 
-    this.offset = 1 / (countPerSide * 4);
+    if (countPerSide === 1) {
+      this.offset = 0;
+      this.ratio = 1;
+      this.margin = 0;
+    } else {
+      this.offset = 1 / (countPerSide * 4);
 
-    this.margin = 1;
-    this.ratio =
-      (this.margin / this.offset / countPerSide - 2 * this.margin) / dimension;
+      this.margin = 1;
+      this.ratio =
+        (this.margin / this.offset / countPerSide - 2 * this.margin) /
+        dimension;
 
-    while (this.ratio !== Math.floor(this.ratio)) {
-      this.ratio *= 2;
-      this.margin *= 2;
+      while (this.ratio !== Math.floor(this.ratio)) {
+        this.ratio *= 2;
+        this.margin *= 2;
+      }
     }
 
     const canvasWidth =
@@ -162,8 +210,16 @@ export class TextureAtlas {
         throw new Error("CompressedTextures are not supported.");
       }
 
-      if (Array.isArray(texture)) {
-        this.registerAnimation(range, texture[0], texture[1]);
+      if (typeof texture === "string") {
+        throw new Error("TextureAtlas does not support string textures.");
+      }
+
+      if (
+        !!texture &&
+        !(texture instanceof Color) &&
+        !(texture instanceof Texture)
+      ) {
+        this.registerAnimation(range, texture.data as any, texture.fadeFrames);
         return;
       }
 

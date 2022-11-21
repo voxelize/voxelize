@@ -85,6 +85,7 @@ export type Block = {
   faces: {
     corners: { pos: number[]; uv: number[] }[];
     dir: number[];
+    highRes: boolean;
     name: string;
   }[];
 
@@ -120,6 +121,11 @@ export type Block = {
     aabbs: Block["aabbs"];
     isTransparent: Block["isTransparent"];
   };
+
+  /**
+   * A set of block face names that are high resolution. This is generated on the client side.
+   */
+  highResFaces: Set<string>;
 };
 
 /**
