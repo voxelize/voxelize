@@ -8,14 +8,8 @@ pub fn setup_registry() -> Registry {
     registry.register_blocks(&[
         Block::new("Dirt").id(1).build(),
         Block::new("Stone").id(2).build(),
-        Block::new("Sand")
-            .id(3)
-            .faces(&BlockFaces::six_faces().build().make_high_res(3))
-            .build(),
-        Block::new("Grass Block")
-            .id(4)
-            .faces(&BlockFaces::six_faces().build().make_high_res(1))
-            .build(),
+        Block::new("Sand").id(3).build(),
+        Block::new("Grass Block").id(4).build(),
         Block::new("Snow").id(5).build(),
         Block::new("Obsidian").id(20).build(),
         Block::new("Granite").id(21).build(),

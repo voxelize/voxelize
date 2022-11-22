@@ -149,9 +149,9 @@ export function setupWorld(world: World) {
     "Biggie",
     "pz",
     [
-      [500, TechnoImage],
-      [500, LolImage],
+      [5000, TechnoImage],
+      [5000, LolImage],
     ],
-    20
+    50
   );
 }

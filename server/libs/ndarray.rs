@@ -83,22 +83,7 @@ impl<T: Num + Clone> IndexMut<&[usize]> for Ndarray<T> {
     }
 }
 
+/// Create a new n-dimensional array.
 pub fn ndarray<T: Num + Clone>(shape: &[usize], default: T) -> Ndarray<T> {
     Ndarray::new(shape, default)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ndarray_works() {
-        let mut data = ndarray(&[3, 5, 3], 0);
-
-        assert_eq!(data.shape, vec![3, 5, 3]);
-        assert_eq!(data.stride, vec![15, 3, 1]);
-
-        data[&[1, 2, 3]] = 5;
-        assert_eq!(data[&[1, 2, 3]], 5);
-    }
 }
