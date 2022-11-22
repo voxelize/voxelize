@@ -159,6 +159,8 @@ pub fn setup_world() -> World {
         .seed(12312)
         // .min_chunk([0, 0])
         // .max_chunk([0, 0])
+        .saving(true)
+        .save_dir("data")
         .build();
 
     let mut world = World::new("world1", &config);

@@ -601,6 +601,9 @@ impl World {
                 .set_position(position.0 .0, position.0 .1, position.0 .2);
         }
 
+        // Merge consecutive chunk stages that don't require spaces together.
+        self.pipeline_mut().merge_stages();
+
         self.preload();
         self.load_entities();
     }

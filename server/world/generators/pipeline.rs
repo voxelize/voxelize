@@ -6,13 +6,44 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Trees, Vec2, Vec3, VoxelAccess,
-    VoxelUpdate, WorldConfig,
+    Chunk, ChunkStatus, Registry, Space, SpaceData, Terrain, Vec2, Vec3, VoxelAccess, VoxelUpdate,
+    WorldConfig,
 };
 
+#[derive(Clone)]
 pub struct Resources<'a> {
     pub registry: &'a Registry,
     pub config: &'a WorldConfig,
+}
+
+#[derive(Default)]
+pub(crate) struct MetaStage {
+    pub stages: Vec<Arc<dyn ChunkStage + Send + Sync>>,
+}
+
+impl MetaStage {
+    pub fn add_stage(&mut self, stage: Arc<dyn ChunkStage + Send + Sync>) {
+        self.stages.push(stage);
+    }
+}
+
+impl ChunkStage for MetaStage {
+    fn name(&self) -> String {
+        self.stages
+            .iter()
+            .map(|stage| stage.name())
+            .collect::<Vec<_>>()
+            .join(" -> ")
+    }
+
+    fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
+        for stage in &self.stages {
+            chunk = stage.process(chunk, resources.clone(), None);
+            chunk.calculate_max_height(&resources.registry);
+        }
+
+        chunk
+    }
 }
 
 /// A stage in the pipeline where a chunk gets populated.
@@ -340,5 +371,38 @@ impl Pipeline {
     /// Attempt to retrieve the results from `pipeline.process`
     pub fn results(&self) -> Result<(Vec<Chunk>, Vec<VoxelUpdate>), TryRecvError> {
         self.receiver.try_recv()
+    }
+
+    /// Merge consecutive chunk stages that don't require spaces together into meta stages.
+    pub(crate) fn merge_stages(&mut self) {
+        let mut new_stages: Vec<Arc<dyn ChunkStage + Send + Sync>> = vec![];
+
+        let mut current_meta: Option<MetaStage> = None;
+
+        for stage in self.stages.to_owned().into_iter() {
+            if stage.needs_space().is_some() {
+                if let Some(current_stage) = current_meta {
+                    new_stages.push(Arc::new(current_stage));
+                }
+                current_meta = None;
+                new_stages.push(stage);
+                continue;
+            }
+
+            if let Some(mut meta) = current_meta {
+                meta.add_stage(stage);
+                current_meta = Some(meta);
+            } else {
+                let mut meta = MetaStage::default();
+                meta.add_stage(stage);
+                current_meta = Some(meta);
+            }
+        }
+
+        if let Some(meta) = current_meta {
+            new_stages.push(Arc::new(meta));
+        }
+
+        self.stages = new_stages;
     }
 }

@@ -1,7 +1,7 @@
 mod models;
 mod session;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use actix::{
     Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, Recipient,
@@ -13,7 +13,7 @@ use log::{info, warn};
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     errors::AddWorldError,
@@ -362,6 +362,8 @@ impl Server {
             bars.push(bar);
         }
 
+        let start = Instant::now();
+
         loop {
             let mut done = true;
 
@@ -386,9 +388,10 @@ impl Server {
         }
 
         info!(
-            "✅ Total of {} world{} preloaded.",
+            "✅ Total of {} world{} preloaded in {}s",
             self.worlds.len(),
-            if self.worlds.len() == 1 { "" } else { "s" }
+            if self.worlds.len() == 1 { "" } else { "s" },
+            (Instant::now() - start).as_millis() as f64 / 1000.0
         );
     }
 

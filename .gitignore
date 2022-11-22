@@ -5,6 +5,8 @@ node_modules
 .yarn
 /target
 
+/data
+
 examples/server/worlds/world3/*
 
 client/protocol/index.*

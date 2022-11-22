@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFaces, Registry, Vec3, AABB};
+use voxelize::{Block, BlockFaces, Registry, Vec3, AABB, SIX_FACES_PZ};
 
 const PLANT_SCALE: f32 = 0.6;
 
@@ -197,7 +197,7 @@ pub fn setup_registry() -> Registry {
                     .scale_z(0.1)
                     .offset_x(-1.5)
                     .build()
-                    .make_high_res(2),
+                    .high_res_at(SIX_FACES_PZ),
             )
             .aabbs(&[AABB::new().offset_x(0.4).scale_x(0.2).scale_z(0.1).build()])
             .rotatable(true)

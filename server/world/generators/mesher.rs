@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, sync::Arc, time::Instant};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use log::info;
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
@@ -44,6 +44,12 @@ pub struct Mesher {
     /// A queue of chunks to be meshed.
     pub(crate) queue: VecDeque<Vec2<i32>>,
 
+    /// A map to keep track of all the chunks that are being meshed.
+    pub(crate) map: HashSet<Vec2<i32>>,
+
+    /// A map to keep track of the processes that should be skipped.
+    pub(crate) skips: HashMap<Vec2<i32>, usize>,
+
     /// Sender of processed chunks from other threads to the main thread.
     sender: Arc<Sender<Vec<Chunk>>>,
 
@@ -61,6 +67,8 @@ impl Mesher {
 
         Self {
             queue: VecDeque::new(),
+            map: HashSet::new(),
+            skips: HashMap::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()
@@ -99,6 +107,16 @@ impl Mesher {
 
         let registry = registry.to_owned();
         let config = config.to_owned();
+
+        processes.iter().for_each(|(chunk, _)| {
+            if self.map.contains(&chunk.coords) {
+                let curr_count = self.skips.remove(&chunk.coords).unwrap_or(0);
+
+                self.skips.insert(chunk.coords.to_owned(), curr_count + 1);
+            }
+
+            self.map.insert(chunk.coords.to_owned());
+        });
 
         self.pool.spawn(move || {
             let chunks: Vec<Chunk> = processes
@@ -167,8 +185,29 @@ impl Mesher {
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&self) -> Result<Vec<Chunk>, TryRecvError> {
-        self.receiver.try_recv()
+    pub fn results(&mut self) -> Result<Vec<Chunk>, TryRecvError> {
+        let results = self.receiver.try_recv();
+
+        if results.is_err() {
+            return results;
+        }
+
+        let results = results.unwrap();
+
+        Ok(results
+            .into_iter()
+            .filter(|chunk| {
+                let skip_count = self.skips.remove(&chunk.coords).unwrap_or(0);
+                if skip_count > 0 {
+                    self.skips.insert(chunk.coords.to_owned(), skip_count - 1);
+                    return false;
+                }
+
+                self.map.remove(&chunk.coords);
+
+                true
+            })
+            .collect())
     }
 
     /// Mesh this space and separate individual block types into their own meshes.

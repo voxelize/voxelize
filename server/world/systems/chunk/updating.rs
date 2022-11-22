@@ -379,6 +379,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         if !chunks.cache.is_empty() {
             let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
 
+            cache.iter().for_each(|coords| {
+                chunks.add_chunk_to_save(coords, true);
+            });
+
             let processes = cache
                 .into_iter()
                 .filter(|coords| chunks.is_chunk_ready(coords))

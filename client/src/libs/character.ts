@@ -9,26 +9,29 @@ import {
 
 import { MathUtils as VoxMathUtils } from "../utils";
 
-import { ArtFunction, CanvasBox, CanvasBoxParams } from "./canvas-box";
+import { CanvasBox, CanvasBoxParams } from "./canvas-box";
 import { NameTag } from "./nametag";
+
+const CHARACTER_SCALE = 0.9;
 
 /**
  * Parameters to create a character's head.
  * Defaults to:
  * ```ts
  * {
- *   gap: 0.1,
+ *   gap: 0.1 * CHARACTER_SCALE,
  *   layers: 1,
  *   side: THREE.DoubleSide,
- *   width: 0.5,
+ *   width: 0.5 * CHARACTER_SCALE,
  *   widthSegments: 16,
- *   height: 0.25,
+ *   height: 0.25 * CHARACTER_SCALE,
  *   heightSegments: 8,
- *   depth: 0.5,
+ *   depth: 0.5 * CHARACTER_SCALE,
  *   depthSegments: 16,
- *   neckGap: 0.05,
+ *   neckGap: 0.05 * CHARACTER_SCALE,
  * }
  * ```
+ * where `CHARACTER_SCALE` is 0.9.
  */
 export type HeadParams = CanvasBoxParams & {
   /**
@@ -42,13 +45,14 @@ export type HeadParams = CanvasBoxParams & {
  * Defaults to:
  * ```ts
  * {
- *   gap: 0.1,
+ *   gap: 0.1 * CHARACTER_SCALE,
  *   layers: 1,
  *   side: THREE.DoubleSide,
- *   width: 1,
+ *   width: 1 * CHARACTER_SCALE,
  *   widthSegments: 16,
  * }
  * ```
+ * where `CHARACTER_SCALE` is 0.9.
  */
 export type BodyParams = CanvasBoxParams;
 
@@ -57,18 +61,19 @@ export type BodyParams = CanvasBoxParams;
  * Defaults to:
  * ```ts
  * {
- *   gap: 0.1,
+ *   gap: 0.1 * CHARACTER_SCALE,
  *   layers: 1,
  *   side: THREE.DoubleSide,
- *   width: 0.25,
+ *   width: 0.25 * CHARACTER_SCALE,
  *   widthSegments: 3,
- *   height: 0.25,
+ *   height: 0.25 * CHARACTER_SCALE,
  *   heightSegments: 3,
- *   depth: 0.25,
+ *   depth: 0.25 * CHARACTER_SCALE,
  *   depthSegments: 3,
- *   betweenLegsGap: 0.2,
+ *   betweenLegsGap: 0.2 * CHARACTER_SCALE,
  * }
  * ```
+ * where `CHARACTER_SCALE` is 0.9.
  */
 
 export type LegParams = CanvasBoxParams & {
@@ -83,17 +88,17 @@ export type LegParams = CanvasBoxParams & {
  * Defaults to:
  * ```ts
  * {
- *   gap: 0.1,
+ *   gap: 0.1 * CHARACTER_SCALE,
  *   layers: 1,
  *   side: THREE.DoubleSide,
- *   width: 0.25,
+ *   width: 0.25 * CHARACTER_SCALE,
  *   widthSegments: 8,
- *   height: 0.5,
+ *   height: 0.5 * CHARACTER_SCALE,
  *   heightSegments: 16,
- *   depth: 0.25,
+ *   depth: 0.25 * CHARACTER_SCALE,
  *   depthSegments: 8,
- *   shoulderGap: 0.05,
- *   shoulderDrop: 0.25,
+ *   shoulderGap: 0.05 * CHARACTER_SCALE,
+ *   shoulderDrop: 0.25 * CHARACTER_SCALE,
  * }
  * ```
  */
@@ -168,51 +173,51 @@ const defaultCharacterParams: CharacterParams = {
 };
 
 const defaultHeadParams: HeadParams = {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
-  width: 0.5,
+  width: 0.5 * CHARACTER_SCALE,
   widthSegments: 16,
-  height: 0.25,
+  height: 0.25 * CHARACTER_SCALE,
   heightSegments: 8,
-  depth: 0.5,
+  depth: 0.5 * CHARACTER_SCALE,
   depthSegments: 16,
-  neckGap: 0.05,
+  neckGap: 0.05 * CHARACTER_SCALE,
 };
 
 const defaultBodyParams: BodyParams = {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
-  width: 1,
+  width: 1 * CHARACTER_SCALE,
   widthSegments: 16,
 };
 
 const defaultArmsParams: ArmsParams = {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
-  width: 0.25,
-  height: 0.5,
-  depth: 0.25,
+  width: 0.25 * CHARACTER_SCALE,
+  height: 0.5 * CHARACTER_SCALE,
+  depth: 0.25 * CHARACTER_SCALE,
   widthSegments: 8,
   heightSegments: 16,
   depthSegments: 8,
-  shoulderGap: 0.05,
-  shoulderDrop: 0.25,
+  shoulderGap: 0.05 * CHARACTER_SCALE,
+  shoulderDrop: 0.25 * CHARACTER_SCALE,
 };
 
 const defaultLegsParams: LegParams = {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
-  width: 0.25,
-  height: 0.25,
-  depth: 0.25,
+  width: 0.25 * CHARACTER_SCALE,
+  height: 0.25 * CHARACTER_SCALE,
+  depth: 0.25 * CHARACTER_SCALE,
   widthSegments: 3,
   heightSegments: 3,
   depthSegments: 3,
-  betweenLegsGap: 0.2,
+  betweenLegsGap: 0.2 * CHARACTER_SCALE,
 };
 
 /**

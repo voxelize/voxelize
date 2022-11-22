@@ -74,16 +74,17 @@ const App = () => {
     const world = new VOXELIZE.World({
       textureDimension: 16,
       defaultRenderRadius: 5,
+      maxUpdatesPerTick: 10000,
     });
     const chat = new VOXELIZE.Chat();
     const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
     const character = new VOXELIZE.Character({
-      head: {
-        height: 0.5,
-        heightSegments: 64,
-        widthSegments: 64,
-      },
+      // head: {
+      //   height: 0.5,
+      //   heightSegments: 64,
+      //   widthSegments: 64,
+      // },
     });
     character.username = "<placeholder>";
     character.position.set(0, 10, -5);
@@ -209,7 +210,7 @@ const App = () => {
     });
 
     const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
-      highlightType: "outline",
+      // highlightType: "outline",
       // potentialVisuals: true,
       inverseDirection: true,
       // ignoreFluids: false,
@@ -355,11 +356,11 @@ const App = () => {
 
     peers.createPeer = () => {
       const peer = new VOXELIZE.Character({
-        head: {
-          height: 0.5,
-          heightSegments: 64,
-          widthSegments: 64,
-        },
+        // head: {
+        //   height: 0.5,
+        //   heightSegments: 64,
+        //   widthSegments: 64,
+        // },
       });
       peer.head.paint("front", world.loader.getTexture(LolImage));
       lightShined.add(peer);
@@ -473,7 +474,7 @@ const App = () => {
       .register(chat)
       .register(world)
       .register(peers)
-      .register(blockBreakParticles)
+      // .register(blockBreakParticles)
       .connect(BACKEND_SERVER, { secret: "test" })
       .then(() => {
         network

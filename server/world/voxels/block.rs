@@ -317,6 +317,13 @@ impl BlockFace {
     }
 }
 
+pub const SIX_FACES_PX: usize = 0;
+pub const SIX_FACES_PY: usize = 1;
+pub const SIX_FACES_PZ: usize = 2;
+pub const SIX_FACES_NX: usize = 3;
+pub const SIX_FACES_NY: usize = 4;
+pub const SIX_FACES_NZ: usize = 5;
+
 pub struct BlockFaces {
     pub faces: Vec<BlockFace>,
 }
@@ -326,7 +333,7 @@ impl BlockFaces {
         Self { faces: vec![] }
     }
 
-    pub fn make_high_res(mut self, index: usize) -> Self {
+    pub fn high_res_at(mut self, index: usize) -> Self {
         if index >= self.faces.len() {
             return self;
         }
