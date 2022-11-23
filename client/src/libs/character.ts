@@ -461,7 +461,7 @@ export class Character extends Group {
    * Get the content of the nametag of the character.
    */
   get username() {
-    return this.nametag.text;
+    return this.nametag ? this.nametag.text : "";
   }
 
   /**
