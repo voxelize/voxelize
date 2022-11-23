@@ -128,7 +128,7 @@ export class Peers<
    *
    * @param id The new peer's ID.
    */
-  public onPeerJoin = (id: string) => {
+  public onPeerJoin(id: string) {
     if (!this.createPeer) {
       console.warn("Peers.createPeer is not defined, skipping peer join.");
       return;
@@ -137,7 +137,7 @@ export class Peers<
     const peer = this.createPeer(id);
     peer.name = id;
     this.add(peer);
-  };
+  }
 
   /**
    * A function called to update a peer object with new data. This function should be implemented to
@@ -155,10 +155,10 @@ export class Peers<
    *
    * @param id The ID of the peer that left the game.
    */
-  public onPeerLeave = (id: string) => {
+  public onPeerLeave(id: string) {
     const peer = this.getObjectByName(id);
     if (peer) this.remove(peer);
-  };
+  }
 
   /**
    * The network intercept implementation for peers.
@@ -227,7 +227,7 @@ export class Peers<
    *
    * @returns A peer protocol message
    */
-  public packInfo: () => PeerProtocol<T> | void = () => {
+  public packInfo(): PeerProtocol<T> | void {
     const {
       x: dx,
       y: dy,
@@ -245,7 +245,7 @@ export class Peers<
         direction: [dx, dy, dz],
       } as any as T,
     } as PeerProtocol<T>;
-  };
+  }
 
   /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
@@ -253,7 +253,7 @@ export class Peers<
    *
    * This function should be called in the render loop.
    */
-  public update = () => {
+  public update() {
     if (!this.object) return;
 
     const info = this.packInfo();
@@ -275,5 +275,5 @@ export class Peers<
         }
       });
     }
-  };
+  }
 }

@@ -58,7 +58,7 @@ export class Chat implements NetIntercept {
    *
    * @param chat The chat message to send.
    */
-  public send = (chat: ChatProtocol) => {
+  public send(chat: ChatProtocol) {
     if (chat.body.startsWith(this._commandSymbol)) {
       const words = chat.body
         .substring(this._commandSymbol.length)
@@ -79,7 +79,7 @@ export class Chat implements NetIntercept {
       type: "CHAT",
       chat,
     });
-  };
+  }
 
   public onChat: (chat: ChatProtocol) => void;
 
@@ -89,11 +89,11 @@ export class Chat implements NetIntercept {
    * @param trigger - The text to trigger the command, needs to be one single word without spaces.
    * @param process - The process run when this command is triggered.
    */
-  public addCommand = (
+  public addCommand(
     trigger: string,
     process: CommandProcessor,
     aliases: string[] = []
-  ) => {
+  ) {
     if (this.commands.has(trigger)) {
       throw new Error(`Command trigger already taken: ${trigger}`);
     }
@@ -114,16 +114,16 @@ export class Chat implements NetIntercept {
 
       this.commands.set(alias, process);
     }
-  };
+  }
 
   /**
    * Remove a command from the chat system. Case sensitive.
    *
    * @param trigger - The trigger to remove.
    */
-  public removeCommand = (trigger: string) => {
+  public removeCommand(trigger: string) {
     return !!this.commands.delete(trigger);
-  };
+  }
 
   /**
    * The network intercept implementation for chats.
