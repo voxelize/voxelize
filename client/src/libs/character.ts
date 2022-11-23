@@ -406,12 +406,12 @@ export class Character extends Group {
    * actually lerp to the new position and rotation. Note that when a character is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
-  update = () => {
+  update() {
     this.calculateDelta();
     this.playArmSwingAnimation();
     this.playWalkingAnimation();
     this.lerpAll();
-  };
+  }
 
   /**
    * Set the character's position and direction that its body is situated at and the head is looking
@@ -422,7 +422,7 @@ export class Character extends Group {
    * @param position The new position of the character.
    * @param direction The new direction of the character.
    */
-  set = (position: number[], direction: number[]) => {
+  set(position: number[], direction: number[]) {
     this.newPosition.set(position[0], position[1], position[2]);
 
     this.newDirection.copy(
@@ -435,7 +435,7 @@ export class Character extends Group {
     this.newBodyDirection.copy(
       VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2])
     );
-  };
+  }
 
   /**
    * Change the content of the user's nametag. If the nametag is empty, nothing will be rendered.
