@@ -441,17 +441,17 @@ export class Character extends Group {
    * Change the content of the user's nametag. If the nametag is empty, nothing will be rendered.
    */
   set username(username: string) {
-    if (!username) {
-      this.nametag.visible = false;
-      return;
-    }
-
     if (!this.nametag) {
       this.nametag = new NameTag(username, {
         yOffset: this.head.height,
         fontSize: 0.2,
       });
       this.add(this.nametag);
+    }
+
+    if (!username) {
+      this.nametag.visible = false;
+      return;
     }
 
     this.nametag.text = username;
