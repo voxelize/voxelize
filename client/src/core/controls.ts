@@ -833,7 +833,6 @@ export class RigidControls extends EventEmitter {
     this.body.aabb.maxY = this.body.aabb.minY + this.params.bodyHeight;
     this.body.aabb.maxZ = this.body.aabb.minZ + this.params.bodyDepth;
 
-    this.world.add(character);
     this.character = character;
   };
 

@@ -14,7 +14,7 @@ Registry is by default created by the world and is available as [registry](World
 # Example
 ```ts
 // Register a new texture to all faces of type "Test".
-world.registry.applyTextureByName({
+world.registry.applyTextureByName(
   name: "Test",
   sides: VOXELIZE.ALL_FACES,
   data: "https://example.com/test.png"
@@ -34,24 +34,6 @@ Apply a texture onto a face/side of a block.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `texture` | [`TextureData`](../modules.md#texturedata) | The data of the texture and where the texture is applying to. |
-
-#### Returns
-
-`void`
-
-___
-
-### applyTexturesByNames
-
-▸ **applyTexturesByNames**(`textures`): `void`
-
-Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -119,7 +101,7 @@ ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block)
+▸ **getBlockByTextureName**(`textureName`): `Object`
 
 Reverse engineer to get the block information from a texture name. Call this after connecting to the server, or else
 no blocks will be loaded yet.
@@ -132,7 +114,12 @@ no blocks will be loaded yet.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../modules.md#block) |
+| `side` | `string` |
 
 ___
 
@@ -157,7 +144,7 @@ ___
 
 ### makeSideName
 
-▸ **makeSideName**(`name`, `side`): `string`
+▸ `Static` **makeSideName**(`name`, `side`): `string`
 
 Generate a key for the block's side.
 
@@ -192,6 +179,22 @@ A map of blocks by their names.
 
 ___
 
+### keyframes
+
+• **keyframes**: `Map`<`string`, { `data`: [`number`, `string` \| `Texture` \| `Color`][] ; `fadeFrames`: `number`  }\>
+
+A map of side names to their corresponding keyframe sources.
+
+___
+
+### nameMap
+
+• **nameMap**: `Map`<`number`, `string`\>
+
+A map of block ID to block name.
+
+___
+
 ### ranges
 
 • **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange)\>
@@ -213,6 +216,14 @@ ___
 • **textures**: `Set`<`string`\>
 
 A set of side names that are currently registered.
+
+___
+
+### typeMap
+
+• **typeMap**: `Map`<`string`, `number`\>
+
+A map of block name to block ID.
 
 ## Accessors
 

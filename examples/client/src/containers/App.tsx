@@ -86,7 +86,6 @@ const App = () => {
       //   widthSegments: 64,
       // },
     });
-    character.username = "<placeholder>";
     character.position.set(0, 10, -5);
 
     world.loader.addTexture(LolImage, (texture) => {
@@ -368,8 +367,11 @@ const App = () => {
       return peer;
     };
 
-    peers.onPeerUpdate = (object, data) => {
+    peers.setOwnPeer(character);
+
+    peers.onPeerUpdate = (object, data, info) => {
       object.set(data.position, data.direction);
+      object.username = info.username;
     };
 
     world.add(peers);
@@ -474,7 +476,7 @@ const App = () => {
       .register(chat)
       .register(world)
       .register(peers)
-      // .register(blockBreakParticles)
+      .register(blockBreakParticles)
       .connect(BACKEND_SERVER, { secret: "test" })
       .then(() => {
         network

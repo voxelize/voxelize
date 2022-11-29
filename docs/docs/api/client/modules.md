@@ -37,6 +37,7 @@ custom_edit_url: null
 - [Clouds](classes/Clouds.md)
 - [Debug](classes/Debug.md)
 - [Events](classes/Events.md)
+- [FaceAnimation](classes/FaceAnimation.md)
 - [ImageVoxelizer](classes/ImageVoxelizer.md)
 - [NameTag](classes/NameTag.md)
 - [Perspective](classes/Perspective.md)
@@ -87,6 +88,21 @@ The six default faces of a canvas box.
 
 ___
 
+### DEFAULT\_CHUNK\_SHADERS
+
+• `Const` **DEFAULT\_CHUNK\_SHADERS**: `Object`
+
+This is the default shaders used for the chunks.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `fragment` | `string` |
+| `vertex` | `string` |
+
+___
+
 ### DIAGONAL\_FACES
 
 • `Const` **DIAGONAL\_FACES**: `string`[]
@@ -100,6 +116,12 @@ ___
 • `Const` **GREEN\_LIGHT**: ``"GREEN"``
 
 The string representation of green light.
+
+___
+
+### HIGH\_RES\_TICKET
+
+• `Const` **HIGH\_RES\_TICKET**: ``"_highres_"``
 
 ___
 
@@ -219,6 +241,18 @@ A preset of art functions to draw on canvas boxes.
 | `drawCrown` | [`ArtFunction`](modules.md#artfunction) |
 | `drawSun` | [`ArtFunction`](modules.md#artfunction) |
 
+___
+
+### customShaders
+
+• `Const` **customShaders**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `sway` | (`params`: `Partial`<{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => { `fragmentShader`: `string` = DEFAULT\_CHUNK\_SHADERS.fragment; `vertexShader`: `string`  } |
+
 ## Type Aliases
 
 ### ArmsParams
@@ -229,17 +263,17 @@ Parameters to create a character's arms.
 Defaults to:
 ```ts
 {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: THREE.DoubleSide,
-  width: 0.25,
+  width: 0.25 * CHARACTER_SCALE,
   widthSegments: 8,
-  height: 0.5,
+  height: 0.5 * CHARACTER_SCALE,
   heightSegments: 16,
-  depth: 0.25,
+  depth: 0.25 * CHARACTER_SCALE,
   depthSegments: 8,
-  shoulderGap: 0.05,
-  shoulderDrop: 0.25,
+  shoulderGap: 0.05 * CHARACTER_SCALE,
+  shoulderDrop: 0.25 * CHARACTER_SCALE,
 }
 ```
 
@@ -298,21 +332,19 @@ A block type in the world. This is defined by the server.
 | :------ | :------ | :------ |
 | `aabbs` | `AABB`[] | A list of axis-aligned bounding boxes that this block has. |
 | `blueLightLevel` | `number` | The blue light level of the block. |
-| `faces` | { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `name`: `string`  }[] | A list of block face data that this block has. |
+| `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3), `world`: [`World`](classes/World.md)) => { `aabbs`: [`Block`](modules.md#block)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block)[``"isTransparent"``]  } | If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this just returns the faces and AABB's that are defined in the block data. |
+| `faces` | { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `highRes`: `boolean` ; `name`: `string`  }[] | A list of block face data that this block has. |
 | `greenLightLevel` | `number` | The green light level of the block. |
+| `highResFaces` | `Set`<`string`\> | A set of block face names that are high resolution. This is generated on the client side. |
 | `id` | `number` | The block id. |
+| `isDynamic` | `boolean` | Whether or not does the block generate dynamic faces or AABB's. If this is true, the block will use `dynamicFn` to generate the faces and AABB's. |
 | `isEmpty` | `boolean` | Whether or not is this block empty. By default, only "air" is empty. |
 | `isFluid` | `boolean` | Whether or not is the block a fluid block. |
 | `isLight` | `boolean` | Whether or not is this block a light source. |
-| `isNxTransparent` | `boolean` | Whether or not is this block transparent on the negative x direction. |
-| `isNyTransparent` | `boolean` | Whether or not is this block transparent on the negative y direction. |
-| `isNzTransparent` | `boolean` | Whether or not is this block transparent on the negative z direction. |
 | `isOpaque` | `boolean` | Whether or not is this block opaque (not transparent). |
 | `isPassable` | `boolean` | Whether or not should physics ignore this block. |
-| `isPxTransparent` | `boolean` | Whether or not is this block transparent on the positive x direction. |
-| `isPyTransparent` | `boolean` | Whether or not is this block transparent on the positive y direction. |
-| `isPzTransparent` | `boolean` | Whether or not is this block transparent on the positive z direction. |
 | `isSeeThrough` | `boolean` | Whether or not is this block see-through (can be opaque and see-through at the same time). |
+| `isTransparent` | `boolean`[] | Whether or not is this block transparent viewing from all six sides. The sides are defined as PX, PY, PZ, NX, NY, NZ. |
 | `lightReduce` | `boolean` | Whether or not should light reduce by 1 going through this block. |
 | `name` | `string` | The name of the block. |
 | `redLightLevel` | `number` | The red light level of the block. |
@@ -370,13 +402,14 @@ Parameters to create a character's body.
 Defaults to:
 ```ts
 {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: THREE.DoubleSide,
-  width: 1,
+  width: 1 * CHARACTER_SCALE,
   widthSegments: 16,
 }
 ```
+where `CHARACTER_SCALE` is 0.9.
 
 ___
 
@@ -552,7 +585,7 @@ ___
 
 ### CustomShaderMaterial
 
-Ƭ **CustomShaderMaterial**: `ShaderMaterial` & { `map`: `Texture`  }
+Ƭ **CustomShaderMaterial**: `ShaderMaterial` & { `highRes`: `boolean` ; `map`: `Texture`  }
 
 Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
 
@@ -637,18 +670,19 @@ Parameters to create a character's head.
 Defaults to:
 ```ts
 {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: THREE.DoubleSide,
-  width: 0.5,
+  width: 0.5 * CHARACTER_SCALE,
   widthSegments: 16,
-  height: 0.25,
+  height: 0.25 * CHARACTER_SCALE,
   heightSegments: 8,
-  depth: 0.5,
+  depth: 0.5 * CHARACTER_SCALE,
   depthSegments: 16,
-  neckGap: 0.05,
+  neckGap: 0.05 * CHARACTER_SCALE,
 }
 ```
+where `CHARACTER_SCALE` is 0.9.
 
 ___
 
@@ -700,18 +734,19 @@ Parameters to create the legs of a character.
 Defaults to:
 ```ts
 {
-  gap: 0.1,
+  gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: THREE.DoubleSide,
-  width: 0.25,
+  width: 0.25 * CHARACTER_SCALE,
   widthSegments: 3,
-  height: 0.25,
+  height: 0.25 * CHARACTER_SCALE,
   heightSegments: 3,
-  depth: 0.25,
+  depth: 0.25 * CHARACTER_SCALE,
   depthSegments: 3,
-  betweenLegsGap: 0.2,
+  betweenLegsGap: 0.2 * CHARACTER_SCALE,
 }
 ```
+where `CHARACTER_SCALE` is 0.9.
 
 ___
 
@@ -934,7 +969,7 @@ Parameters to create a new [TextureAtlas](classes/TextureAtlas.md) instance.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `countPerSide` | `number` | The number of block textures on each side of the atlas. |
+| `countPerSide` | `number` | The number of block textures on each side of the this. |
 | `dimension` | `number` | The dimension of each block texture. |
 
 ___
@@ -985,7 +1020,7 @@ Parameters to customize the [VoxelInteract](classes/VoxelInteract.md) instance.
 | `highlightOpacity` | `number` | The opacity of the highlight. Defaults to `0.8`. |
 | `highlightScale` | `number` | The scale of the block highlight. Defaults to `1.002`. |
 | `highlightType` | ``"box"`` \| ``"outline"`` | The type of the block highlight. Box would be a semi-transparent box, while outline would be 12 lines that outline the block's AABB union. Defaults to `"box"`. |
-| `ignoreFluid` | `boolean` | Whether or not should the [VoxelInteract](classes/VoxelInteract.md) instance ignore fluids when raycasting. Defaults to `true`. |
+| `ignoreFluids` | `boolean` | Whether or not should the [VoxelInteract](classes/VoxelInteract.md) instance ignore fluids when raycasting. Defaults to `true`. |
 | `inverseDirection` | `boolean` | Whether or not should the [VoxelInteract](classes/VoxelInteract.md) instance reverse the raycasting direction. Defaults to `false`. |
 | `potentialVisuals` | `boolean` | **`Debug`**  Whether or not should there be arrows indicating the potential block placement's orientations. Defaults to `false`. |
 | `reachDistance` | `number` | The maximum distance of reach for the [VoxelInteract](classes/VoxelInteract.md) instance. Defaults to `32`. |

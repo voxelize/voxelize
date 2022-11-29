@@ -642,7 +642,7 @@ impl World {
             let check_radius = (self.config().preload_radius - 1) as i32;
 
             let mut total = 0;
-            let supposed = (check_radius * 2 + 1).pow(2);
+            let supposed = (check_radius * 2).pow(2);
 
             for x in -check_radius..=check_radius {
                 for z in -check_radius..=check_radius {

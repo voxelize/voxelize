@@ -245,10 +245,6 @@ export class Registry {
           isTransparent: block.isTransparent,
         };
       };
-
-      console.warn(
-        `A dynamic function is generated for block ${name}. Overwrite this function with "world.overwriteBlockDynamic" to customize its behaviors.`
-      );
     }
 
     this.blocksByName.set(lowerName, block);

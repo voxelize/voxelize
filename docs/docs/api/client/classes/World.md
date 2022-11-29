@@ -38,11 +38,7 @@ world.updateVoxel({
 network.register(world);
 
 // Register an image to block sides.
-world.registry.applyTextureByName({
-  name: "Test",
-  sides: VOXELIZE.ALL_FACES,
-  data: "https://example.com/test.png"
-});
+world.applyTextureByName("Test", VOXELIZE.ALL_FACES, "https://example.com/test.png");
 
 // Update the world every frame.
 world.update(controls.object.position);
@@ -82,17 +78,80 @@ This is useful for, for example, teleporting the player to the top of the chunk 
 
 ___
 
-### applyTextureByName
+### applyBlockAnimationByName
 
-▸ **applyTextureByName**(`texture`): `void`
+▸ **applyBlockAnimationByName**(`name`, `sides`, `keyframes`, `fadeFrames?`): `void`
 
-Apply a texture onto a face/side of a block.
+Apply a block animation to a block.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `name` | `string` | `undefined` | The name of the block to apply the animation to. |
+| `sides` | `string` \| `string`[] | `undefined` | The side(s) of the block to apply the animation to. |
+| `keyframes` | [`number`, `string` \| `Color`][] | `undefined` | The keyframes of the animation. The first element is the duration of the animation, and the second element is the source to the texture to apply. |
+| `fadeFrames` | `number` | `0` | The number of frames to fade between keyframes. |
+
+#### Returns
+
+`void`
+
+___
+
+### applyBlockGifByName
+
+▸ **applyBlockGifByName**(`name`, `sides`, `source`, `interval?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `name` | `string` | `undefined` |
+| `sides` | `string` \| `string`[] | `undefined` |
+| `source` | `string` | `undefined` |
+| `interval` | `number` | `66.6666667` |
+
+#### Returns
+
+`void`
+
+___
+
+### applyResolutionByName
+
+▸ **applyResolutionByName**(`name`, `sides`, `resolution`): `void`
+
+Apply a resolution to a block face type. Otherwise, the resolution will be the same as the texture
+parameter resolution.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata) | The data of the texture and where the texture is applying to. |
+| `name` | `string` | The name of the block to apply the resolution to. |
+| `sides` | `string` \| `string`[] | - |
+| `resolution` | `number` | The resolution of the block. |
+
+#### Returns
+
+`void`
+
+___
+
+### applyTextureByName
+
+▸ **applyTextureByName**(`name`, `sides`, `data`): `void`
+
+Apply a texture onto a face/side of a block.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `name` | `string` |
+| `sides` | `string` \| `string`[] |
+| `data` | `string` \| `Color` |
 
 #### Returns
 
@@ -120,18 +179,17 @@ ___
 
 ### getBlockAABBsByVoxel
 
-▸ **getBlockAABBsByVoxel**(`vx`, `vy`, `vz`, `ignoreFluid?`): `AABB`[]
+▸ **getBlockAABBsByVoxel**(`vx`, `vy`, `vz`): `AABB`[]
 
 Get the block AABBs by the given 3D voxel coordinate.
 
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `vx` | `number` | `undefined` | The voxel's X position. |
-| `vy` | `number` | `undefined` | The voxel's Y position. |
-| `vz` | `number` | `undefined` | The voxel's Z position. |
-| `ignoreFluid` | `boolean` | `false` | Whether to ignore fluid blocks. |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The voxel's X position. |
+| `vy` | `number` | The voxel's Y position. |
+| `vz` | `number` | The voxel's Z position. |
 
 #### Returns
 
@@ -143,18 +201,17 @@ ___
 
 ### getBlockAABBsByWorld
 
-▸ **getBlockAABBsByWorld**(`wx`, `wy`, `wz`, `ignoreFluid?`): `AABB`[]
+▸ **getBlockAABBsByWorld**(`wx`, `wy`, `wz`): `AABB`[]
 
 Get the block AABBs by the given 3D world coordinate.
 
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `wx` | `number` | `undefined` | The voxel's un-floored X position. |
-| `wy` | `number` | `undefined` | The voxel's un-floored Y position. |
-| `wz` | `number` | `undefined` | The voxel's un-floored Z position. |
-| `ignoreFluid` | `boolean` | `false` | Whether to ignore fluid blocks. |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `wx` | `number` | The voxel's un-floored X position. |
+| `wy` | `number` | The voxel's un-floored Y position. |
+| `wz` | `number` | The voxel's un-floored Z position. |
 
 #### Returns
 
@@ -202,7 +259,7 @@ ___
 
 ### getBlockByTextureName
 
-▸ **getBlockByTextureName**(`textureName`): [`Block`](../modules.md#block)
+▸ **getBlockByTextureName**(`textureName`): `Object`
 
 Reverse engineer to get the block information from a texture name.
 
@@ -214,7 +271,12 @@ Reverse engineer to get the block information from a texture name.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../modules.md#block) |
+| `side` | `string` |
 
 ___
 
@@ -325,6 +387,26 @@ The chunk at the given voxel coordinate.
 
 ___
 
+### getHighResTextureByIdentifier
+
+▸ **getHighResTextureByIdentifier**(`identifier`): [`TextureAtlas`](TextureAtlas.md)
+
+Get the high resolution texture atlas of a certain block face by identifier.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `identifier` | `string` | The identifier of the block face. |
+
+#### Returns
+
+[`TextureAtlas`](TextureAtlas.md)
+
+The [TextureAtlas](TextureAtlas.md) instance linked to the block face.
+
+___
+
 ### getLightColorByVoxel
 
 ▸ **getLightColorByVoxel**(`vx`, `vy`, `vz`): `Color`
@@ -371,6 +453,27 @@ shade objects based on their position in the world. Also used in [LightShined](L
 `Color`
 
 The voxel's light color at the given coordinate.
+
+___
+
+### getMaterialByIdentifier
+
+▸ **getMaterialByIdentifier**(`identifier`, `transparent?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial)
+
+Get a material by a given block ID. If this material does not exist, it will be created.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `identifier` | `string` | `undefined` | The identifier of the block. |
+| `transparent` | `boolean` | `false` | - |
+
+#### Returns
+
+{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial)
+
+The material instances related to the block.
 
 ___
 
@@ -776,6 +879,83 @@ A 3D mesh of the block model.
 
 ___
 
+### overwriteBlockDynamicByName
+
+▸ **overwriteBlockDynamicByName**(`name`, `fn`): `void`
+
+Overwrite the dynamic function for the block. That is, the function that is called to generate different AABBs and block faces
+for the block based on different conditions.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The name of the block. |
+| `fn` | (`pos`: [`Coords3`](../modules.md#coords3), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `highRes`: `boolean` ; `name`: `string`  }[] ; `isTransparent`: `boolean`[]  } | The dynamic function to use for the block. |
+
+#### Returns
+
+`void`
+
+___
+
+### overwriteMaterialByIdentifier
+
+▸ **overwriteMaterialByIdentifier**(`identifier`, `transparent?`, `data?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial)
+
+Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
+blocks such as grass to wave in the wind. Keep in mind that higher resolution block faces are separated from
+its vanilla counterpart. In other words, with this method, you can only overwrite the material of the block
+faces that has not been separated or turned into higher resolution.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `identifier` | `string` | `undefined` | The identifier of the block face. By default, should be the block's name. |
+| `transparent` | `boolean` | `false` | - |
+| `data` | `Object` | `undefined` | - |
+| `data.fragmentShader` | `string` | `undefined` | - |
+| `data.uniforms?` | `Object` | `undefined` | - |
+| `data.vertexShader` | `string` | `undefined` | - |
+
+#### Returns
+
+{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial)
+
+___
+
+### raycastVoxels
+
+▸ **raycastVoxels**(`origin`, `direction`, `maxDistance`, `options?`): `Object`
+
+Raycast through the world of voxels and return the details of the first block intersection.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `origin` | [`Coords3`](../modules.md#coords3) | The origin of the ray. |
+| `direction` | [`Coords3`](../modules.md#coords3) | The direction of the ray. |
+| `maxDistance` | `number` | The maximum distance of the ray. |
+| `options` | `Object` | The options for the ray. |
+| `options.ignoreFluids?` | `boolean` | Whether or not to ignore fluids. Defaults to `true`. |
+| `options.ignoreList?` | `number`[] | A list of blocks to ignore. Defaults to `[]`. |
+| `options.ignorePassables?` | `boolean` | Whether or not to ignore passable blocks. Defaults to `false`. |
+| `options.ignoreSeeThrough?` | `boolean` | Whether or not to ignore see through blocks. Defaults to `false`. |
+
+#### Returns
+
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `normal` | `number`[] |
+| `point` | `number`[] |
+| `voxel` | `number`[] |
+
+___
+
 ### reset
 
 ▸ **reset**(): `void`
@@ -961,6 +1141,22 @@ A chunk manager that stores useful information about chunks, such as the chunk m
 
 ___
 
+### highResTextures
+
+• **highResTextures**: `Map`<`string`, [`TextureAtlas`](TextureAtlas.md)\>
+
+A map of specific high-resolution block faces.
+
+___
+
+### highResolutions
+
+• **highResolutions**: `Map`<`string`, `number`\>
+
+The resolutions of the texture atlases for each high-resolution block face type.
+
+___
+
 ### initialized
 
 • **initialized**: `boolean` = `false`
@@ -979,7 +1175,7 @@ ___
 
 ### materials
 
-• **materials**: `Object` = `{}`
+• **materials**: `Object`
 
 The shared material instances for chunks.
 
@@ -987,10 +1183,8 @@ The shared material instances for chunks.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `opaque?` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) | The chunk material that is used to render the opaque portions of the chunk meshes. |
-| `transparent?` | { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  } | The chunk materials that are used to render the transparent portions of the chunk meshes. This consists of two sides of the chunk mesh, front and back. |
-| `transparent.back` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) | The back side of the chunk mesh's transparent material. |
-| `transparent.front` | [`CustomShaderMaterial`](../modules.md#customshadermaterial) | The front side of the chunk mesh's transparent material. |
+| `opaque` | `Map`<`string`, [`CustomShaderMaterial`](../modules.md#customshadermaterial)\> | The chunk material that is used to render the opaque portions of the chunk meshes. |
+| `transparent` | `Map`<`string`, { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial)  }\> | The chunk materials that are used to render the transparent portions of the chunk meshes. This is a map of the block ID (identifier) to the material instances (front & back). |
 
 ___
 
@@ -1045,6 +1239,8 @@ The WebGL uniforms that are used in the chunk shader.
 | `minBrightness.value` | `number` | The value passed into the chunk shader. |
 | `sunlightIntensity` | { `value`: `number`  } | The sunlight intensity of the world. Changing this to `0` would effectively simulate night time in Voxelize. Defaults to `1.0`. |
 | `sunlightIntensity.value` | `number` | The value passed into the chunk shader. |
+| `time` | { `value`: `number`  } | The time constant `performance.now()` that is used to animate the world. Defaults to `performance.now()`. |
+| `time.value` | `number` | The value passed into the chunk shader. |
 
 ## Constructors
 

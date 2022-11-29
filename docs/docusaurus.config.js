@@ -79,6 +79,7 @@ const config = {
             position: "left",
             label: "Tutorial",
           },
+          { to: "/wiki/category/chunks", label: "Wiki", position: "left" },
           {
             to: "/api/client/modules",
             position: "left",
@@ -157,7 +158,7 @@ const config = {
       /** @type {import('@docusaurus/plugin-content-docs').Options} */
       {
         // id: "api",
-        sidebarPath: require.resolve("./sidebars-api.js"),
+        sidebarPath: require.resolve("./sidebars/api.js"),
         path: "docs/api",
         routeBasePath: "api",
         // Please change this to your repo.
@@ -173,7 +174,18 @@ const config = {
         id: "tutorials",
         path: "docs/tutorials",
         routeBasePath: "tutorials",
-        sidebarPath: require.resolve("./sidebars-tutorials.js"),
+        sidebarPath: require.resolve("./sidebars/tutorials.js"),
+        // ... other options
+      },
+    ],
+    [
+      "@docusaurus/plugin-content-docs",
+      /** @type {import('@docusaurus/plugin-content-docs').Options} */
+      {
+        id: "wiki",
+        path: "docs/wiki",
+        routeBasePath: "wiki",
+        sidebarPath: require.resolve("./sidebars/wiki.js"),
         // ... other options
       },
     ],

@@ -95,6 +95,11 @@ export class Peers<
   public ownUsername = "";
 
   /**
+   * The peer object that represents the client themselves. This is set when you call {@link Peers.setOwnPeer}.
+   */
+  public ownPeer?: C;
+
+  /**
    * A list of packets that will be sent to the server.
    *
    * @hidden
@@ -119,7 +124,7 @@ export class Peers<
    *
    * @param id The ID of the new peer.
    */
-  public createPeer: (id: string) => C;
+  createPeer: (id: string) => C;
 
   /**
    * A function called when a player joins the game. This function has a default implementation and
@@ -128,7 +133,7 @@ export class Peers<
    *
    * @param id The new peer's ID.
    */
-  public onPeerJoin(id: string) {
+  onPeerJoin(id: string) {
     if (!this.createPeer) {
       console.warn("Peers.createPeer is not defined, skipping peer join.");
       return;
@@ -145,8 +150,15 @@ export class Peers<
    *
    * @param object The peer object.
    * @param data The new data.
+   * @param info The peer's information.
+   * @param info.id The peer's ID.
+   * @param info.username The peer's username.
    */
-  public onPeerUpdate: (object: C, data: T) => void;
+  onPeerUpdate: (
+    object: C,
+    data: T,
+    info: { id: string; username: string }
+  ) => void;
 
   /**
    * A function called when a player leaves the game. This function has a default implementation and
@@ -155,7 +167,7 @@ export class Peers<
    *
    * @param id The ID of the peer that left the game.
    */
-  public onPeerLeave(id: string) {
+  onPeerLeave(id: string) {
     const peer = this.getObjectByName(id);
     if (peer) this.remove(peer);
   }
@@ -168,7 +180,7 @@ export class Peers<
    * @hidden
    * @param message The message to intercept.
    */
-  public onMessage = (
+  onMessage = (
     message: MessageProtocol<{ id: string }, T>,
     { username }: { username: string }
   ) => {
@@ -213,11 +225,24 @@ export class Peers<
             "Peers.onPeerUpdate is not defined, skipping peer update."
           );
         } else {
-          this.onPeerUpdate(object, peer.metadata);
+          this.onPeerUpdate(object, peer.metadata, {
+            id: peer.id,
+            username: peer.username,
+          });
         }
       });
     }
   };
+
+  /**
+   * Set the client's own peer instance.
+   *
+   * @param peer The peer instance that is going to be the client themselves.
+   */
+  setOwnPeer(peer: C) {
+    this.ownPeer = peer;
+    this.add(peer);
+  }
 
   /**
    * Create a packet to send to the server. By default, this function sends the position and direction
@@ -227,7 +252,7 @@ export class Peers<
    *
    * @returns A peer protocol message
    */
-  public packInfo(): PeerProtocol<T> | void {
+  packInfo(): PeerProtocol<T> | void {
     const {
       x: dx,
       y: dy,
@@ -248,15 +273,30 @@ export class Peers<
   }
 
   /**
+   * Get a peer instance by its ID. This uses the `getObjectByName` method of the peers group.
+   *
+   * @param id The ID of the peer to get.
+   * @returns The peer object with the given ID.
+   */
+  getPeerById = (id: string) => this.getObjectByName(id) as C;
+
+  /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
    * You can turn this behavior off by setting `params.updateChildren` to `false`.
    *
    * This function should be called in the render loop.
    */
-  public update() {
+  update() {
     if (!this.object) return;
 
     const info = this.packInfo();
+
+    if (this.ownPeer && info) {
+      this.onPeerUpdate(this.ownPeer, info.metadata, {
+        id: info.id,
+        username: info.username,
+      });
+    }
 
     if (info) {
       const event: MessageProtocol = {
@@ -269,6 +309,8 @@ export class Peers<
 
     if (this.params.updateChildren) {
       this.children.forEach((child) => {
+        if (child === this.ownPeer) return;
+
         if (child instanceof Character) {
           // @ts-ignore
           child.update();

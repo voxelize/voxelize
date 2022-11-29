@@ -233,9 +233,14 @@ export class BlockBreakParticles extends System implements NetIntercept {
 
       if (oldID === 0 || newID !== 0) return;
 
-      const mesh = this.world.makeBlockMesh(oldID);
+      const mesh = this.world.makeBlockMesh(oldID, {
+        separateFaces: true,
+        crumbs: true,
+      });
       const lightScale = this.world.getLightColorByVoxel(vx, vy, vz);
-      mesh.material.color.copy(lightScale);
+      mesh.children.forEach((mesh) =>
+        (mesh as any).material.color.copy(lightScale)
+      );
 
       const emitter = new Emitter();
 
@@ -256,7 +261,7 @@ export class BlockBreakParticles extends System implements NetIntercept {
             this.params.minLife * (tooMany ? this.params.capScale : 1),
             this.params.maxLife * (tooMany ? this.params.capScale : 1)
           ),
-          new Body(mesh),
+          new Body(mesh.children),
           new Position(new BoxZone(this.params.zoneWidth)),
         ])
         .addBehaviours([

@@ -119,11 +119,11 @@ ___
 
 ### onPeerUpdate
 
-• **onPeerUpdate**: (`object`: `C`, `data`: `T`) => `void`
+• **onPeerUpdate**: (`object`: `C`, `data`: `T`, `info`: { `id`: `string` ; `username`: `string`  }) => `void`
 
 #### Type declaration
 
-▸ (`object`, `data`): `void`
+▸ (`object`, `data`, `info`): `void`
 
 A function called to update a peer object with new data. This function should be implemented to
 customize the behavior of the peer object.
@@ -134,6 +134,9 @@ customize the behavior of the peer object.
 | :------ | :------ | :------ |
 | `object` | `C` | The peer object. |
 | `data` | `T` | The new data. |
+| `info` | `Object` | The peer's information. |
+| `info.id` | `string` | The peer's ID. |
+| `info.username` | `string` | The peer's username. |
 
 ##### Returns
 
@@ -149,32 +152,19 @@ The client's own peer ID. This is set when the client first connects to the serv
 
 ___
 
+### ownPeer
+
+• `Optional` **ownPeer**: `C`
+
+The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer).
+
+___
+
 ### ownUsername
 
 • **ownUsername**: `string` = `""`
 
 The client's own username. This is set when the client first connects to the server.
-
-___
-
-### packInfo
-
-• **packInfo**: () => `void` \| `PeerProtocol`<`T`\>
-
-#### Type declaration
-
-▸ (): `void` \| `PeerProtocol`<`T`\>
-
-Create a packet to send to the server. By default, this function sends the position and direction
-as metadata to the server. Override this function to customize the information sent.
-
-If customized and nothing is returned, no packets will be sent.
-
-##### Returns
-
-`void` \| `PeerProtocol`<`T`\>
-
-A peer protocol message
 
 ___
 
@@ -185,6 +175,26 @@ ___
 Parameters to customize the peers manager.
 
 ## Methods
+
+### getPeerById
+
+▸ **getPeerById**(`id`): `C`
+
+Get a peer instance by its ID. This uses the `getObjectByName` method of the peers group.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `string` | The ID of the peer to get. |
+
+#### Returns
+
+`C`
+
+The peer object with the given ID.
+
+___
 
 ### onPeerJoin
 
@@ -219,6 +229,41 @@ object from the peers group itself.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `id` | `string` | The ID of the peer that left the game. |
+
+#### Returns
+
+`void`
+
+___
+
+### packInfo
+
+▸ **packInfo**(): `void` \| `PeerProtocol`<`T`\>
+
+Create a packet to send to the server. By default, this function sends the position and direction
+as metadata to the server. Override this function to customize the information sent.
+
+If customized and nothing is returned, no packets will be sent.
+
+#### Returns
+
+`void` \| `PeerProtocol`<`T`\>
+
+A peer protocol message
+
+___
+
+### setOwnPeer
+
+▸ **setOwnPeer**(`peer`): `void`
+
+Set the client's own peer instance.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `peer` | `C` | The peer instance that is going to be the client themselves. |
 
 #### Returns
 

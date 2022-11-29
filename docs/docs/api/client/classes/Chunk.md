@@ -33,7 +33,7 @@ ___
 
 ### build
 
-▸ **build**(`data`, `materials`): `Promise`<`void`\>
+▸ **build**(`data`, `world`): `Promise`<`void`\>
 
 Build the chunk mesh from the voxel data.
 
@@ -42,11 +42,7 @@ Build the chunk mesh from the voxel data.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `data` | `ChunkProtocol` | The chunk protocol data received from the server. |
-| `materials` | `Object` | The materials to use for the chunk mesh. |
-| `materials.opaque?` | `Material` | The opaque material to use for the chunk mesh. |
-| `materials.transparent?` | `Object` | The transparent materials to use for the chunk mesh. |
-| `materials.transparent.back` | `Material` | The material to use for the transparent back side of the chunk mesh. |
-| `materials.transparent.front` | `Material` | The material to use for the transparent front side of the chunk mesh. |
+| `world` | [`World`](World.md) | - |
 
 #### Returns
 
@@ -131,6 +127,28 @@ Get the green light level at a given voxel coordinate.
 `number`
 
 The green light level at the given voxel coordinate. If the voxel coordinate is out of bounds, returns 0.
+
+___
+
+### getRawLight
+
+▸ **getRawLight**(`vx`, `vy`, `vz`): `number`
+
+Get the raw light value at a given voxel coordinate.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The x voxel coordinate. |
+| `vy` | `number` | The y voxel coordinate. |
+| `vz` | `number` | The z voxel coordinate. |
+
+#### Returns
+
+`number`
+
+The raw light value at the given voxel coordinate.
 
 ___
 

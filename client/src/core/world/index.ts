@@ -6,11 +6,12 @@ import {
   BufferGeometry,
   Clock,
   Color,
+  DoubleSide,
   Float32BufferAttribute,
   FrontSide,
+  Group,
   Mesh,
   MeshBasicMaterial,
-  PlaneBufferGeometry,
   Scene,
   ShaderLib,
   ShaderMaterial,
@@ -1199,28 +1200,95 @@ export class World extends Scene implements NetIntercept {
    * Get a mesh of the model of the given block.
    *
    * @param id The ID of the block.
-   * @returns A 3D mesh of the block model.
+   * @param params The params of creating this block mesh.
+   * @param params.separateFaces: Whether or not to separate the faces of the block into different meshes.
+   * @param params.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
+   * @returns A 3D mesh (group) of the block model.
    */
-  makeBlockMesh = (id: number) => {
+  makeBlockMesh = (
+    id: number,
+    params: Partial<{ separateFaces: boolean; crumbs: boolean }> = {}
+  ) => {
     const block = this.registry.getBlockById(id);
     if (!block) return null;
 
+    const { separateFaces, crumbs } = {
+      separateFaces: false,
+      crumbs: false,
+      ...params,
+    };
+
     const { faces, isSeeThrough } = block;
 
-    const geometry = new BufferGeometry();
+    const geometries = new Map<
+      string,
+      {
+        identifier: string;
+        positions: number[];
+        uvs: number[];
+        indices: number[];
+        material: MeshBasicMaterial;
+      }
+    >();
 
-    const positions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
+    faces.forEach((face, index) => {
+      const faceScale = crumbs && separateFaces ? Math.random() + 0.5 : 1;
 
-    faces.forEach(({ corners, name }) => {
+      const { corners, name, highRes } = face;
+
+      const identifier = `${block.name}${
+        highRes ? HIGH_RES_TICKET + name : ""
+      }${separateFaces ? `-${index}` : ""}`.toLowerCase();
+
+      let geometry = geometries.get(identifier);
+
+      if (!geometry) {
+        const atlas = this.getAtlasByBlockFace(block, face);
+
+        const mat = new MeshBasicMaterial({
+          transparent: isSeeThrough,
+          map: atlas?.texture,
+          alphaTest: 0.3,
+          side: DoubleSide,
+        });
+
+        geometry = {
+          identifier,
+          positions: [],
+          uvs: [],
+          indices: [],
+          material: mat,
+        };
+      }
+
+      const { positions, uvs, indices } = geometry;
+
       const ndx = Math.floor(positions.length / 3);
-      const { startU, endU, startV, endV } = this.registry.ranges.get(
+      let { startU, endU, startV, endV } = this.registry.ranges.get(
         Registry.makeSideName(block.name, name)
       );
 
+      if (highRes) {
+        startU = 0.0;
+        endU = 1.0;
+        startV = 0.0;
+        endV = 1.0;
+      }
+
+      if (crumbs) {
+        const newStartU = startU + ((endU - startU) / 2) * Math.random();
+        const newEndU = endU - ((endU - startU) / 2) * Math.random();
+        const newStartV = startV + ((endV - startV) / 2) * Math.random();
+        const newEndV = endV - ((endV - startV) / 2) * Math.random();
+
+        startU = newStartU;
+        endU = newEndU;
+        startV = newStartV;
+        endV = newEndV;
+      }
+
       corners.forEach(({ uv, pos }) => {
-        positions.push(...pos);
+        positions.push(...pos.map((p) => p * faceScale));
         uvs.push(
           uv[0] * (endU - startU) + startU,
           uv[1] * (endV - startV) + startV
@@ -1228,22 +1296,28 @@ export class World extends Scene implements NetIntercept {
       });
 
       indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
+
+      geometries.set(identifier, geometry);
     });
 
-    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
-    geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-    geometry.setIndex(indices);
+    const group = new Group();
 
-    const material = new MeshBasicMaterial({
-      transparent: isSeeThrough,
-      alphaTest: 0.3,
-      map: this.atlas.texture,
+    geometries.forEach(({ identifier, positions, uvs, indices, material }) => {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new Float32BufferAttribute(positions, 3)
+      );
+      geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(indices);
+      const mesh = new Mesh(geometry, material);
+      mesh.name = identifier;
+      group.add(mesh);
     });
 
-    const mesh = new Mesh(geometry, material);
-    mesh.name = block.name;
+    group.name = block.name;
 
-    return mesh;
+    return group;
   };
 
   /**
@@ -1271,22 +1345,59 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
+   * Get a material by a given block and a side/face of the block. If this material does not exist, it will be created.
+   *
+   * @param block The block to get the material for.
+   * @param face The face of the block to get the material for.
+   * @returns The material for the given block and face.
+   */
+  getMaterialByBlockFace = (block: Block, face: Block["faces"][number]) => {
+    const identifier = `${block.name.toLowerCase()}${
+      face.highRes ? HIGH_RES_TICKET : ""
+    }${face.name.toLowerCase()}`;
+
+    return this.getMaterialByIdentifier(identifier, block.isSeeThrough);
+  };
+
+  /**
    * Get the high resolution texture atlas of a certain block face by identifier.
    *
    * @param identifier The identifier of the block face.
    * @returns The {@link TextureAtlas} instance linked to the block face.
    */
-  getHighResTextureByIdentifier = (identifier: string) => {
+  getAtlasByIdentifier = (identifier: string) => {
     const [name, side] = identifier.split(HIGH_RES_TICKET);
+
+    // This means this is not a high res texture
+    if (!side) {
+      return this.atlas;
+    }
+
     const sideName = Registry.makeSideName(name, side);
     return this.highResTextures.get(sideName);
   };
 
   /**
+   * Get the high resolution texture atlas of a certain block face by the block face itself.
+   *
+   * @param block The block to get the high resolution texture atlas for.
+   * @param face The face of the block to get the high resolution texture atlas for.
+   * @returns The {@link TextureAtlas} instance linked to the block face.
+   */
+  getAtlasByBlockFace = (block: Block, face: Block["faces"][number]) => {
+    const identifier = `${block.name.toLowerCase()}${
+      face.highRes ? HIGH_RES_TICKET : ""
+    }${face.name.toLowerCase()}`;
+
+    return this.getAtlasByIdentifier(identifier);
+  };
+
+  /**
    * Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
    * blocks such as grass to wave in the wind. Keep in mind that higher resolution block faces are separated from
-   * its vanilla counterpart. In other words, with this method, you can only overwrite the material of the block
-   * faces that has not been separated or turned into higher resolution.
+   * its vanilla counterpart, as their identifier would be different from their non-high-resolution counterpart.
+   * In other words, with this method, you can only overwrite the material of the block faces that has not been
+   * separated or turned into higher resolution.
    *
    * @param identifier The identifier of the block face. By default, should be the block's name.
    * @param shaders The shaders to use for the block.
@@ -1346,13 +1457,8 @@ export class World extends Scene implements NetIntercept {
         mat.alphaTest = 0.1;
       }
 
-      if (isHighRes) {
-        const existing = this.getHighResTextureByIdentifier(identifier);
-
-        if (existing) mat.map = existing.texture;
-      } else if (this.atlas && this.atlas.texture) {
-        mat.map = this.atlas.texture;
-      }
+      const atlas = this.getAtlasByIdentifier(identifier);
+      if (atlas) mat.map = atlas.texture;
 
       mat.uniforms.map = { value: mat.map };
       mat.highRes = isHighRes;
@@ -1964,9 +2070,7 @@ export class World extends Scene implements NetIntercept {
     this.uniforms.atlas.value = this.atlas.texture;
 
     const applyAtlas = (mat: CustomShaderMaterial) => {
-      if (mat.highRes)
-        mat.map = this.getHighResTextureByIdentifier(mat.name).texture;
-      else mat.map = this.atlas.texture;
+      mat.map = this.getAtlasByIdentifier(mat.name)?.texture;
 
       mat.uniforms.map = { value: mat.map };
       mat.needsUpdate = true;

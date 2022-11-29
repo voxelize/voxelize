@@ -28,7 +28,7 @@ ___
 
 ### opaque
 
-• **opaque**: `Map`<`number`, `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>\>
+• **opaque**: `Map`<`number`, `Mesh`<`BufferGeometry`, `Material` \| `Material`[]\>[][]\>
 
 The map for opaque sub-chunk meshes in this chunk.
 
@@ -75,7 +75,7 @@ ___
 
 ### set
 
-▸ **set**(`meshData`, `materials`): `void`
+▸ **set**(`meshData`, `world`): `void`
 
 Set the chunk mesh's data from a protocol.
 
@@ -84,11 +84,7 @@ Set the chunk mesh's data from a protocol.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `meshData` | `MeshProtocol` | The data generated from the server. |
-| `materials` | `Object` | The shared chunk materials. |
-| `materials.opaque?` | `Material` | - |
-| `materials.transparent?` | `Object` | - |
-| `materials.transparent.back` | `Material` | - |
-| `materials.transparent.front` | `Material` | - |
+| `world` | [`World`](World.md) | - |
 
 #### Returns
 

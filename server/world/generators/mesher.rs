@@ -279,6 +279,8 @@ impl Mesher {
                         let uv_map = registry.get_uv_map(block);
 
                         faces.iter().for_each(|face| {
+                            // If the face is high resolution, we need to generate a new mesh for it by creating
+                            // a separate special identifier for it.
                             let identifier = if face.high_res {
                                 format!(
                                     "{}{}{}",

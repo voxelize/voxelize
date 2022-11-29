@@ -90,7 +90,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `identifier` | `number` |
+| `identifier` | `string` |
 | `indices` | `number`[] |
 | `lights` | `number`[] |
 | `positions` | `number`[] |
@@ -107,7 +107,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `level` | `number` |
-| `opaque` | [`GeometryProtocol`](modules.md#geometryprotocol) |
+| `opaque` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
 | `transparent` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
 
 ___
