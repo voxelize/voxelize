@@ -4,7 +4,7 @@ import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
 import replace from "@rollup/plugin-replace";
-import copy from "rollup-plugin-copy";
+import copy from "rollup-plugin-copy-watch";
 import glslify from "rollup-plugin-glslify";
 import peerDepsExternal from "rollup-plugin-peer-deps-external";
 import swc from "rollup-plugin-swc3";
@@ -60,7 +60,7 @@ export default {
     workerLoader({
       targetPlatform: "browser",
       extensions: [".ts"],
-      skipPlugins: ["liveServer", "serve", "livereload", "copy"],
+      skipPlugins: ["liveServer", "serve", "livereload", "copy+watch"],
     }),
     resolve({
       browser: true,
@@ -79,6 +79,7 @@ export default {
     }),
     glslify(),
     copy({
+      watch: "src/styles.css",
       targets: [
         {
           src: path.resolve(__dirname, "src/styles.css"),
@@ -89,5 +90,5 @@ export default {
     ...(process.env.ROLLUP_WATCH ? [] : [terser()]),
   ],
   external: Object.keys(globals),
-  watch: { clearScreen: false },
+  watch: { clearScreen: false, include: "src/**" },
 };

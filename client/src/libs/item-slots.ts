@@ -4,9 +4,6 @@ import { OrthographicCamera, Scene, sRGBEncoding, WebGLRenderer } from "three";
 import { World } from "../core/world/index";
 import { DOMUtils } from "../utils";
 
-const SLOT_SIZE = 40; // px
-const BORDER_COLOR = "#393B44";
-
 export type ItemSlotsParams = {
   wrapperClass: string;
   wrapperStyles: Partial<CSSStyleDeclaration>;
@@ -238,10 +235,6 @@ export class ItemSlots {
 
         slot.applyStyles({
           position: "absolute",
-          margin: `${slotMargin}px`,
-          padding: `${slotPadding}px`,
-          width: `${slotWidth}px`,
-          height: `${slotHeight}px`,
           top: `${
             (slotHeight + slotMargin * 2 + slotPadding * 2) * row + slotMargin
           }px`,
