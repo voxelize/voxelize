@@ -16,6 +16,7 @@ export class DOMUtils {
     style: Partial<CSSStyleDeclaration>
   ) => {
     if (!ele) return;
+
     Object.keys(style).forEach((key: string) => {
       // @ts-ignore
       const attribute = style[key];

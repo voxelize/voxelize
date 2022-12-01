@@ -442,13 +442,8 @@ impl Mesher {
                 positions.push(pos_y - min_y as f32 - dir[1] as f32 * scale);
                 positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
 
-                if *high_res {
-                    uvs.push(uv[0]);
-                    uvs.push(uv[1]);
-                } else {
-                    uvs.push(uv[0] * (end_u - start_u) + start_u);
-                    uvs.push(uv[1] * (end_v - start_v) + start_v);
-                }
+                uvs.push(uv[0] * (end_u - start_u) + start_u);
+                uvs.push(uv[1] * (end_v - start_v) + start_v);
 
                 // calculating the 8 voxels around this vertex
                 let dx = pos[0].round() as i32;

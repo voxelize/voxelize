@@ -1,0 +1,70 @@
+:root {
+  --item-slots-slot-size: 40px;
+  --item-slots-slot-margin: 2px;
+  --item-slots-slot-padding: 2px;
+  --item-slots-slot-color: #393b44;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  ITEM BAR                                  */
+/* -------------------------------------------------------------------------- */
+.item-slots {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-slots-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: -1;
+  border-radius: calc(var(--item-slots-slot-size) * 0.1);
+  background: rgba(84, 140, 168, 0.05);
+  border-width: calc(var(--item-slots-slot-size) * 0.08);
+  border-style: solid;
+  border-color: var(--item-slots-slot-color);
+  box-shadow: inset 0 0 calc((--item-slots-slot-size) * 0.05)
+    var(--item-slots-slot-color);
+}
+
+.item-slots-slot-hover {
+  box-shadow: none;
+  border-color: #8d93ab;
+  transform: scale(1.06);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                    DEBUG                                   */
+/* -------------------------------------------------------------------------- */
+.debug-data {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  color: #eee;
+  background: #00000022;
+  padding: 4px;
+  z-index: 10000000000;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.debug-entries {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.debug-line {
+  font-size: 13.33333px;
+  margin: 0;
+}

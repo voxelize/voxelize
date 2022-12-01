@@ -216,9 +216,7 @@ const App = () => {
     });
     world.add(voxelInteract);
 
-    const debug = new VOXELIZE.Debug(document.body, {
-      showVoxelize: false,
-    });
+    const debug = new VOXELIZE.Debug(document.body);
 
     inputs.bind(
       "t",
@@ -453,6 +451,23 @@ const App = () => {
     //   );
     //   world.add(plane);
     // }, 1000);
+
+    // for (let i = 0; i < 30; i++) {
+    //   const canvas = portraits.add("fuck" + i, 500);
+    //   VOXELIZE.DOMUtils.applyStyles(canvas, {
+    //     position: "fixed",
+    //     top: `${Math.floor(i / 10) * 100}px`,
+    //     right: `${(i % 10) * 100}px`,
+    //     zIndex: "10000000000000000",
+    //     background: "black",
+    //   });
+    //   document.body.appendChild(canvas);
+    // }
+
+    const bar = new VOXELIZE.ItemSlots(world, {
+      horizontalCount: 9,
+    });
+    document.body.appendChild(bar.element);
 
     world.overwriteMaterialByIdentifier(
       "Grass",

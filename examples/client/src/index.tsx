@@ -1,6 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+
+import "@voxelize/client/styles.css";
 import "./index.css";
+
 import App from "./containers/App";
 import reportWebVitals from "./reportWebVitals";
 

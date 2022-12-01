@@ -26,7 +26,7 @@ export type DebugParams = {
   /**
    * A class to add to the wrapper of all debug entries.
    */
-  entryClass: string;
+  entriesClass: string;
 
   /**
    * Styles to apply to each of the debug entry line (top left).
@@ -58,11 +58,11 @@ const defaultParams: DebugParams = {
   stats: true,
   onByDefault: true,
   entryStyles: {},
-  entryClass: "",
+  entriesClass: "debug-entries",
   lineStyles: {},
-  lineClass: "",
+  lineClass: "debug-line",
   dataStyles: {},
-  dataClass: "",
+  dataClass: "debug-data",
   showVoxelize: true,
 };
 
@@ -109,7 +109,7 @@ export class Debug extends Group {
   /**
    * A HTML element wrapping all registered debug entries.
    */
-  public entryWrapper: HTMLDivElement;
+  public entriesWrapper: HTMLDivElement;
 
   /**
    * The DOM element to append the debug panel to. Defaults to `document.body`.
@@ -177,7 +177,7 @@ export class Debug extends Group {
     };
 
     this.dataEntries.push(newEntry);
-    this.entryWrapper.insertBefore(wrapper, this.entryWrapper.firstChild);
+    this.entriesWrapper.insertBefore(wrapper, this.entriesWrapper.firstChild);
 
     return this;
   };
@@ -192,7 +192,7 @@ export class Debug extends Group {
     const entry = this.dataEntries.splice(index, 1)[0];
 
     if (entry) {
-      this.entryWrapper.removeChild(entry.element);
+      this.entriesWrapper.removeChild(entry.element);
     }
   };
 
@@ -206,7 +206,7 @@ export class Debug extends Group {
     const newline = this.makeDataEntry(true);
 
     newline.textContent = title;
-    this.entryWrapper.insertBefore(newline, this.entryWrapper.firstChild);
+    this.entriesWrapper.insertBefore(newline, this.entriesWrapper.firstChild);
 
     return this;
   };
@@ -218,7 +218,7 @@ export class Debug extends Group {
    */
   displayNewline = () => {
     const newline = this.makeDataEntry(true);
-    this.entryWrapper.insertBefore(newline, this.entryWrapper.firstChild);
+    this.entriesWrapper.insertBefore(newline, this.entriesWrapper.firstChild);
     return this;
   };
 
@@ -230,14 +230,14 @@ export class Debug extends Group {
   toggle = (force = null) => {
     this.visible = force !== null ? force : !this.visible;
 
-    const visibility = this.entryWrapper.style.visibility;
+    const visibility = this.entriesWrapper.style.visibility;
     const newVisibility = force
       ? "visible"
       : visibility === "visible"
       ? "hidden"
       : "visible";
 
-    this.entryWrapper.style.visibility = newVisibility;
+    this.entriesWrapper.style.visibility = newVisibility;
     this.dataWrapper.style.visibility = newVisibility;
 
     if (this.stats) {
@@ -273,15 +273,13 @@ export class Debug extends Group {
    */
   private makeDataEntry = (newline = false) => {
     const dataEntry = document.createElement("p");
-    if (this.params.lineClass) {
-      dataEntry.classList.add(this.params.lineClass);
-    }
+    dataEntry.classList.add(this.params.lineClass);
+
     DOMUtils.applyStyles(dataEntry, {
-      fontSize: "13.3333px",
-      margin: "0",
       ...(newline ? { height: "16px" } : {}),
       ...(this.params.lineStyles || {}),
     });
+
     return dataEntry;
   };
 
@@ -290,41 +288,14 @@ export class Debug extends Group {
    */
   private makeDOM = () => {
     this.dataWrapper = document.createElement("div");
+    this.dataWrapper.id = "data-wrapper";
+    this.dataWrapper.classList.add(this.params.dataClass);
 
-    if (this.params.dataClass) {
-      this.dataWrapper.classList.add(this.params.dataClass);
-    }
+    this.entriesWrapper = document.createElement("div");
+    this.entriesWrapper.classList.add(this.params.entriesClass);
 
-    this.entryWrapper = document.createElement("div");
-    this.entryWrapper.id = "data-wrapper";
-
-    if (this.params.entryClass) {
-      this.entryWrapper.classList.add(this.params.entryClass);
-    }
-
-    DOMUtils.applyStyles(this.dataWrapper, {
-      position: "fixed",
-      top: "10px",
-      left: "10px",
-      color: "#eee",
-      background: "#00000022",
-      padding: "4px",
-      zIndex: "1000000000000",
-      display: "flex",
-      flexDirection: "column",
-      borderRadius: "4px",
-      overflow: "hidden",
-      gap: "8px",
-      ...(this.params.dataStyles || {}),
-    });
-
-    DOMUtils.applyStyles(this.entryWrapper, {
-      display: "flex",
-      flexDirection: "column-reverse",
-      alignItems: "flex-start",
-      justifyContent: "flex-start",
-      ...(this.params.entryStyles || {}),
-    });
+    DOMUtils.applyStyles(this.dataWrapper, this.params.dataStyles);
+    DOMUtils.applyStyles(this.entriesWrapper, this.params.entryStyles);
 
     if (this.params.stats) {
       this.stats = Stats();
@@ -346,7 +317,6 @@ export class Debug extends Group {
   private setup = () => {
     if (this.params.showVoxelize) {
       this.displayTitle(`Voxelize ${"__buildVersion__"}`);
-      this.displayNewline();
     }
   };
 
@@ -354,7 +324,7 @@ export class Debug extends Group {
    * Mount the debug panel to the DOM.
    */
   private mount = () => {
-    this.dataWrapper.appendChild(this.entryWrapper);
+    this.dataWrapper.appendChild(this.entriesWrapper);
 
     if (this.stats) {
       this.dataWrapper.appendChild(this.stats?.dom);

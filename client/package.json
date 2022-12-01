@@ -32,7 +32,8 @@
     "@types/omggif": "^1.0.3",
     "@types/three": "^0.141.0",
     "@types/uuid": "^8.3.4",
-    "postprocessing": "^6.29.0"
+    "postprocessing": "^6.29.0",
+    "rollup-plugin-copy": "^3.4.0"
   },
   "dependencies": {
     "@tweenjs/tween.js": "^18.6.4",

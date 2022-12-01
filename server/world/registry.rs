@@ -36,7 +36,7 @@ pub struct Registry {
     pub blocks_by_id: HashMap<u32, Block>,
 
     /// List of textures that this registry has. Textures are then applied onto block sides.
-    pub textures: HashSet<String>,
+    pub textures: HashSet<(String, bool)>,
 
     /// Map of ID -> name.
     name_map: HashMap<u32, String>,
@@ -69,7 +69,20 @@ impl Registry {
         let mut row = 0;
         let mut col = 0;
 
-        for texture in self.textures.iter() {
+        for (texture, high_res) in self.textures.iter() {
+            if *high_res {
+                self.ranges.insert(
+                    texture.to_owned(),
+                    UV {
+                        start_u: 0.0,
+                        end_u: 1.0,
+                        start_v: 0.0,
+                        end_v: 1.0,
+                    },
+                );
+                continue;
+            }
+
             if col >= count_per_side {
                 col = 0;
                 row += 1;
@@ -287,7 +300,7 @@ impl Registry {
 
         for side in faces.iter() {
             let side_name = Registry::make_side_name(name, side);
-            self.textures.insert(side_name);
+            self.textures.insert((side_name, side.high_res));
         }
     }
 

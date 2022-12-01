@@ -1268,23 +1268,14 @@ export class World extends Scene implements NetIntercept {
         Registry.makeSideName(block.name, name)
       );
 
-      if (highRes) {
-        startU = 0.0;
-        endU = 1.0;
-        startV = 0.0;
-        endV = 1.0;
-      }
-
       if (crumbs) {
-        const newStartU = startU + ((endU - startU) / 2) * Math.random();
-        const newEndU = endU - ((endU - startU) / 2) * Math.random();
-        const newStartV = startV + ((endV - startV) / 2) * Math.random();
-        const newEndV = endV - ((endV - startV) / 2) * Math.random();
-
-        startU = newStartU;
-        endU = newEndU;
-        startV = newStartV;
-        endV = newEndV;
+        if (Math.random() < 0.5) {
+          startU = startU + ((endU - startU) / 2) * Math.random();
+          endV = endV - ((endV - startV) / 2) * Math.random();
+        } else {
+          endU = endU - ((endU - startU) / 2) * Math.random();
+          startV = startV + ((endV - startV) / 2) * Math.random();
+        }
       }
 
       corners.forEach(({ uv, pos }) => {

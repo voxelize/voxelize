@@ -31,6 +31,8 @@ const defaultParams: ShadowParams = {
 
 /**
  * A shadow that is just a circle underneath an object that scales smaller with distance. Shadows ignore fluids.
+ *
+ * @noInheritDoc
  */
 export class Shadow extends Mesh {
   /**

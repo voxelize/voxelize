@@ -257,8 +257,10 @@ export class BoxLayer extends Mesh {
           })`;
           context.fillRect(0, 0, width, height);
           context.restore();
-        } else {
+        } else if (typeof art === "function") {
           art(context, canvas);
+        } else {
+          console.log(art);
         }
       }
 
