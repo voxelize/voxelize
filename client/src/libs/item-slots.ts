@@ -56,7 +56,7 @@ const defaultParams: ItemSlotsParams = {
   perspective: "pxyz",
 };
 
-export class ItemSlot {
+export class ItemSlot<T = number> {
   public row: number;
 
   public col: number;
@@ -73,7 +73,7 @@ export class ItemSlot {
 
   public countElement: HTMLDivElement;
 
-  public content: number;
+  public content: T;
 
   public count: number;
 
@@ -109,7 +109,7 @@ export class ItemSlot {
     this.camera.far = zoom * 3 + 1;
   };
 
-  setContent = (content: number, count: number) => {
+  setContent = (content: T, count: number) => {
     this.content = content;
     this.count = count;
 
@@ -152,7 +152,7 @@ export class ItemSlot {
   };
 }
 
-export class ItemSlots {
+export class ItemSlots<T = number> {
   public params: ItemSlotsParams;
 
   public world: World;
@@ -203,10 +203,11 @@ export class ItemSlots {
   public slotTotalHeight =
     this.slotHeight + this.slotMargin * 2 + this.slotPadding;
 
-  public onSlotClick: (slot: ItemSlot) => void = noop;
-  public onFocusChange: (prevSlot: ItemSlot, nextSlot: ItemSlot) => void = noop;
+  public onSlotClick: (slot: ItemSlot<T>) => void = noop;
+  public onFocusChange: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void =
+    noop;
 
-  private slots: ItemSlot[][];
+  private slots: ItemSlot<T>[][];
 
   private animationFrame = -1;
 
@@ -253,7 +254,7 @@ export class ItemSlots {
     cancelAnimationFrame(this.animationFrame);
   };
 
-  setContent = (row: number, col: number, content: number, count: number) => {
+  setContent = (row: number, col: number, content: T, count: number) => {
     const slot = this.slots[row][col];
     slot.setContent(content, count);
   };
@@ -476,7 +477,7 @@ export class ItemSlots {
       this.slots[row] = [];
 
       for (let col = 0; col < horizontalCount; col++) {
-        const slot = new ItemSlot(row, col);
+        const slot = new ItemSlot<T>(row, col);
 
         slot.applyClass(slotClass);
         slot.applyStyles(slotStyles);

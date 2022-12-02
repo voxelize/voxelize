@@ -229,6 +229,7 @@ export class Registry {
     for (const face of faces) {
       if (face.highRes || face.animated) {
         block.independentFaces.add(face.name);
+        face.independent = true;
       }
     }
 

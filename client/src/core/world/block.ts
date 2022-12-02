@@ -87,6 +87,7 @@ export type Block = {
     dir: number[];
     highRes: boolean;
     animated: boolean;
+    independent: boolean;
     name: string;
   }[];
 

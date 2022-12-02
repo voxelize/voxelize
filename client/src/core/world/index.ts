@@ -1344,7 +1344,7 @@ export class World extends Scene implements NetIntercept {
    */
   getMaterialByBlockFace = (block: Block, face: Block["faces"][number]) => {
     const identifier = `${block.name.toLowerCase()}${
-      face.highRes || face.animated ? INDEPENDENT_FACE : ""
+      face.independent ? INDEPENDENT_FACE : ""
     }${face.name.toLowerCase()}`;
 
     return this.getMaterialByIdentifier(identifier, block.isSeeThrough);
@@ -1377,7 +1377,7 @@ export class World extends Scene implements NetIntercept {
    */
   getAtlasByBlockFace = (block: Block, face: Block["faces"][number]) => {
     const identifier = `${block.name.toLowerCase()}${
-      face.highRes || face.animated ? INDEPENDENT_FACE : ""
+      face.independent ? INDEPENDENT_FACE : ""
     }${face.name.toLowerCase()}`;
 
     return this.getAtlasByIdentifier(identifier);
@@ -1999,11 +1999,14 @@ export class World extends Scene implements NetIntercept {
           : null
       ) as any;
 
+      const face = block.faces.find((f) => f.name === side);
+
       // If block is high resolution, create a separate texture atlas for it. This
       // will be a single-imaged texture atlas.
       if (block.independentFaces.has(side)) {
-        const resolution =
-          this.highResolutions.get(sideName) || this.params.textureDimension;
+        const resolution = face.highRes
+          ? this.highResolutions.get(sideName) || this.params.textureDimension
+          : this.params.textureDimension;
         const atlas = TextureAtlas.createSingle(sideName, actualSource, {
           dimension: resolution,
         });
