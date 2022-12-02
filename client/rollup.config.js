@@ -79,7 +79,10 @@ export default {
     }),
     glslify(),
     copy({
-      watch: "src/styles.css",
+      watch: process.env.ROLLUP_WATCH
+        ? path.resolve(__dirname, "src/**/*")
+        : false,
+      copyOnce: true,
       targets: [
         {
           src: path.resolve(__dirname, "src/styles.css"),
@@ -90,5 +93,5 @@ export default {
     ...(process.env.ROLLUP_WATCH ? [] : [terser()]),
   ],
   external: Object.keys(globals),
-  watch: { clearScreen: false, include: "src/**" },
+  watch: { clearScreen: false, include: "src/**/*" },
 };

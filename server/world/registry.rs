@@ -300,7 +300,8 @@ impl Registry {
 
         for side in faces.iter() {
             let side_name = Registry::make_side_name(name, side);
-            self.textures.insert((side_name, side.high_res));
+            self.textures
+                .insert((side_name, side.high_res || side.animated));
         }
     }
 

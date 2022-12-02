@@ -534,10 +534,16 @@ export class RigidControls extends EventEmitter {
    * - Key up/down events
    * - Control lock/unlock events
    *
+   * This function returns a function that can be called to disconnect the controls.
+   * Keep in mind that if {@link Inputs.remap} is used to remap any controls, they will
+   * not be unbound when the returned function is called.
+   *
    * @params inputs {@link Inputs} instance to bind the controls to.
    * @params namespace The namespace to bind the controls to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
+    const unbinds = [];
+
     this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
       this.onMouseMove(event);
     });
@@ -548,8 +554,25 @@ export class RigidControls extends EventEmitter {
       "pointerlockerror",
       this.onPointerlockError
     );
-
     this.domElement.addEventListener("click", this.onDocumentClick);
+
+    unbinds.push(() => {
+      this.domElement.removeEventListener("mousemove", (event: MouseEvent) => {
+        this.onMouseMove(event);
+      });
+      this.domElement.ownerDocument.removeEventListener(
+        "pointerlockchange",
+        () => {
+          this.onPointerlockChange();
+        }
+      );
+      this.domElement.ownerDocument.removeEventListener(
+        "pointerlockerror",
+        this.onPointerlockError
+      );
+
+      this.domElement.removeEventListener("click", this.onDocumentClick);
+    });
 
     [
       ["r", "sprint"],
@@ -560,70 +583,44 @@ export class RigidControls extends EventEmitter {
       [" ", "up"],
       ["shift", "down"],
     ].forEach(([key, movement]) => {
-      inputs.bind(
-        key,
-        () => {
-          if (!this.isLocked) return;
-          this.movements[movement] = true;
-        },
-        namespace,
-        {
-          identifier: RigidControls.INPUT_IDENTIFIER,
-        }
+      unbinds.push(
+        inputs.bind(
+          key,
+          () => {
+            if (!this.isLocked) return;
+            this.movements[movement] = true;
+          },
+          namespace,
+          {
+            identifier: RigidControls.INPUT_IDENTIFIER,
+          }
+        )
       );
 
-      inputs.bind(
-        key,
-        () => {
-          if (!this.isLocked) return;
-          this.movements[movement] = false;
-        },
-        namespace,
-        { occasion: "keyup", identifier: RigidControls.INPUT_IDENTIFIER }
+      unbinds.push(
+        inputs.bind(
+          key,
+          () => {
+            if (!this.isLocked) return;
+            this.movements[movement] = false;
+          },
+          namespace,
+          { occasion: "keyup", identifier: RigidControls.INPUT_IDENTIFIER }
+        )
       );
     });
 
     this.inputs = inputs;
-  };
 
-  /**
-   * Removes all event listeners for controls, including:
-   * - Mouse move event
-   * - Pointer-lock events
-   * - Canvas click event
-   * - Key up/down events
-   * - Control lock/unlock events
-   */
-  disconnect = () => {
-    this.domElement.removeEventListener("mousemove", (event: MouseEvent) => {
-      this.onMouseMove(event);
-    });
-    this.domElement.ownerDocument.removeEventListener(
-      "pointerlockchange",
-      () => {
-        this.onPointerlockChange();
-      }
-    );
-    this.domElement.ownerDocument.removeEventListener(
-      "pointerlockerror",
-      this.onPointerlockError
-    );
-
-    this.domElement.removeEventListener("click", this.onDocumentClick);
-
-    if (this.inputs) {
-      ["r", "w", "a", "s", "d", " ", "shift"].forEach(([key]) => {
-        this.inputs.unbind(key, { identifier: RigidControls.INPUT_IDENTIFIER });
-        this.inputs.unbind(key, {
-          identifier: RigidControls.INPUT_IDENTIFIER,
-          occasion: "keyup",
-        });
+    return () => {
+      unbinds.forEach((unbind) => {
+        try {
+          unbind();
+        } catch (e) {
+          /// Ignore
+        }
       });
-    } else {
-      console.warn(
-        "Disconnecting controls without connecting it first (no Inputs found)."
-      );
-    }
+    };
   };
 
   /**
@@ -772,13 +769,6 @@ export class RigidControls extends EventEmitter {
     this.object.rotation.set(0, 0, 0);
 
     this.resetMovements();
-  };
-
-  /**
-   * Disposal of `Controls`, disconnects all event listeners.
-   */
-  dispose = () => {
-    this.disconnect();
   };
 
   /**

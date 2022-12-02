@@ -44,8 +44,6 @@ export class BlockPortraits {
     }
   >();
 
-  private index = 0;
-
   constructor(world: World) {
     this.world = world;
 
@@ -103,18 +101,18 @@ export class BlockPortraits {
       } else if (count % 5 === 3) {
         const rendererCanvas = this.renderer.domElement;
         const ctx = canvas.getContext("2d");
-        // ctx.globalCompositeOperation = "copy";
-        // ctx.drawImage(
-        //   rendererCanvas,
-        //   0,
-        //   rendererCanvas.height - height,
-        //   width,
-        //   height,
-        //   0,
-        //   0,
-        //   width,
-        //   height
-        // );
+        ctx.globalCompositeOperation = "copy";
+        ctx.drawImage(
+          rendererCanvas,
+          0,
+          rendererCanvas.height - height,
+          width,
+          height,
+          0,
+          0,
+          width,
+          height
+        );
       }
     };
 
@@ -135,22 +133,18 @@ export class BlockPortraits {
   };
 
   update = () => {
-    Array.from(this.portraits.values())
-      // .slice(this.index, this.index + 4)
-      .forEach((portrait) => {
-        if (!portrait.initialized) {
-          const mesh = this.world.makeBlockMesh(portrait.id);
-          if (mesh) {
-            portrait.scene.add(mesh);
-            portrait.initialized = true;
-          } else {
-            return;
-          }
+    this.portraits.forEach((portrait) => {
+      if (!portrait.initialized) {
+        const mesh = this.world.makeBlockMesh(portrait.id);
+        if (mesh) {
+          portrait.scene.add(mesh);
+          portrait.initialized = true;
+        } else {
+          return;
         }
+      }
 
-        portrait.render();
-      });
-
-    this.index = (this.index + 4) % this.portraits.size;
+      portrait.render();
+    });
   };
 }

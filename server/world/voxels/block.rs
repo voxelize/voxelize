@@ -298,15 +298,23 @@ pub struct CornerData {
 pub struct BlockFace {
     pub name: String,
     pub high_res: bool,
+    pub animated: bool,
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
 }
 
 impl BlockFace {
-    pub fn new(name: String, high_res: bool, dir: [i32; 3], corners: [CornerData; 4]) -> Self {
+    pub fn new(
+        name: String,
+        high_res: bool,
+        animated: bool,
+        dir: [i32; 3],
+        corners: [CornerData; 4],
+    ) -> Self {
         Self {
             name,
             high_res,
+            animated,
             dir,
             corners,
         }
@@ -314,6 +322,10 @@ impl BlockFace {
 
     pub fn into_high_res(&mut self) {
         self.high_res = true;
+    }
+
+    pub fn into_animated(&mut self) {
+        self.animated = true;
     }
 }
 
@@ -339,6 +351,15 @@ impl BlockFaces {
         }
 
         self.faces[index].into_high_res();
+        self
+    }
+
+    pub fn animated_at(mut self, index: usize) -> Self {
+        if index >= self.faces.len() {
+            return self;
+        }
+
+        self.faces[index].into_animated();
         self
     }
 
@@ -491,6 +512,7 @@ impl DiagonalFacesBuilder {
                 name: make_name("one"),
                 dir: [0, 0, 0],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -522,6 +544,7 @@ impl DiagonalFacesBuilder {
                 name: make_name("two"),
                 dir: [0, 0, 0],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -726,6 +749,7 @@ impl SixFacesBuilder {
                 name: make_name("px"),
                 dir: [1, 0, 0],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [
@@ -756,6 +780,7 @@ impl SixFacesBuilder {
                 name: make_name("py"),
                 dir: [0, 1, 0],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -786,6 +811,7 @@ impl SixFacesBuilder {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -816,6 +842,7 @@ impl SixFacesBuilder {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -842,6 +869,7 @@ impl SixFacesBuilder {
                 name: make_name("ny"),
                 dir: [0, -1, 0],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -868,6 +896,7 @@ impl SixFacesBuilder {
                 name: make_name("nz"),
                 dir: [0, 0, -1],
                 high_res: false,
+                animated: false,
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
@@ -950,7 +979,7 @@ impl Neighbors {
     }
 }
 
-pub const HIGH_RES_TICKET: &str = "_highres_";
+pub const INDEPENDENT_FACE: &str = "_iface_";
 
 /// Serializable struct representing block data.
 #[derive(Clone, Serialize, Deserialize)]
@@ -1295,8 +1324,8 @@ impl BlockBuilder {
 
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
-        if self.name.contains(HIGH_RES_TICKET) {
-            panic!("The suffix of a block name cannot be '{HIGH_RES_TICKET}' as it is reserved.");
+        if self.name.contains(INDEPENDENT_FACE) {
+            panic!("The suffix of a block name cannot be '{INDEPENDENT_FACE}' as it is a reserved keyword.");
         }
 
         Block {

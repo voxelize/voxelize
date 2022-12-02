@@ -97,7 +97,7 @@ const defaultParams: WorldClientParams = {
 
 export type WorldParams = WorldClientParams & WorldServerParams;
 
-export const HIGH_RES_TICKET = "_highres_";
+export const INDEPENDENT_FACE = "_iface_";
 
 /**
  * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
@@ -186,7 +186,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * A map of specific high-resolution block faces.
    */
-  public highResTextures: Map<string, TextureAtlas> = new Map();
+  public independentTextures: Map<string, TextureAtlas> = new Map();
 
   /**
    * The WebGL uniforms that are used in the chunk shader.
@@ -1234,10 +1234,10 @@ export class World extends Scene implements NetIntercept {
     faces.forEach((face, index) => {
       const faceScale = crumbs && separateFaces ? Math.random() + 0.5 : 1;
 
-      const { corners, name, highRes } = face;
+      const { corners, name, highRes, animated } = face;
 
       const identifier = `${block.name}${
-        highRes ? HIGH_RES_TICKET + name : ""
+        highRes || animated ? INDEPENDENT_FACE + name : ""
       }${separateFaces ? `-${index}` : ""}`.toLowerCase();
 
       let geometry = geometries.get(identifier);
@@ -1344,7 +1344,7 @@ export class World extends Scene implements NetIntercept {
    */
   getMaterialByBlockFace = (block: Block, face: Block["faces"][number]) => {
     const identifier = `${block.name.toLowerCase()}${
-      face.highRes ? HIGH_RES_TICKET : ""
+      face.highRes || face.animated ? INDEPENDENT_FACE : ""
     }${face.name.toLowerCase()}`;
 
     return this.getMaterialByIdentifier(identifier, block.isSeeThrough);
@@ -1357,7 +1357,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The {@link TextureAtlas} instance linked to the block face.
    */
   getAtlasByIdentifier = (identifier: string) => {
-    const [name, side] = identifier.split(HIGH_RES_TICKET);
+    const [name, side] = identifier.split(INDEPENDENT_FACE);
 
     // This means this is not a high res texture
     if (!side) {
@@ -1365,7 +1365,7 @@ export class World extends Scene implements NetIntercept {
     }
 
     const sideName = Registry.makeSideName(name, side);
-    return this.highResTextures.get(sideName);
+    return this.independentTextures.get(sideName);
   };
 
   /**
@@ -1377,7 +1377,7 @@ export class World extends Scene implements NetIntercept {
    */
   getAtlasByBlockFace = (block: Block, face: Block["faces"][number]) => {
     const identifier = `${block.name.toLowerCase()}${
-      face.highRes ? HIGH_RES_TICKET : ""
+      face.highRes || face.animated ? INDEPENDENT_FACE : ""
     }${face.name.toLowerCase()}`;
 
     return this.getAtlasByIdentifier(identifier);
@@ -1434,8 +1434,6 @@ export class World extends Scene implements NetIntercept {
       return mats.get(identifier);
     }
 
-    const isHighRes = identifier.includes(HIGH_RES_TICKET);
-
     const make = () => {
       const mat = this.makeShaderMaterial(
         data.fragmentShader || DEFAULT_CHUNK_SHADERS.fragment,
@@ -1452,7 +1450,6 @@ export class World extends Scene implements NetIntercept {
       if (atlas) mat.map = atlas.texture;
 
       mat.uniforms.map = { value: mat.map };
-      mat.highRes = isHighRes;
       mat.name = identifier;
       mat.needsUpdate = true;
 
@@ -1611,7 +1608,6 @@ export class World extends Scene implements NetIntercept {
     this.emitServerUpdates();
 
     this.updatePhysics(delta);
-
     this.updateUniforms();
 
     this.callTick++;
@@ -2005,13 +2001,13 @@ export class World extends Scene implements NetIntercept {
 
       // If block is high resolution, create a separate texture atlas for it. This
       // will be a single-imaged texture atlas.
-      if (block.highResFaces.has(side)) {
+      if (block.independentFaces.has(side)) {
         const resolution =
           this.highResolutions.get(sideName) || this.params.textureDimension;
         const atlas = TextureAtlas.createSingle(sideName, actualSource, {
           dimension: resolution,
         });
-        this.highResTextures.set(sideName, atlas);
+        this.independentTextures.set(sideName, atlas);
         return;
       }
 
@@ -2032,7 +2028,13 @@ export class World extends Scene implements NetIntercept {
 
         const { block, side } = this.getBlockByTextureName(sideName);
 
-        if (block.highResFaces.has(side)) {
+        if (!block.faces.find((face) => face.name === side && face.animated)) {
+          throw new Error(
+            `Block "${block.name}" does not have animated face on side "${side}"`
+          );
+        }
+
+        if (block.independentFaces.has(side)) {
           const resolution =
             this.highResolutions.get(sideName) || this.params.textureDimension;
           const atlas = TextureAtlas.createSingle(
@@ -2042,7 +2044,7 @@ export class World extends Scene implements NetIntercept {
               dimension: resolution,
             }
           );
-          this.highResTextures.set(sideName, atlas);
+          this.independentTextures.set(sideName, atlas);
           return;
         }
 

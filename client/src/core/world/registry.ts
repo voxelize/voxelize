@@ -224,11 +224,11 @@ export class Registry {
 
     const lowerName = name.toLowerCase();
 
-    block.highResFaces = new Set();
+    block.independentFaces = new Set();
 
     for (const face of faces) {
-      if (face.highRes) {
-        block.highResFaces.add(face.name);
+      if (face.highRes || face.animated) {
+        block.independentFaces.add(face.name);
       }
     }
 

@@ -64,3 +64,28 @@ export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
     return a.id - b.id;
   }
 };
+
+/**
+ * Literally do nothing.
+ *
+ * @hidden
+ */
+export const noop = () => {
+  // Do nothing.
+};
+
+export type CameraPerspective =
+  | "px"
+  | "nx"
+  | "py"
+  | "ny"
+  | "pz"
+  | "nz"
+  | "pxy"
+  | "nxy"
+  | "pxz"
+  | "nxz"
+  | "pyz"
+  | "nyz"
+  | "pxyz"
+  | "nxyz";

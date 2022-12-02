@@ -334,11 +334,11 @@ const App = () => {
       "in-game"
     );
 
-    inputs.scroll(
-      () => (radius = Math.min(100, radius + 1)),
-      () => (radius = Math.max(1, radius - 1)),
-      "in-game"
-    );
+    // inputs.scroll(
+    //   () => (radius = Math.min(100, radius + 1)),
+    //   () => (radius = Math.max(1, radius - 1)),
+    //   "in-game"
+    // );
 
     inputs.bind(
       "b",
@@ -452,6 +452,8 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
+    // const portraits = new VOXELIZE.BlockPortraits(world);
+
     // for (let i = 0; i < 30; i++) {
     //   const canvas = portraits.add("fuck" + i, 500);
     //   VOXELIZE.DOMUtils.applyStyles(canvas, {
@@ -465,9 +467,28 @@ const App = () => {
     // }
 
     const bar = new VOXELIZE.ItemSlots(world, {
+      // verticalCount: 5,
       horizontalCount: 9,
     });
     document.body.appendChild(bar.element);
+
+    setTimeout(() => {
+      const mesh = world.makeBlockMesh(500);
+      bar.getSlot(0, 0)?.setObject(mesh);
+    }, 1000);
+
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9"].forEach((key) => {
+      inputs.bind(
+        key,
+        () => {
+          const index = parseInt(key);
+          bar.setFocused(0, index - 1);
+        },
+        "in-game"
+      );
+    });
+
+    bar.connect(inputs);
 
     world.overwriteMaterialByIdentifier(
       "Grass",
@@ -515,6 +536,7 @@ const App = () => {
               blockBreakParticles.update();
               lightShined.update();
               voxelInteract.update();
+              // portraits.update();
 
               composer.render();
             };

@@ -134,17 +134,27 @@ export class Perspective {
 
   /**
    * Connect the perspective to the given input manager. This will bind the perspective's keyboard inputs, which
-   * by default is <kbd>C</kbd> to switch between perspectives.
+   * by default is <kbd>C</kbd> to switch between perspectives. This function returns a function that when called
+   * unbinds the perspective's keyboard inputs. Keep in mind that remapping the original inputs will render this
+   * function useless.
    *
    * @param inputs The {@link Inputs} instance to bind the perspective's keyboard inputs to.
    * @param namespace The namespace to bind the perspective's keyboard inputs to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
-    inputs.bind("c", this.toggle, namespace, {
+    const unbind = inputs.bind("c", this.toggle, namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
     });
 
     this.inputs = inputs;
+
+    return () => {
+      try {
+        unbind();
+      } catch (e) {
+        // Ignore.
+      }
+    };
   };
 
   /**

@@ -86,6 +86,7 @@ export type Block = {
     corners: { pos: number[]; uv: number[] }[];
     dir: number[];
     highRes: boolean;
+    animated: boolean;
     name: string;
   }[];
 
@@ -123,9 +124,9 @@ export type Block = {
   };
 
   /**
-   * A set of block face names that are high resolution. This is generated on the client side.
+   * A set of block face names that are independent (high resolution or animated). This is generated on the client side.
    */
-  highResFaces: Set<string>;
+  independentFaces: Set<string>;
 };
 
 /**

@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFaces, Registry, Vec3, AABB, SIX_FACES_PZ};
+use voxelize::{Block, BlockFaces, Registry, Vec3, AABB, SIX_FACES_PY, SIX_FACES_PZ};
 
 const PLANT_SCALE: f32 = 0.6;
 
@@ -93,7 +93,12 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            .faces(&BlockFaces::six_faces().scale_y(0.8).build())
+            .faces(
+                &BlockFaces::six_faces()
+                    .scale_y(0.8)
+                    .build()
+                    .animated_at(SIX_FACES_PY),
+            )
             .dynamic_fn(|center, space, _| {
                 let Vec3(vx, vy, vz) = center;
 
@@ -111,6 +116,7 @@ pub fn setup_registry() -> Registry {
                     BlockFaces::six_faces()
                         .scale_y(if top_is_water { 1.0 } else { 0.8 })
                         .build()
+                        .animated_at(SIX_FACES_PY)
                         .to_vec(),
                     vec![AABB::new()
                         .scale_y(if top_is_water { 1.0 } else { 0.8 })
@@ -197,7 +203,8 @@ pub fn setup_registry() -> Registry {
                     .scale_z(0.1)
                     .offset_x(-1.5)
                     .build()
-                    .high_res_at(SIX_FACES_PZ),
+                    .high_res_at(SIX_FACES_PZ)
+                    .animated_at(SIX_FACES_PZ),
             )
             .aabbs(&[AABB::new().offset_x(0.4).scale_x(0.2).scale_z(0.1).build()])
             .rotatable(true)
