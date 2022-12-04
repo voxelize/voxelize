@@ -405,6 +405,18 @@ export class World extends Scene implements NetIntercept {
    * about the world. This method initializes the world with the given JSON data.
    */
   init = async () => {
+    if (this.initJSON === null) {
+      throw new Error(
+        "World has not received any initialization data. Remember to call `network.connect` and `network.join` first."
+      );
+    }
+
+    if (this.initialized) {
+      throw new Error(
+        "World has already been initialized. Do not call `world.init` twice."
+      );
+    }
+
     const { blocks, ranges, params } = this.initJSON;
 
     this.registry.load(blocks, ranges);

@@ -245,6 +245,15 @@ export class Peers<
   }
 
   /**
+   * Set the client's own username. This will be broadcasted to the server.
+   *
+   * @param username The username of the client.
+   */
+  setOwnUsername(username: string) {
+    this.ownUsername = username;
+  }
+
+  /**
    * Create a packet to send to the server. By default, this function sends the position and direction
    * as metadata to the server. Override this function to customize the information sent.
    *
