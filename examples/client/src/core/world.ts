@@ -36,7 +36,7 @@ import Water1Image from "../assets/pixel-perfection/water1.png";
 import Water2Image from "../assets/pixel-perfection/water2.png";
 import Water3Image from "../assets/pixel-perfection/water3.png";
 import Water4Image from "../assets/pixel-perfection/water4.png";
-// import FunnyGif from "../assets/funny.gif";
+import FunnyGif from "../assets/funny.gif";
 // import RandomGif from "../assets/random.gif";
 
 import { World } from "@voxelize/client";
@@ -48,7 +48,7 @@ export function setupWorld(world: World) {
 
   // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
 
-  // world.applyBlockGifByName("Sand", "nx", RandomGif);
+  world.applyBlockGifByName("Sand", "nx", FunnyGif);
   world.applyResolutionByName("Sand", "nx", 120);
 
   world.applyBlockAnimationByName(

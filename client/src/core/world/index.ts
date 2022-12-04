@@ -12,6 +12,7 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   Scene,
   ShaderLib,
   ShaderMaterial,
@@ -1201,20 +1202,26 @@ export class World extends Scene implements NetIntercept {
    *
    * @param id The ID of the block.
    * @param params The params of creating this block mesh.
+   * @param params.material The type of material to use for this generated mesh.
    * @param params.separateFaces: Whether or not to separate the faces of the block into different meshes.
    * @param params.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
    * @returns A 3D mesh (group) of the block model.
    */
   makeBlockMesh = (
     id: number,
-    params: Partial<{ separateFaces: boolean; crumbs: boolean }> = {}
+    params: Partial<{
+      separateFaces: boolean;
+      crumbs: boolean;
+      material: "basic" | "standard";
+    }> = {}
   ) => {
     const block = this.registry.getBlockById(id);
     if (!block) return null;
 
-    const { separateFaces, crumbs } = {
+    const { separateFaces, crumbs, material } = {
       separateFaces: false,
       crumbs: false,
+      material: "basic",
       ...params,
     };
 
@@ -1227,7 +1234,7 @@ export class World extends Scene implements NetIntercept {
         positions: number[];
         uvs: number[];
         indices: number[];
-        material: MeshBasicMaterial;
+        material: MeshStandardMaterial | MeshBasicMaterial;
       }
     >();
 
@@ -1245,12 +1252,17 @@ export class World extends Scene implements NetIntercept {
       if (!geometry) {
         const atlas = this.getAtlasByBlockFace(block, face);
 
-        const mat = new MeshBasicMaterial({
+        const matParams = {
           transparent: isSeeThrough,
           map: atlas?.texture,
           alphaTest: 0.3,
           side: DoubleSide,
-        });
+        };
+
+        const mat =
+          material === "basic"
+            ? new MeshBasicMaterial(matParams)
+            : new MeshStandardMaterial(matParams);
 
         geometry = {
           identifier,
@@ -1301,12 +1313,17 @@ export class World extends Scene implements NetIntercept {
       );
       geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
       geometry.setIndex(indices);
+      geometry.computeVertexNormals();
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
       group.add(mesh);
     });
 
     group.name = block.name;
+
+    group.position.x -= 0.5;
+    group.position.y -= 0.5;
+    group.position.z -= 0.5;
 
     return group;
   };

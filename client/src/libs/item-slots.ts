@@ -1,5 +1,6 @@
 import merge from "deepmerge";
 import {
+  Box3,
   Mesh,
   Object3D,
   OrthographicCamera,

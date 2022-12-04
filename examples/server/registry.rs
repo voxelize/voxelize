@@ -1,4 +1,4 @@
-use voxelize::{Block, BlockFaces, Registry, Vec3, AABB, SIX_FACES_PY, SIX_FACES_PZ};
+use voxelize::{Block, BlockFaces, Registry, Vec3, AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ};
 
 const PLANT_SCALE: f32 = 0.6;
 
@@ -8,7 +8,10 @@ pub fn setup_registry() -> Registry {
     registry.register_blocks(&[
         Block::new("Dirt").id(1).build(),
         Block::new("Stone").id(2).build(),
-        Block::new("Sand").id(3).build(),
+        Block::new("Sand")
+            .id(3)
+            .faces(&BlockFaces::six_faces().build().animated_at(SIX_FACES_NX))
+            .build(),
         Block::new("Grass Block").id(4).build(),
         Block::new("Snow").id(5).build(),
         Block::new("Obsidian").id(20).build(),

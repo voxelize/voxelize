@@ -240,7 +240,7 @@ const App = () => {
       }
     );
 
-    let hand = "Biggie";
+    let hand = "glass";
     let radius = 1;
     let circular = true;
 
@@ -452,43 +452,43 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
-    // const portraits = new VOXELIZE.BlockPortraits(world);
+    const portraits = new VOXELIZE.BlockPortraits(world);
 
-    // for (let i = 0; i < 30; i++) {
-    //   const canvas = portraits.add("fuck" + i, 500);
-    //   VOXELIZE.DOMUtils.applyStyles(canvas, {
-    //     position: "fixed",
-    //     top: `${Math.floor(i / 10) * 100}px`,
-    //     right: `${(i % 10) * 100}px`,
-    //     zIndex: "10000000000000000",
-    //     background: "black",
-    //   });
-    //   document.body.appendChild(canvas);
-    // }
+    for (let i = 0; i < 5; i++) {
+      const canvas = portraits.add("fuck" + i, 2);
+      VOXELIZE.DOMUtils.applyStyles(canvas, {
+        position: "fixed",
+        top: `${Math.floor(i / 10) * 100}px`,
+        right: `${(i % 10) * 100}px`,
+        zIndex: "10000000000000000",
+        background: "black",
+      });
+      document.body.appendChild(canvas);
+    }
 
-    const bar = new VOXELIZE.ItemSlots(world, {
-      // verticalCount: 5,
-      horizontalCount: 9,
-    });
-    document.body.appendChild(bar.element);
+    // const bar = new VOXELIZE.ItemSlots(world, {
+    //   // verticalCount: 5,
+    //   horizontalCount: 9,
+    // });
+    // document.body.appendChild(bar.element);
 
-    setTimeout(() => {
-      const mesh = world.makeBlockMesh(500);
-      bar.getSlot(0, 0)?.setObject(mesh);
-    }, 1000);
+    // setTimeout(() => {
+    //   const mesh = world.makeBlockMesh(2);
+    //   bar.getSlot(0, 0)?.setObject(mesh);
+    // }, 1000);
 
-    ["1", "2", "3", "4", "5", "6", "7", "8", "9"].forEach((key) => {
-      inputs.bind(
-        key,
-        () => {
-          const index = parseInt(key);
-          bar.setFocused(0, index - 1);
-        },
-        "in-game"
-      );
-    });
+    // ["1", "2", "3", "4", "5", "6", "7", "8", "9"].forEach((key) => {
+    //   inputs.bind(
+    //     key,
+    //     () => {
+    //       const index = parseInt(key);
+    //       bar.setFocused(0, index - 1);
+    //     },
+    //     "in-game"
+    //   );
+    // });
 
-    bar.connect(inputs);
+    // bar.connect(inputs);
 
     world.overwriteMaterialByIdentifier(
       "Grass",
@@ -536,7 +536,6 @@ const App = () => {
               blockBreakParticles.update();
               lightShined.update();
               voxelInteract.update();
-              // portraits.update();
 
               composer.render();
             };
