@@ -512,40 +512,41 @@ const App = () => {
       .register(chat)
       .register(world)
       .register(peers)
-      .register(blockBreakParticles)
-      .connect(BACKEND_SERVER, { secret: "test" })
-      .then(() => {
-        network
-          .join("world1")
-          .then(() => {
-            const animate = () => {
-              requestAnimationFrame(animate);
+      .register(blockBreakParticles);
 
-              peers.update();
-              controls.update();
+    const start = async () => {
+      const animate = () => {
+        requestAnimationFrame(animate);
 
-              clouds.update(controls.object.position);
-              sky.update(controls.object.position);
-              world.update(controls.object.position);
+        if (world.initialized) {
+          peers.update();
+          controls.update();
 
-              network.flush();
+          clouds.update(controls.object.position);
+          sky.update(controls.object.position);
+          world.update(controls.object.position);
 
-              perspective.update();
-              shadows.update();
-              debug.update();
-              blockBreakParticles.update();
-              lightShined.update();
-              voxelInteract.update();
+          network.flush();
 
-              composer.render();
-            };
+          perspective.update();
+          shadows.update();
+          debug.update();
+          blockBreakParticles.update();
+          lightShined.update();
+          voxelInteract.update();
+        }
 
-            animate();
-          })
-          .catch((error) => {
-            console.error("Connection error: " + error);
-          });
-      });
+        composer.render();
+      };
+
+      animate();
+
+      await network.connect(BACKEND_SERVER, { secret: "test" });
+      await network.join("world1");
+      await world.init();
+    };
+
+    start();
 
     worldRef.current = world;
   }, [domRef, canvasRef, worldRef]);

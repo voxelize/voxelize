@@ -75,6 +75,10 @@ export class BlockOverlayEffect extends Effect {
    * @hidden
    */
   update = () => {
+    if (!this.world.initialized) {
+      return;
+    }
+
     const position = new Vector3();
     this.camera.getWorldPosition(position);
 

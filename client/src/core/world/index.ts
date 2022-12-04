@@ -23,6 +23,7 @@ import {
   Vector4,
 } from "three";
 
+import { noop } from "../../common";
 import { ArtFunction } from "../../libs";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
@@ -366,6 +367,12 @@ export class World extends Scene implements NetIntercept {
   private tempDynamic = new Map<string, Block["dynamicFn"]>();
 
   /**
+   * The JSON data received from the server on the "INIT" packet. Call {@link World.init} to initialize
+   * the world with this data.
+   */
+  private initJSON: any = null;
+
+  /**
    * Create a new world instance.
    *
    * @param params The client-side parameters to configure the world.
@@ -394,6 +401,38 @@ export class World extends Scene implements NetIntercept {
   }
 
   /**
+   * After the network joins a world on the server, the server will send a JSON object that contains information and data
+   * about the world. This method initializes the world with the given JSON data.
+   */
+  init = async () => {
+    const { blocks, ranges, params } = this.initJSON;
+
+    this.registry.load(blocks, ranges);
+
+    this.setParams(params);
+    this.setFogDistance(this.renderRadius);
+
+    this.tempDynamic.forEach((fn, name) => {
+      this.overwriteBlockDynamicByName(name, fn);
+    });
+
+    return new Promise<void>((resolve) => {
+      this.load().then(() => {
+        this.initialized = true;
+        resolve();
+      });
+    });
+  };
+
+  /**
+   * An asynchronous function that resolves once world's assets are loaded.
+   */
+  load = async () => {
+    await this.loader.load();
+    this.loadAtlas();
+  };
+
+  /**
    * The network intercept implementation for world.
    *
    * DO NOT CALL THIS METHOD OR CHANGE IT UNLESS YOU KNOW WHAT YOU ARE DOING.
@@ -410,22 +449,7 @@ export class World extends Scene implements NetIntercept {
   ) => {
     switch (message.type) {
       case "INIT": {
-        const {
-          json: { blocks, ranges, params },
-        } = message;
-
-        this.registry.load(blocks, ranges);
-
-        this.setParams(params);
-        this.setFogDistance(this.renderRadius);
-
-        this.loader.load().then(() => {
-          this.loadAtlas();
-        });
-
-        this.tempDynamic.forEach((fn, name) => {
-          this.overwriteBlockDynamicByName(name, fn);
-        });
+        this.initJSON = message.json;
 
         return;
       }
@@ -1647,6 +1671,8 @@ export class World extends Scene implements NetIntercept {
    *    be requested around.
    */
   update = (center: Vector3) => {
+    this.initCheck("update world", false);
+
     // Normalize the delta
     const delta = Math.min(this.clock.getDelta(), 0.1);
 
@@ -1689,8 +1715,6 @@ export class World extends Scene implements NetIntercept {
    * Applies the server settings onto this world.
    */
   private setParams = (data: WorldServerParams) => {
-    this.initialized = true;
-
     Object.keys(data).forEach((key) => {
       this.params[key] = data[key];
     });
@@ -2196,7 +2220,11 @@ export class World extends Scene implements NetIntercept {
       throw new Error(
         `Cannot ${action} ${beforeInit ? "after" : "before"} the world ${
           beforeInit ? "has been" : "is"
-        } initialized.`
+        } initialized. ${
+          beforeInit
+            ? "This has to be called before `world.init`."
+            : "Remember to call the asynchronous function `world.init` beforehand."
+        }`
       );
     }
   };

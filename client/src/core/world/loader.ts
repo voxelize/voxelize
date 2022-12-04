@@ -66,6 +66,14 @@ class Loader {
     window.addEventListener("click", listenerCallback);
   }
 
+  /**
+   * Load a GIF texture from a source URL. This uses omggif to load the GIF and then creates a
+   * texture for each frame. The textures are stored in an array and can be accessed via the
+   * {@link Loader.textures} map with the source.
+   *
+   * @param source The source to the GIF file.
+   * @param onLoaded A callback that is called when the GIF is loaded.
+   */
   addGifTexture = (source: string, onLoaded?: (texture: Texture[]) => void) => {
     this.assetPromises.set(
       source,

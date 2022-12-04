@@ -1,16 +1,14 @@
-import { CameraPerspective } from "common";
 import {
   DirectionalLight,
   OrthographicCamera,
   PerspectiveCamera,
-  PointLight,
   Scene,
-  SpotLight,
   sRGBEncoding,
   Vector3,
   WebGLRenderer,
 } from "three";
 
+import { CameraPerspective } from "../common";
 import { World } from "../core/world/index";
 
 export type BlockPortraitParams = {
