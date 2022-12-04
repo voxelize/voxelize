@@ -15,5 +15,5 @@ export * from "./effects";
 export * from "./particles";
 export * from "./voxel-interact";
 export * from "./arrow";
-export * from "./block-portraits";
+export * from "./portrait";
 export * from "./item-slots";

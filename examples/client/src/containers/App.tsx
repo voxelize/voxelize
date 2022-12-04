@@ -544,6 +544,23 @@ const App = () => {
       await network.connect(BACKEND_SERVER, { secret: "test" });
       await network.join("world1");
       await world.init();
+
+      for (let i = 0; i < 30; i++) {
+        const mesh = world.makeBlockMesh(500, { material: "standard" });
+        const portrait = new VOXELIZE.Portrait(mesh, {
+          // renderOnce: world.isBlockAnimated(i),
+        });
+
+        VOXELIZE.DOMUtils.applyStyles(portrait.canvas, {
+          position: "fixed",
+          top: `${Math.floor(i / 10) * 100}px`,
+          right: `${(i % 10) * 100}px`,
+          zIndex: "10000000000000000",
+          background: "black",
+        });
+
+        document.body.appendChild(portrait.canvas);
+      }
     };
 
     start();

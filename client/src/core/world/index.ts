@@ -1289,6 +1289,10 @@ export class World extends Scene implements NetIntercept {
   ) => {
     this.initCheck("make block mesh", false);
 
+    if (id === 0) {
+      return null;
+    }
+
     const block = this.registry.getBlockById(id);
     if (!block) return null;
 
@@ -1424,6 +1428,19 @@ export class World extends Scene implements NetIntercept {
     }
 
     return mat;
+  };
+
+  /**
+   * Check if a block is animated.
+   *
+   * @param id The block ID to check.
+   * @returns Whether or not the block is animated.
+   */
+  isBlockAnimated = (id: number) => {
+    const block = this.registry.getBlockById(id);
+    if (!block) return false;
+
+    return block.faces.some((face) => face.animated);
   };
 
   /**
