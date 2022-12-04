@@ -493,13 +493,12 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
+   * This method cannot be called after the world has been initialized.
    *
    * @param textures List of data to load into the game before the game starts.
    */
   applyTexturesByNames = (textures: TextureData[]) => {
-    if (this.initialized) {
-      throw new Error("Cannot apply textures after the world has started.");
-    }
+    this.initCheck("apply textures");
 
     textures.forEach((texture) => {
       if (typeof texture.data === "string") {
@@ -511,7 +510,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
-   * Apply a texture onto a face/side of a block.
+   * Apply a texture onto a face/side of a block. This method cannot be called after the world has been initialized.
    *
    * @param texture The data of the texture and where the texture is applying to.
    */
@@ -520,9 +519,7 @@ export class World extends Scene implements NetIntercept {
     sides: string[] | string,
     data: string | Color
   ) => {
-    if (this.initialized) {
-      throw new Error("Cannot apply textures after the world has started.");
-    }
+    this.initCheck("apply texture");
 
     // Offload texture loading to the loader for the loading screen
     if (typeof data === "string") {
@@ -537,7 +534,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   /**
-   * Apply a block animation to a block.
+   * Apply a block animation to a block. This method cannot be called after the world has been initialized.
    *
    * @param name The name of the block to apply the animation to.
    * @param sides The side(s) of the block to apply the animation to.
@@ -551,6 +548,8 @@ export class World extends Scene implements NetIntercept {
     keyframes: [number, string | Color][],
     fadeFrames = 0
   ) => {
+    this.initCheck("apply animation");
+
     keyframes.forEach((keyframe) => {
       if (typeof keyframe[1] === "string") {
         this.loader.addTexture(keyframe[1]);
@@ -563,12 +562,22 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
+  /**
+   * Apply a GIF animation to a block. This method cannot be called after the world has been initialized.
+   *
+   * @param name The name of the block to apply this GIF animation to.
+   * @param sides The side(s) of the block to apply the animation to.
+   * @param source The source of the GIF.
+   * @param interval The interval between frames. Defaults to 66.66ms for 60fps.
+   */
   applyBlockGifByName = (
     name: string,
     sides: string[] | string,
     source: string,
     interval = 66.6666667
   ) => {
+    this.initCheck("apply GIF animation");
+
     if (!source.endsWith(".gif")) {
       throw new Error("GIF source must be a GIF file.");
     }
@@ -590,9 +599,10 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * Apply a resolution to a block face type. Otherwise, the resolution will be the same as the texture
-   * parameter resolution.
+   * parameter resolution. This method cannot be called after the world has been initialized.
    *
    * @param name The name of the block to apply the resolution to.
+   * @param sides The side(s) of the block to apply the resolution to.
    * @param resolution The resolution of the block.
    */
   applyResolutionByName = (
@@ -600,6 +610,8 @@ export class World extends Scene implements NetIntercept {
     sides: string[] | string,
     resolution: number
   ) => {
+    this.initCheck("change resolution");
+
     if (resolution > 1024) {
       console.warn(
         "Generally, resolutions above 1024 are not recommended as it could cause framerate drops."
@@ -702,6 +714,8 @@ export class World extends Scene implements NetIntercept {
    * @param updates A list of updates to send to the server.
    */
   updateVoxels = (updates: BlockUpdate[]) => {
+    this.initCheck("update voxels", false);
+
     this.chunks.toUpdate.push(
       ...updates
         .filter((update) => {
@@ -751,6 +765,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The chunk at the given coordinate.
    */
   getChunk = (cx: number, cz: number) => {
+    this.initCheck("get chunk", false);
+
     return this.getChunkByName(ChunkUtils.getChunkName([cx, cz]));
   };
 
@@ -790,6 +806,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel's ID at the given coordinate.
    */
   getVoxelByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get voxel", false);
+
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getVoxel(vx, vy, vz);
@@ -817,6 +835,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel's rotation at the given coordinate.
    */
   getVoxelRotationByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get voxel rotation", false);
+
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return new BlockRotation(0, 0);
     return chunk.getVoxelRotation(vx, vy, vz);
@@ -844,6 +864,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel stage at the given coordinate.
    */
   getVoxelStageByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get voxel stage", false);
+
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getVoxelStage(vx, vy, vz);
@@ -871,6 +893,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel's sunlight level at the given coordinate.
    */
   getSunlightByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get sunlight", false);
+
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getSunlight(vx, vy, vz);
@@ -901,6 +925,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel's light color at the given coordinate.
    */
   getLightColorByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get light color", false);
+
     const sunlight = this.getSunlightByVoxel(vx, vy, vz);
     const redLight = this.getTorchLightByVoxel(vx, vy, vz, "RED");
     const greenLight = this.getTorchLightByVoxel(vx, vy, vz, "GREEN");
@@ -953,6 +979,8 @@ export class World extends Scene implements NetIntercept {
     vz: number,
     color: LightColor
   ) => {
+    this.initCheck("get torch light", false);
+
     const chunk = this.getChunkByVoxel(vx, vy, vz);
     if (!chunk) return 0;
     return chunk.getTorchLight(vx, vy, vz, color);
@@ -986,6 +1014,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The block type data at the given coordinate.
    */
   getBlockByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get block", false);
+
     const voxel = this.getVoxelByVoxel(vx, vy, vz);
     return this.registry.getBlockById(voxel);
   };
@@ -1011,6 +1041,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The max height at the given coordinate.
    */
   getMaxHeightByVoxel = (vx: number, vz: number) => {
+    this.initCheck("get max height", false);
+
     for (let vy = this.params.maxHeight - 1; vy >= 0; vy--) {
       const id = this.getVoxelByVoxel(vx, vy, vz);
 
@@ -1043,6 +1075,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel ID that was previously at the given coordinate.
    */
   getPreviousVoxelByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get previous voxel", false);
+
     const name = ChunkUtils.getVoxelName([vx, vy, vz]);
     return this.blockCache.get(name);
   };
@@ -1070,6 +1104,8 @@ export class World extends Scene implements NetIntercept {
    * @returns The AABB of the block at the given coordinate.
    */
   getBlockAABBsByVoxel = (vx: number, vy: number, vz: number) => {
+    this.initCheck("get block AABBs", false);
+
     if (vy >= this.params.maxHeight || vy < 0) {
       return [];
     }
@@ -1215,6 +1251,8 @@ export class World extends Scene implements NetIntercept {
       material: "basic" | "standard";
     }> = {}
   ) => {
+    this.initCheck("make block mesh", false);
+
     const block = this.registry.getBlockById(id);
     if (!block) return null;
 
@@ -1543,6 +1581,8 @@ export class World extends Scene implements NetIntercept {
       ignoreList?: number[];
     } = {}
   ) => {
+    this.initCheck("raycast voxels", false);
+
     const { ignoreFluids, ignorePassables, ignoreSeeThrough } = {
       ignoreFluids: true,
       ignorePassables: false,
@@ -2145,5 +2185,19 @@ export class World extends Scene implements NetIntercept {
     material.toneMapped = false;
 
     return material;
+  };
+
+  /**
+   * A sanity check to make sure that an action is not being performed after
+   * the world has been initialized.
+   */
+  private initCheck = (action: string, beforeInit = true) => {
+    if (beforeInit ? this.initialized : !this.initialized) {
+      throw new Error(
+        `Cannot ${action} ${beforeInit ? "after" : "before"} the world ${
+          beforeInit ? "has been" : "is"
+        } initialized.`
+      );
+    }
   };
 }

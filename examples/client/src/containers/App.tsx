@@ -452,19 +452,19 @@ const App = () => {
     //   world.add(plane);
     // }, 1000);
 
-    const portraits = new VOXELIZE.BlockPortraits(world);
+    // const portraits = new VOXELIZE.BlockPortraits(world);
 
-    for (let i = 0; i < 5; i++) {
-      const canvas = portraits.add("fuck" + i, 2);
-      VOXELIZE.DOMUtils.applyStyles(canvas, {
-        position: "fixed",
-        top: `${Math.floor(i / 10) * 100}px`,
-        right: `${(i % 10) * 100}px`,
-        zIndex: "10000000000000000",
-        background: "black",
-      });
-      document.body.appendChild(canvas);
-    }
+    // for (let i = 0; i < 5; i++) {
+    //   const canvas = portraits.add("fuck" + i, 2);
+    //   VOXELIZE.DOMUtils.applyStyles(canvas, {
+    //     position: "fixed",
+    //     top: `${Math.floor(i / 10) * 100}px`,
+    //     right: `${(i % 10) * 100}px`,
+    //     zIndex: "10000000000000000",
+    //     background: "black",
+    //   });
+    //   document.body.appendChild(canvas);
+    // }
 
     // const bar = new VOXELIZE.ItemSlots(world, {
     //   // verticalCount: 5,

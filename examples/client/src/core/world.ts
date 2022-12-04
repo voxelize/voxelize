@@ -48,8 +48,8 @@ export function setupWorld(world: World) {
 
   // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
 
-  world.applyBlockGifByName("Sand", "nx", FunnyGif);
-  world.applyResolutionByName("Sand", "nx", 120);
+  // world.applyBlockGifByName("Sand", "nx", FunnyGif);
+  // world.applyResolutionByName("Sand", "nx", 120);
 
   world.applyBlockAnimationByName(
     "Water",
