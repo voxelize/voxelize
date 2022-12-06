@@ -318,6 +318,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                         NOTIFY THE CHUNK NEIGHBORS                         */
         /* -------------------------------------------------------------------------- */
+
         to_notify.into_iter().for_each(|coords| {
             // This is the list of chunks that we need to notify.
             if !chunks.listeners.contains_key(&coords) {

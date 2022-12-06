@@ -352,12 +352,7 @@ impl Mesher {
             y_rotatable,
             ..
         } = block;
-        let BlockFace {
-            dir,
-            corners,
-            high_res,
-            ..
-        } = face;
+        let BlockFace { dir, corners, .. } = face;
 
         let mut dir = [dir[0] as f32, dir[1] as f32, dir[2] as f32];
 

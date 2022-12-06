@@ -227,7 +227,10 @@ impl WorldConfigBuilder {
 
     /// Configure whether or not should the world preload chunks. Default is false.
     pub fn preload(mut self, preload: bool) -> Self {
-        self.preload_radius = if preload { DEFAULT_PRELOAD_RADIUS } else { 0 };
+        if self.preload_radius == 0 && preload {
+            self.preload_radius = DEFAULT_PRELOAD_RADIUS;
+        }
+
         self.preload = preload;
         self
     }

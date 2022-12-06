@@ -355,11 +355,16 @@ impl Server {
         let mut bars = vec![];
 
         for world in self.worlds.values_mut() {
+            if !world.config().preload {
+                bars.push(None);
+                continue;
+            }
+
             let bar = m.insert_from_back(0, ProgressBar::new(100));
             bar.set_message(world.name.clone());
             bar.set_style(sty.clone());
             bar.set_position(0);
-            bars.push(bar);
+            bars.push(Some(bar));
         }
 
         let start = Instant::now();
@@ -368,8 +373,14 @@ impl Server {
             let mut done = true;
 
             for (i, world) in self.worlds.values_mut().enumerate() {
-                if !world.config().preload || !world.preloading || world.preload_progress >= 1.0 {
-                    bars[i].finish_and_clear();
+                if bars[i].is_none() {
+                    continue;
+                }
+
+                let bar = bars[i].as_mut().unwrap();
+
+                if !world.preloading || world.preload_progress >= 1.0 {
+                    bar.finish_and_clear();
                     continue;
                 }
 
@@ -378,7 +389,7 @@ impl Server {
                 let at = (world.preload_progress * 100.0) as u64;
 
                 done = false;
-                bars[i].set_position(at);
+                bar.set_position(at);
             }
 
             if done {

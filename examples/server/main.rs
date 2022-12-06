@@ -1,7 +1,9 @@
 use log::info;
 use registry::setup_registry;
 use specs::{Component, NullStorage};
-use voxelize::{ChunkStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig};
+use voxelize::{
+    ChunkStage, FlatlandStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig,
+};
 use world::setup_world;
 
 mod registry;
@@ -64,6 +66,21 @@ async fn main() -> std::io::Result<()> {
     server
         .add_world(setup_world())
         .expect("Could not create world1.");
+
+    let world = server
+        .create_world("world2", &WorldConfig::new().preload(true).build())
+        .expect("Could not create world2.");
+
+    {
+        let mut flatland = FlatlandStage::new();
+        flatland.add_soiling(2, 10);
+        world.pipeline_mut().add_stage(flatland)
+    }
+
+    {
+        let mut pipeline = world.pipeline_mut();
+        pipeline.add_stage(LimitedStage);
+    }
 
     server.set_action_handle("create_world", |value, server| {
         info!("World creating...");

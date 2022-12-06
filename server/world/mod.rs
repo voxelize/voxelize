@@ -552,10 +552,24 @@ impl World {
     /// Access a mutable pipeline management in the ECS world.
     pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
         assert!(
-            !self.started,
-            "Cannot change pipeline after world has started."
+            !self.started || self.preloading,
+            "Cannot change pipeline after world has started and preloaded."
         );
         self.write_resource::<Pipeline>()
+    }
+
+    /// Access the mesher in the ECS world.
+    pub fn mesher(&self) -> Fetch<Mesher> {
+        self.read_resource::<Mesher>()
+    }
+
+    /// Access a mutable mesher in the ECS world.
+    pub fn mesher_mut(&mut self) -> FetchMut<Mesher> {
+        assert!(
+            !self.started || self.preloading,
+            "Cannot change mesher after world has started and preloaded."
+        );
+        self.write_resource::<Mesher>()
     }
 
     /// Create a basic entity ready to be added more.
@@ -616,15 +630,19 @@ impl World {
             for x in -radius..=radius {
                 for z in -radius..=radius {
                     let coords = Vec2(x, z);
-                    let is_within = {
-                        let chunks = self.chunks();
-                        chunks.is_within_world(&coords)
-                    };
+                    let neighbors = self.chunks().light_traversed_chunks(&coords);
 
-                    let mut pipeline = self.pipeline_mut();
-                    if is_within {
-                        pipeline.add_chunk(&coords, false);
-                    }
+                    neighbors.into_iter().for_each(|coords| {
+                        let is_within = {
+                            let chunks = self.chunks();
+                            chunks.is_within_world(&coords)
+                        };
+
+                        let mut pipeline = self.pipeline_mut();
+                        if is_within {
+                            pipeline.add_chunk(&coords, false);
+                        }
+                    });
                 }
             }
         }
@@ -639,7 +657,10 @@ impl World {
         }
 
         if self.preloading {
-            let check_radius = (self.config().preload_radius - 1) as i32;
+            let light_padding = (self.config().max_light_level as f32
+                / self.config().chunk_size as f32)
+                .ceil() as usize;
+            let check_radius = (self.config().preload_radius - light_padding) as i32;
 
             let mut total = 0;
             let supposed = (check_radius * 2).pow(2);
@@ -647,10 +668,30 @@ impl World {
             for x in -check_radius..=check_radius {
                 for z in -check_radius..=check_radius {
                     let chunks = self.chunks();
-                    let chunk = chunks.get(&Vec2(x, z));
+                    let coords = Vec2(x, z);
 
-                    if chunk.is_some() || !chunks.is_within_world(&Vec2(x, z)) {
+                    if chunks.is_chunk_ready(&coords) {
                         total += 1;
+                    } else {
+                        if let Some(chunk) = chunks.raw(&coords) {
+                            if chunk.status == ChunkStatus::Meshing
+                                && !self.mesher().map.contains(&coords)
+                            {
+                                // Add the chunk back to meshing queue.
+                                drop(chunks);
+                                self.mesher_mut().add_chunk(&coords, false);
+                            }
+                        }
+
+                        // drop(chunks);
+
+                        // let is_in_pipeline = self.pipeline().has_chunk(&coords);
+                        // let is_in_mesher = self.mesher().map.contains(&coords);
+
+                        // info!(
+                        //     "Chunk {:?} is not ready. In pipeline: {}, in mesher: {}, status: {:?}",
+                        //     coords, is_in_pipeline, is_in_mesher, status
+                        // );
                     }
                 }
             }
