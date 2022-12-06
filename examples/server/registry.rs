@@ -5,6 +5,11 @@ const PLANT_SCALE: f32 = 0.6;
 pub fn setup_registry() -> Registry {
     let mut registry = Registry::new();
 
+    let grass_faces = BlockFaces::diagonal_faces()
+        .scale_horizontal(PLANT_SCALE)
+        .scale_vertical(PLANT_SCALE)
+        .build();
+
     registry.register_blocks(&[
         Block::new("Dirt").id(1).build(),
         Block::new("Stone").id(2).build(),
@@ -217,20 +222,9 @@ pub fn setup_registry() -> Registry {
         // Plants
         Block::new("Grass")
             .id(1000)
-            .aabbs(&[AABB::new()
-                .scale_x(PLANT_SCALE)
-                .scale_y(PLANT_SCALE)
-                .scale_z(PLANT_SCALE)
-                .offset_x((1.0 - PLANT_SCALE) / 2.0)
-                .offset_z((1.0 - PLANT_SCALE) / 2.0)
-                .build()])
+            .aabbs(&[AABB::from_faces(&grass_faces)])
             .is_passable(true)
-            .faces(
-                &BlockFaces::diagonal_faces()
-                    .scale_horizontal(PLANT_SCALE)
-                    .scale_vertical(PLANT_SCALE)
-                    .build(),
-            )
+            .faces(&grass_faces)
             .is_transparent(true)
             .is_see_through(true)
             .transparent_standalone(true)
