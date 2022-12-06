@@ -91,10 +91,6 @@ export default {
         },
       ],
     }),
-    babel({
-      babelHelpers: "runtime",
-      skipPreflightCheck: true,
-    }),
     ...(process.env.ROLLUP_WATCH ? [] : [terser()]),
   ],
   external: Object.keys(globals),
