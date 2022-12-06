@@ -1718,7 +1718,7 @@ export class World extends Scene implements NetIntercept {
    * @param center The center of the update. That is, the center that the chunks should
    *    be requested around.
    */
-  update = (center: Vector3) => {
+  update = (center: Vector3 = new Vector3(0, 0, 0)) => {
     this.initCheck("update world", false);
 
     // Normalize the delta
