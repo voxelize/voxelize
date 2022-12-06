@@ -1319,11 +1319,11 @@ export class World extends Scene implements NetIntercept {
     faces.forEach((face, index) => {
       const faceScale = crumbs && separateFaces ? Math.random() + 0.5 : 1;
 
-      const { corners, name, highRes, animated } = face;
+      const { corners, name } = face;
 
-      const identifier = `${block.name}${
-        highRes || animated ? INDEPENDENT_FACE + name : ""
-      }${separateFaces ? `-${index}` : ""}`.toLowerCase();
+      const identifier =
+        this.makeBlockFaceIdentifier(block.id, name) +
+        (separateFaces ? `-${index}` : "");
 
       let geometry = geometries.get(identifier);
 
@@ -1451,10 +1451,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The material for the given block and face.
    */
   getMaterialByBlockFace = (block: Block, face: Block["faces"][number]) => {
-    const identifier = `${block.name.toLowerCase()}${
-      face.independent ? INDEPENDENT_FACE : ""
-    }${face.name.toLowerCase()}`;
-
+    const identifier = this.makeBlockFaceIdentifier(block.id, face.name);
     return this.getMaterialByIdentifier(identifier, block.isSeeThrough);
   };
 
@@ -1484,10 +1481,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The {@link TextureAtlas} instance linked to the block face.
    */
   getAtlasByBlockFace = (block: Block, face: Block["faces"][number]) => {
-    const identifier = `${block.name.toLowerCase()}${
-      face.independent ? INDEPENDENT_FACE : ""
-    }${face.name.toLowerCase()}`;
-
+    const identifier = this.makeBlockFaceIdentifier(block.id, face.name);
     return this.getAtlasByIdentifier(identifier);
   };
 
@@ -1608,6 +1602,31 @@ export class World extends Scene implements NetIntercept {
     } else {
       this.tempDynamic.set(name, fn);
     }
+  };
+
+  /**
+   * Make an identifier for a block face. If the block face is neither animated nor high resolution, then
+   * the identifier will be the same as the block's name. If the block face is animated, then the identifier
+   * will be the block's name and the face's name joined by {@link INDEPENDENT_FACE}.
+   *
+   * @param id The ID of the block.
+   * @param side The side of the face of the block.
+   * @returns The identifier of the block face.
+   */
+  makeBlockFaceIdentifier = (id: number, side: string) => {
+    const block = this.registry.getBlockById(id);
+
+    if (!block) {
+      throw new Error(`Block with ID ${id} does not exist.`);
+    }
+
+    const face = block.faces.find((f) => f.name === side);
+
+    if (face.independent) {
+      return `${block.name.toLowerCase()}${INDEPENDENT_FACE}${side.toLowerCase()}`;
+    }
+
+    return block.name.toLowerCase();
   };
 
   /**
