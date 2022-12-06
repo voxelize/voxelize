@@ -16,15 +16,15 @@ import { CameraPerspective } from "../common";
  */
 export type PortraitParams = {
   /**
-   * The arbitrary distance from the camera to the object. This is used to calculate the zoom
+   * The arbitrary zoom from the camera to the object. This is used to calculate the zoom
    * of the camera. Defaults to `1`.
    */
-  distance: number;
+  zoom: number;
 
   /**
    * The position of where the camera should be looking at. Defaults to `pxyz`, which
    * means that the camera will be looking at the center of the object from the positive
-   * x, y, and z axis scaled by the distance.
+   * x, y, and z axis scaled by the zoom.
    */
   perspective: CameraPerspective;
 
@@ -39,11 +39,6 @@ export type PortraitParams = {
   height: number;
 
   /**
-   * Whether or not does this portrait have transparency. Defaults to `false`.
-   */
-  alpha: boolean;
-
-  /**
    * Whether or not should this portrait only render once. Defaults to `false`.
    */
   renderOnce: boolean;
@@ -56,11 +51,10 @@ export type PortraitParams = {
 };
 
 const defaultParams: PortraitParams = {
-  distance: 1,
+  zoom: 1,
   perspective: "pxyz",
   width: 100,
   height: 100,
-  alpha: false,
   renderOnce: false,
   lightRotationOffset: -Math.PI / 8,
 };
@@ -139,7 +133,7 @@ export class Portrait {
 
     Portrait.renderer.outputEncoding = sRGBEncoding;
 
-    const { width, height, distance, perspective, lightRotationOffset } =
+    const { width, height, zoom, perspective, lightRotationOffset } =
       (this.params = {
         ...defaultParams,
         ...params,
@@ -156,18 +150,13 @@ export class Portrait {
     const yFactor = perspective.includes("y") ? 1 : 0;
     const zFactor = perspective.includes("z") ? 1 : 0;
 
-    this.camera = new OrthographicCamera(
-      -distance,
-      distance,
-      distance,
-      -distance
-    );
-    this.camera.far = distance * 10 + 1;
+    this.camera = new OrthographicCamera(-zoom, zoom, zoom, -zoom);
+    this.camera.far = zoom * 10 + 1;
     this.camera.near = 0.1;
     this.camera.position.set(
-      negative * xFactor * distance * 3.5,
-      negative * yFactor * distance * 3.5,
-      negative * zFactor * distance * 3.5
+      negative * xFactor * zoom * 3.5,
+      negative * yFactor * zoom * 3.5,
+      negative * zFactor * zoom * 3.5
     );
     this.camera.lookAt(0, 0, 0);
 
@@ -216,7 +205,7 @@ export class Portrait {
     this.animationFrameId = requestAnimationFrame(this.render);
 
     const renderer = Portrait.renderer;
-    const { alpha, renderOnce } = this.params;
+    const { renderOnce } = this.params;
 
     // Get the renderer's sizes
     const { width, height } = renderer.getSize(new Vector2(0, 0));
@@ -228,7 +217,7 @@ export class Portrait {
     renderer.render(this.scene, this.camera);
 
     const rendererCanvas = renderer.domElement;
-    const ctx = this.canvas.getContext("2d", { alpha });
+    const ctx = this.canvas.getContext("2d");
 
     ctx.globalCompositeOperation = "copy";
     ctx.drawImage(

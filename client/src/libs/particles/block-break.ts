@@ -82,7 +82,7 @@ export class Rigid extends Behaviour {
     const { x, y, z } = particle.position;
     particle.rigidbody.applyImpulse([
       Math.random() * this.impulse * 2 - this.impulse,
-      Math.random() * this.impulse * 2 - this.impulse,
+      Math.random() * this.impulse,
       Math.random() * this.impulse * 2 - this.impulse,
     ]);
     particle.rigidbody.setPosition([x, y, z]);
@@ -159,6 +159,16 @@ export type BlockBreakParticlesParams = {
    * are emitted from. Defaults to `1`.
    */
   zoneWidth: number;
+
+  /**
+   * Whether the particles should look like crumbs of a block. Defaults to `false`.
+   */
+  crumbs: boolean;
+
+  /**
+   * Whether the block particles should be separated into faces. Defaults to `false`.
+   */
+  separateFaces: boolean;
 };
 
 const defaultParams: BlockBreakParticlesParams = {
@@ -167,10 +177,12 @@ const defaultParams: BlockBreakParticlesParams = {
   capSize: 5,
   capScale: 0.1,
   scale: 0.1,
-  impulse: 3,
+  impulse: 4,
   minLife: 2,
   maxLife: 4,
-  zoneWidth: 1,
+  zoneWidth: 0.1,
+  crumbs: false,
+  separateFaces: false,
 };
 
 /**
@@ -234,8 +246,8 @@ export class BlockBreakParticles extends System implements NetIntercept {
       if (oldID === 0 || newID !== 0) return;
 
       const mesh = this.world.makeBlockMesh(oldID, {
-        separateFaces: true,
-        crumbs: true,
+        crumbs: this.params.crumbs,
+        separateFaces: this.params.separateFaces,
       });
       const lightScale = this.world.getLightColorByVoxel(vx, vy, vz);
       mesh.children.forEach((mesh) =>
@@ -266,7 +278,7 @@ export class BlockBreakParticles extends System implements NetIntercept {
         ])
         .addBehaviours([
           new Scale(this.params.scale, this.params.scale),
-          new Rigid(this.params.scale, 3, this.world.physics),
+          new Rigid(this.params.scale, this.params.impulse, this.world.physics),
         ])
         .setPosition({ x: vx + 0.5, y: vy + 0.5, z: vz + 0.5 })
         .addOnEmitterDeadEventListener(() => {

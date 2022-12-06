@@ -1885,6 +1885,8 @@ export class World extends Scene implements NetIntercept {
     // initialize the physics engine with server provided parameters.
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
+        if (!this.getChunkByVoxel(vx, vy, vz)) return [];
+
         const id = this.getVoxelByVoxel(vx, vy, vz);
         const rotation = this.getVoxelRotationByVoxel(vx, vy, vz);
         const { aabbs, isPassable, isFluid } = this.getBlockById(id);
@@ -1896,6 +1898,8 @@ export class World extends Scene implements NetIntercept {
         );
       },
       (vx: number, vy: number, vz: number) => {
+        if (!this.getChunkByVoxel(vx, vy, vz)) return false;
+
         const id = this.getVoxelByVoxel(vx, vy, vz);
         const { isFluid } = this.getBlockById(id);
         return isFluid;

@@ -196,6 +196,7 @@ pub fn setup_registry() -> Registry {
             ])
             .is_transparent(true)
             .rotatable(true)
+            .torch_light_level(5)
             .build(),
         Block::new("Biggie")
             .id(500)

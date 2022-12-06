@@ -1,6 +1,7 @@
 import merge from "deepmerge";
 import {
   Box3,
+  DirectionalLight,
   Mesh,
   Object3D,
   OrthographicCamera,
@@ -22,10 +23,10 @@ export type ItemSlotsParams = {
   slotClass: string;
   slotHoverClass: string;
   slotFocusClass: string;
-  slotCountClass: string;
+  slotSubscriptClass: string;
 
   slotStyles: Partial<CSSStyleDeclaration>;
-  slotCountStyles: Partial<CSSStyleDeclaration>;
+  slotSubscriptStyles: Partial<CSSStyleDeclaration>;
 
   horizontalCount: number;
   verticalCount: number;
@@ -43,17 +44,17 @@ const defaultParams: ItemSlotsParams = {
   slotClass: "item-slots-slot",
   slotHoverClass: "item-slots-slot-hover",
   slotFocusClass: "item-slots-slot-focus",
-  slotCountClass: "item-slots-slot-count",
+  slotSubscriptClass: "item-slots-slot-subscript",
 
   slotStyles: {},
-  slotCountStyles: {},
+  slotSubscriptStyles: {},
 
   horizontalCount: 5,
   verticalCount: 1,
   focusFirstByDefault: true,
   activatedByDefault: true,
 
-  zoom: 3,
+  zoom: 1,
   perspective: "pxyz",
 };
 
@@ -66,21 +67,30 @@ export class ItemSlot<T = number> {
 
   public object: Object3D;
 
-  public world: World;
+  public light: DirectionalLight;
 
-  public camera: OrthographicCamera;
+  public camera: OrthographicCamera = new OrthographicCamera(
+    -1,
+    1,
+    1,
+    -1,
+    0,
+    10
+  );
 
   public element: HTMLDivElement;
 
-  public countElement: HTMLDivElement;
+  public subscriptElement: HTMLDivElement;
+
+  public subscript: string;
 
   public content: T;
 
-  public count: number;
+  public zoom = 1;
 
-  public zoom: number;
+  public lightRotationOffset = -Math.PI / 8;
 
-  public offset: Vector3;
+  public offset: Vector3 = new Vector3();
 
   constructor(row: number, col: number) {
     this.row = row;
@@ -91,30 +101,45 @@ export class ItemSlot<T = number> {
     this.camera = new OrthographicCamera(-1, 1, 1, -1, 0, 10);
 
     this.element = document.createElement("div");
-    this.countElement = document.createElement("div");
+    this.subscriptElement = document.createElement("div");
+    this.element.appendChild(this.subscriptElement);
 
     this.offset = new Vector3();
+
+    this.light = new DirectionalLight(0xffffff, 1);
+    this.scene.add(this.light);
 
     this.updateCamera();
   }
 
+  getObject = () => this.object;
+
   setObject = (object: Object3D) => {
-    this.scene.remove(this.scene.children[0]);
+    if (this.object) {
+      this.scene.remove(this.object);
+    }
 
     this.object = object;
     this.scene.add(object);
   };
 
-  setZoom = (zoom: number) => {
-    this.zoom = zoom;
-    this.camera.far = zoom * 3 + 1;
+  getContent = () => this.content;
+
+  setContent = (content: T) => {
+    this.content = content;
   };
 
-  setContent = (content: T, count: number) => {
-    this.content = content;
-    this.count = count;
+  getSubscript = () => this.subscript;
 
-    this.countElement.innerText = count.toString();
+  setSubscript = (subscript: string) => {
+    this.subscript = subscript;
+    this.subscriptElement.innerText = subscript;
+  };
+
+  setzoom = (zoom: number) => {
+    this.zoom = zoom;
+    this.camera.far = zoom * 3 + 1;
+    this.updateCamera();
   };
 
   setPerspective = (perspective: CameraPerspective) => {
@@ -133,30 +158,46 @@ export class ItemSlot<T = number> {
     this.element.classList.add(className);
   };
 
-  applyCountClass = (className: string) => {
-    this.countElement.classList.add(className);
+  removeClass = (className: string) => {
+    this.element.classList.remove(className);
+  };
+
+  applySubscriptClass = (className: string) => {
+    this.subscriptElement.classList.add(className);
+  };
+
+  removeSubscriptClass = (className: string) => {
+    this.subscriptElement.classList.remove(className);
   };
 
   applyStyles = (styles: Partial<CSSStyleDeclaration>) => {
     DOMUtils.applyStyles(this.element, styles);
   };
 
-  applyCountStyles = (styles: Partial<CSSStyleDeclaration>) => {
-    DOMUtils.applyStyles(this.countElement, styles);
+  applySubscriptStyles = (styles: Partial<CSSStyleDeclaration>) => {
+    DOMUtils.applyStyles(this.subscriptElement, styles);
   };
 
   private updateCamera = () => {
     this.camera.position.copy(
-      this.offset.clone().multiplyScalar(this.zoom || 1)
+      this.offset.clone().multiplyScalar((this.zoom || 1) * 3.5)
     );
+
     this.camera.lookAt(0, 0, 0);
+
+    const lightPosition = this.camera.position.clone();
+    // Rotate light position by y axis 45 degrees.
+    lightPosition.applyAxisAngle(
+      new Vector3(0, 1, 0),
+      this.lightRotationOffset
+    );
+
+    this.light.position.copy(lightPosition);
   };
 }
 
 export class ItemSlots<T = number> {
   public params: ItemSlotsParams;
-
-  public world: World;
 
   public wrapper: HTMLDivElement;
 
@@ -205,6 +246,7 @@ export class ItemSlots<T = number> {
     this.slotHeight + this.slotMargin * 2 + this.slotPadding;
 
   public onSlotClick: (slot: ItemSlot<T>) => void = noop;
+  public onSlotUpdate: (slot: ItemSlot<T>) => void = noop;
   public onFocusChange: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void =
     noop;
 
@@ -212,13 +254,11 @@ export class ItemSlots<T = number> {
 
   private animationFrame = -1;
 
-  constructor(world: World, params: Partial<ItemSlotsParams> = {}) {
+  constructor(params: Partial<ItemSlotsParams> = {}) {
     const { focusFirstByDefault, activatedByDefault } = (this.params = merge(
       defaultParams,
       params
     ));
-
-    this.world = world;
 
     this.generate();
 
@@ -255,9 +295,34 @@ export class ItemSlots<T = number> {
     cancelAnimationFrame(this.animationFrame);
   };
 
-  setContent = (row: number, col: number, content: T, count: number) => {
+  setObject = (row: number, col: number, object: Object3D) => {
+    if (!this.slots[row] || !this.slots[row][col]) {
+      return;
+    }
+
     const slot = this.slots[row][col];
-    slot.setContent(content, count);
+    slot.setObject(object);
+    this.onSlotUpdate?.(slot);
+  };
+
+  setContent = (row: number, col: number, content: T) => {
+    if (!this.slots[row] || !this.slots[row][col]) {
+      return;
+    }
+
+    const slot = this.slots[row][col];
+    slot.setContent(content);
+    this.onSlotUpdate?.(slot);
+  };
+
+  setSubscript = (row: number, col: number, subscript: string) => {
+    if (!this.slots[row] || !this.slots[row][col]) {
+      return;
+    }
+
+    const slot = this.slots[row][col];
+    slot.setSubscript(subscript);
+    this.onSlotUpdate?.(slot);
   };
 
   setFocused = (row: number, col: number) => {
@@ -286,6 +351,30 @@ export class ItemSlots<T = number> {
 
     slot.element.classList.add(this.params.slotFocusClass);
     this.onSlotClick(slot);
+  };
+
+  getObject = (row: number, col: number) => {
+    if (!this.slots[row] || !this.slots[row][col]) {
+      return null;
+    }
+
+    return this.slots[row][col].object;
+  };
+
+  getContent = (row: number, col: number) => {
+    if (!this.slots[row] || !this.slots[row][col]) {
+      return null;
+    }
+
+    return this.slots[row][col].content;
+  };
+
+  getSubscript = (row: number, col: number) => {
+    if (!this.slots[row] || !this.slots[row][col]) {
+      return null;
+    }
+
+    return this.slots[row][col].subscript;
   };
 
   getFocused = () => {
@@ -332,188 +421,7 @@ export class ItemSlots<T = number> {
   };
 
   connect = (inputs: Inputs, namespace = "*") => {
-    const unbind = inputs.scroll(
-      // Scrolling up, inventory goes left and up
-      () => {
-        if (!this.activated) return;
-        if (this.focusedRow === -1 || this.focusedCol === -1) return;
-
-        const { horizontalCount, verticalCount } = this.params;
-
-        const row = this.focusedRow;
-        const col = this.focusedCol;
-
-        if (col === 0) {
-          this.setFocused(
-            row === 0 ? verticalCount - 1 : row - 1,
-            horizontalCount - 1
-          );
-        } else {
-          this.setFocused(row, col - 1);
-        }
-      },
-      // Scrolling down, inventory goes right and down
-      () => {
-        if (!this.activated) return;
-        if (this.focusedRow === -1 || this.focusedCol === -1) return;
-
-        const { horizontalCount, verticalCount } = this.params;
-
-        const row = this.focusedRow;
-        const col = this.focusedCol;
-
-        if (col === horizontalCount - 1) {
-          this.setFocused(row === verticalCount - 1 ? 0 : row + 1, 0);
-        } else {
-          this.setFocused(row, col + 1);
-        }
-      },
-      namespace
-    );
-
-    return () => {
-      try {
-        unbind();
-      } catch (e) {
-        // Ignore
-      }
-    };
-  };
-
-  render = () => {
-    this.animationFrame = requestAnimationFrame(this.render);
-
-    if (!this.activated) return;
-
-    const { horizontalCount, verticalCount } = this.params;
-
-    const width = this.canvas.clientWidth;
-    const height = this.canvas.clientHeight;
-
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      this.renderer.setSize(width, height, false);
-    }
-
-    // this.renderer.setClearColor(0xffffff);
-    this.renderer.setScissorTest(false);
-    this.renderer.clear();
-
-    // this.renderer.setClearColor(0xe0e0e0);
-    this.renderer.setScissorTest(true);
-
-    const canvasRect = this.renderer.domElement.getBoundingClientRect();
-
-    for (let i = 0; i < verticalCount; i++) {
-      for (let j = 0; j < horizontalCount; j++) {
-        const { scene, camera, element } = this.slots[i][j];
-        const rect = element.getBoundingClientRect();
-
-        if (
-          rect.top + rect.height < canvasRect.top ||
-          rect.top > canvasRect.top + canvasRect.height ||
-          rect.left + rect.width < canvasRect.left ||
-          rect.left > canvasRect.left + canvasRect.width
-        ) {
-          continue;
-        }
-
-        const width =
-          rect.right - rect.left - this.slotMargin * 2 - this.slotPadding * 2;
-        const height =
-          rect.bottom - rect.top - this.slotMargin * 2 - this.slotPadding * 2;
-        const left =
-          rect.left - canvasRect.left + this.slotMargin + this.slotPadding;
-        const bottom =
-          canvasRect.height -
-          (rect.bottom - canvasRect.top) +
-          this.slotMargin +
-          this.slotPadding;
-
-        this.renderer.setViewport(left, bottom, width, height);
-        this.renderer.setScissor(left, bottom, width, height);
-        this.renderer.render(scene, camera);
-      }
-    }
-  };
-
-  get element() {
-    return this.wrapper;
-  }
-
-  private generate = () => {
-    const {
-      wrapperClass,
-      wrapperStyles,
-      slotClass,
-      slotStyles,
-      slotHoverClass,
-      slotFocusClass,
-      slotCountClass,
-      slotCountStyles,
-      horizontalCount,
-      verticalCount,
-      zoom,
-      perspective,
-    } = this.params;
-
-    const { slotWidth, slotHeight, slotMargin, slotPadding } = this;
-
-    const width =
-      (slotWidth + slotMargin * 2 + slotPadding * 2) * horizontalCount;
-    const height =
-      (slotHeight + slotMargin * 2 + slotPadding * 2) * verticalCount;
-
-    this.wrapper = document.createElement("div");
-    this.wrapper.classList.add(wrapperClass);
-    DOMUtils.applyStyles(this.wrapper, {
-      ...wrapperStyles,
-      width: `${width}px`,
-      height: `${height}px`,
-      display: "none",
-    });
-
-    this.slots = [];
-
-    for (let row = 0; row < verticalCount; row++) {
-      this.slots[row] = [];
-
-      for (let col = 0; col < horizontalCount; col++) {
-        const slot = new ItemSlot<T>(row, col);
-
-        slot.applyClass(slotClass);
-        slot.applyStyles(slotStyles);
-        slot.applyCountClass(slotCountClass);
-        slot.applyCountStyles(slotCountStyles);
-
-        slot.applyStyles({
-          position: "absolute",
-          top: `${
-            (slotHeight + slotMargin * 2 + slotPadding * 2) * row + slotMargin
-          }px`,
-          left: `${
-            (slotWidth + slotMargin * 2 + slotPadding * 2) * col + slotMargin
-          }px`,
-        });
-
-        slot.setZoom(zoom);
-        slot.setPerspective(perspective);
-
-        this.slots[row][col] = slot;
-
-        this.wrapper.appendChild(slot.element);
-      }
-    }
-
-    this.canvas = document.createElement("canvas");
-    this.canvas.width = width;
-    this.canvas.height = height;
-    DOMUtils.applyStyles(this.canvas, {
-      position: "absolute",
-      background: "transparent",
-      top: "0",
-      left: "0",
-      zIndex: "-1",
-    });
+    const { slotHoverClass } = this.params;
 
     let mouseHoverPrevRow = null;
     let mouseHoverPrevCol = null;
@@ -580,6 +488,193 @@ export class ItemSlots<T = number> {
 
       this.setFocused(row, col);
     };
+
+    const unbind = inputs.scroll(
+      // Scrolling up, inventory goes left and up
+      () => {
+        if (!this.activated) return;
+        if (this.focusedRow === -1 || this.focusedCol === -1) return;
+
+        const { horizontalCount, verticalCount } = this.params;
+
+        const row = this.focusedRow;
+        const col = this.focusedCol;
+
+        if (col === 0) {
+          this.setFocused(
+            row === 0 ? verticalCount - 1 : row - 1,
+            horizontalCount - 1
+          );
+        } else {
+          this.setFocused(row, col - 1);
+        }
+      },
+      // Scrolling down, inventory goes right and down
+      () => {
+        if (!this.activated) return;
+        if (this.focusedRow === -1 || this.focusedCol === -1) return;
+
+        const { horizontalCount, verticalCount } = this.params;
+
+        const row = this.focusedRow;
+        const col = this.focusedCol;
+
+        if (col === horizontalCount - 1) {
+          this.setFocused(row === verticalCount - 1 ? 0 : row + 1, 0);
+        } else {
+          this.setFocused(row, col + 1);
+        }
+      },
+      namespace
+    );
+
+    return () => {
+      try {
+        unbind();
+        this.canvas.onmousedown = null;
+        this.canvas.onmouseenter = null;
+        this.canvas.onmouseleave = null;
+      } catch (e) {
+        // Ignore
+      }
+    };
+  };
+
+  render = () => {
+    this.animationFrame = requestAnimationFrame(this.render);
+
+    if (!this.activated) return;
+
+    const { horizontalCount, verticalCount } = this.params;
+
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.renderer.setSize(width, height, false);
+    }
+
+    this.renderer.setScissorTest(false);
+    this.renderer.clear();
+    this.renderer.setScissorTest(true);
+
+    const canvasRect = this.renderer.domElement.getBoundingClientRect();
+
+    for (let i = 0; i < verticalCount; i++) {
+      for (let j = 0; j < horizontalCount; j++) {
+        const { scene, camera, element, object } = this.slots[i][j];
+
+        if (!object) continue;
+
+        const rect = element.getBoundingClientRect();
+
+        if (
+          rect.top + rect.height < canvasRect.top ||
+          rect.top > canvasRect.top + canvasRect.height ||
+          rect.left + rect.width < canvasRect.left ||
+          rect.left > canvasRect.left + canvasRect.width
+        ) {
+          continue;
+        }
+
+        const width =
+          rect.right - rect.left - this.slotMargin * 2 - this.slotPadding * 2;
+        const height =
+          rect.bottom - rect.top - this.slotMargin * 2 - this.slotPadding * 2;
+
+        if (width <= 0 || height <= 0) continue;
+
+        const left =
+          rect.left - canvasRect.left + this.slotMargin + this.slotPadding;
+        const bottom =
+          canvasRect.height -
+          (rect.bottom - canvasRect.top) +
+          this.slotMargin +
+          this.slotPadding;
+
+        this.renderer.setViewport(left, bottom, width, height);
+        this.renderer.setScissor(left, bottom, width, height);
+        this.renderer.render(scene, camera);
+      }
+    }
+  };
+
+  get element() {
+    return this.wrapper;
+  }
+
+  private generate = () => {
+    const {
+      wrapperClass,
+      wrapperStyles,
+      slotClass,
+      slotStyles,
+      slotSubscriptClass,
+      slotSubscriptStyles,
+      horizontalCount,
+      verticalCount,
+      zoom,
+      perspective,
+    } = this.params;
+
+    const { slotWidth, slotHeight, slotMargin, slotPadding } = this;
+
+    const width =
+      (slotWidth + slotMargin * 2 + slotPadding * 2) * horizontalCount;
+    const height =
+      (slotHeight + slotMargin * 2 + slotPadding * 2) * verticalCount;
+
+    this.wrapper = document.createElement("div");
+    this.wrapper.classList.add(wrapperClass);
+    DOMUtils.applyStyles(this.wrapper, {
+      ...wrapperStyles,
+      width: `${width}px`,
+      height: `${height}px`,
+      display: "none",
+    });
+
+    this.slots = [];
+
+    for (let row = 0; row < verticalCount; row++) {
+      this.slots[row] = [];
+
+      for (let col = 0; col < horizontalCount; col++) {
+        const slot = new ItemSlot<T>(row, col);
+
+        slot.applyClass(slotClass);
+        slot.applyStyles(slotStyles);
+        slot.applySubscriptClass(slotSubscriptClass);
+        slot.applySubscriptStyles(slotSubscriptStyles);
+
+        slot.applyStyles({
+          position: "absolute",
+          top: `${
+            (slotHeight + slotMargin * 2 + slotPadding * 2) * row + slotMargin
+          }px`,
+          left: `${
+            (slotWidth + slotMargin * 2 + slotPadding * 2) * col + slotMargin
+          }px`,
+        });
+
+        slot.setzoom(zoom);
+        slot.setPerspective(perspective);
+
+        this.slots[row][col] = slot;
+
+        this.wrapper.appendChild(slot.element);
+      }
+    }
+
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = width;
+    this.canvas.height = height;
+    DOMUtils.applyStyles(this.canvas, {
+      position: "absolute",
+      background: "transparent",
+      top: "0",
+      left: "0",
+      zIndex: "-1",
+    });
 
     this.wrapper.appendChild(this.canvas);
 

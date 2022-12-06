@@ -209,7 +209,7 @@ const App = () => {
     });
 
     const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
-      // highlightType: "outline",
+      highlightType: "outline",
       // potentialVisuals: true,
       inverseDirection: true,
       // ignoreFluids: false,
@@ -240,99 +240,72 @@ const App = () => {
       }
     );
 
-    let hand = "glass";
-    let radius = 1;
-    let circular = true;
+    // let hand = "glass";
+    // let radius = 1;
+    // let circular = true;
 
-    const bulkDestroy = () => {
-      if (!voxelInteract.target) return;
+    // const bulkDestroy = () => {
+    //   if (!voxelInteract.target) return;
 
-      const [vx, vy, vz] = voxelInteract.target;
+    //   const [vx, vy, vz] = voxelInteract.target;
 
-      const updates: VOXELIZE.BlockUpdate[] = [];
+    //   const updates: VOXELIZE.BlockUpdate[] = [];
 
-      for (let x = -radius; x <= radius; x++) {
-        for (let y = -radius; y <= radius; y++) {
-          for (let z = -radius; z <= radius; z++) {
-            if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
-              continue;
+    //   for (let x = -radius; x <= radius; x++) {
+    //     for (let y = -radius; y <= radius; y++) {
+    //       for (let z = -radius; z <= radius; z++) {
+    //         if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
+    //           continue;
 
-            updates.push({
-              vx: vx + x,
-              vy: vy + y,
-              vz: vz + z,
-              type: 0,
-            });
-          }
-        }
-      }
+    //         updates.push({
+    //           vx: vx + x,
+    //           vy: vy + y,
+    //           vz: vz + z,
+    //           type: 0,
+    //         });
+    //       }
+    //     }
+    //   }
 
-      if (updates.length) controls.world.updateVoxels(updates);
-    };
+    //   if (updates.length) controls.world.updateVoxels(updates);
+    // };
 
-    const bulkPlace = () => {
-      if (!voxelInteract.potential) return;
+    // const bulkPlace = () => {
+    //   if (!voxelInteract.potential) return;
 
-      const {
-        voxel: [vx, vy, vz],
-        rotation,
-        yRotation,
-      } = voxelInteract.potential;
+    //   const {
+    //     voxel: [vx, vy, vz],
+    //     rotation,
+    //     yRotation,
+    //   } = voxelInteract.potential;
 
-      const updates: VOXELIZE.BlockUpdate[] = [];
-      const block = controls.world.getBlockByName(hand);
+    //   const updates: VOXELIZE.BlockUpdate[] = [];
+    //   const block = controls.world.getBlockByName(hand);
 
-      for (let x = -radius; x <= radius; x++) {
-        for (let y = -radius; y <= radius; y++) {
-          for (let z = -radius; z <= radius; z++) {
-            if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
-              continue;
+    //   for (let x = -radius; x <= radius; x++) {
+    //     for (let y = -radius; y <= radius; y++) {
+    //       for (let z = -radius; z <= radius; z++) {
+    //         if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
+    //           continue;
 
-            updates.push({
-              vx: vx + x,
-              vy: vy + y,
-              vz: vz + z,
-              type: block.id,
-              rotation,
-              yRotation,
-            });
-          }
-        }
-      }
+    //         updates.push({
+    //           vx: vx + x,
+    //           vy: vy + y,
+    //           vz: vz + z,
+    //           type: block.id,
+    //           rotation,
+    //           yRotation,
+    //         });
+    //       }
+    //     }
+    //   }
 
-      if (updates.length) controls.world.updateVoxels(updates);
-    };
+    //   if (updates.length) controls.world.updateVoxels(updates);
+    // };
 
     const particleRenderer = new MeshRenderer(world, THREE);
     const blockBreakParticles = new VOXELIZE.BlockBreakParticles(world);
     blockBreakParticles.addRenderer(particleRenderer);
-
-    inputs.click(
-      "left",
-      () => {
-        bulkDestroy();
-      },
-      "in-game"
-    );
-
-    inputs.click(
-      "middle",
-      () => {
-        if (!voxelInteract.target) return;
-        const [vx, vy, vz] = voxelInteract.target;
-        const block = controls.world.getBlockByVoxel(vx, vy, vz);
-        hand = block.name;
-      },
-      "in-game"
-    );
-
-    inputs.click(
-      "right",
-      () => {
-        bulkPlace();
-      },
-      "in-game"
-    );
 
     // inputs.scroll(
     //   () => (radius = Math.min(100, radius + 1)),
@@ -466,30 +439,6 @@ const App = () => {
     //   document.body.appendChild(canvas);
     // }
 
-    // const bar = new VOXELIZE.ItemSlots(world, {
-    //   // verticalCount: 5,
-    //   horizontalCount: 9,
-    // });
-    // document.body.appendChild(bar.element);
-
-    // setTimeout(() => {
-    //   const mesh = world.makeBlockMesh(2);
-    //   bar.getSlot(0, 0)?.setObject(mesh);
-    // }, 1000);
-
-    // ["1", "2", "3", "4", "5", "6", "7", "8", "9"].forEach((key) => {
-    //   inputs.bind(
-    //     key,
-    //     () => {
-    //       const index = parseInt(key);
-    //       bar.setFocused(0, index - 1);
-    //     },
-    //     "in-game"
-    //   );
-    // });
-
-    // bar.connect(inputs);
-
     world.overwriteMaterialByIdentifier(
       "Grass",
       true,
@@ -513,6 +462,8 @@ const App = () => {
       .register(world)
       .register(peers)
       .register(blockBreakParticles);
+
+    const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500];
 
     const start = async () => {
       const animate = () => {
@@ -545,22 +496,78 @@ const App = () => {
       await network.join("world1");
       await world.init();
 
-      for (let i = 0; i < 30; i++) {
-        const mesh = world.makeBlockMesh(500, { material: "standard" });
-        const portrait = new VOXELIZE.Portrait(mesh, {
-          // renderOnce: world.isBlockAnimated(i),
-        });
+      const bar = new VOXELIZE.ItemSlots({
+        // verticalCount: 5,
+        horizontalCount: HOTBAR_CONTENT.length,
+      });
+      document.body.appendChild(bar.element);
 
-        VOXELIZE.DOMUtils.applyStyles(portrait.canvas, {
-          position: "fixed",
-          top: `${Math.floor(i / 10) * 100}px`,
-          right: `${(i % 10) * 100}px`,
-          zIndex: "10000000000000000",
-          background: "black",
-        });
+      HOTBAR_CONTENT.forEach((id, index) => {
+        const mesh = world.makeBlockMesh(id, { material: "standard" });
+        const slot = bar.getSlot(0, index);
+        slot.setObject(mesh);
 
-        document.body.appendChild(portrait.canvas);
-      }
+        if (id === 500) {
+          slot.setPerspective("pz");
+        }
+
+        slot.setContent(id);
+      });
+
+      ["1", "2", "3", "4", "5", "6", "7", "8", "9"].forEach((key) => {
+        inputs.bind(
+          key,
+          () => {
+            const index = parseInt(key);
+            bar.setFocused(0, index - 1);
+          },
+          "in-game"
+        );
+      });
+
+      inputs.click(
+        "left",
+        () => {
+          const { target } = voxelInteract;
+          if (!target) return;
+          world.updateVoxel(...target, 0);
+        },
+        "in-game"
+      );
+
+      inputs.click(
+        "middle",
+        () => {
+          if (!voxelInteract.target) return;
+          const [vx, vy, vz] = voxelInteract.target;
+          const block = controls.world.getBlockByVoxel(vx, vy, vz);
+          const slot = bar.getFocused();
+          slot.setObject(
+            world.makeBlockMesh(block.id, { material: "standard" })
+          );
+          slot.setContent(block.id);
+        },
+        "in-game"
+      );
+
+      inputs.click(
+        "right",
+        () => {
+          if (!voxelInteract.potential) return;
+          const {
+            rotation,
+            yRotation,
+            voxel: [vx, vy, vz],
+          } = voxelInteract.potential;
+          const slot = bar.getFocused();
+          const id = slot.content;
+          if (!id) return;
+          world.updateVoxel(vx, vy, vz, id, rotation, yRotation);
+        },
+        "in-game"
+      );
+
+      bar.connect(inputs);
     };
 
     start();
