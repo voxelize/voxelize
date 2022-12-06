@@ -2123,6 +2123,13 @@ export class World extends Scene implements NetIntercept {
     // Load from the static sources first.
     Array.from(sources.entries()).forEach(([sideName, source]) => {
       const { block, side } = this.getBlockByTextureName(sideName);
+
+      if (!block) {
+        throw new Error(
+          `Block not found for texture ${sideName}. Could not apply block texture.`
+        );
+      }
+
       const actualSource = (
         source
           ? // @ts-ignore
@@ -2163,6 +2170,12 @@ export class World extends Scene implements NetIntercept {
         });
 
         const { block, side } = this.getBlockByTextureName(sideName);
+
+        if (!block) {
+          throw new Error(
+            `Block not found for texture ${sideName}. Could not apply block animations.`
+          );
+        }
 
         if (!block.faces.find((face) => face.name === side && face.animated)) {
           throw new Error(

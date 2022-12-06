@@ -451,6 +451,18 @@ export class RigidControls extends EventEmitter {
   ) {
     super();
 
+    if (!camera) {
+      throw new Error("RigidControls: Camera is required.");
+    }
+
+    if (!domElement) {
+      throw new Error("RigidControls: DOM Element is required.");
+    }
+
+    if (!world) {
+      throw new Error("RigidControls: World is required.");
+    }
+
     this.camera = camera;
     this.world = world;
     this.domElement = domElement;

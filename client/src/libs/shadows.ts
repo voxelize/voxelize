@@ -156,6 +156,10 @@ export class Shadows extends Array<Shadow> {
   constructor(world: World) {
     super();
 
+    if (!world) {
+      throw new Error("Shadows: world is required.");
+    }
+
     this.world = world;
   }
 

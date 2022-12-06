@@ -204,6 +204,14 @@ export class VoxelInteract extends Group {
   ) {
     super();
 
+    if (!object) {
+      throw new Error("VoxelInteract: object is required.");
+    }
+
+    if (!world) {
+      throw new Error("VoxelInteract: a world is required to be operated on");
+    }
+
     const { potentialVisuals } = (this.params = {
       ...defaultParams,
       ...params,

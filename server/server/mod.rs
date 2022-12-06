@@ -667,7 +667,7 @@ impl ServerBuilder {
 
     /// Instantiate a voxelize server instance.
     pub fn build(self) -> Server {
-        let mut registry = self.registry.unwrap_or_default();
+        let mut registry = self.registry.unwrap_or(Registry::new());
         registry.generate();
 
         if self.debug {

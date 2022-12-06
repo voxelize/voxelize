@@ -114,6 +114,14 @@ export class Perspective {
     world: World,
     params: Partial<PerspectiveParams> = {}
   ) {
+    if (!controls) {
+      throw new Error("Perspective: invalid rigid controls.");
+    }
+
+    if (!world) {
+      throw new Error("Perspective: invalid world.");
+    }
+
     this.controls = controls;
     this.world = world;
 
