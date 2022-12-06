@@ -27,7 +27,6 @@
     "three-nebula": "10.0.3"
   },
   "devDependencies": {
-    "@rollup/plugin-babel": "^6.0.3",
     "@types/gl-vec3": "^1.1.1",
     "@types/ndarray": "^1.0.11",
     "@types/omggif": "^1.0.3",
