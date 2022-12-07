@@ -413,6 +413,8 @@ const App = () => {
       voxelInteract.toggle();
     });
 
+    const entities = new VOXELIZE.Entities();
+
     const shadows = new VOXELIZE.Shadows(world);
     shadows.add(character);
 

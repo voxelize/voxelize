@@ -1,6 +1,24 @@
 import { EntityProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import { Group } from "three";
 
 import { NetIntercept } from "./network";
+
+export class Entity<T = any> extends Group {
+  public entId: string;
+
+  constructor(id: string) {
+    super();
+
+    this.entId = id;
+  }
+
+  /**
+   * Called when the entity is created.
+   */
+  onCreate: (data: T) => void;
+
+  onUpdate: (data: T) => void;
+}
 
 /**
  * A network interceptor that can be used to handle `ENTITY` messages. This is useful
@@ -10,26 +28,32 @@ import { NetIntercept } from "./network";
  *
  * # Example
  * ```ts
- * const entities = new VOXELIZE.Entities<{ position: VOXELIZE.Coords3 }>();
+ * const entities = new VOXELIZE.Entities();
  *
- * // Define the behavior to handle an entity message.
- * entities.onEntity = ({ id, type, metadata }) => {
- *   // Do something about `metadata.position`.
- * };
+ * // Define an entity type.
+ * class MyEntity extends VOXELIZE.Entity<{ position: VOXELIZE.Coords3 }> {
+ *   onUpdate = (data) => {
+ *     // Do something with `data.position`.
+ *   };
+ * }
+ *
+ * // Register the entity type.
+ * entities.registerEntity("my-entity", MyEntity);
  *
  * // Register the interceptor with the network.
  * network.register(entities);
  * ```
  *
  * @noInheritDoc
- * @param T The type of metadata to expect, needs to be serializable.
  * @category Core
  */
-export class Entities<T> implements NetIntercept {
-  /**
-   * The handler for any incoming entity data from the server.
-   */
-  public onEntity: (entity: EntityProtocol<T>) => void;
+export class Entities extends Group implements NetIntercept {
+  public map: Map<string, Entity> = new Map();
+  public types: Map<string, new (id: string) => Entity> = new Map();
+
+  registerEntity = (type: string, entity: new (id: string) => Entity) => {
+    this.types.set(type, entity);
+  };
 
   /**
    * The network intercept implementation for entities.
@@ -39,12 +63,29 @@ export class Entities<T> implements NetIntercept {
    * @hidden
    * @param message The message to intercept.
    */
-  public onMessage = (message: MessageProtocol<any, any, T>) => {
+  onMessage = (message: MessageProtocol) => {
     const { entities } = message;
 
     if (entities && entities.length) {
       entities.forEach((entity) => {
-        this.onEntity?.(entity);
+        const { id, type, metadata } = entity;
+
+        if (!this.types.has(type)) {
+          console.warn(`Entity type ${type} is not registered.`);
+          return;
+        }
+
+        let object = this.map.get(id);
+
+        if (!object) {
+          const Entity = this.types.get(type);
+          object = new Entity(id);
+          this.map.set(id, object);
+          this.add(object);
+          object.onCreate?.(metadata);
+        } else {
+          object.onUpdate?.(metadata);
+        }
       });
     }
   };

@@ -9,10 +9,6 @@ use world::setup_world;
 mod registry;
 mod world;
 
-#[derive(Default, Component)]
-#[storage(NullStorage)]
-struct BoxFlag;
-
 const ISLAND_LIMIT: i32 = 1;
 const ISLAND_HEIGHT: i32 = 10;
 

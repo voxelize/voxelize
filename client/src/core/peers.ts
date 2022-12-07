@@ -127,22 +127,13 @@ export class Peers<
   createPeer: (id: string) => C;
 
   /**
-   * A function called when a player joins the game. This function has a default implementation and
-   * should not be overridden unless you know what you are doing. Internally, this calls {@link Peers.createPeer}
-   * to create a new peer object and adds it to the peers group itself.
+   * A function called when a player joins the game. By default, the function calls the {@link Peers.createPeer}
+   * function to create a new peer object and adds it to the peers group. Customize this function to add additional
+   * behavior.
    *
    * @param id The new peer's ID.
    */
-  onPeerJoin(id: string) {
-    if (!this.createPeer) {
-      console.warn("Peers.createPeer is not defined, skipping peer join.");
-      return;
-    }
-
-    const peer = this.createPeer(id);
-    peer.name = id;
-    this.add(peer);
-  }
+  onPeerJoin: (id: string) => void;
 
   /**
    * A function called to update a peer object with new data. This function should be implemented to
@@ -161,16 +152,12 @@ export class Peers<
   ) => void;
 
   /**
-   * A function called when a player leaves the game. This function has a default implementation and
-   * should not be overridden unless you know what you are doing. Internally, this removes the peer
-   * object from the peers group itself.
+   * A function called when a player leaves the game. Internally, when a player leaves, its object is removed
+   * from the peers group. Customize this function to add additional behavior.
    *
    * @param id The ID of the peer that left the game.
    */
-  onPeerLeave(id: string) {
-    const peer = this.getObjectByName(id);
-    if (peer) this.remove(peer);
-  }
+  onPeerLeave: (id: string) => void;
 
   /**
    * The network intercept implementation for peers.
@@ -196,11 +183,25 @@ export class Peers<
         const { text: id } = message;
         if (!this.params.countSelf && (!this.ownID || this.ownID === id))
           return;
+
+        if (!this.createPeer) {
+          console.warn("Peers.createPeer is not defined, skipping peer join.");
+          return;
+        }
+
+        const peer = this.createPeer(id);
+        peer.name = id;
+        this.add(peer);
+
         this.onPeerJoin?.(id);
         break;
       }
       case "LEAVE": {
         const { text: id } = message;
+        const peer = this.getObjectByName(id);
+
+        if (peer) this.remove(peer);
+
         this.onPeerLeave?.(id);
         break;
       }

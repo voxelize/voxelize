@@ -1,7 +1,11 @@
+use nanoid::nanoid;
+use specs::{Builder, Component, NullStorage, WorldExt};
 use std::f64;
 use voxelize::{
-    default_client_parser, BaseTerrainStage, Chunk, ChunkStage, LSystem, NoiseParams, Resources,
-    SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
+    default_client_parser, BaseTerrainStage, Chunk, ChunkStage, CurrentChunkComp, ETypeComp,
+    EntityFlag, IDComp, LSystem, MetadataComp, NoiseParams, PositionComp, Resources, RigidBody,
+    RigidBodyComp, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess,
+    World, WorldConfig, AABB,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -145,6 +149,10 @@ impl ChunkStage for TreeStage {
     }
 }
 
+#[derive(Default, Component)]
+#[storage(NullStorage)]
+struct BoxFlag;
+
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
         .terrain(
@@ -244,6 +252,24 @@ pub fn setup_world() -> World {
 
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
     }
+
+    let test_body =
+        RigidBody::new(&AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build()).build();
+
+    world.ecs_mut().register::<BoxFlag>();
+
+    world
+        .ecs_mut()
+        .create_entity()
+        .with(EntityFlag::default())
+        .with(ETypeComp::new("Box"))
+        .with(IDComp::new(&nanoid!()))
+        .with(PositionComp::new(3.0, 90.0, 3.0))
+        .with(MetadataComp::new())
+        .with(RigidBodyComp::new(&test_body))
+        .with(CurrentChunkComp::default())
+        .with(BoxFlag)
+        .build();
 
     world
 }
