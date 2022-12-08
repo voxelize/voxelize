@@ -118,6 +118,12 @@ pub struct EventProtocol {
     pub payload: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct MethodProtocol {
+    pub name: String,
+    pub payload: String,
+}
+
 /// Builder for a protocol buffer message.
 #[derive(Default)]
 pub struct MessageBuilder {
@@ -127,6 +133,7 @@ pub struct MessageBuilder {
     text: Option<String>,
 
     chat: Option<ChatMessageProtocol>,
+    method: Option<MethodProtocol>,
 
     peers: Option<Vec<PeerProtocol>>,
     entities: Option<Vec<EntityProtocol>>,
@@ -175,6 +182,12 @@ impl MessageBuilder {
     /// Configure the voxel update data of the protocol.
     pub fn updates(mut self, updates: &[UpdateProtocol]) -> Self {
         self.updates = Some(updates.to_vec());
+        self
+    }
+
+    /// Configure the method data of the protocol.
+    pub fn method(mut self, method: MethodProtocol) -> Self {
+        self.method = Some(method);
         self
     }
 
@@ -279,6 +292,13 @@ impl MessageBuilder {
                     voxel: update.voxel,
                 })
                 .collect()
+        }
+
+        if let Some(method) = self.method {
+            message.method = Some(protocols::Method {
+                name: method.name,
+                payload: method.payload,
+            });
         }
 
         if let Some(chat) = self.chat {

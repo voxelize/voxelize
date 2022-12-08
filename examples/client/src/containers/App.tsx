@@ -62,6 +62,29 @@ if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
 
 const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 
+class Box extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+}> {
+  constructor(id: string) {
+    super(id);
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshNormalMaterial()
+      )
+    );
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.lerp(new THREE.Vector3(...data.position), 0.8);
+  };
+}
+
 const App = () => {
   const domRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -313,14 +336,14 @@ const App = () => {
     //   "in-game"
     // );
 
-    inputs.bind(
-      "b",
-      () => {
-        inputs.remap("t", "c", { occasion: "keyup" });
-      },
-      "in-game",
-      { identifier: "BRUH" }
-    );
+    // inputs.bind(
+    //   "b",
+    //   () => {
+    //     inputs.remap("t", "c", { occasion: "keyup" });
+    //   },
+    //   "in-game",
+    //   { identifier: "BRUH" }
+    // );
 
     const peers = new Peers<VOXELIZE.Character>(controls.object);
 
@@ -349,13 +372,13 @@ const App = () => {
 
     ColorText.SPLITTER = "$";
 
-    inputs.bind(
-      "o",
-      () => {
-        console.log(controls.object.position);
-      },
-      "in-game"
-    );
+    // inputs.bind(
+    //   "o",
+    //   () => {
+    //     console.log(controls.object.position);
+    //   },
+    //   "in-game"
+    // );
 
     inputs.bind(
       "g",
@@ -377,9 +400,9 @@ const App = () => {
 
     inputs.bind("j", debug.toggle, "*");
 
-    inputs.bind("l", () => {
-      network.action("create_world", "new_world");
-    });
+    // inputs.bind("l", () => {
+    //   network.action("create_world", "new_world");
+    // });
 
     debug.registerDisplay("Position", controls, "voxel");
 
@@ -414,6 +437,57 @@ const App = () => {
     });
 
     const entities = new VOXELIZE.Entities();
+
+    entities.addClass("box", Box);
+
+    world.add(entities);
+
+    const method = new VOXELIZE.Method();
+
+    inputs.bind("m", () => {
+      method.call("test", {
+        test: "Hello World",
+      });
+    });
+
+    inputs.bind("z", () => {
+      method.call("spawn", {
+        position: controls.object.position.toArray(),
+      });
+    });
+
+    const events = new VOXELIZE.Events();
+
+    events.on("test2", (payload) => {
+      console.log("test2 event:", payload);
+    });
+
+    events.on("test1", (payload) => {
+      console.log("test1 event:", payload);
+    });
+
+    inputs.bind("n", () => {
+      events.emit("test2", {
+        test: "Hello World",
+      });
+    });
+
+    inputs.bind("b", () => {
+      events.emitMany([
+        {
+          name: "test1",
+          payload: {
+            test: "Hello World",
+          },
+        },
+        {
+          name: "test2",
+          payload: {
+            test: "Hello World",
+          },
+        },
+      ]);
+    });
 
     const shadows = new VOXELIZE.Shadows(world);
     shadows.add(character);
@@ -461,7 +535,10 @@ const App = () => {
 
     network
       .register(chat)
+      .register(entities)
       .register(world)
+      .register(method)
+      .register(events)
       .register(peers)
       .register(blockBreakParticles);
 

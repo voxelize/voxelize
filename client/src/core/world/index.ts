@@ -23,7 +23,6 @@ import {
   Vector4,
 } from "three";
 
-import { noop } from "../../common";
 import { ArtFunction } from "../../libs";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
@@ -43,6 +42,7 @@ export * from "./chunk";
 export * from "./chunks";
 export * from "./registry";
 export * from "./shaders";
+export * from "./loader";
 
 export type SkyFace = ArtFunction | Color | string | null;
 

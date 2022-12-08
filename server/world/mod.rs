@@ -57,7 +57,7 @@ pub use voxels::*;
 pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
-pub fn default_client_parser(metadata: &str, client_ent: Entity, world: &mut World) {
+pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
     let metadata: PeerUpdate =
         serde_json::from_str(metadata).expect("Could not parse peer update.");
 
@@ -115,19 +115,25 @@ pub struct World {
     dispatcher: Arc<dyn Fn() -> DispatcherBuilder<'static, 'static>>,
 
     /// The modifier of any new client.
-    client_modifier: Option<Arc<dyn Fn(Entity, &mut World)>>,
+    client_modifier: Option<Arc<dyn Fn(&mut World, Entity)>>,
 
     /// The metadata parser for clients.
-    client_parser: Arc<dyn Fn(&str, Entity, &mut World)>,
+    client_parser: Arc<dyn Fn(&mut World, &str, Entity)>,
 
     /// The handler for `Method`s.
-    method_handles: HashMap<String, Arc<dyn Fn(Value, &mut World)>>,
+    method_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str)>>,
+
+    /// The handlers for `Event`s.
+    event_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str)>>,
 
     /// The handler for `Transport`s.
-    transport_handle: Option<Arc<dyn Fn(Value, &mut World)>>,
+    transport_handle: Option<Arc<dyn Fn(&mut World, Value)>>,
 
     /// The handler for commands.
-    command_handle: Option<Arc<dyn Fn(&str, &str, &mut World)>>,
+    command_handle: Option<Arc<dyn Fn(&mut World, &str, &str)>>,
+
+    /// A map to spawn and create entities.
+    entity_loaders: HashMap<String, Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder>>,
 }
 
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
@@ -177,9 +183,9 @@ struct OnUnloadRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-struct OnMethodRequest {
-    method: String,
-    data: Value,
+struct OnEventRequest {
+    name: String,
+    payload: Value,
 }
 
 impl World {
@@ -251,6 +257,8 @@ impl World {
 
             dispatcher: Arc::new(dispatcher),
             method_handles: HashMap::default(),
+            event_handles: HashMap::default(),
+            entity_loaders: HashMap::default(),
             client_parser: Arc::new(default_client_parser),
             client_modifier: None,
             transport_handle: None,
@@ -349,12 +357,12 @@ impl World {
             .with(PositionComp::default())
             .with(DirectionComp::default())
             .with(RigidBodyComp::new(&body))
-            .with(InteractorComp::new(interactor))
+            .with(InteractorComp::new(&interactor))
             .with(CollisionsComp::new())
             .build();
 
         if let Some(modifier) = self.client_modifier.to_owned() {
-            modifier(ent, self);
+            modifier(self, ent);
         }
 
         self.clients_mut().insert(
@@ -406,15 +414,15 @@ impl World {
         self.dispatcher = Arc::new(dispatch);
     }
 
-    pub fn set_client_modifier<F: Fn(Entity, &mut World) + 'static>(&mut self, modifier: F) {
+    pub fn set_client_modifier<F: Fn(&mut World, Entity) + 'static>(&mut self, modifier: F) {
         self.client_modifier = Some(Arc::new(modifier));
     }
 
-    pub fn set_client_parser<F: Fn(&str, Entity, &mut World) + 'static>(&mut self, parser: F) {
+    pub fn set_client_parser<F: Fn(&mut World, &str, Entity) + 'static>(&mut self, parser: F) {
         self.client_parser = Arc::new(parser);
     }
 
-    pub fn set_method_handle<F: Fn(Value, &mut World) + 'static>(
+    pub fn set_method_handle<F: Fn(&mut World, &str, &str) + 'static>(
         &mut self,
         method: &str,
         handle: F,
@@ -423,12 +431,30 @@ impl World {
             .insert(method.to_lowercase(), Arc::new(handle));
     }
 
-    pub fn set_transport_handle<F: Fn(Value, &mut World) + 'static>(&mut self, handle: F) {
+    pub fn set_event_handle<F: Fn(&mut World, &str, &str) + 'static>(
+        &mut self,
+        event: &str,
+        handle: F,
+    ) {
+        self.event_handles
+            .insert(event.to_lowercase(), Arc::new(handle));
+    }
+
+    pub fn set_transport_handle<F: Fn(&mut World, Value) + 'static>(&mut self, handle: F) {
         self.transport_handle = Some(Arc::new(handle));
     }
 
-    pub fn set_command_handle<F: Fn(&str, &str, &mut World) + 'static>(&mut self, handle: F) {
+    pub fn set_command_handle<F: Fn(&mut World, &str, &str) + 'static>(&mut self, handle: F) {
         self.command_handle = Some(Arc::new(handle));
+    }
+
+    pub fn set_entity_loader<F: Fn(&mut World, MetadataComp) -> EntityBuilder + 'static>(
+        &mut self,
+        etype: &str,
+        loader: F,
+    ) {
+        self.entity_loaders
+            .insert(etype.to_lowercase(), Arc::new(loader));
     }
 
     /// Handler for protobuf requests from clients.
@@ -442,9 +468,7 @@ impl World {
             MessageType::Method => self.on_method(client_id, data),
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
-            MessageType::Event => self
-                .write_resource::<MessageQueue>()
-                .push((data, ClientFilter::All)),
+            MessageType::Event => self.on_event(client_id, data),
             MessageType::Transport => {
                 if self.transport_handle.is_none() {
                     warn!("Transport calls are being called, but no transport handlers set!");
@@ -452,9 +476,9 @@ impl World {
                     let handle = self.transport_handle.as_ref().unwrap().to_owned();
 
                     handle(
+                        self,
                         serde_json::from_str(&data.json)
                             .expect("Something went wrong with the transport JSON value."),
-                        self,
                     );
                 }
             }
@@ -586,16 +610,80 @@ impl World {
 
     /// Spawn an entity of type at a location.
     pub fn spawn_entity(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
-        let loader = if let Some(loader) = self.entities_mut().get_loader(&etype.to_lowercase()) {
-            loader
-        } else {
+        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+            warn!("Tried to spawn unknown entity type: {}", etype);
             return None;
-        };
+        }
 
-        let ent = loader(nanoid!(), etype.to_owned(), MetadataComp::default(), self).build();
+        let loader = self
+            .entity_loaders
+            .get(&etype.to_lowercase())
+            .unwrap()
+            .to_owned();
+
+        let ent = loader(self, MetadataComp::default()).build();
+        self.populate_entity(ent, &nanoid!(), etype, MetadataComp::default());
+
         set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
 
         Some(ent)
+    }
+
+    pub fn revive_entity(
+        &mut self,
+        id: &str,
+        etype: &str,
+        metadata: MetadataComp,
+    ) -> Option<Entity> {
+        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+            warn!("Tried to revive unknown entity type: {}", etype);
+            return None;
+        }
+
+        let loader = self
+            .entity_loaders
+            .get(&etype.to_lowercase())
+            .unwrap()
+            .to_owned();
+
+        let ent = loader(self, metadata.to_owned()).build();
+        self.populate_entity(ent, id, etype, metadata);
+
+        info!("{:?}", self.ecs().read_component::<PositionComp>().get(ent));
+
+        Some(ent)
+    }
+
+    pub fn populate_entity(&mut self, ent: Entity, id: &str, etype: &str, metadata: MetadataComp) {
+        self.ecs_mut()
+            .write_storage::<IDComp>()
+            .insert(ent, IDComp::new(id))
+            .expect("Failed to insert ID component");
+
+        self.ecs_mut()
+            .write_storage::<ETypeComp>()
+            .insert(ent, ETypeComp::new(etype))
+            .expect("Failed to insert entity type component");
+
+        self.ecs_mut()
+            .write_storage::<EntityFlag>()
+            .insert(ent, EntityFlag::default())
+            .expect("Failed to insert entity flag");
+
+        self.ecs_mut()
+            .write_storage::<CurrentChunkComp>()
+            .insert(ent, CurrentChunkComp::default())
+            .expect("Failed to insert current chunk component");
+
+        self.ecs_mut()
+            .write_storage::<CollisionsComp>()
+            .insert(ent, CollisionsComp::new())
+            .expect("Failed to insert collisions component");
+
+        self.ecs_mut()
+            .write_storage::<MetadataComp>()
+            .insert(ent, metadata)
+            .expect("Failed to insert metadata component");
     }
 
     /// Check if this world is empty.
@@ -605,6 +693,12 @@ impl World {
 
     /// Prepare to start.
     pub(crate) fn prepare(&mut self) {
+        // Merge consecutive chunk stages that don't require spaces together.
+        self.pipeline_mut().merge_stages();
+
+        self.preload();
+        self.load_entities();
+
         for (position, body) in (
             &self.ecs.read_storage::<PositionComp>(),
             &mut self.ecs.write_storage::<RigidBodyComp>(),
@@ -614,12 +708,6 @@ impl World {
             body.0
                 .set_position(position.0 .0, position.0 .1, position.0 .2);
         }
-
-        // Merge consecutive chunk stages that don't require spaces together.
-        self.pipeline_mut().merge_stages();
-
-        self.preload();
-        self.load_entities();
     }
 
     /// Preload the chunks in the world.
@@ -733,7 +821,7 @@ impl World {
                 }
             }
 
-            self.client_parser.clone()(&metadata, client_ent, self);
+            self.client_parser.clone()(self, &metadata, client_ent);
 
             if let Some(client) = self.clients_mut().get_mut(client_id) {
                 client.username = username;
@@ -808,19 +896,42 @@ impl World {
     }
 
     /// Handler for `Method` type messages.
-    fn on_method(&mut self, _: &str, data: Message) {
-        let json: OnMethodRequest = serde_json::from_str(&data.json)
-            .expect("`on_method` error. Could not read JSON string.");
-        let method = json.method.to_lowercase();
+    fn on_method(&mut self, client_id: &str, data: Message) {
+        if let Some(method) = data.method {
+            if !self
+                .method_handles
+                .contains_key(&method.name.to_lowercase())
+            {
+                warn!("`Method` type messages received, but no method handler set.");
+                return;
+            }
 
-        if !self.method_handles.contains_key(&method) {
-            warn!("`Method` type messages received, but no method handler set.");
-            return;
+            let handle = self.method_handles.get(&method.name).unwrap().to_owned();
+
+            handle(self, client_id, &method.payload);
         }
+    }
 
-        let handle = self.method_handles.get(&method).unwrap().to_owned();
+    /// Handler for `Event` type messages.
+    fn on_event(&mut self, client_id: &str, data: Message) {
+        let mut events = vec![];
 
-        handle(json.data, self);
+        data.events.into_iter().for_each(|event| {
+            if !self.event_handles.contains_key(&event.name.to_lowercase()) {
+                events.push(event);
+                return;
+            }
+
+            let handle = self.event_handles.get(&event.name).unwrap().to_owned();
+
+            handle(self, client_id, &event.payload);
+        });
+
+        let mut message = Message::new(&MessageType::Event).build();
+        message.events = events;
+
+        self.write_resource::<MessageQueue>()
+            .push((message, ClientFilter::All));
     }
 
     /// Handler for `Chat` type messages.
@@ -831,9 +942,11 @@ impl World {
 
             info!("{}: {}", sender, body);
 
-            if body.starts_with('/') {
+            let command_symbol = self.config().command_symbol.to_owned();
+
+            if body.starts_with(&command_symbol) {
                 if let Some(handle) = self.command_handle.to_owned() {
-                    handle(id, body.strip_prefix('/').unwrap(), self);
+                    handle(self, id, body.strip_prefix(&command_symbol).unwrap());
                 } else {
                     warn!("Clients are sending commands, but no command handler set.");
                 }
@@ -849,7 +962,6 @@ impl World {
             // TODO: THIS FEELS HACKY
 
             let paths = fs::read_dir(self.entities().folder.clone()).unwrap();
-            let loaders = self.entities().loaders.to_owned();
 
             for path in paths {
                 let path = path.unwrap().path();
@@ -867,11 +979,7 @@ impl World {
                             |_| panic!("Metadata filed does not exist on file: {:?}", path),
                         );
 
-                    if let Some(loader) = loaders.get(&etype) {
-                        loader(id, etype, metadata, self).build();
-                    } else {
-                        fs::remove_file(path).expect("Unable to remove entity file...");
-                    }
+                    self.revive_entity(&id, &etype, metadata);
                 }
             }
         }

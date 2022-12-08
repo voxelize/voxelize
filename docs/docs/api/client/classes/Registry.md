@@ -9,7 +9,7 @@ custom_edit_url: null
 A client-side manager for blocks. This class will receive block data on connecting to a server, and will
 be responsible for loading the block textures and creating the block instances that can be queried.
 
-Registry is by default created by the world and is available as [registry](World.md#registry).
+Registry is by default created by the world and is available as [registry](World.md#registry-96).
 
 # Example
 ```ts
@@ -33,7 +33,7 @@ Apply a texture onto a face/side of a block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `texture` | [`TextureData`](../modules.md#texturedata) | The data of the texture and where the texture is applying to. |
+| `texture` | [`TextureData`](../modules.md#texturedata-96) | The data of the texture and where the texture is applying to. |
 
 #### Returns
 
@@ -63,7 +63,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-96)
 
 Get the block information by its ID. Call this after connecting to the server, or else
 no blocks will be loaded yet.
@@ -76,13 +76,13 @@ no blocks will be loaded yet.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-96)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-96)
 
 Get the block information by its name. Call this after connecting to the server, or else
 no blocks will be loaded yet.
@@ -95,7 +95,7 @@ no blocks will be loaded yet.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../modules.md#block-96)
 
 ___
 
@@ -118,7 +118,7 @@ no blocks will be loaded yet.
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block) |
+| `block` | [`Block`](../modules.md#block-96) |
 | `side` | `string` |
 
 ___
@@ -133,7 +133,7 @@ Load blocks from the server and generate atlas. This is called automatically by 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `blocks` | [`Block`](../modules.md#block)[] | A list of blocks received from the server. |
+| `blocks` | [`Block`](../modules.md#block-96)[] | A list of blocks received from the server. |
 | `ranges` | `Object` | A map of UV ranges for all registered blocks. This is generated and loaded from the server, then passed into creating the texture atlas. |
 
 #### Returns
@@ -165,7 +165,7 @@ A string representing the side's texture key.
 
 ### blocksById
 
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block)\>
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-96)\>
 
 A map of blocks by their IDs.
 
@@ -173,7 +173,7 @@ ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block)\>
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-96)\>
 
 A map of blocks by their names.
 
@@ -197,7 +197,7 @@ ___
 
 ### ranges
 
-• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange)\>
+• **ranges**: `Map`<`string`, [`TextureRange`](../modules.md#texturerange-96)\>
 
 A map of UV ranges for all registered blocks. This is generated and loaded from the server, then passed into creating the texture atlas.
 

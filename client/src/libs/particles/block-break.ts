@@ -273,7 +273,7 @@ export class BlockBreakParticles extends System implements NetIntercept {
             this.params.minLife * (tooMany ? this.params.capScale : 1),
             this.params.maxLife * (tooMany ? this.params.capScale : 1)
           ),
-          new Body(mesh.children),
+          new Body(this.params.crumbs ? mesh.children : mesh),
           new Position(new BoxZone(this.params.zoneWidth)),
         ])
         .addBehaviours([

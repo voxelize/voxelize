@@ -1,6 +1,6 @@
 ---
 id: "Entities"
-title: "Class: Entities<T>"
+title: "Class: Entities"
 sidebar_label: "Entities"
 sidebar_position: 0
 custom_edit_url: null
@@ -13,57 +13,59 @@ TODO-DOCS
 
 # Example
 ```ts
-const entities = new VOXELIZE.Entities<{ position: VOXELIZE.Coords3 }>();
+const entities = new VOXELIZE.Entities();
 
-// Define the behavior to handle an entity message.
-entities.onEntity = ({ id, type, metadata }) => {
-  // Do something about `metadata.position`.
-};
+// Define an entity type.
+class MyEntity extends VOXELIZE.Entity<{ position: VOXELIZE.Coords3 }> {
+  onUpdate = (data) => {
+    // Do something with `data.position`.
+  };
+}
+
+// Register the entity type.
+entities.addClass("my-entity", MyEntity);
 
 // Register the interceptor with the network.
 network.register(entities);
 ```
 
-## Type parameters
+## Hierarchy
 
-| Name | Description |
-| :------ | :------ |
-| `T` | The type of metadata to expect, needs to be serializable. |
+- `Group`
+
+  ↳ **`Entities`**
 
 ## Implements
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
-## Constructors
+## Methods
 
-### constructor
+### addClass
 
-• **new Entities**<`T`\>()
+▸ **addClass**(`type`, `entity`): `void`
 
-#### Type parameters
+Add a new entity type to the entities manager.
 
-| Name |
-| :------ |
-| `T` |
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `string` | The type of entity to register. |
+| `entity` | (`id`: `string`) => [`Entity`](Entity.md)<`any`\> | The entity class to register. |
+
+#### Returns
+
+`void`
 
 ## Properties
 
-### onEntity
+### map
 
-• **onEntity**: (`entity`: `EntityProtocol`<`T`\>) => `void`
+• **map**: `Map`<`string`, [`Entity`](Entity.md)<`any`\>\>
 
-#### Type declaration
+___
 
-▸ (`entity`): `void`
+### types
 
-The handler for any incoming entity data from the server.
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `entity` | `EntityProtocol`<`T`\> |
-
-##### Returns
-
-`void`
+• **types**: `Map`<`string`, \>

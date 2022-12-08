@@ -15,11 +15,7 @@
     "compile": "rollup -c rollup.config.js",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
-    "prepublishOnly": "yarn run build",
-    "docs": "yarn run docs:start",
-    "docs:start": "cd docs && rimraf docs/docs/api && yarn && yarn run start",
-    "docs:build": "cd docs && yarn && yarn run build",
-    "docs:deploy": "cd docs && yarn && yarn run deploy"
+    "prepublishOnly": "yarn run build"
   },
   "peerDependencies": {
     "postprocessing": "^6.26.3",

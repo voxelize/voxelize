@@ -13,7 +13,7 @@ export interface NetIntercept {
    * @param message The message received from the server.
    * @param clientInfo The client information.
    */
-  onMessage: (
+  onMessage?: (
     message: MessageProtocol,
     clientInfo: {
       /**

@@ -79,7 +79,7 @@ const config = {
             position: "left",
             label: "Tutorial",
           },
-          { to: "/wiki/category/chunks", label: "Wiki", position: "left" },
+          { to: "/wiki/events", label: "Wiki", position: "left" },
           {
             to: "/api/client/modules",
             position: "left",

@@ -189,6 +189,10 @@ pub fn sweep(
                 let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
 
+                if block.is_fluid || block.is_empty || block.is_passable {
+                    continue;
+                }
+
                 let aabbs = block.get_aabbs(&Vec3(vx, vy, vz), space, registry);
 
                 if aabbs.is_empty() {

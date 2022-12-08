@@ -1,11 +1,13 @@
+use log::info;
 use nanoid::nanoid;
+use serde::{Deserialize, Serialize};
 use specs::{Builder, Component, NullStorage, WorldExt};
 use std::f64;
 use voxelize::{
     default_client_parser, BaseTerrainStage, Chunk, ChunkStage, CurrentChunkComp, ETypeComp,
-    EntityFlag, IDComp, LSystem, MetadataComp, NoiseParams, PositionComp, Resources, RigidBody,
-    RigidBodyComp, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess,
-    World, WorldConfig, AABB,
+    EntityFlag, IDComp, InteractorComp, LSystem, MetadataComp, NoiseParams, PositionComp,
+    Resources, RigidBody, RigidBodyComp, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees,
+    Vec3, VoxelAccess, World, WorldConfig, AABB,
 };
 
 const MOUNTAIN_HEIGHT: f64 = 0.9;
@@ -153,6 +155,16 @@ impl ChunkStage for TreeStage {
 #[storage(NullStorage)]
 struct BoxFlag;
 
+#[derive(Serialize, Deserialize, Debug)]
+struct TestMethodPayload {
+    test: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SpawnMethodPayload {
+    position: Vec3<f32>,
+}
+
 pub fn setup_world() -> World {
     let config = WorldConfig::new()
         .terrain(
@@ -253,23 +265,54 @@ pub fn setup_world() -> World {
         // pipeline.add_stage(FlatlandStage::new(10, 2, 2, 2));
     }
 
-    let test_body =
-        RigidBody::new(&AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build()).build();
-
     world.ecs_mut().register::<BoxFlag>();
 
-    world
-        .ecs_mut()
-        .create_entity()
-        .with(EntityFlag::default())
-        .with(ETypeComp::new("Box"))
-        .with(IDComp::new(&nanoid!()))
-        .with(PositionComp::new(3.0, 90.0, 3.0))
-        .with(MetadataComp::new())
-        .with(RigidBodyComp::new(&test_body))
-        .with(CurrentChunkComp::default())
-        .with(BoxFlag)
-        .build();
+    // world
+    //     .ecs_mut()
+    //     .create_entity()
+    //     .with(EntityFlag::default())
+    //     .with(ETypeComp::new("Box"))
+    //     .with(IDComp::new(&nanoid!()))
+    //     .with(PositionComp::new(3.0, 90.0, 3.0))
+    //     .with(MetadataComp::new())
+    //     .with(RigidBodyComp::new(&test_body))
+    //     .with(CurrentChunkComp::default())
+    //     .with(BoxFlag)
+    //     .build();
+
+    world.set_entity_loader("box", |world, metadata| {
+        info!("loading box entity: {:?}", metadata);
+
+        let position = metadata.get::<PositionComp>("position").unwrap_or_default();
+
+        let body =
+            RigidBody::new(&AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build()).build();
+        let interactor = world.physics_mut().register(&body);
+
+        world
+            .create_entity(&nanoid!(), "box")
+            .with(BoxFlag)
+            .with(PositionComp::default())
+            .with(RigidBodyComp::new(&body))
+            .with(InteractorComp::new(&interactor))
+            .with(position)
+    });
+
+    world.set_method_handle("spawn", |world, _, payload| {
+        let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
+        world.spawn_entity("box", &data.position);
+        info!("spawn method called with payload: {:?}", data);
+    });
+
+    world.set_method_handle("test", |world, client_id, payload| {
+        let data: TestMethodPayload = serde_json::from_str(&payload).unwrap();
+
+        info!("test method called with payload: {:?}", data);
+    });
+
+    world.set_event_handle("test1", |_, _, payload| {
+        info!("test1 event called with payload: {:?}", payload);
+    });
 
     world
 }

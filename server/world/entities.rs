@@ -1,21 +1,20 @@
 use hashbrown::HashMap;
 use serde_json::json;
-use specs::{Entity, EntityBuilder, World as ECSWorld, WorldExt};
+use specs::{Builder, Entity, EntityBuilder, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::{ETypeComp, IDComp, MetadataComp, PositionComp, RigidBodyComp, World};
-
-type CreateEntity = fn(String, String, MetadataComp, &mut World) -> EntityBuilder;
 
 /// Takes all the metadata components, and saves them into the
 /// world saving directory by their ID's.
 #[derive(Clone)]
 pub struct Entities {
     pub folder: PathBuf,
-
-    pub loaders: HashMap<String, CreateEntity>,
+    // pub loaders:
+    //     HashMap<String, Arc<dyn Fn(String, String, MetadataComp, &mut World) -> EntityBuilder>>,
 }
 
 impl Entities {
@@ -27,24 +26,7 @@ impl Entities {
             fs::create_dir_all(&folder).expect("Unable to create entities directory...");
         }
 
-        Self {
-            folder,
-            loaders: HashMap::default(),
-        }
-    }
-
-    pub fn add_loader(&mut self, etype: &str, loader: CreateEntity) {
-        self.loaders.insert(etype.to_lowercase(), loader);
-    }
-
-    pub fn get_loader(&mut self, etype: &str) -> Option<CreateEntity> {
-        let lower = etype.to_lowercase();
-
-        if !self.loaders.contains_key(&lower) {
-            return None;
-        }
-
-        Some(self.loaders.get(&lower).unwrap().to_owned())
+        Self { folder }
     }
 
     pub fn save(&self, id: &IDComp, etype: &ETypeComp, metadata: &MetadataComp) {

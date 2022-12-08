@@ -357,12 +357,6 @@ export class Network {
    */
   register = (...intercepts: NetIntercept[]) => {
     intercepts.forEach((intercept) => {
-      if (typeof intercept.onMessage !== "function") {
-        throw new Error(
-          "Cannot intercept network events without the `.onMessage` function!"
-        );
-      }
-
       this.intercepts.push(intercept);
     });
 
@@ -466,7 +460,7 @@ export class Network {
     }
 
     this.intercepts.forEach((intercept) => {
-      intercept.onMessage(message, this.clientInfo);
+      intercept.onMessage?.(message, this.clientInfo);
     });
 
     if (type === "INIT") {

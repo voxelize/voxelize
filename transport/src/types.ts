@@ -38,6 +38,11 @@ export type EventProtocol<T> = {
   payload: T;
 };
 
+export type MethodProtocol<T> = {
+  name: string;
+  payload: T;
+};
+
 export type UpdateProtocol = {
   vx: number;
   vy: number;
@@ -52,7 +57,13 @@ export type ChatProtocol = {
   body: string;
 };
 
-export type MessageProtocol<T = any, Peer = any, Entity = any, Event = any> = {
+export type MessageProtocol<
+  T = any,
+  Peer = any,
+  Entity = any,
+  Event = any,
+  Method = any
+> = {
   type:
     | "INIT"
     | "JOIN"
@@ -72,6 +83,7 @@ export type MessageProtocol<T = any, Peer = any, Entity = any, Event = any> = {
   text?: string;
 
   chat?: ChatProtocol;
+  method?: MethodProtocol<Method>;
 
   peers?: PeerProtocol<Peer>[];
   entities?: EntityProtocol<Entity>[];

@@ -48,6 +48,13 @@ export type EventHandler = (payload: any | null) => void;
  */
 export class Events extends Map<string, EventHandler> implements NetIntercept {
   /**
+   * A list of packets that will be sent to the server.
+   *
+   * @hidden
+   */
+  public packets: MessageProtocol<any, any, any, any>[] = [];
+
+  /**
    * The network intercept implementation for events.
    *
    * DO NOT CALL THIS METHOD OR CHANGE IT UNLESS YOU KNOW WHAT YOU ARE DOING.
@@ -55,7 +62,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @hidden
    * @param message The message to intercept.
    */
-  public onMessage = (message: MessageProtocol) => {
+  onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "EVENT": {
         const { events } = message;
@@ -76,7 +83,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to listen on. Case sensitive.
    * @param handler What to do when this event is received?
    */
-  public addEventListener = (name: string, handler: EventHandler) => {
+  addEventListener = (name: string, handler: EventHandler) => {
     this.on(name, handler);
   };
 
@@ -87,7 +94,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    * @param name The name of the event to listen on. Case sensitive.
    * @param handler What to do when this event is received?
    */
-  public on = (name: string, handler: EventHandler) => {
+  on = (name: string, handler: EventHandler) => {
     if (this.has(name)) {
       console.warn(
         `Registering handler for ${name} canceled: handler already exists.`
@@ -99,11 +106,44 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
   };
 
   /**
+   * Emit an event to the server.
+   *
+   * @param name The name of the event to emit.
+   * @param payload The payload to send with the event.
+   */
+  emit = (name: string, payload: any = {}) => {
+    this.packets.push({
+      type: "EVENT",
+      events: [
+        {
+          name,
+          payload: JSON.stringify(payload),
+        },
+      ],
+    });
+  };
+
+  /**
+   * Emit multiple events to the server.
+   *
+   * @param events A list of events to emit.
+   */
+  emitMany = (events: Event[]) => {
+    this.packets.push({
+      type: "EVENT",
+      events: events.map((e) => ({
+        name: e.name,
+        payload: JSON.stringify(e.payload || {}),
+      })),
+    });
+  };
+
+  /**
    * The handler for network packages to distribute to the event handlers.
    *
    * @hidden
    */
-  public handle = (name: string, payload: string) => {
+  handle = (name: string, payload: string) => {
     const handler = this.get(name);
 
     if (!handler) {
@@ -123,4 +163,11 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
 
     handler(deserialized);
   };
+
+  /**
+   * Creates a new instance of the Voxelize event manager.
+   */
+  constructor() {
+    super();
+  }
 }

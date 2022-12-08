@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use specs::{Component, VecStorage};
 
 /// A list of chunks that the entity is requesting to generate.
-#[derive(Debug, Default, Component, Serialize, Deserialize)]
+#[derive(Debug, Default, Component, Serialize, Deserialize, Clone)]
 #[storage(VecStorage)]
 pub struct MetadataComp {
     pub map: HashMap<String, Value>,

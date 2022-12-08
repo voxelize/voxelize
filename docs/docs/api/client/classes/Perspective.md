@@ -31,7 +31,7 @@ perspective.update();
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-perspective"``
 
 This is the identifier that is used to bind the perspective's keyboard inputs
-when [connect](Perspective.md#connect) is called.
+when [connect](Perspective.md#connect-96) is called.
 
 ___
 
@@ -75,7 +75,7 @@ ___
 
 ### params
 
-• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams)
+• **params**: [`PerspectiveParams`](../modules.md#perspectiveparams-96)
 
 Parameters to configure the perspective.
 
@@ -91,10 +91,12 @@ The world that this perspective instance is working with.
 
 ### connect
 
-▸ **connect**(`inputs`, `namespace?`): `void`
+▸ **connect**(`inputs`, `namespace?`): () => `void`
 
 Connect the perspective to the given input manager. This will bind the perspective's keyboard inputs, which
-by default is <kbd>C</kbd> to switch between perspectives.
+by default is <kbd>C</kbd> to switch between perspectives. This function returns a function that when called
+unbinds the perspective's keyboard inputs. Keep in mind that remapping the original inputs will render this
+function useless.
 
 #### Parameters
 
@@ -104,6 +106,12 @@ by default is <kbd>C</kbd> to switch between perspectives.
 | `namespace` | `string` | `"*"` | The namespace to bind the perspective's keyboard inputs to. |
 
 #### Returns
+
+`fn`
+
+▸ (): `void`
+
+##### Returns
 
 `void`
 
@@ -148,7 +156,7 @@ perspective is the first person perspective.
 | :------ | :------ | :------ |
 | `controls` | [`RigidControls`](RigidControls.md) | The rigid controls that this perspective instance is attached to. |
 | `world` | [`World`](World.md) | The world that this perspective instance is working with. |
-| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams)\> | Parameters to configure the perspective. |
+| `params` | `Partial`<[`PerspectiveParams`](../modules.md#perspectiveparams-96)\> | Parameters to configure the perspective. |
 
 ## Accessors
 
@@ -164,7 +172,7 @@ Getter for the perspective's state.
 
 • `set` **state**(`state`): `void`
 
-Setter for the perspective's state. This will call [onChangeState](Perspective.md#onchangestate) if it is implemented.
+Setter for the perspective's state. This will call [onChangeState](Perspective.md#onchangestate-96) if it is implemented.
 
 #### Parameters
 

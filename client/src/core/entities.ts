@@ -38,7 +38,7 @@ export class Entity<T = any> extends Group {
  * }
  *
  * // Register the entity type.
- * entities.registerEntity("my-entity", MyEntity);
+ * entities.addClass("my-entity", MyEntity);
  *
  * // Register the interceptor with the network.
  * network.register(entities);
@@ -51,7 +51,13 @@ export class Entities extends Group implements NetIntercept {
   public map: Map<string, Entity> = new Map();
   public types: Map<string, new (id: string) => Entity> = new Map();
 
-  registerEntity = (type: string, entity: new (id: string) => Entity) => {
+  /**
+   * Add a new entity type to the entities manager.
+   *
+   * @param type The type of entity to register.
+   * @param entity The entity class to register.
+   */
+  addClass = (type: string, entity: new (id: string) => Entity) => {
     this.types.set(type, entity);
   };
 
@@ -83,9 +89,9 @@ export class Entities extends Group implements NetIntercept {
           this.map.set(id, object);
           this.add(object);
           object.onCreate?.(metadata);
-        } else {
-          object.onUpdate?.(metadata);
         }
+
+        object.onUpdate?.(metadata);
       });
     }
   };

@@ -11,7 +11,7 @@ a [NetIntercept](../interfaces/NetIntercept.md) that intercepts all peer-related
 the behavior of multiplayer functionality. This class also extends a `THREE.Group` that allows
 you to dynamically turn on/off multiplayer visibility.
 
-Override [packInfo](Peers.md#packinfo) to customize the information that is sent to other peers.
+Override [packInfo](Peers.md#packinfo-96) to customize the information that is sent to other peers.
 
 TODO-DOC
 
@@ -78,7 +78,7 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object?` | `Object3D`<`Event`\> | The object that is used to send client's own data back to the server. |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams)\> | Parameters to customize the effect. |
+| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-96)\> | Parameters to customize the effect. |
 
 #### Overrides
 
@@ -114,6 +114,53 @@ ___
 • `Optional` **object**: `Object3D`<`Event`\>
 
 The object that is used to send client's own data back to the server.
+
+___
+
+### onPeerJoin
+
+• **onPeerJoin**: (`id`: `string`) => `void`
+
+#### Type declaration
+
+▸ (`id`): `void`
+
+A function called when a player joins the game. By default, the function calls the [createPeer](Peers.md#createpeer-96)
+function to create a new peer object and adds it to the peers group. Customize this function to add additional
+behavior.
+
+##### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `string` | The new peer's ID. |
+
+##### Returns
+
+`void`
+
+___
+
+### onPeerLeave
+
+• **onPeerLeave**: (`id`: `string`) => `void`
+
+#### Type declaration
+
+▸ (`id`): `void`
+
+A function called when a player leaves the game. Internally, when a player leaves, its object is removed
+from the peers group. Customize this function to add additional behavior.
+
+##### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `string` | The ID of the peer that left the game. |
+
+##### Returns
+
+`void`
 
 ___
 
@@ -156,7 +203,7 @@ ___
 
 • `Optional` **ownPeer**: `C`
 
-The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer).
+The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer-96).
 
 ___
 
@@ -170,7 +217,7 @@ ___
 
 ### params
 
-• **params**: [`PeersParams`](../modules.md#peersparams)
+• **params**: [`PeersParams`](../modules.md#peersparams-96)
 
 Parameters to customize the peers manager.
 
@@ -193,46 +240,6 @@ Get a peer instance by its ID. This uses the `getObjectByName` method of the pee
 `C`
 
 The peer object with the given ID.
-
-___
-
-### onPeerJoin
-
-▸ **onPeerJoin**(`id`): `void`
-
-A function called when a player joins the game. This function has a default implementation and
-should not be overridden unless you know what you are doing. Internally, this calls [createPeer](Peers.md#createpeer)
-to create a new peer object and adds it to the peers group itself.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `string` | The new peer's ID. |
-
-#### Returns
-
-`void`
-
-___
-
-### onPeerLeave
-
-▸ **onPeerLeave**(`id`): `void`
-
-A function called when a player leaves the game. This function has a default implementation and
-should not be overridden unless you know what you are doing. Internally, this removes the peer
-object from the peers group itself.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `string` | The ID of the peer that left the game. |
-
-#### Returns
-
-`void`
 
 ___
 
@@ -264,6 +271,24 @@ Set the client's own peer instance.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `peer` | `C` | The peer instance that is going to be the client themselves. |
+
+#### Returns
+
+`void`
+
+___
+
+### setOwnUsername
+
+▸ **setOwnUsername**(`username`): `void`
+
+Set the client's own username. This will be broadcasted to the server.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `username` | `string` | The username of the client. |
 
 #### Returns
 
