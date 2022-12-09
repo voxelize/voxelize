@@ -300,7 +300,7 @@ pub fn setup_world() -> World {
 
     world.set_method_handle("spawn", |world, _, payload| {
         let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
-        world.spawn_entity("box", &data.position);
+        world.spawn_entity_at("box", &data.position);
         info!("spawn method called with payload: {:?}", data);
     });
 

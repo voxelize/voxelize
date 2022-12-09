@@ -28,8 +28,8 @@ using the [ColorText](ColorText.md) syntax. Name tags can be treated like any ot
 | Name | Type |
 | :------ | :------ |
 | `text` | `string` |
-| `params` | `Partial`<[`NameTagParams`](../modules.md#nametagparams-96)\> |
+| `params` | `Partial`<[`NameTagParams`](../modules.md#nametagparams-114)\> |
 
 #### Overrides
 
-[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-96)
+[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-114)

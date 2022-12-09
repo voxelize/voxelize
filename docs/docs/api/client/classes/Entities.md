@@ -23,7 +23,7 @@ class MyEntity extends VOXELIZE.Entity<{ position: VOXELIZE.Coords3 }> {
 }
 
 // Register the entity type.
-entities.addClass("my-entity", MyEntity);
+entities.setClass("my-entity", MyEntity);
 
 // Register the interceptor with the network.
 network.register(entities);
@@ -39,25 +39,6 @@ network.register(entities);
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
-## Methods
-
-### addClass
-
-▸ **addClass**(`type`, `entity`): `void`
-
-Add a new entity type to the entities manager.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `string` | The type of entity to register. |
-| `entity` | (`id`: `string`) => [`Entity`](Entity.md)<`any`\> | The entity class to register. |
-
-#### Returns
-
-`void`
-
 ## Properties
 
 ### map
@@ -69,3 +50,22 @@ ___
 ### types
 
 • **types**: `Map`<`string`, \>
+
+## Methods
+
+### setClass
+
+▸ **setClass**(`type`, `entity`): `void`
+
+Set a new entity type to the entities manager.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `type` | `string` | The type of entity to register. |
+| `entity` | (`id`: `string`) => [`Entity`](Entity.md)<`any`\> | The entity class to register. |
+
+#### Returns
+
+`void`

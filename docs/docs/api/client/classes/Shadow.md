@@ -42,7 +42,7 @@ ___
 
 ### params
 
-• **params**: [`ShadowParams`](../modules.md#shadowparams-96)
+• **params**: [`ShadowParams`](../modules.md#shadowparams-114)
 
 The parameters of the shadow.
 
@@ -67,7 +67,7 @@ Create a shadow instance.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world to cast shadows in. |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-96)\> | The parameters of the shadow. |
+| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams-114)\> | The parameters of the shadow. |
 
 #### Overrides
 

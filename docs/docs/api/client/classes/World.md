@@ -13,11 +13,11 @@ also implements [NetIntercept](../interfaces/NetIntercept.md), which means it in
 and constructs chunk meshes from them.
 
 There are a couple important components that are by default created by the world:
-- [registry](World.md#registry-96): A block registry that handles block textures and block instances.
-- [chunks](World.md#chunks-96): A chunk manager that stores all the chunks in the world.
-- [physics](World.md#physics-96): A physics engine that handles voxel AABB physics simulation of client-side physics.
-- [loader](World.md#loader-96): An asset loader that handles loading textures and other assets.
-- [atlas](World.md#atlas-96): A texture atlas that handles texture packing.
+- [registry](World.md#registry-114): A block registry that handles block textures and block instances.
+- [chunks](World.md#chunks-114): A chunk manager that stores all the chunks in the world.
+- [physics](World.md#physics-114): A physics engine that handles voxel AABB physics simulation of client-side physics.
+- [loader](World.md#loader-114): An asset loader that handles loading textures and other assets.
+- [atlas](World.md#atlas-114): A texture atlas that handles texture packing.
 
 One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
 This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
@@ -69,7 +69,7 @@ This is useful for, for example, teleporting the player to the top of the chunk 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-96) | The chunk coordinates to listen to. |
+| `coords` | [`Coords2`](../modules.md#coords2-114) | The chunk coordinates to listen to. |
 | `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` | The listener to add. |
 
 #### Returns
@@ -172,7 +172,7 @@ This method cannot be called after the world has been initialized.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-96)[] | List of data to load into the game before the game starts. |
+| `textures` | [`TextureData`](../modules.md#texturedata-114)[] | List of data to load into the game before the game starts. |
 
 #### Returns
 
@@ -190,7 +190,7 @@ Get the high resolution texture atlas of a certain block face by the block face 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-96) | The block to get the high resolution texture atlas for. |
+| `block` | [`Block`](../modules.md#block-114) | The block to get the high resolution texture atlas for. |
 | `face` | `Object` | The face of the block to get the high resolution texture atlas for. |
 | `face.animated` | `boolean` | - |
 | `face.corners` | { `pos`: `number`[] ; `uv`: `number`[]  }[] | - |
@@ -273,7 +273,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-96)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-114)
 
 Get the block information by its ID.
 
@@ -285,13 +285,13 @@ Get the block information by its ID.
 
 #### Returns
 
-[`Block`](../modules.md#block-96)
+[`Block`](../modules.md#block-114)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-96)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-114)
 
 Get the block information by its name.
 
@@ -303,7 +303,7 @@ Get the block information by its name.
 
 #### Returns
 
-[`Block`](../modules.md#block-96)
+[`Block`](../modules.md#block-114)
 
 ___
 
@@ -325,14 +325,14 @@ Reverse engineer to get the block information from a texture name.
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-96) |
+| `block` | [`Block`](../modules.md#block-114) |
 | `side` | `string` |
 
 ___
 
 ### getBlockByVoxel
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-96)
+▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-114)
 
 Get the block data at the given 3D voxel coordinate.
 
@@ -346,7 +346,7 @@ Get the block data at the given 3D voxel coordinate.
 
 #### Returns
 
-[`Block`](../modules.md#block-96)
+[`Block`](../modules.md#block-114)
 
 The block type data at the given coordinate.
 
@@ -354,7 +354,7 @@ ___
 
 ### getBlockByWorld
 
-▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-96)
+▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-114)
 
 Get the block data at the given 3D world coordinate.
 
@@ -368,7 +368,7 @@ Get the block data at the given 3D world coordinate.
 
 #### Returns
 
-[`Block`](../modules.md#block-96)
+[`Block`](../modules.md#block-114)
 
 The block type data at the given coordinate.
 
@@ -488,7 +488,7 @@ ___
 
 ### getMaterialByBlockFace
 
-▸ **getMaterialByBlockFace**(`block`, `face`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)
+▸ **getMaterialByBlockFace**(`block`, `face`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 Get a material by a given block and a side/face of the block. If this material does not exist, it will be created.
 
@@ -496,7 +496,7 @@ Get a material by a given block and a side/face of the block. If this material d
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-96) | The block to get the material for. |
+| `block` | [`Block`](../modules.md#block-114) | The block to get the material for. |
 | `face` | `Object` | The face of the block to get the material for. |
 | `face.animated` | `boolean` | - |
 | `face.corners` | { `pos`: `number`[] ; `uv`: `number`[]  }[] | - |
@@ -507,7 +507,7 @@ Get a material by a given block and a side/face of the block. If this material d
 
 #### Returns
 
-{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)
+{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 The material for the given block and face.
 
@@ -515,7 +515,7 @@ ___
 
 ### getMaterialByIdentifier
 
-▸ **getMaterialByIdentifier**(`identifier`, `transparent?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)
+▸ **getMaterialByIdentifier**(`identifier`, `transparent?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 Get a material by a given block ID. If this material does not exist, it will be created.
 
@@ -528,7 +528,7 @@ Get a material by a given block ID. If this material does not exist, it will be 
 
 #### Returns
 
-{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)
+{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 The material instances related to the block.
 
@@ -705,7 +705,7 @@ Get the voxel's torch light level at the given 3D voxel coordinate.
 | `vx` | `number` | The voxel's X position. |
 | `vy` | `number` | The voxel's Y position. |
 | `vz` | `number` | The voxel's Z position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-96) | The color of the torch light to get. |
+| `color` | [`LightColor`](../modules.md#lightcolor-114) | The color of the torch light to get. |
 
 #### Returns
 
@@ -728,7 +728,7 @@ Get the voxel's torch light level at the given 3D world coordinate.
 | `wx` | `number` | The voxel's un-floored X position. |
 | `wy` | `number` | The voxel's un-floored Y position. |
 | `wz` | `number` | The voxel's un-floored Z position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-96) | The color of the torch light to get. |
+| `color` | [`LightColor`](../modules.md#lightcolor-114) | The color of the torch light to get. |
 
 #### Returns
 
@@ -932,7 +932,7 @@ ___
 ▸ **isWithinWorld**(`cx`, `cz`): `boolean`
 
 Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
-is within [WorldServerParams.minChunk](../modules.md#worldserverparams-96) and [WorldServerParams.maxChunk](../modules.md#worldserverparams-96).
+is within [WorldServerParams.minChunk](../modules.md#worldserverparams-114) and [WorldServerParams.maxChunk](../modules.md#worldserverparams-114).
 
 #### Parameters
 
@@ -967,7 +967,7 @@ ___
 
 Make an identifier for a block face. If the block face is neither animated nor high resolution, then
 the identifier will be the same as the block's name. If the block face is animated, then the identifier
-will be the block's name and the face's name joined by [INDEPENDENT_FACE](../modules.md#independent_face-96).
+will be the block's name and the face's name joined by [INDEPENDENT_FACE](../modules.md#independent_face-114).
 
 #### Parameters
 
@@ -1017,7 +1017,7 @@ for the block based on different conditions.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the block. |
-| `fn` | (`pos`: [`Coords3`](../modules.md#coords3-96), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `animated`: `boolean` ; `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `highRes`: `boolean` ; `independent`: `boolean` ; `name`: `string`  }[] ; `isTransparent`: `boolean`[]  } | The dynamic function to use for the block. |
+| `fn` | (`pos`: [`Coords3`](../modules.md#coords3-114), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `animated`: `boolean` ; `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `highRes`: `boolean` ; `independent`: `boolean` ; `name`: `string`  }[] ; `isTransparent`: `boolean`[]  } | The dynamic function to use for the block. |
 
 #### Returns
 
@@ -1027,7 +1027,7 @@ ___
 
 ### overwriteMaterialByIdentifier
 
-▸ **overwriteMaterialByIdentifier**(`identifier`, `transparent?`, `data?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)
+▸ **overwriteMaterialByIdentifier**(`identifier`, `transparent?`, `data?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
 blocks such as grass to wave in the wind. Keep in mind that higher resolution block faces are separated from
@@ -1048,7 +1048,7 @@ separated or turned into higher resolution.
 
 #### Returns
 
-{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)
+{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 ___
 
@@ -1062,8 +1062,8 @@ Raycast through the world of voxels and return the details of the first block in
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `origin` | [`Coords3`](../modules.md#coords3-96) | The origin of the ray. |
-| `direction` | [`Coords3`](../modules.md#coords3-96) | The direction of the ray. |
+| `origin` | [`Coords3`](../modules.md#coords3-114) | The origin of the ray. |
+| `direction` | [`Coords3`](../modules.md#coords3-114) | The direction of the ray. |
 | `maxDistance` | `number` | The maximum distance of the ray. |
 | `options` | `Object` | The options for the ray. |
 | `options.ignoreFluids?` | `boolean` | Whether or not to ignore fluids. Defaults to `true`. |
@@ -1191,13 +1191,13 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-96) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-96) times
+[World.chunks.toUpdate](World.md#chunks-114) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-114) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-96) | [NX_ROTATION](../modules.md#nx_rotation-96) | [PY_ROTATION](../modules.md#py_rotation-96) | [NY_ROTATION](../modules.md#ny_rotation-96) | [PZ_ROTATION](../modules.md#pz_rotation-96) | [NZ_ROTATION](../modules.md#nz_rotation-96)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-96) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-114) | [NX_ROTATION](../modules.md#nx_rotation-114) | [PY_ROTATION](../modules.md#py_rotation-114) | [NY_ROTATION](../modules.md#ny_rotation-114) | [PZ_ROTATION](../modules.md#pz_rotation-114) | [NZ_ROTATION](../modules.md#nz_rotation-114)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-114) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-96) (Same for if
-block is not [Block.yRotatable](../modules.md#block-96)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-114) (Same for if
+block is not [Block.yRotatable](../modules.md#block-114)).
 
 #### Parameters
 
@@ -1221,20 +1221,20 @@ ___
 ▸ **updateVoxels**(`updates`): `void`
 
 This sends a list of block updates to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-96) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-96) times
+[World.chunks.toUpdate](World.md#chunks-114) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-114) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-96) | [NX_ROTATION](../modules.md#nx_rotation-96) | [PY_ROTATION](../modules.md#py_rotation-96) | [NY_ROTATION](../modules.md#ny_rotation-96) | [PZ_ROTATION](../modules.md#pz_rotation-96) | [NZ_ROTATION](../modules.md#nz_rotation-96)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-96) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-114) | [NX_ROTATION](../modules.md#nx_rotation-114) | [PY_ROTATION](../modules.md#py_rotation-114) | [NY_ROTATION](../modules.md#ny_rotation-114) | [PZ_ROTATION](../modules.md#pz_rotation-114) | [NZ_ROTATION](../modules.md#nz_rotation-114)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-114) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-96) (Same for if
-block is not [Block.yRotatable](../modules.md#block-96)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-114) (Same for if
+block is not [Block.yRotatable](../modules.md#block-114)).
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-96)[] | A list of updates to send to the server. |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-114)[] | A list of updates to send to the server. |
 
 #### Returns
 
@@ -1255,7 +1255,7 @@ ___
 • **blockCache**: `Map`<`string`, `number`\>
 
 This is a map that keeps track of the block IDs before they are updated to any new block IDs.
-Use [getPreviousVoxelByVoxel](World.md#getpreviousvoxelbyvoxel-96) and [getPreviousVoxelByWorld](World.md#getpreviousvoxelbyworld-96) to get the previous
+Use [getPreviousVoxelByVoxel](World.md#getpreviousvoxelbyvoxel-114) and [getPreviousVoxelByWorld](World.md#getpreviousvoxelbyworld-114) to get the previous
 block ID, if it exists.
 
 ___
@@ -1310,17 +1310,17 @@ The shared material instances for chunks.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `opaque` | `Map`<`string`, [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)\> | The chunk material that is used to render the opaque portions of the chunk meshes. |
-| `transparent` | `Map`<`string`, { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-96)  }\> | The chunk materials that are used to render the transparent portions of the chunk meshes. This is a map of the block ID (identifier) to the material instances (front & back). |
+| `opaque` | `Map`<`string`, [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)\> | The chunk material that is used to render the opaque portions of the chunk meshes. |
+| `transparent` | `Map`<`string`, { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  }\> | The chunk materials that are used to render the transparent portions of the chunk meshes. This is a map of the block ID (identifier) to the material instances (front & back). |
 
 ___
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams-96) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams-114) = `{}`
 
-Parameters to configure the world. This is a combination of the client-side parameters, [WorldClientParams](../modules.md#worldclientparams-96),
-and the server-side parameters, [WorldServerParams](../modules.md#worldserverparams-96). The server-side parameters are defined on the server, and
+Parameters to configure the world. This is a combination of the client-side parameters, [WorldClientParams](../modules.md#worldclientparams-114),
+and the server-side parameters, [WorldServerParams](../modules.md#worldserverparams-114). The server-side parameters are defined on the server, and
 are sent to the client when the client connects to the server.
 
 ___
@@ -1354,7 +1354,7 @@ The WebGL uniforms that are used in the chunk shader.
 | :------ | :------ | :------ |
 | `ao` | { `value`: `Vector4`  } | The ambient occlusion levels that are applied onto the chunk meshes. Check out [this article](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/) for more information on ambient occlusion for voxel worlds. Defaults to `new Vector4(100.0, 170.0, 210.0, 255.0)`. |
 | `ao.value` | `Vector4` | The value passed into the chunk shader. |
-| `atlas` | { `value`: `Texture`  } | The 2D texture atlas that is used to render the chunk. This will be set after [atlas](World.md#atlas-96) is generated. |
+| `atlas` | { `value`: `Texture`  } | The 2D texture atlas that is used to render the chunk. This will be set after [atlas](World.md#atlas-114) is generated. |
 | `atlas.value` | `Texture` | The value passed into the chunk shader. |
 | `fogColor` | { `value`: `Color`  } | The fog color that is applied onto afar chunks. It is recommended to set this to the middle color of the sky. Defaults to a new THREE.JS white color instance. |
 | `fogColor.value` | `Color` | The value passed into the chunk shader. |
@@ -1381,7 +1381,7 @@ Create a new world instance.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-96)\> | The client-side parameters to configure the world. |
+| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-114)\> | The client-side parameters to configure the world. |
 
 #### Overrides
 

@@ -69,6 +69,7 @@ const config = {
     ({
       navbar: {
         title: "VOXELIZE",
+        hideOnScroll: true,
         logo: {
           alt: "Voxelize Logo",
           src: "img/logo/circle-min.png",
@@ -79,7 +80,7 @@ const config = {
             position: "left",
             label: "Tutorial",
           },
-          { to: "/wiki/events", label: "Wiki", position: "left" },
+          { to: "/wiki/handling-events", label: "Wiki", position: "left" },
           {
             to: "/api/client/modules",
             position: "left",

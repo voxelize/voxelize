@@ -2,9 +2,9 @@ use specs::{Join, System, WriteStorage};
 
 use crate::CollisionsComp;
 
-pub struct ClearCollisionsSystem;
+pub struct CleanupSystem;
 
-impl<'a> System<'a> for ClearCollisionsSystem {
+impl<'a> System<'a> for CleanupSystem {
     type SystemData = WriteStorage<'a, CollisionsComp>;
 
     fn run(&mut self, mut collisions: Self::SystemData) {

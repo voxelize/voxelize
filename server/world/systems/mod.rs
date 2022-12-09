@@ -1,6 +1,6 @@
 mod broadcast;
 mod chunk;
-mod collisions;
+mod cleanup;
 mod entity;
 mod events;
 mod peers;
@@ -10,7 +10,7 @@ mod stats;
 
 pub use broadcast::*;
 pub use chunk::*;
-pub use collisions::*;
+pub use cleanup::*;
 pub use entity::*;
 pub use events::*;
 pub use peers::*;

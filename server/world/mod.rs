@@ -146,11 +146,11 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
         .with(
             ChunkGeneratingSystem,
-            "chunk-generating",
+            "chunk-generation",
             &["chunk-requests"],
         )
-        .with(ChunkSendingSystem, "chunk-sending", &["chunk-generating"])
-        .with(ChunkSavingSystem, "chunk-saving", &["chunk-generating"])
+        .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
+        .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
         .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
         .with(
@@ -165,8 +165,8 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             &["entities-sending", "peers-sending"],
         )
         .with(
-            ClearCollisionsSystem,
-            "clear-collisions",
+            CleanupSystem,
+            "cleanup",
             &["entities-sending", "peers-sending"],
         )
         .with(EventsSystem, "events", &["broadcast"])
@@ -609,7 +609,7 @@ impl World {
     }
 
     /// Spawn an entity of type at a location.
-    pub fn spawn_entity(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
+    pub fn spawn_entity_at(&mut self, etype: &str, position: &Vec3<f32>) -> Option<Entity> {
         if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
             warn!("Tried to spawn unknown entity type: {}", etype);
             return None;
@@ -914,11 +914,27 @@ impl World {
 
     /// Handler for `Event` type messages.
     fn on_event(&mut self, client_id: &str, data: Message) {
-        let mut events = vec![];
+        let client_ent = if let Some(client) = self.clients().get(client_id) {
+            client.entity.to_owned()
+        } else {
+            return;
+        };
 
         data.events.into_iter().for_each(|event| {
             if !self.event_handles.contains_key(&event.name.to_lowercase()) {
-                events.push(event);
+                let curr_chunk = self
+                    .read_component::<CurrentChunkComp>()
+                    .get(client_ent)
+                    .unwrap()
+                    .coords
+                    .clone();
+
+                self.events_mut().dispatch(
+                    Event::new(&event.name)
+                        .payload(event.payload)
+                        .location(curr_chunk)
+                        .build(),
+                );
                 return;
             }
 
@@ -926,12 +942,6 @@ impl World {
 
             handle(self, client_id, &event.payload);
         });
-
-        let mut message = Message::new(&MessageType::Event).build();
-        message.events = events;
-
-        self.write_resource::<MessageQueue>()
-            .push((message, ClientFilter::All));
     }
 
     /// Handler for `Chat` type messages.

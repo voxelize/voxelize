@@ -1,6 +1,5 @@
 import WaterImage from "../assets/pixel-perfection/water.png";
 import ObsidianImage from "../assets/own/obsidian.png";
-// import OakLeavesImage from "../assets/pixel-perfection/oak_leaves.png";
 import GrassBlockImage from "../assets/pixel-perfection/grass_top.png";
 import GrassBlockSideImage from "../assets/pixel-perfection/grass_side.png";
 import DirtImage from "../assets/pixel-perfection/dirt.png";
@@ -36,8 +35,6 @@ import Water1Image from "../assets/pixel-perfection/water1.png";
 import Water2Image from "../assets/pixel-perfection/water2.png";
 import Water3Image from "../assets/pixel-perfection/water3.png";
 import Water4Image from "../assets/pixel-perfection/water4.png";
-import FunnyGif from "../assets/funny.gif";
-// import RandomGif from "../assets/random.gif";
 
 import { World } from "@voxelize/client";
 import { Color } from "three";

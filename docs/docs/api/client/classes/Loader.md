@@ -7,7 +7,7 @@ custom_edit_url: null
 ---
 
 An asset loader that can load textures and audio files. This class is used internally by the world
-and can be accessed via [loader](World.md#loader-96).
+and can be accessed via [loader](World.md#loader-114).
 
 ## Methods
 
@@ -36,7 +36,7 @@ ___
 
 Load a GIF texture from a source URL. This uses omggif to load the GIF and then creates a
 texture for each frame. The textures are stored in an array and can be accessed via the
-[textures](Loader.md#textures-4) map with the source.
+[textures](Loader.md#textures-22) map with the source.
 
 #### Parameters
 

@@ -1,6 +1,8 @@
-# Methods
+# Calling Methods
 
 In Voxelize, you can define custom methods that can be called from the client. These methods perform actions on specific worlds, and can be used to create custom game logic.
+
+Unlike events, method runs world-wide and is not related to location.
 
 ## Defining a Server Method
 

@@ -1,8 +1,10 @@
-# Events
+# Handling Events
 
 In Voxelize, you can define custom events that can be sent from the server to the client. These events can be used to create custom game logic.
 
-By default, events that do not have a handle will be directly broadcasted to all clients. This can be used to create custom events that are not handled by the server.
+Different from methods, events are location based. This means that events fired by client A will only be received by clients that have the chunk that client A is in loaded. This is useful for creating custom game logic that is only relevant to a specific area.
+
+By default, events that do not have a handle will be directly broadcasted to all clients through the `EventsSystem`. This can be used to create custom events that are not handled by the server.
 
 ## Defining a Server Event
 

@@ -76,7 +76,7 @@ class Box extends VOXELIZE.Entity<{
     );
   }
 
-  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+  onSpawn = (data: { position: VOXELIZE.Coords3 }) => {
     this.position.set(...data.position);
   };
 
@@ -438,7 +438,7 @@ const App = () => {
 
     const entities = new VOXELIZE.Entities();
 
-    entities.addClass("box", Box);
+    entities.setClass("box", Box);
 
     world.add(entities);
 

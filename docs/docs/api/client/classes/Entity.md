@@ -358,9 +358,9 @@ Group.onBeforeRender
 
 ___
 
-### onCreate
+### onSpawn
 
-• **onCreate**: (`data`: `T`) => `void`
+• **onSpawn**: (`data`: `T`) => `void`
 
 #### Type declaration
 
