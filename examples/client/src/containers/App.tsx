@@ -1,21 +1,18 @@
 import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import * as VOXELIZE from "@voxelize/client";
-import {
-  EffectComposer,
-  EffectPass,
-  // PixelationEffect,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
 import * as THREE from "three";
 import { MeshRenderer } from "three-nebula";
 import { AABB } from "@voxelize/aabb";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { WboitPass, sRGBShader } from "three-wboit";
 
 import { setupWorld } from "../core";
 import { ColorText, Peers } from "@voxelize/client";
 import { sRGBEncoding } from "three";
 import LolImage from "../assets/lol.png";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
 const GameWrapper = styled.div`
   background: black;
@@ -171,19 +168,12 @@ const App = () => {
     renderer.outputEncoding = sRGBEncoding;
 
     const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(world, camera));
+    composer.addPass(new WboitPass(renderer, world, camera));
+    composer.addPass(new ShaderPass(sRGBShader));
+    // composer.addPass(new RenderPass(world, camera));
 
-    const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-    overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
-
-    composer.addPass(
-      new EffectPass(
-        camera,
-        new SMAAEffect({}),
-        overlayEffect
-        // new PixelationEffect(6)
-      )
-    );
+    // const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+    // overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
 
     const lightShined = new VOXELIZE.LightShined(world);
     lightShined.add(character);

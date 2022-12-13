@@ -8443,6 +8443,11 @@ three-nebula@^10.0.3:
     potpack "^1.0.1"
     uuid "^3.3.2"
 
+three-wboit@^1.0.10:
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/three-wboit/-/three-wboit-1.0.10.tgz#a20b0494ff0a9c1f75ca1abd222f4a7bda257627"
+  integrity sha512-b1tJJyoLWeu/0AHt+/2isNsNRDmX37nrJTlUmGr80fxArwIAW50/bUhEewv4QiCYrZfeK41Eo+ybdCZf8Exzjw==
+
 three@^0.146.0:
   version "0.146.0"
   resolved "https://registry.yarnpkg.com/three/-/three-0.146.0.tgz#fd80f0d128ab4bb821a02191ae241e4e6326f17a"

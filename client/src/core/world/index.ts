@@ -22,6 +22,7 @@ import {
   Vector3,
   Vector4,
 } from "three";
+import { WboitUtils } from "three-wboit";
 
 import { ArtFunction } from "../../libs";
 import { Coords2, Coords3 } from "../../types";
@@ -2270,8 +2271,7 @@ export class World extends Scene implements NetIntercept {
       },
     }) as CustomShaderMaterial;
 
-    // material.map = this.uniforms.atlas.value;
-    material.toneMapped = false;
+    WboitUtils.patch(material);
 
     return material;
   };
