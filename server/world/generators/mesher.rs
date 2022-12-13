@@ -663,23 +663,25 @@ impl Mesher {
             let anz_b = one_tb0 && anzp1_b;
 
             // common starting indices
-            indices.push(ndx);
-            indices.push(ndx + 1);
 
             if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
                 || (ozao_r || ozao_g || ozao_b)
                 || (anz_r || anz_g || anz_b)
             {
                 // generate flipped quad
-                indices.push(ndx + 3);
-                indices.push(ndx + 3);
-                indices.push(ndx + 2);
                 indices.push(ndx);
-            } else {
-                indices.push(ndx + 2);
-                indices.push(ndx + 2);
+                indices.push(ndx + 3);
                 indices.push(ndx + 1);
                 indices.push(ndx + 3);
+                indices.push(ndx);
+                indices.push(ndx + 2);
+            } else {
+                indices.push(ndx);
+                indices.push(ndx + 2);
+                indices.push(ndx + 1);
+                indices.push(ndx + 2);
+                indices.push(ndx + 3);
+                indices.push(ndx + 1);
             }
         }
     }
