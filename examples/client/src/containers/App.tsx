@@ -6,7 +6,8 @@ import { MeshRenderer } from "three-nebula";
 import { AABB } from "@voxelize/aabb";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
-import { WboitPass, sRGBShader } from "three-wboit";
+import { GammaCorrectionShader } from "three/examples/jsm/shaders/GammaCorrectionShader";
+import { WboitPass, sRGBShader, WboitUtils } from "three-wboit";
 
 import { setupWorld } from "../core";
 import { ColorText, Peers } from "@voxelize/client";
@@ -165,12 +166,15 @@ const App = () => {
     );
     renderer.setPixelRatio(1);
 
-    renderer.outputEncoding = sRGBEncoding;
+    // renderer.outputEncoding = sRGBEncoding;
+
+    // @ts-ignore
+    THREE.ColorManagement.legacyMode = false;
 
     const composer = new EffectComposer(renderer);
-    composer.addPass(new WboitPass(renderer, world, camera));
-    composer.addPass(new ShaderPass(sRGBShader));
+    composer.addPass(new WboitPass(renderer, world, camera, new THREE.Color()));
     // composer.addPass(new RenderPass(world, camera));
+    composer.addPass(new ShaderPass(GammaCorrectionShader));
 
     // const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
     // overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
@@ -483,13 +487,15 @@ const App = () => {
     shadows.add(character);
 
     // Create a test for atlas
-    // setTimeout(() => {
-    //   const plane = new THREE.Mesh(
-    //     new THREE.PlaneBufferGeometry(100, 100),
-    //     world.atlas.material
-    //   );
-    //   world.add(plane);
-    // }, 1000);
+    setTimeout(() => {
+      world.atlas.material.transparent = true;
+      WboitUtils.patch(world.atlas.material);
+      const plane = new THREE.Mesh(
+        new THREE.PlaneBufferGeometry(100, 100),
+        world.atlas.material
+      );
+      world.add(plane);
+    }, 1000);
 
     // const portraits = new VOXELIZE.BlockPortraits(world);
 

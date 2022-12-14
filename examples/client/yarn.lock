@@ -8444,9 +8444,9 @@ three-nebula@^10.0.3:
     uuid "^3.3.2"
 
 three-wboit@^1.0.10:
-  version "1.0.10"
-  resolved "https://registry.yarnpkg.com/three-wboit/-/three-wboit-1.0.10.tgz#a20b0494ff0a9c1f75ca1abd222f4a7bda257627"
-  integrity sha512-b1tJJyoLWeu/0AHt+/2isNsNRDmX37nrJTlUmGr80fxArwIAW50/bUhEewv4QiCYrZfeK41Eo+ybdCZf8Exzjw==
+  version "1.0.12"
+  resolved "https://registry.yarnpkg.com/three-wboit/-/three-wboit-1.0.12.tgz#fd68b3199e61a52b805f5a408cc5fcc727c29278"
+  integrity sha512-14RI1JF3VoE8Qw06q1zhvGTxDbJ/qj0f7I97ztJkECQOucbHVijTXqAYyvibhsXewiTSoJmNrnEFF0CdrmG0nw==
 
 three@^0.146.0:
   version "0.146.0"
