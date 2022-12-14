@@ -252,9 +252,8 @@ export class TextureAtlas {
     this.texture.minFilter = NearestFilter;
     this.texture.magFilter = NearestFilter;
     this.texture.generateMipmaps = false;
-    this.texture.premultiplyAlpha = false;
-    this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
+    this.texture.needsUpdate = true;
 
     this.material = new MeshBasicMaterial({
       map: this.texture,

@@ -3214,7 +3214,7 @@
     vitest "^0.10.4"
 
 "@voxelize/client@file:client":
-  version "1.3.100"
+  version "1.3.101"
   dependencies:
     "@tweenjs/tween.js" "^18.6.4"
     "@voxelize/aabb" "^1.0.0"
@@ -3230,6 +3230,7 @@
     omggif "^1.0.10"
     regenerator-runtime "^0.13.9"
     socket.io-client "^4.4.1"
+    three-wboit "^1.0.10"
     uuid "^8.3.2"
 
 "@voxelize/physics-engine@^1.1.26":
@@ -11315,6 +11316,11 @@ three-nebula@^10.0.3:
     lodash "^4.17.21"
     potpack "^1.0.1"
     uuid "^3.3.2"
+
+three-wboit@^1.0.10:
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/three-wboit/-/three-wboit-1.0.10.tgz#a20b0494ff0a9c1f75ca1abd222f4a7bda257627"
+  integrity sha512-b1tJJyoLWeu/0AHt+/2isNsNRDmX37nrJTlUmGr80fxArwIAW50/bUhEewv4QiCYrZfeK41Eo+ybdCZf8Exzjw==
 
 three@^0.146.0:
   version "0.146.0"
