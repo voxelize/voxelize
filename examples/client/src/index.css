@@ -6,3 +6,8 @@
   box-sizing: border-box;
   font-family: "Roboto Mono", monospace;
 }
+
+html,
+body {
+  overflow: hidden;
+}
