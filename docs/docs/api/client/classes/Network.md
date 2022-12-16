@@ -26,7 +26,7 @@ network
 
 ### action
 
-▸ **action**(`type`, `data?`): `Promise`<`void`\>
+▸ **action**(`type`, `data?`): `void`
 
 Send an `ACTION` type message to the server. For more information about the protocol
 buffer message system, see [here](/tutorials/basics/protocol-networking).
@@ -40,7 +40,7 @@ buffer message system, see [here](/tutorials/basics/protocol-networking).
 
 #### Returns
 
-`Promise`<`void`\>
+`void`
 
 ___
 
@@ -57,7 +57,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `params` | [`NetworkParams`](../modules.md#networkparams-114) | Parameters to customize the connection to a Voxelize server. |
+| `params` | [`NetworkParams`](../modules.md#networkparams-2) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -128,7 +128,7 @@ ___
 
 ### register
 
-▸ **register**(...`intercepts`): `this`
+▸ **register**(...`intercepts`): [`Network`](Network.md)
 
 Register a network intercept to the network. This is used so that one can define
 the reaction to the network packets received. For instance, one can define a network
@@ -142,7 +142,7 @@ intercept to handle the `EVENT` type messages and perform something based on the
 
 #### Returns
 
-`this`
+[`Network`](Network.md)
 
 The network instance itself for chaining.
 
@@ -207,7 +207,7 @@ ___
 
 ### unregister
 
-▸ **unregister**(...`intercepts`): `this`
+▸ **unregister**(...`intercepts`): [`Network`](Network.md)
 
 Unregister a network intercept from the network.
 
@@ -219,7 +219,7 @@ Unregister a network intercept from the network.
 
 #### Returns
 
-`this`
+[`Network`](Network.md)
 
 The network instance itself for chaining.
 
@@ -347,7 +347,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-114)
+• **params**: [`NetworkParams`](../modules.md#networkparams-2)
 
 Parameters to start the network connection, passed in to `connect`.
 
@@ -382,7 +382,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-114)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-2)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 

@@ -3,6 +3,7 @@ use std::{collections::VecDeque, sync::Arc, time::Instant};
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
 use log::info;
+use nalgebra::geometry;
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
@@ -154,26 +155,22 @@ impl Mesher {
                             let max =
                                 Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                            let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
-                            let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
+                            let geometries = Self::mesh_space(&min, &max, &space, &registry);
 
-                            (opaque, transparent, level)
+                            (geometries, level)
                         })
-                        .collect::<Vec<(Vec<GeometryProtocol>, Vec<GeometryProtocol>, i32)>>()
+                        .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
                         .into_iter()
-                        .for_each(|(opaque, transparent, level)| {
+                        .for_each(|(geometries, level)| {
                             if chunk.meshes.is_none() {
                                 chunk.meshes = Some(HashMap::new());
                             }
 
-                            chunk.meshes.as_mut().unwrap().insert(
-                                level as u32,
-                                MeshProtocol {
-                                    level,
-                                    opaque,
-                                    transparent,
-                                },
-                            );
+                            chunk
+                                .meshes
+                                .as_mut()
+                                .unwrap()
+                                .insert(level as u32, MeshProtocol { level, geometries });
                         });
 
                     chunk
@@ -216,7 +213,6 @@ impl Mesher {
         max: &Vec3<i32>,
         space: &dyn VoxelAccess,
         registry: &Registry,
-        transparent: bool,
     ) -> Vec<GeometryProtocol> {
         let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
 
@@ -270,58 +266,53 @@ impl Mesher {
                         }
                     }
 
-                    if if transparent {
-                        is_see_through
-                    } else {
-                        !is_see_through
-                    } {
-                        let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
-                        let uv_map = registry.get_uv_map(block);
+                    let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
+                    let uv_map = registry.get_uv_map(block);
 
-                        faces.iter().for_each(|face| {
-                            // If the face is high resolution, we need to generate a new mesh for it by creating
-                            // a separate special identifier for it.
-                            let identifier = if face.high_res || face.animated {
-                                format!(
-                                    "{}{}{}",
-                                    name.to_lowercase(),
-                                    INDEPENDENT_FACE,
-                                    face.name.to_lowercase()
-                                )
-                            } else {
-                                name.to_lowercase()
-                            };
+                    faces.iter().for_each(|face| {
+                        // If the face is high resolution, we need to generate a new mesh for it by creating
+                        // a separate special identifier for it.
+                        let identifier = if face.high_res || face.animated {
+                            format!("{}::{}", name.to_lowercase(), face.name.to_lowercase())
+                        } else {
+                            name.to_lowercase()
+                        };
 
-                            let mut geometry = map.remove(&identifier).unwrap_or_default();
-                            geometry.identifier = identifier;
+                        let mut geometry = map.remove(&identifier).unwrap_or_default();
 
-                            Mesher::process_face(
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                &rotation,
-                                face,
-                                block,
-                                &uv_map,
-                                &registry,
-                                space,
-                                transparent,
-                                &mut geometry.positions,
-                                &mut geometry.indices,
-                                &mut geometry.uvs,
-                                &mut geometry.lights,
-                                min,
-                            );
+                        geometry.see_through = is_see_through;
+                        geometry.independent = face.high_res || face.animated;
+                        geometry.identifier = identifier;
 
-                            map.insert(geometry.identifier.to_owned(), geometry);
-                        });
-                    }
+                        Mesher::process_face(
+                            vx,
+                            vy,
+                            vz,
+                            voxel_id,
+                            &rotation,
+                            face,
+                            block,
+                            &uv_map,
+                            &registry,
+                            space,
+                            is_see_through,
+                            &mut geometry.positions,
+                            &mut geometry.indices,
+                            &mut geometry.uvs,
+                            &mut geometry.lights,
+                            min,
+                        );
+
+                        map.insert(geometry.identifier.to_owned(), geometry);
+                    });
                 }
             }
         }
 
-        map.into_iter().map(|(_, geometry)| geometry).collect()
+        map.into_iter()
+            .map(|(_, geometry)| geometry)
+            .filter(|geometry| !geometry.indices.is_empty())
+            .collect()
     }
 
     #[inline]
@@ -336,7 +327,7 @@ impl Mesher {
         uv_map: &HashMap<String, &UV>,
         registry: &Registry,
         space: &dyn VoxelAccess,
-        transparent: bool,
+        see_through: bool,
         positions: &mut Vec<f32>,
         indices: &mut Vec<i32>,
         uvs: &mut Vec<f32>,
@@ -377,16 +368,16 @@ impl Mesher {
         // To mesh the face, we need to match these conditions:
         // a. general
         //    1. the neighbor is void or empty (air or DNE)
-        // b. transparent mode
+        // b. see_through mode
         //    1. itself is see-through (water & leaves)
         //       - if the neighbor is the same, then mesh if standalone (leaves).
         //       - not the same, and one is see-through, then mesh (leaves + water or leaves + stick).
         //       - not the same, and the bounding boxes do not intersect, then mesh.
         // c. opaque mode
-        //    1. ignore all see-through blocks (transparent)
+        //    1. ignore all see-through blocks (see_through)
         //    2. if one of them is not opaque, mesh.
         if (n_is_void || n_block_type.is_empty)
-            || (transparent
+            || (see_through
                 && !is_opaque
                 && !n_block_type.is_opaque
                 && ((is_see_through
@@ -406,7 +397,7 @@ impl Mesher {
                             false
                         }
                     })))
-            || (!transparent && (!is_opaque || !n_block_type.is_opaque))
+            || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         {
             let UV {
                 start_u,

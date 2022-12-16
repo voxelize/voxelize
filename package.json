@@ -4,13 +4,12 @@
   "private": true,
   "workspaces": [
     "docs",
-    "client",
-    "transport"
+    "packages/*"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"dev:rs\" \"dev:ts\"",
     "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
-    "dev:ts": "cd client && yarn run dev",
+    "dev:ts": "lerna run dev",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
@@ -37,6 +36,7 @@
     "eslint-plugin-tsdoc": "^0.2.14",
     "eslint-plugin-unused-imports": "^2.0.0",
     "jest": "^27.5.1",
+    "lerna": "^6.1.0",
     "npm-run-all": "^4.1.5",
     "peer": "^0.6.1",
     "prettier": "^2.5.1",

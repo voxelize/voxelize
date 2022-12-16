@@ -62,30 +62,48 @@ const App = () => {
 
     const scene = new BABYLON.Scene(engine);
 
-    const camera = new BABYLON.ArcRotateCamera(
-      "Camera",
-      Math.PI / 2,
-      Math.PI / 2,
-      10,
-      BABYLON.Vector3.Zero(),
+    // Create first person camera
+    const camera = new BABYLON.FreeCamera(
+      "camera1",
+      new BABYLON.Vector3(0, 5, -10),
       scene
     );
 
+    // Attach the camera to the canvas
     camera.attachControl(canvas, true);
+    camera.position.set(0, 80, 0);
+
+    camera.applyGravity = true;
+    camera.checkCollisions = true;
+    camera.ellipsoid = new BABYLON.Vector3(1, 1, 1);
+
+    scene.gravity = new BABYLON.Vector3(0, -9.81, 0);
+    scene.collisionsEnabled = true;
+
+    scene.onPointerDown = (evt) => {
+      if (evt.button === 0) engine.enterPointerlock();
+      // else if (evt.button === 2) engine.exitPointerlock();
+    };
+
+    // const camera = new BABYLON.ArcRotateCamera(
+    //   "Camera",
+    //   Math.PI / 2,
+    //   Math.PI / 2,
+    //   10,
+    //   BABYLON.Vector3.Zero(),
+    //   scene
+    // );
+
+    // camera.attachControl(canvas, true);
 
     let config: VOXELIZE.WorldServerParams;
 
-    const light = new BABYLON.DirectionalLight(
-      "dir01",
-      new BABYLON.Vector3(0, -1, 0.5),
+    const light = new BABYLON.HemisphericLight(
+      "light1",
+      new BABYLON.Vector3(1, 1, 0),
       scene
     );
     light.intensity = 0.7;
-
-    const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-    shadowGenerator.setDarkness(0.5);
-    shadowGenerator.usePoissonSampling = true;
-    // shadowGenerator.bias = 0;
 
     network.register({
       onMessage(message) {
@@ -103,9 +121,9 @@ const App = () => {
               const { meshes, x, z } = chunk;
 
               meshes.forEach((data) => {
-                const { opaque, level } = data;
-                opaque.forEach((subMesh) => {
-                  const { indices, positions } = subMesh;
+                const { geometries, level } = data;
+                geometries.forEach((subMesh) => {
+                  const { indices, positions, uvs } = subMesh;
                   const vertexData = new BABYLON.VertexData();
 
                   const normals = [];
@@ -120,15 +138,15 @@ const App = () => {
                   vertexData.positions = positions;
                   vertexData.indices = indices;
                   vertexData.normals = normals;
+                  vertexData.uvs = uvs;
 
                   const mesh = new BABYLON.Mesh("mesh", scene);
-                  mesh.material = new BABYLON.StandardMaterial(
-                    "material",
-                    scene
-                  );
-                  mesh.receiveShadows = true;
-
-                  shadowGenerator.getShadowMap()?.renderList?.push(mesh);
+                  const mat = new BABYLON.StandardMaterial("material", scene);
+                  mat.specularColor.copyFromFloats(0, 0, 0);
+                  mat.ambientColor.copyFromFloats(1, 1, 1);
+                  mat.diffuseColor.copyFromFloats(1, 1, 1);
+                  mesh.material = mat;
+                  mesh.checkCollisions = true;
 
                   vertexData.applyToMesh(mesh, true);
                   mesh.setAbsolutePosition(

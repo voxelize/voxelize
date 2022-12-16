@@ -13,13 +13,9 @@ packets to the server.
 
 ## Implemented by
 
-- [`BlockBreakParticles`](../classes/BlockBreakParticles.md)
 - [`Chat`](../classes/Chat.md)
-- [`Entities`](../classes/Entities.md)
 - [`Events`](../classes/Events.md)
 - [`Method`](../classes/Method.md)
-- [`Peers`](../classes/Peers.md)
-- [`World`](../classes/World.md)
 
 ## Properties
 

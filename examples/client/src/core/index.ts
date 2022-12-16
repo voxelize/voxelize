@@ -1,1 +1,1 @@
-export * from "./world";
+export const test = "test";

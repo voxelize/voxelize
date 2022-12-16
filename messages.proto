@@ -3,16 +3,17 @@ package protocol;
 
 message Geometry {
   string identifier = 1;
-  repeated float positions = 2 [ packed = true ];
-  repeated float uvs = 3 [ packed = true ];
-  repeated int32 indices = 4 [ packed = true ];
-  repeated int32 lights = 5 [ packed = true ];
+  bool independent = 2;
+  bool seeThrough = 3;
+  repeated float positions = 4 [ packed = true ];
+  repeated float uvs = 5 [ packed = true ];
+  repeated int32 indices = 6 [ packed = true ];
+  repeated int32 lights = 7 [ packed = true ];
 }
 
 message Mesh {
   int32 level = 1;
-  repeated Geometry opaque = 2;
-  repeated Geometry transparent = 3;
+  repeated Geometry geometries = 2;
 }
 
 message Chunk {
