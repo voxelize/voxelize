@@ -6,8 +6,9 @@ use nanoid::nanoid;
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    BlockUtils, Chunk, ChunkInterests, ChunkParams, ChunkStatus, ChunkUtils, Chunks, Clients,
-    Mesher, MessageType, Pipeline, PositionComp, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
+    BlockUtils, Chunk, ChunkInterests, ChunkParams, ChunkRequestsComp, ChunkStatus, ChunkUtils,
+    Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Vec2, Vec3,
+    VoxelAccess, WorldConfig,
 };
 
 #[derive(Default)]
@@ -22,7 +23,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
-        ReadStorage<'a, PositionComp>,
+        ReadStorage<'a, ChunkRequestsComp>,
     );
 
     /// If the pipeline queue is not empty, pop the first chunk coordinate `MAX_CHUNKS_PER_TICK` times and
@@ -37,7 +38,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             mut interests,
             mut pipeline,
             mut mesher,
-            positions,
+            requests,
         ) = data;
 
         let chunk_size = config.chunk_size;
@@ -55,15 +56,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             ids.iter().for_each(|id| {
                 if let Some(client) = clients.get(id) {
-                    if let Some(pos) = positions.get(client.entity) {
-                        let client_coords = ChunkUtils::map_voxel_to_chunk(
-                            (pos.0 .0).floor() as i32,
-                            (pos.0 .1).floor() as i32,
-                            (pos.0 .2).floor() as i32,
-                            config.chunk_size,
-                        );
-
-                        let dist = ChunkUtils::distance_squared(&client_coords, &coords);
+                    if let Some(request) = requests.get(client.entity) {
+                        let dist = ChunkUtils::distance_squared(&request.center, &coords);
                         weight += dist;
                     }
                 }

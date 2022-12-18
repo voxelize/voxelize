@@ -31,7 +31,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let mut to_send: HashMap<String, HashSet<Vec2<i32>>> = HashMap::new();
 
         for (id, requests) in (&ids, &mut requests).join() {
-            for coords in requests.0.drain() {
+            for coords in requests.requests.drain(..) {
                 // If the chunk is actually ready, send to client.
                 if chunks.is_chunk_ready(&coords) {
                     let mut clients_to_send = to_send.remove(&id.0).unwrap_or_default();

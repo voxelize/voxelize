@@ -566,15 +566,6 @@ export class World implements NetIntercept {
       return ad - bd;
     });
 
-    console.log(
-      this.chunks.toRequest.map((c) => {
-        const [cx, cz] = c;
-        const dx = cx - center[0];
-        const dz = cz - center[1];
-        return dx ** 2 + dz ** 2;
-      })
-    );
-
     const { maxRequestsPerTick } = this.params;
 
     const toRequest = this.chunks.toRequest.splice(0, maxRequestsPerTick);
@@ -582,6 +573,7 @@ export class World implements NetIntercept {
     this.packets.push({
       type: "LOAD",
       json: {
+        center,
         chunks: toRequest,
       },
     });
