@@ -8,6 +8,12 @@ import { MessageProtocol } from "@voxelize/transport/src/types";
  */
 export interface NetIntercept {
   /**
+   * An array of packets to be sent to the server. These packets will be
+   * sent to the server after every `network.flush()` call.
+   */
+  packets?: MessageProtocol[];
+
+  /**
    * A listener to be implemented to handle incoming packets.
    *
    * @param message The message received from the server.
@@ -26,10 +32,4 @@ export interface NetIntercept {
       id: string;
     }
   ) => void;
-
-  /**
-   * An array of packets to be sent to the server. These packets will be
-   * sent to the server after every `network.flush()` call.
-   */
-  packets?: MessageProtocol[];
 }

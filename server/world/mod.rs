@@ -4,6 +4,7 @@ mod config;
 mod entities;
 mod events;
 mod generators;
+mod interests;
 mod messages;
 mod physics;
 mod registry;
@@ -44,6 +45,7 @@ pub use config::*;
 pub use entities::*;
 pub use events::*;
 pub use generators::*;
+pub use interests::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
@@ -245,6 +247,7 @@ impl World {
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
         ecs.insert(Transports::new());
+        ecs.insert(ChunkInterests::new());
 
         Self {
             id,
@@ -548,6 +551,16 @@ impl World {
         self.write_resource::<Physics>()
     }
 
+    /// Access the chunk interests manager in the ECS world.
+    pub fn chunk_interest(&self) -> Fetch<ChunkInterests> {
+        self.read_resource::<ChunkInterests>()
+    }
+
+    /// Access the mutable chunk interest manager in the ECS world.
+    pub fn chunk_interest_mut(&mut self) -> FetchMut<ChunkInterests> {
+        self.write_resource::<ChunkInterests>()
+    }
+
     /// Access the event queue in the ECS world.
     pub fn events(&self) -> Fetch<Events> {
         self.read_resource::<Events>()
@@ -575,10 +588,6 @@ impl World {
 
     /// Access a mutable pipeline management in the ECS world.
     pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
-        assert!(
-            !self.started || self.preloading,
-            "Cannot change pipeline after world has started and preloaded."
-        );
         self.write_resource::<Pipeline>()
     }
 
@@ -589,10 +598,6 @@ impl World {
 
     /// Access a mutable mesher in the ECS world.
     pub fn mesher_mut(&mut self) -> FetchMut<Mesher> {
-        assert!(
-            !self.started || self.preloading,
-            "Cannot change mesher after world has started and preloaded."
-        );
         self.write_resource::<Mesher>()
     }
 
@@ -845,11 +850,65 @@ impl World {
             return;
         }
 
-        let mut storage = self.write_component::<ChunkRequestsComp>();
-        let requests = storage.get_mut(client_ent).unwrap();
+        {
+            let mut storage = self.write_component::<ChunkRequestsComp>();
+            let requests = storage.get_mut(client_ent).unwrap();
 
-        chunks.into_iter().for_each(|coords| {
-            requests.add(&coords);
+            chunks.iter().for_each(|coords| {
+                requests.add(coords);
+            });
+        }
+
+        let mut to_load = vec![];
+
+        {
+            let mut interests = self.chunk_interest_mut();
+
+            chunks.into_iter().for_each(|coords| {
+                if !interests.has_interests(&coords) {
+                    to_load.push(coords.clone());
+                }
+
+                interests.add(client_id, &coords);
+            });
+        }
+
+        let mut to_pipeline = vec![];
+        let mut to_mesher = vec![];
+
+        {
+            let chunks = self.chunks();
+
+            to_load.into_iter().for_each(|coords| {
+                chunks
+                    .light_traversed_chunks(&coords)
+                    .into_iter()
+                    .for_each(|n_coords| {
+                        // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
+                        if chunks.raw(&n_coords).is_none()
+                            || matches!(
+                                chunks.raw(&n_coords).unwrap().status,
+                                ChunkStatus::Generating(_)
+                            )
+                        {
+                            to_pipeline.push(n_coords);
+                        }
+                        // If this chunk is in the meshing stage, we re-add it to the mesher.
+                        else if let Some(chunk) = chunks.raw(&n_coords) {
+                            if matches!(chunk.status, ChunkStatus::Meshing) {
+                                to_mesher.push(n_coords);
+                            }
+                        }
+                    });
+            });
+        }
+
+        to_pipeline.into_iter().for_each(|coords| {
+            self.pipeline_mut().add_chunk(&coords, false);
+        });
+
+        to_mesher.into_iter().for_each(|coords| {
+            self.mesher_mut().add_chunk(&coords, false);
         });
     }
 
@@ -869,12 +928,35 @@ impl World {
             return;
         }
 
-        let mut storage = self.write_component::<ChunkRequestsComp>();
+        {
+            let mut storage = self.write_component::<ChunkRequestsComp>();
 
-        if let Some(requests) = storage.get_mut(client_ent) {
-            chunks.into_iter().for_each(|coords| {
-                requests.remove(&coords);
+            if let Some(requests) = storage.get_mut(client_ent) {
+                chunks.iter().for_each(|coords| {
+                    requests.remove(coords);
+                });
+            }
+        }
+
+        {
+            let mut interests = self.chunk_interest_mut();
+
+            let mut to_remove = Vec::new();
+
+            chunks.iter().for_each(|coords| {
+                interests.remove(client_id, coords);
+
+                if !interests.has_interests(coords) {
+                    to_remove.push(coords);
+                }
             });
+
+            drop(interests);
+
+            to_remove.into_iter().for_each(|coords| {
+                self.pipeline_mut().remove_chunk(coords);
+                self.mesher_mut().remove_chunk(coords);
+            })
         }
     }
 

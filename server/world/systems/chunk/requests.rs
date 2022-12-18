@@ -38,28 +38,29 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     clients_to_send.insert(coords.clone());
 
                     to_send.insert(id.0.clone(), clients_to_send);
-                } else {
-                    chunks
-                        .light_traversed_chunks(&coords)
-                        .into_iter()
-                        .for_each(|n_coords| {
-                            // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                            if !chunks.map.contains_key(&n_coords)
-                                || matches!(
-                                    chunks.raw(&n_coords).unwrap().status,
-                                    ChunkStatus::Generating(_)
-                                )
-                            {
-                                pipeline.add_chunk(&n_coords, false);
-                            }
-                            // If this chunk is in the meshing stage, we re-add it to the mesher.
-                            else if let Some(chunk) = chunks.raw(&n_coords) {
-                                if matches!(chunk.status, ChunkStatus::Meshing) {
-                                    mesher.add_chunk(&n_coords, false);
-                                }
-                            }
-                        });
                 }
+                // else {
+                //     chunks
+                //         .light_traversed_chunks(&coords)
+                //         .into_iter()
+                //         .for_each(|n_coords| {
+                //             // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
+                //             if chunks.raw(&n_coords).is_none()
+                //                 || matches!(
+                //                     chunks.raw(&n_coords).unwrap().status,
+                //                     ChunkStatus::Generating(_)
+                //                 )
+                //             {
+                //                 pipeline.add_chunk(&n_coords, false);
+                //             }
+                //             // If this chunk is in the meshing stage, we re-add it to the mesher.
+                //             else if let Some(chunk) = chunks.raw(&n_coords) {
+                //                 if matches!(chunk.status, ChunkStatus::Meshing) {
+                //                     mesher.add_chunk(&n_coords, false);
+                //                 }
+                //             }
+                //         });
+                // }
 
                 requests.processed.insert(coords);
             }

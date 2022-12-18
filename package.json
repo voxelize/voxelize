@@ -4,14 +4,15 @@
   "private": true,
   "workspaces": [
     "docs",
-    "packages/*"
+    "packages/*",
+    "examples/client"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"dev:rs\" \"dev:ts\"",
     "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
-    "dev:ts": "lerna run dev",
+    "dev:ts": "lerna run --parallel dev",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
-    "demo:ts": "cd examples/client && yarn && yarn demo",
+    "demo:ts": "cd examples/client && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "lint": "eslint --fix --ext js,ts,tsx .",
     "docs": "cd docs && yarn run start"
@@ -27,6 +28,7 @@
     "@types/jest": "^27.4.1",
     "@typescript-eslint/eslint-plugin": "^5.21.0",
     "@typescript-eslint/parser": "^5.21.0",
+    "concurrently": "^7.6.0",
     "cross-env": "^7.0.3",
     "docusaurus-plugin-typedoc": "^0.17.5",
     "eslint": "^8.8.0",

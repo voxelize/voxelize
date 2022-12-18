@@ -175,12 +175,12 @@ pub fn setup_world() -> World {
                 .lacunarity(1.8623123)
                 .build(),
         )
-        .preload(true)
+        // .preload(true)
         .seed(12312)
         // .min_chunk([0, 0])
         // .max_chunk([0, 0])
-        .saving(true)
-        .save_dir("data")
+        // .saving(true)
+        // .save_dir("data")
         .build();
 
     let mut world = World::new("world1", &config);

@@ -34,6 +34,6 @@ impl ChunkRequestsComp {
 
     /// Check to see if this entity is interested in the chunk at the given coordinates.
     pub fn is_interested(&self, coords: &Vec2<i32>) -> bool {
-        self.requested.contains(coords) || self.processed.contains(coords)
+        self.processed.contains(coords)
     }
 }

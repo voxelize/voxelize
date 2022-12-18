@@ -134,52 +134,55 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             // Calculate the radius that this stage requires to be processed.
             let margin = stage.neighbors(&config);
-            let r = (margin as f32 / chunk_size as f32).ceil() as i32;
 
-            // Loop through the neighbors to see if they are ready.
-            let mut ready = true;
+            if margin > 0 {
+                let r = (margin as f32 / chunk_size as f32).ceil() as i32;
 
-            for x in -r..=r {
-                for z in -r..=r {
-                    if (x == 0 && z == 0) || (x * x + z * z > r * r) {
-                        continue;
-                    }
+                // Loop through the neighbors to see if they are ready.
+                let mut ready = true;
 
-                    // OK cases are:
-                    // 1. The neighbor is ready.
-                    // 2. The neighbor's stage >= chunk's stage.
-                    let n_coords = Vec2(coords.0 + x, coords.1 + z);
+                for x in -r..=r {
+                    for z in -r..=r {
+                        if (x == 0 && z == 0) || (x * x + z * z > r * r) {
+                            continue;
+                        }
 
-                    // If the chunk isn't within the world borders or its ready, then we skip.
-                    if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
-                        continue;
-                    }
+                        // OK cases are:
+                        // 1. The neighbor is ready.
+                        // 2. The neighbor's stage >= chunk's stage.
+                        let n_coords = Vec2(coords.0 + x, coords.1 + z);
 
-                    // See if the neighbor's stage is >= chunk's stage.
-                    if let Some(neighbor) = chunks.raw(&n_coords) {
-                        if let ChunkStatus::Generating(n_stage) = neighbor.status {
-                            if n_stage >= index {
-                                continue;
+                        // If the chunk isn't within the world borders or its ready, then we skip.
+                        if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
+                            continue;
+                        }
+
+                        // See if the neighbor's stage is >= chunk's stage.
+                        if let Some(neighbor) = chunks.raw(&n_coords) {
+                            if let ChunkStatus::Generating(n_stage) = neighbor.status {
+                                if n_stage >= index {
+                                    continue;
+                                }
                             }
                         }
+
+                        // Till this point, the neighbor is not ready. We can add a listener to it.
+                        chunks.add_listener(&n_coords, &coords);
+
+                        ready = false;
+
+                        break;
                     }
 
-                    // Till this point, the neighbor is not ready. We can add a listener to it.
-                    chunks.add_listener(&n_coords, &coords);
-
-                    ready = false;
-
-                    break;
+                    if !ready {
+                        break;
+                    }
                 }
 
+                // If this chunk cannot be processed yet, we ignore it until the listeners notify us.
                 if !ready {
-                    break;
+                    continue;
                 }
-            }
-
-            // If this chunk cannot be processed yet, we ignore it until the listeners notify us.
-            if !ready {
-                continue;
             }
 
             // To this point, we know that this chunk is ready to be processed by the stage.

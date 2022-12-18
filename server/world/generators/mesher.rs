@@ -81,15 +81,24 @@ impl Mesher {
 
     /// Add a chunk to be meshed.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if self.queue.contains(coords) {
+        if self.map.contains(coords) {
             return;
         }
+
+        self.remove_chunk(coords);
 
         if prioritized {
             self.queue.push_front(coords.to_owned());
         } else {
             self.queue.push_back(coords.to_owned());
         }
+    }
+
+    /// Remove a chunk coordinate from the pipeline.
+    pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
+        self.map.remove(coords);
+        self.skips.remove(coords);
+        self.queue.retain(|c| c != coords);
     }
 
     /// Pop the first chunk coordinate in the queue.
@@ -181,7 +190,7 @@ impl Mesher {
         });
     }
 
-    /// Attempt to retrieve the results from `pipeline.process`
+    /// Attempt to retrieve the results from `mesher.process`
     pub fn results(&mut self) -> Result<Vec<Chunk>, TryRecvError> {
         let results = self.receiver.try_recv();
 
@@ -194,6 +203,11 @@ impl Mesher {
         Ok(results
             .into_iter()
             .filter(|chunk| {
+                // If the chunk is not in the map, it was removed from the mesher.
+                if !self.map.contains(&chunk.coords) {
+                    return false;
+                }
+
                 let skip_count = self.skips.remove(&chunk.coords).unwrap_or(0);
                 if skip_count > 0 {
                     self.skips.insert(chunk.coords.to_owned(), skip_count - 1);

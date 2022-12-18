@@ -15,7 +15,7 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "yarn run build-fast --watch",
+    "dev": "yarn run build --watch",
     "build-fast": "tsup src/index.ts --format cjs,esm",
     "build": "yarn run build-fast -- --dts-resolve",
     "test": "vitest run",

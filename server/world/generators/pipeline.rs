@@ -268,6 +268,10 @@ impl Pipeline {
 
     /// Add a chunk coordinate to the pipeline to be processed.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        if self.has_chunk(coords) {
+            return;
+        }
+
         self.remove_chunk(coords);
         self.chunks.insert(coords.to_owned());
 
@@ -286,7 +290,7 @@ impl Pipeline {
 
     /// Check to see if a chunk coordinate is in the pipeline.
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
-        self.chunks.contains(coords)
+        self.chunks.contains(coords) || self.queue.contains(coords)
     }
 
     /// Pop the first chunk coordinate in the queue.
@@ -370,7 +374,26 @@ impl Pipeline {
 
     /// Attempt to retrieve the results from `pipeline.process`
     pub fn results(&self) -> Result<(Vec<Chunk>, Vec<VoxelUpdate>), TryRecvError> {
-        self.receiver.try_recv()
+        let results = self.receiver.try_recv();
+
+        if results.is_err() {
+            return results;
+        }
+
+        let mut results = results.unwrap();
+
+        results.0 = results
+            .0
+            .into_par_iter()
+            .filter(|chunk| {
+                if !self.chunks.contains(&chunk.coords) {
+                    return false;
+                }
+                true
+            })
+            .collect();
+
+        Ok(results)
     }
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.
