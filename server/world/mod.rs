@@ -858,58 +858,6 @@ impl World {
                 requests.add(coords);
             });
         }
-
-        let mut to_load = vec![];
-
-        {
-            let mut interests = self.chunk_interest_mut();
-
-            chunks.into_iter().for_each(|coords| {
-                if !interests.has_interests(&coords) {
-                    to_load.push(coords.clone());
-                }
-
-                interests.add(client_id, &coords);
-            });
-        }
-
-        let mut to_pipeline = vec![];
-        let mut to_mesher = vec![];
-
-        {
-            let chunks = self.chunks();
-
-            to_load.into_iter().for_each(|coords| {
-                chunks
-                    .light_traversed_chunks(&coords)
-                    .into_iter()
-                    .for_each(|n_coords| {
-                        // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                        if chunks.raw(&n_coords).is_none()
-                            || matches!(
-                                chunks.raw(&n_coords).unwrap().status,
-                                ChunkStatus::Generating(_)
-                            )
-                        {
-                            to_pipeline.push(n_coords);
-                        }
-                        // If this chunk is in the meshing stage, we re-add it to the mesher.
-                        else if let Some(chunk) = chunks.raw(&n_coords) {
-                            if matches!(chunk.status, ChunkStatus::Meshing) {
-                                to_mesher.push(n_coords);
-                            }
-                        }
-                    });
-            });
-        }
-
-        to_pipeline.into_iter().for_each(|coords| {
-            self.pipeline_mut().add_chunk(&coords, false);
-        });
-
-        to_mesher.into_iter().for_each(|coords| {
-            self.mesher_mut().add_chunk(&coords, false);
-        });
     }
 
     /// Handler for `Unload` type messages.

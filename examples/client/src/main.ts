@@ -131,5 +131,6 @@ const start = async () => {
 window.addEventListener("resize", () => {
   engine.resize();
 });
+engine.resize();
 
 start();
