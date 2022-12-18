@@ -36,13 +36,13 @@ export type WorldClientParams = {
 };
 
 const defaultParams: WorldClientParams = {
-  maxRequestsPerTick: 4,
+  maxRequestsPerTick: 400000000,
   maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
   minBrightness: 0.04,
   generateMeshes: true,
-  rerequestTicks: 100,
+  rerequestTicks: 1000000,
   defaultRenderRadius: 8,
   defaultDeleteRadius: 12,
   textureDimension: 8,
@@ -565,6 +565,15 @@ export class World implements NetIntercept {
 
       return ad - bd;
     });
+
+    console.log(
+      this.chunks.toRequest.map((c) => {
+        const [cx, cz] = c;
+        const dx = cx - center[0];
+        const dz = cz - center[1];
+        return dx ** 2 + dz ** 2;
+      })
+    );
 
     const { maxRequestsPerTick } = this.params;
 

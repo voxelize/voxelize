@@ -62,4 +62,10 @@ impl ChunkUtils {
             (vz - cz * cs) as usize,
         )
     }
+
+    pub fn distance_squared(a: &Vec2<i32>, b: &Vec2<i32>) -> f32 {
+        let dx = a.0 - b.0;
+        let dz = a.1 - b.1;
+        (dx * dx + dz * dz) as f32
+    }
 }

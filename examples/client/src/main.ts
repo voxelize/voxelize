@@ -92,6 +92,7 @@ inputs.bind("d", () => {
 });
 
 const map = new Map(world);
+map.setVisible(true);
 
 inputs.bind("m", map.toggle);
 
@@ -114,6 +115,21 @@ const start = async () => {
 
   engine.runRenderLoop(() => {
     world.update(center);
+
+    world.packets.push({
+      type: "PEER",
+      peers: [
+        {
+          id: network.clientInfo.id,
+          username: network.clientInfo.username,
+          metadata: {
+            position: center.asArray(),
+            direction: [0, 0, 0],
+          },
+        },
+      ],
+    });
+
     map.update(center);
     debug.update();
     network.flush();

@@ -700,8 +700,6 @@ impl World {
     pub(crate) fn prepare(&mut self) {
         // Merge consecutive chunk stages that don't require spaces together.
         self.pipeline_mut().merge_stages();
-
-        self.preload();
         self.load_entities();
 
         for (position, body) in (

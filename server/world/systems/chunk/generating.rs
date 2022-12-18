@@ -3,11 +3,11 @@ use std::{cmp::Ordering, collections::VecDeque};
 use hashbrown::{HashMap, HashSet};
 use log::info;
 use nanoid::nanoid;
-use specs::{ReadExpect, System, WriteExpect};
+use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    BlockUtils, Chunk, ChunkParams, ChunkStatus, ChunkUtils, Chunks, Mesher, MessageType, Pipeline,
-    Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
+    BlockUtils, Chunk, ChunkInterests, ChunkParams, ChunkStatus, ChunkUtils, Chunks, Clients,
+    Mesher, MessageType, Pipeline, PositionComp, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
 #[derive(Default)]
@@ -17,19 +17,64 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Registry>,
+        ReadExpect<'a, Clients>,
         WriteExpect<'a, Chunks>,
+        WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
+        ReadStorage<'a, PositionComp>,
     );
 
     /// If the pipeline queue is not empty, pop the first chunk coordinate `MAX_CHUNKS_PER_TICK` times and
     /// put the chunks into their respective stages. If the pipeline is done with a batch of chunks, advance
     /// the chunks to the next stage, and if any of the chunks are done, prepare them to be meshed.
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, mut chunks, mut pipeline, mut mesher) = data;
+        let (
+            config,
+            registry,
+            clients,
+            mut chunks,
+            mut interests,
+            mut pipeline,
+            mut mesher,
+            positions,
+        ) = data;
 
         let chunk_size = config.chunk_size;
         let max_chunks_per_tick = config.max_chunks_per_tick;
+
+        /* -------------------------------------------------------------------------- */
+        /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
+        /* -------------------------------------------------------------------------- */
+
+        interests.weights.clear();
+
+        let mut weights = HashMap::new();
+
+        for (coords, ids) in &interests.map {
+            let mut weight = 0.0;
+
+            ids.iter().for_each(|id| {
+                if let Some(client) = clients.get(id) {
+                    if let Some(pos) = positions.get(client.entity) {
+                        let client_coords = ChunkUtils::map_voxel_to_chunk(
+                            (pos.0 .0).floor() as i32,
+                            (pos.0 .1).floor() as i32,
+                            (pos.0 .2).floor() as i32,
+                            config.chunk_size,
+                        );
+
+                        let dist = ChunkUtils::distance_squared(&client_coords, &coords);
+                        weight += dist;
+                    }
+                }
+            });
+
+            let original_weight = interests.weights.get(&coords).cloned().unwrap_or_default();
+            weights.insert(coords.clone(), original_weight + weight);
+        }
+
+        interests.weights = weights;
 
         let mut to_notify = HashSet::new();
 
@@ -81,28 +126,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         let mut processes = vec![];
 
-        // let mut queue = pipeline
-        //     .queue
-        //     .iter()
-        //     .map(|anything| anything.to_owned())
-        //     .collect::<Vec<_>>();
+        if !pipeline.queue.is_empty() {
+            let mut queue: Vec<Vec2<i32>> = pipeline.queue.to_owned().into();
+            queue.sort_by(|a, b| interests.compare(a, b));
+            pipeline.queue = VecDeque::from(queue);
+        }
 
-        // queue.sort_by(|a, b| {
-        //     let dist_a = a.0 * a.0 + a.1 * a.1;
-        //     let dist_b = b.0 * b.0 + b.1 * b.1;
-        //     if dist_a - dist_b < 0 {
-        //         Ordering::Less
-        //     } else {
-        //         Ordering::Greater
-        //     }
-        // });
-
-        // pipeline.queue = VecDeque::from(queue);
-
-        while processes.len() < max_chunks_per_tick
-            && !pipeline.queue.is_empty()
-            && !pipeline.stages.is_empty()
-        {
+        while !pipeline.queue.is_empty() && !pipeline.stages.is_empty() {
             let coords = pipeline.get().unwrap();
             let chunk = chunks.raw(&coords);
 
@@ -250,7 +280,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         let mut processes = vec![];
 
-        while processes.len() < max_chunks_per_tick && !mesher.queue.is_empty() {
+        if !mesher.queue.is_empty() {
+            let mut queue: Vec<Vec2<i32>> = mesher.queue.to_owned().into();
+            queue.sort_by(|a, b| interests.compare(a, b));
+            mesher.queue = VecDeque::from(queue);
+        }
+
+        while !mesher.queue.is_empty() {
             let coords = mesher.get().unwrap();
 
             // Traverse through the neighboring coordinates. If any of them are not ready, then this chunk is not ready.

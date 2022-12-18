@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use hashbrown::{HashMap, HashSet};
 
 use crate::Vec2;
@@ -5,12 +7,13 @@ use crate::Vec2;
 #[derive(Debug, Default)]
 pub struct ChunkInterests {
     pub map: HashMap<Vec2<i32>, HashSet<String>>,
+    pub weights: HashMap<Vec2<i32>, f32>,
 }
 
 impl ChunkInterests {
     pub fn new() -> Self {
         Self {
-            map: HashMap::new(),
+            ..Default::default()
         }
     }
 
@@ -23,6 +26,21 @@ impl ChunkInterests {
 
     pub fn get_interests(&self, coords: &Vec2<i32>) -> Option<&HashSet<String>> {
         self.map.get(coords)
+    }
+
+    pub fn set_weight(&mut self, coords: &Vec2<i32>, weight: f32) {
+        self.weights.insert(coords.to_owned(), weight);
+    }
+
+    pub fn get_weight(&self, coords: &Vec2<i32>) -> Option<&f32> {
+        self.weights.get(coords)
+    }
+
+    pub fn compare(&self, coords_a: &Vec2<i32>, coords_b: &Vec2<i32>) -> Ordering {
+        let weight_a = self.get_weight(coords_a).unwrap_or(&f32::MAX);
+        let weight_b = self.get_weight(coords_b).unwrap_or(&f32::MAX);
+
+        weight_a.partial_cmp(weight_b).unwrap_or(Ordering::Equal)
     }
 
     pub fn has_interests(&self, coords: &Vec2<i32>) -> bool {
