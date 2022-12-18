@@ -4,7 +4,11 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
 use log::info;
 use nalgebra::geometry;
-use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
+use rayon::{
+    iter::IntoParallelIterator,
+    prelude::{IndexedParallelIterator, ParallelIterator},
+    ThreadPool, ThreadPoolBuilder,
+};
 
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
@@ -129,57 +133,62 @@ impl Mesher {
         });
 
         self.pool.spawn(move || {
-            processes.into_iter().for_each(|(mut chunk, mut space)| {
-                if chunk.meshes.is_none() {
-                    let min = space.min.to_owned();
-                    let coords = space.coords.to_owned();
-                    let shape = space.shape.to_owned();
+            processes
+                .into_par_iter()
+                .enumerate()
+                .for_each(|(_, (mut chunk, mut space))| {
+                    if chunk.meshes.is_none() {
+                        let min = space.min.to_owned();
+                        let coords = space.coords.to_owned();
+                        let shape = space.shape.to_owned();
 
-                    chunk.lights =
-                        Lights::propagate(&mut space, &min, &coords, &shape, &registry, &config);
-                }
+                        chunk.lights = Lights::propagate(
+                            &mut space, &min, &coords, &shape, &registry, &config,
+                        );
+                    }
 
-                let sub_chunks = chunk.updated_levels.to_owned();
+                    let sub_chunks = chunk.updated_levels.to_owned();
 
-                space.updated_levels.clear();
-                chunk.updated_levels.clear();
+                    space.updated_levels.clear();
+                    chunk.updated_levels.clear();
 
-                let Vec3(min_x, min_y, min_z) = chunk.min;
-                let Vec3(max_x, _, max_z) = chunk.max;
+                    let Vec3(min_x, min_y, min_z) = chunk.min;
+                    let Vec3(max_x, _, max_z) = chunk.max;
 
-                let blocks_per_sub_chunk =
-                    (space.params.max_height / space.params.sub_chunks) as i32;
+                    let blocks_per_sub_chunk =
+                        (space.params.max_height / space.params.sub_chunks) as i32;
 
-                let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
+                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
-                sub_chunks
-                    .into_par_iter()
-                    .map(|level| {
-                        let level = level as i32;
+                    sub_chunks
+                        .into_par_iter()
+                        .map(|level| {
+                            let level = level as i32;
 
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                            let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                            let max =
+                                Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                        let geometries = Self::mesh_space(&min, &max, &space, &registry);
+                            let geometries = Self::mesh_space(&min, &max, &space, &registry);
 
-                        (geometries, level)
-                    })
-                    .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
-                    .into_iter()
-                    .for_each(|(geometries, level)| {
-                        if chunk.meshes.is_none() {
-                            chunk.meshes = Some(HashMap::new());
-                        }
+                            (geometries, level)
+                        })
+                        .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
+                        .into_iter()
+                        .for_each(|(geometries, level)| {
+                            if chunk.meshes.is_none() {
+                                chunk.meshes = Some(HashMap::new());
+                            }
 
-                        chunk
-                            .meshes
-                            .as_mut()
-                            .unwrap()
-                            .insert(level as u32, MeshProtocol { level, geometries });
-                    });
+                            chunk
+                                .meshes
+                                .as_mut()
+                                .unwrap()
+                                .insert(level as u32, MeshProtocol { level, geometries });
+                        });
 
-                sender.send(chunk).unwrap();
-            });
+                    sender.send(chunk).unwrap();
+                });
         });
     }
 

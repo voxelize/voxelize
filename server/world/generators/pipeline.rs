@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
@@ -338,27 +338,30 @@ impl Pipeline {
         let config = config.to_owned();
 
         self.pool.spawn(move || {
-            processes.into_par_iter().for_each(|(chunk, space, stage)| {
-                let mut changes = vec![];
+            processes
+                .into_par_iter()
+                .enumerate()
+                .for_each(|(_, (chunk, space, stage))| {
+                    let mut changes = vec![];
 
-                let mut chunk = stage.process(
-                    chunk,
-                    Resources {
-                        registry: &registry,
-                        config: &config,
-                    },
-                    space,
-                );
+                    let mut chunk = stage.process(
+                        chunk,
+                        Resources {
+                            registry: &registry,
+                            config: &config,
+                        },
+                        space,
+                    );
 
-                // Calculate the max height after processing each chunk.
-                chunk.calculate_max_height(&registry);
+                    // Calculate the max height after processing each chunk.
+                    chunk.calculate_max_height(&registry);
 
-                if !chunk.extra_changes.is_empty() {
-                    changes.append(&mut chunk.extra_changes.drain(..).collect());
-                }
+                    if !chunk.extra_changes.is_empty() {
+                        changes.append(&mut chunk.extra_changes.drain(..).collect());
+                    }
 
-                sender.send((chunk, changes)).unwrap();
-            });
+                    sender.send((chunk, changes)).unwrap();
+                });
         });
     }
 
