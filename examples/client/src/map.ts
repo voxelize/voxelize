@@ -2,6 +2,18 @@ import { Vector3 } from "@babylonjs/core";
 import { ChunkUtils, Coords3, DOMUtils, World } from "@voxelize/client";
 import p5 from "p5";
 
+const COLOR_HINT = [
+  [1, 1, "to request, within delete radius"],
+  [1, 2, "to request, within render radius"],
+  [2, 1, "requested, within delete radius"],
+  [2, 2, "requested, within render radius"],
+  [3, 1, "processing, within delete radius"],
+  [3, 2, "processing, within render radius"],
+  [4, 1, "loaded, within delete radius"],
+  [4, 2, "loaded, within render radius"],
+  [0, 0, "out of reach"],
+];
+
 export class Map {
   public wrapper: HTMLDivElement = document.createElement("div");
 
@@ -19,6 +31,54 @@ export class Map {
       display: "none",
       zIndex: "10000000",
     });
+
+    const colorHints = document.createElement("div");
+    DOMUtils.applyStyles(colorHints, {
+      position: "absolute",
+      bottom: "10px",
+      left: "10px",
+      display: "flex",
+      flexDirection: "column",
+      width: "300px",
+      fontSize: "0.8rem",
+      gap: "5px",
+    });
+
+    const colorHintItem = document.createElement("div");
+    DOMUtils.applyStyles(colorHintItem, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "flex-start",
+    });
+
+    const colorHintColor = document.createElement("div");
+    DOMUtils.applyStyles(colorHintColor, {
+      width: "20px",
+      height: "20px",
+      marginRight: "10px",
+      border: "1px solid white",
+    });
+
+    COLOR_HINT.forEach(([shade1, shade2, hint]) => {
+      const item = colorHintItem.cloneNode(true) as HTMLDivElement;
+      const color = colorHintColor.cloneNode(true) as HTMLDivElement;
+
+      DOMUtils.applyStyles(color, {
+        background: `rgb(${(shade2 as number) * 50}, 0, ${
+          (shade1 as number) * 50
+        })`,
+      });
+
+      item.appendChild(color);
+      const text = document.createElement("p");
+      text.innerHTML = `${hint}`;
+      text.style.color = "white";
+      item.appendChild(text);
+
+      colorHints.appendChild(item);
+    });
+
+    this.wrapper.appendChild(colorHints);
 
     this.p5 = new p5((p) => {
       p.setup = () => {
@@ -44,6 +104,10 @@ export class Map {
     }
   };
 
+  toggle = () => {
+    this.setVisible(this.wrapper.style.display === "none");
+  };
+
   update(center: Vector3) {
     this.p5.background("#000000");
 
@@ -53,22 +117,24 @@ export class Map {
     const horizontalCount = Math.ceil(width / this.dimension);
     const verticalCount = Math.ceil(height / this.dimension);
 
+    const { renderRadius, deleteRadius } = this.world;
+
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(
       center.asArray() as Coords3,
       this.world.params.chunkSize
     );
 
     for (
-      let x = cx - Math.floor(horizontalCount / 2);
-      x < cx + Math.floor(horizontalCount / 2);
+      let x = -Math.floor(horizontalCount / 2);
+      x < Math.floor(horizontalCount / 2);
       x++
     ) {
       for (
-        let z = cz - Math.floor(verticalCount / 2);
-        z < cz + Math.floor(verticalCount / 2);
+        let z = -Math.floor(verticalCount / 2);
+        z < Math.floor(verticalCount / 2);
         z++
       ) {
-        const status = this.world.getChunkStatus(x, z);
+        const status = this.world.getChunkStatus(x + cx, z + cz);
         const shade =
           status === "to request"
             ? 1
@@ -80,26 +146,35 @@ export class Map {
             ? 4
             : 0;
 
-        if (x === cx && z === cz) {
+        const shade2 =
+          x ** 2 + z ** 2 <= renderRadius ** 2
+            ? 2
+            : x ** 2 + z ** 2 <= deleteRadius ** 2
+            ? 1
+            : 0;
+
+        if (x === 0 && z === 0) {
           this.p5.fill("#4B56D2");
         } else {
-          this.p5.fill(shade * 50, 0, 0);
+          this.p5.fill(shade2 * 50, 0, shade * 50);
         }
 
+        this.p5.noStroke();
+
         this.p5.rect(
-          (x - cx + Math.floor(horizontalCount / 2)) * this.dimension,
-          (z - cz + Math.floor(verticalCount / 2)) * this.dimension,
+          x * this.dimension + window.innerWidth / 2,
+          z * this.dimension + window.innerHeight / 2,
           this.dimension,
           this.dimension
         );
 
         this.p5.fill(255);
 
-        this.p5.text(
-          status || "",
-          (x - cx + Math.floor(horizontalCount / 2)) * this.dimension,
-          (z - cz + Math.floor(verticalCount / 2)) * this.dimension + 10
-        );
+        // this.p5.text(
+        //   status || "",
+        //   x * this.dimension + window.innerWidth / 2,
+        //   z * this.dimension + window.innerHeight / 2 + 10
+        // );
       }
     }
   }

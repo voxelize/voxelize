@@ -52,10 +52,10 @@ pub struct Mesher {
     pub(crate) skips: HashMap<Vec2<i32>, usize>,
 
     /// Sender of processed chunks from other threads to the main thread.
-    sender: Arc<Sender<Vec<Chunk>>>,
+    sender: Arc<Sender<Chunk>>,
 
     /// Receiver of processed chunks from other threads to the main thread.
-    receiver: Arc<Receiver<Vec<Chunk>>>,
+    receiver: Arc<Receiver<Chunk>>,
 
     /// The thread pool for meshing.
     pool: ThreadPool,
@@ -129,96 +129,75 @@ impl Mesher {
         });
 
         self.pool.spawn(move || {
-            let chunks: Vec<Chunk> = processes
-                .into_par_iter()
-                .map(|(mut chunk, mut space)| {
-                    if chunk.meshes.is_none() {
-                        let min = space.min.to_owned();
-                        let coords = space.coords.to_owned();
-                        let shape = space.shape.to_owned();
+            processes.into_iter().for_each(|(mut chunk, mut space)| {
+                if chunk.meshes.is_none() {
+                    let min = space.min.to_owned();
+                    let coords = space.coords.to_owned();
+                    let shape = space.shape.to_owned();
 
-                        chunk.lights = Lights::propagate(
-                            &mut space, &min, &coords, &shape, &registry, &config,
-                        );
-                    }
+                    chunk.lights =
+                        Lights::propagate(&mut space, &min, &coords, &shape, &registry, &config);
+                }
 
-                    let sub_chunks = chunk.updated_levels.to_owned();
+                let sub_chunks = chunk.updated_levels.to_owned();
 
-                    space.updated_levels.clear();
-                    chunk.updated_levels.clear();
+                space.updated_levels.clear();
+                chunk.updated_levels.clear();
 
-                    let Vec3(min_x, min_y, min_z) = chunk.min;
-                    let Vec3(max_x, _, max_z) = chunk.max;
+                let Vec3(min_x, min_y, min_z) = chunk.min;
+                let Vec3(max_x, _, max_z) = chunk.max;
 
-                    let blocks_per_sub_chunk =
-                        (space.params.max_height / space.params.sub_chunks) as i32;
+                let blocks_per_sub_chunk =
+                    (space.params.max_height / space.params.sub_chunks) as i32;
 
-                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
+                let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
-                    sub_chunks
-                        .into_par_iter()
-                        .map(|level| {
-                            let level = level as i32;
+                sub_chunks
+                    .into_par_iter()
+                    .map(|level| {
+                        let level = level as i32;
 
-                            let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                            let max =
-                                Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                            let geometries = Self::mesh_space(&min, &max, &space, &registry);
+                        let geometries = Self::mesh_space(&min, &max, &space, &registry);
 
-                            (geometries, level)
-                        })
-                        .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
-                        .into_iter()
-                        .for_each(|(geometries, level)| {
-                            if chunk.meshes.is_none() {
-                                chunk.meshes = Some(HashMap::new());
-                            }
+                        (geometries, level)
+                    })
+                    .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
+                    .into_iter()
+                    .for_each(|(geometries, level)| {
+                        if chunk.meshes.is_none() {
+                            chunk.meshes = Some(HashMap::new());
+                        }
 
-                            chunk
-                                .meshes
-                                .as_mut()
-                                .unwrap()
-                                .insert(level as u32, MeshProtocol { level, geometries });
-                        });
+                        chunk
+                            .meshes
+                            .as_mut()
+                            .unwrap()
+                            .insert(level as u32, MeshProtocol { level, geometries });
+                    });
 
-                    chunk
-                })
-                .collect();
-
-            sender.send(chunks).unwrap();
+                sender.send(chunk).unwrap();
+            });
         });
     }
 
     /// Attempt to retrieve the results from `mesher.process`
-    pub fn results(&mut self) -> Result<Vec<Chunk>, TryRecvError> {
-        let results = self.receiver.try_recv();
+    pub fn results(&mut self) -> Option<Chunk> {
+        let result = self.receiver.try_recv();
 
-        if results.is_err() {
-            return results;
+        if result.is_err() {
+            return None;
         }
 
-        let results = results.unwrap();
+        let result = result.unwrap();
 
-        Ok(results
-            .into_iter()
-            .filter(|chunk| {
-                // If the chunk is not in the map, it was removed from the mesher.
-                if !self.map.contains(&chunk.coords) {
-                    return false;
-                }
+        if !self.map.contains(&result.coords) {
+            return None;
+        }
 
-                let skip_count = self.skips.remove(&chunk.coords).unwrap_or(0);
-                if skip_count > 0 {
-                    self.skips.insert(chunk.coords.to_owned(), skip_count - 1);
-                    return false;
-                }
-
-                self.map.remove(&chunk.coords);
-
-                true
-            })
-            .collect())
+        Some(result)
     }
 
     /// Mesh this space and separate individual block types into their own meshes.

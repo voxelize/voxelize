@@ -1,3 +1,5 @@
+use std::{cmp::Ordering, collections::VecDeque};
+
 use hashbrown::{HashMap, HashSet};
 use log::info;
 use nanoid::nanoid;
@@ -34,7 +36,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING PIPELINE RESULTS                         */
         /* -------------------------------------------------------------------------- */
-        if let Ok((done_chunks, extra_changes)) = pipeline.results() {
+        if let Some((mut chunk, extra_changes)) = pipeline.results() {
             // Apply the extra changes from processing these chunks to the other chunks.
             extra_changes.into_iter().for_each(|(voxel, id)| {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
@@ -49,37 +51,53 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 pipeline.leftovers.insert(coords, already);
             });
 
-            done_chunks.into_iter().for_each(|mut chunk| {
-                // Advance the chunk to the next stage.
-                if let ChunkStatus::Generating(curr_stage) = chunk.status {
-                    let next_stage = curr_stage + 1;
+            // Advance the chunk to the next stage.
+            if let ChunkStatus::Generating(curr_stage) = chunk.status {
+                let next_stage = curr_stage + 1;
 
-                    // This chunk is done with the last stage.
-                    // Can be pushed to the mesher.
-                    if next_stage >= pipeline.stages.len() {
-                        // At this point, this chunk has nothing to do with the pipeline.
-                        chunk.status = ChunkStatus::Meshing;
-                        mesher.add_chunk(&chunk.coords, false);
-                        pipeline.remove_chunk(&chunk.coords);
-                    } else {
-                        // Otherwise, advance the chunk to the next stage.
-                        chunk.status = ChunkStatus::Generating(next_stage);
-                        pipeline.add_chunk(&chunk.coords, false);
-                    }
-
-                    // Notify neighbors that this chunk is ready.
-                    to_notify.insert(chunk.coords.clone());
-
-                    // Renew the chunk to the world map.
-                    chunks.renew(chunk);
+                // This chunk is done with the last stage.
+                // Can be pushed to the mesher.
+                if next_stage >= pipeline.stages.len() {
+                    // At this point, this chunk has nothing to do with the pipeline.
+                    chunk.status = ChunkStatus::Meshing;
+                    mesher.add_chunk(&chunk.coords, false);
+                    pipeline.remove_chunk(&chunk.coords);
+                } else {
+                    // Otherwise, advance the chunk to the next stage.
+                    chunk.status = ChunkStatus::Generating(next_stage);
+                    pipeline.add_chunk(&chunk.coords, false);
                 }
-            });
+
+                // Notify neighbors that this chunk is ready.
+                to_notify.insert(chunk.coords.clone());
+
+                // Renew the chunk to the world map.
+                chunks.renew(chunk);
+            }
         }
 
         /* -------------------------------------------------------------------------- */
         /*                       PUSHING CHUNKS TO BE PROCESSED                       */
         /* -------------------------------------------------------------------------- */
         let mut processes = vec![];
+
+        // let mut queue = pipeline
+        //     .queue
+        //     .iter()
+        //     .map(|anything| anything.to_owned())
+        //     .collect::<Vec<_>>();
+
+        // queue.sort_by(|a, b| {
+        //     let dist_a = a.0 * a.0 + a.1 * a.1;
+        //     let dist_b = b.0 * b.0 + b.1 * b.1;
+        //     if dist_a - dist_b < 0 {
+        //         Ordering::Less
+        //     } else {
+        //         Ordering::Greater
+        //     }
+        // });
+
+        // pipeline.queue = VecDeque::from(queue);
 
         while processes.len() < max_chunks_per_tick
             && !pipeline.queue.is_empty()
@@ -216,17 +234,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING MESHING RESULTS                          */
         /* -------------------------------------------------------------------------- */
-        if let Ok(list) = mesher.results() {
-            list.into_iter().for_each(|mut chunk| {
-                // Notify neighbors that this chunk is ready.
-                to_notify.insert(chunk.coords.clone());
+        if let Some(mut chunk) = mesher.results() {
+            // Notify neighbors that this chunk is ready.
+            to_notify.insert(chunk.coords.clone());
 
-                // Update chunk status.
-                chunk.status = ChunkStatus::Ready;
+            // Update chunk status.
+            chunk.status = ChunkStatus::Ready;
 
-                chunks.add_chunk_to_send(&chunk.coords, &MessageType::Load, false);
-                chunks.renew(chunk);
-            });
+            chunks.add_chunk_to_send(&chunk.coords, &MessageType::Load, false);
+            chunks.renew(chunk);
         }
 
         /* -------------------------------------------------------------------------- */
@@ -338,12 +354,12 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         ChunkStatus::Generating(_)
                     )
                 {
-                    pipeline.add_chunk(&n_coords, false);
+                    pipeline.add_chunk(&n_coords, true);
                 }
                 // If this chunk is in the meshing stage, we re-add it to the mesher.
                 else if let Some(chunk) = chunks.raw(&n_coords) {
                     if matches!(chunk.status, ChunkStatus::Meshing) {
-                        mesher.add_chunk(&n_coords, false);
+                        mesher.add_chunk(&n_coords, true);
                     }
                 }
             })

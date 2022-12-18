@@ -93,26 +93,19 @@ inputs.bind("d", () => {
 
 const map = new Map(world);
 
-inputs.bind(
-  "m",
-  () => {
-    map.setVisible(true);
-  },
-  "*",
-  {
-    occasion: "keydown",
-  }
-);
-inputs.bind(
-  "m",
-  () => {
-    map.setVisible(false);
-  },
-  "*",
-  {
-    occasion: "keyup",
-  }
-);
+inputs.bind("m", map.toggle);
+
+inputs.bind("escape", () => {
+  map.setVisible(false);
+});
+
+inputs.bind("r", () => {
+  center.set(
+    (Math.random() - 0.5) * 1000000,
+    (Math.random() - 0.5) * 1000000,
+    (Math.random() - 0.5) * 1000000
+  );
+});
 
 const start = async () => {
   await network.connect(BACKEND_SERVER, { secret: "test" });

@@ -238,10 +238,10 @@ pub struct Pipeline {
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
 
     /// Sender of processed chunks from other threads to main thread.
-    sender: Arc<Sender<(Vec<Chunk>, Vec<VoxelUpdate>)>>,
+    sender: Arc<Sender<(Chunk, Vec<VoxelUpdate>)>>,
 
     /// Receiver to receive processed chunks from other threads to main thread.
-    receiver: Arc<Receiver<(Vec<Chunk>, Vec<VoxelUpdate>)>>,
+    receiver: Arc<Receiver<(Chunk, Vec<VoxelUpdate>)>>,
 
     /// Pipeline's thread pool to process chunks.
     pool: ThreadPool,
@@ -273,7 +273,6 @@ impl Pipeline {
         }
 
         self.remove_chunk(coords);
-        self.chunks.insert(coords.to_owned());
 
         if prioritized {
             self.queue.push_front(coords.to_owned());
@@ -290,7 +289,7 @@ impl Pipeline {
 
     /// Check to see if a chunk coordinate is in the pipeline.
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
-        self.chunks.contains(coords) || self.queue.contains(coords)
+        self.chunks.contains(coords)
     }
 
     /// Pop the first chunk coordinate in the queue.
@@ -314,6 +313,10 @@ impl Pipeline {
         registry: &Registry,
         config: &WorldConfig,
     ) {
+        processes.iter().for_each(|(chunk, _)| {
+            self.chunks.insert(chunk.coords.to_owned());
+        });
+
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
             .into_iter()
@@ -335,65 +338,45 @@ impl Pipeline {
         let config = config.to_owned();
 
         self.pool.spawn(move || {
-            let results: Vec<(Chunk, Vec<(Vec3<i32>, u32)>)> = processes
-                .into_par_iter()
-                .map(|(chunk, space, stage)| {
-                    let mut changes = vec![];
+            processes.into_iter().for_each(|(chunk, space, stage)| {
+                let mut changes = vec![];
 
-                    let mut chunk = stage.process(
-                        chunk,
-                        Resources {
-                            registry: &registry,
-                            config: &config,
-                        },
-                        space,
-                    );
+                let mut chunk = stage.process(
+                    chunk,
+                    Resources {
+                        registry: &registry,
+                        config: &config,
+                    },
+                    space,
+                );
 
-                    // Calculate the max height after processing each chunk.
-                    chunk.calculate_max_height(&registry);
+                // Calculate the max height after processing each chunk.
+                chunk.calculate_max_height(&registry);
 
-                    if !chunk.extra_changes.is_empty() {
-                        changes.append(&mut chunk.extra_changes.drain(..).collect());
-                    }
+                if !chunk.extra_changes.is_empty() {
+                    changes.append(&mut chunk.extra_changes.drain(..).collect());
+                }
 
-                    (chunk, changes)
-                })
-                .collect();
-
-            let mut chunks = vec![];
-            let mut changes = vec![];
-
-            for (chunk, mut chunk_changes) in results {
-                chunks.push(chunk);
-                changes.append(&mut chunk_changes);
-            }
-
-            sender.send((chunks, changes)).unwrap();
+                sender.send((chunk, changes)).unwrap();
+            });
         });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&self) -> Result<(Vec<Chunk>, Vec<VoxelUpdate>), TryRecvError> {
-        let results = self.receiver.try_recv();
+    pub fn results(&self) -> Option<(Chunk, Vec<VoxelUpdate>)> {
+        let result = self.receiver.try_recv();
 
-        if results.is_err() {
-            return results;
+        if result.is_err() {
+            return None;
         }
 
-        let mut results = results.unwrap();
+        let result = result.unwrap();
 
-        results.0 = results
-            .0
-            .into_par_iter()
-            .filter(|chunk| {
-                if !self.chunks.contains(&chunk.coords) {
-                    return false;
-                }
-                true
-            })
-            .collect();
+        if !self.chunks.contains(&result.0.coords) {
+            return None;
+        }
 
-        Ok(results)
+        Some(result)
     }
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.
