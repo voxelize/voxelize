@@ -41,7 +41,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         ) = data;
 
         let chunk_size = config.chunk_size;
-        let max_chunks_per_tick = config.max_chunks_per_tick;
 
         /* -------------------------------------------------------------------------- */
         /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
@@ -75,8 +74,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         interests.weights = weights;
-
-        let mut to_notify = HashSet::new();
 
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING PIPELINE RESULTS                         */
@@ -114,7 +111,28 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
 
                 // Notify neighbors that this chunk is ready.
-                to_notify.insert(chunk.coords.clone());
+
+                if chunks.listeners.contains_key(&chunk.coords) {
+                    let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
+
+                    listeners.into_iter().for_each(|n_coords| {
+                        // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
+                        if !chunks.map.contains_key(&n_coords)
+                            || matches!(
+                                chunks.raw(&n_coords).unwrap().status,
+                                ChunkStatus::Generating(_)
+                            )
+                        {
+                            pipeline.add_chunk(&n_coords, true);
+                        }
+                        // If this chunk is in the meshing stage, we re-add it to the mesher.
+                        else if let Some(chunk) = chunks.raw(&n_coords) {
+                            if matches!(chunk.status, ChunkStatus::Meshing) {
+                                mesher.add_chunk(&n_coords, true);
+                            }
+                        }
+                    })
+                }
 
                 // Renew the chunk to the world map.
                 chunks.renew(chunk);
@@ -266,8 +284,27 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         if let Some(mut chunk) = mesher.results() {
             // Notify neighbors that this chunk is ready.
-            to_notify.insert(chunk.coords.clone());
+            if chunks.listeners.contains_key(&chunk.coords) {
+                let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
 
+                listeners.into_iter().for_each(|n_coords| {
+                    // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
+                    if !chunks.map.contains_key(&n_coords)
+                        || matches!(
+                            chunks.raw(&n_coords).unwrap().status,
+                            ChunkStatus::Generating(_)
+                        )
+                    {
+                        pipeline.add_chunk(&n_coords, true);
+                    }
+                    // If this chunk is in the meshing stage, we re-add it to the mesher.
+                    else if let Some(chunk) = chunks.raw(&n_coords) {
+                        if matches!(chunk.status, ChunkStatus::Meshing) {
+                            mesher.add_chunk(&n_coords, true);
+                        }
+                    }
+                })
+            }
             // Update chunk status.
             chunk.status = ChunkStatus::Ready;
 
@@ -369,36 +406,5 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         if !processes.is_empty() {
             mesher.process(processes, &registry, &config);
         }
-
-        /* -------------------------------------------------------------------------- */
-        /*                         NOTIFY THE CHUNK NEIGHBORS                         */
-        /* -------------------------------------------------------------------------- */
-
-        to_notify.into_iter().for_each(|coords| {
-            // This is the list of chunks that we need to notify.
-            if !chunks.listeners.contains_key(&coords) {
-                return;
-            }
-
-            let listeners = chunks.listeners.remove(&coords).unwrap();
-
-            listeners.into_iter().for_each(|n_coords| {
-                // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                if !chunks.map.contains_key(&n_coords)
-                    || matches!(
-                        chunks.raw(&n_coords).unwrap().status,
-                        ChunkStatus::Generating(_)
-                    )
-                {
-                    pipeline.add_chunk(&n_coords, true);
-                }
-                // If this chunk is in the meshing stage, we re-add it to the mesher.
-                else if let Some(chunk) = chunks.raw(&n_coords) {
-                    if matches!(chunk.status, ChunkStatus::Meshing) {
-                        mesher.add_chunk(&n_coords, true);
-                    }
-                }
-            })
-        });
     }
 }
