@@ -63,7 +63,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             });
 
-            let original_weight = interests.weights.get(&coords).cloned().unwrap_or_default();
+            let original_weight = interests.weights.get(coords).cloned().unwrap_or_default();
             weights.insert(coords.clone(), original_weight + weight);
         }
 

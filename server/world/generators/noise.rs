@@ -1,4 +1,4 @@
-use noise::{Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable};
+use noise::{Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable, Simplex};
 use serde::Serialize;
 use std::f64;
 
@@ -6,22 +6,20 @@ use std::f64;
 #[derive(Clone, Debug)]
 pub struct SeededNoise {
     /// Core noise instance.
-    regular: Fbm,
-    ridged: RidgedMulti,
+    regular: Fbm<Simplex>,
+    ridged: RidgedMulti<Simplex>,
     params: NoiseParams,
 }
 
 impl SeededNoise {
     /// Create a new seeded simplex noise.
     pub fn new(seed: u32, params: &NoiseParams) -> Self {
-        let regular = Fbm::new()
-            .set_seed(seed)
+        let regular = Fbm::new(seed)
             .set_frequency(params.frequency)
             .set_lacunarity(params.lacunarity)
             .set_persistence(params.persistence)
             .set_octaves(params.octaves);
-        let ridged = RidgedMulti::new()
-            .set_seed(seed)
+        let ridged = RidgedMulti::new(seed)
             .set_frequency(params.frequency)
             .set_lacunarity(params.lacunarity)
             .set_persistence(params.persistence)
