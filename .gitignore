@@ -15,3 +15,5 @@ Cargo.lock
 **/*/.DS_Store
 
 .DS_Store
+
+yarn-error.log
