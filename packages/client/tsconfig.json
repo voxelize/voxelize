@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.build.json",
+  "extends": "../../tsconfig.build.json",
   "files": ["./src/types.d.ts"],
   "include": ["src/**/*"],
   "exclude": ["dist"],

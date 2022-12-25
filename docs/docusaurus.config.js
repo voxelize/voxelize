@@ -193,20 +193,20 @@ const config = {
     [
       "docusaurus-plugin-typedoc",
       {
-        entryPoints: ["../transport/src/index.ts"],
+        entryPoints: ["../packages/transport/src/index.ts"],
         id: "@voxelize/transport",
         out: "api/transport",
-        tsconfig: "../transport/tsconfig.json",
+        tsconfig: "../packages/transport/tsconfig.json",
         ...sharedTypeDocConfig("Transport API"),
       },
     ],
     [
       "docusaurus-plugin-typedoc",
       {
-        entryPoints: ["../client/src/index.ts"],
+        entryPoints: ["../packages/client/src/index.ts"],
         id: "@voxelize/client",
         out: "api/client",
-        tsconfig: "../client/tsconfig.json",
+        tsconfig: "../packages/client/tsconfig.json",
         ...sharedTypeDocConfig("Client API"),
       },
     ],

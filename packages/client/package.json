@@ -10,7 +10,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "dev": "concurrently \"yarn run compile -w\" \"yarn run types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
     "compile": "rollup -c rollup.config.js",
     "build": "yarn run clean && yarn run compile && yarn run types",
@@ -34,9 +34,9 @@
   },
   "dependencies": {
     "@tweenjs/tween.js": "^18.6.4",
-    "@voxelize/aabb": "^1.0.0",
-    "@voxelize/physics-engine": "^1.1.26",
-    "@voxelize/raycast": "^1.0.8",
+    "@voxelize/aabb": "*",
+    "@voxelize/physics-engine": "*",
+    "@voxelize/raycast": "*",
     "@voxelize/transport": "*",
     "deepmerge": "^4.2.2",
     "domurl": "^2.3.4",
