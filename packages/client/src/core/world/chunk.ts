@@ -434,13 +434,22 @@ export class Chunk {
   dispose() {
     this.meshes.forEach((mesh) => {
       mesh.forEach((subMesh) => {
-        subMesh.geometry.dispose();
+        if (!subMesh) return;
+
+        subMesh.geometry?.dispose();
 
         if (subMesh.parent) {
           subMesh.parent.remove(subMesh);
         }
       });
     });
+  }
+
+  /**
+   * Whether or not is this chunk ready to be rendered and seen in the world.
+   */
+  get isReady() {
+    return this.lights.data.length !== 0 && this.voxels.data.length !== 0;
   }
 
   private getLocalRedLight(lx: number, ly: number, lz: number) {

@@ -39,7 +39,7 @@ import Water3Image from "../assets/pixel-perfection/water3.png";
 import Water4Image from "../assets/pixel-perfection/water4.png";
 import TechnoImage from "../assets/techno.png";
 
-export function setupWorld(world: World) {
+export async function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
@@ -48,17 +48,17 @@ export function setupWorld(world: World) {
   // world.applyBlockGifByName("Sand", "nx", FunnyGif);
   // world.applyResolutionByName("Sand", "nx", 120);
 
-  world.applyBlockAnimationByName(
-    "Water",
-    "py",
-    [
-      [500, Water1Image],
-      [500, Water2Image],
-      [500, Water3Image],
-      [500, Water4Image],
-    ],
-    300
-  );
+  // world.applyBlockAnimationByName(
+  //   "Water",
+  //   "py",
+  //   [
+  //     [500, Water1Image],
+  //     [500, Water2Image],
+  //     [500, Water3Image],
+  //     [500, Water4Image],
+  //   ],
+  //   300
+  // );
 
   // world.applyBlockAnimationByName(
   //   "Dirt",
@@ -70,85 +70,97 @@ export function setupWorld(world: World) {
   //   50
   // );
 
-  world.applyTexturesByNames([
-    { name: "Dirt", sides: all, data: DirtImage },
-    { name: "Lol", sides: all, data: new Color("#8479E1") },
-    { name: "Lol", sides: ["py"], data: LolImage },
-    { name: "Marble", sides: all, data: MarbleImage },
-    { name: "Orange Concrete", sides: all, data: OrangeConcreteImage },
-    { name: "Blue Concrete", sides: all, data: BlueConcrete },
-    { name: "Red Concrete", sides: all, data: RedConcreteImage },
-    { name: "White Concrete", sides: all, data: WhiteConcreteImage },
-    { name: "Yellow Concrete", sides: all, data: YellowConcreteImage },
-    { name: "Black Concrete", sides: all, data: BlackConcreteImage },
-    { name: "Ivory Block", sides: all, data: IvoryBlockImage },
-    { name: "Grass Block", sides: ["py"], data: GrassBlockImage },
-    { name: "Color", sides: all, data: new Color("#ffffff") },
-    { name: "Color", sides: all, data: Color2Image },
-    { name: "Grass Block", sides: side, data: GrassBlockSideImage },
-    { name: "Grass Block", sides: ["ny"], data: DirtImage },
-    { name: "Grass", sides: ["one", "two"], data: GrassImage },
-    { name: "Stone", sides: all, data: StoneImage },
-    { name: "Oak Leaves", sides: all, data: OakLeavesImage },
-    { name: "Oak Leaves", sides: ["one", "two"], data: OakLeavesImage },
-    { name: "Oak Log", sides: ["py"], data: OakTopImage },
-    { name: "Oak Log", sides: side, data: OakSideImage },
-    { name: "Oak Log", sides: ["ny"], data: OakTopImage },
-    { name: "Oak Pole", sides: side, data: TestImage },
-    { name: "Birch Log", sides: ["py"], data: BirchTopImage },
-    { name: "Birch Log", sides: side, data: BirchSideImage },
-    { name: "Birch Log", sides: ["ny"], data: BirchTopImage },
-    { name: "Sand", sides: all, data: SandImage },
-    { name: "Snow", sides: all, data: SnowImage },
-    { name: "Water", sides: all, data: WaterImage },
-    { name: "Obsidian", sides: all, data: ObsidianImage },
-    { name: "Granite", sides: all, data: GraniteImage },
-    { name: "Graphite", sides: all, data: GraphiteImage },
-    { name: "Slate", sides: all, data: SlateImage },
-    { name: "Andesite", sides: all, data: AndesiteImage },
-    { name: "Oak Planks", sides: all, data: OakPlanksImage },
-    { name: "Oak Slab Top", sides: all, data: OakPlanksImage },
-    { name: "Oak Slab Bottom", sides: all, data: OakPlanksImage },
-    { name: "ChoGe", sides: ["px", "nx"], data: ChoGeImage },
-    { name: "Glass", sides: all, data: GlassImage },
+  await world.applyBlockTextures([
+    { idOrName: "Dirt", faceNames: all, source: DirtImage },
+    { idOrName: "Lol", faceNames: all, source: new Color("#8479E1") },
+    { idOrName: "Lol", faceNames: ["py"], source: LolImage },
+    { idOrName: "Marble", faceNames: all, source: MarbleImage },
     {
-      name: "Mushroom",
-      sides: all.map((name) => `bottom-${name}-`),
-      data: new Color("#A27B5C"),
+      idOrName: "Orange Concrete",
+      faceNames: all,
+      source: OrangeConcreteImage,
+    },
+    { idOrName: "Blue Concrete", faceNames: all, source: BlueConcrete },
+    { idOrName: "Red Concrete", faceNames: all, source: RedConcreteImage },
+    { idOrName: "White Concrete", faceNames: all, source: WhiteConcreteImage },
+    {
+      idOrName: "Yellow Concrete",
+      faceNames: all,
+      source: YellowConcreteImage,
+    },
+    { idOrName: "Black Concrete", faceNames: all, source: BlackConcreteImage },
+    { idOrName: "Ivory Block", faceNames: all, source: IvoryBlockImage },
+    { idOrName: "Grass Block", faceNames: ["py"], source: GrassBlockImage },
+    { idOrName: "Color", faceNames: all, source: new Color("#ffffff") },
+    { idOrName: "Color", faceNames: all, source: Color2Image },
+    { idOrName: "Grass Block", faceNames: side, source: GrassBlockSideImage },
+    { idOrName: "Grass Block", faceNames: ["ny"], source: DirtImage },
+    { idOrName: "Grass", faceNames: ["one", "two"], source: GrassImage },
+    { idOrName: "Stone", faceNames: all, source: StoneImage },
+    { idOrName: "Oak Leaves", faceNames: all, source: OakLeavesImage },
+    {
+      idOrName: "Oak Leaves",
+      faceNames: ["one", "two"],
+      source: OakLeavesImage,
+    },
+    { idOrName: "Oak Log", faceNames: ["py"], source: OakTopImage },
+    { idOrName: "Oak Log", faceNames: side, source: OakSideImage },
+    { idOrName: "Oak Log", faceNames: ["ny"], source: OakTopImage },
+    { idOrName: "Oak Pole", faceNames: side, source: TestImage },
+    { idOrName: "Birch Log", faceNames: ["py"], source: BirchTopImage },
+    { idOrName: "Birch Log", faceNames: side, source: BirchSideImage },
+    { idOrName: "Birch Log", faceNames: ["ny"], source: BirchTopImage },
+    { idOrName: "Sand", faceNames: all, source: SandImage },
+    { idOrName: "Snow", faceNames: all, source: SnowImage },
+    { idOrName: "Water", faceNames: all, source: WaterImage },
+    { idOrName: "Obsidian", faceNames: all, source: ObsidianImage },
+    { idOrName: "Granite", faceNames: all, source: GraniteImage },
+    { idOrName: "Graphite", faceNames: all, source: GraphiteImage },
+    { idOrName: "Slate", faceNames: all, source: SlateImage },
+    { idOrName: "Andesite", faceNames: all, source: AndesiteImage },
+    { idOrName: "Oak Planks", faceNames: all, source: OakPlanksImage },
+    { idOrName: "Oak Slab Top", faceNames: all, source: OakPlanksImage },
+    { idOrName: "Oak Slab Bottom", faceNames: all, source: OakPlanksImage },
+    { idOrName: "ChoGe", faceNames: ["px", "nx"], source: ChoGeImage },
+    { idOrName: "Glass", faceNames: all, source: GlassImage },
+    {
+      idOrName: "Mushroom",
+      faceNames: all.map((name) => `bottom-${name}-`),
+      source: new Color("#A27B5C"),
     },
     {
-      name: "Mushroom",
-      sides: all.map((name) => `top-${name}-`),
-      data: new Color("#E4DCCF"),
+      idOrName: "Mushroom",
+      faceNames: all.map((name) => `top-${name}-`),
+      source: new Color("#E4DCCF"),
     },
-    { name: "Biggie", sides: all, data: new Color("#2C3639") },
+    { idOrName: "Biggie", faceNames: all, source: new Color("#2C3639") },
     {
-      name: "Test",
-      sides: "py",
-      data: new Color("#E4DCCF"),
-    },
-    {
-      name: "Test",
-      sides: "px",
-      data: new Color("red"),
+      idOrName: "Test",
+      faceNames: "py",
+      source: new Color("#E4DCCF"),
     },
     {
-      name: "Test",
-      sides: "pz",
-      data: new Color("purple"),
+      idOrName: "Test",
+      faceNames: "px",
+      source: new Color("red"),
+    },
+    {
+      idOrName: "Test",
+      faceNames: "pz",
+      source: new Color("purple"),
     },
   ]);
 
-  // world.applyTextureByName("Biggie", "pz", TechnoImage);
-  world.applyResolutionByName("Biggie", "pz", 128);
+  // // world.applyTextureByName("Biggie", "pz", TechnoImage);
+  // world.applyResolutionByName("Biggie", "pz", 128);
 
-  world.applyBlockAnimationByName(
-    "Biggie",
-    "pz",
-    [
-      [5000, TechnoImage],
-      [5000, LolImage],
-    ],
-    50
-  );
+  // world.applyBlockAnimationByName(
+  //   "Biggie",
+  //   "pz",
+  //   [
+  //     [5000, TechnoImage],
+  //     [5000, LolImage],
+  //   ],
+  //   50
+  // );
 }

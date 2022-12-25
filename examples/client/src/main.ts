@@ -5,8 +5,9 @@ import "@voxelize/client/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+// import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+import { setupWorld } from "./core";
 import { Map } from "./map";
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
@@ -25,8 +26,8 @@ const world = new VOXELIZE.World({
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: true,
 });
+renderer.outputEncoding = THREE.sRGBEncoding;
 
 const camera = new THREE.PerspectiveCamera(
   90,
@@ -34,11 +35,26 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   5000
 );
-camera.position.set(50, 50, 50);
 
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-const orbit = new OrbitControls(camera, canvas);
+const controls = new VOXELIZE.RigidControls(camera, canvas, world);
+
+controls.connect(inputs, "in-game");
+
+inputs.on("namespace", (newNamespace) => {
+  console.log("namespace", newNamespace);
+});
+
+controls.on("lock", () => {
+  inputs.setNamespace("in-game");
+});
+
+controls.on("unlock", () => {
+  inputs.setNamespace("menu");
+});
+
+// const orbit = new OrbitControls(camera, canvas);
 
 const map = new Map(world);
 inputs.bind("m", map.toggle);
@@ -65,36 +81,38 @@ const start = async () => {
   await network.join("world1");
   await world.init();
 
-  world.applyBlockTexture("grass block", "py", new THREE.Color(0xeae7b1));
+  setupWorld(world);
 
   const center = new THREE.Vector3(0, 50, 0);
 
-  inputs.bind("w", () => {
-    center.z -= 16;
-  });
+  // inputs.bind("w", () => {
+  //   center.z -= 16;
+  // });
 
-  inputs.bind("s", () => {
-    center.z += 16;
-  });
+  // inputs.bind("s", () => {
+  //   center.z += 16;
+  // });
 
-  inputs.bind("a", () => {
-    center.x -= 16;
-  });
+  // inputs.bind("a", () => {
+  //   center.x -= 16;
+  // });
 
-  inputs.bind("d", () => {
-    center.x += 16;
-  });
+  // inputs.bind("d", () => {
+  //   center.x += 16;
+  // });
+
+  inputs.bind("g", controls.toggleGhostMode);
 
   const render = () => {
     requestAnimationFrame(render);
 
-    orbit.target.lerp(center, 0.1);
+    const center = controls.position;
 
     world.update(center);
     map.update(center);
 
-    orbit.update();
     debug.update();
+    controls.update();
 
     sky.update(center);
     clouds.update(center);

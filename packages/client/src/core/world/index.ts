@@ -3,15 +3,19 @@ import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
+  BackSide,
   BufferGeometry,
+  Clock,
   Color,
   Float32BufferAttribute,
+  FrontSide,
   Int32BufferAttribute,
   Mesh,
   MeshBasicMaterial,
   Scene,
   ShaderLib,
   ShaderMaterial,
+  Side,
   Texture,
   Uniform,
   UniformsUtils,
@@ -201,9 +205,14 @@ export class World extends Scene implements NetIntercept {
 
   private independentMaterials: Map<string, CustomShaderMaterial> = new Map();
 
-  private defaultMaterial: CustomShaderMaterial;
+  private defaultMaterial: {
+    opaque: CustomShaderMaterial;
+    transparent: CustomShaderMaterial[];
+  };
 
   private atlas: TextureAtlas;
+
+  private clock = new Clock();
 
   private initJSON: any = null;
 
@@ -225,7 +234,7 @@ export class World extends Scene implements NetIntercept {
     this.deleteRadius = defaultDeleteRadius;
   }
 
-  applyBlockTexture(
+  async applyBlockTexture(
     idOrName: number | string,
     faceNames: string | string[],
     source: string | Color
@@ -238,10 +247,12 @@ export class World extends Scene implements NetIntercept {
 
     const data =
       typeof source === "string"
-        ? (() => {
-            const image = new Image();
-            image.src = source;
-            return image;
+        ? await (async () => {
+            return new Promise<HTMLImageElement>((resolve) => {
+              const image = new Image();
+              image.src = source;
+              image.onload = () => resolve(image);
+            });
           })()
         : source;
 
@@ -260,6 +271,20 @@ export class World extends Scene implements NetIntercept {
         this.atlas.drawImageToRange(face.range, data);
       }
     });
+  }
+
+  async applyBlockTextures(
+    data: {
+      idOrName: number | string;
+      faceNames: string | string[];
+      source: string | Color;
+    }[]
+  ) {
+    return await Promise.all(
+      data.map(({ idOrName, faceNames, source }) =>
+        this.applyBlockTexture(idOrName, faceNames, source)
+      )
+    );
   }
 
   /**
@@ -296,8 +321,10 @@ export class World extends Scene implements NetIntercept {
    */
   getChunkByPosition(px: number, py: number, pz: number) {
     this.initCheck("get chunk by position", false);
-    const voxel = ChunkUtils.mapWorldToVoxel([px, py, pz]);
-    const coords = ChunkUtils.mapVoxelToChunk(voxel, this.params.chunkSize);
+    const coords = ChunkUtils.mapVoxelToChunk(
+      [px | 0, py | 0, pz | 0],
+      this.params.chunkSize
+    );
     return this.getChunkByCoords(...coords);
   }
 
@@ -445,7 +472,8 @@ export class World extends Scene implements NetIntercept {
 
     for (let vy = this.params.maxHeight - 1; vy >= 0; vy--) {
       const block = this.getBlockAt(vx, vy, vz);
-      if (block.isEmpty) {
+
+      if (!block.isEmpty) {
         return vy;
       }
     }
@@ -553,8 +581,12 @@ export class World extends Scene implements NetIntercept {
     const block = this.getBlockById(id);
     if (!block) return null;
 
+    const defaultMaterial = block.isSeeThrough
+      ? this.defaultMaterial.transparent
+      : this.defaultMaterial.opaque;
+
     if (!faceName) {
-      return this.defaultMaterial;
+      return defaultMaterial;
     }
 
     const face = block.faces.find((face) => face.name === faceName);
@@ -564,7 +596,7 @@ export class World extends Scene implements NetIntercept {
       return this.independentMaterials[face.name];
     }
 
-    return this.defaultMaterial;
+    return defaultMaterial;
   }
 
   /**
@@ -640,6 +672,8 @@ export class World extends Scene implements NetIntercept {
       ...params,
     };
 
+    this.physics.options = this.params;
+
     this.loadDefaultAtlas();
 
     this.initialized = true;
@@ -658,6 +692,10 @@ export class World extends Scene implements NetIntercept {
     this.requestChunks(center);
     this.processChunks(center);
     this.maintainChunks(center);
+
+    const delta = this.clock.getDelta();
+
+    this.updatePhysics(delta);
   }
 
   /**
@@ -915,6 +953,33 @@ export class World extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * Update the physics engine by ticking all inner AABBs.
+   */
+  private updatePhysics = (delta: number) => {
+    if (!this.physics || !this.params.gravity) return;
+
+    const noGravity =
+      this.params.gravity[0] ** 2 +
+        this.params.gravity[1] ** 2 +
+        this.params.gravity[2] ** 2 <
+      0.01;
+
+    this.physics.bodies.forEach((body) => {
+      const coords = ChunkUtils.mapVoxelToChunk(
+        body.getPosition() as Coords3,
+        this.params.chunkSize
+      );
+      const chunk = this.getChunkByPosition(...(body.getPosition() as Coords3));
+
+      if ((!chunk || !chunk.isReady) && this.isWithinWorld(...coords)) {
+        return;
+      }
+
+      this.physics.iterateBody(body, delta, noGravity);
+    });
+  };
+
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
 
@@ -954,21 +1019,30 @@ export class World extends Scene implements NetIntercept {
       geometry.setIndex(indices);
 
       const material = this.getMaterial(voxel, faceName);
+      if (!material) return;
 
-      const mesh = new Mesh(geometry, material);
+      const make = (mat: ShaderMaterial) => {
+        const mesh = new Mesh(geometry, mat);
 
-      mesh.position.set(
-        cx * chunkSize,
-        level * heightPerSubChunk,
-        cz * chunkSize
-      );
+        mesh.position.set(
+          cx * chunkSize,
+          level * heightPerSubChunk,
+          cz * chunkSize
+        );
 
-      mesh.updateMatrix();
-      mesh.matrixAutoUpdate = false;
+        mesh.updateMatrix();
+        mesh.matrixAutoUpdate = false;
 
-      this.add(mesh);
+        this.add(mesh);
 
-      return mesh;
+        return mesh;
+      };
+
+      if (material instanceof ShaderMaterial) {
+        return make(material);
+      }
+
+      return material.map(make);
     });
 
     chunk.meshes.set(level, mesh);
@@ -1050,10 +1124,22 @@ export class World extends Scene implements NetIntercept {
       dimension: this.params.textureDimension,
     });
 
-    this.defaultMaterial = this.makeShaderMaterial();
-    this.defaultMaterial.map = this.atlas.texture;
-    this.defaultMaterial.uniforms.map = { value: this.atlas.texture };
-    this.defaultMaterial.name = "default";
+    const make = (side: Side, transparent: boolean) => {
+      const mat = this.makeShaderMaterial();
+
+      mat.side = side;
+      mat.map = this.atlas.texture;
+      mat.uniforms.map = { value: this.atlas.texture };
+      mat.name = `default-${side}`;
+      mat.transparent = transparent;
+
+      return mat;
+    };
+
+    this.defaultMaterial = {
+      opaque: make(FrontSide, false),
+      transparent: [make(BackSide, true), make(FrontSide, true)],
+    };
   }
 
   /**
