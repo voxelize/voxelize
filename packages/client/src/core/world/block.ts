@@ -239,7 +239,7 @@ export class BlockRotation {
    * @param value The axis this block is pointing towards.
    * @param yRotation The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees.
    */
-  constructor(value: number, yRotation: number) {
+  constructor(value = 0, yRotation = 0) {
     this.value = value;
     this.yRotation = yRotation;
   }

@@ -4,6 +4,7 @@ mod config;
 mod entities;
 mod events;
 mod generators;
+mod interests;
 mod messages;
 mod physics;
 mod registry;
@@ -44,6 +45,7 @@ pub use config::*;
 pub use entities::*;
 pub use events::*;
 pub use generators::*;
+pub use interests::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
@@ -174,6 +176,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
 
 #[derive(Serialize, Deserialize)]
 struct OnLoadRequest {
+    center: Vec2<i32>,
     chunks: Vec<Vec2<i32>>,
 }
 
@@ -245,6 +248,7 @@ impl World {
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
         ecs.insert(Transports::new());
+        ecs.insert(ChunkInterests::new());
 
         Self {
             id,
@@ -548,6 +552,16 @@ impl World {
         self.write_resource::<Physics>()
     }
 
+    /// Access the chunk interests manager in the ECS world.
+    pub fn chunk_interest(&self) -> Fetch<ChunkInterests> {
+        self.read_resource::<ChunkInterests>()
+    }
+
+    /// Access the mutable chunk interest manager in the ECS world.
+    pub fn chunk_interest_mut(&mut self) -> FetchMut<ChunkInterests> {
+        self.write_resource::<ChunkInterests>()
+    }
+
     /// Access the event queue in the ECS world.
     pub fn events(&self) -> Fetch<Events> {
         self.read_resource::<Events>()
@@ -575,10 +589,6 @@ impl World {
 
     /// Access a mutable pipeline management in the ECS world.
     pub fn pipeline_mut(&mut self) -> FetchMut<Pipeline> {
-        assert!(
-            !self.started || self.preloading,
-            "Cannot change pipeline after world has started and preloaded."
-        );
         self.write_resource::<Pipeline>()
     }
 
@@ -589,10 +599,6 @@ impl World {
 
     /// Access a mutable mesher in the ECS world.
     pub fn mesher_mut(&mut self) -> FetchMut<Mesher> {
-        assert!(
-            !self.started || self.preloading,
-            "Cannot change mesher after world has started and preloaded."
-        );
         self.write_resource::<Mesher>()
     }
 
@@ -695,8 +701,6 @@ impl World {
     pub(crate) fn prepare(&mut self) {
         // Merge consecutive chunk stages that don't require spaces together.
         self.pipeline_mut().merge_stages();
-
-        self.preload();
         self.load_entities();
 
         for (position, body) in (
@@ -845,12 +849,17 @@ impl World {
             return;
         }
 
-        let mut storage = self.write_component::<ChunkRequestsComp>();
-        let requests = storage.get_mut(client_ent).unwrap();
+        {
+            let mut storage = self.write_component::<ChunkRequestsComp>();
+            let requests = storage.get_mut(client_ent).unwrap();
 
-        chunks.into_iter().for_each(|coords| {
-            requests.add(&coords);
-        });
+            chunks.iter().for_each(|coords| {
+                requests.add(coords);
+            });
+
+            requests.set_center(&json.center);
+            requests.sort();
+        }
     }
 
     /// Handler for `Unload` type messages.
@@ -869,12 +878,35 @@ impl World {
             return;
         }
 
-        let mut storage = self.write_component::<ChunkRequestsComp>();
+        {
+            let mut storage = self.write_component::<ChunkRequestsComp>();
 
-        if let Some(requests) = storage.get_mut(client_ent) {
-            chunks.into_iter().for_each(|coords| {
-                requests.remove(&coords);
+            if let Some(requests) = storage.get_mut(client_ent) {
+                chunks.iter().for_each(|coords| {
+                    requests.remove(coords);
+                });
+            }
+        }
+
+        {
+            let mut interests = self.chunk_interest_mut();
+
+            let mut to_remove = Vec::new();
+
+            chunks.iter().for_each(|coords| {
+                interests.remove(client_id, coords);
+
+                if !interests.has_interests(coords) {
+                    to_remove.push(coords);
+                }
             });
+
+            drop(interests);
+
+            to_remove.into_iter().for_each(|coords| {
+                self.pipeline_mut().remove_chunk(coords);
+                self.mesher_mut().remove_chunk(coords);
+            })
         }
     }
 

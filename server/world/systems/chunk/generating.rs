@@ -1,11 +1,14 @@
+use std::{cmp::Ordering, collections::VecDeque};
+
 use hashbrown::{HashMap, HashSet};
 use log::info;
 use nanoid::nanoid;
-use specs::{ReadExpect, System, WriteExpect};
+use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    BlockUtils, Chunk, ChunkParams, ChunkStatus, ChunkUtils, Chunks, Mesher, MessageType, Pipeline,
-    Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
+    BlockUtils, Chunk, ChunkInterests, ChunkParams, ChunkRequestsComp, ChunkStatus, ChunkUtils,
+    Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Vec2, Vec3,
+    VoxelAccess, WorldConfig,
 };
 
 #[derive(Default)]
@@ -15,26 +18,61 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Registry>,
+        ReadExpect<'a, Clients>,
         WriteExpect<'a, Chunks>,
+        WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
+        ReadStorage<'a, ChunkRequestsComp>,
     );
 
     /// If the pipeline queue is not empty, pop the first chunk coordinate `MAX_CHUNKS_PER_TICK` times and
     /// put the chunks into their respective stages. If the pipeline is done with a batch of chunks, advance
     /// the chunks to the next stage, and if any of the chunks are done, prepare them to be meshed.
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, mut chunks, mut pipeline, mut mesher) = data;
+        let (
+            config,
+            registry,
+            clients,
+            mut chunks,
+            mut interests,
+            mut pipeline,
+            mut mesher,
+            requests,
+        ) = data;
 
         let chunk_size = config.chunk_size;
-        let max_chunks_per_tick = config.max_chunks_per_tick;
 
-        let mut to_notify = HashSet::new();
+        /* -------------------------------------------------------------------------- */
+        /*                     RECALCULATE CHUNK INTEREST WEIGHTS                     */
+        /* -------------------------------------------------------------------------- */
+
+        interests.weights.clear();
+
+        let mut weights = HashMap::new();
+
+        for (coords, ids) in &interests.map {
+            let mut weight = 0.0;
+
+            ids.iter().for_each(|id| {
+                if let Some(client) = clients.get(id) {
+                    if let Some(request) = requests.get(client.entity) {
+                        let dist = ChunkUtils::distance_squared(&request.center, &coords);
+                        weight += dist;
+                    }
+                }
+            });
+
+            let original_weight = interests.weights.get(coords).cloned().unwrap_or_default();
+            weights.insert(coords.clone(), original_weight + weight);
+        }
+
+        interests.weights = weights;
 
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING PIPELINE RESULTS                         */
         /* -------------------------------------------------------------------------- */
-        if let Ok((done_chunks, extra_changes)) = pipeline.results() {
+        if let Some((mut chunk, extra_changes)) = pipeline.results() {
             // Apply the extra changes from processing these chunks to the other chunks.
             extra_changes.into_iter().for_each(|(voxel, id)| {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
@@ -49,31 +87,50 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 pipeline.leftovers.insert(coords, already);
             });
 
-            done_chunks.into_iter().for_each(|mut chunk| {
-                // Advance the chunk to the next stage.
-                if let ChunkStatus::Generating(curr_stage) = chunk.status {
-                    let next_stage = curr_stage + 1;
+            // Advance the chunk to the next stage.
+            if let ChunkStatus::Generating(curr_stage) = chunk.status {
+                let next_stage = curr_stage + 1;
 
-                    // This chunk is done with the last stage.
-                    // Can be pushed to the mesher.
-                    if next_stage >= pipeline.stages.len() {
-                        // At this point, this chunk has nothing to do with the pipeline.
-                        chunk.status = ChunkStatus::Meshing;
-                        mesher.add_chunk(&chunk.coords, false);
-                        pipeline.remove_chunk(&chunk.coords);
-                    } else {
-                        // Otherwise, advance the chunk to the next stage.
-                        chunk.status = ChunkStatus::Generating(next_stage);
-                        pipeline.add_chunk(&chunk.coords, false);
-                    }
-
-                    // Notify neighbors that this chunk is ready.
-                    to_notify.insert(chunk.coords.clone());
-
-                    // Renew the chunk to the world map.
-                    chunks.renew(chunk);
+                // This chunk is done with the last stage.
+                // Can be pushed to the mesher.
+                if next_stage >= pipeline.stages.len() {
+                    // At this point, this chunk has nothing to do with the pipeline.
+                    chunk.status = ChunkStatus::Meshing;
+                    mesher.add_chunk(&chunk.coords, false);
+                    pipeline.remove_chunk(&chunk.coords);
+                } else {
+                    // Otherwise, advance the chunk to the next stage.
+                    chunk.status = ChunkStatus::Generating(next_stage);
+                    pipeline.add_chunk(&chunk.coords, false);
                 }
-            });
+
+                // Notify neighbors that this chunk is ready.
+
+                if chunks.listeners.contains_key(&chunk.coords) {
+                    let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
+
+                    listeners.into_iter().for_each(|n_coords| {
+                        // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
+                        if !chunks.map.contains_key(&n_coords)
+                            || matches!(
+                                chunks.raw(&n_coords).unwrap().status,
+                                ChunkStatus::Generating(_)
+                            )
+                        {
+                            pipeline.add_chunk(&n_coords, true);
+                        }
+                        // If this chunk is in the meshing stage, we re-add it to the mesher.
+                        else if let Some(chunk) = chunks.raw(&n_coords) {
+                            if matches!(chunk.status, ChunkStatus::Meshing) {
+                                mesher.add_chunk(&n_coords, true);
+                            }
+                        }
+                    })
+                }
+
+                // Renew the chunk to the world map.
+                chunks.renew(chunk);
+            }
         }
 
         /* -------------------------------------------------------------------------- */
@@ -81,10 +138,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         let mut processes = vec![];
 
-        while processes.len() < max_chunks_per_tick
-            && !pipeline.queue.is_empty()
-            && !pipeline.stages.is_empty()
-        {
+        if !pipeline.queue.is_empty() {
+            let mut queue: Vec<Vec2<i32>> = pipeline.queue.to_owned().into();
+            queue.sort_by(|a, b| interests.compare(a, b));
+            pipeline.queue = VecDeque::from(queue);
+        }
+
+        while !pipeline.queue.is_empty() && !pipeline.stages.is_empty() {
             let coords = pipeline.get().unwrap();
             let chunk = chunks.raw(&coords);
 
@@ -134,52 +194,55 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             // Calculate the radius that this stage requires to be processed.
             let margin = stage.neighbors(&config);
-            let r = (margin as f32 / chunk_size as f32).ceil() as i32;
 
-            // Loop through the neighbors to see if they are ready.
-            let mut ready = true;
+            if margin > 0 {
+                let r = (margin as f32 / chunk_size as f32).ceil() as i32;
 
-            for x in -r..=r {
-                for z in -r..=r {
-                    if (x == 0 && z == 0) || (x * x + z * z > r * r) {
-                        continue;
-                    }
+                // Loop through the neighbors to see if they are ready.
+                let mut ready = true;
 
-                    // OK cases are:
-                    // 1. The neighbor is ready.
-                    // 2. The neighbor's stage >= chunk's stage.
-                    let n_coords = Vec2(coords.0 + x, coords.1 + z);
+                for x in -r..=r {
+                    for z in -r..=r {
+                        if (x == 0 && z == 0) || (x * x + z * z > r * r) {
+                            continue;
+                        }
 
-                    // If the chunk isn't within the world borders or its ready, then we skip.
-                    if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
-                        continue;
-                    }
+                        // OK cases are:
+                        // 1. The neighbor is ready.
+                        // 2. The neighbor's stage >= chunk's stage.
+                        let n_coords = Vec2(coords.0 + x, coords.1 + z);
 
-                    // See if the neighbor's stage is >= chunk's stage.
-                    if let Some(neighbor) = chunks.raw(&n_coords) {
-                        if let ChunkStatus::Generating(n_stage) = neighbor.status {
-                            if n_stage >= index {
-                                continue;
+                        // If the chunk isn't within the world borders or its ready, then we skip.
+                        if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
+                            continue;
+                        }
+
+                        // See if the neighbor's stage is >= chunk's stage.
+                        if let Some(neighbor) = chunks.raw(&n_coords) {
+                            if let ChunkStatus::Generating(n_stage) = neighbor.status {
+                                if n_stage >= index {
+                                    continue;
+                                }
                             }
                         }
+
+                        // Till this point, the neighbor is not ready. We can add a listener to it.
+                        chunks.add_listener(&n_coords, &coords);
+
+                        ready = false;
+
+                        break;
                     }
 
-                    // Till this point, the neighbor is not ready. We can add a listener to it.
-                    chunks.add_listener(&n_coords, &coords);
-
-                    ready = false;
-
-                    break;
+                    if !ready {
+                        break;
+                    }
                 }
 
+                // If this chunk cannot be processed yet, we ignore it until the listeners notify us.
                 if !ready {
-                    break;
+                    continue;
                 }
-            }
-
-            // If this chunk cannot be processed yet, we ignore it until the listeners notify us.
-            if !ready {
-                continue;
             }
 
             // To this point, we know that this chunk is ready to be processed by the stage.
@@ -213,17 +276,34 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING MESHING RESULTS                          */
         /* -------------------------------------------------------------------------- */
-        if let Ok(list) = mesher.results() {
-            list.into_iter().for_each(|mut chunk| {
-                // Notify neighbors that this chunk is ready.
-                to_notify.insert(chunk.coords.clone());
+        if let Some(mut chunk) = mesher.results() {
+            // Notify neighbors that this chunk is ready.
+            if chunks.listeners.contains_key(&chunk.coords) {
+                let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
 
-                // Update chunk status.
-                chunk.status = ChunkStatus::Ready;
+                listeners.into_iter().for_each(|n_coords| {
+                    // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
+                    if !chunks.map.contains_key(&n_coords)
+                        || matches!(
+                            chunks.raw(&n_coords).unwrap().status,
+                            ChunkStatus::Generating(_)
+                        )
+                    {
+                        pipeline.add_chunk(&n_coords, true);
+                    }
+                    // If this chunk is in the meshing stage, we re-add it to the mesher.
+                    else if let Some(chunk) = chunks.raw(&n_coords) {
+                        if matches!(chunk.status, ChunkStatus::Meshing) {
+                            mesher.add_chunk(&n_coords, true);
+                        }
+                    }
+                })
+            }
+            // Update chunk status.
+            chunk.status = ChunkStatus::Ready;
 
-                chunks.add_chunk_to_send(&chunk.coords, &MessageType::Load, false);
-                chunks.renew(chunk);
-            });
+            chunks.add_chunk_to_send(&chunk.coords, &MessageType::Load, false);
+            chunks.renew(chunk);
         }
 
         /* -------------------------------------------------------------------------- */
@@ -231,7 +311,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         let mut processes = vec![];
 
-        while processes.len() < max_chunks_per_tick && !mesher.queue.is_empty() {
+        if !mesher.queue.is_empty() {
+            let mut queue: Vec<Vec2<i32>> = mesher.queue.to_owned().into();
+            queue.sort_by(|a, b| interests.compare(a, b));
+            mesher.queue = VecDeque::from(queue);
+        }
+
+        while !mesher.queue.is_empty() {
             let coords = mesher.get().unwrap();
 
             // Traverse through the neighboring coordinates. If any of them are not ready, then this chunk is not ready.
@@ -314,36 +400,5 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         if !processes.is_empty() {
             mesher.process(processes, &registry, &config);
         }
-
-        /* -------------------------------------------------------------------------- */
-        /*                         NOTIFY THE CHUNK NEIGHBORS                         */
-        /* -------------------------------------------------------------------------- */
-
-        to_notify.into_iter().for_each(|coords| {
-            // This is the list of chunks that we need to notify.
-            if !chunks.listeners.contains_key(&coords) {
-                return;
-            }
-
-            let listeners = chunks.listeners.remove(&coords).unwrap();
-
-            listeners.into_iter().for_each(|n_coords| {
-                // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                if !chunks.map.contains_key(&n_coords)
-                    || matches!(
-                        chunks.raw(&n_coords).unwrap().status,
-                        ChunkStatus::Generating(_)
-                    )
-                {
-                    pipeline.add_chunk(&n_coords, false);
-                }
-                // If this chunk is in the meshing stage, we re-add it to the mesher.
-                else if let Some(chunk) = chunks.raw(&n_coords) {
-                    if matches!(chunk.status, ChunkStatus::Meshing) {
-                        mesher.add_chunk(&n_coords, false);
-                    }
-                }
-            })
-        });
     }
 }

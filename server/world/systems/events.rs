@@ -3,8 +3,8 @@ use serde_json::Value;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    encode_message, ChunkRequestsComp, ClientFilter, Clients, EncodedMessage, Event, EventProtocol,
-    Events, Message, MessageType, Transports, Vec2,
+    encode_message, ChunkInterests, ChunkRequestsComp, ClientFilter, Clients, EncodedMessage,
+    Event, EventProtocol, Events, IDComp, Message, MessageType, Transports, Vec2,
 };
 
 pub struct EventsSystem;
@@ -13,20 +13,22 @@ impl<'a> System<'a> for EventsSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
+        ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, Events>,
+        ReadStorage<'a, IDComp>,
         ReadStorage<'a, ChunkRequestsComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, mut events, requests) = data;
+        let (transports, clients, interests, mut events, ids, requests) = data;
 
         if events.queue.is_empty() {
             return;
         }
 
         let is_interested = |coords: &Vec2<i32>, entity: Entity| {
-            if let Some(request) = requests.get(entity) {
-                return request.is_interested(coords);
+            if let Some(id) = ids.get(entity) {
+                return interests.is_interested(&id.0, coords);
             }
 
             return false;
@@ -101,13 +103,11 @@ impl<'a> System<'a> for EventsSystem {
             }
             // No filter, but a location is set.
             else if let Some(location) = &location {
-                for (id, client) in clients.iter() {
-                    if let Some(request) = requests.get(client.entity.to_owned()) {
-                        if request.is_interested(location) {
-                            let mut queue = dispatch_map.remove(id).unwrap_or_default();
-                            queue.push(serialized.clone());
-                            dispatch_map.insert(id.to_owned(), queue);
-                        }
+                for (id, _) in clients.iter() {
+                    if interests.is_interested(id, location) {
+                        let mut queue = dispatch_map.remove(id).unwrap_or_default();
+                        queue.push(serialized.clone());
+                        dispatch_map.insert(id.to_owned(), queue);
                     }
                 }
             } else {

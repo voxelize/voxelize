@@ -82,7 +82,7 @@ export class BlockOverlayEffect extends Effect {
     const position = new Vector3();
     this.camera.getWorldPosition(position);
 
-    const id = this.world.getVoxelByWorld(position.x, position.y, position.z);
+    const id = this.world.getVoxel(position.x, position.y, position.z);
 
     if (this.oldId !== id) {
       this.oldId = id;

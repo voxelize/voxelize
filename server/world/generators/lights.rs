@@ -280,6 +280,13 @@ impl Lights {
         for y in (0..max_height as i32).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
+                    // If the voxel is too far away from the center, then light wouldn't affect it.
+                    if (x - shape.0 / 2).pow(2) + (z - shape.2 / 2).pow(2)
+                        > (config.chunk_size as i32 / 2 + config.max_light_level as i32).pow(2)
+                    {
+                        continue;
+                    }
+
                     let index = (x + z * shape.2) as usize;
 
                     let id = space.get_voxel(x + start_x, y, z + start_z);
