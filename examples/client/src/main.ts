@@ -65,9 +65,9 @@ const start = async () => {
   await network.join("world1");
   await world.init();
 
-  world.applyBlockTexture("grass block", "py", new THREE.Color("#123123"));
+  world.applyBlockTexture("grass block", "py", new THREE.Color(0xeae7b1));
 
-  const center = new THREE.Vector3(0, 0, 0);
+  const center = new THREE.Vector3(0, 50, 0);
 
   inputs.bind("w", () => {
     center.z -= 16;

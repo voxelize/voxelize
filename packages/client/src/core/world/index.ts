@@ -1018,7 +1018,6 @@ export class World extends Scene implements NetIntercept {
       vertexShader,
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-        // map: this.uniforms.atlas,
         uSunlightIntensity: this.uniforms.sunlightIntensity,
         uAOTable: this.uniforms.ao,
         uMinBrightness: this.uniforms.minBrightness,
@@ -1053,6 +1052,7 @@ export class World extends Scene implements NetIntercept {
 
     this.defaultMaterial = this.makeShaderMaterial();
     this.defaultMaterial.map = this.atlas.texture;
+    this.defaultMaterial.uniforms.map = { value: this.atlas.texture };
     this.defaultMaterial.name = "default";
   }
 

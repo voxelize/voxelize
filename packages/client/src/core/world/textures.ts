@@ -108,6 +108,9 @@ export class TextureAtlas {
     this.canvas.width = canvasWidth;
     this.canvas.height = canvasHeight;
 
+    const context = this.canvas.getContext("2d");
+    context.imageSmoothingEnabled = false;
+
     this.makeCanvasPowerOfTwo(this.canvas);
     this.texture = new CanvasTexture(this.canvas);
     this.texture.wrapS = ClampToEdgeWrapping;
@@ -158,10 +161,10 @@ export class TextureAtlas {
     if ((image as any as Color).isColor) {
       context.fillStyle = `#${(image as any).getHexString()}`;
       context.fillRect(
-        (startU - this.offset) * canvasWidth + this.margin,
-        (1 - endV - this.offset) * canvasHeight + this.margin,
-        dimension * this.ratio,
-        dimension * this.ratio
+        (startU - this.offset) * canvasWidth,
+        (1 - endV - this.offset) * canvasHeight,
+        dimension * this.ratio + 2 * this.margin,
+        dimension * this.ratio + 2 * this.margin
       );
 
       return;

@@ -1,4 +1,5 @@
 use hashbrown::{HashMap, HashSet};
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::BlockFace;
@@ -292,17 +293,7 @@ impl Registry {
         self.type_map.insert(lower_name.clone(), *id);
 
         for (idx, side) in faces.iter().enumerate() {
-            let side_name = Registry::make_side_name(name, side);
             self.textures.insert((*id, idx, side.independent));
         }
-    }
-
-    /// Create a name for the side texture.
-    fn make_side_name(name: &str, side: &BlockFace) -> String {
-        format!(
-            "{}__{}",
-            name.to_lowercase().replace(" ", "_"),
-            side.name.to_lowercase()
-        )
     }
 }
