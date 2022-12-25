@@ -1,9 +1,17 @@
 import {
+  Buffer,
+  Color3,
+  Effect,
+  Engine,
   Mesh,
   Scene,
+  ShaderMaterial,
   StandardMaterial,
+  Texture,
   TransformNode,
   Vector3,
+  Vector4,
+  VertexBuffer,
   VertexData,
 } from "@babylonjs/core";
 import { AABB } from "@voxelize/aabb";
@@ -71,6 +79,8 @@ export class World implements NetIntercept {
 
   public scene: Scene;
 
+  public engine: Engine;
+
   public registry: Registry;
 
   public chunks: Chunks;
@@ -83,13 +93,17 @@ export class World implements NetIntercept {
 
   public deleteRadius = 0;
 
-  private mat: StandardMaterial;
+  private mat: ShaderMaterial;
 
   private oldBlocks: Map<string, number[]> = new Map();
 
   private initJSON: any = null;
 
-  constructor(scene: Scene, params: Partial<WorldParams> = {}) {
+  constructor(engine: Engine, scene: Scene, params: Partial<WorldParams> = {}) {
+    if (!engine) throw new Error("No engine provided");
+    if (!scene) throw new Error("No scene provided");
+
+    this.engine = engine;
     this.scene = scene;
 
     this.registry = new Registry();
@@ -104,12 +118,107 @@ export class World implements NetIntercept {
     this.renderRadius = defaultRenderRadius;
     this.deleteRadius = defaultDeleteRadius;
 
-    const mat = new StandardMaterial("material", this.scene);
-    mat.specularColor.copyFromFloats(0, 0, 0);
-    mat.ambientColor.copyFromFloats(1, 1, 1);
-    mat.diffuseColor.copyFromFloats(1, 1, 1);
-    mat.freeze();
-    this.mat = mat;
+    const customMaterial = new ShaderMaterial(
+      "customShader",
+      scene,
+      {
+        // Provide the vertex shader code
+        vertexSource: `
+precision highp float;
+
+// Attributes
+attribute vec3 position;
+attribute vec2 uv;
+attribute int light;
+
+// Uniforms
+uniform mat4 worldViewProjection;
+uniform vec4 uAOTable;
+
+// Varying
+varying vec2 vUV;
+varying vec4 vLight;
+varying float vAO;
+
+// Helpers
+vec4 unpackLight(int l) {
+  float r = float((l >> 8) & 0xF) / 15.0;
+  float g = float((l >> 4) & 0xF) / 15.0;
+  float b = float(l & 0xF) / 15.0;
+  float s = float((l >> 12) & 0xF) / 15.0;
+  return vec4(r, g, b, s);
+}
+
+void main(void) {
+    gl_Position = worldViewProjection * vec4(position, 1.0);
+
+    int ao = light >> 16;
+    vAO = ((ao == 0) ? uAOTable.x :
+        (ao == 1) ? uAOTable.y :
+        (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
+    vLight = unpackLight(light & ((1 << 16) - 1));
+    vUV = uv;
+}`,
+        // Provide the fragment shader code
+        fragmentSource: `
+precision highp float;
+
+varying vec2 vUV;
+varying float vAO;
+varying vec4 vLight; 
+
+uniform float uSunlightIntensity;
+uniform float uMinBrightness;
+uniform sampler2D map;
+
+void main(void) {
+
+    vec4 outgoingLight = vec4(1.0, 1.0, 1.0, 1.0);
+    float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinBrightness) + uMinBrightness, 1.0);
+    float scale = 2.0;
+    outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
+    outgoingLight *= vAO;
+
+  
+    gl_FragColor = texture2D(map, vUV);
+
+    gl_FragColor.rgb *= outgoingLight.rgb;
+}`,
+      },
+      {
+        uniforms: [
+          "map",
+          "worldViewProjection",
+          "uSunlightIntensity",
+          "uMinBrightness",
+          "uAOTable",
+        ],
+        attributes: ["position", "uv", "light"],
+      }
+    );
+
+    const texture = new Texture("https://i.imgur.com/eLOi6gy.jpeg", scene);
+    customMaterial.setTexture("map", texture);
+    customMaterial.setVector4(
+      "uAOTable",
+      new Vector4(100.0, 170.0, 210.0, 255.0)
+    );
+    customMaterial.setFloat("uSunlightIntensity", 1.0);
+    customMaterial.setFloat("uMinBrightness", 0.04);
+
+    // Set the diffuse and specular maps for the shader
+    // customMaterial.diffuseTexture = diffuseTexture;
+    // customMaterial.specularTexture = specularTexture;
+    // customMaterial.normalTexture = normalTexture;
+
+    // Set the diffuse and specular colors for the shader
+    // customMaterial.diffuseColor = new Color3(1.0, 1.0, 1.0);
+
+    customMaterial.freeze();
+
+    this.mat = customMaterial;
+
+    console.log(Effect.ShadersStore);
   }
 
   /**
@@ -630,9 +739,21 @@ export class World implements NetIntercept {
       this.chunks.loaded.set(name, chunk);
 
       if (generateMeshes) {
-        meshes.forEach((mesh) => {
-          this.buildChunkMesh(x, z, mesh);
-        });
+        let frame: any;
+
+        const process = (index: number) => {
+          const data = meshes[index];
+
+          if (!data) {
+            cancelAnimationFrame(frame);
+            return;
+          }
+
+          this.buildChunkMesh(x, z, data);
+          frame = requestAnimationFrame(() => process(index + 1));
+        };
+
+        process(0);
       }
     });
   }
@@ -729,6 +850,9 @@ export class World implements NetIntercept {
       vertexData.uvs = uvs;
 
       const mesh = new Mesh(identifier, this.scene);
+      vertexData.applyToMesh(mesh);
+      const buffer = new Buffer(this.engine, new Int32Array(lights), false, 1);
+      mesh.setVerticesBuffer(buffer.createVertexBuffer("light", 0, 1));
 
       mesh.material = this.mat;
       mesh.parent = chunk.root;
@@ -736,7 +860,7 @@ export class World implements NetIntercept {
       mesh.freezeWorldMatrix();
       mesh.doNotSyncBoundingInfo = true;
 
-      vertexData.applyToMesh(mesh);
+      mesh.checkCollisions = true;
 
       return mesh;
     });

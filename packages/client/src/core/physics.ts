@@ -12,15 +12,54 @@ import { PhysicsRaycastResult } from "@babylonjs/core/Physics/physicsRaycastResu
 import { AABB } from "@voxelize/aabb";
 import { Engine, RigidBody } from "@voxelize/physics-engine";
 
-export class Physics implements IPhysicsEnginePlugin {
-  world: Engine;
+import { World } from "./world";
+
+export class VoxelPhysicsPlugin implements IPhysicsEnginePlugin {
+  world: World;
+
+  engine: Engine;
 
   name = "voxel-physics";
 
   private fixedTimeStep: number = 1 / 60;
 
+  constructor(world: World) {
+    if (!world.initialized) {
+      throw new Error(
+        "World must be initialized before physics plugin. That is, world.init() must be called before instantiating the physics plugin."
+      );
+    }
+
+    this.world = world;
+
+    this.engine = new Engine(
+      (vx: number, vy: number, vz: number) => {
+        if (!this.world.getChunkByPosition(vx, vy, vz)) return [];
+
+        const id = this.world.getVoxel(vx, vy, vz);
+        const rotation = this.world.getVoxelRotation(vx, vy, vz);
+        const { aabbs, isPassable, isFluid } = this.world.getBlockById(id);
+
+        if (isPassable || isFluid) return [];
+
+        return aabbs.map((aabb) =>
+          rotation.rotateAABB(aabb).translate([vx, vy, vz])
+        );
+      },
+      (vx: number, vy: number, vz: number) => {
+        if (!this.world.getChunkByPosition(vx, vy, vz)) return false;
+
+        const id = this.world.getVoxel(vx, vy, vz);
+        const { isFluid } = this.world.getBlockById(id);
+        return isFluid;
+      },
+      this.world.params
+    );
+  }
+
   setGravity(gravity: Vector3): void {
-    gravity.toArray(this.world.options.gravity);
+    // console.warn("Gravity is determined on the server.");
+    // gravity.toArray(this.engine.options.gravity);
   }
 
   setTimeStep(timeStep: number): void {
@@ -32,7 +71,7 @@ export class Physics implements IPhysicsEnginePlugin {
   }
 
   executeStep(delta: number): void {
-    this.world.update(delta);
+    this.engine.update(delta);
   }
 
   getPluginVersion(): number {
@@ -52,7 +91,7 @@ export class Physics implements IPhysicsEnginePlugin {
     const min = info.boundingBox.minimumWorld;
     const max = info.boundingBox.maximumWorld;
 
-    this.world.addBody({
+    this.engine.addBody({
       aabb: new AABB(min[0], min[1], min[2], max[0], max[1], max[2]),
       mass: impostor.mass,
       friction: impostor.friction,
@@ -62,7 +101,7 @@ export class Physics implements IPhysicsEnginePlugin {
   }
 
   removePhysicsBody(impostor: PhysicsImpostor): void {
-    this.world.removeBody(impostor.physicsBody);
+    this.engine.removeBody(impostor.physicsBody);
   }
 
   generateJoint(joint: PhysicsImpostorJoint): void {
@@ -186,7 +225,5 @@ export class Physics implements IPhysicsEnginePlugin {
   syncMeshWithImpostor(mesh: AbstractMesh, impostor: PhysicsImpostor): void {
     throw new Error("Method not implemented.");
   }
-  dispose(): void {
-    throw new Error("Method not implemented.");
-  }
+  dispose(): void {}
 }

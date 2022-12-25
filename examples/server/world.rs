@@ -10,8 +10,8 @@ use voxelize::{
     Vec3, VoxelAccess, World, WorldConfig, AABB,
 };
 
-const MOUNTAIN_HEIGHT: f64 = 0.9;
-const RIVER_HEIGHT: f64 = 0.20;
+const MOUNTAIN_HEIGHT: f64 = 0.6;
+const RIVER_HEIGHT: f64 = 0.2;
 const PLAINS_HEIGHT: f64 = 0.24;
 const RIVER_TO_PLAINS: f64 = 0.06;
 

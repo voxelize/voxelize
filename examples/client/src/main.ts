@@ -9,6 +9,7 @@ import {
   Debug,
   InputManager,
   Network,
+  VoxelPhysicsPlugin,
   World,
 } from "@voxelize/client";
 import { GUI } from "lil-gui";
@@ -28,6 +29,7 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 const engine = new BABYLON.Engine(canvas, true);
 
 const scene = new BABYLON.Scene(engine);
+scene.useOrderIndependentTransparency = true;
 
 const camera = new BABYLON.ArcRotateCamera(
   "Camera",
@@ -38,9 +40,10 @@ const camera = new BABYLON.ArcRotateCamera(
   scene
 );
 
-camera.attachControl(canvas, true);
+// camera.attachControl(canvas, true);
+camera.checkCollisions = true;
 const num = 120;
-camera.setPosition(new BABYLON.Vector3(num, num * 1.5, num));
+camera.setPosition(new BABYLON.Vector3(0, num * 1.5, 0));
 
 const light = new BABYLON.HemisphericLight(
   "light1",
@@ -49,7 +52,7 @@ const light = new BABYLON.HemisphericLight(
 );
 light.intensity = 0.7;
 
-const world = new World(scene);
+const world = new World(engine, scene);
 
 const inputs = new InputManager();
 
@@ -92,7 +95,6 @@ inputs.bind("d", () => {
 });
 
 const map = new Map(world);
-map.setVisible(true);
 
 inputs.bind("m", map.toggle);
 
@@ -112,6 +114,8 @@ const start = async () => {
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join("world1");
   await world.init();
+
+  scene.enablePhysics(null, new VoxelPhysicsPlugin(world));
 
   engine.runRenderLoop(() => {
     world.update(center);

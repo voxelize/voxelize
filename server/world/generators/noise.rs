@@ -1,4 +1,4 @@
-use noise::{Fbm, MultiFractal, NoiseFn, RidgedMulti, Seedable, Simplex};
+use noise::{Fbm, MultiFractal, NoiseFn, Perlin, RidgedMulti, Seedable, Simplex};
 use serde::Serialize;
 use std::f64;
 
@@ -6,7 +6,7 @@ use std::f64;
 #[derive(Clone, Debug)]
 pub struct SeededNoise {
     /// Core noise instance.
-    regular: Fbm<Simplex>,
+    regular: Fbm<Perlin>,
     ridged: RidgedMulti<Simplex>,
     params: NoiseParams,
 }
