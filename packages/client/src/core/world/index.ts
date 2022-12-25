@@ -40,7 +40,7 @@ export type WorldClientParams = {
 };
 
 const defaultParams: WorldClientParams = {
-  maxRequestsPerTick: 400000000,
+  maxRequestsPerTick: 4,
   maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
   maxAddsPerTick: 2,
@@ -829,7 +829,8 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByCoords(cx, cz);
 
     if (!chunk) {
-      throw new Error("Chunk does not exist.");
+      // May be already maintained and deleted.
+      return;
     }
 
     const { maxHeight, subChunks, chunkSize } = this.params;

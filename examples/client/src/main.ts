@@ -1,4 +1,8 @@
 import "./style.css";
+
+// For official use, use `@voxelize/client/styles.css` instead.
+import "@voxelize/client/src/styles.css";
+
 import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -42,6 +46,17 @@ inputs.bind("escape", () => {
   map.setVisible(false);
 });
 
+const sky = new VOXELIZE.Sky();
+const clouds = new VOXELIZE.Clouds();
+
+world.add(sky, clouds);
+
+const debug = new VOXELIZE.Debug();
+debug.registerDisplay("to request", world.chunks.toRequest, "length");
+debug.registerDisplay("requested", world.chunks.requested, "size");
+debug.registerDisplay("to process", world.chunks.toProcess, "length");
+debug.registerDisplay("loaded", world.chunks.loaded, "size");
+
 const network = new VOXELIZE.Network();
 network.register(world);
 
@@ -75,7 +90,12 @@ const start = async () => {
 
     world.update(center);
     map.update(center);
+
     orbit.update();
+    debug.update();
+
+    sky.update(center);
+    clouds.update(center);
 
     network.flush();
 
