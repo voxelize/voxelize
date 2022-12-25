@@ -693,7 +693,7 @@ export class RigidControls extends EventEmitter {
    */
   teleportToTop = () => {
     const { x, z } = this.object.position;
-    const maxHeight = this.world.getMaxHeight(x, z);
+    const maxHeight = this.world.getMaxHeightAt(x, z);
     this.teleport(Math.floor(x), maxHeight, Math.floor(z));
   };
 

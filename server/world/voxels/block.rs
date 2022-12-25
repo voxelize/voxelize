@@ -8,7 +8,7 @@ use std::{
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, AABB};
+use crate::{BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, AABB, UV};
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -293,39 +293,29 @@ pub struct CornerData {
     pub uv: [f32; 2],
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockFace {
     pub name: String,
-    pub high_res: bool,
-    pub animated: bool,
+    pub independent: bool,
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
+    pub range: UV,
 }
 
 impl BlockFace {
-    pub fn new(
-        name: String,
-        high_res: bool,
-        animated: bool,
-        dir: [i32; 3],
-        corners: [CornerData; 4],
-    ) -> Self {
+    pub fn new(name: String, independent: bool, dir: [i32; 3], corners: [CornerData; 4]) -> Self {
         Self {
             name,
-            high_res,
-            animated,
+            independent,
             dir,
             corners,
+            range: UV::default(),
         }
     }
 
-    pub fn into_high_res(&mut self) {
-        self.high_res = true;
-    }
-
-    pub fn into_animated(&mut self) {
-        self.animated = true;
+    pub fn into_independent(&mut self) {
+        self.independent = true;
     }
 }
 
@@ -345,21 +335,21 @@ impl BlockFaces {
         Self { faces: vec![] }
     }
 
-    pub fn high_res_at(mut self, index: usize) -> Self {
+    pub fn independent_at(mut self, index: usize) -> Self {
         if index >= self.faces.len() {
             return self;
         }
 
-        self.faces[index].into_high_res();
+        self.faces[index].into_independent();
+
         self
     }
 
-    pub fn animated_at(mut self, index: usize) -> Self {
-        if index >= self.faces.len() {
-            return self;
+    pub fn independent_at_all(mut self, indices: Vec<usize>) -> Self {
+        for index in indices {
+            self = self.independent_at(index);
         }
 
-        self.faces[index].into_animated();
         self
     }
 
@@ -511,8 +501,8 @@ impl DiagonalFacesBuilder {
             BlockFace {
                 name: make_name("one"),
                 dir: [0, 0, 0],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [
@@ -543,8 +533,8 @@ impl DiagonalFacesBuilder {
             BlockFace {
                 name: make_name("two"),
                 dir: [0, 0, 0],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [
@@ -748,8 +738,8 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [
@@ -779,8 +769,8 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("py"),
                 dir: [0, 1, 0],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
@@ -810,8 +800,8 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -841,8 +831,8 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
@@ -868,8 +858,8 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("ny"),
                 dir: [0, -1, 0],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
@@ -895,8 +885,8 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("nz"),
                 dir: [0, 0, -1],
-                high_res: false,
-                animated: false,
+                independent: false,
+                range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],

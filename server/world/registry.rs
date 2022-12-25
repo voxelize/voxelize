@@ -6,7 +6,7 @@ use crate::BlockFace;
 use super::voxels::Block;
 
 /// Serializable struct representing a UV coordinate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UV {
     /// Starting u-coordinate.
@@ -22,13 +22,21 @@ pub struct UV {
     pub end_v: f32,
 }
 
+impl Default for UV {
+    fn default() -> Self {
+        Self {
+            start_u: 0.0,
+            end_u: 1.0,
+            start_v: 0.0,
+            end_v: 1.0,
+        }
+    }
+}
+
 /// A collection of blocks to use in a Voxelize server. One server has one registry and one
 /// registry only. Once a registry is added to a server, it cannot be changed.
 #[derive(Default, Clone)]
 pub struct Registry {
-    /// A map of the UV's to the block faces on the texture atlas.
-    pub ranges: HashMap<String, UV>,
-
     /// Block records, name -> Block.
     pub blocks_by_name: HashMap<String, Block>,
 
@@ -36,7 +44,7 @@ pub struct Registry {
     pub blocks_by_id: HashMap<u32, Block>,
 
     /// List of textures that this registry has. Textures are then applied onto block sides.
-    pub textures: HashSet<(String, bool)>,
+    pub textures: HashSet<(u32, usize, bool)>,
 
     /// Map of ID -> name.
     name_map: HashMap<u32, String>,
@@ -69,17 +77,8 @@ impl Registry {
         let mut row = 0;
         let mut col = 0;
 
-        for (texture, high_res) in self.textures.iter() {
-            if *high_res {
-                self.ranges.insert(
-                    texture.to_owned(),
-                    UV {
-                        start_u: 0.0,
-                        end_u: 1.0,
-                        start_v: 0.0,
-                        end_v: 1.0,
-                    },
-                );
+        for (id, idx, independent) in self.textures.iter() {
+            if *independent {
                 continue;
             }
 
@@ -104,15 +103,23 @@ impl Registry {
             let start_v = start_v + offset;
             let end_v = end_v - offset;
 
-            self.ranges.insert(
-                texture.to_owned(),
-                UV {
-                    start_u,
-                    end_u,
-                    start_v,
-                    end_v,
-                },
-            );
+            self.blocks_by_id.get_mut(id).unwrap().faces[*idx].range = UV {
+                start_u,
+                end_u,
+                start_v,
+                end_v,
+            };
+
+            self.blocks_by_name
+                .get_mut(self.name_map.get(id).unwrap())
+                .unwrap()
+                .faces[*idx]
+                .range = UV {
+                start_u,
+                end_u,
+                start_v,
+                end_v,
+            };
 
             col += 1;
         }
@@ -212,16 +219,6 @@ impl Registry {
         &self.get_block_by_name(name).faces
     }
 
-    /// Get block UV by id.
-    pub fn get_uv_by_id(&self, id: u32) -> HashMap<String, &UV> {
-        self.get_uv_map(self.get_block_by_id(id))
-    }
-
-    /// Get block UV by name.
-    pub fn get_uv_by_name(&self, name: &str) -> HashMap<String, &UV> {
-        self.get_uv_map(self.get_block_by_name(name))
-    }
-
     /// Check if block is air by id.
     pub fn is_air(&self, id: u32) -> bool {
         self.get_block_by_id(id).name == "Air"
@@ -259,15 +256,11 @@ impl Registry {
     }
 
     /// Get UV map by block.
-    pub fn get_uv_map(&self, block: &Block) -> HashMap<String, &UV> {
+    pub fn get_uv_map(&self, block: &Block) -> HashMap<String, UV> {
         let mut uv_map = HashMap::new();
 
         for source in block.faces.iter() {
-            let uv = self
-                .ranges
-                .get(&Registry::make_side_name(&block.name, source))
-                .unwrap_or_else(|| panic!("UV range not found: {:?}", source));
-
+            let uv = source.range.to_owned();
             uv_map.insert(source.name.to_owned(), uv);
         }
 
@@ -298,10 +291,9 @@ impl Registry {
         self.name_map.insert(*id, lower_name.clone());
         self.type_map.insert(lower_name.clone(), *id);
 
-        for side in faces.iter() {
+        for (idx, side) in faces.iter().enumerate() {
             let side_name = Registry::make_side_name(name, side);
-            self.textures
-                .insert((side_name, side.high_res || side.animated));
+            self.textures.insert((*id, idx, side.independent));
         }
     }
 

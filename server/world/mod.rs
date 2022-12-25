@@ -1033,7 +1033,6 @@ impl World {
 
         json.insert("id".to_owned(), json!(id));
         json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
-        json.insert("ranges".to_owned(), json!(self.registry().ranges));
         json.insert("params".to_owned(), json!(config));
 
         /* ------------------------ Loading other the clients ----------------------- */

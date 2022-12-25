@@ -2,7 +2,7 @@ import { AABB } from "@voxelize/aabb";
 
 import { Coords3 } from "../../types";
 
-import { World } from ".";
+import { TextureRange, World } from ".";
 
 /**
  * A block type in the world. This is defined by the server.
@@ -85,9 +85,8 @@ export type Block = {
   faces: {
     corners: { pos: number[]; uv: number[] }[];
     dir: number[];
-    highRes: boolean;
-    animated: boolean;
     independent: boolean;
+    range: TextureRange;
     name: string;
   }[];
 

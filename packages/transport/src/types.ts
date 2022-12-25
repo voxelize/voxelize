@@ -1,6 +1,6 @@
 export type GeometryProtocol = {
   voxel: number;
-  faceIdx: number;
+  faceName?: string;
   positions: number[];
   uvs: number[];
   indices: number[];

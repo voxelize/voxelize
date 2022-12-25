@@ -1,9 +1,7 @@
-use std::{collections::VecDeque, sync::Arc, time::Instant};
+use std::{collections::VecDeque, sync::Arc};
 
-use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use log::info;
-use nalgebra::geometry;
 use rayon::{
     iter::IntoParallelIterator,
     prelude::{IndexedParallelIterator, ParallelIterator},
@@ -13,7 +11,7 @@ use rayon::{
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
     GeometryProtocol, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig, AABB, INDEPENDENT_FACE, UV,
+    VoxelAccess, WorldConfig, AABB, UV,
 };
 
 use super::lights::Lights;
@@ -273,7 +271,7 @@ impl Mesher {
                     let uv_map = registry.get_uv_map(block);
 
                     faces.iter().enumerate().for_each(|(idx, face)| {
-                        let key = if face.high_res || face.animated {
+                        let key = if face.independent {
                             format!("{}::{}", name.to_lowercase(), face.name.to_lowercase())
                         } else {
                             name.to_lowercase()
@@ -282,7 +280,10 @@ impl Mesher {
                         let mut geometry = map.remove(&key).unwrap_or_default();
 
                         geometry.voxel = id;
-                        geometry.face_idx = idx;
+
+                        if face.independent {
+                            geometry.face_name = Some(face.name.to_owned());
+                        }
 
                         Mesher::process_face(
                             vx,
@@ -324,7 +325,7 @@ impl Mesher {
         rotation: &BlockRotation,
         face: &BlockFace,
         block: &Block,
-        uv_map: &HashMap<String, &UV>,
+        uv_map: &HashMap<String, UV>,
         registry: &Registry,
         space: &dyn VoxelAccess,
         see_through: bool,
@@ -654,25 +655,23 @@ impl Mesher {
             let anz_b = one_tb0 && anzp1_b;
 
             // common starting indices
+            indices.push(ndx);
+            indices.push(ndx + 1);
 
             if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
                 || (ozao_r || ozao_g || ozao_b)
                 || (anz_r || anz_g || anz_b)
             {
                 // generate flipped quad
-                indices.push(ndx);
                 indices.push(ndx + 3);
-                indices.push(ndx + 1);
                 indices.push(ndx + 3);
-                indices.push(ndx);
                 indices.push(ndx + 2);
+                indices.push(ndx);
             } else {
-                indices.push(ndx);
+                indices.push(ndx + 2);
                 indices.push(ndx + 2);
                 indices.push(ndx + 1);
-                indices.push(ndx + 2);
                 indices.push(ndx + 3);
-                indices.push(ndx + 1);
             }
         }
     }

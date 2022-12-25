@@ -54,7 +54,7 @@ pub fn decode_message(buf: &[u8]) -> Result<Message, prost::DecodeError> {
 #[derive(Debug, Clone, Default)]
 pub struct GeometryProtocol {
     pub voxel: u32,
-    pub face_idx: usize,
+    pub face_name: Option<String>,
     pub positions: Vec<f32>,
     pub indices: Vec<i32>,
     pub uvs: Vec<f32>,
@@ -254,7 +254,7 @@ impl MessageBuilder {
                                 .into_iter()
                                 .map(|geo| protocols::Geometry {
                                     voxel: geo.voxel,
-                                    face_idx: geo.face_idx as u32,
+                                    face_name: geo.face_name,
                                     indices: geo.indices.to_owned(),
                                     positions: geo.positions.to_owned(),
                                     lights: geo.lights.to_owned(),

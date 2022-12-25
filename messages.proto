@@ -3,11 +3,11 @@ package protocol;
 
 message Geometry {
   uint32 voxel = 1;
-  uint32 faceIdx = 2;
-  repeated float positions = 5 [ packed = true ];
-  repeated float uvs = 6 [ packed = true ];
-  repeated int32 indices = 7 [ packed = true ];
-  repeated int32 lights = 8 [ packed = true ];
+  optional string faceName = 2;
+  repeated float positions = 3 [ packed = true ];
+  repeated float uvs = 4 [ packed = true ];
+  repeated int32 indices = 5 [ packed = true ];
+  repeated int32 lights = 6 [ packed = true ];
 }
 
 message Mesh {

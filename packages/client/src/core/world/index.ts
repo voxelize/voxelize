@@ -10,6 +10,11 @@ import {
   Mesh,
   MeshBasicMaterial,
   Scene,
+  ShaderLib,
+  ShaderMaterial,
+  Texture,
+  Uniform,
+  UniformsUtils,
   Vector3,
   Vector4,
 } from "three";
@@ -21,9 +26,20 @@ import { BlockRotation } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Registry } from "./registry";
+import { DEFAULT_CHUNK_SHADERS } from "./shaders";
+import { TextureAtlas } from "./textures";
 
 export * from "./block";
 export * from "./registry";
+export * from "./textures";
+
+/**
+ * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
+ */
+export type CustomShaderMaterial = ShaderMaterial & {
+  independent: boolean;
+  map: Texture;
+};
 
 export type WorldClientParams = {
   maxRequestsPerTick: number;
@@ -183,6 +199,12 @@ export class World extends Scene implements NetIntercept {
 
   private oldBlocks: Map<string, number[]> = new Map();
 
+  private independentMaterials: Map<string, CustomShaderMaterial> = new Map();
+
+  private defaultMaterial: CustomShaderMaterial;
+
+  private atlas: TextureAtlas;
+
   private initJSON: any = null;
 
   constructor(params: Partial<WorldParams> = {}) {
@@ -201,6 +223,43 @@ export class World extends Scene implements NetIntercept {
 
     this.renderRadius = defaultRenderRadius;
     this.deleteRadius = defaultDeleteRadius;
+  }
+
+  applyBlockTexture(
+    idOrName: number | string,
+    faceNames: string | string[],
+    source: string | Color
+  ) {
+    this.initCheck("apply block texture", false);
+
+    const block = this.getBlockOf(idOrName);
+
+    faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
+
+    const data =
+      typeof source === "string"
+        ? (() => {
+            const image = new Image();
+            image.src = source;
+            return image;
+          })()
+        : source;
+
+    faceNames.forEach((faceName) => {
+      const face = block.faces.find((f) => f.name === faceName);
+
+      if (!face) {
+        throw new Error(
+          `Face "${faceName}" does not exist on block "${block.name}"`
+        );
+      }
+
+      if (face.independent) {
+        // TODO
+      } else {
+        this.atlas.drawImageToRange(face.range, data);
+      }
+    });
   }
 
   /**
@@ -250,7 +309,7 @@ export class World extends Scene implements NetIntercept {
    * @param pz The z coordinate of the position.
    * @returns The voxel at the given position, or 0 if it does not exist.
    */
-  getVoxel(px: number, py: number, pz: number) {
+  getVoxelAt(px: number, py: number, pz: number) {
     this.initCheck("get voxel", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
@@ -265,7 +324,7 @@ export class World extends Scene implements NetIntercept {
    * @param pz The z coordinate of the position.
    * @returns The voxel rotation at the given position, or the default rotation if it does not exist.
    */
-  getVoxelRotation(px: number, py: number, pz: number) {
+  getVoxelRotationAt(px: number, py: number, pz: number) {
     this.initCheck("get voxel rotation", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return new BlockRotation();
@@ -280,7 +339,7 @@ export class World extends Scene implements NetIntercept {
    * @param pz The z coordinate of the position.
    * @returns The voxel stage at the given position, or 0 if it does not exist.
    */
-  getVoxelStage(px: number, py: number, pz: number) {
+  getVoxelStageAt(px: number, py: number, pz: number) {
     this.initCheck("get voxel stage", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
@@ -295,7 +354,7 @@ export class World extends Scene implements NetIntercept {
    * @param pz The z coordinate of the position.
    * @returns The voxel sunlight at the given position, or 0 if it does not exist.
    */
-  getSunlight(px: number, py: number, pz: number) {
+  getSunlightAt(px: number, py: number, pz: number) {
     this.initCheck("get sunlight", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
@@ -311,7 +370,7 @@ export class World extends Scene implements NetIntercept {
    * @param color The color of the torch light.
    * @returns The voxel torchlight at the given position, or 0 if it does not exist.
    */
-  getTorchLight(px: number, py: number, pz: number, color: LightColor) {
+  getTorchLightAt(px: number, py: number, pz: number, color: LightColor) {
     this.initCheck("get torch light", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
@@ -329,13 +388,13 @@ export class World extends Scene implements NetIntercept {
    * @param vz The voxel's Z position.
    * @returns The voxel's light color at the given coordinate.
    */
-  getLightColor = (vx: number, vy: number, vz: number) => {
+  getLightColorAt(vx: number, vy: number, vz: number) {
     this.initCheck("get light color", false);
 
-    const sunlight = this.getSunlight(vx, vy, vz);
-    const redLight = this.getTorchLight(vx, vy, vz, "RED");
-    const greenLight = this.getTorchLight(vx, vy, vz, "GREEN");
-    const blueLight = this.getTorchLight(vx, vy, vz, "BLUE");
+    const sunlight = this.getSunlightAt(vx, vy, vz);
+    const redLight = this.getTorchLightAt(vx, vy, vz, "RED");
+    const greenLight = this.getTorchLightAt(vx, vy, vz, "GREEN");
+    const blueLight = this.getTorchLightAt(vx, vy, vz, "BLUE");
 
     const { sunlightIntensity, minBrightness } = this.uniforms;
 
@@ -352,7 +411,7 @@ export class World extends Scene implements NetIntercept {
       s + Math.pow(greenLight / this.params.maxLightLevel, 2),
       s + Math.pow(blueLight / this.params.maxLightLevel, 2)
     );
-  };
+  }
 
   /**
    * Get the block type data by a 3D world position.
@@ -362,7 +421,7 @@ export class World extends Scene implements NetIntercept {
    * @param pz The z coordinate of the position.
    * @returns The block at the given position, or null if it does not exist.
    */
-  getBlock(px: number, py: number, pz: number) {
+  getBlockAt(px: number, py: number, pz: number) {
     this.initCheck("get block", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return null;
@@ -378,14 +437,14 @@ export class World extends Scene implements NetIntercept {
    * @param pz The z coordinate of the position.
    * @returns The highest block at the given position, or 0 if it does not exist.
    */
-  getMaxHeight(px: number, pz: number) {
+  getMaxHeightAt(px: number, pz: number) {
     this.initCheck("get max height", false);
 
     const vx = px | 0;
     const vz = pz | 0;
 
     for (let vy = this.params.maxHeight - 1; vy >= 0; vy--) {
-      const block = this.getBlock(vx, vy, vz);
+      const block = this.getBlockAt(vx, vy, vz);
       if (block.isEmpty) {
         return vy;
       }
@@ -403,10 +462,17 @@ export class World extends Scene implements NetIntercept {
    * @param count By how much to look back in the history. Defaults to `1`.
    * @returns
    */
-  getPreviousValue(px: number, py: number, pz: number, count = 1) {
+  getPreviousValueAt(px: number, py: number, pz: number, count = 1) {
     const name = ChunkUtils.getVoxelName([px | 0, py | 0, pz | 0]);
     const arr = this.oldBlocks.get(name) || [];
     return arr[arr.length - count] || 0;
+  }
+
+  getBlockOf(idOrName: number | string) {
+    if (typeof idOrName === "number") {
+      return this.getBlockById(idOrName);
+    }
+    return this.getBlockByName(idOrName.toLowerCase());
   }
 
   /**
@@ -470,6 +536,37 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
+  getIndependentMaterial(id: number, faceName: string) {
+    const key = `${id}-${faceName.toLowerCase()}`;
+
+    if (this.independentMaterials.has(key)) {
+      return this.independentMaterials.get(key);
+    }
+
+    const material = this.makeShaderMaterial();
+    this.independentMaterials.set(key, material);
+
+    return material;
+  }
+
+  getMaterial(id: number, faceName?: string) {
+    const block = this.getBlockById(id);
+    if (!block) return null;
+
+    if (!faceName) {
+      return this.defaultMaterial;
+    }
+
+    const face = block.faces.find((face) => face.name === faceName);
+    if (!face) return null;
+
+    if (face.independent) {
+      return this.independentMaterials[face.name];
+    }
+
+    return this.defaultMaterial;
+  }
+
   /**
    * Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
    * is within {@link WorldServerParams | WorldServerParams.minChunk} and {@link WorldServerParams | WorldServerParams.maxChunk}.
@@ -478,7 +575,7 @@ export class World extends Scene implements NetIntercept {
    * @param cz The chunk's Z position.
    * @returns Whether or not this chunk is within the bounds of the world.
    */
-  isWithinWorld = (cx: number, cz: number) => {
+  isWithinWorld(cx: number, cz: number) {
     const { minChunk, maxChunk } = this.params;
 
     return (
@@ -487,7 +584,7 @@ export class World extends Scene implements NetIntercept {
       cz >= minChunk[1] &&
       cz <= maxChunk[1]
     );
-  };
+  }
 
   /**
    * Initialize the world with the data received from the server. This includes populating
@@ -505,23 +602,16 @@ export class World extends Scene implements NetIntercept {
       );
     }
 
-    const { blocks, ranges, params } = this.initJSON;
+    const { blocks, params } = this.initJSON;
 
     // Loading the registry
     Object.keys(blocks).forEach((name) => {
       const block = blocks[name];
-      const { id, faces, aabbs, isDynamic } = block;
+      const { id, aabbs, isDynamic } = block;
 
       const lowerName = name.toLowerCase();
 
       block.independentFaces = new Set();
-
-      for (const face of faces) {
-        if (face.highRes || face.animated) {
-          block.independentFaces.add(face.name);
-          face.independent = true;
-        }
-      }
 
       block.aabbs = aabbs.map(
         ({ minX, minY, minZ, maxX, maxY, maxZ }) =>
@@ -550,7 +640,7 @@ export class World extends Scene implements NetIntercept {
       ...params,
     };
 
-    // TODO: make the texture atlas here.
+    this.loadDefaultAtlas();
 
     this.initialized = true;
   }
@@ -851,7 +941,7 @@ export class World extends Scene implements NetIntercept {
     if (geometries.length === 0) return;
 
     const mesh = geometries.map((geo) => {
-      const { faceIdx, voxel, indices, lights, positions, uvs } = geo;
+      const { voxel, faceName, indices, lights, positions, uvs } = geo;
 
       const geometry = new BufferGeometry();
 
@@ -863,12 +953,9 @@ export class World extends Scene implements NetIntercept {
       geometry.setAttribute("light", new Int32BufferAttribute(lights, 1));
       geometry.setIndex(indices);
 
-      const mesh = new Mesh(
-        geometry,
-        new MeshBasicMaterial({
-          color: 0x123f23,
-        })
-      );
+      const material = this.getMaterial(voxel, faceName);
+
+      const mesh = new Mesh(geometry, material);
 
       mesh.position.set(
         cx * chunkSize,
@@ -896,8 +983,8 @@ export class World extends Scene implements NetIntercept {
       (vx: number, vy: number, vz: number) => {
         if (!this.getChunkByPosition(vx, vy, vz)) return [];
 
-        const id = this.getVoxel(vx, vy, vz);
-        const rotation = this.getVoxelRotation(vx, vy, vz);
+        const id = this.getVoxelAt(vx, vy, vz);
+        const rotation = this.getVoxelRotationAt(vx, vy, vz);
         const { aabbs, isPassable, isFluid } = this.getBlockById(id);
 
         if (isPassable || isFluid) return [];
@@ -909,12 +996,64 @@ export class World extends Scene implements NetIntercept {
       (vx: number, vy: number, vz: number) => {
         if (!this.getChunkByPosition(vx, vy, vz)) return false;
 
-        const id = this.getVoxel(vx, vy, vz);
+        const id = this.getVoxelAt(vx, vy, vz);
         const { isFluid } = this.getBlockById(id);
         return isFluid;
       },
       this.params
     );
+  }
+
+  /**
+   * Make a chunk shader material with the current atlas.
+   */
+  private makeShaderMaterial = (
+    fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
+    vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
+    uniforms: any = {}
+  ) => {
+    const material = new ShaderMaterial({
+      vertexColors: true,
+      fragmentShader,
+      vertexShader,
+      uniforms: {
+        ...UniformsUtils.clone(ShaderLib.basic.uniforms),
+        // map: this.uniforms.atlas,
+        uSunlightIntensity: this.uniforms.sunlightIntensity,
+        uAOTable: this.uniforms.ao,
+        uMinBrightness: this.uniforms.minBrightness,
+        uFogNear: this.uniforms.fogNear,
+        uFogFar: this.uniforms.fogFar,
+        uFogColor: this.uniforms.fogColor,
+        uTime: this.uniforms.time,
+        ...uniforms,
+      },
+    }) as CustomShaderMaterial;
+
+    return material;
+  };
+
+  private loadDefaultAtlas() {
+    let textureCount = 0;
+
+    this.registry.blocksById.forEach((block) => {
+      textureCount += block.faces.length;
+    });
+
+    let countPerSide = 1;
+    const sqrt = Math.ceil(Math.sqrt(textureCount));
+    while (countPerSide < sqrt) {
+      countPerSide *= 2;
+    }
+
+    this.atlas = new TextureAtlas({
+      countPerSide,
+      dimension: this.params.textureDimension,
+    });
+
+    this.defaultMaterial = this.makeShaderMaterial();
+    this.defaultMaterial.map = this.atlas.texture;
+    this.defaultMaterial.name = "default";
   }
 
   /**
