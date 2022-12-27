@@ -4,11 +4,17 @@ import "./style.css";
 import "@voxelize/client/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/client";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
 import * as THREE from "three";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
-import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass";
-// import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+// import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+// import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+// import { SAOPass } from "three/examples/jsm/postprocessing/SAOPass";
+// import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass";
 
 import { setupWorld } from "./core";
 import { Map } from "./map";
@@ -29,6 +35,7 @@ const world = new VOXELIZE.World({
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
+  antialias: true,
 });
 renderer.outputEncoding = THREE.sRGBEncoding;
 
@@ -38,17 +45,6 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   5000
 );
-
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-
-// const pass = new SMAAPass(
-//   window.innerWidth * renderer.getPixelRatio(),
-//   window.innerHeight * renderer.getPixelRatio()
-// );
-// // @ts-ignore
-// pass.uniformsGroups = [];
-// composer.addPass(pass);
 
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
@@ -81,6 +77,10 @@ const sky = new VOXELIZE.Sky();
 const clouds = new VOXELIZE.Clouds();
 
 world.add(sky, clouds);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
+composer.addPass(new EffectPass(camera, new SMAAEffect({})));
 
 const debug = new VOXELIZE.Debug();
 debug.registerDisplay("to request", world.chunks.toRequest, "length");

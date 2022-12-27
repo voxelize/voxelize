@@ -8,7 +8,6 @@ export * from "./nametag";
 export * from "./sky";
 export * from "./sprite-text";
 export * from "./worker-pool";
-export * from "./effects";
 export * from "./arrow";
 export * from "./portrait";
 export * from "./item-slots";

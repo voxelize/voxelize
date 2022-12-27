@@ -39,7 +39,7 @@
     "html-webpack-plugin": "^5.5.0",
     "raw-loader": "^4.0.2",
     "rimraf": "^3.0.2",
-    "three": "^0.140.2",
+    "three": "^0.148.0",
     "webpack": "^5.72.1",
     "webpack-cli": "^4.9.2",
     "webpack-dev-server": "^4.9.0"
