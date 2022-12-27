@@ -29,8 +29,7 @@
     "react-type-animation": "^2.1.2",
     "styled-components": "^5.3.6",
     "tailwindcss": "^3.2.3",
-    "three": "^0.146.0",
-    "three-nebula": "^10.0.3"
+    "three": "^0.146.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "2.2.0",

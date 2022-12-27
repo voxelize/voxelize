@@ -5,6 +5,9 @@ import "@voxelize/client/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass";
 // import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import { setupWorld } from "./core";
@@ -35,6 +38,17 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   5000
 );
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
+
+// const pass = new SMAAPass(
+//   window.innerWidth * renderer.getPixelRatio(),
+//   window.innerHeight * renderer.getPixelRatio()
+// );
+// // @ts-ignore
+// pass.uniformsGroups = [];
+// composer.addPass(pass);
 
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
@@ -102,7 +116,7 @@ const start = async () => {
 
     network.flush();
 
-    renderer.render(world, camera);
+    composer.render();
   };
 
   render();
@@ -114,6 +128,7 @@ const resize = () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 };
 
 window.addEventListener("resize", resize);

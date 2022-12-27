@@ -20,6 +20,8 @@ import {
   Texture,
   Uniform,
   UniformsUtils,
+  // @ts-ignore
+  TwoPassDoubleSide,
   Vector3,
   Vector4,
 } from "three";
@@ -208,11 +210,11 @@ export class World extends Scene implements NetIntercept {
 
   private oldBlocks: Map<string, number[]> = new Map();
 
-  private independentMaterials: Map<string, CustomShaderMaterial[]> = new Map();
+  private independentMaterial: Map<string, CustomShaderMaterial> = new Map();
 
   private defaultMaterial: {
-    opaque: CustomShaderMaterial[];
-    transparent: CustomShaderMaterial[];
+    opaque: CustomShaderMaterial;
+    transparent: CustomShaderMaterial;
   };
 
   private atlas: TextureAtlas;
@@ -270,16 +272,11 @@ export class World extends Scene implements NetIntercept {
           );
         }
 
-        const independentMats = this.getIndependentMaterials(
-          block.id,
-          faceName
-        );
+        const independentMat = this.getIndependentMaterial(block.id, faceName);
 
-        if (independentMats) {
-          independentMats.forEach((mat) => {
-            mat.map = source;
-            mat.uniforms.map = { value: source };
-          });
+        if (independentMat) {
+          independentMat.map = source;
+          independentMat.uniforms.map = { value: source };
         }
 
         return;
@@ -580,29 +577,23 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getIndependentMaterials(id: number, faceName: string) {
+  getIndependentMaterial(id: number, faceName: string) {
     const key = `${id}-${faceName.toLowerCase()}`;
 
-    if (this.independentMaterials.has(key)) {
-      return this.independentMaterials.get(key);
+    if (this.independentMaterial.has(key)) {
+      return this.independentMaterial.get(key);
     }
 
     const block = this.getBlockById(id);
 
-    const materials = (
-      block.isSeeThrough ? [FrontSide, BackSide] : [FrontSide]
-    ).map((side) => {
-      const material = this.makeShaderMaterial();
+    const material = this.makeShaderMaterial();
 
-      material.transparent = block.isSeeThrough;
-      material.side = side;
+    material.side = block.isSeeThrough ? TwoPassDoubleSide : FrontSide;
+    material.transparent = block.isSeeThrough;
 
-      return material;
-    });
+    this.independentMaterial.set(key, material);
 
-    this.independentMaterials.set(key, materials);
-
-    return materials;
+    return material;
   }
 
   getMaterial(id: number, faceName?: string) {
@@ -622,7 +613,7 @@ export class World extends Scene implements NetIntercept {
     if (!face) return null;
 
     if (face.independent) {
-      return this.getIndependentMaterials(id, faceName);
+      return this.getIndependentMaterial(id, faceName);
     }
 
     return defaultMaterial;
@@ -1026,10 +1017,8 @@ export class World extends Scene implements NetIntercept {
 
     if (original) {
       original.forEach((mesh) => {
-        mesh.forEach((m) => {
-          m.geometry.dispose();
-          this.remove(m);
-        });
+        mesh.geometry.dispose();
+        this.remove(mesh);
       });
 
       chunk.meshes.delete(level);
@@ -1053,24 +1042,20 @@ export class World extends Scene implements NetIntercept {
       const material = this.getMaterial(voxel, faceName);
       if (!material) return;
 
-      const make = (mat: ShaderMaterial) => {
-        const mesh = new Mesh(geometry, mat);
+      const mesh = new Mesh(geometry, material);
 
-        mesh.position.set(
-          cx * chunkSize,
-          level * heightPerSubChunk,
-          cz * chunkSize
-        );
+      mesh.position.set(
+        cx * chunkSize,
+        level * heightPerSubChunk,
+        cz * chunkSize
+      );
 
-        mesh.updateMatrix();
-        mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      mesh.matrixAutoUpdate = false;
 
-        this.add(mesh);
+      this.add(mesh);
 
-        return mesh;
-      };
-
-      return material.map(make);
+      return mesh;
     });
 
     chunk.meshes.set(level, mesh);
@@ -1168,8 +1153,8 @@ export class World extends Scene implements NetIntercept {
     };
 
     this.defaultMaterial = {
-      opaque: [make(FrontSide, false)],
-      transparent: [make(BackSide, true), make(FrontSide, true)],
+      opaque: make(FrontSide, false),
+      transparent: make(TwoPassDoubleSide, true),
     };
   }
 
