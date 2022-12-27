@@ -72,7 +72,7 @@ export class TextureAtlas {
   public ratio = 0;
 
   public static sharedUnknownTexture = (() => {
-    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(4));
+    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(16));
 
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;
@@ -136,7 +136,7 @@ export class TextureAtlas {
     this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
 
-    const unknown = TextureAtlas.makeUnknownImage(canvasWidth / countPerSide);
+    const unknown = TextureAtlas.makeUnknownImage(dimension);
 
     for (let x = 0; x < countPerSide; x++) {
       for (let y = 0; y < countPerSide; y++) {
@@ -268,9 +268,8 @@ export class TextureAtlas {
 
   static makeUnknownImage(
     dimension: number,
-    color1 = "#6A67CE",
-    color2 = "#16003B",
-    segments = 2
+    color1 = "#0A2647",
+    color2 = "#E1D7C6"
   ) {
     const canvas = document.createElement("canvas") as HTMLCanvasElement;
     const context = canvas.getContext("2d");
@@ -279,17 +278,12 @@ export class TextureAtlas {
     context.canvas.width = dimension;
     context.canvas.height = dimension;
 
-    const blockSize = dimension / segments;
-
-    for (let i = 0; i < segments; i++) {
-      for (let j = 0; j < segments; j++) {
-        context.fillStyle =
-          (i % 2 === 0 && j % 2 === 1) || (i % 2 === 1 && j % 2 === 0)
-            ? color1
-            : color2;
-        context.fillRect(i * blockSize, j * blockSize, blockSize, blockSize);
-      }
-    }
+    context.fillStyle = color2;
+    context.fillRect(0, 0, dimension, dimension);
+    context.fillStyle = color1;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("?", dimension / 2, dimension / 2, dimension);
 
     return canvas;
   }
