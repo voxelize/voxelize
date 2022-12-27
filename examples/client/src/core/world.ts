@@ -175,7 +175,7 @@ export async function setupWorld(world: World) {
     },
   ]);
 
-  world.applyBlockTexture("water", "py", videoTexture);
+  world.applyBlockTexture("Biggie", "pz", videoTexture);
 
   // // world.applyTextureByName("Biggie", "pz", TechnoImage);
   // world.applyResolutionByName("Biggie", "pz", 128);

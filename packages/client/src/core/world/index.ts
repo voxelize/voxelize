@@ -208,10 +208,10 @@ export class World extends Scene implements NetIntercept {
 
   private oldBlocks: Map<string, number[]> = new Map();
 
-  private independentMaterials: Map<string, CustomShaderMaterial> = new Map();
+  private independentMaterials: Map<string, CustomShaderMaterial[]> = new Map();
 
   private defaultMaterial: {
-    opaque: CustomShaderMaterial;
+    opaque: CustomShaderMaterial[];
     transparent: CustomShaderMaterial[];
   };
 
@@ -270,11 +270,16 @@ export class World extends Scene implements NetIntercept {
           );
         }
 
-        const independentMat = this.getIndependentMaterial(block.id, faceName);
+        const independentMats = this.getIndependentMaterials(
+          block.id,
+          faceName
+        );
 
-        if (independentMat) {
-          independentMat.map = source;
-          independentMat.uniforms.map = { value: source };
+        if (independentMats) {
+          independentMats.forEach((mat) => {
+            mat.map = source;
+            mat.uniforms.map = { value: source };
+          });
         }
 
         return;
@@ -575,17 +580,29 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getIndependentMaterial(id: number, faceName: string) {
+  getIndependentMaterials(id: number, faceName: string) {
     const key = `${id}-${faceName.toLowerCase()}`;
 
     if (this.independentMaterials.has(key)) {
       return this.independentMaterials.get(key);
     }
 
-    const material = this.makeShaderMaterial();
-    this.independentMaterials.set(key, material);
+    const block = this.getBlockById(id);
 
-    return material;
+    const materials = (
+      block.isSeeThrough ? [FrontSide, BackSide] : [FrontSide]
+    ).map((side) => {
+      const material = this.makeShaderMaterial();
+
+      material.transparent = block.isSeeThrough;
+      material.side = side;
+
+      return material;
+    });
+
+    this.independentMaterials.set(key, materials);
+
+    return materials;
   }
 
   getMaterial(id: number, faceName?: string) {
@@ -605,7 +622,7 @@ export class World extends Scene implements NetIntercept {
     if (!face) return null;
 
     if (face.independent) {
-      return this.getIndependentMaterial(id, faceName);
+      return this.getIndependentMaterials(id, faceName);
     }
 
     return defaultMaterial;
@@ -1009,18 +1026,12 @@ export class World extends Scene implements NetIntercept {
 
     if (original) {
       original.forEach((mesh) => {
-        if (Array.isArray(mesh)) {
-          mesh.forEach((m) => {
-            m.geometry.dispose();
-            this.remove(m);
-          });
-
-          return;
-        }
-
-        mesh.geometry.dispose();
-        this.remove(mesh);
+        mesh.forEach((m) => {
+          m.geometry.dispose();
+          this.remove(m);
+        });
       });
+
       chunk.meshes.delete(level);
     }
 
@@ -1058,10 +1069,6 @@ export class World extends Scene implements NetIntercept {
 
         return mesh;
       };
-
-      if (material instanceof ShaderMaterial) {
-        return make(material);
-      }
 
       return material.map(make);
     });
@@ -1124,6 +1131,9 @@ export class World extends Scene implements NetIntercept {
       },
     }) as CustomShaderMaterial;
 
+    material.map = TextureAtlas.sharedUnknownTexture;
+    material.uniforms.map = { value: TextureAtlas.sharedUnknownTexture };
+
     return material;
   };
 
@@ -1158,7 +1168,7 @@ export class World extends Scene implements NetIntercept {
     };
 
     this.defaultMaterial = {
-      opaque: make(FrontSide, false),
+      opaque: [make(FrontSide, false)],
       transparent: [make(BackSide, true), make(FrontSide, true)],
     };
   }

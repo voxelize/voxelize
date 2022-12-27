@@ -71,6 +71,19 @@ export class TextureAtlas {
    */
   public ratio = 0;
 
+  public static sharedUnknownTexture = (() => {
+    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(4));
+
+    texture.minFilter = NearestFilter;
+    texture.magFilter = NearestFilter;
+    texture.generateMipmaps = false;
+    texture.premultiplyAlpha = false;
+    texture.needsUpdate = true;
+    texture.encoding = sRGBEncoding;
+
+    return texture;
+  })();
+
   /**
    * Create a new texture this.
    *
@@ -123,21 +136,16 @@ export class TextureAtlas {
     this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
 
+    const unknown = TextureAtlas.makeUnknownImage(canvasWidth / countPerSide);
+
     for (let x = 0; x < countPerSide; x++) {
       for (let y = 0; y < countPerSide; y++) {
-        const startU = x / countPerSide;
-        const endU = (x + 1) / countPerSide;
-        const startV = y / countPerSide;
-        const endV = (y + 1) / countPerSide;
-
-        this.drawImageToRange(
-          {
-            startU,
-            endU,
-            startV,
-            endV,
-          },
-          TextureAtlas.makeUnknownImage(canvasWidth / countPerSide)
+        context.drawImage(
+          unknown,
+          (x / countPerSide) * canvasWidth,
+          (y / countPerSide) * canvasHeight,
+          canvasWidth / countPerSide,
+          canvasHeight / countPerSide
         );
       }
     }
@@ -258,7 +266,7 @@ export class TextureAtlas {
     }
   }
 
-  private static makeUnknownImage(
+  static makeUnknownImage(
     dimension: number,
     color1 = "#6A67CE",
     color2 = "#16003B",
@@ -266,10 +274,13 @@ export class TextureAtlas {
   ) {
     const canvas = document.createElement("canvas") as HTMLCanvasElement;
     const context = canvas.getContext("2d");
-    const blockSize = dimension / segments;
 
+    context.imageSmoothingEnabled = false;
     context.canvas.width = dimension;
     context.canvas.height = dimension;
+
+    const blockSize = dimension / segments;
+
     for (let i = 0; i < segments; i++) {
       for (let j = 0; j < segments; j++) {
         context.fillStyle =
