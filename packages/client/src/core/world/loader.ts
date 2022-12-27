@@ -41,7 +41,7 @@ class Loader {
   /**
    * A map of promises to load assets.
    */
-  private assetPromises = new Map<string, Promise<void>>();
+  private assetPromises = new Map<string, Promise<any>>();
 
   /**
    * A map of callbacks to load audios.
@@ -66,79 +66,93 @@ class Loader {
     window.addEventListener("click", listenerCallback);
   }
 
-  /**
-   * Load a GIF texture from a source URL. This uses omggif to load the GIF and then creates a
-   * texture for each frame. The textures are stored in an array and can be accessed via the
-   * {@link Loader.textures} map with the source.
-   *
-   * @param source The source to the GIF file.
-   * @param onLoaded A callback that is called when the GIF is loaded.
-   */
-  addGifTexture = (source: string, onLoaded?: (texture: Texture[]) => void) => {
-    this.assetPromises.set(
-      source,
-      new Promise((resolve) => {
-        const run = async () => {
-          const response = await fetch(source);
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
-          const intArray = new Uint8Array(arrayBuffer);
+  loadGifTexture = (
+    source: string,
+    onLoaded?: (texture: Texture[]) => void
+  ) => {
+    const promise = new Promise<Texture[]>((resolve) => {
+      const run = async () => {
+        const response = await fetch(source);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const intArray = new Uint8Array(arrayBuffer);
 
-          const reader = new GifReader(intArray);
+        const reader = new GifReader(intArray);
 
-          const info = reader.frameInfo(0);
+        const info = reader.frameInfo(0);
 
-          const textures = new Array(reader.numFrames()).fill(0).map((_, k) => {
-            const image = new ImageData(info.width, info.height);
-            reader.decodeAndBlitFrameRGBA(k, image.data as any);
+        const textures = new Array(reader.numFrames()).fill(0).map((_, k) => {
+          const image = new ImageData(info.width, info.height);
+          reader.decodeAndBlitFrameRGBA(k, image.data as any);
 
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            canvas.width = image.width;
-            canvas.height = image.height;
-            ctx.putImageData(image, 0, 0);
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = image.width;
+          canvas.height = image.height;
+          ctx.putImageData(image, 0, 0);
 
-            const actual = new Image();
-            actual.src = canvas.toDataURL();
+          const actual = new Image();
+          actual.src = canvas.toDataURL();
 
-            const texture = new Texture();
-            texture.image = actual;
+          const texture = new Texture();
+          texture.image = actual;
 
-            return texture;
-          });
+          return texture;
+        });
 
-          this.textures.set(source, textures);
-          this.assetPromises.delete(source);
+        this.textures.set(source, textures);
+        this.assetPromises.delete(source);
 
-          onLoaded?.(textures);
+        onLoaded?.(textures);
 
-          resolve();
-        };
+        resolve(textures);
+      };
 
-        run();
-      })
-    );
+      run();
+    });
+
+    this.assetPromises.set(source, promise);
+
+    return promise;
   };
 
-  /**
-   * Add a texture source to load from. Must be called before `client.connect`.
-   *
-   * @param source - The source to the texture file to load from.
-   */
-  addTexture = (source: string, onLoaded?: (texture: Texture) => void) => {
-    this.assetPromises.set(
-      source,
-      new Promise((resolve) => {
-        this.textureLoader.load(source, (texture) => {
-          this.textures.set(source, texture);
-          this.assetPromises.delete(source);
+  loadTexture = (source: string, onLoaded?: (texture: Texture) => void) => {
+    const promise = new Promise<Texture>((resolve) => {
+      this.textureLoader.load(source, (texture) => {
+        this.textures.set(source, texture);
+        this.assetPromises.delete(source);
 
-          onLoaded?.(texture);
+        onLoaded?.(texture);
 
-          resolve();
-        });
-      })
-    );
+        resolve(texture);
+      });
+    });
+
+    this.assetPromises.set(source, promise);
+
+    return promise;
+  };
+
+  loadImage = (
+    source: string,
+    onLoaded?: (image: HTMLImageElement) => void
+  ) => {
+    const promise = new Promise<HTMLImageElement>((resolve) => {
+      const image = new Image();
+      image.src = source;
+
+      image.onload = () => {
+        this.assetPromises.delete(source);
+
+        onLoaded?.(image);
+
+        resolve(image);
+      };
+    });
+
+    this.assetPromises.set(source, promise);
+
+    return promise;
   };
 
   /**

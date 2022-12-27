@@ -30,7 +30,7 @@ export class Chunk {
 
   public lights: NdArray<Uint32Array>;
 
-  public meshes = new Map<number, Mesh[]>();
+  public meshes = new Map<number, (Mesh | Mesh[])[]>();
 
   public added = false;
 
@@ -435,6 +435,17 @@ export class Chunk {
     this.meshes.forEach((mesh) => {
       mesh.forEach((subMesh) => {
         if (!subMesh) return;
+
+        if (Array.isArray(subMesh)) {
+          subMesh.forEach((subSubMesh) => {
+            subSubMesh.geometry?.dispose();
+            if (subSubMesh.parent) {
+              subSubMesh.parent.remove(subSubMesh);
+            }
+          });
+
+          return;
+        }
 
         subMesh.geometry?.dispose();
 

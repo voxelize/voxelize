@@ -3,6 +3,7 @@ import {
   ClampToEdgeWrapping,
   Color,
   NearestFilter,
+  Texture,
   sRGBEncoding,
 } from "three";
 
@@ -121,6 +122,25 @@ export class TextureAtlas {
     this.texture.premultiplyAlpha = false;
     this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
+
+    for (let x = 0; x < countPerSide; x++) {
+      for (let y = 0; y < countPerSide; y++) {
+        const startU = x / countPerSide;
+        const endU = (x + 1) / countPerSide;
+        const startV = y / countPerSide;
+        const endV = (y + 1) / countPerSide;
+
+        this.drawImageToRange(
+          {
+            startU,
+            endU,
+            startV,
+            endV,
+          },
+          TextureAtlas.makeUnknownImage(canvasWidth / countPerSide)
+        );
+      }
+    }
   }
 
   /**
@@ -129,14 +149,28 @@ export class TextureAtlas {
    * @param range The range on the texture atlas to draw the texture to.
    * @param image The texture to draw to the range.
    */
-  drawImageToRange = (
+  drawImageToRange(
     range: TextureRange,
-    image: typeof Image | HTMLImageElement | Color,
+    image:
+      | typeof Image
+      | HTMLImageElement
+      | HTMLCanvasElement
+      | Color
+      | Texture,
     clearRect = true,
     opacity = 1.0
-  ) => {
+  ) {
     const { startU, endV } = range;
     const { dimension } = this.params;
+
+    const image2 =
+      image instanceof Texture
+        ? image.image
+        : (image as any as HTMLImageElement);
+
+    if (!image2) {
+      return;
+    }
 
     const context = this.canvas.getContext("2d");
 
@@ -170,8 +204,6 @@ export class TextureAtlas {
       return;
     }
 
-    const image2 = image as any as HTMLImageElement;
-
     // Draw a background first.
 
     if (clearRect) {
@@ -202,7 +234,7 @@ export class TextureAtlas {
     );
 
     context.restore();
-  };
+  }
 
   private makeCanvasPowerOfTwo(canvas?: HTMLCanvasElement | undefined) {
     let setCanvas = false;
@@ -224,6 +256,31 @@ export class TextureAtlas {
     if (setCanvas) {
       this.canvas = newCanvas;
     }
+  }
+
+  private static makeUnknownImage(
+    dimension: number,
+    color1 = "#6A67CE",
+    color2 = "#16003B",
+    segments = 2
+  ) {
+    const canvas = document.createElement("canvas") as HTMLCanvasElement;
+    const context = canvas.getContext("2d");
+    const blockSize = dimension / segments;
+
+    context.canvas.width = dimension;
+    context.canvas.height = dimension;
+    for (let i = 0; i < segments; i++) {
+      for (let j = 0; j < segments; j++) {
+        context.fillStyle =
+          (i % 2 === 0 && j % 2 === 1) || (i % 2 === 1 && j % 2 === 0)
+            ? color1
+            : color2;
+        context.fillRect(i * blockSize, j * blockSize, blockSize, blockSize);
+      }
+    }
+
+    return canvas;
   }
 }
 

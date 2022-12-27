@@ -1,5 +1,5 @@
 import { World } from "@voxelize/client";
-import { Color } from "three";
+import { Color, VideoTexture } from "three";
 
 import TestImage from "../assets/cat.jpeg";
 import LolImage from "../assets/lol.jpeg";
@@ -42,6 +42,30 @@ import TechnoImage from "../assets/techno.png";
 export async function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
+
+  const video = document.getElementById("video") as HTMLVideoElement;
+
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    const constraints = {
+      video: { width: 1280, height: 720, facingMode: "user" },
+    };
+
+    navigator.mediaDevices
+      .getUserMedia(constraints)
+      .then(function (stream) {
+        // apply the stream to the video element used in the texture
+
+        video.srcObject = stream;
+        video.play();
+      })
+      .catch(function (error) {
+        console.error("Unable to access the camera/webcam.", error);
+      });
+  } else {
+    console.error("MediaDevices interface not available.");
+  }
+
+  const videoTexture = new VideoTexture(video);
 
   // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
 
@@ -150,6 +174,8 @@ export async function setupWorld(world: World) {
       source: new Color("purple"),
     },
   ]);
+
+  world.applyBlockTexture("water", "py", videoTexture);
 
   // // world.applyTextureByName("Biggie", "pz", TechnoImage);
   // world.applyResolutionByName("Biggie", "pz", 128);

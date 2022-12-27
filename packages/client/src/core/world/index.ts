@@ -4,6 +4,7 @@ import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
   BackSide,
+  BoxGeometry,
   BufferGeometry,
   Clock,
   Color,
@@ -29,11 +30,13 @@ import { ChunkUtils, LightColor } from "../../utils";
 import { BlockRotation } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
+import { Loader } from "./loader";
 import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { TextureAtlas } from "./textures";
 
 export * from "./block";
+export * from "./loader";
 export * from "./registry";
 export * from "./textures";
 
@@ -94,6 +97,8 @@ export class World extends Scene implements NetIntercept {
   public params: WorldParams;
 
   public registry: Registry;
+
+  public loader: Loader;
 
   public chunks: Chunks;
 
@@ -220,6 +225,7 @@ export class World extends Scene implements NetIntercept {
     super();
 
     this.registry = new Registry();
+    this.loader = new Loader();
     this.chunks = new Chunks();
 
     this.setupPhysics();
@@ -237,7 +243,7 @@ export class World extends Scene implements NetIntercept {
   async applyBlockTexture(
     idOrName: number | string,
     faceNames: string | string[],
-    source: string | Color
+    source: string | Color | Texture
   ) {
     this.initCheck("apply block texture", false);
 
@@ -246,15 +252,7 @@ export class World extends Scene implements NetIntercept {
     faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
 
     const data =
-      typeof source === "string"
-        ? await (async () => {
-            return new Promise<HTMLImageElement>((resolve) => {
-              const image = new Image();
-              image.src = source;
-              image.onload = () => resolve(image);
-            });
-          })()
-        : source;
+      typeof source === "string" ? await this.loader.loadImage(source) : source;
 
     faceNames.forEach((faceName) => {
       const face = block.faces.find((f) => f.name === faceName);
@@ -265,11 +263,24 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      if (face.independent) {
-        // TODO
-      } else {
-        this.atlas.drawImageToRange(face.range, data);
+      if (source instanceof Texture) {
+        if (!face.independent) {
+          throw new Error(
+            `Cannot apply a texture to a non-independent face "${faceName}" on block "${block.name}"`
+          );
+        }
+
+        const independentMat = this.getIndependentMaterial(block.id, faceName);
+
+        if (independentMat) {
+          independentMat.map = source;
+          independentMat.uniforms.map = { value: source };
+        }
+
+        return;
       }
+
+      this.atlas.drawImageToRange(face.range, data);
     });
   }
 
@@ -590,10 +601,11 @@ export class World extends Scene implements NetIntercept {
     }
 
     const face = block.faces.find((face) => face.name === faceName);
+
     if (!face) return null;
 
     if (face.independent) {
-      return this.independentMaterials[face.name];
+      return this.getIndependentMaterial(id, faceName);
     }
 
     return defaultMaterial;
@@ -997,6 +1009,15 @@ export class World extends Scene implements NetIntercept {
 
     if (original) {
       original.forEach((mesh) => {
+        if (Array.isArray(mesh)) {
+          mesh.forEach((m) => {
+            m.geometry.dispose();
+            this.remove(m);
+          });
+
+          return;
+        }
+
         mesh.geometry.dispose();
         this.remove(mesh);
       });

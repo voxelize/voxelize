@@ -40,6 +40,7 @@ const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
 const controls = new VOXELIZE.RigidControls(camera, canvas, world);
 
+renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 controls.connect(inputs, "in-game");
 
 inputs.on("namespace", (newNamespace) => {
@@ -79,27 +80,9 @@ network.register(world);
 const start = async () => {
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join("world1");
+
   await world.init();
-
-  setupWorld(world);
-
-  const center = new THREE.Vector3(0, 50, 0);
-
-  // inputs.bind("w", () => {
-  //   center.z -= 16;
-  // });
-
-  // inputs.bind("s", () => {
-  //   center.z += 16;
-  // });
-
-  // inputs.bind("a", () => {
-  //   center.x -= 16;
-  // });
-
-  // inputs.bind("d", () => {
-  //   center.x += 16;
-  // });
+  await setupWorld(world);
 
   inputs.bind("g", controls.toggleGhostMode);
 
