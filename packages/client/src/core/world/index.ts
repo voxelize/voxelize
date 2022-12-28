@@ -25,7 +25,6 @@ import {
   Vector3,
   Vector4,
 } from "three";
-import { WboitUtils } from "three-wboit";
 
 import { Coords2, Coords3 } from "../../types";
 import { ChunkUtils, LightColor } from "../../utils";
@@ -1128,8 +1127,6 @@ export class World extends Scene implements NetIntercept {
         uFogFar: this.uniforms.fogFar,
         uFogColor: this.uniforms.fogColor,
         uTime: this.uniforms.time,
-        renderStage: { value: 0.5 },
-        weight: this.uniforms.oitWeight,
         ...uniforms,
       },
     }) as CustomShaderMaterial;
@@ -1145,7 +1142,6 @@ export class World extends Scene implements NetIntercept {
     });
 
     // @ts-ignore
-    material.wboitEnabled = true;
     material.map = TextureAtlas.makeUnknownTexture();
     material.uniforms.map = { value: material.map };
 

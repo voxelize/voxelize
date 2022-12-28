@@ -45,7 +45,6 @@
     "omggif": "^1.0.10",
     "regenerator-runtime": "^0.13.9",
     "socket.io-client": "^4.4.1",
-    "three-wboit": "^1.0.12",
     "uuid": "^8.3.2"
   }
 }
