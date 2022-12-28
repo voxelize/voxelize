@@ -22,6 +22,7 @@ import {
   TwoPassDoubleSide,
   Vector3,
   Vector4,
+  Group,
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
@@ -211,8 +212,6 @@ export class World extends Scene implements NetIntercept {
 
   private materialStore: Map<string, CustomShaderMaterial> = new Map();
 
-  private atlasStore: Map<number, AtlasTexture> = new Map();
-
   private clock = new Clock();
 
   private initJSON: any = null;
@@ -272,7 +271,7 @@ export class World extends Scene implements NetIntercept {
         return;
       }
 
-      const atlas = this.atlasStore.get(block.id);
+      const atlas = mat.map as AtlasTexture;
       atlas.drawImageToRange(face.range, data);
     });
   }
@@ -568,8 +567,14 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getMaterial(id: number, faceName?: string) {
-    return this.materialStore.get(this.makeMaterialKey(id, faceName));
+  getMaterial(idOrName: number | string, faceName: string) {
+    const block = this.getBlockOf(idOrName);
+
+    if (block.independentFaces.has(faceName)) {
+      return this.materialStore.get(this.makeMaterialKey(block.id, faceName));
+    }
+
+    return this.materialStore.get(this.makeMaterialKey(block.id));
   }
 
   /**
@@ -628,6 +633,12 @@ export class World extends Scene implements NetIntercept {
 
     return raycast(
       (wx, wy, wz) => {
+        const block = this.getBlockAt(wx, wy, wz);
+
+        if (!block) {
+          return [];
+        }
+
         const {
           id,
           isFluid,
@@ -636,7 +647,7 @@ export class World extends Scene implements NetIntercept {
           aabbs,
           dynamicFn,
           isDynamic,
-        } = this.getBlockAt(wx, wy, wz);
+        } = block;
 
         if (ignoreList.has(id)) {
           return [];
@@ -757,138 +768,140 @@ export class World extends Scene implements NetIntercept {
     );
   };
 
-  // /**
-  //  * Get a mesh of the model of the given block.
-  //  *
-  //  * @param id The ID of the block.
-  //  * @param params The params of creating this block mesh.
-  //  * @param params.material The type of material to use for this generated mesh.
-  //  * @param params.separateFaces: Whether or not to separate the faces of the block into different meshes.
-  //  * @param params.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
-  //  * @returns A 3D mesh (group) of the block model.
-  //  */
-  // makeBlockMesh = (
-  //   idOrName: number | string,
-  //   params: Partial<{
-  //     separateFaces: boolean;
-  //     crumbs: boolean;
-  //     material: "basic" | "standard";
-  //   }> = {}
-  // ) => {
-  //   this.initCheck("make block mesh", false);
+  /**
+   * Get a mesh of the model of the given block.
+   *
+   * @param id The ID of the block.
+   * @param params The params of creating this block mesh.
+   * @param params.material The type of material to use for this generated mesh.
+   * @param params.separateFaces: Whether or not to separate the faces of the block into different meshes.
+   * @param params.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
+   * @returns A 3D mesh (group) of the block model.
+   */
+  makeBlockMesh = (
+    idOrName: number | string,
+    params: Partial<{
+      separateFaces: boolean;
+      crumbs: boolean;
+      material: "basic" | "standard";
+    }> = {}
+  ) => {
+    this.initCheck("make block mesh", false);
 
-  //   if (!idOrName) {
-  //     return null;
-  //   }
+    if (!idOrName) {
+      return null;
+    }
 
-  //   const block = this.getBlockOf(idOrName);
-  //   if (!block) return null;
+    const block = this.getBlockOf(idOrName);
+    if (!block) return null;
 
-  //   const { separateFaces, crumbs, material } = {
-  //     separateFaces: false,
-  //     crumbs: false,
-  //     material: "basic",
-  //     ...params,
-  //   };
+    const { separateFaces, crumbs, material } = {
+      separateFaces: false,
+      crumbs: false,
+      material: "basic",
+      ...params,
+    };
 
-  //   const { faces, isSeeThrough } = block;
+    const { faces, isSeeThrough } = block;
 
-  //   const geometries = new Map<
-  //     string,
-  //     {
-  //       identifier: string;
-  //       positions: number[];
-  //       uvs: number[];
-  //       indices: number[];
-  //       material: MeshStandardMaterial | MeshBasicMaterial;
-  //     }
-  //   >();
+    const geometries = new Map<
+      string,
+      {
+        identifier: string;
+        positions: number[];
+        uvs: number[];
+        indices: number[];
+        material: MeshStandardMaterial | MeshBasicMaterial;
+      }
+    >();
 
-  //   faces.forEach((face, index) => {
-  //     const faceScale = crumbs && separateFaces ? Math.random() + 0.5 : 1;
+    faces.forEach((face, index) => {
+      const faceScale = crumbs && separateFaces ? Math.random() + 0.5 : 1;
 
-  //     const { corners, name } = face;
+      const { corners, name, range } = face;
 
-  //     let geometry = geometries.get(identifier);
+      const identifier = `${block.name}-${name}-${
+        separateFaces ? index : "all"
+      }`;
 
-  //     if (!geometry) {
-  //       const atlas = this.getAtlasByBlockFace(block, face);
+      let geometry = geometries.get(identifier);
 
-  //       const matParams = {
-  //         transparent: isSeeThrough,
-  //         map: atlas?.texture,
-  //         alphaTest: 0.3,
-  //         side: DoubleSide,
-  //       };
+      if (!geometry) {
+        const chunkMat = this.getMaterial(block.id, name);
 
-  //       const mat =
-  //         material === "basic"
-  //           ? new MeshBasicMaterial(matParams)
-  //           : new MeshStandardMaterial(matParams);
+        const matParams = {
+          transparent: isSeeThrough,
+          map: chunkMat.map,
+          alphaTest: 0.3,
+          side: isSeeThrough ? TwoPassDoubleSide : FrontSide,
+        };
 
-  //       geometry = {
-  //         identifier,
-  //         positions: [],
-  //         uvs: [],
-  //         indices: [],
-  //         material: mat,
-  //       };
-  //     }
+        const mat =
+          material === "basic"
+            ? new MeshBasicMaterial(matParams)
+            : new MeshStandardMaterial(matParams);
 
-  //     const { positions, uvs, indices } = geometry;
+        geometry = {
+          identifier,
+          positions: [],
+          uvs: [],
+          indices: [],
+          material: mat,
+        };
+      }
 
-  //     const ndx = Math.floor(positions.length / 3);
-  //     let { startU, endU, startV, endV } = this.registry.ranges.get(
-  //       Registry.makeSideName(block.name, name)
-  //     );
+      const { positions, uvs, indices } = geometry;
 
-  //     if (crumbs) {
-  //       if (Math.random() < 0.5) {
-  //         startU = startU + ((endU - startU) / 2) * Math.random();
-  //         endV = endV - ((endV - startV) / 2) * Math.random();
-  //       } else {
-  //         endU = endU - ((endU - startU) / 2) * Math.random();
-  //         startV = startV + ((endV - startV) / 2) * Math.random();
-  //       }
-  //     }
+      const ndx = Math.floor(positions.length / 3);
+      let { startU, endU, startV, endV } = range;
 
-  //     corners.forEach(({ uv, pos }) => {
-  //       positions.push(...pos.map((p) => p * faceScale));
-  //       uvs.push(
-  //         uv[0] * (endU - startU) + startU,
-  //         uv[1] * (endV - startV) + startV
-  //       );
-  //     });
+      if (crumbs) {
+        if (Math.random() < 0.5) {
+          startU = startU + ((endU - startU) / 2) * Math.random();
+          endV = endV - ((endV - startV) / 2) * Math.random();
+        } else {
+          endU = endU - ((endU - startU) / 2) * Math.random();
+          startV = startV + ((endV - startV) / 2) * Math.random();
+        }
+      }
 
-  //     indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
+      corners.forEach(({ uv, pos }) => {
+        positions.push(...pos.map((p) => p * faceScale));
+        uvs.push(
+          uv[0] * (endU - startU) + startU,
+          uv[1] * (endV - startV) + startV
+        );
+      });
 
-  //     geometries.set(identifier, geometry);
-  //   });
+      indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
 
-  //   const group = new Group();
+      geometries.set(identifier, geometry);
+    });
 
-  //   geometries.forEach(({ identifier, positions, uvs, indices, material }) => {
-  //     const geometry = new BufferGeometry();
-  //     geometry.setAttribute(
-  //       "position",
-  //       new Float32BufferAttribute(positions, 3)
-  //     );
-  //     geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-  //     geometry.setIndex(indices);
-  //     geometry.computeVertexNormals();
-  //     const mesh = new Mesh(geometry, material);
-  //     mesh.name = identifier;
-  //     group.add(mesh);
-  //   });
+    const group = new Group();
 
-  //   group.name = block.name;
+    geometries.forEach(({ identifier, positions, uvs, indices, material }) => {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new Float32BufferAttribute(positions, 3)
+      );
+      geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      const mesh = new Mesh(geometry, material);
+      mesh.name = identifier;
+      group.add(mesh);
+    });
 
-  //   group.position.x -= 0.5;
-  //   group.position.y -= 0.5;
-  //   group.position.z -= 0.5;
+    group.name = block.name;
 
-  //   return group;
-  // };
+    group.position.x -= 0.5;
+    group.position.y -= 0.5;
+    group.position.z -= 0.5;
+
+    return group;
+  };
 
   /**
    * Initialize the world with the data received from the server. This includes populating
@@ -1492,8 +1505,6 @@ export class World extends Scene implements NetIntercept {
       const countPerSide = perSide(totalFaces);
 
       const atlas = new AtlasTexture(countPerSide, textureDimension);
-
-      this.atlasStore.set(block.id, atlas);
 
       const mat = make(block.isSeeThrough, atlas);
       const key = this.makeMaterialKey(block.id);
