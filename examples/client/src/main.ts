@@ -57,13 +57,7 @@ const world = new VOXELIZE.World({
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-const character = new VOXELIZE.Character({
-  // head: {
-  //   height: 0.5,
-  //   heightSegments: 64,
-  //   widthSegments: 64,
-  // },
-});
+const character = new VOXELIZE.Character({});
 character.position.set(0, 10, -5);
 
 world.loader.loadTexture(LolImage, (texture) => {
@@ -450,22 +444,6 @@ shadows.add(character);
 //   });
 //   document.body.appendChild(canvas);
 // }
-
-// world.overwriteMaterialByIdentifier(
-//   "Grass",
-//   true,
-//   VOXELIZE.customShaders.sway({
-//     rooted: true,
-//   })
-// );
-
-// world.overwriteMaterialByIdentifier(
-//   "Oak Leaves",
-//   true,
-//   VOXELIZE.customShaders.sway({
-//     yScale: 0,
-//   })
-// );
 
 // world.applyResolutionByName("Grass Block", "py", 512);
 

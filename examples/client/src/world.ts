@@ -151,6 +151,22 @@ export async function setupWorld(world: VOXELIZE.World) {
     },
   ]);
 
+  world.customizeMaterialShaders(
+    "Grass",
+    null,
+    VOXELIZE.customShaders.sway({
+      rooted: true,
+    })
+  );
+
+  world.customizeMaterialShaders(
+    "Oak Leaves",
+    null,
+    VOXELIZE.customShaders.sway({
+      yScale: 0,
+    })
+  );
+
   // world.applyTextureByName("Biggie", "pz", TechnoImage);
   // world.applyResolutionByName("Biggie", "pz", 128);
 

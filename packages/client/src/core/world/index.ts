@@ -23,6 +23,7 @@ import {
   Vector3,
   Vector4,
   Group,
+  Uniform,
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
@@ -574,7 +575,7 @@ export class World extends Scene implements NetIntercept {
 
     const block = this.getBlockOf(idOrName);
 
-    if (block.independentFaces.has(faceName)) {
+    if (faceName && block.independentFaces.has(faceName)) {
       return this.materialStore.get(this.makeMaterialKey(block.id, faceName));
     }
 
@@ -924,6 +925,44 @@ export class World extends Scene implements NetIntercept {
     return group;
   };
 
+  customizeMaterialShaders = (
+    idOrName: number | string,
+    faceName: string | null = null,
+    data: {
+      vertexShader: string;
+      fragmentShader: string;
+      uniforms?: { [key: string]: Uniform };
+    } = {
+      vertexShader: DEFAULT_CHUNK_SHADERS.vertex,
+      fragmentShader: DEFAULT_CHUNK_SHADERS.fragment,
+      uniforms: {},
+    }
+  ) => {
+    const {
+      vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
+      fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
+      uniforms = {},
+    } = data;
+
+    const mat = this.getMaterial(idOrName, faceName);
+
+    if (!mat) {
+      throw new Error(
+        `Could not find material for block ${idOrName} and face ${faceName}`
+      );
+    }
+
+    mat.vertexShader = vertexShader;
+    mat.fragmentShader = fragmentShader;
+    mat.uniforms = {
+      ...mat.uniforms,
+      ...uniforms,
+    };
+    mat.needsUpdate = true;
+
+    return mat;
+  };
+
   /**
    * Initialize the world with the data received from the server. This includes populating
    * the registry, setting the parameters, and creating the texture atlas.
@@ -1008,6 +1047,8 @@ export class World extends Scene implements NetIntercept {
     this.maintainChunks(center);
 
     this.updatePhysics(delta);
+    this.updateUniforms();
+
     this.emitServerUpdates();
   }
 
@@ -1325,6 +1366,13 @@ export class World extends Scene implements NetIntercept {
 
       this.physics.iterateBody(body, delta, noGravity);
     });
+  };
+
+  /**
+   * Update the uniform values.
+   */
+  private updateUniforms = () => {
+    this.uniforms.time.value = performance.now();
   };
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
