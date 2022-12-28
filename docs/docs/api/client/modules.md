@@ -52,7 +52,7 @@ custom_edit_url: null
 - [Shadows](classes/Shadows.md)
 - [Sky](classes/Sky.md)
 - [SpriteText](classes/SpriteText.md)
-- [TextureAtlas](classes/TextureAtlas.md)
+- [AtlasTexture](classes/AtlasTexture.md)
 - [VoxelInteract](classes/VoxelInteract.md)
 - [WorkerPool](classes/WorkerPool.md)
 
@@ -1017,11 +1017,11 @@ ___
 
 ___
 
-### TextureAtlasParams
+### AtlasTextureParams
 
-Ƭ **TextureAtlasParams**: `Object`
+Ƭ **AtlasTextureParams**: `Object`
 
-Parameters to create a new [TextureAtlas](classes/TextureAtlas.md) instance.
+Parameters to create a new [AtlasTexture](classes/AtlasTexture.md) instance.
 
 #### Type declaration
 

@@ -182,7 +182,7 @@ ___
 
 ### getAtlasByBlockFace
 
-▸ **getAtlasByBlockFace**(`block`, `face`): [`TextureAtlas`](TextureAtlas.md)
+▸ **getAtlasByBlockFace**(`block`, `face`): [`AtlasTexture`](AtlasTexture.md)
 
 Get the high resolution texture atlas of a certain block face by the block face itself.
 
@@ -201,15 +201,15 @@ Get the high resolution texture atlas of a certain block face by the block face 
 
 #### Returns
 
-[`TextureAtlas`](TextureAtlas.md)
+[`AtlasTexture`](AtlasTexture.md)
 
-The [TextureAtlas](TextureAtlas.md) instance linked to the block face.
+The [AtlasTexture](AtlasTexture.md) instance linked to the block face.
 
 ___
 
 ### getAtlasByIdentifier
 
-▸ **getAtlasByIdentifier**(`identifier`): [`TextureAtlas`](TextureAtlas.md)
+▸ **getAtlasByIdentifier**(`identifier`): [`AtlasTexture`](AtlasTexture.md)
 
 Get the high resolution texture atlas of a certain block face by identifier.
 
@@ -221,9 +221,9 @@ Get the high resolution texture atlas of a certain block face by identifier.
 
 #### Returns
 
-[`TextureAtlas`](TextureAtlas.md)
+[`AtlasTexture`](AtlasTexture.md)
 
-The [TextureAtlas](TextureAtlas.md) instance linked to the block face.
+The [AtlasTexture](AtlasTexture.md) instance linked to the block face.
 
 ___
 
@@ -1244,7 +1244,7 @@ block is not [Block.yRotatable](../modules.md#block-114)).
 
 ### atlas
 
-• **atlas**: [`TextureAtlas`](TextureAtlas.md)
+• **atlas**: [`AtlasTexture`](AtlasTexture.md)
 
 The generated texture atlas built from all registered block textures.
 
@@ -1278,7 +1278,7 @@ ___
 
 ### independentTextures
 
-• **independentTextures**: `Map`<`string`, [`TextureAtlas`](TextureAtlas.md)\>
+• **independentTextures**: `Map`<`string`, [`AtlasTexture`](AtlasTexture.md)\>
 
 A map of specific high-resolution block faces.
 

@@ -15,21 +15,6 @@ export type TextureRange = {
 };
 
 /**
- * Parameters to create a new {@link TextureAtlas} instance.
- */
-export type TextureAtlasParams = {
-  /**
-   * The number of block textures on each side of the this.
-   */
-  countPerSide: number;
-
-  /**
-   * The dimension of each block texture.
-   */
-  dimension: number;
-};
-
-/**
  * A texture atlas is a collection of textures that are packed into a single texture.
  * This is useful for reducing the number of draw calls required to render a scene, since
  * all block textures can be rendered with a single draw call.
@@ -40,36 +25,30 @@ export type TextureAtlasParams = {
  * ![Texture bleeding](/img/docs/texture-bleeding.png)
  *
  */
-export class TextureAtlas {
-  /**
-   * The parameters used to create the texture this.
-   */
-  public params: TextureAtlasParams;
+export class AtlasTexture extends CanvasTexture {
+  public countPerSide: number;
 
-  /**
-   * The THREE.JS canvas texture that has been generated.
-   */
-  public texture: CanvasTexture;
+  public dimension: number;
 
   /**
    * The canvas that is used to generate the texture this.
    */
-  public canvas = document.createElement("canvas");
+  public canvas: HTMLCanvasElement;
 
   /**
    * The margin between each block texture in the this.
    */
-  public margin = 0;
+  public atlasMargin = 0;
 
   /**
    * The offset of each block's texture to the end of its border.
    */
-  public offset = 0;
+  public atlasOffset = 0;
 
   /**
    * The ratio of the texture on the atlas to the original texture.
    */
-  public ratio = 0;
+  public atlasRatio = 0;
 
   /**
    * Create a new texture this.
@@ -79,33 +58,41 @@ export class TextureAtlas {
    * @param params The parameters used to create the texture this.
    * @returns The texture atlas generated.
    */
-  constructor(params: TextureAtlasParams) {
-    this.params = params;
+  constructor(
+    countPerSide: number,
+    dimension: number,
+    canvas = document.createElement("canvas")
+  ) {
+    super(canvas);
 
-    const { countPerSide, dimension } = params;
+    this.canvas = canvas;
+
+    this.countPerSide = countPerSide;
+    this.dimension = dimension;
 
     if (countPerSide === 1) {
-      this.offset = 0;
-      this.ratio = 1;
-      this.margin = 0;
+      this.atlasOffset = 0;
+      this.atlasRatio = 1;
+      this.atlasMargin = 0;
     } else {
-      this.offset = 1 / (countPerSide * 4);
+      this.atlasOffset = 1 / (countPerSide * 4);
 
-      this.margin = 1;
-      this.ratio =
-        (this.margin / this.offset / countPerSide - 2 * this.margin) /
+      this.atlasMargin = 1;
+      this.atlasRatio =
+        (this.atlasMargin / this.atlasOffset / countPerSide -
+          2 * this.atlasMargin) /
         dimension;
 
-      while (this.ratio !== Math.floor(this.ratio)) {
-        this.ratio *= 2;
-        this.margin *= 2;
+      while (this.atlasRatio !== Math.floor(this.atlasRatio)) {
+        this.atlasRatio *= 2;
+        this.atlasMargin *= 2;
       }
     }
 
     const canvasWidth =
-      (dimension * this.ratio + this.margin * 2) * countPerSide;
+      (dimension * this.atlasRatio + this.atlasMargin * 2) * countPerSide;
     const canvasHeight =
-      (dimension * this.ratio + this.margin * 2) * countPerSide;
+      (dimension * this.atlasRatio + this.atlasMargin * 2) * countPerSide;
     this.canvas.width = canvasWidth;
     this.canvas.height = canvasHeight;
 
@@ -113,16 +100,15 @@ export class TextureAtlas {
     context.imageSmoothingEnabled = false;
 
     this.makeCanvasPowerOfTwo(this.canvas);
-    this.texture = new CanvasTexture(this.canvas);
-    this.texture.wrapS = ClampToEdgeWrapping;
-    this.texture.wrapT = ClampToEdgeWrapping;
-    this.texture.minFilter = NearestFilter;
-    this.texture.magFilter = NearestFilter;
-    this.texture.generateMipmaps = false;
-    this.texture.needsUpdate = true;
-    this.texture.encoding = sRGBEncoding;
+    this.wrapS = ClampToEdgeWrapping;
+    this.wrapT = ClampToEdgeWrapping;
+    this.minFilter = NearestFilter;
+    this.magFilter = NearestFilter;
+    this.generateMipmaps = false;
+    this.needsUpdate = true;
+    this.encoding = sRGBEncoding;
 
-    const unknown = TextureAtlas.makeUnknownImage(canvasWidth / countPerSide);
+    const unknown = AtlasTexture.makeUnknownImage(canvasWidth / countPerSide);
 
     for (let x = 0; x < countPerSide; x++) {
       for (let y = 0; y < countPerSide; y++) {
@@ -155,7 +141,6 @@ export class TextureAtlas {
     opacity = 1.0
   ) {
     const { startU, endV } = range;
-    const { dimension } = this.params;
 
     const image2 =
       image instanceof Texture
@@ -179,20 +164,20 @@ export class TextureAtlas {
 
     if (clearRect) {
       context.clearRect(
-        (startU - this.offset) * canvasWidth,
-        (1 - endV - this.offset) * canvasHeight,
-        dimension * this.ratio + 2 * this.margin,
-        dimension * this.ratio + 2 * this.margin
+        (startU - this.atlasOffset) * canvasWidth,
+        (1 - endV - this.atlasOffset) * canvasHeight,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin
       );
     }
 
     if ((image as any as Color).isColor) {
       context.fillStyle = `#${(image as any).getHexString()}`;
       context.fillRect(
-        (startU - this.offset) * canvasWidth,
-        (1 - endV - this.offset) * canvasHeight,
-        dimension * this.ratio + 2 * this.margin,
-        dimension * this.ratio + 2 * this.margin
+        (startU - this.atlasOffset) * canvasWidth,
+        (1 - endV - this.atlasOffset) * canvasHeight,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin
       );
 
       return;
@@ -203,28 +188,28 @@ export class TextureAtlas {
     if (clearRect) {
       context.drawImage(
         image2,
-        (startU - this.offset) * canvasWidth,
-        (1 - endV - this.offset) * canvasHeight,
-        dimension * this.ratio + 2 * this.margin,
-        dimension * this.ratio + 2 * this.margin
+        (startU - this.atlasOffset) * canvasWidth,
+        (1 - endV - this.atlasOffset) * canvasHeight,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
+        this.dimension * this.atlasRatio + 2 * this.atlasMargin
       );
 
       // Carve out the middle.
       context.clearRect(
-        (startU - this.offset) * canvasWidth + this.margin,
-        (1 - endV - this.offset) * canvasHeight + this.margin,
-        dimension * this.ratio,
-        dimension * this.ratio
+        (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
+        (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
+        this.dimension * this.atlasRatio,
+        this.dimension * this.atlasRatio
       );
     }
 
     // Draw the actual texture.
     context.drawImage(
       image2,
-      (startU - this.offset) * canvasWidth + this.margin,
-      (1 - endV - this.offset) * canvasHeight + this.margin,
-      dimension * this.ratio,
-      dimension * this.ratio
+      (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
+      (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
+      this.dimension * this.atlasRatio,
+      this.dimension * this.atlasRatio
     );
 
     context.restore();
@@ -275,7 +260,7 @@ export class TextureAtlas {
   }
 
   static makeUnknownTexture(dimension: number) {
-    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(dimension));
+    const texture = new CanvasTexture(AtlasTexture.makeUnknownImage(dimension));
 
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;
