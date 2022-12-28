@@ -290,13 +290,7 @@ inputs.bind(
 const peers = new VOXELIZE.Peers<VOXELIZE.Character>(controls.object);
 
 peers.createPeer = () => {
-  const peer = new VOXELIZE.Character({
-    // head: {
-    //   height: 0.5,
-    //   heightSegments: 64,
-    //   widthSegments: 64,
-    // },
-  });
+  const peer = new VOXELIZE.Character();
   peer.head.paint("front", world.loader.getTexture(LolImage));
   lightShined.add(peer);
   shadows.add(peer);
