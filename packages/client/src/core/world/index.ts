@@ -21,6 +21,7 @@ import {
   TwoPassDoubleSide,
   Vector3,
   Vector4,
+  Uniform,
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
@@ -38,6 +39,7 @@ export * from "./block";
 export * from "./loader";
 export * from "./registry";
 export * from "./textures";
+export * from "./shaders";
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
@@ -205,16 +207,11 @@ export class World extends Scene implements NetIntercept {
     },
   };
 
-  public atlas: TextureAtlas;
-
   private oldBlocks: Map<string, number[]> = new Map();
 
-  private independentMaterial: Map<string, CustomShaderMaterial> = new Map();
+  private materialStore: Map<string, CustomShaderMaterial> = new Map();
 
-  private defaultMaterial: {
-    opaque: CustomShaderMaterial;
-    transparent: CustomShaderMaterial;
-  };
+  private atlasStore: Map<number, TextureAtlas> = new Map();
 
   private clock = new Clock();
 
@@ -262,20 +259,21 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      if (face.independent) {
-        const independentMat = this.getIndependentMaterial(block.id, faceName);
+      const mat = this.getMaterial(block.id, faceName);
 
+      if (face.independent) {
         if (source instanceof Texture) {
-          independentMat.map = source;
-          independentMat.uniforms.map = { value: source };
+          mat.map = source;
+          mat.uniforms.map = { value: source };
         } else if (data instanceof HTMLImageElement) {
-          independentMat.map.image = data;
+          mat.map.image = data;
         }
 
         return;
       }
 
-      this.atlas.drawImageToRange(face.range, data);
+      const atlas = this.atlasStore.get(block.id);
+      atlas.drawImageToRange(face.range, data);
     });
   }
 
@@ -570,46 +568,8 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getIndependentMaterial(id: number, faceName: string) {
-    const key = `${id}-${faceName.toLowerCase()}`;
-
-    if (this.independentMaterial.has(key)) {
-      return this.independentMaterial.get(key);
-    }
-
-    const block = this.getBlockById(id);
-
-    const material = this.makeShaderMaterial();
-
-    material.side = block.isSeeThrough ? TwoPassDoubleSide : FrontSide;
-    material.transparent = block.isSeeThrough;
-
-    this.independentMaterial.set(key, material);
-
-    return material;
-  }
-
   getMaterial(id: number, faceName?: string) {
-    const block = this.getBlockById(id);
-    if (!block) return null;
-
-    const defaultMaterial = block.isSeeThrough
-      ? this.defaultMaterial.transparent
-      : this.defaultMaterial.opaque;
-
-    if (!faceName) {
-      return defaultMaterial;
-    }
-
-    const face = block.faces.find((face) => face.name === faceName);
-
-    if (!face) return null;
-
-    if (face.independent) {
-      return this.getIndependentMaterial(id, faceName);
-    }
-
-    return defaultMaterial;
+    return this.materialStore.get(this.makeMaterialKey(id, faceName));
   }
 
   /**
@@ -824,6 +784,12 @@ export class World extends Scene implements NetIntercept {
 
       block.independentFaces = new Set();
 
+      block.faces.forEach((face) => {
+        if (face.independent) {
+          block.independentFaces.add(face.name);
+        }
+      });
+
       block.aabbs = aabbs.map(
         ({ minX, minY, minZ, maxX, maxY, maxZ }) =>
           new AABB(minX, minY, minZ, maxX, maxY, maxZ)
@@ -853,7 +819,10 @@ export class World extends Scene implements NetIntercept {
 
     this.physics.options = this.params;
 
-    this.loadDefaultAtlas();
+    await this.loadMaterials();
+
+    console.log(this.atlasStore, this.materialStore);
+    console.log(this.registry.blocksById);
 
     this.initialized = true;
   }
@@ -1359,40 +1328,70 @@ export class World extends Scene implements NetIntercept {
     return material;
   };
 
-  private loadDefaultAtlas() {
-    let textureCount = 0;
+  private async loadMaterials() {
+    const { textureDimension } = this.params;
 
-    this.registry.blocksById.forEach((block) => {
-      textureCount += block.faces.length;
-    });
+    const perSide = (total: number) => {
+      let countPerSide = 1;
+      const sqrt = Math.ceil(Math.sqrt(total));
+      while (countPerSide < sqrt) {
+        countPerSide *= 2;
+      }
 
-    let countPerSide = 1;
-    const sqrt = Math.ceil(Math.sqrt(textureCount));
-    while (countPerSide < sqrt) {
-      countPerSide *= 2;
-    }
+      return countPerSide;
+    };
 
-    this.atlas = new TextureAtlas({
-      countPerSide,
-      dimension: this.params.textureDimension,
-    });
-
-    const make = (side: Side, transparent: boolean) => {
+    const make = (transparent: boolean, map: Texture) => {
       const mat = this.makeShaderMaterial();
 
-      mat.side = side;
-      mat.map = this.atlas.texture;
-      mat.uniforms.map = { value: this.atlas.texture };
-      mat.name = `default-${side}`;
+      mat.side = transparent ? TwoPassDoubleSide : FrontSide;
       mat.transparent = transparent;
+      mat.map = map;
+      mat.uniforms.map.value = map;
 
       return mat;
     };
 
-    this.defaultMaterial = {
-      opaque: make(FrontSide, false),
-      transparent: make(TwoPassDoubleSide, true),
-    };
+    for (const block of this.registry.blocksById.values()) {
+      let totalFaces = block.faces.length;
+
+      block.faces.forEach((f) => {
+        if (f.independent) totalFaces--;
+      });
+
+      const countPerSide = perSide(totalFaces);
+
+      const atlas = new TextureAtlas({
+        countPerSide,
+        dimension: textureDimension,
+      });
+
+      this.atlasStore.set(block.id, atlas);
+
+      const mat = make(block.isSeeThrough, atlas.texture);
+      const key = this.makeMaterialKey(block.id);
+
+      this.materialStore.set(key, mat);
+
+      // Process independent faces
+      for (const face of block.faces) {
+        if (!face.independent) continue;
+
+        // For independent faces, we need to create a new material for it with a non-atlas texture.
+        const mat = make(
+          block.isSeeThrough,
+          TextureAtlas.makeUnknownTexture(textureDimension)
+        );
+
+        const key = this.makeMaterialKey(block.id, face.name);
+
+        this.materialStore.set(key, mat);
+      }
+    }
+  }
+
+  private makeMaterialKey(id: number, faceName?: string) {
+    return faceName ? `${id}-${faceName}` : `${id}`;
   }
 
   /**

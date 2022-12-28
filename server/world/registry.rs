@@ -73,57 +73,73 @@ impl Registry {
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!
     pub fn generate(&mut self) {
-        let count_per_side = self.per_side();
+        for block in self.blocks_by_id.values_mut() {
+            let mut total_faces = block.faces.len();
 
-        let mut row = 0;
-        let mut col = 0;
+            block.faces.iter().for_each(|face| {
+                if face.independent {
+                    total_faces -= 1;
+                }
+            });
 
-        for (id, idx, independent) in self.textures.iter() {
-            if *independent {
+            if total_faces == 0 {
                 continue;
             }
 
-            if col >= count_per_side {
-                col = 0;
-                row += 1;
+            let mut count_per_side = 1.0;
+            let sqrt = (total_faces as f32).sqrt().ceil();
+            while count_per_side < sqrt {
+                count_per_side *= 2.0;
             }
 
-            let start_x = col as f32;
-            let start_y = row as f32;
+            let count_per_side = count_per_side as usize;
 
-            let offset = 1.0 / (count_per_side as f32 * 4.0);
+            let mut row = 0;
+            let mut col = 0;
 
-            let start_u = start_x / count_per_side as f32;
-            let end_u = (start_x + 1.0) / count_per_side as f32;
-            let start_v = start_y / count_per_side as f32;
-            let end_v = (start_y + 1.0) / count_per_side as f32;
+            for face in block.faces.iter_mut() {
+                if face.independent {
+                    continue;
+                }
 
-            // Texture bleeding fix.
-            let start_u = start_u + offset;
-            let end_u = end_u - offset;
-            let start_v = start_v + offset;
-            let end_v = end_v - offset;
+                if col >= count_per_side {
+                    col = 0;
+                    row += 1;
+                }
 
-            self.blocks_by_id.get_mut(id).unwrap().faces[*idx].range = UV {
-                start_u,
-                end_u,
-                start_v,
-                end_v,
-            };
+                let start_x = col as f32;
+                let start_y = row as f32;
 
-            self.blocks_by_name
-                .get_mut(self.name_map.get(id).unwrap())
-                .unwrap()
-                .faces[*idx]
-                .range = UV {
-                start_u,
-                end_u,
-                start_v,
-                end_v,
-            };
+                let offset = 1.0 / (count_per_side as f32 * 4.0);
 
-            col += 1;
+                let start_u = start_x / count_per_side as f32;
+                let end_u = (start_x + 1.0) / count_per_side as f32;
+                let start_v = start_y / count_per_side as f32;
+                let end_v = (start_y + 1.0) / count_per_side as f32;
+
+                // Texture bleeding fix.
+                let start_u = start_u + offset;
+                let end_u = end_u - offset;
+                let start_v = start_v + offset;
+                let end_v = end_v - offset;
+
+                face.range = UV {
+                    start_u,
+                    end_u,
+                    start_v,
+                    end_v,
+                };
+
+                col += 1;
+            }
         }
+
+        self.blocks_by_id.values().for_each(|block| {
+            self.blocks_by_name
+                .get_mut(&block.name.to_lowercase())
+                .unwrap()
+                .faces = block.faces.clone();
+        });
     }
 
     /// Register multiple blocks into this world. The block ID's are assigned to the length of the blocks at registration.

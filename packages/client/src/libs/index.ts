@@ -14,3 +14,4 @@ export * from "./item-slots";
 export * from "./effects";
 export * from "./shadows";
 export * from "./voxel-interact";
+export * from "./perspective";

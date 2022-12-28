@@ -122,7 +122,7 @@ export class TextureAtlas {
     this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
 
-    const unknown = TextureAtlas.makeUnknownImage(dimension);
+    const unknown = TextureAtlas.makeUnknownImage(canvasWidth / countPerSide);
 
     for (let x = 0; x < countPerSide; x++) {
       for (let y = 0; y < countPerSide; y++) {
@@ -274,8 +274,8 @@ export class TextureAtlas {
     return canvas;
   }
 
-  static makeUnknownTexture() {
-    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(16));
+  static makeUnknownTexture(dimension: number) {
+    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(dimension));
 
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;
