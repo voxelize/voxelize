@@ -11,7 +11,9 @@ class Loader {
   /**
    * A map of all textures loaded by Voxelize.
    */
-  public textures = new Map<string, Texture | Texture[]>();
+  public textures = new Map<string, Texture>();
+
+  public images = new Map<string, HTMLImageElement | HTMLImageElement[]>();
 
   /**
    * A map of all audios loaded by Voxelize.
@@ -66,11 +68,11 @@ class Loader {
     window.addEventListener("click", listenerCallback);
   }
 
-  loadGifTexture = (
+  loadGifImages = (
     source: string,
-    onLoaded?: (texture: Texture[]) => void
+    onLoaded?: (images: HTMLImageElement[]) => void
   ) => {
-    const promise = new Promise<Texture[]>((resolve) => {
+    const promise = new Promise<HTMLImageElement[]>((resolve) => {
       const run = async () => {
         const response = await fetch(source);
         const blob = await response.blob();
@@ -81,7 +83,7 @@ class Loader {
 
         const info = reader.frameInfo(0);
 
-        const textures = new Array(reader.numFrames()).fill(0).map((_, k) => {
+        const images = new Array(reader.numFrames()).fill(0).map((_, k) => {
           const image = new ImageData(info.width, info.height);
           reader.decodeAndBlitFrameRGBA(k, image.data as any);
 
@@ -94,18 +96,15 @@ class Loader {
           const actual = new Image();
           actual.src = canvas.toDataURL();
 
-          const texture = new Texture();
-          texture.image = actual;
-
-          return texture;
+          return actual;
         });
 
-        this.textures.set(source, textures);
+        this.images.set(source, images);
         this.assetPromises.delete(source);
 
-        onLoaded?.(textures);
+        onLoaded?.(images);
 
-        resolve(textures);
+        resolve(images);
       };
 
       run();
@@ -197,31 +196,24 @@ class Loader {
    * @param source The source to the audio file to load from.
    * @param onLoaded A callback to run when the audio is loaded.
    */
-  addAudioBuffer = (
+  loadAudioBuffer = (
     source: string,
     onLoaded?: (buffer: AudioBuffer) => void
   ) => {
-    const callback = async () => {
-      return new Promise<AudioBuffer>((resolve) => {
-        this.audioLoader.load(source, (buffer) => {
-          onLoaded?.(buffer);
+    return new Promise<AudioBuffer>((resolveOuter) => {
+      const callback = async () => {
+        return new Promise<AudioBuffer>((resolve) => {
+          this.audioLoader.load(source, (buffer) => {
+            onLoaded?.(buffer);
 
-          resolve(buffer);
+            resolve(buffer);
+            resolveOuter(buffer);
+          });
         });
-      });
-    };
+      };
 
-    this.audioCallbacks.set(source, callback);
-  };
-
-  /**
-   * Get an audio buffer by its source.
-   *
-   * @param source The source to the audio file to load from.
-   * @returns The audio buffer loaded from the source.
-   */
-  getAudioBuffer = (source: string) => {
-    return this.audioBuffers.get(source);
+      this.audioCallbacks.set(source, callback);
+    });
   };
 
   /**

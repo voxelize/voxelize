@@ -47,7 +47,6 @@ export * from "./shaders";
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
  */
 export type CustomShaderMaterial = ShaderMaterial & {
-  independent: boolean;
   map: Texture;
 };
 
@@ -209,9 +208,9 @@ export class World extends Scene implements NetIntercept {
     },
   };
 
-  private oldBlocks: Map<string, number[]> = new Map();
+  public materialStore: Map<string, CustomShaderMaterial> = new Map();
 
-  private materialStore: Map<string, CustomShaderMaterial> = new Map();
+  private oldBlocks: Map<string, number[]> = new Map();
 
   private clock = new Clock();
 
@@ -241,7 +240,7 @@ export class World extends Scene implements NetIntercept {
   async applyBlockTexture(
     idOrName: number | string,
     faceNames: string | string[],
-    source: string | Color | Texture
+    source: string | Color | HTMLImageElement | Texture
   ) {
     this.initCheck("apply block texture", false);
 
@@ -291,6 +290,137 @@ export class World extends Scene implements NetIntercept {
         this.applyBlockTexture(idOrName, faceNames, source)
       )
     );
+  }
+
+  async applyBlockFrames(
+    idOrName: number | string,
+    faceNames: string | string[],
+    keyframes: [number, string | Color | HTMLImageElement][],
+    fadeFrames = 0
+  ) {
+    this.initCheck("apply block animation", false);
+
+    const block = this.getBlockOf(idOrName);
+
+    const realKeyframes = [];
+
+    for (const [duration, source] of keyframes) {
+      if (typeof source === "string") {
+        realKeyframes.push([duration, await this.loader.loadImage(source)]);
+        continue;
+      }
+
+      realKeyframes.push([duration, source]);
+    }
+
+    faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
+
+    faceNames.forEach((faceName) => {
+      const face = block.faces.find((f) => f.name === faceName);
+
+      if (!face) {
+        throw new Error(
+          `Face "${faceName}" does not exist on block "${block.name}"`
+        );
+      }
+
+      const mat = this.getMaterial(block.id, faceName);
+
+      if (!(mat.map instanceof AtlasTexture)) {
+        const { image } = mat.map;
+
+        if (image && image.width) {
+          const atlas = new AtlasTexture(1, image.width);
+          atlas.drawImageToRange(face.range, image);
+
+          mat.map.dispose();
+          mat.map = atlas;
+          mat.uniforms.map = { value: atlas };
+          mat.needsUpdate = true;
+        } else {
+          throw new Error(
+            `Cannot animate face "${faceName}" on block "${block.name}" because it does not have a texture.`
+          );
+        }
+      }
+
+      (mat.map as AtlasTexture).registerAnimation(
+        face.range,
+        realKeyframes,
+        fadeFrames
+      );
+    });
+  }
+
+  async applyBlockGif(
+    idOrName: string,
+    faceNames: string[] | string,
+    source: string,
+    interval = 66.6666667
+  ) {
+    this.initCheck("apply GIF animation", false);
+
+    if (!source.endsWith(".gif")) {
+      console.warn(
+        "There's a chance that this file isn't a GIF as it doesn't end with .gif"
+      );
+    }
+
+    const images = await this.loader.loadGifImages(source);
+
+    const keyframes = images.map(
+      (image) => [interval, image] as [number, HTMLImageElement]
+    );
+
+    await this.applyBlockFrames(idOrName, faceNames, keyframes);
+  }
+
+  setResolutionOf(
+    idOrName: number | string,
+    faceNames: string | string[],
+    resolution: number
+  ) {
+    this.initCheck("apply resolution", false);
+
+    const block = this.getBlockOf(idOrName);
+
+    faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
+
+    faceNames.forEach((faceName) => {
+      const face = block.faces.find((f) => f.name === faceName);
+
+      if (!face) {
+        throw new Error(
+          `Face "${faceName}" does not exist on block "${block.name}"`
+        );
+      }
+
+      if (!face.independent) {
+        throw new Error(
+          `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it is not independent.`
+        );
+      }
+
+      const mat = this.getMaterial(block.id, faceName);
+
+      // We know that this atlas texture will only be used for one single face.
+      if (mat.map instanceof AtlasTexture) {
+        throw new Error(
+          "Cannot apply resolution to a face that is using an atlas texture. Have you accidentally applied keyframes to this face?"
+        );
+      }
+
+      const canvas = mat.map.image;
+
+      if (!canvas) {
+        throw new Error(
+          `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it does not have a texture.`
+        );
+      }
+
+      canvas.width = resolution;
+      canvas.height = resolution;
+    });
   }
 
   /**
@@ -506,6 +636,7 @@ export class World extends Scene implements NetIntercept {
     if (typeof idOrName === "number") {
       return this.getBlockById(idOrName);
     }
+
     return this.getBlockByName(idOrName.toLowerCase());
   }
 
@@ -516,7 +647,13 @@ export class World extends Scene implements NetIntercept {
    * @returns The block data for the given id, or null if it does not exist.
    */
   getBlockById(id: number) {
-    return this.registry.blocksById.get(id);
+    const block = this.registry.blocksById.get(id);
+
+    if (!block) {
+      throw new Error(`Block with id ${id} does not exist`);
+    }
+
+    return block;
   }
 
   /**
@@ -526,7 +663,13 @@ export class World extends Scene implements NetIntercept {
    * @returns The block data for the given name, or null if it does not exist.
    */
   getBlockByName(name: string) {
-    return this.registry.blocksByName.get(name.toLowerCase());
+    const block = this.registry.blocksByName.get(name);
+
+    if (!block) {
+      throw new Error(`Block with name ${name} does not exist`);
+    }
+
+    return block;
   }
 
   /**
@@ -570,7 +713,7 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getMaterial(idOrName: number | string, faceName: string) {
+  getMaterial(idOrName: number | string, faceName?: string) {
     this.initCheck("get material", false);
 
     const block = this.getBlockOf(idOrName);

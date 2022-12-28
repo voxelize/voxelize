@@ -120,9 +120,9 @@ Apply a GIF animation to a block. This method cannot be called after the world h
 
 ___
 
-### applyResolutionByName
+### setResolutionOfByName
 
-▸ **applyResolutionByName**(`name`, `sides`, `resolution`): `void`
+▸ **setResolutionOfByName**(`name`, `sides`, `resolution`): `void`
 
 Apply a resolution to a block face type. Otherwise, the resolution will be the same as the texture
 parameter resolution. This method cannot be called after the world has been initialized.

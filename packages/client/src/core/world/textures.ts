@@ -51,6 +51,11 @@ export class AtlasTexture extends CanvasTexture {
   public atlasRatio = 0;
 
   /**
+   * The list of block animations that are being used by this texture atlas.
+   */
+  public animations: { animation: FaceAnimation; timer: any }[] = [];
+
+  /**
    * Create a new texture this.
    *
    * @param textureMap A map that points a side name to a texture or color.
@@ -215,6 +220,67 @@ export class AtlasTexture extends CanvasTexture {
     context.restore();
   }
 
+  registerAnimation(
+    range: TextureRange,
+    keyframes: [number, Color | HTMLImageElement][],
+    fadeFrames = 0
+  ) {
+    const animation = new FaceAnimation(range, keyframes, fadeFrames);
+
+    const entry = { animation, timer: null };
+
+    const start = (index = 0) => {
+      const keyframe = animation.keyframes[index];
+
+      this.drawImageToRange(range, keyframe[1], this.countPerSide !== 1);
+
+      entry.timer = setTimeout(() => {
+        clearTimeout(entry.timer);
+
+        const nextIndex = (index + 1) % animation.keyframes.length;
+
+        if (fadeFrames > 0) {
+          const nextKeyframe = animation.keyframes[nextIndex];
+
+          const fade = (fraction = 0) => {
+            if (fraction > fadeFrames) {
+              start(nextIndex);
+              return;
+            }
+
+            requestAnimationFrame(() => fade(fraction + 1));
+
+            this.drawImageToRange(
+              range,
+              nextKeyframe[1],
+              true,
+              fraction / fadeFrames
+            );
+
+            this.drawImageToRange(
+              range,
+              keyframe[1],
+              false,
+              1 - fraction / fadeFrames
+            );
+
+            this.needsUpdate = true;
+          };
+
+          fade();
+        } else {
+          start(nextIndex);
+        }
+
+        this.needsUpdate = true;
+      }, keyframe[0]);
+    };
+
+    this.animations.push(entry);
+
+    start();
+  }
+
   private makeCanvasPowerOfTwo(canvas?: HTMLCanvasElement | undefined) {
     let setCanvas = false;
     if (!canvas) {
@@ -273,3 +339,46 @@ export class AtlasTexture extends CanvasTexture {
 }
 
 export class AnimatedTexture {}
+
+export class FaceAnimation {
+  /**
+   * The range of the texture atlas that this animation uses.
+   */
+  public range: TextureRange;
+
+  /**
+   * The keyframes of the animation. This will be queried and drawn to the
+   * texture atlas.
+   */
+  public keyframes: [number, HTMLImageElement | Color][];
+
+  /**
+   * The fading duration between each keyframe in milliseconds.
+   */
+  public fadeFrames: number;
+
+  /**
+   * Create a new face animation. This holds the data and will be used to draw on the texture atlas.
+   *
+   * @param range The range of the texture atlas that this animation uses.
+   * @param keyframes The keyframes of the animation. This will be queried and drawn to the texture atlas.
+   * @param fadeFrames The fading duration between each keyframe in milliseconds.
+   */
+  constructor(
+    range: TextureRange,
+    keyframes: [number, HTMLImageElement | Color][],
+    fadeFrames = 0
+  ) {
+    if (!range) {
+      throw new Error("Texture range is required for FaceAnimation.");
+    }
+
+    if (keyframes.length <= 1) {
+      throw new Error("FaceAnimation must have at least two keyframe.");
+    }
+
+    this.range = range;
+    this.keyframes = keyframes as any;
+    this.fadeFrames = fadeFrames;
+  }
+}

@@ -423,13 +423,24 @@ const shadows = new VOXELIZE.Shadows(world);
 shadows.add(character);
 
 // Create a test for atlas
-// setTimeout(() => {
-//   const plane = new THREE.Mesh(
-//     new THREE.PlaneBufferGeometry(100, 100),
-//     world.atlas.material
-//   );
-//   world.add(plane);
-// }, 1000);
+setTimeout(() => {
+  let i = -Math.floor(world.materialStore.size / 2);
+  const width = 2;
+
+  for (const mat of world.materialStore.values()) {
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, width),
+      new THREE.MeshBasicMaterial({
+        map: mat.map,
+      })
+    );
+
+    plane.position.x = i++ * width;
+    plane.position.y = -width;
+
+    world.add(plane);
+  }
+}, 1000);
 
 // const portraits = new VOXELIZE.BlockPortraits(world);
 
@@ -444,8 +455,6 @@ shadows.add(character);
 //   });
 //   document.body.appendChild(canvas);
 // }
-
-// world.applyResolutionByName("Grass Block", "py", 512);
 
 network
   .register(chat)

@@ -2,6 +2,7 @@ import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
 
 import TestImage from "./assets/cat.jpeg";
+import FunnyGif from "./assets/funny.gif";
 import LolImage from "./assets/lol.jpeg";
 import ChoGeImage from "./assets/lol.png";
 import AndesiteImage from "./assets/own/andesite.png";
@@ -43,24 +44,10 @@ export async function setupWorld(world: VOXELIZE.World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
-  // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
-
   // world.applyBlockGifByName("Sand", "nx", FunnyGif);
-  // world.applyResolutionByName("Sand", "nx", 120);
+  // world.setResolutionOfByName("Sand", "nx", 120);
 
-  // world.applyBlockAnimationByName(
-  //   "Water",
-  //   "py",
-  //   [
-  //     [500, Water1Image],
-  //     [500, Water2Image],
-  //     [500, Water3Image],
-  //     [500, Water4Image],
-  //   ],
-  //   300
-  // );
-
-  // world.applyBlockAnimationByName(
+  // world.applyBlockFrames(
   //   "Dirt",
   //   "py",
   //   [
@@ -151,6 +138,18 @@ export async function setupWorld(world: VOXELIZE.World) {
     },
   ]);
 
+  await world.applyBlockFrames(
+    "Water",
+    "py",
+    [
+      [500, Water1Image],
+      [500, Water2Image],
+      [500, Water3Image],
+      [500, Water4Image],
+    ],
+    300
+  );
+
   world.customizeMaterialShaders(
     "Grass",
     null,
@@ -167,16 +166,25 @@ export async function setupWorld(world: VOXELIZE.World) {
     })
   );
 
-  // world.applyTextureByName("Biggie", "pz", TechnoImage);
-  // world.applyResolutionByName("Biggie", "pz", 128);
-
-  // world.applyBlockAnimationByName(
+  // await world.applyBlockTexture(
   //   "Biggie",
   //   "pz",
-  //   [
-  //     [5000, TechnoImage],
-  //     [5000, LolImage],
-  //   ],
-  //   50
+  //   await world.loader.loadTexture(TechnoImage)
   // );
+  // world.setResolutionOfByName("Biggie", "pz", 128);
+
+  world.setResolutionOf("Sand", "nx", 128);
+  await world.applyBlockGif("Sand", "nx", FunnyGif);
+
+  world.setResolutionOf("Biggie", "pz", 128);
+
+  await world.applyBlockFrames(
+    "Biggie",
+    "pz",
+    [
+      [5000, TechnoImage],
+      [5000, LolImage],
+    ],
+    50
+  );
 }
