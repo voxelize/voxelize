@@ -155,7 +155,7 @@ const controls = new VOXELIZE.RigidControls(
 controls.attachCharacter(character);
 controls.connect(inputs, "in-game");
 
-// world.addChunkInitListener([0, 0], controls.teleportToTop);
+world.addChunkInitListener([0, 0], controls.teleportToTop);
 
 renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 

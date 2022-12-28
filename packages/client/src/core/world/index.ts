@@ -214,6 +214,8 @@ export class World extends Scene implements NetIntercept {
 
   private clock = new Clock();
 
+  private chunkInitListeners = new Map<string, ((chunk: Chunk) => void)[]>();
+
   private initJSON: any = null;
 
   constructor(params: Partial<WorldParams> = {}) {
@@ -568,6 +570,8 @@ export class World extends Scene implements NetIntercept {
   }
 
   getMaterial(idOrName: number | string, faceName: string) {
+    this.initCheck("get material", false);
+
     const block = this.getBlockOf(idOrName);
 
     if (block.independentFaces.has(faceName)) {
@@ -576,6 +580,23 @@ export class World extends Scene implements NetIntercept {
 
     return this.materialStore.get(this.makeMaterialKey(block.id));
   }
+
+  /**
+   * Add a listener to a chunk. This listener will be called when this chunk is loaded and ready to be rendered.
+   * This is useful for, for example, teleporting the player to the top of the chunk when the player just joined.
+   *
+   * @param coords The chunk coordinates to listen to.
+   * @param listener The listener to add.
+   */
+  addChunkInitListener = (
+    coords: Coords2,
+    listener: (chunk: Chunk) => void
+  ) => {
+    const name = ChunkUtils.getChunkName(coords);
+    const listeners = this.chunkInitListeners.get(name) || [];
+    listeners.push(listener);
+    this.chunkInitListeners.set(name, listeners);
+  };
 
   /**
    * Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
@@ -1174,6 +1195,13 @@ export class World extends Scene implements NetIntercept {
           const data = meshes[index];
 
           if (!data) {
+            const listeners = this.chunkInitListeners.get(chunk.name);
+
+            if (Array.isArray(listeners)) {
+              listeners.forEach((listener) => listener(chunk));
+              this.chunkInitListeners.delete(chunk.name);
+            }
+
             cancelAnimationFrame(frame);
             return;
           }
@@ -1236,6 +1264,12 @@ export class World extends Scene implements NetIntercept {
         return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
       })
     );
+
+    // Remove any listeners for deleted chunks.
+    deleted.forEach((coords) => {
+      const name = ChunkUtils.getChunkName(coords);
+      this.chunkInitListeners.delete(name);
+    });
 
     if (deleted.length) {
       this.packets.push({
