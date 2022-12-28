@@ -1,5 +1,12 @@
-import { World } from "@voxelize/client";
-import { Color, VideoTexture } from "three";
+import * as VOXELIZE from "@voxelize/client";
+import {
+  EffectComposer,
+  EffectPass,
+  PixelationEffect,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
+import * as THREE from "three";
 
 import TestImage from "../assets/cat.jpeg";
 import LolImage from "../assets/lol.jpeg";
@@ -38,8 +45,111 @@ import Water2Image from "../assets/pixel-perfection/water2.png";
 import Water3Image from "../assets/pixel-perfection/water3.png";
 import Water4Image from "../assets/pixel-perfection/water4.png";
 import TechnoImage from "../assets/techno.png";
+import { Map } from "../map";
 
-export async function setupWorld(world: World) {
+export function getBackendUrl() {
+  const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+
+  if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+    BACKEND_SERVER_INSTANCE.port = "4000";
+  }
+
+  return BACKEND_SERVER_INSTANCE.toString();
+}
+
+export function createSharedInstances() {
+  const canvas = document.getElementById("main") as HTMLCanvasElement;
+
+  const world = new VOXELIZE.World({
+    textureDimension: 16,
+  });
+
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+  });
+  renderer.outputEncoding = THREE.sRGBEncoding;
+
+  const camera = new THREE.PerspectiveCamera(
+    90,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    5000
+  );
+
+  const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
+
+  const controls = new VOXELIZE.RigidControls(camera, canvas, world);
+
+  renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
+  controls.connect(inputs, "in-game");
+
+  inputs.on("namespace", (newNamespace) => {
+    console.log("namespace", newNamespace);
+  });
+
+  controls.on("lock", () => {
+    inputs.setNamespace("in-game");
+  });
+
+  controls.on("unlock", () => {
+    inputs.setNamespace("menu");
+  });
+
+  // const orbit = new OrbitControls(camera, canvas);
+
+  const map = new Map(world);
+  inputs.bind("m", map.toggle);
+  inputs.bind("escape", () => {
+    map.setVisible(false);
+  });
+
+  const sky = new VOXELIZE.Sky();
+  const clouds = new VOXELIZE.Clouds();
+
+  world.add(sky, clouds);
+
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(world, camera));
+  composer.addPass(
+    new EffectPass(
+      camera,
+      new SMAAEffect({})
+      // new PixelationEffect()
+    )
+  );
+
+  const debug = new VOXELIZE.Debug();
+  debug.registerDisplay("to request", world.chunks.toRequest, "length");
+  debug.registerDisplay("requested", world.chunks.requested, "size");
+  debug.registerDisplay("to process", world.chunks.toProcess, "length");
+  debug.registerDisplay("loaded", world.chunks.loaded, "size");
+
+  const resize = () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+  };
+
+  window.addEventListener("resize", resize);
+  resize();
+
+  return {
+    world,
+    renderer,
+    camera,
+    controls,
+    inputs,
+    composer,
+    debug,
+    sky,
+    clouds,
+    map,
+  };
+}
+
+async function setupRegistry(world: VOXELIZE.World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
@@ -98,7 +208,7 @@ export async function setupWorld(world: World) {
 
   await world.applyBlockTextures([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },
-    { idOrName: "Lol", faceNames: all, source: new Color("#8479E1") },
+    { idOrName: "Lol", faceNames: all, source: new THREE.Color("#8479E1") },
     { idOrName: "Lol", faceNames: ["py"], source: LolImage },
     { idOrName: "Marble", faceNames: all, source: MarbleImage },
     {
@@ -117,7 +227,7 @@ export async function setupWorld(world: World) {
     { idOrName: "Black Concrete", faceNames: all, source: BlackConcreteImage },
     { idOrName: "Ivory Block", faceNames: all, source: IvoryBlockImage },
     { idOrName: "Grass Block", faceNames: ["py"], source: GrassBlockImage },
-    { idOrName: "Color", faceNames: all, source: new Color("#ffffff") },
+    { idOrName: "Color", faceNames: all, source: new THREE.Color("#ffffff") },
     { idOrName: "Color", faceNames: all, source: Color2Image },
     { idOrName: "Grass Block", faceNames: side, source: GrassBlockSideImage },
     { idOrName: "Grass Block", faceNames: ["ny"], source: DirtImage },
@@ -152,28 +262,28 @@ export async function setupWorld(world: World) {
     {
       idOrName: "Mushroom",
       faceNames: all.map((name) => `bottom-${name}-`),
-      source: new Color("#A27B5C"),
+      source: new THREE.Color("#A27B5C"),
     },
     {
       idOrName: "Mushroom",
       faceNames: all.map((name) => `top-${name}-`),
-      source: new Color("#E4DCCF"),
+      source: new THREE.Color("#E4DCCF"),
     },
-    { idOrName: "Biggie", faceNames: all, source: new Color("#2C3639") },
+    { idOrName: "Biggie", faceNames: all, source: new THREE.Color("#2C3639") },
     {
       idOrName: "Test",
       faceNames: "py",
-      source: new Color("#E4DCCF"),
+      source: new THREE.Color("#E4DCCF"),
     },
     {
       idOrName: "Test",
       faceNames: "px",
-      source: new Color("red"),
+      source: new THREE.Color("red"),
     },
     {
       idOrName: "Test",
       faceNames: "pz",
-      source: new Color("purple"),
+      source: new THREE.Color("purple"),
     },
   ]);
 
@@ -191,4 +301,45 @@ export async function setupWorld(world: World) {
   //   ],
   //   50
   // );
+}
+
+export function runWorld(name: string) {
+  const { world, inputs, controls, map, debug, sky, clouds, composer } =
+    createSharedInstances();
+
+  const network = new VOXELIZE.Network();
+  network.register(world);
+
+  const start = async () => {
+    await network.connect(getBackendUrl(), { secret: "test" });
+    await network.join(name);
+
+    await world.init();
+    await setupRegistry(world);
+
+    inputs.bind("g", controls.toggleGhostMode);
+
+    const render = () => {
+      requestAnimationFrame(render);
+
+      const center = controls.position;
+
+      world.update(center);
+      map.update(center);
+
+      debug.update();
+      controls.update();
+
+      sky.update(center);
+      clouds.update(center);
+
+      network.flush();
+
+      composer.render();
+    };
+
+    render();
+  };
+
+  start();
 }

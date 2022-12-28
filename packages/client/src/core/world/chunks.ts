@@ -4,6 +4,8 @@ import { Coords2 } from "../../types";
 
 import { Chunk } from "./chunk";
 
+import { BlockUpdate } from ".";
+
 export class Chunks {
   public requested: Map<string, number> = new Map();
 
@@ -12,6 +14,8 @@ export class Chunks {
   public loaded: Map<string, Chunk> = new Map();
 
   public toProcess: ChunkProtocol[] = [];
+
+  public toUpdate: BlockUpdate[] = [];
 
   /**
    * @hidden

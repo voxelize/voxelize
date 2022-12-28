@@ -138,12 +138,14 @@ impl FlatlandStage {
         }
     }
 
-    pub fn add_soiling(&mut self, block: u32, height: usize) {
+    pub fn add_soiling(mut self, block: u32, height: usize) -> Self {
         for _ in 0..height {
             self.soiling.push(block);
         }
 
         self.top_height += height as u32;
+
+        self
     }
 
     pub fn query_soiling(&self, y: u32) -> Option<u32> {

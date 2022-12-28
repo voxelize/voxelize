@@ -1,10 +1,9 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
+import { raycast } from "@voxelize/raycast";
 import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
-  BackSide,
-  BoxGeometry,
   BufferGeometry,
   Clock,
   Color,
@@ -12,13 +11,11 @@ import {
   FrontSide,
   Int32BufferAttribute,
   Mesh,
-  MeshBasicMaterial,
   Scene,
   ShaderLib,
   ShaderMaterial,
   Side,
   Texture,
-  Uniform,
   UniformsUtils,
   // @ts-ignore
   TwoPassDoubleSide,
@@ -27,9 +24,9 @@ import {
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
-import { ChunkUtils, LightColor } from "../../utils";
+import { BlockUtils, ChunkUtils, LightColor } from "../../utils";
 
-import { BlockRotation } from "./block";
+import { BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Loader } from "./loader";
@@ -184,9 +181,6 @@ export class World extends Scene implements NetIntercept {
        */
       value: number;
     };
-    oitWeight: {
-      value: number;
-    };
   } = {
     fogColor: {
       value: new Color("#fff"),
@@ -209,10 +203,9 @@ export class World extends Scene implements NetIntercept {
     time: {
       value: performance.now(),
     },
-    oitWeight: {
-      value: 1,
-    },
   };
+
+  public atlas: TextureAtlas;
 
   private oldBlocks: Map<string, number[]> = new Map();
 
@@ -222,8 +215,6 @@ export class World extends Scene implements NetIntercept {
     opaque: CustomShaderMaterial;
     transparent: CustomShaderMaterial;
   };
-
-  private atlas: TextureAtlas;
 
   private clock = new Clock();
 
@@ -262,10 +253,6 @@ export class World extends Scene implements NetIntercept {
     const data =
       typeof source === "string" ? await this.loader.loadImage(source) : source;
 
-    if (idOrName === "water") {
-      console.log(data);
-    }
-
     faceNames.forEach((faceName) => {
       const face = block.faces.find((f) => f.name === faceName);
 
@@ -283,7 +270,6 @@ export class World extends Scene implements NetIntercept {
           independentMat.uniforms.map = { value: source };
         } else if (data instanceof HTMLImageElement) {
           independentMat.map.image = data;
-          console.log(data);
         }
 
         return;
@@ -646,6 +632,172 @@ export class World extends Scene implements NetIntercept {
   }
 
   /**
+   * Raycast through the world of voxels and return the details of the first block intersection.
+   *
+   * @param origin The origin of the ray.
+   * @param direction The direction of the ray.
+   * @param maxDistance The maximum distance of the ray.
+   * @param options The options for the ray.
+   * @param options.ignoreFluids Whether or not to ignore fluids. Defaults to `true`.
+   * @param options.ignorePassables Whether or not to ignore passable blocks. Defaults to `false`.
+   * @param options.ignoreSeeThrough Whether or not to ignore see through blocks. Defaults to `false`.
+   * @param options.ignoreList A list of blocks to ignore. Defaults to `[]`.
+   * @returns
+   */
+  raycastVoxels = (
+    origin: Coords3,
+    direction: Coords3,
+    maxDistance: number,
+    options: {
+      ignoreFluids?: boolean;
+      ignorePassables?: boolean;
+      ignoreSeeThrough?: boolean;
+      ignoreList?: number[];
+    } = {}
+  ) => {
+    this.initCheck("raycast voxels", false);
+
+    const { ignoreFluids, ignorePassables, ignoreSeeThrough } = {
+      ignoreFluids: true,
+      ignorePassables: false,
+      ignoreSeeThrough: false,
+      ...options,
+    };
+
+    const ignoreList = new Set(options.ignoreList || []);
+
+    return raycast(
+      (wx, wy, wz) => {
+        const {
+          id,
+          isFluid,
+          isPassable,
+          isSeeThrough,
+          aabbs,
+          dynamicFn,
+          isDynamic,
+        } = this.getBlockAt(wx, wy, wz);
+
+        if (ignoreList.has(id)) {
+          return [];
+        }
+
+        if (isDynamic && !dynamicFn) {
+          console.warn(
+            `Block of ID ${id} is dynamic but has no dynamic function.`
+          );
+        }
+
+        if (
+          (isFluid && ignoreFluids) ||
+          (isPassable && ignorePassables) ||
+          (isSeeThrough && ignoreSeeThrough)
+        ) {
+          return [];
+        }
+
+        const rotation = this.getVoxelRotationAt(wx, wy, wz);
+
+        return (
+          isDynamic
+            ? dynamicFn
+              ? dynamicFn([wx | 0, wy | 0, wz | 0], this).aabbs
+              : aabbs
+            : aabbs
+        ).map((aabb) => rotation.rotateAABB(aabb));
+      },
+      origin,
+      direction,
+      maxDistance
+    );
+  };
+
+  /**
+   * This sends a block update to the server and updates across the network. Block updates are queued to
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick} times
+   * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
+   * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
+   * - Y-rotation: 0 to {@link Y_ROT_SEGMENTS} - 1.
+   *
+   * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
+   * block is not {@link Block | Block.yRotatable}).
+   *
+   * @param vx The voxel's X position.
+   * @param vy The voxel's Y position.
+   * @param vz The voxel's Z position.
+   * @param type The type of the voxel.
+   * @param rotation The major axis rotation of the voxel.
+   * @param yRotation The Y rotation on the major axis. Applies to blocks with major axis of PY or NY.
+   */
+  updateVoxel = (
+    vx: number,
+    vy: number,
+    vz: number,
+    type: number,
+    rotation = PY_ROTATION,
+    yRotation = 0
+  ) => {
+    this.updateVoxels([{ vx, vy, vz, type, rotation, yRotation }]);
+  };
+
+  /**
+   * This sends a list of block updates to the server and updates across the network. Block updates are queued to
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick} times
+   * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
+   *
+   * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
+   * - Y-rotation: 0 to {@link Y_ROT_SEGMENTS} - 1.
+   *
+   * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
+   * block is not {@link Block | Block.yRotatable}).
+   *
+   * @param updates A list of updates to send to the server.
+   */
+  updateVoxels = (updates: BlockUpdate[]) => {
+    this.initCheck("update voxels", false);
+
+    this.chunks.toUpdate.push(
+      ...updates
+        .filter((update) => {
+          if (update.vy < 0 || update.vy >= this.params.maxHeight) {
+            return false;
+          }
+
+          const { vx, vy, vz, type, rotation, yRotation } = update;
+
+          const currId = this.getVoxelAt(vx, vy, vz);
+          const currRot = this.getVoxelRotationAt(vx, vy, vz);
+
+          if (!this.getBlockById(type)) {
+            console.warn(`Block ID ${type} does not exist.`);
+            return false;
+          }
+
+          if (
+            currId === type &&
+            (rotation !== undefined ? currRot.value === rotation : false) &&
+            (yRotation !== undefined ? currRot.yRotation === yRotation : false)
+          ) {
+            return false;
+          }
+
+          return true;
+        })
+        .map((update) => {
+          if (isNaN(update.rotation)) {
+            update.rotation = 0;
+          }
+
+          if (!this.getBlockById(update.type).yRotatable) {
+            update.yRotation = 0;
+          }
+
+          return update;
+        })
+    );
+  };
+
+  /**
    * Initialize the world with the data received from the server. This includes populating
    * the registry, setting the parameters, and creating the texture atlas.
    */
@@ -711,6 +863,8 @@ export class World extends Scene implements NetIntercept {
       return;
     }
 
+    const delta = this.clock.getDelta();
+
     const center = ChunkUtils.mapVoxelToChunk(
       position.toArray() as Coords3,
       this.params.chunkSize
@@ -720,9 +874,8 @@ export class World extends Scene implements NetIntercept {
     this.processChunks(center);
     this.maintainChunks(center);
 
-    const delta = this.clock.getDelta();
-
     this.updatePhysics(delta);
+    this.emitServerUpdates();
   }
 
   /**
@@ -761,14 +914,8 @@ export class World extends Scene implements NetIntercept {
         updates.forEach((update) => {
           const { vx, vy, vz, light, voxel } = update;
           const chunk = this.getChunkByPosition(vx, vy, vz);
-          const oldVal = chunk.getRawValue(vx, vy, vz);
 
-          if (oldVal !== voxel) {
-            const name = ChunkUtils.getVoxelName([vx | 0, vy | 0, vz | 0]);
-            const arr = this.oldBlocks.get(name) || [];
-            arr.push(oldVal);
-            this.oldBlocks.set(name, arr);
-          }
+          this.attemptBlockCache(vx, vy, vz, voxel);
 
           if (chunk) {
             chunk.setRawValue(vx, vy, vz, voxel);
@@ -988,6 +1135,25 @@ export class World extends Scene implements NetIntercept {
     }
   }
 
+  private attemptBlockCache(
+    vx: number,
+    vy: number,
+    vz: number,
+    newVal: number
+  ) {
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (!chunk) return;
+
+    const oldVal = chunk.getRawValue(vx, vy, vz);
+
+    if (oldVal !== newVal) {
+      const name = ChunkUtils.getVoxelName([vx, vy, vz]);
+      const arr = this.oldBlocks.get(name) || [];
+      arr.push(oldVal);
+      this.oldBlocks.set(name, arr);
+    }
+  }
+
   /**
    * Update the physics engine by ticking all inner AABBs.
    */
@@ -1067,6 +1233,7 @@ export class World extends Scene implements NetIntercept {
 
       mesh.updateMatrix();
       mesh.matrixAutoUpdate = false;
+      mesh.userData.isChunk = true;
 
       this.add(mesh);
 
@@ -1105,6 +1272,50 @@ export class World extends Scene implements NetIntercept {
       this.params
     );
   }
+
+  /**
+   * Scaffold the server updates onto the network, including chunk requests and block updates.
+   */
+  private emitServerUpdates = () => {
+    // Update server voxels
+    if (this.chunks.toUpdate.length >= 0) {
+      const updates = this.chunks.toUpdate.splice(
+        0,
+        this.params.maxUpdatesPerTick
+      );
+
+      if (updates.length) {
+        this.packets.push({
+          type: "UPDATE",
+          updates: updates.map((update) => {
+            const { type, vx, vy, vz, rotation, yRotation } = update;
+
+            const chunk = this.getChunkByPosition(vx, vy, vz);
+
+            let raw = 0;
+            raw = BlockUtils.insertID(raw, type);
+
+            if (!isNaN(update.rotation) || !isNaN(yRotation)) {
+              raw = BlockUtils.insertRotation(
+                raw,
+                BlockRotation.encode(rotation, yRotation)
+              );
+            }
+
+            if (chunk) {
+              this.attemptBlockCache(vx, vy, vz, raw);
+              chunk.setRawValue(vx, vy, vz, raw);
+            }
+
+            return {
+              ...update,
+              voxel: raw,
+            };
+          }),
+        });
+      }
+    }
+  };
 
   /**
    * Make a chunk shader material with the current atlas.

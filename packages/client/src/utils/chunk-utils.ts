@@ -33,7 +33,9 @@ export class ChunkUtils {
    * @returns The string representation of the coordinates.
    */
   static getVoxelName = (coords: Coords3, concat = "|") => {
-    return coords[0] + concat + coords[1] + concat + coords[2];
+    return (
+      (coords[0] | 0) + concat + (coords[1] | 0) + concat + (coords[2] | 0)
+    );
   };
 
   /**
