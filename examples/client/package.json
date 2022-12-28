@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@voxelize/client": "*",
+    "lil-gui": "^0.17.0",
     "p5": "^1.5.0",
     "postprocessing": "^6.29.1",
-    "three": "^0.148.0"
+    "three": "^0.148.0",
+    "three-wboit": "^1.0.12"
   }
 }

@@ -71,19 +71,6 @@ export class TextureAtlas {
    */
   public ratio = 0;
 
-  public static sharedUnknownTexture = (() => {
-    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(16));
-
-    texture.minFilter = NearestFilter;
-    texture.magFilter = NearestFilter;
-    texture.generateMipmaps = false;
-    texture.premultiplyAlpha = false;
-    texture.needsUpdate = true;
-    texture.encoding = sRGBEncoding;
-
-    return texture;
-  })();
-
   /**
    * Create a new texture this.
    *
@@ -132,7 +119,6 @@ export class TextureAtlas {
     this.texture.minFilter = NearestFilter;
     this.texture.magFilter = NearestFilter;
     this.texture.generateMipmaps = false;
-    this.texture.premultiplyAlpha = false;
     this.texture.needsUpdate = true;
     this.texture.encoding = sRGBEncoding;
 
@@ -286,6 +272,18 @@ export class TextureAtlas {
     context.fillText("?", dimension / 2, dimension / 2, dimension);
 
     return canvas;
+  }
+
+  static makeUnknownTexture() {
+    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(16));
+
+    texture.minFilter = NearestFilter;
+    texture.magFilter = NearestFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    texture.encoding = sRGBEncoding;
+
+    return texture;
   }
 }
 

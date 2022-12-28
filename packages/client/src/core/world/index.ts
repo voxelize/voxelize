@@ -25,6 +25,7 @@ import {
   Vector3,
   Vector4,
 } from "three";
+import { WboitUtils } from "three-wboit";
 
 import { Coords2, Coords3 } from "../../types";
 import { ChunkUtils, LightColor } from "../../utils";
@@ -184,6 +185,9 @@ export class World extends Scene implements NetIntercept {
        */
       value: number;
     };
+    oitWeight: {
+      value: number;
+    };
   } = {
     fogColor: {
       value: new Color("#fff"),
@@ -205,6 +209,9 @@ export class World extends Scene implements NetIntercept {
     },
     time: {
       value: performance.now(),
+    },
+    oitWeight: {
+      value: 1,
     },
   };
 
@@ -256,6 +263,10 @@ export class World extends Scene implements NetIntercept {
     const data =
       typeof source === "string" ? await this.loader.loadImage(source) : source;
 
+    if (idOrName === "water") {
+      console.log(data);
+    }
+
     faceNames.forEach((faceName) => {
       const face = block.faces.find((f) => f.name === faceName);
 
@@ -265,18 +276,15 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      if (source instanceof Texture) {
-        if (!face.independent) {
-          throw new Error(
-            `Cannot apply a texture to a non-independent face "${faceName}" on block "${block.name}"`
-          );
-        }
-
+      if (face.independent) {
         const independentMat = this.getIndependentMaterial(block.id, faceName);
 
-        if (independentMat) {
+        if (source instanceof Texture) {
           independentMat.map = source;
           independentMat.uniforms.map = { value: source };
+        } else if (data instanceof HTMLImageElement) {
+          independentMat.map.image = data;
+          console.log(data);
         }
 
         return;
@@ -293,7 +301,7 @@ export class World extends Scene implements NetIntercept {
       source: string | Color;
     }[]
   ) {
-    return await Promise.all(
+    return Promise.all(
       data.map(({ idOrName, faceNames, source }) =>
         this.applyBlockTexture(idOrName, faceNames, source)
       )
@@ -954,14 +962,22 @@ export class World extends Scene implements NetIntercept {
       }
     });
 
-    this.chunks.toRequest = this.chunks.toRequest.filter(([x, z]) => {
-      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
-    });
+    const tempToRequest = [...this.chunks.toRequest];
+    this.chunks.toRequest.length = 0;
+    this.chunks.toRequest.push(
+      ...tempToRequest.filter(([x, z]) => {
+        return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
+      })
+    );
 
-    this.chunks.toProcess = this.chunks.toProcess.filter((chunk) => {
-      const { x, z } = chunk;
-      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
-    });
+    const tempToProcess = [...this.chunks.toProcess];
+    this.chunks.toProcess.length = 0;
+    this.chunks.toProcess.push(
+      ...tempToProcess.filter((chunk) => {
+        const { x, z } = chunk;
+        return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
+      })
+    );
 
     if (deleted.length) {
       this.packets.push({
@@ -1112,12 +1128,26 @@ export class World extends Scene implements NetIntercept {
         uFogFar: this.uniforms.fogFar,
         uFogColor: this.uniforms.fogColor,
         uTime: this.uniforms.time,
+        renderStage: { value: 0.5 },
+        weight: this.uniforms.oitWeight,
         ...uniforms,
       },
     }) as CustomShaderMaterial;
 
-    material.map = TextureAtlas.sharedUnknownTexture;
-    material.uniforms.map = { value: TextureAtlas.sharedUnknownTexture };
+    Object.defineProperty(material, "renderStage", {
+      get: function () {
+        return material.uniforms.renderStage.value;
+      },
+
+      set: function (stage) {
+        material.uniforms.renderStage.value = parseFloat(stage);
+      },
+    });
+
+    // @ts-ignore
+    material.wboitEnabled = true;
+    material.map = TextureAtlas.makeUnknownTexture();
+    material.uniforms.map = { value: material.map };
 
     return material;
   };

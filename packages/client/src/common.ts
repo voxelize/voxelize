@@ -46,6 +46,18 @@ export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
       bObj.getWorldPosition(bPos);
     }
 
+    // if (aPos.distanceToSquared(bPos) < 5 ** 2) {
+    //   if (a.groupOrder !== b.groupOrder) {
+    //     return a.groupOrder - b.groupOrder;
+    //   } else if (a.renderOrder !== b.renderOrder) {
+    //     return a.renderOrder - b.renderOrder;
+    //   } else if (a.z !== b.z) {
+    //     return b.z - a.z;
+    //   } else {
+    //     return a.id - b.id;
+    //   }
+    // }
+
     return bPos.distanceToSquared(object.position) -
       aPos.distanceToSquared(object.position) >
       1

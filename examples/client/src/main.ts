@@ -4,17 +4,17 @@ import "./style.css";
 import "@voxelize/client/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/client";
-import {
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
+import GUI from "lil-gui";
 import * as THREE from "three";
-// import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-// import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
-// import { SAOPass } from "three/examples/jsm/postprocessing/SAOPass";
-// import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass";
+import { WboitPass, sRGBShader } from "three-wboit";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { SAOPass } from "three/examples/jsm/postprocessing/SAOPass";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
+import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass";
+// import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+const gui = new GUI();
 
 import { setupWorld } from "./core";
 import { Map } from "./map";
@@ -37,7 +37,7 @@ const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
 });
-renderer.outputEncoding = THREE.sRGBEncoding;
+// renderer.outputEncoding = THREE.sRGBEncoding;
 
 const camera = new THREE.PerspectiveCamera(
   90,
@@ -79,14 +79,24 @@ const clouds = new VOXELIZE.Clouds();
 world.add(sky, clouds);
 
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-composer.addPass(new EffectPass(camera, new SMAAEffect({})));
+const wboitPass = new WboitPass(renderer, world, camera, new THREE.Color());
+composer.addPass(wboitPass);
+// composer.addPass(new RenderPass(world, camera));
+const gammaPass = new ShaderPass(sRGBShader);
+composer.addPass(gammaPass);
+// const pass = new SMAAPass(
+//   window.innerWidth * renderer.getPixelRatio(),
+//   window.innerHeight * renderer.getPixelRatio()
+// );
+// composer.addPass(pass);
 
 const debug = new VOXELIZE.Debug();
 debug.registerDisplay("to request", world.chunks.toRequest, "length");
 debug.registerDisplay("requested", world.chunks.requested, "size");
 debug.registerDisplay("to process", world.chunks.toProcess, "length");
 debug.registerDisplay("loaded", world.chunks.loaded, "size");
+
+gui.add(world.uniforms.oitWeight, "value").min(0).max(1).step(0.01);
 
 const network = new VOXELIZE.Network();
 network.register(world);
@@ -116,6 +126,7 @@ const start = async () => {
 
     network.flush();
 
+    // wboitPass.render(renderer);
     composer.render();
   };
 

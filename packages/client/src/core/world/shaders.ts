@@ -1,5 +1,11 @@
 import { ShaderLib } from "three";
 
+const WboitStages = {
+  Normal: 0.0,
+  Acummulation: 1.0,
+  Revealage: 2.0,
+};
+
 /**
  * This is the default shaders used for the chunks.
  */
@@ -13,6 +19,7 @@ attribute int light;
 varying float vAO;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
+varying float vPositionZ;
 uniform vec4 uAOTable;
 uniform float uTime;
 
@@ -50,6 +57,7 @@ vec4 worldPosition = vec4( transformed, 1.0 );
 #endif
 worldPosition = modelMatrix * worldPosition;
 vWorldPosition = worldPosition;
+vPositionZ = mvPosition.z;
 `
     ),
   fragment: ShaderLib.basic.fragmentShader
@@ -62,6 +70,9 @@ uniform float uFogFar;
 uniform float uSunlightIntensity;
 uniform float uMinBrightness;
 uniform float uTime;
+uniform float renderStage;
+uniform float weight;
+varying float vPositionZ;
 varying float vAO;
 varying vec4 vLight; 
 varying vec4 vWorldPosition;
@@ -82,16 +93,42 @@ outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s 
 outgoingLight *= vAO;
 `
     )
+    //   .replace(
+    //     "#include <fog_fragment>",
+    //     `
+    // vec3 fogOrigin = cameraPosition;
+
+    // float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
+    // float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+
+    // gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+    // `
+    //   )
     .replace(
-      "#include <fog_fragment>",
+      /}$/gm,
       `
-vec3 fogOrigin = cameraPosition;
+					if ( renderStage == ${WboitStages.Acummulation.toFixed(1)} ) {
+						// vec4 accum = gl_FragColor.rgba;
+						// #ifndef PREMULTIPLIED_ALPHA
+						// 	accum.rgb *= accum.a;
+						// #endif
+            // float z = abs(vPositionZ);
+						// float z = gl_FragCoord.z;
+						// float scaleWeight = 0.7 + ( 0.3 * weight );
+						// float w = clamp( pow( ( accum.a * 8.0 + 0.001 ) * ( - z * scaleWeight + 1.0 ), 3.0 ) * 1000.0, 0.001, 300.0 );
+						// gl_FragColor = accum * w;
 
-float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
-float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+            float z = abs(vPositionZ);
+            //float weight = max((min(1.0, max(max(gl_FragColor.r, gl_FragColor.g), gl_FragColor.b) * gl_FragColor.a)), gl_FragColor.a) * clamp(0.03 / (1e-5 + pow(z / 200.0, 4.0)), 1e-2, 3e3);
+            //float weight = pow( gl_FragColor.a, 1.0 ) * clamp( 10.0 / ( 1e-5 + pow( abs( z ) / 5.0, 1.0 ) + pow( abs( z ) / 200.0, 1.0 ) ), 1e-2, 3e3 );
+            float weight = gl_FragColor.a * clamp( 1e2 / (1e-5 + z), 1e-2, 3e3 );
+            gl_FragColor = vec4(gl_FragColor.rgb * gl_FragColor.a, gl_FragColor.a) * weight;
 
-gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
-`
+					} else if ( renderStage == ${WboitStages.Revealage.toFixed(1)} ) {
+					 	// gl_FragColor = vec4( gl_FragColor.a * gl_FragCoord.z );
+            gl_FragColor = vec4(gl_FragColor.a);
+					}
+				}`
     ),
 };
 

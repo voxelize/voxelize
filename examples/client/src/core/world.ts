@@ -43,29 +43,29 @@ export async function setupWorld(world: World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
-  const video = document.getElementById("video") as HTMLVideoElement;
+  // const video = document.getElementById("video") as HTMLVideoElement;
 
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    const constraints = {
-      video: { width: 1280, height: 720, facingMode: "user" },
-    };
+  // if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  //   const constraints = {
+  //     video: { width: 1280, height: 720, facingMode: "user" },
+  //   };
 
-    navigator.mediaDevices
-      .getUserMedia(constraints)
-      .then(function (stream) {
-        // apply the stream to the video element used in the texture
+  //   navigator.mediaDevices
+  //     .getUserMedia(constraints)
+  //     .then(function (stream) {
+  //       // apply the stream to the video element used in the texture
 
-        video.srcObject = stream;
-        video.play();
-      })
-      .catch(function (error) {
-        console.error("Unable to access the camera/webcam.", error);
-      });
-  } else {
-    console.error("MediaDevices interface not available.");
-  }
+  //       video.srcObject = stream;
+  //       video.play();
+  //     })
+  //     .catch(function (error) {
+  //       console.error("Unable to access the camera/webcam.", error);
+  //     });
+  // } else {
+  //   console.error("MediaDevices interface not available.");
+  // }
 
-  const videoTexture = new VideoTexture(video);
+  // const videoTexture = new VideoTexture(video);
 
   // world.applyBlockGifByName("Grass Block", "py", FunnyGif);
 
@@ -93,6 +93,8 @@ export async function setupWorld(world: World) {
   //   ],
   //   50
   // );
+
+  await world.applyBlockTexture("water", "py", WaterImage);
 
   await world.applyBlockTextures([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },
@@ -175,7 +177,7 @@ export async function setupWorld(world: World) {
     },
   ]);
 
-  world.applyBlockTexture("Biggie", "pz", videoTexture);
+  // world.applyBlockTexture("Biggie", "pz", videoTexture);
 
   // // world.applyTextureByName("Biggie", "pz", TechnoImage);
   // world.applyResolutionByName("Biggie", "pz", 128);
