@@ -32,8 +32,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
         for (id, requests) in (&ids, &mut requests).join() {
             for coords in requests.requests.drain(..) {
-                interests.add(&id.0, &coords);
-
                 // If the chunk is actually ready, send to client.
                 if chunks.is_chunk_ready(&coords) {
                     let mut clients_to_send = to_send.remove(&id.0).unwrap_or_default();
@@ -42,6 +40,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     clients_to_send.insert(coords.clone());
 
                     to_send.insert(id.0.clone(), clients_to_send);
+
+                    interests.add(&id.0, &coords);
 
                     continue;
                 }
@@ -68,6 +68,8 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                             }
                         });
                 }
+
+                interests.add(&id.0, &coords);
             }
         }
 

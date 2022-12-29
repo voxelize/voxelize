@@ -331,6 +331,7 @@ debug.registerDisplay("Sunlight", () => {
 debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
 debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
 debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
+debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
 
 ["Red", "Green", "Blue"].forEach((color) => {
   debug.registerDisplay(`${color} Light`, () => {
@@ -450,9 +451,29 @@ network
 
 const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500];
 
+let isLoading = true;
+const loadingFade = 500;
+const loading = document.getElementById("loading") as HTMLDivElement;
+const loadingBar = document.getElementById(
+  "loading-bar-inner"
+) as HTMLDivElement;
+loading.style.transition = `${loadingFade}ms opacity ease`;
+
 const start = async () => {
   const animate = () => {
     requestAnimationFrame(animate);
+
+    if (isLoading) {
+      const supposedCount = world.renderRadius * world.renderRadius * 3;
+      const loadProgress = (world.chunks.loaded.size / supposedCount) * 100;
+      loadingBar.style.width = `${loadProgress}%`;
+
+      if (loadProgress >= 100) {
+        loading.style.opacity = "0";
+        isLoading = false;
+        setTimeout(() => (loading.style.display = "none"), loadingFade);
+      }
+    }
 
     if (world.initialized) {
       peers.update();

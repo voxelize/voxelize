@@ -9,6 +9,7 @@
 
 html,
 body {
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -19,4 +20,45 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+#loading {
+  position: absolute;
+  height: 100vh;
+  width: 100vw;
+  z-index: 12312386712873123;
+  background: #181d31;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#loading-inner {
+  width: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+}
+
+#loading-inner p {
+  color: #eee;
+  font-size: 2vw;
+}
+
+#loading-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 4px;
+  background: #181d31;
+  border: 1px solid #678983;
+  overflow: hidden;
+}
+
+#loading-bar-inner {
+  transition: all 0.1s ease;
+  background: #e6ddc4;
+  width: 50%;
+  height: 100%;
 }
