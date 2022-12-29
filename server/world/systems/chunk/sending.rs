@@ -1,3 +1,4 @@
+use log::info;
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
@@ -81,7 +82,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
                             }
 
                             if let Some(chunk_interests) = interests.get_interests(&coords) {
-                                chunk_interests.into_iter().for_each(|id| {
+                                chunk_interests.iter().for_each(|id| {
                                     messages.iter().for_each(|message| {
                                         queue.push((
                                             message.clone(),
@@ -90,18 +91,6 @@ impl<'a> System<'a> for ChunkSendingSystem {
                                     });
                                 });
                             }
-
-                            // // See if each request is interested in this chunk update.
-                            // for (id, request) in (&ids, &requests).join() {
-                            //     if request.is_interested(&coords) {
-                            //         messages.iter().for_each(|message| {
-                            //             queue.push((
-                            //                 message.clone(),
-                            //                 ClientFilter::Direct(id.0.to_owned()),
-                            //             ));
-                            //         });
-                            //     }
-                            // }
                         });
                 } else {
                     panic!("Something went wrong with sending chunks...");

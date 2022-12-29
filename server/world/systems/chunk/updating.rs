@@ -399,7 +399,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 })
                 .collect::<Vec<_>>();
 
-            mesher.process(processes, &registry, &config);
+            mesher.process(processes, &MessageType::Update, &registry, &config);
         }
 
         let results = results

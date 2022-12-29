@@ -276,9 +276,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING MESHING RESULTS                          */
         /* -------------------------------------------------------------------------- */
-        if let Some(mut chunk) = mesher.results() {
+        if let Some((mut chunk, r#type)) = mesher.results() {
             // Notify neighbors that this chunk is ready.
-            if chunks.listeners.contains_key(&chunk.coords) {
+            if r#type == MessageType::Load && chunks.listeners.contains_key(&chunk.coords) {
                 let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
 
                 listeners.into_iter().for_each(|n_coords| {
@@ -299,10 +299,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     }
                 })
             }
+
             // Update chunk status.
             chunk.status = ChunkStatus::Ready;
 
-            chunks.add_chunk_to_send(&chunk.coords, &MessageType::Load, false);
+            chunks.add_chunk_to_send(&chunk.coords, &r#type, r#type == MessageType::Update);
             chunks.renew(chunk);
         }
 
@@ -398,7 +399,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         if !processes.is_empty() {
-            mesher.process(processes, &registry, &config);
+            mesher.process(processes, &MessageType::Load, &registry, &config);
         }
     }
 }

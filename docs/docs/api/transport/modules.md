@@ -8,7 +8,7 @@ custom_edit_url: null
 
 ## Classes
 
-- [Transport](classes/Transport.md)
+- [Transport](Transport.md)
 
 ## Type Aliases
 
@@ -36,7 +36,7 @@ ___
 | :------ | :------ |
 | `id` | `string` |
 | `lights` | `Uint32Array` |
-| `meshes` | [`MeshProtocol`](modules.md#meshprotocol)[] |
+| `meshes` | [`MeshProtocol`](../modules.md#meshprotocol-6)[] |
 | `voxels` | `Uint32Array` |
 | `x` | `number` |
 | `z` | `number` |
@@ -107,7 +107,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `geometries` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
+| `geometries` | [`GeometryProtocol`](../modules.md#geometryprotocol-6)[] |
 | `level` | `number` |
 
 ___
@@ -130,16 +130,16 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
-| `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
-| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)<`Entity`\>[] |
-| `events?` | [`EventProtocol`](modules.md#eventprotocol)<`Event`\>[] |
+| `chat?` | [`ChatProtocol`](../modules.md#chatprotocol-6) |
+| `chunks?` | [`ChunkProtocol`](../modules.md#chunkprotocol-6)[] |
+| `entities?` | [`EntityProtocol`](../modules.md#entityprotocol-6)<`Entity`\>[] |
+| `events?` | [`EventProtocol`](../modules.md#eventprotocol-6)<`Event`\>[] |
 | `json?` | `T` |
-| `method?` | [`MethodProtocol`](modules.md#methodprotocol)<`Method`\> |
-| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)<`Peer`\>[] |
+| `method?` | [`MethodProtocol`](../modules.md#methodprotocol-6)<`Method`\> |
+| `peers?` | [`PeerProtocol`](../modules.md#peerprotocol-6)<`Peer`\>[] |
 | `text?` | `string` |
 | `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` |
-| `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
+| `updates?` | [`UpdateProtocol`](../modules.md#updateprotocol-6)[] |
 
 ___
 

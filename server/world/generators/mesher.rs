@@ -10,8 +10,8 @@ use rayon::{
 
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
-    GeometryProtocol, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig, AABB, UV,
+    GeometryProtocol, LightColor, LightUtils, MeshProtocol, MessageType, Neighbors, Registry,
+    Space, Vec2, Vec3, VoxelAccess, WorldConfig, AABB, UV,
 };
 
 use super::lights::Lights;
@@ -54,10 +54,10 @@ pub struct Mesher {
     pub(crate) skips: HashMap<Vec2<i32>, usize>,
 
     /// Sender of processed chunks from other threads to the main thread.
-    sender: Arc<Sender<Chunk>>,
+    sender: Arc<Sender<(Chunk, MessageType)>>,
 
     /// Receiver of processed chunks from other threads to the main thread.
-    receiver: Arc<Receiver<Chunk>>,
+    receiver: Arc<Receiver<(Chunk, MessageType)>>,
 
     /// The thread pool for meshing.
     pool: ThreadPool,
@@ -112,10 +112,12 @@ impl Mesher {
     pub fn process(
         &mut self,
         processes: Vec<(Chunk, Space)>,
+        r#type: &MessageType,
         registry: &Registry,
         config: &WorldConfig,
     ) {
         let sender = Arc::clone(&self.sender);
+        let r#type = r#type.to_owned();
 
         let registry = registry.to_owned();
         let config = config.to_owned();
@@ -147,8 +149,8 @@ impl Mesher {
 
                     let sub_chunks = chunk.updated_levels.to_owned();
 
-                    space.updated_levels.clear();
-                    chunk.updated_levels.clear();
+                    // space.updated_levels.clear();
+                    // chunk.updated_levels.clear();
 
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
@@ -185,13 +187,13 @@ impl Mesher {
                                 .insert(level as u32, MeshProtocol { level, geometries });
                         });
 
-                    sender.send(chunk).unwrap();
+                    sender.send((chunk, r#type)).unwrap();
                 });
         });
     }
 
     /// Attempt to retrieve the results from `mesher.process`
-    pub fn results(&mut self) -> Option<Chunk> {
+    pub fn results(&mut self) -> Option<(Chunk, MessageType)> {
         let result = self.receiver.try_recv();
 
         if result.is_err() {
@@ -200,11 +202,11 @@ impl Mesher {
 
         let result = result.unwrap();
 
-        if !self.map.contains(&result.coords) {
+        if !self.map.contains(&result.0.coords) {
             return None;
         }
 
-        self.remove_chunk(&result.coords);
+        self.remove_chunk(&result.0.coords);
 
         Some(result)
     }
