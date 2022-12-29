@@ -1,3 +1,4 @@
+import { AABB } from "@voxelize/aabb";
 import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
 
@@ -187,4 +188,24 @@ export async function setupWorld(world: VOXELIZE.World) {
     ],
     50
   );
+
+  world.customizeBlockDynamic("Water", (pos) => {
+    const [vx, vy, vz] = pos;
+
+    let topIsWater = false;
+
+    for (let ox = -1; ox <= 1; ox++) {
+      for (let oz = -1; oz <= 1; oz++) {
+        if (world.getBlockAt(vx + ox, vy + 1, vz + oz)?.name === "Water")
+          topIsWater = true;
+      }
+    }
+
+    const originalAABB = world.getBlockByName("Water");
+
+    return {
+      ...originalAABB,
+      aabbs: topIsWater ? [new AABB(0, 0, 0, 1, 1, 1)] : originalAABB.aabbs,
+    };
+  });
 }

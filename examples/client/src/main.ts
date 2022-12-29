@@ -3,6 +3,7 @@ import "./style.css";
 // For official use, you should do `@voxelize/client/styles.css` instead.
 import "@voxelize/client/src/styles.css";
 
+import { AABB } from "@voxelize/aabb";
 import * as VOXELIZE from "@voxelize/client";
 import {
   EffectComposer,
@@ -63,26 +64,6 @@ character.position.set(0, 10, -5);
 world.loader.loadTexture(LolImage, (texture) => {
   character.head.paint("front", texture);
 });
-
-// world.overwriteBlockDynamicByName("Water", (pos) => {
-//   const [vx, vy, vz] = pos;
-
-//   let topIsWater = false;
-
-//   for (let ox = -1; ox <= 1; ox++) {
-//     for (let oz = -1; oz <= 1; oz++) {
-//       if (world.getBlockByVoxel(vx + ox, vy + 1, vz + oz)?.name === "Water")
-//         topIsWater = true;
-//     }
-//   }
-
-//   const originalAABB = world.registry.getBlockByName("Water");
-
-//   return {
-//     ...originalAABB,
-//     aabbs: topIsWater ? [new AABB(0, 0, 0, 1, 1, 1)] : originalAABB.aabbs,
-//   };
-// });
 
 inputs.on("namespace", (namespace) => {
   console.log("namespace changed", namespace);

@@ -29,7 +29,7 @@ import {
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor } from "../../utils";
 
-import { BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
+import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Loader } from "./loader";
@@ -1081,6 +1081,8 @@ export class World extends Scene implements NetIntercept {
       uniforms: {},
     }
   ) => {
+    this.initCheck("customize material shaders", false);
+
     const {
       vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
       fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
@@ -1104,6 +1106,23 @@ export class World extends Scene implements NetIntercept {
     mat.needsUpdate = true;
 
     return mat;
+  };
+
+  customizeBlockDynamic = (
+    idOrName: number | string,
+    fn: Block["dynamicFn"]
+  ) => {
+    this.initCheck("customize block dynamic", false);
+
+    const block = this.getBlockOf(idOrName);
+
+    if (!block) {
+      throw new Error(
+        `Block with ID ${idOrName} does not exist, could not overwrite dynamic function.`
+      );
+    }
+
+    block.dynamicFn = fn;
   };
 
   /**
