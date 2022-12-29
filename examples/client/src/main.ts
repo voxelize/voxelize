@@ -15,6 +15,7 @@ import {
 import * as THREE from "three";
 
 import LolImage from "./assets/lol.png";
+import { Map } from "./map";
 import { setupWorld } from "./world";
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
@@ -52,8 +53,8 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
   textureDimension: 16,
-  defaultRenderRadius: 5,
-  maxUpdatesPerTick: 10000,
+  // defaultRenderRadius: 5,
+  // maxUpdatesPerTick: 10000,
 });
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -349,11 +350,11 @@ world.add(entities);
 
 const method = new VOXELIZE.Method();
 
-inputs.bind("m", () => {
-  method.call("test", {
-    test: "Hello World",
-  });
-});
+// inputs.bind("m", () => {
+//   method.call("test", {
+//     test: "Hello World",
+//   });
+// });
 
 inputs.bind("z", () => {
   method.call("spawn", {
@@ -431,6 +432,14 @@ setTimeout(() => {
 //   document.body.appendChild(canvas);
 // }
 
+const map = new Map(world);
+
+inputs.bind("m", map.toggle);
+
+inputs.bind("escape", () => {
+  map.setVisible(false);
+});
+
 network
   .register(chat)
   .register(entities)
@@ -452,6 +461,7 @@ const start = async () => {
       clouds.update(controls.object.position);
       sky.update(controls.object.position);
       world.update(controls.object.position);
+      map.update(controls.object.position);
 
       network.flush();
 

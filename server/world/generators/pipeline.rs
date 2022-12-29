@@ -368,7 +368,7 @@ impl Pipeline {
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&self) -> Option<(Chunk, Vec<VoxelUpdate>)> {
+    pub fn results(&mut self) -> Option<(Chunk, Vec<VoxelUpdate>)> {
         let result = self.receiver.try_recv();
 
         if result.is_err() {
@@ -380,6 +380,8 @@ impl Pipeline {
         if !self.chunks.contains(&result.0.coords) {
             return None;
         }
+
+        self.remove_chunk(&result.0.coords);
 
         Some(result)
     }
