@@ -204,6 +204,8 @@ impl Mesher {
             return None;
         }
 
+        self.remove_chunk(&result.coords);
+
         Some(result)
     }
 
