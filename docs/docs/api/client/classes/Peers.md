@@ -11,7 +11,7 @@ a [NetIntercept](../interfaces/NetIntercept.md) that intercepts all peer-related
 the behavior of multiplayer functionality. This class also extends a `THREE.Group` that allows
 you to dynamically turn on/off multiplayer visibility.
 
-Override [packInfo](Peers.md#packinfo-114) to customize the information that is sent to other peers.
+Override [packInfo](Peers.md#packinfo-38) to customize the information that is sent to other peers.
 
 TODO-DOC
 
@@ -78,7 +78,7 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object?` | `Object3D`<`Event`\> | The object that is used to send client's own data back to the server. |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-114)\> | Parameters to customize the effect. |
+| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams-38)\> | Parameters to customize the effect. |
 
 #### Overrides
 
@@ -125,7 +125,7 @@ ___
 
 ▸ (`id`): `void`
 
-A function called when a player joins the game. By default, the function calls the [createPeer](Peers.md#createpeer-114)
+A function called when a player joins the game. By default, the function calls the [createPeer](Peers.md#createpeer-38)
 function to create a new peer object and adds it to the peers group. Customize this function to add additional
 behavior.
 
@@ -203,7 +203,7 @@ ___
 
 • `Optional` **ownPeer**: `C`
 
-The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer-114).
+The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer-38).
 
 ___
 
@@ -217,7 +217,7 @@ ___
 
 ### params
 
-• **params**: [`PeersParams`](../modules.md#peersparams-114)
+• **params**: [`PeersParams`](../modules.md#peersparams-38)
 
 Parameters to customize the peers manager.
 

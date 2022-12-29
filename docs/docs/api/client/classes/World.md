@@ -12,12 +12,11 @@ This means that you can add any ThreeJS objects to the world, and they will be r
 also implements [NetIntercept](../interfaces/NetIntercept.md), which means it intercepts chunk-related packets from the server
 and constructs chunk meshes from them.
 
-There are a couple important components that are by default created by the world:
-- [registry](World.md#registry-114): A block registry that handles block textures and block instances.
-- [chunks](World.md#chunks-114): A chunk manager that stores all the chunks in the world.
-- [physics](World.md#physics-114): A physics engine that handles voxel AABB physics simulation of client-side physics.
-- [loader](World.md#loader-114): An asset loader that handles loading textures and other assets.
-- [atlas](World.md#atlas-114): A texture atlas that handles texture packing.
+There are a couple components that are by default created by the world that holds data:
+- [registry](World.md#registry-38): A block registry that handles block textures and block instances.
+- [chunks](World.md#chunks-38): A chunk manager that stores all the chunks in the world.
+- [physics](World.md#physics-38): A physics engine that handles voxel AABB physics simulation of client-side physics.
+- [loader](World.md#loader-38): An asset loader that handles loading textures and other assets.
 
 One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
 This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
@@ -26,22 +25,17 @@ This is because, instead, you should use `updateVoxel` and `updateVoxels` to upd
 ```ts
 const world = new VOXELIZE.World();
 
-// Update a voxel in the world across the network.
-world.updateVoxel({
-  vx: 0,
-  vy: 0,
-  vz: 0,
-  type: 12,
-});
+// Update the voxel at `(0, 0, 0)` to a voxel type `12` in the world across the network.
+world.updateVoxel(0, 0, 0, 12)
 
 // Register the interceptor with the network.
 network.register(world);
 
 // Register an image to block sides.
-world.applyTextureByName("Test", VOXELIZE.ALL_FACES, "https://example.com/test.png");
+world.applyBlockTexture("Test", VOXELIZE.ALL_FACES, "https://example.com/test.png");
 
 // Update the world every frame.
-world.update(controls.object.position);
+world.update(controls.position);
 ```
 
 ![World](/img/docs/world.png)
@@ -69,8 +63,8 @@ This is useful for, for example, teleporting the player to the top of the chunk 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-114) | The chunk coordinates to listen to. |
-| `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` | The listener to add. |
+| `coords` | [`Coords2`](../modules.md#coords2-38) | The chunk coordinates to listen to. |
+| `listener` | (`chunk`: `Chunk`) => `void` | The listener to add. |
 
 #### Returns
 
@@ -78,82 +72,88 @@ This is useful for, for example, teleporting the player to the top of the chunk 
 
 ___
 
-### applyBlockAnimationByName
+### applyBlockFrames
 
-▸ **applyBlockAnimationByName**(`name`, `sides`, `keyframes`, `fadeFrames?`): `void`
-
-Apply a block animation to a block. This method cannot be called after the world has been initialized.
+▸ **applyBlockFrames**(`idOrName`, `faceNames`, `keyframes`, `fadeFrames?`): `Promise`<`void`\>
 
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `name` | `string` | `undefined` | The name of the block to apply the animation to. |
-| `sides` | `string` \| `string`[] | `undefined` | The side(s) of the block to apply the animation to. |
-| `keyframes` | [`number`, `string` \| `Color`][] | `undefined` | The keyframes of the animation. The first element is the duration of the animation, and the second element is the source to the texture to apply. |
-| `fadeFrames` | `number` | `0` | The number of frames to fade between keyframes. |
-
-#### Returns
-
-`void`
-
-___
-
-### applyBlockGifByName
-
-▸ **applyBlockGifByName**(`name`, `sides`, `source`, `interval?`): `void`
-
-Apply a GIF animation to a block. This method cannot be called after the world has been initialized.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `name` | `string` | `undefined` | The name of the block to apply this GIF animation to. |
-| `sides` | `string` \| `string`[] | `undefined` | The side(s) of the block to apply the animation to. |
-| `source` | `string` | `undefined` | The source of the GIF. |
-| `interval` | `number` | `66.6666667` | The interval between frames. Defaults to 66.66ms for 60fps. |
-
-#### Returns
-
-`void`
-
-___
-
-### setResolutionOfByName
-
-▸ **setResolutionOfByName**(`name`, `sides`, `resolution`): `void`
-
-Apply a resolution to a block face type. Otherwise, the resolution will be the same as the texture
-parameter resolution. This method cannot be called after the world has been initialized.
-
-#### Parameters
-
-| Name | Type | Description |
+| Name | Type | Default value |
 | :------ | :------ | :------ |
-| `name` | `string` | The name of the block to apply the resolution to. |
-| `sides` | `string` \| `string`[] | The side(s) of the block to apply the resolution to. |
-| `resolution` | `number` | The resolution of the block. |
+| `idOrName` | `string` \| `number` | `undefined` |
+| `faceNames` | `string` \| `string`[] | `undefined` |
+| `keyframes` | [`number`, `string` \| `HTMLImageElement` \| `Color`][] | `undefined` |
+| `fadeFrames` | `number` | `0` |
 
 #### Returns
 
-`void`
+`Promise`<`void`\>
 
 ___
 
-### applyTextureByName
+### applyBlockGif
 
-▸ **applyTextureByName**(`name`, `sides`, `data`): `void`
+▸ **applyBlockGif**(`idOrName`, `faceNames`, `source`, `interval?`): `Promise`<`void`\>
 
-Apply a texture onto a face/side of a block. This method cannot be called after the world has been initialized.
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `idOrName` | `string` | `undefined` |
+| `faceNames` | `string` \| `string`[] | `undefined` |
+| `source` | `string` | `undefined` |
+| `interval` | `number` | `66.6666667` |
+
+#### Returns
+
+`Promise`<`void`\>
+
+___
+
+### applyBlockTexture
+
+▸ **applyBlockTexture**(`idOrName`, `faceNames`, `source`): `Promise`<`void`\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `name` | `string` |
-| `sides` | `string` \| `string`[] |
-| `data` | `string` \| `Color` |
+| `idOrName` | `string` \| `number` |
+| `faceNames` | `string` \| `string`[] |
+| `source` | `string` \| `Texture` \| `HTMLImageElement` \| `Color` |
+
+#### Returns
+
+`Promise`<`void`\>
+
+___
+
+### applyBlockTextures
+
+▸ **applyBlockTextures**(`data`): `Promise`<`void`[]\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `data` | { `faceNames`: `string` \| `string`[] ; `idOrName`: `string` \| `number` ; `source`: `string` \| `Color`  }[] |
+
+#### Returns
+
+`Promise`<`void`[]\>
+
+___
+
+### customizeBlockDynamic
+
+▸ **customizeBlockDynamic**(`idOrName`, `fn`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `idOrName` | `string` \| `number` |
+| `fn` | (`pos`: [`Coords3`](../modules.md#coords3-38), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `independent`: `boolean` ; `name`: `string` ; `range`: [`TextureRange`](../modules.md#texturerange-38)  }[] ; `isTransparent`: `boolean`[]  } |
 
 #### Returns
 
@@ -161,285 +161,192 @@ Apply a texture onto a face/side of a block. This method cannot be called after 
 
 ___
 
-### applyTexturesByNames
+### customizeMaterialShaders
 
-▸ **applyTexturesByNames**(`textures`): `void`
-
-Apply a list of textures to a list of blocks' faces. The textures are loaded in before the game starts.
-This method cannot be called after the world has been initialized.
+▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomShaderMaterial`](../modules.md#customshadermaterial-38)
 
 #### Parameters
 
-| Name | Type | Description |
+| Name | Type | Default value |
 | :------ | :------ | :------ |
-| `textures` | [`TextureData`](../modules.md#texturedata-114)[] | List of data to load into the game before the game starts. |
+| `idOrName` | `string` \| `number` | `undefined` |
+| `faceName` | `string` | `null` |
+| `data` | `Object` | `undefined` |
+| `data.fragmentShader` | `string` | `undefined` |
+| `data.uniforms?` | `Object` | `undefined` |
+| `data.vertexShader` | `string` | `undefined` |
 
 #### Returns
 
-`void`
+[`CustomShaderMaterial`](../modules.md#customshadermaterial-38)
 
 ___
 
-### getAtlasByBlockFace
+### getBlockAt
 
-▸ **getAtlasByBlockFace**(`block`, `face`): [`AtlasTexture`](AtlasTexture.md)
+▸ **getBlockAt**(`px`, `py`, `pz`): [`Block`](../modules.md#block-38)
 
-Get the high resolution texture atlas of a certain block face by the block face itself.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-114) | The block to get the high resolution texture atlas for. |
-| `face` | `Object` | The face of the block to get the high resolution texture atlas for. |
-| `face.animated` | `boolean` | - |
-| `face.corners` | { `pos`: `number`[] ; `uv`: `number`[]  }[] | - |
-| `face.dir` | `number`[] | - |
-| `face.highRes` | `boolean` | - |
-| `face.independent` | `boolean` | - |
-| `face.name` | `string` | - |
-
-#### Returns
-
-[`AtlasTexture`](AtlasTexture.md)
-
-The [AtlasTexture](AtlasTexture.md) instance linked to the block face.
-
-___
-
-### getAtlasByIdentifier
-
-▸ **getAtlasByIdentifier**(`identifier`): [`AtlasTexture`](AtlasTexture.md)
-
-Get the high resolution texture atlas of a certain block face by identifier.
+Get the block type data by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `identifier` | `string` | The identifier of the block face. |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
 
 #### Returns
 
-[`AtlasTexture`](AtlasTexture.md)
+[`Block`](../modules.md#block-38)
 
-The [AtlasTexture](AtlasTexture.md) instance linked to the block face.
-
-___
-
-### getBlockAABBsByVoxel
-
-▸ **getBlockAABBsByVoxel**(`vx`, `vy`, `vz`): `AABB`[]
-
-Get the block AABBs by the given 3D voxel coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
-
-#### Returns
-
-`AABB`[]
-
-The AABB of the block at the given coordinate.
-
-___
-
-### getBlockAABBsByWorld
-
-▸ **getBlockAABBsByWorld**(`wx`, `wy`, `wz`): `AABB`[]
-
-Get the block AABBs by the given 3D world coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-`AABB`[]
-
-The AABB of the block at the given coordinate.
+The block at the given position, or null if it does not exist.
 
 ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-114)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-38)
 
-Get the block information by its ID.
+Get the block type data by a block id.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `id` | `number` | The ID of the block to get. |
+| `id` | `number` | The block id. |
 
 #### Returns
 
-[`Block`](../modules.md#block-114)
+[`Block`](../modules.md#block-38)
+
+The block data for the given id, or null if it does not exist.
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-114)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-38)
 
-Get the block information by its name.
+Get the block type data by a block name.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `name` | `string` | The name of the block to get. |
+| `name` | `string` | The block name. |
 
 #### Returns
 
-[`Block`](../modules.md#block-114)
+[`Block`](../modules.md#block-38)
+
+The block data for the given name, or null if it does not exist.
 
 ___
 
-### getBlockByTextureName
+### getBlockOf
 
-▸ **getBlockByTextureName**(`textureName`): `Object`
-
-Reverse engineer to get the block information from a texture name.
+▸ **getBlockOf**(`idOrName`): [`Block`](../modules.md#block-38)
 
 #### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `textureName` | `string` | The texture name that the block has. |
-
-#### Returns
-
-`Object`
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-114) |
-| `side` | `string` |
+| `idOrName` | `string` \| `number` |
+
+#### Returns
+
+[`Block`](../modules.md#block-38)
 
 ___
 
-### getBlockByVoxel
+### getChunkByCoords
 
-▸ **getBlockByVoxel**(`vx`, `vy`, `vz`): [`Block`](../modules.md#block-114)
+▸ **getChunkByCoords**(`cx`, `cz`): `Chunk`
 
-Get the block data at the given 3D voxel coordinate.
+Get a chunk by its 2D coordinates.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
+| `cx` | `number` | The x coordinate of the chunk. |
+| `cz` | `number` | The z coordinate of the chunk. |
 
 #### Returns
 
-[`Block`](../modules.md#block-114)
+`Chunk`
 
-The block type data at the given coordinate.
-
-___
-
-### getBlockByWorld
-
-▸ **getBlockByWorld**(`wx`, `wy`, `wz`): [`Block`](../modules.md#block-114)
-
-Get the block data at the given 3D world coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-[`Block`](../modules.md#block-114)
-
-The block type data at the given coordinate.
-
-___
-
-### getChunk
-
-▸ **getChunk**(`cx`, `cz`): [`Chunk`](Chunk.md)
-
-Get a chunk instance by its 2D coordinates.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `cx` | `number` | The 2D chunk X position. |
-| `cz` | `number` | The 2D chunk Z position. |
-
-#### Returns
-
-[`Chunk`](Chunk.md)
-
-The chunk at the given coordinate.
+The chunk at the given coordinates, or undefined if it does not exist.
 
 ___
 
 ### getChunkByName
 
-▸ **getChunkByName**(`name`): [`Chunk`](Chunk.md)
+▸ **getChunkByName**(`name`): `Chunk`
 
-Get a chunk instance by its coordinate representation.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `name` | `string` | The 2D coordinate representation of the chunk. |
-
-#### Returns
-
-[`Chunk`](Chunk.md)
-
-The chunk at the given coordinate.
-
-___
-
-### getChunkByVoxel
-
-▸ **getChunkByVoxel**(`vx`, `vy`, `vz`): [`Chunk`](Chunk.md)
-
-Get a chunk by a 3D voxel coordinate.
+Get a chunk by its name.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
+| `name` | `string` | The name of the chunk to get. |
 
 #### Returns
 
-[`Chunk`](Chunk.md)
+`Chunk`
 
-The chunk at the given voxel coordinate.
+The chunk with the given name, or undefined if it does not exist.
 
 ___
 
-### getLightColorByVoxel
+### getChunkByPosition
 
-▸ **getLightColorByVoxel**(`vx`, `vy`, `vz`): `Color`
+▸ **getChunkByPosition**(`px`, `py`, `pz`): `Chunk`
+
+Get a chunk that contains a given position.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
+
+#### Returns
+
+`Chunk`
+
+The chunk that contains the position at the given position, or undefined if it does not exist.
+
+___
+
+### getChunkStatus
+
+▸ **getChunkStatus**(`cx`, `cz`): ``"to request"`` \| ``"requested"`` \| ``"processing"`` \| ``"loaded"``
+
+Get the status of a chunk.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `cx` | `number` | The x 2D coordinate of the chunk. |
+| `cz` | `number` | The z 2D coordinate of the chunk. |
+
+#### Returns
+
+``"to request"`` \| ``"requested"`` \| ``"processing"`` \| ``"loaded"``
+
+The status of the chunk.
+
+___
+
+### getLightColorAt
+
+▸ **getLightColorAt**(`vx`, `vy`, `vz`): `Color`
 
 Get a color instance that represents what an object would be like
 if it were rendered at the given 3D voxel coordinate. This is useful
@@ -462,411 +369,174 @@ The voxel's light color at the given coordinate.
 
 ___
 
-### getLightColorByWorld
+### getMaterial
 
-▸ **getLightColorByWorld**(`wx`, `wy`, `wz`): `Color`
+▸ **getMaterial**(`idOrName`, `faceName?`): [`CustomShaderMaterial`](../modules.md#customshadermaterial-38)
 
-Get a color instance that represents what an object would be like if it
-were rendered at the given 3D world coordinate. This is useful to dynamically
-shade objects based on their position in the world. Also used in [LightShined](LightShined.md).
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `idOrName` | `string` \| `number` |
+| `faceName?` | `string` |
+
+#### Returns
+
+[`CustomShaderMaterial`](../modules.md#customshadermaterial-38)
+
+___
+
+### getMaxHeightAt
+
+▸ **getMaxHeightAt**(`px`, `pz`): `number`
+
+Get the highest block at a x/z position. Highest block means the first block counting downwards that
+isn't empty (`isEmpty`).
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
+| `px` | `number` | The x coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
 
 #### Returns
 
-`Color`
+`number`
 
-The voxel's light color at the given coordinate.
-
-___
-
-### getMaterialByBlockFace
-
-▸ **getMaterialByBlockFace**(`block`, `face`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
-
-Get a material by a given block and a side/face of the block. If this material does not exist, it will be created.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-114) | The block to get the material for. |
-| `face` | `Object` | The face of the block to get the material for. |
-| `face.animated` | `boolean` | - |
-| `face.corners` | { `pos`: `number`[] ; `uv`: `number`[]  }[] | - |
-| `face.dir` | `number`[] | - |
-| `face.highRes` | `boolean` | - |
-| `face.independent` | `boolean` | - |
-| `face.name` | `string` | - |
-
-#### Returns
-
-{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
-
-The material for the given block and face.
+The highest block at the given position, or 0 if it does not exist.
 
 ___
 
-### getMaterialByIdentifier
+### getPreviousValueAt
 
-▸ **getMaterialByIdentifier**(`identifier`, `transparent?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
+▸ **getPreviousValueAt**(`px`, `py`, `pz`, `count?`): `number`
 
-Get a material by a given block ID. If this material does not exist, it will be created.
+Get the previous value of a voxel by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `identifier` | `string` | `undefined` | The identifier of the block. |
-| `transparent` | `boolean` | `false` | - |
+| `px` | `number` | `undefined` | The x coordinate of the position. |
+| `py` | `number` | `undefined` | The y coordinate of the position. |
+| `pz` | `number` | `undefined` | The z coordinate of the position. |
+| `count` | `number` | `1` | By how much to look back in the history. Defaults to `1`. |
 
 #### Returns
 
-{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
-
-The material instances related to the block.
+`number`
 
 ___
 
-### getMaxHeightByVoxel
+### getSunlightAt
 
-▸ **getMaxHeightByVoxel**(`vx`, `vz`): `number`
+▸ **getSunlightAt**(`px`, `py`, `pz`): `number`
 
-Get the maximum height of the block column at the given 3D voxel coordinate.
+Get a voxel sunlight by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vz` | `number` | The voxel's Z position. |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
 
 #### Returns
 
 `number`
 
-The max height at the given coordinate.
+The voxel sunlight at the given position, or 0 if it does not exist.
 
 ___
 
-### getMaxHeightByWorld
+### getTorchLightAt
 
-▸ **getMaxHeightByWorld**(`wx`, `wz`): `number`
+▸ **getTorchLightAt**(`px`, `py`, `pz`, `color`): `number`
 
-Get the maximum height of the block column at the given 3D world coordinate.
+Get a voxel torch light by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
+| `color` | [`LightColor`](../modules.md#lightcolor-38) | The color of the torch light. |
 
 #### Returns
 
 `number`
 
-The max height at the given coordinate.
+The voxel torchlight at the given position, or 0 if it does not exist.
 
 ___
 
-### getMinBrightness
+### getVoxelAt
 
-▸ **getMinBrightness**(): `number`
+▸ **getVoxelAt**(`px`, `py`, `pz`): `number`
 
-Get the uniform value of the minimum brightness at sunlight `0` voxels.
-
-#### Returns
-
-`number`
-
-The minimum brightness of the chunk.
-
-___
-
-### getPreviousVoxelByVoxel
-
-▸ **getPreviousVoxelByVoxel**(`vx`, `vy`, `vz`): `number`
-
-Get the previous voxel ID before the latest update was made.
+Get a voxel by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
 
 #### Returns
 
 `number`
 
-The voxel ID that was previously at the given coordinate.
+The voxel at the given position, or 0 if it does not exist.
 
 ___
 
-### getPreviousVoxelByWorld
+### getVoxelRotationAt
 
-▸ **getPreviousVoxelByWorld**(`wx`, `wy`, `wz`): `number`
+▸ **getVoxelRotationAt**(`px`, `py`, `pz`): [`BlockRotation`](BlockRotation.md)
 
-Get the previous voxel ID before the latest update was made.
+Get a voxel rotation by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-`number`
-
-The voxel ID that was previously at the given coordinate.
-
-___
-
-### getSunlightByVoxel
-
-▸ **getSunlightByVoxel**(`vx`, `vy`, `vz`): `number`
-
-Get the voxel's sunlight level at the given 3D voxel coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
-
-#### Returns
-
-`number`
-
-The voxel's sunlight level at the given coordinate.
-
-___
-
-### getSunlightByWorld
-
-▸ **getSunlightByWorld**(`wx`, `wy`, `wz`): `number`
-
-Get the voxel's sunlight level at the given 3D world coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-`number`
-
-The voxel's sunlight level at the given coordinate.
-
-___
-
-### getSunlightIntensity
-
-▸ **getSunlightIntensity**(): `number`
-
-Get the uniform value of the intensity of sunlight.
-
-#### Returns
-
-`number`
-
-The intensity of the sun.
-
-___
-
-### getTorchLightByVoxel
-
-▸ **getTorchLightByVoxel**(`vx`, `vy`, `vz`, `color`): `number`
-
-Get the voxel's torch light level at the given 3D voxel coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-114) | The color of the torch light to get. |
-
-#### Returns
-
-`number`
-
-The voxel's torch light level at the given coordinate.
-
-___
-
-### getTorchLightByWorld
-
-▸ **getTorchLightByWorld**(`wx`, `wy`, `wz`, `color`): `number`
-
-Get the voxel's torch light level at the given 3D world coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-114) | The color of the torch light to get. |
-
-#### Returns
-
-`number`
-
-The voxel's torch light level at the given coordinate.
-
-___
-
-### getVoxelByVoxel
-
-▸ **getVoxelByVoxel**(`vx`, `vy`, `vz`): `number`
-
-Get the voxel ID at the given 3D voxel coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
-
-#### Returns
-
-`number`
-
-The voxel's ID at the given coordinate.
-
-___
-
-### getVoxelByWorld
-
-▸ **getVoxelByWorld**(`wx`, `wy`, `wz`): `number`
-
-Get the voxel ID at the given 3D world coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-`number`
-
-The voxel's ID at the given coordinate.
-
-___
-
-### getVoxelRotationByVoxel
-
-▸ **getVoxelRotationByVoxel**(`vx`, `vy`, `vz`): [`BlockRotation`](BlockRotation.md)
-
-Get the voxel rotation at the given 3D voxel coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
 
 #### Returns
 
 [`BlockRotation`](BlockRotation.md)
 
-The voxel's rotation at the given coordinate.
+The voxel rotation at the given position, or the default rotation if it does not exist.
 
 ___
 
-### getVoxelRotationByWorld
+### getVoxelStageAt
 
-▸ **getVoxelRotationByWorld**(`wx`, `wy`, `wz`): [`BlockRotation`](BlockRotation.md)
+▸ **getVoxelStageAt**(`px`, `py`, `pz`): `number`
 
-Get the voxel rotation at the given 3D world coordinate.
+Get a voxel stage by a 3D world position.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-[`BlockRotation`](BlockRotation.md)
-
-The voxel's rotation at the given coordinate.
-
-___
-
-### getVoxelStageByVoxel
-
-▸ **getVoxelStageByVoxel**(`vx`, `vy`, `vz`): `number`
-
-Get the voxel's stage at the given 3D voxel coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `vx` | `number` | The voxel's X position. |
-| `vy` | `number` | The voxel's Y position. |
-| `vz` | `number` | The voxel's Z position. |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
 
 #### Returns
 
 `number`
 
-The voxel stage at the given coordinate.
-
-___
-
-### getVoxelStageByWorld
-
-▸ **getVoxelStageByWorld**(`wx`, `wy`, `wz`): `number`
-
-Get the voxel's stage at the given 3D world coordinate.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `wx` | `number` | The voxel's un-floored X position. |
-| `wy` | `number` | The voxel's un-floored Y position. |
-| `wz` | `number` | The voxel's un-floored Z position. |
-
-#### Returns
-
-`number`
-
-The voxel stage at the given coordinate.
+The voxel stage at the given position, or 0 if it does not exist.
 
 ___
 
@@ -874,56 +544,12 @@ ___
 
 ▸ **init**(): `Promise`<`void`\>
 
-After the network joins a world on the server, the server will send a JSON object that contains information and data
-about the world. This method initializes the world with the given JSON data.
+Initialize the world with the data received from the server. This includes populating
+the registry, setting the parameters, and creating the texture atlas.
 
 #### Returns
 
 `Promise`<`void`\>
-
-___
-
-### isBlockAnimated
-
-▸ **isBlockAnimated**(`id`): `boolean`
-
-Check if a block is animated.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `number` | The block ID to check. |
-
-#### Returns
-
-`boolean`
-
-Whether or not the block is animated.
-
-___
-
-### isChunkInView
-
-▸ **isChunkInView**(`cx`, `cz`, `dx`, `dz`): `boolean`
-
-This checks if the chunk is within the given x/z directions by testing of the given chunk
-coordinate is within `3 * Math.PI / 5` radians of the given direction.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `cx` | `number` | The chunk's X position. |
-| `cz` | `number` | The chunk's Z position. |
-| `dx` | `number` | The x direction that is being checked. |
-| `dz` | `number` | The z direction that is being checked. |
-
-#### Returns
-
-`boolean`
-
-Whether or not the chunk is within the render view.
 
 ___
 
@@ -932,7 +558,7 @@ ___
 ▸ **isWithinWorld**(`cx`, `cz`): `boolean`
 
 Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
-is within [WorldServerParams.minChunk](../modules.md#worldserverparams-114) and [WorldServerParams.maxChunk](../modules.md#worldserverparams-114).
+is within [WorldServerParams.minChunk](../modules.md#worldserverparams-38) and [WorldServerParams.maxChunk](../modules.md#worldserverparams-38).
 
 #### Parameters
 
@@ -949,44 +575,9 @@ Whether or not this chunk is within the bounds of the world.
 
 ___
 
-### load
-
-▸ **load**(): `Promise`<`void`\>
-
-An asynchronous function that resolves once world's assets are loaded.
-
-#### Returns
-
-`Promise`<`void`\>
-
-___
-
-### makeBlockFaceIdentifier
-
-▸ **makeBlockFaceIdentifier**(`id`, `side`): `string`
-
-Make an identifier for a block face. If the block face is neither animated nor high resolution, then
-the identifier will be the same as the block's name. If the block face is animated, then the identifier
-will be the block's name and the face's name joined by [INDEPENDENT_FACE](../modules.md#independent_face-114).
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `id` | `number` | The ID of the block. |
-| `side` | `string` | The side of the face of the block. |
-
-#### Returns
-
-`string`
-
-The identifier of the block face.
-
-___
-
 ### makeBlockMesh
 
-▸ **makeBlockMesh**(`id`, `params?`): `Group`
+▸ **makeBlockMesh**(`idOrName`, `params?`): `Group`
 
 Get a mesh of the model of the given block.
 
@@ -994,7 +585,7 @@ Get a mesh of the model of the given block.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `id` | `number` | The ID of the block. |
+| `idOrName` | `string` \| `number` | - |
 | `params` | `Partial`<{ `crumbs`: `boolean` ; `material`: ``"basic"`` \| ``"standard"`` ; `separateFaces`: `boolean`  }\> | The params of creating this block mesh. |
 
 #### Returns
@@ -1002,53 +593,6 @@ Get a mesh of the model of the given block.
 `Group`
 
 A 3D mesh (group) of the block model.
-
-___
-
-### overwriteBlockDynamicByName
-
-▸ **overwriteBlockDynamicByName**(`name`, `fn`): `void`
-
-Overwrite the dynamic function for the block. That is, the function that is called to generate different AABBs and block faces
-for the block based on different conditions.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `name` | `string` | The name of the block. |
-| `fn` | (`pos`: [`Coords3`](../modules.md#coords3-114), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `animated`: `boolean` ; `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `highRes`: `boolean` ; `independent`: `boolean` ; `name`: `string`  }[] ; `isTransparent`: `boolean`[]  } | The dynamic function to use for the block. |
-
-#### Returns
-
-`void`
-
-___
-
-### overwriteMaterialByIdentifier
-
-▸ **overwriteMaterialByIdentifier**(`identifier`, `transparent?`, `data?`): { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
-
-Overwrite the chunk shader for a certain block within all chunks. This is useful for, for example, making
-blocks such as grass to wave in the wind. Keep in mind that higher resolution block faces are separated from
-its vanilla counterpart, as their identifier would be different from their non-high-resolution counterpart.
-In other words, with this method, you can only overwrite the material of the block faces that has not been
-separated or turned into higher resolution.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `identifier` | `string` | `undefined` | The identifier of the block face. By default, should be the block's name. |
-| `transparent` | `boolean` | `false` | - |
-| `data` | `Object` | `undefined` | - |
-| `data.fragmentShader` | `string` | `undefined` | - |
-| `data.uniforms?` | `Object` | `undefined` | - |
-| `data.vertexShader` | `string` | `undefined` | - |
-
-#### Returns
-
-{ `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  } \| [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)
 
 ___
 
@@ -1062,8 +606,8 @@ Raycast through the world of voxels and return the details of the first block in
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `origin` | [`Coords3`](../modules.md#coords3-114) | The origin of the ray. |
-| `direction` | [`Coords3`](../modules.md#coords3-114) | The direction of the ray. |
+| `origin` | [`Coords3`](../modules.md#coords3-38) | The origin of the ray. |
+| `direction` | [`Coords3`](../modules.md#coords3-38) | The direction of the ray. |
 | `maxDistance` | `number` | The maximum distance of the ray. |
 | `options` | `Object` | The options for the ray. |
 | `options.ignoreFluids?` | `boolean` | Whether or not to ignore fluids. Defaults to `true`. |
@@ -1083,83 +627,17 @@ Raycast through the world of voxels and return the details of the first block in
 
 ___
 
-### reset
+### setResolutionOf
 
-▸ **reset**(): `void`
-
-Reset the world's chunk and block caches.
-
-#### Returns
-
-`void`
-
-___
-
-### setFogColor
-
-▸ **setFogColor**(`color`): `void`
-
-Set the fog color that is applied to the chunks.
+▸ **setResolutionOf**(`idOrName`, `faceNames`, `resolution`): `void`
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `color` | `Color` | The color reference to link the fog to. |
-
-#### Returns
-
-`void`
-
-___
-
-### setFogDistance
-
-▸ **setFogDistance**(`distance`): `void`
-
-Set the farthest distance for the fog. Fog starts fogging up the chunks 50% from the farthest.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `distance` | `number` | The maximum distance that the fog fully fogs up. |
-
-#### Returns
-
-`void`
-
-___
-
-### setMinBrightness
-
-▸ **setMinBrightness**(`minBrightness`): `void`
-
-Set the uniform value of the minimum brightness at sunlight level of `0` voxels.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `minBrightness` | `number` | The minimum brightness value. |
-
-#### Returns
-
-`void`
-
-___
-
-### setSunlightIntensity
-
-▸ **setSunlightIntensity**(`intensity`): `void`
-
-Set the uniform value of the intensity of sunlight.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `intensity` | `number` | The intensity of the sun. |
+| Name | Type |
+| :------ | :------ |
+| `idOrName` | `string` \| `number` |
+| `faceNames` | `string` \| `string`[] |
+| `resolution` | `number` |
 
 #### Returns
 
@@ -1169,16 +647,13 @@ ___
 
 ### update
 
-▸ **update**(`center?`): `void`
-
-The updater of the world. This requests the chunks around the given coordinates and meshes any
-new chunks that are received from the server. This should be called every frame.
+▸ **update**(`position?`): `void`
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `center` | `Vector3` | The center of the update. That is, the center that the chunks should    be requested around. |
+| Name | Type |
+| :------ | :------ |
+| `position` | `Vector3` |
 
 #### Returns
 
@@ -1191,13 +666,13 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-114) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-114) times
+[World.chunks.toUpdate](World.md#chunks-38) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-38) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-114) | [NX_ROTATION](../modules.md#nx_rotation-114) | [PY_ROTATION](../modules.md#py_rotation-114) | [NY_ROTATION](../modules.md#ny_rotation-114) | [PZ_ROTATION](../modules.md#pz_rotation-114) | [NZ_ROTATION](../modules.md#nz_rotation-114)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-114) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-38) | [NX_ROTATION](../modules.md#nx_rotation-38) | [PY_ROTATION](../modules.md#py_rotation-38) | [NY_ROTATION](../modules.md#ny_rotation-38) | [PZ_ROTATION](../modules.md#pz_rotation-38) | [NZ_ROTATION](../modules.md#nz_rotation-38)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-38) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-114) (Same for if
-block is not [Block.yRotatable](../modules.md#block-114)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-38) (Same for if
+block is not [Block.yRotatable](../modules.md#block-38)).
 
 #### Parameters
 
@@ -1221,20 +696,20 @@ ___
 ▸ **updateVoxels**(`updates`): `void`
 
 This sends a list of block updates to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-114) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-114) times
+[World.chunks.toUpdate](World.md#chunks-38) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-38) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-114) | [NX_ROTATION](../modules.md#nx_rotation-114) | [PY_ROTATION](../modules.md#py_rotation-114) | [NY_ROTATION](../modules.md#ny_rotation-114) | [PZ_ROTATION](../modules.md#pz_rotation-114) | [NZ_ROTATION](../modules.md#nz_rotation-114)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-114) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-38) | [NX_ROTATION](../modules.md#nx_rotation-38) | [PY_ROTATION](../modules.md#py_rotation-38) | [NY_ROTATION](../modules.md#ny_rotation-38) | [PZ_ROTATION](../modules.md#pz_rotation-38) | [NZ_ROTATION](../modules.md#nz_rotation-38)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-38) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-114) (Same for if
-block is not [Block.yRotatable](../modules.md#block-114)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-38) (Same for if
+block is not [Block.yRotatable](../modules.md#block-38)).
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-114)[] | A list of updates to send to the server. |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-38)[] | A list of updates to send to the server. |
 
 #### Returns
 
@@ -1242,45 +717,19 @@ block is not [Block.yRotatable](../modules.md#block-114)).
 
 ## Properties
 
-### atlas
-
-• **atlas**: [`AtlasTexture`](AtlasTexture.md)
-
-The generated texture atlas built from all registered block textures.
-
-___
-
-### blockCache
-
-• **blockCache**: `Map`<`string`, `number`\>
-
-This is a map that keeps track of the block IDs before they are updated to any new block IDs.
-Use [getPreviousVoxelByVoxel](World.md#getpreviousvoxelbyvoxel-114) and [getPreviousVoxelByWorld](World.md#getpreviousvoxelbyworld-114) to get the previous
-block ID, if it exists.
-
-___
-
 ### chunks
 
-• **chunks**: [`Chunks`](Chunks.md)
+• **chunks**: `Chunks`
 
-A chunk manager that stores useful information about chunks, such as the chunk mesh and chunk data.
-
-___
-
-### highResolutions
-
-• **highResolutions**: `Map`<`string`, `number`\>
-
-The resolutions of the texture atlases for each high-resolution block face type.
+The manager that holds all chunk-related data.
 
 ___
 
-### independentTextures
+### deleteRadius
 
-• **independentTextures**: `Map`<`string`, [`AtlasTexture`](AtlasTexture.md)\>
+• **deleteRadius**: `number` = `0`
 
-A map of specific high-resolution block faces.
+The radius from which if chunks exceed this radius, they will be removed and disposed.
 
 ___
 
@@ -1288,7 +737,7 @@ ___
 
 • **initialized**: `boolean` = `false`
 
-Whether or not this world is connected to a server and has configurations and block data loaded from the server.
+Whether or not this world is connected to the server and initialized with server data.
 
 ___
 
@@ -1296,32 +745,23 @@ ___
 
 • **loader**: [`Loader`](Loader.md)
 
-An asset loader that handles loading textures and other assets.
+An asset loader to load in things like textures, images, GIFs and audio buffers.
 
 ___
 
-### materials
+### materialStore
 
-• **materials**: `Object`
+• **materialStore**: `Map`<`string`, [`CustomShaderMaterial`](../modules.md#customshadermaterial-38)\>
 
-The shared material instances for chunks.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `opaque` | `Map`<`string`, [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)\> | The chunk material that is used to render the opaque portions of the chunk meshes. |
-| `transparent` | `Map`<`string`, { `back`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114) ; `front`: [`CustomShaderMaterial`](../modules.md#customshadermaterial-114)  }\> | The chunk materials that are used to render the transparent portions of the chunk meshes. This is a map of the block ID (identifier) to the material instances (front & back). |
+A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
 
 ___
 
 ### params
 
-• **params**: [`WorldParams`](../modules.md#worldparams-114) = `{}`
+• **params**: [`WorldParams`](../modules.md#worldparams-38)
 
-Parameters to configure the world. This is a combination of the client-side parameters, [WorldClientParams](../modules.md#worldclientparams-114),
-and the server-side parameters, [WorldServerParams](../modules.md#worldserverparams-114). The server-side parameters are defined on the server, and
-are sent to the client when the client connects to the server.
+The parameters to create the world.
 
 ___
 
@@ -1329,8 +769,7 @@ ___
 
 • **physics**: `Engine`
 
-A voxel AABB physics engine that handles physics simulation of client-side physics. You can use `world.physics.iterateBody`
-individually to iterate over a rigid body.
+The voxel physics engine using `@voxelize/physics-engine`.
 
 ___
 
@@ -1338,7 +777,15 @@ ___
 
 • **registry**: [`Registry`](Registry.md)
 
-The block registry that handles block textures and block instances.
+The block registry that holds all block data.
+
+___
+
+### renderRadius
+
+• **renderRadius**: `number` = `0`
+
+The radius at which chunks will be requested and rendered.
 
 ___
 
@@ -1354,8 +801,6 @@ The WebGL uniforms that are used in the chunk shader.
 | :------ | :------ | :------ |
 | `ao` | { `value`: `Vector4`  } | The ambient occlusion levels that are applied onto the chunk meshes. Check out [this article](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/) for more information on ambient occlusion for voxel worlds. Defaults to `new Vector4(100.0, 170.0, 210.0, 255.0)`. |
 | `ao.value` | `Vector4` | The value passed into the chunk shader. |
-| `atlas` | { `value`: `Texture`  } | The 2D texture atlas that is used to render the chunk. This will be set after [atlas](World.md#atlas-114) is generated. |
-| `atlas.value` | `Texture` | The value passed into the chunk shader. |
 | `fogColor` | { `value`: `Color`  } | The fog color that is applied onto afar chunks. It is recommended to set this to the middle color of the sky. Defaults to a new THREE.JS white color instance. |
 | `fogColor.value` | `Color` | The value passed into the chunk shader. |
 | `fogFar` | { `value`: `number`  } | The far distance of the fog. Defaults to `200` units. |
@@ -1375,40 +820,12 @@ The WebGL uniforms that are used in the chunk shader.
 
 • **new World**(`params?`)
 
-Create a new world instance.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `params` | `Partial`<[`WorldClientParams`](../modules.md#worldclientparams-114)\> | The client-side parameters to configure the world. |
-
-#### Overrides
-
-Scene.constructor
-
-## Accessors
-
-### renderRadius
-
-• `get` **renderRadius**(): `number`
-
-The render radius that this world is requesting chunks at.
-
-#### Returns
-
-`number`
-
-• `set` **renderRadius**(`radius`): `void`
-
-Set the render radius that this world is requesting chunks at.
-
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `radius` | `number` |
+| `params` | `Partial`<[`WorldParams`](../modules.md#worldparams-38)\> |
 
-#### Returns
+#### Overrides
 
-`void`
+Scene.constructor

@@ -30,6 +30,16 @@ Group.DefaultMatrixAutoUpdate
 
 ___
 
+### DefaultMatrixWorldAutoUpdate
+
+▪ `Static` **DefaultMatrixWorldAutoUpdate**: `boolean`
+
+#### Inherited from
+
+Group.DefaultMatrixWorldAutoUpdate
+
+___
+
 ### DefaultUp
 
 ▪ `Static` **DefaultUp**: `Vector3`
@@ -233,6 +243,23 @@ new THREE.Matrix4()
 #### Inherited from
 
 Group.matrixWorld
+
+___
+
+### matrixWorldAutoUpdate
+
+• **matrixWorldAutoUpdate**: `boolean`
+
+When this is set, the renderer checks every frame if the object and its children need matrix updates.
+Otherwise, you have to maintain all matrices in the object and its children yourself.
+
+**`Default`**
+
+THREE.Object3D.DefaultMatrixWorldAutoUpdate
+
+#### Inherited from
+
+Group.matrixWorldAutoUpdate
 
 ___
 
@@ -833,7 +860,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `value` | `string` |
+| `value` | `any` |
 
 #### Returns
 
@@ -978,7 +1005,7 @@ ___
 
 ### lookAt
 
-▸ **lookAt**(`vector`, `y?`, `z?`): `void`
+▸ **lookAt**(`vector`): `void`
 
 Optionally, the x, y and z components of the world space position.
 Rotates the object to face a point in world space.
@@ -988,9 +1015,25 @@ This method does not support objects having non-uniformly-scaled parent(s).
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `vector` | `number` \| `Vector3` | A world vector to look at. |
-| `y?` | `number` | - |
-| `z?` | `number` | - |
+| `vector` | `Vector3` | A world vector to look at. |
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+Group.lookAt
+
+▸ **lookAt**(`x`, `y`, `z`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `x` | `number` |
+| `y` | `number` |
+| `z` | `number` |
 
 #### Returns
 

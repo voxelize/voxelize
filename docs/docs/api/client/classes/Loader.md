@@ -7,88 +7,39 @@ custom_edit_url: null
 ---
 
 An asset loader that can load textures and audio files. This class is used internally by the world
-and can be accessed via [loader](World.md#loader-114).
+and can be accessed via [loader](World.md#loader-38).
+
+## Properties
+
+### audioBuffers
+
+• **audioBuffers**: `Map`<`string`, `AudioBuffer`\>
+
+A map of all audios loaded by Voxelize.
+
+___
+
+### images
+
+• **images**: `Map`<`string`, `HTMLImageElement` \| `HTMLImageElement`[]\>
+
+___
+
+### progress
+
+• **progress**: `number` = `0`
+
+The progress at which Loader has loaded, zero to one.
+
+___
+
+### textures
+
+• **textures**: `Map`<`string`, `Texture`\>
+
+A map of all textures loaded by Voxelize.
 
 ## Methods
-
-### addAudioBuffer
-
-▸ **addAudioBuffer**(`source`, `onLoaded?`): `void`
-
-Add an audio file to be loaded from.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `source` | `string` | The source to the audio file to load from. |
-| `onLoaded?` | (`buffer`: `AudioBuffer`) => `void` | A callback to run when the audio is loaded. |
-
-#### Returns
-
-`void`
-
-___
-
-### addGifTexture
-
-▸ **addGifTexture**(`source`, `onLoaded?`): `void`
-
-Load a GIF texture from a source URL. This uses omggif to load the GIF and then creates a
-texture for each frame. The textures are stored in an array and can be accessed via the
-[textures](Loader.md#textures-22) map with the source.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `source` | `string` | The source to the GIF file. |
-| `onLoaded?` | (`texture`: `Texture`[]) => `void` | A callback that is called when the GIF is loaded. |
-
-#### Returns
-
-`void`
-
-___
-
-### addTexture
-
-▸ **addTexture**(`source`, `onLoaded?`): `void`
-
-Add a texture source to load from. Must be called before `client.connect`.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `source` | `string` | The source to the texture file to load from. |
-| `onLoaded?` | (`texture`: `Texture`) => `void` | - |
-
-#### Returns
-
-`void`
-
-___
-
-### getAudioBuffer
-
-▸ **getAudioBuffer**(`source`): `AudioBuffer`
-
-Get an audio buffer by its source.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `source` | `string` | The source to the audio file to load from. |
-
-#### Returns
-
-`AudioBuffer`
-
-The audio buffer loaded from the source.
-
-___
 
 ### getGifTexture
 
@@ -149,26 +100,72 @@ world.loader.load().then(() => {});
 
 A promise that resolves when all assets are loaded.
 
-## Properties
+___
 
-### audioBuffers
+### loadAudioBuffer
 
-• **audioBuffers**: `Map`<`string`, `AudioBuffer`\>
+▸ **loadAudioBuffer**(`source`, `onLoaded?`): `Promise`<`AudioBuffer`\>
 
-A map of all audios loaded by Voxelize.
+Add an audio file to be loaded from.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `source` | `string` | The source to the audio file to load from. |
+| `onLoaded?` | (`buffer`: `AudioBuffer`) => `void` | A callback to run when the audio is loaded. |
+
+#### Returns
+
+`Promise`<`AudioBuffer`\>
 
 ___
 
-### progress
+### loadGifImages
 
-• **progress**: `number` = `0`
+▸ **loadGifImages**(`source`, `onLoaded?`): `Promise`<`HTMLImageElement`[]\>
 
-The progress at which Loader has loaded, zero to one.
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `source` | `string` |
+| `onLoaded?` | (`images`: `HTMLImageElement`[]) => `void` |
+
+#### Returns
+
+`Promise`<`HTMLImageElement`[]\>
 
 ___
 
-### textures
+### loadImage
 
-• **textures**: `Map`<`string`, `Texture` \| `Texture`[]\>
+▸ **loadImage**(`source`, `onLoaded?`): `Promise`<`HTMLImageElement`\>
 
-A map of all textures loaded by Voxelize.
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `source` | `string` |
+| `onLoaded?` | (`image`: `HTMLImageElement`) => `void` |
+
+#### Returns
+
+`Promise`<`HTMLImageElement`\>
+
+___
+
+### loadTexture
+
+▸ **loadTexture**(`source`, `onLoaded?`): `Promise`<`Texture`\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `source` | `string` |
+| `onLoaded?` | (`texture`: `Texture`) => `void` |
+
+#### Returns
+
+`Promise`<`Texture`\>

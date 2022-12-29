@@ -44,50 +44,125 @@ export * from "./textures";
 export * from "./shaders";
 
 /**
- * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
+ * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
+ * if you want to change its map, you also have to change its `uniforms.map`.
  */
 export type CustomShaderMaterial = ShaderMaterial & {
+  /**
+   * The texture that this map runs on.
+   */
   map: Texture;
 };
 
+/**
+ * The client-side parameters to create a world. These are client-side only and can be customized to specific use.
+ */
 export type WorldClientParams = {
+  /**
+   * The maximum chunk requests this world can request from the server per tick. Defaults to `4` chunks.
+   */
   maxRequestsPerTick: number;
+
+  /**
+   * The maximum amount of chunks received from the server that can be processed per tick. Defaults to `8` chunks.
+   */
   maxProcessesPerTick: number;
+
+  /**
+   * The maximum voxel updates that can be sent to the server. Defaults to `1000` updates.
+   */
   maxUpdatesPerTick: number;
-  maxAddsPerTick: number;
+
+  /**
+   * Whether or not should the world generate ThreeJS meshes. Defaults to `true`.
+   */
   generateMeshes: boolean;
+
+  /**
+   * The minimum brightness of the chunk mesh even at sunlight and torch light level 0. Defaults to `0.04`.
+   */
   minBrightness: number;
+
+  /**
+   * The ticks until a chunk should be re-requested to the server. Defaults to `300` ticks.
+   */
   rerequestTicks: number;
+
+  /**
+   * The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks.
+   */
   defaultRenderRadius: number;
+
+  /**
+   * The default radius that chunk will be deleted, in chunks. Change this through `world.deleteRadius`. Defaults to `12` chunks.
+   */
   defaultDeleteRadius: number;
+
+  /**
+   * The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution.
+   */
   textureDimension: number;
-  updateTimeout: number;
 };
 
 const defaultParams: WorldClientParams = {
   maxRequestsPerTick: 4,
   maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
-  maxAddsPerTick: 2,
   minBrightness: 0.04,
   generateMeshes: true,
-  rerequestTicks: 1000000,
+  rerequestTicks: 300,
   defaultRenderRadius: 8,
   defaultDeleteRadius: 12,
   textureDimension: 8,
-  updateTimeout: 1.5, // ms
 };
 
+/**
+ * The parameters defined on the server-side, passed to the client on connection.
+ */
 export type WorldServerParams = {
+  /**
+   * The amount of sub-chunks that divides a chunk vertically.
+   */
   subChunks: number;
+
+  /**
+   * The width and depth of a chunk, in blocks.
+   */
   chunkSize: number;
+
+  /**
+   * The height of a chunk, in blocks.
+   */
   maxHeight: number;
+
+  /**
+   * The maximum light level that propagates in this world, including sunlight and torch light.
+   */
   maxLightLevel: number;
+
+  /**
+   * The minimum chunk coordinate of this world, inclusive.
+   */
   minChunk: [number, number];
+
+  /**
+   * The maximum chunk coordinate of this world, inclusive.
+   */
   maxChunk: [number, number];
 
+  /**
+   * The gravity of everything physical in this world.
+   */
   gravity: number[];
+
+  /**
+   * The minimum bouncing impulse of everything physical in this world.
+   */
   minBounceImpulse: number;
+
+  /**
+   * The air drag of everything physical.
+   */
   airDrag: number;
   fluidDrag: number;
   fluidDensity: number;
@@ -95,24 +170,89 @@ export type WorldServerParams = {
 
 export type WorldParams = WorldClientParams & WorldServerParams;
 
+/**
+ * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
+ * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
+ * This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
+ * also implements {@link NetIntercept}, which means it intercepts chunk-related packets from the server
+ * and constructs chunk meshes from them.
+ *
+ * There are a couple components that are by default created by the world that holds data:
+ * - {@link World.registry}: A block registry that handles block textures and block instances.
+ * - {@link World.chunks}: A chunk manager that stores all the chunks in the world.
+ * - {@link World.physics}: A physics engine that handles voxel AABB physics simulation of client-side physics.
+ * - {@link World.loader}: An asset loader that handles loading textures and other assets.
+ *
+ * One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
+ * This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
+ *
+ * # Example
+ * ```ts
+ * const world = new VOXELIZE.World();
+ *
+ * // Update the voxel at `(0, 0, 0)` to a voxel type `12` in the world across the network.
+ * world.updateVoxel(0, 0, 0, 12)
+ *
+ * // Register the interceptor with the network.
+ * network.register(world);
+ *
+ * // Register an image to block sides.
+ * world.applyBlockTexture("Test", VOXELIZE.ALL_FACES, "https://example.com/test.png");
+ *
+ * // Update the world every frame.
+ * world.update(controls.position);
+ * ```
+ *
+ * ![World](/img/docs/world.png)
+ *
+ * @category Core
+ * @noInheritDoc
+ */
 export class World extends Scene implements NetIntercept {
+  /**
+   * The parameters to create the world.
+   */
   public params: WorldParams;
 
+  /**
+   * The block registry that holds all block data.
+   */
   public registry: Registry;
 
+  /**
+   * An asset loader to load in things like textures, images, GIFs and audio buffers.
+   */
   public loader: Loader;
 
+  /**
+   * The manager that holds all chunk-related data.
+   */
   public chunks: Chunks;
 
+  /**
+   * The voxel physics engine using `@voxelize/physics-engine`.
+   */
   public physics: PhysicsEngine;
 
-  public packets: MessageProtocol[] = [];
-
+  /**
+   * Whether or not this world is connected to the server and initialized with server data.
+   */
   public initialized = false;
 
+  /**
+   * The radius at which chunks will be requested and rendered.
+   */
   public renderRadius = 0;
 
+  /**
+   * The radius from which if chunks exceed this radius, they will be removed and disposed.
+   */
   public deleteRadius = 0;
+
+  /**
+   * A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
+   */
+  public materialStore: Map<string, CustomShaderMaterial> = new Map();
 
   /**
    * The WebGL uniforms that are used in the chunk shader.
@@ -208,14 +348,30 @@ export class World extends Scene implements NetIntercept {
     },
   };
 
-  public materialStore: Map<string, CustomShaderMaterial> = new Map();
+  /**
+   * The network packets to be sent to the server.
+   * @hidden
+   */
+  public packets: MessageProtocol[] = [];
 
+  /**
+   * The voxel cache that stores previous values.
+   */
   private oldBlocks: Map<string, number[]> = new Map();
 
+  /**
+   * The internal clock that keeps track of the clock.
+   */
   private clock = new Clock();
 
+  /**
+   * A map of initialize listeners on chunks.
+   */
   private chunkInitListeners = new Map<string, ((chunk: Chunk) => void)[]>();
 
+  /**
+   * The JSON received from the world. Call `init` to initialize.
+   */
   private initJSON: any = null;
 
   constructor(params: Partial<WorldParams> = {}) {
@@ -1371,6 +1527,15 @@ export class World extends Scene implements NetIntercept {
       generateMeshes,
     } = this.params;
 
+    const triggerInitListener = (chunk: Chunk) => {
+      const listeners = this.chunkInitListeners.get(chunk.name);
+
+      if (Array.isArray(listeners)) {
+        listeners.forEach((listener) => listener(chunk));
+        this.chunkInitListeners.delete(chunk.name);
+      }
+    };
+
     const toProcess = this.chunks.toProcess.splice(0, maxProcessesPerTick);
 
     toProcess.forEach((data) => {
@@ -1398,13 +1563,7 @@ export class World extends Scene implements NetIntercept {
           const data = meshes[index];
 
           if (!data) {
-            const listeners = this.chunkInitListeners.get(chunk.name);
-
-            if (Array.isArray(listeners)) {
-              listeners.forEach((listener) => listener(chunk));
-              this.chunkInitListeners.delete(chunk.name);
-            }
-
+            triggerInitListener(chunk);
             cancelAnimationFrame(frame);
             return;
           }
@@ -1414,6 +1573,8 @@ export class World extends Scene implements NetIntercept {
         };
 
         process(0);
+      } else {
+        triggerInitListener(chunk);
       }
     });
   }

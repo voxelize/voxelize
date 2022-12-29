@@ -18,8 +18,8 @@ Create a new face animation. This holds the data and will be used to draw on the
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `range` | [`TextureRange`](../modules.md#texturerange-114) | `undefined` | The range of the texture atlas that this animation uses. |
-| `keyframes` | [`number`, `Texture` \| `Color`][] | `undefined` | The keyframes of the animation. This will be queried and drawn to the texture atlas. |
+| `range` | [`TextureRange`](../modules.md#texturerange-38) | `undefined` | The range of the texture atlas that this animation uses. |
+| `keyframes` | [`number`, `HTMLImageElement` \| `Color`][] | `undefined` | The keyframes of the animation. This will be queried and drawn to the texture atlas. |
 | `fadeFrames` | `number` | `0` | The fading duration between each keyframe in milliseconds. |
 
 ## Properties
@@ -34,7 +34,7 @@ ___
 
 ### keyframes
 
-• **keyframes**: [`number`, `Texture`][]
+• **keyframes**: [`number`, `HTMLImageElement` \| `Color`][]
 
 The keyframes of the animation. This will be queried and drawn to the
 texture atlas.
@@ -43,6 +43,6 @@ ___
 
 ### range
 
-• **range**: [`TextureRange`](../modules.md#texturerange-114)
+• **range**: [`TextureRange`](../modules.md#texturerange-38)
 
 The range of the texture atlas that this animation uses.

@@ -14,16 +14,16 @@ to the positive and negative x-axis.
 
 ### constructor
 
-• **new BlockRotation**(`value`, `yRotation`)
+• **new BlockRotation**(`value?`, `yRotation?`)
 
 Create a new block rotation.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `value` | `number` | The axis this block is pointing towards. |
-| `yRotation` | `number` | The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees. |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `value` | `number` | `0` | The axis this block is pointing towards. |
+| `yRotation` | `number` | `0` | The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees. |
 
 ## Methods
 
@@ -102,7 +102,7 @@ Rotate a 3D coordinate by this block rotation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-114) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `node` | [`Coords3`](../modules.md#coords3-38) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
 | `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
 | `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 
