@@ -14,45 +14,40 @@ custom_edit_url: null
 - [Loader](classes/Loader.md)
 - [Network](classes/Network.md)
 - [Peers](classes/Peers.md)
-- [Registry](classes/Registry.md)
 - [RigidControls](classes/RigidControls.md)
 - [World](classes/World.md)
 
 ## Effects Classes
 
-- [BlockBreakParticles](classes/BlockBreakParticles.md)
 - [BlockOverlayEffect](classes/BlockOverlayEffect.md)
 - [ColorText](classes/ColorText.md)
 - [LightShined](classes/LightShined.md)
 
 ## Other Classes
 
+- [AnimatedTexture](classes/AnimatedTexture.md)
 - [Arrow](classes/Arrow.md)
+- [AtlasTexture](classes/AtlasTexture.md)
 - [BlockRotation](classes/BlockRotation.md)
 - [BoxLayer](classes/BoxLayer.md)
 - [CanvasBox](classes/CanvasBox.md)
 - [Character](classes/Character.md)
-- [Chunk](classes/Chunk.md)
-- [ChunkMesh](classes/ChunkMesh.md)
-- [Chunks](classes/Chunks.md)
 - [Clouds](classes/Clouds.md)
 - [Debug](classes/Debug.md)
 - [Entity](classes/Entity.md)
 - [Events](classes/Events.md)
 - [FaceAnimation](classes/FaceAnimation.md)
-- [ImageVoxelizer](classes/ImageVoxelizer.md)
 - [ItemSlot](classes/ItemSlot.md)
 - [ItemSlots](classes/ItemSlots.md)
 - [Method](classes/Method.md)
 - [NameTag](classes/NameTag.md)
 - [Perspective](classes/Perspective.md)
 - [Portrait](classes/Portrait.md)
-- [Rigid](classes/Rigid.md)
+- [Registry](classes/Registry.md)
 - [Shadow](classes/Shadow.md)
 - [Shadows](classes/Shadows.md)
 - [Sky](classes/Sky.md)
 - [SpriteText](classes/SpriteText.md)
-- [TextureAtlas](classes/TextureAtlas.md)
 - [VoxelInteract](classes/VoxelInteract.md)
 - [WorkerPool](classes/WorkerPool.md)
 
@@ -68,202 +63,11 @@ custom_edit_url: null
 
 - [NetIntercept](interfaces/NetIntercept.md)
 
-## Variables
-
-### ALL\_FACES
-
-• `Const` **ALL\_FACES**: `string`[]
-
-The default symbols for 6-faced block face data.
-
-___
-
-### BLUE\_LIGHT
-
-• `Const` **BLUE\_LIGHT**: ``"BLUE"``
-
-The string representation of blue light.
-
-___
-
-### BOX\_SIDES
-
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-114)[]
-
-The six default faces of a canvas box.
-
-___
-
-### DEFAULT\_CHUNK\_SHADERS
-
-• `Const` **DEFAULT\_CHUNK\_SHADERS**: `Object`
-
-This is the default shaders used for the chunks.
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `fragment` | `string` |
-| `vertex` | `string` |
-
-___
-
-### DIAGONAL\_FACES
-
-• `Const` **DIAGONAL\_FACES**: `string`[]
-
-The default symbols for two diagonal sides.
-
-___
-
-### GREEN\_LIGHT
-
-• `Const` **GREEN\_LIGHT**: ``"GREEN"``
-
-The string representation of green light.
-
-___
-
-### INDEPENDENT\_FACE
-
-• `Const` **INDEPENDENT\_FACE**: ``"_iface_"``
-
-___
-
-### NX\_ROTATION
-
-• `Const` **NX\_ROTATION**: ``3``
-
-The numerical representation of the negative X rotation.
-
-___
-
-### NY\_ROTATION
-
-• `Const` **NY\_ROTATION**: ``1``
-
-The numerical representation of the negative Y rotation.
-
-___
-
-### NZ\_ROTATION
-
-• `Const` **NZ\_ROTATION**: ``5``
-
-The numerical representation of the negative Z rotation.
-
-___
-
-### OPAQUE\_RENDER\_ORDER
-
-• `Const` **OPAQUE\_RENDER\_ORDER**: ``100``
-
-___
-
-### PX\_ROTATION
-
-• `Const` **PX\_ROTATION**: ``2``
-
-The numerical representation of the positive X rotation.
-
-___
-
-### PY\_ROTATION
-
-• `Const` **PY\_ROTATION**: ``0``
-
-The numerical representation of the positive Y rotation.
-
-___
-
-### PZ\_ROTATION
-
-• `Const` **PZ\_ROTATION**: ``4``
-
-The numerical representation of the positive Z rotation.
-
-___
-
-### RED\_LIGHT
-
-• `Const` **RED\_LIGHT**: ``"RED"``
-
-The string representation of red light.
-
-___
-
-### SIDE\_FACES
-
-• `Const` **SIDE\_FACES**: `string`[]
-
-The default symbols for the 4 sides excluding the top and bottom.
-
-___
-
-### SUNLIGHT
-
-• `Const` **SUNLIGHT**: ``"SUNLIGHT"``
-
-The string representation of sunlight.
-
-___
-
-### TRANSPARENT\_RENDER\_ORDER
-
-• `Const` **TRANSPARENT\_RENDER\_ORDER**: ``100000``
-
-___
-
-### Y\_ROT\_MAP
-
-• `Const` **Y\_ROT\_MAP**: `any`[] = `[]`
-
-A rotational map used to get the closest y-rotation representation to a y-rotation value.
-
-___
-
-### Y\_ROT\_SEGMENTS
-
-• `Const` **Y\_ROT\_SEGMENTS**: ``16``
-
-The amount of Y-rotation segments should be allowed for y-rotatable blocks. In other words,
-the amount of times the block can be rotated around the y-axis within 360 degrees.
-
-The accepted Y-rotation values will be from `0` to `Y_ROTATION_SEGMENTS - 1`.
-
-___
-
-### artFunctions
-
-• `Const` **artFunctions**: `Object`
-
-A preset of art functions to draw on canvas boxes.
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `drawCrown` | [`ArtFunction`](modules.md#artfunction-114) |
-| `drawSun` | [`ArtFunction`](modules.md#artfunction-114) |
-
-___
-
-### customShaders
-
-• `Const` **customShaders**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `sway` | (`params`: `Partial`<{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => { `fragmentShader`: `string` = DEFAULT\_CHUNK\_SHADERS.fragment; `vertexShader`: `string`  } |
-
 ## Type Aliases
 
 ### ArmsParams
 
-Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-114) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-38) & { `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 Parameters to create a character's arms.
 Defaults to:
@@ -338,8 +142,8 @@ A block type in the world. This is defined by the server.
 | :------ | :------ | :------ |
 | `aabbs` | `AABB`[] | A list of axis-aligned bounding boxes that this block has. |
 | `blueLightLevel` | `number` | The blue light level of the block. |
-| `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3-114), `world`: [`World`](classes/World.md)) => { `aabbs`: [`Block`](modules.md#block-114)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block-114)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block-114)[``"isTransparent"``]  } | If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this just returns the faces and AABB's that are defined in the block data. |
-| `faces` | { `animated`: `boolean` ; `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `highRes`: `boolean` ; `independent`: `boolean` ; `name`: `string`  }[] | A list of block face data that this block has. |
+| `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3-38), `world`: [`World`](classes/World.md)) => { `aabbs`: [`Block`](modules.md#block-38)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block-38)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block-38)[``"isTransparent"``]  } | If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this just returns the faces and AABB's that are defined in the block data. |
+| `faces` | { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `independent`: `boolean` ; `name`: `string` ; `range`: [`TextureRange`](modules.md#texturerange-38)  }[] | A list of block face data that this block has. |
 | `greenLightLevel` | `number` | The green light level of the block. |
 | `id` | `number` | The block id. |
 | `independentFaces` | `Set`<`string`\> | A set of block face names that are independent (high resolution or animated). This is generated on the client side. |
@@ -356,30 +160,6 @@ A block type in the world. This is defined by the server.
 | `redLightLevel` | `number` | The red light level of the block. |
 | `rotatable` | `boolean` | Whether or not is the block rotatable. |
 | `yRotatable` | `boolean` | Whether or not the block is rotatable around the y-axis (has to face either PX or NX). |
-
-___
-
-### BlockBreakParticlesParams
-
-Ƭ **BlockBreakParticlesParams**: `Object`
-
-Parameters to create a block break particle system.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `capScale` | `number` | The scale of which the lifespans of the particles that are emitted in bursts are scaled. Defaults to `0.1`. |
-| `capSize` | `number` | The maximum block breaks for a regular particle emission. Otherwise, a burst is emitted. Defaults to `5`. |
-| `crumbs` | `boolean` | Whether the particles should look like crumbs of a block. Defaults to `false`. |
-| `impulse` | `number` | The initial impulse of the rigid particles. Defaults to `3`. |
-| `maxCount` | `number` | The maximum count of a particle to be emitted per block break. Defaults to `25`. |
-| `maxLife` | `number` | The maximum lifespan of the particles. Defaults to `4`. |
-| `minCount` | `number` | The minimum count of a particle to be emitted per block break. Defaults to `15`. |
-| `minLife` | `number` | The minimum lifespan of the particles. Defaults to `2`. |
-| `scale` | `number` | The size of the rigid particles. Defaults to `0.1`. |
-| `separateFaces` | `boolean` | Whether the block particles should be separated into faces. Defaults to `false`. |
-| `zoneWidth` | `number` | Around the center of the block break, the dimension of the box-sized zone in which the particles are emitted from. Defaults to `1`. |
 
 ___
 
@@ -404,7 +184,7 @@ ___
 
 ### BodyParams
 
-Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-114)
+Ƭ **BodyParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-38)
 
 Parameters to create a character's body.
 Defaults to:
@@ -478,31 +258,15 @@ Parameters to create a character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-114)\> | Parameters to create the character's arms. |
-| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-114)\> | Parameters to create the character's body. |
-| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-114)\> | Parameters to create the character's head. |
+| `arms?` | `Partial`<[`ArmsParams`](modules.md#armsparams-38)\> | Parameters to create the character's arms. |
+| `body?` | `Partial`<[`BodyParams`](modules.md#bodyparams-38)\> | Parameters to create the character's body. |
+| `head?` | `Partial`<[`HeadParams`](modules.md#headparams-38)\> | Parameters to create the character's head. |
 | `idleArmSwing?` | `number` | The speed at which the arms swing when the character is idle. Defaults to `0.06`. |
-| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-114)\> | Parameters to create the character's legs. |
+| `legs?` | `Partial`<[`LegParams`](modules.md#legparams-38)\> | Parameters to create the character's legs. |
 | `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
 | `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
 | `swingLerp?` | `number` | The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`. |
 | `walkingSpeed?` | `number` | The speed at which the arms swing when the character is moving. Defaults to `1.4`. |
-
-___
-
-### ChunkParams
-
-Ƭ **ChunkParams**: `Object`
-
-Parameters to construct a new chunk.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `maxHeight` | `number` | The vertical height of the chunk, in blocks. This configuration is loaded from the server's world config. |
-| `size` | `number` | The horizontal dimensions of the chunk, in blocks. This configuration is loaded from the server's world config. |
-| `subChunks` | `number` | The vertical segments of the chunk, in blocks. This configuration is loaded from the server's world config. |
 
 ___
 
@@ -528,7 +292,7 @@ Parameters used to create a new [Clouds](classes/Clouds.md) instance.
 | `cloudHeight` | `number` | The y-height at which the clouds are generated. Defaults to `256`. |
 | `color` | `string` | The color of the clouds. Defaults to `#fff`. |
 | `count` | `number` | The number of cloud cells to generate, `count` * `count`. Defaults to `16`. |
-| `dimensions` | [`Coords3`](modules.md#coords3-114) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
+| `dimensions` | [`Coords3`](modules.md#coords3-38) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
 | `falloff` | `number` | The noise falloff factor used to generate the clouds. Defaults to `0.9`. |
 | `height` | `number` | The vertical count of how many cloud blocks are in a cloud cell. This is also used to determine the overall count of cloud blocks of all the clouds. Defaults to `3`. |
 | `lerpFactor` | `number` | The lerp factor used to translate cloud blocks from their original position to their new position. Defaults to `0.3`. |
@@ -589,19 +353,20 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `dimensions` | [`Coords3`](modules.md#coords3-114) |
-| `max` | [`Coords3`](modules.md#coords3-114) |
-| `min` | [`Coords3`](modules.md#coords3-114) |
-| `realMax` | [`Coords3`](modules.md#coords3-114) |
-| `realMin` | [`Coords3`](modules.md#coords3-114) |
+| `dimensions` | [`Coords3`](modules.md#coords3-38) |
+| `max` | [`Coords3`](modules.md#coords3-38) |
+| `min` | [`Coords3`](modules.md#coords3-38) |
+| `realMax` | [`Coords3`](modules.md#coords3-38) |
+| `realMin` | [`Coords3`](modules.md#coords3-38) |
 
 ___
 
 ### CustomShaderMaterial
 
-Ƭ **CustomShaderMaterial**: `ShaderMaterial` & { `highRes`: `boolean` ; `map`: `Texture`  }
+Ƭ **CustomShaderMaterial**: `ShaderMaterial` & { `map`: `Texture`  }
 
-Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture.
+Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
+if you want to change its map, you also have to change its `uniforms.map`.
 
 ___
 
@@ -621,7 +386,7 @@ Parameters to create a [Debug](classes/Debug.md) instance.
 | `entryStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to the wrapper of all debug entries. |
 | `lineClass` | `string` | A class to add to each of the debug entry line (top left). |
 | `lineStyles` | `Partial`<`CSSStyleDeclaration`\> | Styles to apply to each of the debug entry line (top left). |
-| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [toggle](classes/Debug.md#toggle-114). |
+| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [toggle](classes/Debug.md#toggle-38). |
 | `showVoxelize` | `boolean` | Whether or not should `Voxelize x.x.x` be displayed in the top-left debug panel. Defaults to `true`. |
 | `stats` | `boolean` | Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`. |
 
@@ -678,7 +443,7 @@ ___
 
 ### HeadParams
 
-Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-114) & { `neckGap?`: `number`  }
+Ƭ **HeadParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-38) & { `neckGap?`: `number`  }
 
 Parameters to create a character's head.
 Defaults to:
@@ -697,23 +462,6 @@ Defaults to:
 }
 ```
 where `CHARACTER_SCALE` is 0.9.
-
-___
-
-### ImageVoxelizerParams
-
-Ƭ **ImageVoxelizerParams**: `Object`
-
-Parameters to process an image voxelization.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `height` | `number` | The height, in blocks, of the voxelized image. Defaults to `64`. |
-| `lockedRatio` | `boolean` | Whether or not should the ratio between width and height be locked. If true, the width would be ignored and be later determined form the height. Defaults to `false`. |
-| `orientation` | ``"x"`` \| ``"z"`` | Which direction to place the voxelized image. |
-| `width` | `number` | The width, in blocks, of the voxelized image. Defaults to `64`. |
 
 ___
 
@@ -736,7 +484,7 @@ The specific parameters of the key to listen to.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `identifier?` | `string` | A special identifier to tag this input with. This is useful for removing specific inputs from the input listener later on. |
-| `occasion?` | [`InputOccasion`](modules.md#inputoccasion-114) | The occasion that the input should be fired. Defaults to `keydown`. |
+| `occasion?` | [`InputOccasion`](modules.md#inputoccasion-38) | The occasion that the input should be fired. Defaults to `keydown`. |
 
 ___
 
@@ -751,7 +499,7 @@ ___
 | `activatedByDefault` | `boolean` |
 | `focusFirstByDefault` | `boolean` |
 | `horizontalCount` | `number` |
-| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-114) |
+| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-38) |
 | `slotClass` | `string` |
 | `slotFocusClass` | `string` |
 | `slotHoverClass` | `string` |
@@ -767,7 +515,7 @@ ___
 
 ### LegParams
 
-Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-114) & { `betweenLegsGap?`: `number`  }
+Ƭ **LegParams**: [`CanvasBoxParams`](modules.md#canvasboxparams-38) & { `betweenLegsGap?`: `number`  }
 
 Parameters to create the legs of a character.
 Defaults to:
@@ -917,7 +665,7 @@ Parameters to create a portrait with.
 | :------ | :------ | :------ |
 | `height` | `number` | The height of the portrait canvas. Defaults to `100` pixels. |
 | `lightRotationOffset` | `number` | The rotation around the y axis about the camera. This is used to calculate the position of the light. Defaults to `-Math.PI / 8`. |
-| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-114) | The position of where the camera should be looking at. Defaults to `pxyz`, which means that the camera will be looking at the center of the object from the positive x, y, and z axis scaled by the zoom. |
+| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-38) | The position of where the camera should be looking at. Defaults to `pxyz`, which means that the camera will be looking at the center of the object from the positive x, y, and z axis scaled by the zoom. |
 | `renderOnce` | `boolean` | Whether or not should this portrait only render once. Defaults to `false`. |
 | `width` | `number` | The width of the portrait canvas. Defaults to `100` pixels. |
 | `zoom` | `number` | The arbitrary zoom from the camera to the object. This is used to calculate the zoom of the camera. Defaults to `1`. |
@@ -976,7 +724,7 @@ Parameters to initialize the Voxelize Controls.
 | `flyImpulse` | `number` | The level impulse of which a client flies at. Defaults to `2.5`. |
 | `flyInertia` | `number` | The inertia of a client when they're flying. Defaults to `6`. |
 | `flySpeed` | `number` | The level of speed at which a client flies at. Defaults to `40`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-114) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialPosition` | [`Coords3`](modules.md#coords3-38) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `jumpForce` | `number` | The level of force applied to the client when jumping. Defaults to `1`. |
 | `jumpImpulse` | `number` | The level of impulse at which the client jumps upwards. Defaults to `8`. |
 | `jumpTime` | `number` | The time, in milliseconds, that a client can be jumping. Defaults to `50`ms. |
@@ -1008,43 +756,6 @@ Parameters to create a shadow.
 | :------ | :------ | :------ |
 | `maxDistance` | `number` | The maximum distance from the object to the ground to cast a shadow. The shadow's scale scales inversely with distance. Defaults to `10`. |
 | `maxRadius` | `number` | The maximum radius the shadow can have. That is, the radius of the shadow when the object is on the ground. Defaults to `0.5`. |
-
-___
-
-### SkyFace
-
-Ƭ **SkyFace**: [`ArtFunction`](modules.md#artfunction-114) \| `Color` \| `string` \| ``null``
-
-___
-
-### TextureAtlasParams
-
-Ƭ **TextureAtlasParams**: `Object`
-
-Parameters to create a new [TextureAtlas](classes/TextureAtlas.md) instance.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `countPerSide` | `number` | The number of block textures on each side of the this. |
-| `dimension` | `number` | The dimension of each block texture. |
-
-___
-
-### TextureData
-
-Ƭ **TextureData**: `Object`
-
-Data passed to applyTextureByName or applyTexturesByNames to load a block texture.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `data` | `string` \| `Color` | Either the URL to the source image, or a ThreeJS color instance. If a color is provided, the texture will be a solid color. |
-| `name` | `string` | The name of the block to load. E.g. "Dirt". |
-| `sides` | `string`[] \| `string` | The side(s) that this data loads onto. |
 
 ___
 
@@ -1119,27 +830,27 @@ ___
 
 Ƭ **WorldClientParams**: `Object`
 
+The client-side parameters to create a world. These are client-side only and can be customized to specific use.
+
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
-| `defaultDeleteRadius` | `number` |
-| `defaultRenderRadius` | `number` |
-| `inViewRadius` | `number` |
-| `maxAddsPerTick` | `number` |
-| `maxProcessesPerTick` | `number` |
-| `maxRequestsPerTick` | `number` |
-| `maxUpdatesPerTick` | `number` |
-| `minBrightness` | `number` |
-| `rerequestTicks` | `number` |
-| `textureDimension` | `number` |
-| `updateTimeout` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `defaultDeleteRadius` | `number` | The default radius that chunk will be deleted, in chunks. Change this through `world.deleteRadius`. Defaults to `12` chunks. |
+| `defaultRenderRadius` | `number` | The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks. |
+| `generateMeshes` | `boolean` | Whether or not should the world generate ThreeJS meshes. Defaults to `true`. |
+| `maxProcessesPerTick` | `number` | The maximum amount of chunks received from the server that can be processed per tick. Defaults to `8` chunks. |
+| `maxRequestsPerTick` | `number` | The maximum chunk requests this world can request from the server per tick. Defaults to `4` chunks. |
+| `maxUpdatesPerTick` | `number` | The maximum voxel updates that can be sent to the server. Defaults to `1000` updates. |
+| `minBrightness` | `number` | The minimum brightness of the chunk mesh even at sunlight and torch light level 0. Defaults to `0.04`. |
+| `rerequestTicks` | `number` | The ticks until a chunk should be re-requested to the server. Defaults to `300` ticks. |
+| `textureDimension` | `number` | The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution. |
 
 ___
 
 ### WorldParams
 
-Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-114) & [`WorldServerParams`](modules.md#worldserverparams-114)
+Ƭ **WorldParams**: [`WorldClientParams`](modules.md#worldclientparams-38) & [`WorldServerParams`](modules.md#worldserverparams-38)
 
 ___
 
@@ -1147,21 +858,184 @@ ___
 
 Ƭ **WorldServerParams**: `Object`
 
+The parameters defined on the server-side, passed to the client on connection.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `airDrag` | `number` | The air drag of everything physical. |
+| `chunkSize` | `number` | The width and depth of a chunk, in blocks. |
+| `fluidDensity` | `number` | - |
+| `fluidDrag` | `number` | - |
+| `gravity` | `number`[] | The gravity of everything physical in this world. |
+| `maxChunk` | [`number`, `number`] | The maximum chunk coordinate of this world, inclusive. |
+| `maxHeight` | `number` | The height of a chunk, in blocks. |
+| `maxLightLevel` | `number` | The maximum light level that propagates in this world, including sunlight and torch light. |
+| `minBounceImpulse` | `number` | The minimum bouncing impulse of everything physical in this world. |
+| `minChunk` | [`number`, `number`] | The minimum chunk coordinate of this world, inclusive. |
+| `subChunks` | `number` | The amount of sub-chunks that divides a chunk vertically. |
+
+## Variables
+
+### BLUE\_LIGHT
+
+• `Const` **BLUE\_LIGHT**: ``"BLUE"``
+
+The string representation of blue light.
+
+___
+
+### BOX\_SIDES
+
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-38)[]
+
+The six default faces of a canvas box.
+
+___
+
+### DEFAULT\_CHUNK\_SHADERS
+
+• `Const` **DEFAULT\_CHUNK\_SHADERS**: `Object`
+
+This is the default shaders used for the chunks.
+
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `airDrag` | `number` |
-| `chunkSize` | `number` |
-| `fluidDensity` | `number` |
-| `fluidDrag` | `number` |
-| `gravity` | `number`[] |
-| `maxChunk` | [`number`, `number`] |
-| `maxHeight` | `number` |
-| `maxLightLevel` | `number` |
-| `minBounceImpulse` | `number` |
-| `minChunk` | [`number`, `number`] |
-| `subChunks` | `number` |
+| `fragment` | `string` |
+| `vertex` | `string` |
+
+___
+
+### GREEN\_LIGHT
+
+• `Const` **GREEN\_LIGHT**: ``"GREEN"``
+
+The string representation of green light.
+
+___
+
+### NX\_ROTATION
+
+• `Const` **NX\_ROTATION**: ``3``
+
+The numerical representation of the negative X rotation.
+
+___
+
+### NY\_ROTATION
+
+• `Const` **NY\_ROTATION**: ``1``
+
+The numerical representation of the negative Y rotation.
+
+___
+
+### NZ\_ROTATION
+
+• `Const` **NZ\_ROTATION**: ``5``
+
+The numerical representation of the negative Z rotation.
+
+___
+
+### OPAQUE\_RENDER\_ORDER
+
+• `Const` **OPAQUE\_RENDER\_ORDER**: ``100``
+
+___
+
+### PX\_ROTATION
+
+• `Const` **PX\_ROTATION**: ``2``
+
+The numerical representation of the positive X rotation.
+
+___
+
+### PY\_ROTATION
+
+• `Const` **PY\_ROTATION**: ``0``
+
+The numerical representation of the positive Y rotation.
+
+___
+
+### PZ\_ROTATION
+
+• `Const` **PZ\_ROTATION**: ``4``
+
+The numerical representation of the positive Z rotation.
+
+___
+
+### RED\_LIGHT
+
+• `Const` **RED\_LIGHT**: ``"RED"``
+
+The string representation of red light.
+
+___
+
+### SUNLIGHT
+
+• `Const` **SUNLIGHT**: ``"SUNLIGHT"``
+
+The string representation of sunlight.
+
+___
+
+### TRANSPARENT\_RENDER\_ORDER
+
+• `Const` **TRANSPARENT\_RENDER\_ORDER**: ``100000``
+
+___
+
+### Y\_ROT\_MAP
+
+• `Const` **Y\_ROT\_MAP**: `any`[] = `[]`
+
+A rotational map used to get the closest y-rotation representation to a y-rotation value.
+
+___
+
+### Y\_ROT\_SEGMENTS
+
+• `Const` **Y\_ROT\_SEGMENTS**: ``16``
+
+The amount of Y-rotation segments should be allowed for y-rotatable blocks. In other words,
+the amount of times the block can be rotated around the y-axis within 360 degrees.
+
+The accepted Y-rotation values will be from `0` to `Y_ROTATION_SEGMENTS - 1`.
+
+___
+
+### artFunctions
+
+• `Const` **artFunctions**: `Object`
+
+A preset of art functions to draw on canvas boxes.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `drawCrown` | [`ArtFunction`](modules.md#artfunction-38) |
+| `drawSun` | [`ArtFunction`](modules.md#artfunction-38) |
+
+___
+
+### customShaders
+
+• `Const` **customShaders**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `sway` | (`params`: `Partial`<{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => { `fragmentShader`: `string` = DEFAULT\_CHUNK\_SHADERS.fragment; `vertexShader`: `string`  } |
 
 ## Functions
 
@@ -1196,15 +1070,15 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-114)\>
+▸ **cull**(`array`, `options`): `Promise`<[`MeshResultType`](modules.md#meshresulttype-38)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`<`number`[] \| `TypedArray` \| `GenericArray`<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-114) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-38) |
 
 #### Returns
 
-`Promise`<[`MeshResultType`](modules.md#meshresulttype-114)\>
+`Promise`<[`MeshResultType`](modules.md#meshresulttype-38)\>

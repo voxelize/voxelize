@@ -285,7 +285,7 @@ export class VoxelInteract extends Group {
     const newTarget = ChunkUtils.mapWorldToVoxel(<Coords3>voxel);
 
     // Pointing at air.
-    const newLookingID = this.world.getVoxelByVoxel(...newTarget);
+    const newLookingID = this.world.getVoxelAt(...newTarget);
     if (newLookingID === 0) {
       this.visible = false;
       this.target = null;
@@ -307,7 +307,7 @@ export class VoxelInteract extends Group {
 
       if (!aabbs.length) return;
 
-      const rotation = this.world.getVoxelRotationByVoxel(...this.target);
+      const rotation = this.world.getVoxelRotationAt(...this.target);
 
       let union: AABB = rotation.rotateAABB(aabbs[0]);
 
@@ -413,7 +413,7 @@ export class VoxelInteract extends Group {
    */
   get lookingAt() {
     if (this.target) {
-      return this.world.getBlockByVoxel(
+      return this.world.getBlockAt(
         this.target[0],
         this.target[1],
         this.target[2]

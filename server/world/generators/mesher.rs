@@ -1,14 +1,17 @@
-use std::{collections::VecDeque, sync::Arc, time::Instant};
+use std::{collections::VecDeque, sync::Arc};
 
-use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use log::info;
-use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
+use rayon::{
+    iter::IntoParallelIterator,
+    prelude::{IndexedParallelIterator, ParallelIterator},
+    ThreadPool, ThreadPoolBuilder,
+};
 
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
     GeometryProtocol, LightColor, LightUtils, MeshProtocol, Neighbors, Registry, Space, Vec2, Vec3,
-    VoxelAccess, WorldConfig, AABB, INDEPENDENT_FACE, UV,
+    VoxelAccess, WorldConfig, AABB, UV,
 };
 
 use super::lights::Lights;
@@ -51,10 +54,10 @@ pub struct Mesher {
     pub(crate) skips: HashMap<Vec2<i32>, usize>,
 
     /// Sender of processed chunks from other threads to the main thread.
-    sender: Arc<Sender<Vec<Chunk>>>,
+    sender: Arc<Sender<Chunk>>,
 
     /// Receiver of processed chunks from other threads to the main thread.
-    receiver: Arc<Receiver<Vec<Chunk>>>,
+    receiver: Arc<Receiver<Chunk>>,
 
     /// The thread pool for meshing.
     pool: ThreadPool,
@@ -80,15 +83,24 @@ impl Mesher {
 
     /// Add a chunk to be meshed.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if self.queue.contains(coords) {
+        if self.map.contains(coords) {
             return;
         }
+
+        self.remove_chunk(coords);
 
         if prioritized {
             self.queue.push_front(coords.to_owned());
         } else {
             self.queue.push_back(coords.to_owned());
         }
+    }
+
+    /// Remove a chunk coordinate from the pipeline.
+    pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
+        self.map.remove(coords);
+        self.skips.remove(coords);
+        self.queue.retain(|c| c != coords);
     }
 
     /// Pop the first chunk coordinate in the queue.
@@ -119,9 +131,10 @@ impl Mesher {
         });
 
         self.pool.spawn(move || {
-            let chunks: Vec<Chunk> = processes
+            processes
                 .into_par_iter()
-                .map(|(mut chunk, mut space)| {
+                .enumerate()
+                .for_each(|(_, (mut chunk, mut space))| {
                     if chunk.meshes.is_none() {
                         let min = space.min.to_owned();
                         let coords = space.coords.to_owned();
@@ -154,60 +167,44 @@ impl Mesher {
                             let max =
                                 Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                            let opaque = Self::mesh_space(&min, &max, &space, &registry, false);
-                            let transparent = Self::mesh_space(&min, &max, &space, &registry, true);
+                            let geometries = Self::mesh_space(&min, &max, &space, &registry);
 
-                            (opaque, transparent, level)
+                            (geometries, level)
                         })
-                        .collect::<Vec<(Vec<GeometryProtocol>, Vec<GeometryProtocol>, i32)>>()
+                        .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
                         .into_iter()
-                        .for_each(|(opaque, transparent, level)| {
+                        .for_each(|(geometries, level)| {
                             if chunk.meshes.is_none() {
                                 chunk.meshes = Some(HashMap::new());
                             }
 
-                            chunk.meshes.as_mut().unwrap().insert(
-                                level as u32,
-                                MeshProtocol {
-                                    level,
-                                    opaque,
-                                    transparent,
-                                },
-                            );
+                            chunk
+                                .meshes
+                                .as_mut()
+                                .unwrap()
+                                .insert(level as u32, MeshProtocol { level, geometries });
                         });
 
-                    chunk
-                })
-                .collect();
-
-            sender.send(chunks).unwrap();
+                    sender.send(chunk).unwrap();
+                });
         });
     }
 
-    /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&mut self) -> Result<Vec<Chunk>, TryRecvError> {
-        let results = self.receiver.try_recv();
+    /// Attempt to retrieve the results from `mesher.process`
+    pub fn results(&mut self) -> Option<Chunk> {
+        let result = self.receiver.try_recv();
 
-        if results.is_err() {
-            return results;
+        if result.is_err() {
+            return None;
         }
 
-        let results = results.unwrap();
+        let result = result.unwrap();
 
-        Ok(results
-            .into_iter()
-            .filter(|chunk| {
-                let skip_count = self.skips.remove(&chunk.coords).unwrap_or(0);
-                if skip_count > 0 {
-                    self.skips.insert(chunk.coords.to_owned(), skip_count - 1);
-                    return false;
-                }
+        if !self.map.contains(&result.coords) {
+            return None;
+        }
 
-                self.map.remove(&chunk.coords);
-
-                true
-            })
-            .collect())
+        Some(result)
     }
 
     /// Mesh this space and separate individual block types into their own meshes.
@@ -216,7 +213,6 @@ impl Mesher {
         max: &Vec3<i32>,
         space: &dyn VoxelAccess,
         registry: &Registry,
-        transparent: bool,
     ) -> Vec<GeometryProtocol> {
         let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
 
@@ -238,6 +234,7 @@ impl Mesher {
                     let block = registry.get_block_by_id(voxel_id);
 
                     let Block {
+                        id,
                         is_see_through,
                         is_empty,
                         is_opaque,
@@ -270,58 +267,53 @@ impl Mesher {
                         }
                     }
 
-                    if if transparent {
-                        is_see_through
-                    } else {
-                        !is_see_through
-                    } {
-                        let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
-                        let uv_map = registry.get_uv_map(block);
+                    let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
+                    let uv_map = registry.get_uv_map(block);
 
-                        faces.iter().for_each(|face| {
-                            // If the face is high resolution, we need to generate a new mesh for it by creating
-                            // a separate special identifier for it.
-                            let identifier = if face.high_res || face.animated {
-                                format!(
-                                    "{}{}{}",
-                                    name.to_lowercase(),
-                                    INDEPENDENT_FACE,
-                                    face.name.to_lowercase()
-                                )
-                            } else {
-                                name.to_lowercase()
-                            };
+                    faces.iter().enumerate().for_each(|(idx, face)| {
+                        let key = if face.independent {
+                            format!("{}::{}", name.to_lowercase(), face.name.to_lowercase())
+                        } else {
+                            name.to_lowercase()
+                        };
 
-                            let mut geometry = map.remove(&identifier).unwrap_or_default();
-                            geometry.identifier = identifier;
+                        let mut geometry = map.remove(&key).unwrap_or_default();
 
-                            Mesher::process_face(
-                                vx,
-                                vy,
-                                vz,
-                                voxel_id,
-                                &rotation,
-                                face,
-                                block,
-                                &uv_map,
-                                &registry,
-                                space,
-                                transparent,
-                                &mut geometry.positions,
-                                &mut geometry.indices,
-                                &mut geometry.uvs,
-                                &mut geometry.lights,
-                                min,
-                            );
+                        geometry.voxel = id;
 
-                            map.insert(geometry.identifier.to_owned(), geometry);
-                        });
-                    }
+                        if face.independent {
+                            geometry.face_name = Some(face.name.to_owned());
+                        }
+
+                        Mesher::process_face(
+                            vx,
+                            vy,
+                            vz,
+                            voxel_id,
+                            &rotation,
+                            face,
+                            block,
+                            &uv_map,
+                            &registry,
+                            space,
+                            is_see_through,
+                            &mut geometry.positions,
+                            &mut geometry.indices,
+                            &mut geometry.uvs,
+                            &mut geometry.lights,
+                            min,
+                        );
+
+                        map.insert(key, geometry);
+                    });
                 }
             }
         }
 
-        map.into_iter().map(|(_, geometry)| geometry).collect()
+        map.into_iter()
+            .map(|(_, geometry)| geometry)
+            .filter(|geometry| !geometry.indices.is_empty())
+            .collect()
     }
 
     #[inline]
@@ -333,10 +325,10 @@ impl Mesher {
         rotation: &BlockRotation,
         face: &BlockFace,
         block: &Block,
-        uv_map: &HashMap<String, &UV>,
+        uv_map: &HashMap<String, UV>,
         registry: &Registry,
         space: &dyn VoxelAccess,
-        transparent: bool,
+        see_through: bool,
         positions: &mut Vec<f32>,
         indices: &mut Vec<i32>,
         uvs: &mut Vec<f32>,
@@ -377,16 +369,16 @@ impl Mesher {
         // To mesh the face, we need to match these conditions:
         // a. general
         //    1. the neighbor is void or empty (air or DNE)
-        // b. transparent mode
+        // b. see_through mode
         //    1. itself is see-through (water & leaves)
         //       - if the neighbor is the same, then mesh if standalone (leaves).
         //       - not the same, and one is see-through, then mesh (leaves + water or leaves + stick).
         //       - not the same, and the bounding boxes do not intersect, then mesh.
         // c. opaque mode
-        //    1. ignore all see-through blocks (transparent)
+        //    1. ignore all see-through blocks (see_through)
         //    2. if one of them is not opaque, mesh.
         if (n_is_void || n_block_type.is_empty)
-            || (transparent
+            || (see_through
                 && !is_opaque
                 && !n_block_type.is_opaque
                 && ((is_see_through
@@ -406,7 +398,7 @@ impl Mesher {
                             false
                         }
                     })))
-            || (!transparent && (!is_opaque || !n_block_type.is_opaque))
+            || (!see_through && (!is_opaque || !n_block_type.is_opaque))
         {
             let UV {
                 start_u,

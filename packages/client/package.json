@@ -18,17 +18,15 @@
     "prepublishOnly": "yarn run build"
   },
   "peerDependencies": {
-    "postprocessing": "^6.26.3",
-    "three": "^0.146.0",
-    "three-nebula": "10.0.3"
+    "postprocessing": "^6.29.1",
+    "three": "^0.148.0"
   },
   "devDependencies": {
     "@types/gl-vec3": "^1.1.1",
     "@types/ndarray": "^1.0.11",
     "@types/omggif": "^1.0.3",
-    "@types/three": "^0.141.0",
+    "@types/three": "^0.146.0",
     "@types/uuid": "^8.3.4",
-    "postprocessing": "^6.29.0",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-copy-watch": "^0.0.1"
   },

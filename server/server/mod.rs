@@ -360,6 +360,8 @@ impl Server {
                 continue;
             }
 
+            world.preload();
+
             let bar = m.insert_from_back(0, ProgressBar::new(100));
             bar.set_message(world.name.clone());
             bar.set_style(sty.clone());
@@ -373,7 +375,7 @@ impl Server {
             let mut done = true;
 
             for (i, world) in self.worlds.values_mut().enumerate() {
-                if bars[i].is_none() {
+                if bars[i].is_none() || !world.config().preload {
                     continue;
                 }
 

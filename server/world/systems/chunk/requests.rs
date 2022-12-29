@@ -2,8 +2,8 @@ use hashbrown::{HashMap, HashSet};
 use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp, Mesher, Message,
-    MessageQueue, MessageType, Pipeline, Vec2, WorldConfig,
+    ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
+    Mesher, Message, MessageQueue, MessageType, Pipeline, Vec2, WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;
@@ -12,6 +12,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     type SystemData = (
         ReadExpect<'a, Chunks>,
         ReadExpect<'a, WorldConfig>,
+        WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
         WriteExpect<'a, MessageQueue>,
@@ -24,12 +25,13 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     // 3. Move the chunk from the `requested` set to the `processed` set.
     // 4. Otherwise, send directly to the client.
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut pipeline, mut mesher, mut queue, ids, mut requests) = data;
+        let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests) =
+            data;
 
         let mut to_send: HashMap<String, HashSet<Vec2<i32>>> = HashMap::new();
 
         for (id, requests) in (&ids, &mut requests).join() {
-            for coords in requests.requested.drain() {
+            for coords in requests.requests.drain(..) {
                 // If the chunk is actually ready, send to client.
                 if chunks.is_chunk_ready(&coords) {
                     let mut clients_to_send = to_send.remove(&id.0).unwrap_or_default();
@@ -38,13 +40,17 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     clients_to_send.insert(coords.clone());
 
                     to_send.insert(id.0.clone(), clients_to_send);
-                } else {
+
+                    continue;
+                }
+
+                if !interests.has_interests(&coords) {
                     chunks
                         .light_traversed_chunks(&coords)
                         .into_iter()
                         .for_each(|n_coords| {
                             // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                            if !chunks.map.contains_key(&n_coords)
+                            if chunks.raw(&n_coords).is_none()
                                 || matches!(
                                     chunks.raw(&n_coords).unwrap().status,
                                     ChunkStatus::Generating(_)
@@ -61,7 +67,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         });
                 }
 
-                requests.processed.insert(coords);
+                interests.add(&id.0, &coords);
             }
         }
 

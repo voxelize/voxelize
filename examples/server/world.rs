@@ -180,7 +180,7 @@ pub fn setup_world() -> World {
         // .min_chunk([0, 0])
         // .max_chunk([0, 0])
         .saving(true)
-        .save_dir("data")
+        .save_dir("data/worlds/main")
         .build();
 
     let mut world = World::new("world1", &config);

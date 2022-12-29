@@ -4289,10 +4289,10 @@
     "@types/react" "*"
     csstype "^3.0.2"
 
-"@types/three@^0.141.0":
-  version "0.141.0"
-  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.141.0.tgz#d9d81a54b28ebc2a56931dfd4d9c54d25c20d6c8"
-  integrity sha512-OJdKDgTPVBUgc+s74DYoy4aLznbFFC38Xm4ElmU1YwGNgR7GGFVvFCX7lpVgOsT6S1zSJtGdajTsOYE8/xY9nA==
+"@types/three@^0.146.0":
+  version "0.146.0"
+  resolved "https://registry.yarnpkg.com/@types/three/-/three-0.146.0.tgz#83813ba0d2fff6bdc6d7fda3a77993a932bba45f"
+  integrity sha512-75AgysUrIvTCB054eQa2pDVFurfeFW8CrMQjpzjt3yHBfuuknoSvvsESd/3EhQxPrz9si3+P0wiDUVsWUlljfA==
   dependencies:
     "@types/webxr" "*"
 
@@ -4314,9 +4314,9 @@
     "@types/node" "*"
 
 "@types/webxr@*":
-  version "0.4.0"
-  resolved "https://registry.npmjs.org/@types/webxr/-/webxr-0.4.0.tgz"
-  integrity sha512-LQvrACV3Pj17GpkwHwXuTd733gfY+D7b9mKdrTmLdO7vo7P/o6209Qqtk63y/FCv/lspdmi0pWz6Qe/ull9kQg==
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@types/webxr/-/webxr-0.5.0.tgz#aae1cef3210d88fd4204f8c33385a0bbc4da07c9"
+  integrity sha512-IUMDPSXnYIbEO2IereEFcgcqfDREOgmbGqtrMpVPpACTU6pltYLwHgVkrnYv0XhWEcjio9sYEfIEzgn3c7nDqA==
 
 "@types/ws@^7.2.3":
   version "7.4.7"
@@ -4448,6 +4448,7 @@
     omggif "^1.0.10"
     regenerator-runtime "^0.13.9"
     socket.io-client "^4.4.1"
+    three-wboit "^1.0.12"
     uuid "^8.3.2"
 
 "@voxelize/voxel-aabb@*":
@@ -10294,6 +10295,11 @@ libnpmpublish@^6.0.4:
     semver "^7.3.7"
     ssri "^9.0.0"
 
+lil-gui@^0.17.0:
+  version "0.17.0"
+  resolved "https://registry.yarnpkg.com/lil-gui/-/lil-gui-0.17.0.tgz#b41ae55d0023fcd9185f7395a218db0f58189663"
+  integrity sha512-MVBHmgY+uEbmJNApAaPbtvNh1RCAeMnKym82SBjtp5rODTYKWtM+MXHCifLe2H2Ti1HuBGBtK/5SyG4ShQ3pUQ==
+
 lilconfig@^2.0.3, lilconfig@^2.0.6:
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/lilconfig/-/lilconfig-2.0.6.tgz#32a384558bd58af3d4c6e077dd1ad1d397bc69d4"
@@ -12228,15 +12234,10 @@ postcss@^8.4.20:
     picocolors "^1.0.0"
     source-map-js "^1.0.2"
 
-postprocessing@^6.29.0:
+postprocessing@^6.29.1:
   version "6.29.1"
   resolved "https://registry.yarnpkg.com/postprocessing/-/postprocessing-6.29.1.tgz#169b48cca498a52d3ee4b8960645b089cc7f64b3"
   integrity sha512-w+XoL2Z7YpVDsHbIeg6sldMMmDqZS4Hul1FDq3TjOeXZ0Wnp0Qy1EvR7QmYJxyWBux1cKQx/k3XO7LxfvPsZyg==
-
-potpack@^1.0.1:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/potpack/-/potpack-1.0.2.tgz#23b99e64eb74f5741ffe7656b5b5c4ddce8dfc14"
-  integrity sha512-choctRBIV9EMT9WGAZHn3V7t0Z2pMQyl0EZE6pFc/6ml3ssw7Dlf/oAOvFwjm1HVsqfQN8GfeFyJ+d8tRzqueQ==
 
 prelude-ls@^1.2.1:
   version "1.2.1"
@@ -14309,24 +14310,10 @@ thenify-all@^1.0.0:
   dependencies:
     any-promise "^1.0.0"
 
-three-nebula@^10.0.3:
-  version "10.0.3"
-  resolved "https://registry.yarnpkg.com/three-nebula/-/three-nebula-10.0.3.tgz#8da67911198893521d89a3d2ccd330e786f7a2bc"
-  integrity sha512-cX0UVkCGKx1r36z/yo26HAjsMGa3NcSvGZlODTLo6lfNikpK7oYXgq5r4yVrjaGjhpeKnFalNTI8LsHiZ8KlYw==
-  dependencies:
-    lodash "^4.17.21"
-    potpack "^1.0.1"
-    uuid "^3.3.2"
-
-three@^0.140.2:
-  version "0.140.2"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.140.2.tgz#ca0b7390d1ce4f7f2850e80afd00ef48fc244491"
-  integrity sha512-DdT/AHm/TbZXEhQKQpGt5/iSgBrmXpjU26FNtj1KhllVPTKj1eG4X/ShyD5W2fngE+I1s1wa4ttC4C3oCJt7Ag==
-
-three@^0.146.0:
-  version "0.146.0"
-  resolved "https://registry.yarnpkg.com/three/-/three-0.146.0.tgz#fd80f0d128ab4bb821a02191ae241e4e6326f17a"
-  integrity sha512-1lvNfLezN6OJ9NaFAhfX4sm5e9YCzHtaRgZ1+B4C+Hv6TibRMsuBAM5/wVKzxjpYIlMymvgsHEFrrigEfXnb2A==
+three-wboit@^1.0.12:
+  version "1.0.12"
+  resolved "https://registry.yarnpkg.com/three-wboit/-/three-wboit-1.0.12.tgz#fd68b3199e61a52b805f5a408cc5fcc727c29278"
+  integrity sha512-14RI1JF3VoE8Qw06q1zhvGTxDbJ/qj0f7I97ztJkECQOucbHVijTXqAYyvibhsXewiTSoJmNrnEFF0CdrmG0nw==
 
 three@^0.148.0:
   version "0.148.0"
@@ -15024,7 +15011,7 @@ utils-merge@1.0.1:
   resolved "https://registry.npmjs.org/utils-merge/-/utils-merge-1.0.1.tgz"
   integrity sha1-n5VxD1CiZ5R7LMwSR0HBAoQn5xM=
 
-uuid@^3.3.2, uuid@^3.4.0:
+uuid@^3.4.0:
   version "3.4.0"
   resolved "https://registry.npmjs.org/uuid/-/uuid-3.4.0.tgz"
   integrity sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==

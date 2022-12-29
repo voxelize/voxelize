@@ -1,4 +1,8 @@
 import "./style.css";
+
+// For official use, you should do `@voxelize/client/styles.css` instead.
+import "@voxelize/client/src/styles.css";
+
 import { AABB } from "@voxelize/aabb";
 import * as VOXELIZE from "@voxelize/client";
 import {
@@ -9,10 +13,9 @@ import {
   SMAAEffect,
 } from "postprocessing";
 import * as THREE from "three";
-import { MeshRenderer } from "three-nebula";
 
 import LolImage from "./assets/lol.png";
-import { setupWorld } from "./core";
+import { setupWorld } from "./world";
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 
@@ -55,37 +58,11 @@ const world = new VOXELIZE.World({
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-const character = new VOXELIZE.Character({
-  // head: {
-  //   height: 0.5,
-  //   heightSegments: 64,
-  //   widthSegments: 64,
-  // },
-});
+const character = new VOXELIZE.Character({});
 character.position.set(0, 10, -5);
 
-world.loader.addTexture(LolImage, (texture) => {
+world.loader.loadTexture(LolImage, (texture) => {
   character.head.paint("front", texture);
-});
-
-world.overwriteBlockDynamicByName("Water", (pos) => {
-  const [vx, vy, vz] = pos;
-
-  let topIsWater = false;
-
-  for (let ox = -1; ox <= 1; ox++) {
-    for (let oz = -1; oz <= 1; oz++) {
-      if (world.getBlockByVoxel(vx + ox, vy + 1, vz + oz)?.name === "Water")
-        topIsWater = true;
-    }
-  }
-
-  const originalAABB = world.registry.getBlockByName("Water");
-
-  return {
-    ...originalAABB,
-    aabbs: topIsWater ? [new AABB(0, 0, 0, 1, 1, 1)] : originalAABB.aabbs,
-  };
 });
 
 inputs.on("namespace", (namespace) => {
@@ -102,7 +79,7 @@ const clouds = new VOXELIZE.Clouds({
 });
 
 world.add(clouds);
-world.setFogColor(sky.getMiddleColor());
+// world.setFogColor(sky.getMiddleColor());
 
 const camera = new THREE.PerspectiveCamera(
   90,
@@ -161,8 +138,6 @@ const perspective = new VOXELIZE.Perspective(controls, world);
 perspective.connect(inputs, "in-game");
 
 const network = new VOXELIZE.Network();
-
-setupWorld(world);
 
 window.addEventListener("resize", () => {
   const width = window.innerWidth as number;
@@ -278,10 +253,6 @@ inputs.bind(
 //   if (updates.length) controls.world.updateVoxels(updates);
 // };
 
-const particleRenderer = new MeshRenderer(world, THREE);
-const blockBreakParticles = new VOXELIZE.BlockBreakParticles(world);
-blockBreakParticles.addRenderer(particleRenderer);
-
 // inputs.scroll(
 //   () => (radius = Math.min(100, radius + 1)),
 //   () => (radius = Math.max(1, radius - 1)),
@@ -300,13 +271,7 @@ blockBreakParticles.addRenderer(particleRenderer);
 const peers = new VOXELIZE.Peers<VOXELIZE.Character>(controls.object);
 
 peers.createPeer = () => {
-  const peer = new VOXELIZE.Character({
-    // head: {
-    //   height: 0.5,
-    //   heightSegments: 64,
-    //   widthSegments: 64,
-    // },
-  });
+  const peer = new VOXELIZE.Character();
   peer.head.paint("front", world.loader.getTexture(LolImage));
   lightShined.add(peer);
   shadows.add(peer);
@@ -359,20 +324,16 @@ inputs.bind("j", debug.toggle, "*");
 debug.registerDisplay("Position", controls, "voxel");
 
 debug.registerDisplay("Sunlight", () => {
-  return world.getSunlightByVoxel(...controls.voxel);
+  return world.getSunlightAt(...controls.voxel);
 });
 
 debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
 debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
 debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
-debug.registerDisplay("Chunks to Add", world.chunks.toAdd, "length");
 
 ["Red", "Green", "Blue"].forEach((color) => {
   debug.registerDisplay(`${color} Light`, () => {
-    return world.getTorchLightByVoxel(
-      ...controls.voxel,
-      color.toUpperCase() as any
-    );
+    return world.getTorchLightAt(...controls.voxel, color.toUpperCase() as any);
   });
 });
 
@@ -437,13 +398,24 @@ const shadows = new VOXELIZE.Shadows(world);
 shadows.add(character);
 
 // Create a test for atlas
-// setTimeout(() => {
-//   const plane = new THREE.Mesh(
-//     new THREE.PlaneBufferGeometry(100, 100),
-//     world.atlas.material
-//   );
-//   world.add(plane);
-// }, 1000);
+setTimeout(() => {
+  let i = -Math.floor(world.materialStore.size / 2);
+  const width = 2;
+
+  for (const mat of world.materialStore.values()) {
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, width),
+      new THREE.MeshBasicMaterial({
+        map: mat.map,
+      })
+    );
+
+    plane.position.x = i++ * width;
+    plane.position.y = -width;
+
+    world.add(plane);
+  }
+}, 1000);
 
 // const portraits = new VOXELIZE.BlockPortraits(world);
 
@@ -459,32 +431,13 @@ shadows.add(character);
 //   document.body.appendChild(canvas);
 // }
 
-world.overwriteMaterialByIdentifier(
-  "Grass",
-  true,
-  VOXELIZE.customShaders.sway({
-    rooted: true,
-  })
-);
-
-world.overwriteMaterialByIdentifier(
-  "Oak Leaves",
-  true,
-  VOXELIZE.customShaders.sway({
-    yScale: 0,
-  })
-);
-
-world.applyResolutionByName("Grass Block", "py", 512);
-
 network
   .register(chat)
   .register(entities)
   .register(world)
   .register(method)
   .register(events)
-  .register(peers)
-  .register(blockBreakParticles);
+  .register(peers);
 
 const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500];
 
@@ -505,7 +458,6 @@ const start = async () => {
       perspective.update();
       shadows.update();
       debug.update();
-      blockBreakParticles.update();
       lightShined.update();
       voxelInteract.update();
     }
@@ -518,6 +470,7 @@ const start = async () => {
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join("world1");
   await world.init();
+  await setupWorld(world);
 
   const bar = new VOXELIZE.ItemSlots({
     // verticalCount: 5,
@@ -563,7 +516,7 @@ const start = async () => {
     () => {
       if (!voxelInteract.target) return;
       const [vx, vy, vz] = voxelInteract.target;
-      const block = controls.world.getBlockByVoxel(vx, vy, vz);
+      const block = controls.world.getBlockAt(vx, vy, vz);
       const slot = bar.getFocused();
       slot.setObject(world.makeBlockMesh(block.id, { material: "standard" }));
       slot.setContent(block.id);

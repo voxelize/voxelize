@@ -2,7 +2,7 @@ import { AABB } from "@voxelize/aabb";
 
 import { Coords3 } from "../../types";
 
-import { World } from ".";
+import { TextureRange, World } from ".";
 
 /**
  * A block type in the world. This is defined by the server.
@@ -85,9 +85,8 @@ export type Block = {
   faces: {
     corners: { pos: number[]; uv: number[] }[];
     dir: number[];
-    highRes: boolean;
-    animated: boolean;
     independent: boolean;
+    range: TextureRange;
     name: string;
   }[];
 
@@ -239,7 +238,7 @@ export class BlockRotation {
    * @param value The axis this block is pointing towards.
    * @param yRotation The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees.
    */
-  constructor(value: number, yRotation: number) {
+  constructor(value = 0, yRotation = 0) {
     this.value = value;
     this.yRotation = yRotation;
   }

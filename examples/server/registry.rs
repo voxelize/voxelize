@@ -15,7 +15,7 @@ pub fn setup_registry() -> Registry {
         Block::new("Stone").id(2).build(),
         Block::new("Sand")
             .id(3)
-            .faces(&BlockFaces::six_faces().build().animated_at(SIX_FACES_NX))
+            .faces(&BlockFaces::six_faces().build().independent_at(SIX_FACES_NX))
             .build(),
         Block::new("Grass Block").id(4).build(),
         Block::new("Snow").id(5).build(),
@@ -105,7 +105,7 @@ pub fn setup_registry() -> Registry {
                 &BlockFaces::six_faces()
                     .scale_y(0.8)
                     .build()
-                    .animated_at(SIX_FACES_PY),
+                    .independent_at(SIX_FACES_PY),
             )
             .dynamic_fn(|center, space, _| {
                 let Vec3(vx, vy, vz) = center;
@@ -124,7 +124,7 @@ pub fn setup_registry() -> Registry {
                     BlockFaces::six_faces()
                         .scale_y(if top_is_water { 1.0 } else { 0.8 })
                         .build()
-                        .animated_at(SIX_FACES_PY)
+                        .independent_at(SIX_FACES_PY)
                         .to_vec(),
                     vec![AABB::new()
                         .scale_y(if top_is_water { 1.0 } else { 0.8 })
@@ -212,8 +212,7 @@ pub fn setup_registry() -> Registry {
                     .scale_z(0.1)
                     .offset_x(-1.5)
                     .build()
-                    .high_res_at(SIX_FACES_PZ)
-                    .animated_at(SIX_FACES_PZ),
+                    .independent_at(SIX_FACES_PZ),
             )
             .aabbs(&[AABB::new().offset_x(0.4).scale_x(0.2).scale_z(0.1).build()])
             .rotatable(true)

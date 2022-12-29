@@ -132,11 +132,11 @@ export class LightShined {
       obj.getWorldPosition(position);
 
       const voxel = ChunkUtils.mapWorldToVoxel(position.toArray());
-      const chunk = this.world.getChunkByVoxel(...voxel);
+      const chunk = this.world.getChunkByPosition(...voxel);
 
       if (!chunk) return;
 
-      color = this.world.getLightColorByVoxel(...voxel);
+      color = this.world.getLightColorAt(...voxel);
     }
 
     if (obj instanceof Mesh) {

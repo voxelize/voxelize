@@ -62,7 +62,7 @@ img[class*="MDX"] {
 }
 
 p:has(img[class*="MDX"]) {
-  @apply px-2 mt-6 mx-auto;
+  @apply mt-6 mx-auto;
 }
 
 th {

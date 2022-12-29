@@ -2,7 +2,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::{HashMap, HashSet};
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
@@ -138,12 +138,14 @@ impl FlatlandStage {
         }
     }
 
-    pub fn add_soiling(&mut self, block: u32, height: usize) {
+    pub fn add_soiling(mut self, block: u32, height: usize) -> Self {
         for _ in 0..height {
             self.soiling.push(block);
         }
 
         self.top_height += height as u32;
+
+        self
     }
 
     pub fn query_soiling(&self, y: u32) -> Option<u32> {
@@ -238,10 +240,10 @@ pub struct Pipeline {
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
 
     /// Sender of processed chunks from other threads to main thread.
-    sender: Arc<Sender<(Vec<Chunk>, Vec<VoxelUpdate>)>>,
+    sender: Arc<Sender<(Chunk, Vec<VoxelUpdate>)>>,
 
     /// Receiver to receive processed chunks from other threads to main thread.
-    receiver: Arc<Receiver<(Vec<Chunk>, Vec<VoxelUpdate>)>>,
+    receiver: Arc<Receiver<(Chunk, Vec<VoxelUpdate>)>>,
 
     /// Pipeline's thread pool to process chunks.
     pool: ThreadPool,
@@ -268,8 +270,11 @@ impl Pipeline {
 
     /// Add a chunk coordinate to the pipeline to be processed.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
+        if self.has_chunk(coords) {
+            return;
+        }
+
         self.remove_chunk(coords);
-        self.chunks.insert(coords.to_owned());
 
         if prioritized {
             self.queue.push_front(coords.to_owned());
@@ -310,9 +315,13 @@ impl Pipeline {
         registry: &Registry,
         config: &WorldConfig,
     ) {
+        processes.iter().for_each(|(chunk, _)| {
+            self.chunks.insert(chunk.coords.to_owned());
+        });
+
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
-            .into_iter()
+            .into_par_iter()
             .map(|(chunk, space)| {
                 let index = if let ChunkStatus::Generating(index) = chunk.status {
                     index
@@ -331,9 +340,10 @@ impl Pipeline {
         let config = config.to_owned();
 
         self.pool.spawn(move || {
-            let results: Vec<(Chunk, Vec<(Vec3<i32>, u32)>)> = processes
+            processes
                 .into_par_iter()
-                .map(|(chunk, space, stage)| {
+                .enumerate()
+                .for_each(|(_, (chunk, space, stage))| {
                     let mut changes = vec![];
 
                     let mut chunk = stage.process(
@@ -352,25 +362,26 @@ impl Pipeline {
                         changes.append(&mut chunk.extra_changes.drain(..).collect());
                     }
 
-                    (chunk, changes)
-                })
-                .collect();
-
-            let mut chunks = vec![];
-            let mut changes = vec![];
-
-            for (chunk, mut chunk_changes) in results {
-                chunks.push(chunk);
-                changes.append(&mut chunk_changes);
-            }
-
-            sender.send((chunks, changes)).unwrap();
+                    sender.send((chunk, changes)).unwrap();
+                });
         });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&self) -> Result<(Vec<Chunk>, Vec<VoxelUpdate>), TryRecvError> {
-        self.receiver.try_recv()
+    pub fn results(&self) -> Option<(Chunk, Vec<VoxelUpdate>)> {
+        let result = self.receiver.try_recv();
+
+        if result.is_err() {
+            return None;
+        }
+
+        let result = result.unwrap();
+
+        if !self.chunks.contains(&result.0.coords) {
+            return None;
+        }
+
+        Some(result)
     }
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.

@@ -173,6 +173,13 @@ export class Peers<
   ) => {
     this.ownUsername = username;
 
+    const internalOnJoin = (id: string) => {
+      const peer = this.createPeer(id);
+      peer.name = id;
+      this.add(peer);
+      return peer;
+    };
+
     switch (message.type) {
       case "INIT": {
         const { id } = message.json;
@@ -189,10 +196,13 @@ export class Peers<
           return;
         }
 
-        const peer = this.createPeer(id);
-        peer.name = id;
-        this.add(peer);
+        const peer = this.getObjectByName(id);
 
+        if (peer) {
+          break;
+        }
+
+        internalOnJoin(id);
         this.onPeerJoin?.(id);
         break;
       }
@@ -218,8 +228,10 @@ export class Peers<
           return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id);
 
-        const object = this.getObjectByName(peer.id) as C;
-        if (!object) return;
+        let object = this.getObjectByName(peer.id) as C;
+        if (!object) {
+          object = internalOnJoin(peer.id);
+        }
 
         if (!this.onPeerUpdate) {
           console.warn(

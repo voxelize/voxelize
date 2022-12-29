@@ -41,8 +41,6 @@ export default {
             globals: {
               three: "THREE",
               "three/examples/jsm/libs/stats.module.js": "Stats",
-              "three-nebula": "Nebula",
-              postprocessing: "postprocessing",
             },
           },
         ]),
