@@ -1,14 +1,12 @@
 use log::info;
 use registry::setup_registry;
 use specs::{Component, NullStorage};
-use test::setup_test_world;
 use voxelize::{
     ChunkStage, FlatlandStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig,
 };
-use world::setup_world;
+use world::{main::setup_main_world, terrain::setup_terrain_world, test::setup_test_world};
 
 mod registry;
-mod test;
 mod world;
 
 const ISLAND_LIMIT: i32 = 1;
@@ -62,12 +60,16 @@ async fn main() -> std::io::Result<()> {
         .build();
 
     server
-        .add_world(setup_world())
+        .add_world(setup_main_world())
         .expect("Could not create world1.");
 
     server
         .add_world(setup_test_world())
         .expect("Could not create test world.");
+
+    server
+        .add_world(setup_terrain_world())
+        .expect("Could not create terrain world.");
 
     server.set_action_handle("create_world", |value, server| {
         info!("World creating...");

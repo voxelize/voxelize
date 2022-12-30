@@ -2,7 +2,6 @@ use voxelize::{FlatlandStage, World, WorldConfig};
 
 pub fn setup_test_world() -> World {
     let config = WorldConfig::new()
-        .preload(true)
         .saving(true)
         .save_dir("data/worlds/test")
         .build();
