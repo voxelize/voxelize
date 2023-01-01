@@ -3,7 +3,6 @@ import "./style.css";
 // For official use, you should do `@voxelize/client/styles.css` instead.
 import "@voxelize/client/src/styles.css";
 
-import { AABB } from "@voxelize/aabb";
 import * as VOXELIZE from "@voxelize/client";
 import {
   EffectComposer,
@@ -53,9 +52,12 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
   textureDimension: 16,
-  // defaultRenderRadius: 5,
   // maxUpdatesPerTick: 10000,
 });
+
+world.renderRadius = 8;
+world.deleteRadius = 9;
+
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
@@ -125,6 +127,7 @@ const controls = new VOXELIZE.RigidControls(
   world,
   {
     initialPosition: [0, 12, 0],
+    flyForce: 400,
   }
 );
 
@@ -499,19 +502,20 @@ const start = async () => {
   animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
-  await network.join("world1");
+  await network.join("terrain");
   await world.init();
   await setupWorld(world);
 
   const bar = new VOXELIZE.ItemSlots({
     // verticalCount: 5,
-    horizontalCount: HOTBAR_CONTENT.length,
+    horizontalCount: 1,
+    verticalCount: HOTBAR_CONTENT.length,
   });
   document.body.appendChild(bar.element);
 
   HOTBAR_CONTENT.forEach((id, index) => {
     const mesh = world.makeBlockMesh(id, { material: "standard" });
-    const slot = bar.getSlot(0, index);
+    const slot = bar.getSlot(index, 0);
     slot.setObject(mesh);
 
     if (id === 500) {
@@ -526,7 +530,7 @@ const start = async () => {
       key,
       () => {
         const index = parseInt(key);
-        bar.setFocused(0, index - 1);
+        bar.setFocused(index - 1, 0);
       },
       "in-game"
     );

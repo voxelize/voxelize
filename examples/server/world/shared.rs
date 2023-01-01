@@ -1,13 +1,14 @@
+use log::info;
 use voxelize::{Chunk, ChunkStage, NoiseParams, Resources, SeededNoise, Space, VoxelAccess};
 
-pub const MOUNTAIN_HEIGHT: f64 = 0.7;
-pub const RIVER_HEIGHT: f64 = 0.20;
+pub const MOUNTAIN_HEIGHT: f64 = 0.6;
+pub const RIVER_HEIGHT: f64 = 0.16;
 pub const PLAINS_HEIGHT: f64 = 0.24;
-pub const RIVER_TO_PLAINS: f64 = 0.12;
+pub const RIVER_TO_PLAINS: f64 = 0.2;
 
-pub const VARIANCE: f64 = 3.0;
-pub const SNOW_HEIGHT: i32 = 90;
-pub const STONE_HEIGHT: i32 = 80;
+pub const VARIANCE: f64 = 5.0;
+pub const SNOW_HEIGHT: f64 = 0.6;
+pub const STONE_HEIGHT: f64 = 0.5;
 
 pub struct SoilingStage {
     noise: SeededNoise,
@@ -44,8 +45,10 @@ impl ChunkStage for SoilingStage {
             for vz in chunk.min.2..chunk.max.2 {
                 let height = chunk.get_max_height(vx, vz) as i32;
 
-                let snow_height = SNOW_HEIGHT + (self.noise.get2d(vx, vz) * VARIANCE) as i32;
-                let stone_height = STONE_HEIGHT + (self.noise.get2d(vx, vz) * VARIANCE) as i32;
+                let snow_height = (SNOW_HEIGHT * config.max_height as f64) as i32
+                    + (self.noise.get2d(vx, vz) * VARIANCE) as i32;
+                let stone_height = (STONE_HEIGHT * config.max_height as f64) as i32
+                    + (self.noise.get2d(vx, vz) * VARIANCE) as i32;
 
                 for vy in 0..=(height.max(water_level)) {
                     let depth = 2;
@@ -84,11 +87,11 @@ impl ChunkStage for SoilingStage {
                         && vy <= height
                         && vy >= height - depth
                     {
-                        if self.noise.get3d(vx, vy, vz) > 1.0 {
-                            chunk.set_voxel(vx, vy, vz, stone.id);
-                        } else {
-                            chunk.set_voxel(vx, vy, vz, sand.id);
-                        }
+                        // if self.noise.get3d(vx, vy, vz) > 1.0 {
+                        //     chunk.set_voxel(vx, vy, vz, stone.id);
+                        // } else {
+                        // }
+                        chunk.set_voxel(vx, vy, vz, sand.id);
                     }
                 }
             }

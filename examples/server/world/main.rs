@@ -79,7 +79,7 @@ pub fn setup_main_world() -> World {
                 .lacunarity(1.8623123)
                 .build(),
         )
-        .preload(true)
+        // .preload(true)
         .seed(12312)
         // .min_chunk([0, 0])
         // .max_chunk([0, 0])

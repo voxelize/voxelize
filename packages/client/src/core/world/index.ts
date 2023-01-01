@@ -1750,6 +1750,7 @@ export class World extends Scene implements NetIntercept {
 
       mesh.updateMatrix();
       mesh.matrixAutoUpdate = false;
+      mesh.matrixWorldAutoUpdate = false;
       mesh.userData.isChunk = true;
 
       this.add(mesh);

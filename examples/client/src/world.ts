@@ -58,6 +58,34 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   50
   // );
 
+  const biomeTextures = new Array(10).fill(0).map((_, i) => ({
+    idOrName: `Biome Test ${i}`,
+    faceNames: all,
+    source: new THREE.Color(
+      `#${Math.floor(Math.random() * 16777215).toString(16)}`
+    ),
+  }));
+
+  await world.applyBlockTextures(biomeTextures);
+
+  const biomes = document.getElementById("biomes") as HTMLUListElement;
+
+  biomeTextures.forEach((biome) => {
+    const colorStr = `#${biome.source.getHexString()}`;
+    const biomeEntry = document.createElement("li");
+
+    const biomeTitle = document.createElement("p");
+    biomeTitle.innerText = biome.idOrName;
+
+    const biomeColor = document.createElement("div");
+    biomeColor.style.backgroundColor = colorStr;
+
+    biomeEntry.appendChild(biomeTitle);
+    biomeEntry.appendChild(biomeColor);
+
+    biomes.appendChild(biomeEntry);
+  });
+
   await world.applyBlockTextures([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },
     { idOrName: "Lol", faceNames: all, source: new THREE.Color("#8479E1") },
@@ -174,8 +202,8 @@ export async function setupWorld(world: VOXELIZE.World) {
   // );
   // world.setResolutionOfByName("Biggie", "pz", 128);
 
-  world.setResolutionOf("Sand", "nx", 128);
-  await world.applyBlockGif("Sand", "nx", FunnyGif);
+  // world.setResolutionOf("Sand", "nx", 128);
+  // await world.applyBlockGif("Sand", "nx", FunnyGif);
 
   world.setResolutionOf("Biggie", "pz", 128);
 

@@ -1,4 +1,6 @@
+use kdtree::{distance::squared_euclidean, KdTree};
 use serde::Serialize;
+use splines::interpolate::Interpolator;
 
 use crate::WorldConfig;
 
@@ -7,11 +9,27 @@ use super::{
     spline::SplineMap,
 };
 
+#[derive(PartialEq, Clone)]
+pub struct Biome {
+    pub name: String,
+    pub test_block: String,
+}
+
+impl Biome {
+    pub fn new(name: &str, test_block: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            test_block: test_block.to_owned(),
+        }
+    }
+}
+
 /// A seeded layered terrain for Voxelize world generation.
 #[derive(Clone)]
 pub struct Terrain {
     config: WorldConfig,
     noise: SeededNoise,
+    biome_tree: KdTree<f64, Biome, Vec<f64>>,
     pub layers: Vec<(TerrainLayer, f64)>,
 }
 
@@ -21,6 +39,7 @@ impl Terrain {
         Self {
             config: config.to_owned(),
             noise: SeededNoise::new(config.seed, &config.terrain),
+            biome_tree: KdTree::new(2),
             layers: vec![],
         }
     }
@@ -37,6 +56,14 @@ impl Terrain {
         let mut layer = layer.to_owned();
         layer.set_seed(self.config.seed);
         self.layers.push((layer, weight));
+
+        self.biome_tree = KdTree::new(self.layers.len());
+
+        self
+    }
+
+    pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
+        self.biome_tree.add(point.to_vec(), biome).unwrap();
         self
     }
 
@@ -80,6 +107,21 @@ impl Terrain {
 
         (bias, offset)
         // (bias / total_weight, offset / total_weight)
+    }
+
+    pub fn get_biome_at(&self, vx: i32, vz: i32) -> &Biome {
+        let values = self
+            .layers
+            .iter()
+            .map(|(layer, _)| layer.noise.get2d(vx, vz).normalize(-1.0, 1.0))
+            .collect::<Vec<f64>>();
+
+        let result = self
+            .biome_tree
+            .nearest(&values, 1, &squared_euclidean)
+            .unwrap()[0];
+
+        result.1
     }
 }
 

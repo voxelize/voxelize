@@ -1,12 +1,13 @@
-use noise::{Fbm, MultiFractal, NoiseFn, Perlin, RidgedMulti, Seedable};
+use noise::{Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, RidgedMulti, Seedable};
 use serde::Serialize;
+use splines::interpolate::Interpolator;
 use std::f64;
 
 /// Seeded simplex noise for Voxelize.
 #[derive(Clone, Debug)]
 pub struct SeededNoise {
     /// Core noise instance.
-    regular: Fbm<Perlin>,
+    regular: HybridMulti<Perlin>,
     ridged: RidgedMulti<Perlin>,
     params: NoiseParams,
 }
@@ -14,7 +15,7 @@ pub struct SeededNoise {
 impl SeededNoise {
     /// Create a new seeded simplex noise.
     pub fn new(seed: u32, params: &NoiseParams) -> Self {
-        let regular = Fbm::new(seed)
+        let regular = HybridMulti::new(seed)
             .set_frequency(params.frequency)
             .set_lacunarity(params.lacunarity)
             .set_persistence(params.persistence)
@@ -64,6 +65,8 @@ impl SeededNoise {
 /// Multi-fractal noise parameters.
 #[derive(Clone, Default, Serialize, Debug)]
 pub struct NoiseParams {
+    pub seed: u32,
+
     /// How frequently should noise be sampled. The bigger the value, the more condensed noise
     /// seems. Defaults to PI * 2.0 / 3.0.
     pub frequency: f64,
@@ -85,6 +88,7 @@ pub struct NoiseParams {
     pub ridged: bool,
 }
 
+const DEFAULT_SEED: u32 = 0;
 const DEFAULT_FREQUENCY: f64 = f64::consts::PI * 2.0 / 3.0;
 const DEFAULT_LACUNARITY: f64 = 1.0;
 const DEFAULT_ATTENUATION: f64 = 2.0;
@@ -95,6 +99,7 @@ const DEFAULT_RIDGED: bool = false;
 impl NoiseParams {
     pub fn new() -> NoiseParamsBuilder {
         NoiseParamsBuilder {
+            seed: DEFAULT_SEED,
             frequency: DEFAULT_FREQUENCY,
             lacunarity: DEFAULT_LACUNARITY,
             attenuation: DEFAULT_ATTENUATION,
@@ -108,6 +113,7 @@ impl NoiseParams {
 /// Idiomatic builder pattern for `NoiseParams`.
 #[derive(Default)]
 pub struct NoiseParamsBuilder {
+    seed: u32,
     frequency: f64,
     octaves: usize,
     persistence: f64,
@@ -117,6 +123,12 @@ pub struct NoiseParamsBuilder {
 }
 
 impl NoiseParamsBuilder {
+    /// Configure the seed of the noise parameter. Defaults to 0.
+    pub fn seed(mut self, seed: u32) -> Self {
+        self.seed = seed;
+        self
+    }
+
     /// Configure the frequency of the noise parameter. Defaults to PI * 2.0 / 3.0.
     pub fn frequency(mut self, frequency: f64) -> Self {
         self.frequency = frequency;
@@ -156,6 +168,7 @@ impl NoiseParamsBuilder {
     /// Build a noise parameter instance.
     pub fn build(self) -> NoiseParams {
         NoiseParams {
+            seed: self.seed,
             frequency: self.frequency,
             octaves: self.octaves,
             persistence: self.persistence,

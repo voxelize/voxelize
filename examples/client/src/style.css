@@ -62,3 +62,29 @@ body {
   width: 50%;
   height: 100%;
 }
+
+#biomes {
+  position: absolute;
+  z-index: 1000000;
+  bottom: 0;
+  right: 0;
+  list-style: none;
+  background: #181d31;
+}
+
+#biomes li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px;
+}
+
+#biomes li p {
+  color: #eee;
+}
+
+#biomes li div {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}

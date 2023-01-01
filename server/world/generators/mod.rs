@@ -13,5 +13,5 @@ pub use lsystem::*;
 pub use mesher::Mesher;
 pub use pipeline::*;
 pub use spline::SplineMap;
-pub use terrain::{Terrain, TerrainLayer};
+pub use terrain::*;
 pub use trees::*;

@@ -4,7 +4,7 @@ use specs::{Component, NullStorage};
 use voxelize::{
     ChunkStage, FlatlandStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig,
 };
-use world::{main::setup_main_world, terrain::setup_terrain_world, test::setup_test_world};
+use world::{main::setup_main_world, terrain::world::setup_terrain_world, test::setup_test_world};
 
 mod registry;
 mod world;

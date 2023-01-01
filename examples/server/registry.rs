@@ -10,6 +10,19 @@ pub fn setup_registry() -> Registry {
         .scale_vertical(PLANT_SCALE)
         .build();
 
+    let biome_test_block_count = 10;
+    let mut biome_test_blocks = Vec::new();
+
+    for i in 0..biome_test_block_count {
+        biome_test_blocks.push(
+            Block::new(&format!("Biome Test {}", i))
+                .id(2000 + i)
+                .build(),
+        );
+    }
+
+    registry.register_blocks(&biome_test_blocks);
+
     registry.register_blocks(&[
         Block::new("Dirt").id(1).build(),
         Block::new("Stone").id(2).build(),
