@@ -75,7 +75,7 @@ impl Terrain {
         let max_height = self.config.max_height as f64;
         let (bias, offset) = self.get_bias_offset(vx, vz);
 
-        self.noise.get3d(vx, vy, vz)
+        self.noise.get3d(vx, vy, vz).powi(2)
             - if self.layers.is_empty() {
                 0.0
             } else {
@@ -98,7 +98,7 @@ impl Terrain {
         let mut started = false;
 
         self.layers.iter().for_each(|(layer, weight)| {
-            let value = layer.noise.get2d(vx, vz);
+            let value = layer.noise.get2d(vx, vz).powi(4);
             bias = layer.sample_bias(bias * value);
             offset = layer.sample_offset(offset * value);
             // total_weight += weight;

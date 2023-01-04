@@ -170,12 +170,12 @@ pub fn setup_terrain_world() -> World {
     )
     .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 5.0], [1.0, 8.5]])
     .add_offset_points(&[
-        [-1.0, MOUNTAIN_HEIGHT],
+        [-10.0, MOUNTAIN_HEIGHT],
         [0.0, PLAINS_HEIGHT],
         [RIVER_TO_PLAINS, RIVER_HEIGHT],
         [RIVER_TO_PLAINS * 2.0, PLAINS_HEIGHT],
         [0.8, PLAINS_HEIGHT],
-        [1.0, PLAINS_HEIGHT],
+        [2.0, PLAINS_HEIGHT],
     ]);
 
     let rivers = TerrainLayer::new(
@@ -190,9 +190,9 @@ pub fn setup_terrain_world() -> World {
     )
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
     .add_offset_points(&[
-        [-1.0, MOUNTAIN_HEIGHT],
+        [-2.0, MOUNTAIN_HEIGHT],
         [0.0, RIVER_HEIGHT],
-        [1.0, MOUNTAIN_HEIGHT],
+        [2.0, MOUNTAIN_HEIGHT],
     ]);
 
     let oceans = TerrainLayer::new(
@@ -206,7 +206,7 @@ pub fn setup_terrain_world() -> World {
             .build(),
     )
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
-    .add_offset_points(&[[-1.0, MOUNTAIN_HEIGHT], [1.0, RIVER_HEIGHT]]);
+    .add_offset_points(&[[-10.0, MOUNTAIN_HEIGHT], [10.0, RIVER_HEIGHT]]);
 
     terrain.add_layer(&rivers, 0.8);
     terrain.add_layer(&oceans, 0.8);
