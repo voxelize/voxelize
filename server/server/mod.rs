@@ -191,16 +191,6 @@ pub struct Server {
 
 impl Server {
     /// Create a new Voxelize server instance used to host all the worlds.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // Create a server of port 4000 on "0.0.0.0"
-    /// let server = Server::new().addr("0.0.0.0").port(4000).build();
-    ///
-    /// // Run the server on Voxelize
-    /// Voxelize::run(server);
-    /// ```
     pub fn new() -> ServerBuilder {
         ServerBuilder::new()
     }

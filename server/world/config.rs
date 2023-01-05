@@ -94,13 +94,6 @@ impl Default for WorldConfig {
 
 impl WorldConfig {
     /// Create a new world config using the Builder pattern.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let config = WorldConfig::new().chunk_size(8).max_height(64).build();
-    /// server.create_world("small-world", &config);
-    /// ```
     pub fn new() -> WorldConfigBuilder {
         WorldConfigBuilder::new()
     }

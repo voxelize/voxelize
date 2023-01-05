@@ -1,4 +1,5 @@
 use kdtree::{distance::squared_euclidean, KdTree};
+use log::info;
 use serde::Serialize;
 use splines::interpolate::Interpolator;
 
@@ -47,14 +48,15 @@ impl Terrain {
     /// Add a terrain layer to the voxelize terrain.
     pub fn add_layer(&mut self, layer: &TerrainLayer, weight: f64) -> &mut Self {
         // Map the last layer's bias and offset to -1 to 1.
-        if !self.layers.is_empty() {
-            let (mut last_layer, last_weight) = self.layers.pop().unwrap();
-            last_layer.normalize();
-            self.layers.push((last_layer, last_weight));
-        }
+        // if !self.layers.is_empty() {
+        //     let (mut last_layer, last_weight) = self.layers.pop().unwrap();
+        //     last_layer.normalize();
+        //     self.layers.push((last_layer, last_weight));
+        // }
 
         let mut layer = layer.to_owned();
         layer.set_seed(self.config.seed);
+        layer.normalize();
         self.layers.push((layer, weight));
 
         self.biome_tree = KdTree::new(self.layers.len());
@@ -63,7 +65,10 @@ impl Terrain {
     }
 
     pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
-        self.biome_tree.add(point.to_vec(), biome).unwrap();
+        let point_vec = point.to_vec();
+        let point_vec = point_vec[..self.layers.len()].to_owned();
+
+        self.biome_tree.add(point_vec, biome).unwrap();
         self
     }
 
@@ -75,12 +80,12 @@ impl Terrain {
         let max_height = self.config.max_height as f64;
         let (bias, offset) = self.get_bias_offset(vx, vz);
 
-        self.noise.get3d(vx, vy, vz).powi(2)
-            - if self.layers.is_empty() {
-                0.0
-            } else {
-                bias * (vy as f64 - offset * max_height) / (offset * max_height)
-            }
+        // self.noise.get3d(vx, vy, vz).powi(2)
+        -if self.layers.is_empty() {
+            0.0
+        } else {
+            bias * (vy as f64 - offset * max_height) / (offset * max_height)
+        }
     }
 
     /// Get the height bias and height offset values at a voxel column. What it does is that it samples the bias and offset
@@ -94,15 +99,11 @@ impl Terrain {
 
         let mut bias = 1.0;
         let mut offset = 1.0;
-        let mut total_weight = 0.0;
-        let mut started = false;
 
         self.layers.iter().for_each(|(layer, weight)| {
             let value = layer.noise.get2d(vx, vz).powi(4);
             bias = layer.sample_bias(bias * value);
             offset = layer.sample_offset(offset * value);
-            // total_weight += weight;
-            started = true;
         });
 
         (bias, offset)
@@ -113,7 +114,7 @@ impl Terrain {
         let values = self
             .layers
             .iter()
-            .map(|(layer, _)| layer.noise.get2d(vx, vz).normalize(-1.0, 1.0))
+            .map(|(layer, _)| layer.noise.get2d(vx, vz))
             .collect::<Vec<f64>>();
 
         let result = self
@@ -192,12 +193,36 @@ impl TerrainLayer {
 
     /// Set the seed of the noise generator.
     pub fn set_seed(&mut self, seed: u32) {
-        self.noise.set_seed(seed);
+        self.noise.set_seed(seed + self.params.seed);
     }
 
     /// Normalize the spline graphs.
     pub fn normalize(&mut self) {
         self.height_bias_spline.rescale_values(-1.0, 1.0);
         self.height_offset_spline.rescale_values(-1.0, 1.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terrain_layer_remap() {
+        let mut layer = TerrainLayer::new("Test", &NoiseParams::default()).add_bias_points(&[
+            [-1.0, 3.5],
+            [0.0, 3.0],
+            [0.4, 5.0],
+            [1.0, 8.5],
+        ]);
+
+        layer.normalize();
+
+        assert_eq!(layer.sample_bias(1.0), 1.0);
+        assert_eq!(layer.sample_bias(0.0), -1.0);
+        assert_eq!(
+            layer.sample_bias(0.4),
+            -1.0 + 2.0 * (5.0 - 3.0) / (8.5 - 3.0)
+        );
     }
 }

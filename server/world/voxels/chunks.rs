@@ -298,13 +298,6 @@ impl Chunks {
     }
 
     /// Create a voxel querying space around a chunk coordinate.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // Create a space that has all voxel/light/height_map data.
-    /// let space = Chunks::make_space(0, 0, 15).needs_all().build();
-    /// ```
     pub fn make_space<'a>(&'a self, coords: &Vec2<i32>, margin: usize) -> SpaceBuilder<'a> {
         SpaceBuilder {
             chunks: self,

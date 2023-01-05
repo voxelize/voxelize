@@ -338,7 +338,7 @@ export class World extends Scene implements NetIntercept {
       value: new Vector4(100.0, 170.0, 210.0, 255.0),
     },
     minBrightness: {
-      value: 0.2,
+      value: 0,
     },
     sunlightIntensity: {
       value: 1,
@@ -383,14 +383,17 @@ export class World extends Scene implements NetIntercept {
 
     this.setupPhysics();
 
-    // @ts-ignore
-    const { defaultRenderRadius, defaultDeleteRadius } = (this.params = {
-      ...defaultParams,
-      ...params,
-    });
+    const { defaultRenderRadius, defaultDeleteRadius, minBrightness } =
+      // @ts-ignore
+      (this.params = {
+        ...defaultParams,
+        ...params,
+      });
 
     this.renderRadius = defaultRenderRadius;
     this.deleteRadius = defaultDeleteRadius;
+
+    this.uniforms.minBrightness.value = minBrightness;
   }
 
   async applyBlockTexture(

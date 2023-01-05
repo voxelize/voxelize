@@ -96,14 +96,6 @@ impl Voxelize {
     /// Run a voxelize server instance. This blocks the main thread, as the game loop is essentially a while loop
     /// running indefinitely. Keep in mind that the server instance passed in isn't a borrow, so `Voxelize::run`
     /// takes ownership of the server.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // Run a server without any worlds.
-    /// let server = Server::new().port(4000).build();
-    /// Voxelize::run(server);
-    /// ```
     pub async fn run(mut server: Server) -> std::io::Result<()> {
         server.prepare();
         server.started = true;

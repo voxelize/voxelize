@@ -62,28 +62,6 @@ pub trait ChunkStage {
     /// voxels/lights/height around the center chunk by cloning the neighboring data
     /// into the same Space, and providing data accessing utility functions. Defaults
     /// to `None`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // If this stage needs the neighboring chunk's voxel data.
-    /// impl ChunkStage for TreePlanting {
-    ///   ...
-    ///   // neighboring 5 blocks.
-    ///   fn neighbors(&self, _:&WorldConfig) -> usize {
-    ///     5
-    ///   }
-    ///
-    ///   // get the voxel data around this chunk.
-    ///   fn needs_space(&self) -> Option<SpaceData> {
-    ///     Some(SpaceData {
-    ///       needs_voxels: true,
-    ///       ..Default::default()
-    ///     })
-    ///   }
-    ///   ...
-    /// }
-    /// ```
     fn needs_space(&self) -> Option<SpaceData> {
         None
     }

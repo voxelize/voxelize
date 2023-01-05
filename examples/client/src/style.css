@@ -59,7 +59,7 @@ body {
 #loading-bar-inner {
   transition: all 0.1s ease;
   background: #e6ddc4;
-  width: 50%;
+  width: 0%;
   height: 100%;
 }
 

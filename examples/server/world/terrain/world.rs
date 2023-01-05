@@ -181,7 +181,7 @@ pub fn setup_terrain_world() -> World {
     let rivers = TerrainLayer::new(
         "rivers",
         &NoiseParams::new()
-            .frequency(0.0015)
+            .frequency(0.0035)
             .octaves(7)
             .persistence(0.5)
             .lacunarity(1.8)
@@ -190,9 +190,9 @@ pub fn setup_terrain_world() -> World {
     )
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
     .add_offset_points(&[
-        [-2.0, MOUNTAIN_HEIGHT],
+        [-3.0, MOUNTAIN_HEIGHT],
         [0.0, RIVER_HEIGHT],
-        [2.0, MOUNTAIN_HEIGHT],
+        [1.0, PLAINS_HEIGHT],
     ]);
 
     let oceans = TerrainLayer::new(
@@ -206,14 +206,14 @@ pub fn setup_terrain_world() -> World {
             .build(),
     )
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
-    .add_offset_points(&[[-10.0, MOUNTAIN_HEIGHT], [10.0, RIVER_HEIGHT]]);
+    .add_offset_points(&[[-1.0, MOUNTAIN_HEIGHT], [1.0, RIVER_HEIGHT]]);
 
+    // terrain.add_layer(&oceans, 0.8);
     terrain.add_layer(&rivers, 0.8);
-    terrain.add_layer(&oceans, 0.8);
-    terrain.add_layer(&continentalness, 0.8);
-    terrain.add_biome(&[1.0, 1.0, 1.0], Biome::new("Biome 0", "Biome Test 0"));
+    // terrain.add_layer(&continentalness, 0.8);
+    terrain.add_biome(&[1.0, 0.0, 0.0], Biome::new("Biome 0", "Biome Test 0"));
     terrain.add_biome(&[0.0, 0.0, 0.0], Biome::new("Biome 1", "Biome Test 1"));
-    terrain.add_biome(&[-1.0, -1.0, -1.0], Biome::new("Biome 2", "Biome Test 2"));
+    terrain.add_biome(&[-1.0, 0.0, 0.0], Biome::new("Biome 2", "Biome Test 2"));
 
     {
         let mut pipeline = world.pipeline_mut();

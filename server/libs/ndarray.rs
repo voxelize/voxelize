@@ -23,13 +23,6 @@ where
     T: Num + Clone,
 {
     /// Create a new n-dimensional array.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // Create a 3x3x3 array filled with 0
-    /// let array = Ndarray::new([3, 3, 3], 0);
-    /// ```
     pub fn new(shape: &[usize], default: T) -> Self {
         let d = shape.len();
 
