@@ -58,7 +58,7 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   50
   // );
 
-  const biomeTextures = new Array(10).fill(0).map((_, i) => ({
+  const biomeTextures = new Array(21).fill(0).map((_, i) => ({
     idOrName: `Biome Test ${i}`,
     faceNames: all,
     source: new THREE.Color(

@@ -88,7 +88,13 @@ impl SplineMap {
 
     /// Rescale the x-axis of the spline graph.
     pub fn rescale_t(&mut self, min: f64, max: f64) -> &mut Self {
-        let scale = |num: f64| (max - min) * (num - self.min) / (self.max - self.min) + min;
+        let scale = |num: f64| {
+            if self.min == self.max {
+                return self.min;
+            }
+
+            (max - min) * (num - self.min) / (self.max - self.min) + min
+        };
 
         let keys = self.spline.keys().to_owned();
 

@@ -54,9 +54,13 @@ impl Terrain {
         //     self.layers.push((last_layer, last_weight));
         // }
 
+        if self.biome_tree.size() > 0 {
+            panic!("Terrain layers must be added before biomes.");
+        }
+
         let mut layer = layer.to_owned();
         layer.set_seed(self.config.seed);
-        layer.normalize();
+        // layer.normalize();
         self.layers.push((layer, weight));
 
         self.biome_tree = KdTree::new(self.layers.len());
@@ -65,8 +69,17 @@ impl Terrain {
     }
 
     pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
+        if self.layers.is_empty() {
+            panic!("Terrain layers must be added before biomes.");
+        }
+
         let point_vec = point.to_vec();
-        let point_vec = point_vec[..self.layers.len()].to_owned();
+        let point_vec = point_vec[..self.layers.len()]
+            .into_iter()
+            .enumerate()
+            .map(|(idx, val)| self.layers[idx].1 * val)
+            .collect::<Vec<f64>>()
+            .to_owned();
 
         self.biome_tree.add(point_vec, biome).unwrap();
         self
@@ -91,30 +104,31 @@ impl Terrain {
     /// Get the height bias and height offset values at a voxel column. What it does is that it samples the bias and offset
     /// of all noise layers and take the average of them all.
     pub fn get_bias_offset(&self, vx: i32, vz: i32) -> (f64, f64) {
-        if self.layers.len() == 1 {
-            let layer = &self.layers[0].0;
-            let value = layer.noise.get2d(vx, vz);
-            return (layer.sample_bias(value), layer.sample_offset(value));
-        }
+        // if self.layers.len() == 1 {
+        //     let layer = &self.layers[0].0;
+        //     let value = layer.noise.get2d(vx, vz);
+        //     return (layer.sample_bias(value), layer.sample_offset(value));
+        // }
 
-        let mut bias = 1.0;
-        let mut offset = 1.0;
+        let mut bias = 0.0;
+        let mut offset = 0.0;
+        let mut total_weight = 0.0;
 
         self.layers.iter().for_each(|(layer, weight)| {
-            let value = layer.noise.get2d(vx, vz).powi(4);
-            bias = layer.sample_bias(bias * value);
-            offset = layer.sample_offset(offset * value);
+            let value = layer.noise.get2d(vx, vz);
+            bias += layer.sample_bias(value) * weight;
+            offset += layer.sample_offset(value) * weight;
+            total_weight += weight;
         });
 
-        (bias, offset)
-        // (bias / total_weight, offset / total_weight)
+        (bias / total_weight, offset / total_weight)
     }
 
     pub fn get_biome_at(&self, vx: i32, vz: i32) -> &Biome {
         let values = self
             .layers
             .iter()
-            .map(|(layer, _)| layer.noise.get2d(vx, vz))
+            .map(|(layer, weight)| layer.noise.get2d(vx, vz) * weight)
             .collect::<Vec<f64>>();
 
         let result = self
@@ -193,7 +207,7 @@ impl TerrainLayer {
 
     /// Set the seed of the noise generator.
     pub fn set_seed(&mut self, seed: u32) {
-        self.noise.set_seed(seed + self.params.seed);
+        self.noise.set_seed(seed);
     }
 
     /// Normalize the spline graphs.

@@ -56,8 +56,8 @@ impl SeededNoise {
 
     /// Set the noise of this seeded noise as a whole.
     pub fn set_seed(&mut self, seed: u32) -> &mut Self {
-        self.regular = self.regular.clone().set_seed(seed);
-        self.ridged = self.ridged.clone().set_seed(seed);
+        self.regular = self.regular.clone().set_seed(seed + self.params.seed);
+        self.ridged = self.ridged.clone().set_seed(seed + self.params.seed);
         self
     }
 }

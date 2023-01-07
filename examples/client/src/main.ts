@@ -403,24 +403,24 @@ const shadows = new VOXELIZE.Shadows(world);
 shadows.add(character);
 
 // Create a test for atlas
-setTimeout(() => {
-  let i = -Math.floor(world.materialStore.size / 2);
-  const width = 2;
+// setTimeout(() => {
+//   let i = -Math.floor(world.materialStore.size / 2);
+//   const width = 2;
 
-  for (const mat of world.materialStore.values()) {
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(width, width),
-      new THREE.MeshBasicMaterial({
-        map: mat.map,
-      })
-    );
+//   for (const mat of world.materialStore.values()) {
+//     const plane = new THREE.Mesh(
+//       new THREE.PlaneGeometry(width, width),
+//       new THREE.MeshBasicMaterial({
+//         map: mat.map,
+//       })
+//     );
 
-    plane.position.x = i++ * width;
-    plane.position.y = -width;
+//     plane.position.x = i++ * width;
+//     plane.position.y = -width;
 
-    world.add(plane);
-  }
-}, 1000);
+//     world.add(plane);
+//   }
+// }, 1000);
 
 // const portraits = new VOXELIZE.BlockPortraits(world);
 

@@ -10,7 +10,7 @@ pub fn setup_registry() -> Registry {
         .scale_vertical(PLANT_SCALE)
         .build();
 
-    let biome_test_block_count = 10;
+    let biome_test_block_count = 21;
     let mut biome_test_blocks = Vec::new();
 
     for i in 0..biome_test_block_count {
