@@ -84,3 +84,13 @@ body {
   height: 12px;
   border-radius: 2px;
 }
+
+.item-name {
+  position: absolute;
+  left: 100%;
+  margin-left: 8px;
+  width: 200px;
+  color: #eee;
+  opacity: 0;
+  transition: all 0.1s ease;
+}

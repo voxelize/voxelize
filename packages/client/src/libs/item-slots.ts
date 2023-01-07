@@ -345,9 +345,10 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[this.focusedRow][this.focusedCol];
 
-    if (hadPrevious) {
-      this.onFocusChange(this.slots[this.focusedRow][this.focusedCol], slot);
-    }
+    this.onFocusChange(
+      hadPrevious ? this.slots[this.focusedRow][this.focusedCol] : null,
+      slot
+    );
 
     slot.element.classList.add(this.params.slotFocusClass);
     this.onSlotClick(slot);

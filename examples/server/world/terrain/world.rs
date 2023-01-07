@@ -8,9 +8,9 @@ use voxelize::{
 use log::info;
 
 pub const MOUNTAIN_HEIGHT: f64 = 0.7;
-pub const RIVER_HEIGHT: f64 = 0.20;
+pub const RIVER_HEIGHT: f64 = 0.19;
 pub const PLAINS_HEIGHT: f64 = 0.245;
-pub const RIVER_TO_PLAINS: f64 = 0.37;
+pub const RIVER_TO_PLAINS: f64 = 0.47;
 
 pub const VARIANCE: f64 = 5.0;
 pub const SNOW_HEIGHT: f64 = 0.6;
@@ -165,7 +165,7 @@ pub fn setup_terrain_world() -> World {
     let continentalness = TerrainLayer::new(
         "continentalness",
         &NoiseParams::new()
-            .frequency(0.0022)
+            .frequency(0.001)
             .octaves(7)
             .persistence(0.5)
             .lacunarity(2.0)
@@ -174,13 +174,15 @@ pub fn setup_terrain_world() -> World {
     )
     .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 5.0], [1.0, 8.5]])
     .add_offset_points(&[
+        [-4.0, RIVER_HEIGHT],
         [-3.0, MOUNTAIN_HEIGHT],
-        [-1.0, PLAINS_HEIGHT],
+        [-0.6, PLAINS_HEIGHT + 0.01],
+        [0.0, PLAINS_HEIGHT],
         // [RIVER_TO_PLAINS, PLAINS_HEIGHT],
         // [0.0, PLAINS_HEIGHT],
         [1.0, RIVER_HEIGHT],
         [2.8, RIVER_HEIGHT / 2.0],
-        // [5.7, MOUNTAIN_HEIGHT],
+        [3.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
     ]);
 
     // The peaks and valleys of the terrain:
@@ -189,7 +191,7 @@ pub fn setup_terrain_world() -> World {
     let peaks_and_valleys = TerrainLayer::new(
         "peaks_and_valleys",
         &NoiseParams::new()
-            .frequency(0.005)
+            .frequency(0.004)
             .octaves(7)
             .persistence(0.6)
             .lacunarity(1.7)
@@ -209,7 +211,7 @@ pub fn setup_terrain_world() -> World {
     let erosion = TerrainLayer::new(
         "erosion",
         &NoiseParams::new()
-            .frequency(0.0018)
+            .frequency(0.0016)
             .octaves(7)
             .persistence(0.5)
             .lacunarity(1.9)
@@ -219,9 +221,9 @@ pub fn setup_terrain_world() -> World {
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
     .add_offset_points(&[[-1.0, MOUNTAIN_HEIGHT], [1.0, RIVER_HEIGHT / 2.0]]);
 
-    terrain.add_layer(&continentalness, 1.7);
+    // terrain.add_layer(&continentalness, 1.0);
     terrain.add_layer(&peaks_and_valleys, 1.0);
-    terrain.add_layer(&erosion, 0.7);
+    // terrain.add_layer(&erosion, 1.0);
 
     // ●	Continentalness (weight: 1.7)
     //  ●	1.0: Low terrain, most likely water

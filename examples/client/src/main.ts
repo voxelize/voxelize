@@ -513,6 +513,24 @@ const start = async () => {
   });
   document.body.appendChild(bar.element);
 
+  debug.registerDisplay("Holding", () => {
+    const slot = bar.getFocused();
+    if (!slot) return;
+
+    const id = slot.getContent();
+    const block = world.getBlockById(id);
+    return block ? block.name : "<Empty>";
+  });
+
+  debug.registerDisplay("Looking at", () => {
+    const { target } = voxelInteract;
+    if (!target) return "<Empty>";
+
+    const [x, y, z] = target;
+    const block = world.getBlockAt(x, y, z);
+    return block ? block.name : "<Empty>";
+  });
+
   HOTBAR_CONTENT.forEach((id, index) => {
     const mesh = world.makeBlockMesh(id, { material: "standard" });
     const slot = bar.getSlot(index, 0);
