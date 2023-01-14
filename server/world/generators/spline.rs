@@ -50,7 +50,7 @@ impl SplineMap {
             self.max_val = value;
         }
 
-        let point = Key::new(t, value, Interpolation::Bezier(value));
+        let point = Key::new(t, value, Interpolation::Linear);
         self.spline.add(point);
 
         self

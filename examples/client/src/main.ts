@@ -4,6 +4,7 @@ import "./style.css";
 import "@voxelize/client/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/client";
+import { GUI } from "lil-gui";
 import {
   EffectComposer,
   EffectPass,
@@ -52,11 +53,10 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
   textureDimension: 16,
+  // maxProcessesPerTick: 10000,
+  // maxRequestsPerTick: 10000,
   // maxUpdatesPerTick: 10000,
 });
-
-world.renderRadius = 8;
-world.deleteRadius = 9;
 
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -164,13 +164,16 @@ controls.on("unlock", () => {
 
 const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
   highlightType: "outline",
-  // potentialVisuals: true,
+  highlightColor: new THREE.Color("#000"),
+  highlightOpacity: 0.5,
   inverseDirection: true,
-  // ignoreFluids: false,
 });
 world.add(voxelInteract);
 
 const debug = new VOXELIZE.Debug(document.body);
+
+const gui = new GUI();
+gui.domElement.style.top = "10px";
 
 inputs.bind(
   "t",
@@ -505,6 +508,9 @@ const start = async () => {
   await network.join("terrain");
   await world.init();
   await setupWorld(world);
+
+  world.renderRadius = 12;
+  gui.add(world, "renderRadius", 3, 20, 1);
 
   const bar = new VOXELIZE.ItemSlots({
     // verticalCount: 5,

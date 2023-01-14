@@ -7,10 +7,10 @@ use voxelize::{
 
 use log::info;
 
-pub const MOUNTAIN_HEIGHT: f64 = 0.7;
-pub const RIVER_HEIGHT: f64 = 0.19;
-pub const PLAINS_HEIGHT: f64 = 0.245;
-pub const RIVER_TO_PLAINS: f64 = 0.47;
+pub const MOUNTAIN_HEIGHT: f64 = 0.8;
+pub const RIVER_HEIGHT: f64 = 0.15;
+pub const PLAINS_HEIGHT: f64 = 0.247;
+pub const RIVER_WIDTH: f64 = 0.36;
 
 pub const VARIANCE: f64 = 5.0;
 pub const SNOW_HEIGHT: f64 = 0.6;
@@ -141,14 +141,14 @@ pub fn setup_terrain_world() -> World {
 
     // let bias: Curve<f64, Fbm<Perlin>, 2> = Curve::new(fb0.clone())
     //     .add_control_point(-1.0, MOUNTAIN_HEIGHT)
-    //     .add_control_point(-RIVER_TO_PLAINS, RIVER_HEIGHT)
-    //     .add_control_point(RIVER_TO_PLAINS, RIVER_HEIGHT)
+    //     .add_control_point(-RIVER_WIDTH, RIVER_HEIGHT)
+    //     .add_control_point(RIVER_WIDTH, RIVER_HEIGHT)
     //     .add_control_point(1.0, PLAINS_HEIGHT);
 
     // let offset: Curve<f64, Fbm<Perlin>, 2> = Curve::new(fb0.clone())
     //     .add_control_point(-1.0, 3.5)
-    //     .add_control_point(-RIVER_TO_PLAINS, 5.0)
-    //     .add_control_point(RIVER_TO_PLAINS, 5.0)
+    //     .add_control_point(-RIVER_WIDTH, 5.0)
+    //     .add_control_point(RIVER_WIDTH, 5.0)
     //     .add_control_point(1.0, 6.5);
 
     // let terrain: HybridMulti<Perlin> = HybridMulti::new(config.seed)
@@ -174,15 +174,14 @@ pub fn setup_terrain_world() -> World {
     )
     .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 5.0], [1.0, 8.5]])
     .add_offset_points(&[
-        [-4.0, RIVER_HEIGHT],
-        [-3.0, MOUNTAIN_HEIGHT],
-        [-0.6, PLAINS_HEIGHT + 0.01],
+        [-2.9, MOUNTAIN_HEIGHT],
+        [-1.0, PLAINS_HEIGHT + 0.01],
         [0.0, PLAINS_HEIGHT],
-        // [RIVER_TO_PLAINS, PLAINS_HEIGHT],
+        // [RIVER_WIDTH, PLAINS_HEIGHT],
         // [0.0, PLAINS_HEIGHT],
-        [1.0, RIVER_HEIGHT],
-        [2.8, RIVER_HEIGHT / 2.0],
-        [3.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
+        [1.1, RIVER_HEIGHT],
+        [2.8, 0.0],
+        [5.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
     ]);
 
     // The peaks and valleys of the terrain:
@@ -191,21 +190,22 @@ pub fn setup_terrain_world() -> World {
     let peaks_and_valleys = TerrainLayer::new(
         "peaks_and_valleys",
         &NoiseParams::new()
-            .frequency(0.004)
+            .frequency(0.003)
             .octaves(7)
-            .persistence(0.6)
-            .lacunarity(1.7)
-            .seed(123123)
-            // .ridged(true)
+            .persistence(0.56)
+            .lacunarity(1.8)
+            .seed(51287)
             .build(),
     )
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
     .add_offset_points(&[
-        [-1.0, PLAINS_HEIGHT],
-        [-RIVER_TO_PLAINS, PLAINS_HEIGHT],
+        [-3.0, RIVER_HEIGHT],
+        [-2.0, PLAINS_HEIGHT],
+        [-0.4, PLAINS_HEIGHT],
         [0.0, RIVER_HEIGHT],
-        // [RIVER_TO_PLAINS, RIVER_HEIGHT],
+        [RIVER_WIDTH, RIVER_HEIGHT],
         [2.0, PLAINS_HEIGHT + RIVER_HEIGHT],
+        [5.0, MOUNTAIN_HEIGHT * 2.0],
     ]);
 
     let erosion = TerrainLayer::new(
@@ -221,9 +221,9 @@ pub fn setup_terrain_world() -> World {
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
     .add_offset_points(&[[-1.0, MOUNTAIN_HEIGHT], [1.0, RIVER_HEIGHT / 2.0]]);
 
-    // terrain.add_layer(&continentalness, 1.0);
-    terrain.add_layer(&peaks_and_valleys, 1.0);
-    // terrain.add_layer(&erosion, 1.0);
+    terrain.add_layer(&continentalness, 1.0);
+    terrain.add_layer(&peaks_and_valleys, 0.5);
+    // terrain.add_layer(&erosion, 0.1);
 
     // ●	Continentalness (weight: 1.7)
     //  ●	1.0: Low terrain, most likely water

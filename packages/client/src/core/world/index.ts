@@ -94,11 +94,6 @@ export type WorldClientParams = {
   defaultRenderRadius: number;
 
   /**
-   * The default radius that chunk will be deleted, in chunks. Change this through `world.deleteRadius`. Defaults to `12` chunks.
-   */
-  defaultDeleteRadius: number;
-
-  /**
    * The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution.
    */
   textureDimension: number;
@@ -112,7 +107,6 @@ const defaultParams: WorldClientParams = {
   generateMeshes: true,
   rerequestTicks: 300,
   defaultRenderRadius: 8,
-  defaultDeleteRadius: 12,
   textureDimension: 8,
 };
 
@@ -240,16 +234,6 @@ export class World extends Scene implements NetIntercept {
   public initialized = false;
 
   /**
-   * The radius at which chunks will be requested and rendered.
-   */
-  public renderRadius = 0;
-
-  /**
-   * The radius from which if chunks exceed this radius, they will be removed and disposed.
-   */
-  public deleteRadius = 0;
-
-  /**
    * A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
    */
   public materialStore: Map<string, CustomShaderMaterial> = new Map();
@@ -326,7 +310,7 @@ export class World extends Scene implements NetIntercept {
     };
   } = {
     fogColor: {
-      value: new Color("#fff"),
+      value: new Color("#B1CCFD"),
     },
     fogNear: {
       value: 100,
@@ -374,6 +358,10 @@ export class World extends Scene implements NetIntercept {
    */
   private initJSON: any = null;
 
+  private _renderRadius = 0;
+
+  private _deleteRadius = 0;
+
   constructor(params: Partial<WorldParams> = {}) {
     super();
 
@@ -383,15 +371,12 @@ export class World extends Scene implements NetIntercept {
 
     this.setupPhysics();
 
-    const { defaultRenderRadius, defaultDeleteRadius, minBrightness } =
+    const { minBrightness } =
       // @ts-ignore
       (this.params = {
         ...defaultParams,
         ...params,
       });
-
-    this.renderRadius = defaultRenderRadius;
-    this.deleteRadius = defaultDeleteRadius;
 
     this.uniforms.minBrightness.value = minBrightness;
   }
@@ -1349,6 +1334,8 @@ export class World extends Scene implements NetIntercept {
     await this.loadMaterials();
 
     this.initialized = true;
+
+    this.renderRadius = this.params.defaultRenderRadius;
   }
 
   update(position: Vector3 = new Vector3()) {
@@ -1425,6 +1412,28 @@ export class World extends Scene implements NetIntercept {
         break;
       }
     }
+  }
+
+  get renderRadius() {
+    return this._renderRadius;
+  }
+
+  set renderRadius(radius: number) {
+    this.initCheck("set render radius", false);
+
+    radius = Math.floor(radius);
+
+    this._renderRadius = radius;
+    this._deleteRadius = radius * 1.2;
+
+    const { chunkSize } = this.params;
+
+    this.uniforms.fogNear.value = radius * 0.7 * chunkSize;
+    this.uniforms.fogFar.value = radius * chunkSize;
+  }
+
+  get deleteRadius() {
+    return this._deleteRadius;
   }
 
   private requestChunks(center: Coords2) {

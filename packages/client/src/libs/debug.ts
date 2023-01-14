@@ -122,7 +122,7 @@ export class Debug extends Group {
   private dataEntries: {
     element: HTMLParagraphElement;
     object?: any;
-    attribute?: string;
+    attribute?: any;
     title: string;
     formatter: (value: any) => string;
   }[] = [];
@@ -160,10 +160,10 @@ export class Debug extends Group {
    * @param formatter A function to format the value of the attribute.
    * @returns The debug instance for chaining.
    */
-  registerDisplay = (
+  registerDisplay = <T = any>(
     title: string,
-    object?: any,
-    attribute?: string,
+    object?: T,
+    attribute?: keyof T,
     formatter = (str: string) => str
   ) => {
     const wrapper = this.makeDataEntry();

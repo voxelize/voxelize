@@ -58,24 +58,57 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   50
   // );
 
-  const biomeTextures = new Array(21).fill(0).map((_, i) => ({
-    idOrName: `Biome Test ${i}`,
-    faceNames: all,
-    source: new THREE.Color(
-      `#${Math.floor(Math.random() * 16777215).toString(16)}`
-    ),
-  }));
+  const biomes = [
+    [0, 0, 0],
+    [0, 0, 1],
+    [0, 1, 0],
+    [0, 1, 1],
+    [1, 0, 0],
+    [1, 0, 1],
+    [1, 1, 0],
+    [1, 1, 1],
+    [0, 0, -1],
+    [0, -1, 0],
+    [0, -1, -1],
+    [-1, 0, 0],
+    [-1, 0, -1],
+    [-1, -1, 0],
+    [-1, -1, -1],
+    [1, 1, -1],
+    [1, -1, 1],
+    [1, -1, -1],
+    [-1, 1, 1],
+    [-1, 1, -1],
+    [-1, -1, 1],
+  ];
+
+  const biomeTextures = biomes.map((portion, i) => {
+    const biome = {
+      idOrName: `Biome Test ${i}`,
+      faceNames: all,
+      source: new THREE.Color(
+        // Split portion into three parts, shading by 1/3rd low to high
+        (portion[0] + 1) * 0.5,
+        (portion[1] + 1) * 0.5,
+        (portion[2] + 1) * 0.5
+      ),
+    };
+
+    return biome;
+  });
 
   await world.applyBlockTextures(biomeTextures);
 
-  const biomes = document.getElementById("biomes") as HTMLUListElement;
+  const biomesDOM = document.getElementById("biomes") as HTMLUListElement;
 
-  biomeTextures.forEach((biome) => {
+  biomeTextures.forEach((biome, i) => {
+    const portion = biomes[i];
+
     const colorStr = `#${biome.source.getHexString()}`;
     const biomeEntry = document.createElement("li");
 
     const biomeTitle = document.createElement("p");
-    biomeTitle.innerText = biome.idOrName;
+    biomeTitle.innerText = `(${portion[0]},${portion[1]},${portion[2]})`;
 
     const biomeColor = document.createElement("div");
     biomeColor.style.backgroundColor = colorStr;
@@ -83,7 +116,7 @@ export async function setupWorld(world: VOXELIZE.World) {
     biomeEntry.appendChild(biomeTitle);
     biomeEntry.appendChild(biomeColor);
 
-    biomes.appendChild(biomeEntry);
+    biomesDOM.appendChild(biomeEntry);
   });
 
   await world.applyBlockTextures([
