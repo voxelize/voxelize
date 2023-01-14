@@ -135,8 +135,7 @@ impl Mesher {
         self.pool.spawn(move || {
             processes
                 .into_par_iter()
-                .enumerate()
-                .for_each(|(_, (mut chunk, mut space))| {
+                .for_each(|(mut chunk, mut space)| {
                     if chunk.meshes.is_none() {
                         let min = space.min.to_owned();
                         let coords = space.coords.to_owned();
