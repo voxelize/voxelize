@@ -100,7 +100,7 @@ export type WorldClientParams = {
 };
 
 const defaultParams: WorldClientParams = {
-  maxRequestsPerTick: 4,
+  maxRequestsPerTick: 20,
   maxProcessesPerTick: 8,
   maxUpdatesPerTick: 1000,
   minBrightness: 0.04,

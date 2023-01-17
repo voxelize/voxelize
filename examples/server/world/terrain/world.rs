@@ -201,9 +201,9 @@ pub fn setup_terrain_world() -> World {
     .add_offset_points(&[
         [-3.0, RIVER_HEIGHT],
         [-2.0, PLAINS_HEIGHT],
-        [-0.4, PLAINS_HEIGHT],
+        [-0.4, PLAINS_HEIGHT * 0.9],
         [0.0, RIVER_HEIGHT],
-        [RIVER_WIDTH, RIVER_HEIGHT],
+        [RIVER_WIDTH, RIVER_HEIGHT * 1.05],
         [2.0, PLAINS_HEIGHT + RIVER_HEIGHT],
         [5.0, MOUNTAIN_HEIGHT * 2.0],
     ]);

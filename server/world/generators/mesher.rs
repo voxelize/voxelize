@@ -1,12 +1,9 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, sync::Arc, time::Instant};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use rayon::{
-    iter::IntoParallelIterator,
-    prelude::{IndexedParallelIterator, ParallelIterator},
-    ThreadPool, ThreadPoolBuilder,
-};
+use log::info;
+use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     world::generators::lights::VOXEL_NEIGHBORS, Block, BlockFace, BlockRotation, Chunk, CornerData,
@@ -141,8 +138,16 @@ impl Mesher {
                         let coords = space.coords.to_owned();
                         let shape = space.shape.to_owned();
 
+                        let now = Instant::now();
                         chunk.lights = Lights::propagate(
                             &mut space, &min, &coords, &shape, &registry, &config,
+                        );
+                        let elapsed = now.elapsed();
+                        // Log the time spend in milliseconds to the second decimal place.
+                        info!(
+                            "Chunk {:?} light propagation took {:.2?}ms",
+                            chunk.coords,
+                            elapsed.as_millis()
                         );
                     }
 

@@ -41,6 +41,8 @@ import Water3Image from "./assets/pixel-perfection/water3.png";
 import Water4Image from "./assets/pixel-perfection/water4.png";
 import TechnoImage from "./assets/techno.png";
 
+const BIOME_SHADE_WEIGHT = 0.2;
+
 export async function setupWorld(world: VOXELIZE.World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
@@ -88,9 +90,9 @@ export async function setupWorld(world: VOXELIZE.World) {
       faceNames: all,
       source: new THREE.Color(
         // Split portion into three parts, shading by 1/3rd low to high
-        (portion[0] + 1) * 0.5,
-        (portion[1] + 1) * 0.5,
-        (portion[2] + 1) * 0.5
+        0.5 + portion[0] * BIOME_SHADE_WEIGHT,
+        0.5 + portion[1] * BIOME_SHADE_WEIGHT,
+        0.5 + portion[2] * BIOME_SHADE_WEIGHT
       ),
     };
 

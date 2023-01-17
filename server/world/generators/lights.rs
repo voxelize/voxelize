@@ -272,7 +272,7 @@ impl Lights {
         let Vec3(start_x, _, start_z) = min;
         let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
 
-        let mut mask = vec![];
+        let mut mask = Vec::with_capacity((shape.0 * shape.2) as usize);
         for _ in 0..(shape.0 * shape.2) {
             mask.push(max_light_level);
         }

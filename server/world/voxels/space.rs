@@ -204,7 +204,6 @@ impl SpaceBuilder<'_> {
 impl VoxelAccess for Space {
     /// Get the raw voxel data at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain voxel data.
-    #[inline]
     fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if self.voxels.is_empty() {
             panic!("Space does not contain voxel data.");
@@ -255,7 +254,6 @@ impl VoxelAccess for Space {
 
     /// Get the raw light level at the voxel position. Zero is returned if chunk doesn't exist.
     /// Panics if space does not contain lighting data.
-    #[inline]
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if self.lights.is_empty() {
             panic!("Space does not contain light data.");
