@@ -13,7 +13,7 @@ import {
 } from "three";
 import CloudWorker from "web-worker:./workers/clouds-worker.ts";
 
-import { Coords3 } from "../types";
+import { Coords2, Coords3 } from "../types";
 
 import { cull } from "./cull";
 import CloudsFragmentShader from "./shaders/clouds/fragment.glsl";
@@ -184,7 +184,7 @@ export class Clouds extends Group {
   /**
    * The cell that this cloud is currently centered around.
    */
-  public locatedCell = [0, 0];
+  public locatedCell: Coords2 = [0, 0];
 
   /**
    * The new position to lerp the clouds.
@@ -246,13 +246,16 @@ export class Clouds extends Group {
    * Reset the clouds to their initial state.
    */
   reset = async () => {
-    const { width } = this.params;
-
-    for (let x = 0; x < width; x++) {
-      for (let z = 0; z < width; z++) {
-        await this.makeCell(x, z, this.meshes[x][z]);
+    this.children.forEach((child: Mesh) => {
+      if (child.parent) {
+        child.parent.remove(child);
+        child.geometry?.dispose();
       }
-    }
+    });
+
+    this.meshes.length = 0;
+
+    await this.initialize();
   };
 
   /**
@@ -272,7 +275,7 @@ export class Clouds extends Group {
     this.newPosition = this.position.clone();
     this.newPosition.z -= speedFactor * delta;
 
-    const locatedCell = [
+    const locatedCell: Coords2 = [
       Math.floor((position.x - this.position.x) / (count * dimensions[0])),
       Math.floor((position.z - this.position.z) / (count * dimensions[2])),
     ];
@@ -284,15 +287,19 @@ export class Clouds extends Group {
       const dx = locatedCell[0] - this.locatedCell[0];
       const dz = locatedCell[1] - this.locatedCell[1];
 
-      if (dx) {
-        this.shiftX(dx);
-      }
-
-      if (dz) {
-        this.shiftZ(dz);
-      }
-
       this.locatedCell = locatedCell;
+
+      if (Math.abs(dx) > 1 || Math.abs(dz) > 1) {
+        this.reset();
+      } else {
+        if (dx) {
+          this.shiftX(dx);
+        }
+
+        if (dz) {
+          this.shiftZ(dz);
+        }
+      }
     }
 
     this.position.lerp(this.newPosition, this.params.lerpFactor);
@@ -303,12 +310,13 @@ export class Clouds extends Group {
    */
   private initialize = async () => {
     const { width } = this.params;
+    const [lx, lz] = this.locatedCell;
 
     for (let x = 0; x < width; x++) {
       const arr = [];
 
       for (let z = 0; z < width; z++) {
-        const cell = await this.makeCell(x, z);
+        const cell = await this.makeCell(x + lx, z + lz);
         this.add(cell);
         arr.push(cell);
       }

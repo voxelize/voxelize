@@ -341,8 +341,14 @@ impl Lights {
                     if is_opaque {
                         mask[index] = 0;
                     } else {
+                        if !py || !ny {
+                            mask[index] = 0;
+
+                            continue;
+                        }
+
                         // Let sunlight pass through if it can.
-                        if light_reduce && py && ny {
+                        if light_reduce {
                             if mask[index] != 0 {
                                 space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
 
@@ -355,7 +361,7 @@ impl Lights {
                             }
                         }
                         // If the voxel is transparent, then it can pass sunlight through.
-                        else if py && ny {
+                        else {
                             space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
 
                             if mask[index] == max_light_level {
@@ -380,8 +386,6 @@ impl Lights {
                                     });
                                 }
                             }
-                        } else {
-                            mask[index] = 0;
                         }
                     }
                 }

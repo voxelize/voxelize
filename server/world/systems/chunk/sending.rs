@@ -32,11 +32,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
             return;
         }
 
-        let mut count = 0;
-
         while !chunks.to_send.is_empty() {
-            count += 1;
-
             if let Some((coords, r#type)) = chunks.to_send.pop_front() {
                 if let Some(chunk) = chunks.get_mut(&coords) {
                     [[true, false], [false, true]]

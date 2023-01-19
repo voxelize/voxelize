@@ -466,8 +466,13 @@ loading.style.display = "none";
 // ) as HTMLDivElement;
 // loading.style.transition = `${loadingFade}ms opacity ease`;
 
+const RANDOM_TELEPORT_WIDTH = 1000000;
 inputs.bind("]", () => {
-  controls.teleport(Math.random() * 10000, 100, Math.random() * 10000);
+  controls.teleport(
+    Math.random() * RANDOM_TELEPORT_WIDTH,
+    100,
+    Math.random() * RANDOM_TELEPORT_WIDTH
+  );
 });
 
 const start = async () => {
