@@ -27,7 +27,7 @@ import {
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
-import { BlockUtils, ChunkUtils, LightColor } from "../../utils";
+import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 
 import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
@@ -97,17 +97,23 @@ export type WorldClientParams = {
    * The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution.
    */
   textureDimension: number;
+
+  inViewRadius: number;
+
+  inViewAngle: number;
 };
 
 const defaultParams: WorldClientParams = {
-  maxRequestsPerTick: 20,
-  maxProcessesPerTick: 8,
+  maxRequestsPerTick: 1200,
+  maxProcessesPerTick: 20,
   maxUpdatesPerTick: 1000,
   minBrightness: 0.04,
   generateMeshes: true,
   rerequestTicks: 300,
   defaultRenderRadius: 8,
   textureDimension: 8,
+  inViewRadius: 4,
+  inViewAngle: (Math.PI * 3) / 8,
 };
 
 /**
@@ -905,6 +911,27 @@ export class World extends Scene implements NetIntercept {
     );
   }
 
+  isChunkInView(
+    center: Coords2,
+    target: Coords2,
+    direction: Vector3,
+    threshold: number
+  ) {
+    const [cx, cz] = center;
+    const [tx, tz] = target;
+
+    if ((cx - tx) ** 2 + (cz - tz) ** 2 < this.params.inViewRadius ** 2) {
+      return true;
+    }
+
+    const vec1 = new Vector3(tz - cz, tx - cx, 0);
+    const vec2 = new Vector3(direction.z, direction.x, 0);
+
+    const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
+
+    return Math.abs(angle) < threshold;
+  }
+
   /**
    * Raycast through the world of voxels and return the details of the first block intersection.
    *
@@ -1338,7 +1365,10 @@ export class World extends Scene implements NetIntercept {
     this.renderRadius = this.params.defaultRenderRadius;
   }
 
-  update(position: Vector3 = new Vector3()) {
+  update(
+    position: Vector3 = new Vector3(),
+    direction: Vector3 = new Vector3()
+  ) {
     if (!this.initialized) {
       return;
     }
@@ -1350,7 +1380,7 @@ export class World extends Scene implements NetIntercept {
       this.params.chunkSize
     );
 
-    this.requestChunks(center);
+    this.requestChunks(center, direction);
     this.processChunks(center);
     this.maintainChunks(center);
 
@@ -1436,10 +1466,10 @@ export class World extends Scene implements NetIntercept {
     return this._deleteRadius;
   }
 
-  private requestChunks(center: Coords2) {
+  private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
-      params: { rerequestTicks },
+      params: { rerequestTicks, inViewAngle },
     } = this;
 
     const [centerX, centerZ] = center;
@@ -1453,6 +1483,10 @@ export class World extends Scene implements NetIntercept {
         const cz = centerZ + oz;
 
         if (!this.isWithinWorld(cx, cz)) {
+          continue;
+        }
+
+        if (!this.isChunkInView(center, [cx, cz], direction, inViewAngle)) {
           continue;
         }
 

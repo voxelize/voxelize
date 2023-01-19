@@ -200,6 +200,12 @@ impl BlockRotation {
 
     /// Rotate transparency, let math do the work.
     pub fn rotate_transparency(&self, [px, py, pz, nx, ny, nz]: [bool; 6]) -> [bool; 6] {
+        if let BlockRotation::PY(rot) = self {
+            if rot.abs() < f32::EPSILON {
+                return [px, py, pz, nx, ny, nz];
+            }
+        }
+
         let mut positive = [1.0, 2.0, 3.0];
         let mut negative = [4.0, 5.0, 6.0];
 

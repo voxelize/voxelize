@@ -34,7 +34,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
 
         let mut count = 0;
 
-        while count < config.max_response_per_tick {
+        while !chunks.to_send.is_empty() {
             count += 1;
 
             if let Some((coords, r#type)) = chunks.to_send.pop_front() {

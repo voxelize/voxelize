@@ -1,4 +1,6 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, time::Instant};
+
+use log::info;
 
 use crate::{
     Block, ChunkUtils, LightColor, Ndarray, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
@@ -273,10 +275,15 @@ impl Lights {
         let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
 
         let mut mask = Vec::with_capacity((shape.0 * shape.2) as usize);
+
+        let instant1 = Instant::now();
         for _ in 0..(shape.0 * shape.2) {
             mask.push(max_light_level);
         }
+        let elapsed1 = instant1.elapsed();
 
+        let instant2 = Instant::now();
+        let mut count = 0;
         for y in (0..max_height as i32).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
@@ -287,7 +294,7 @@ impl Lights {
                         continue;
                     }
 
-                    let index = (x + z * shape.2) as usize;
+                    count += 1;
 
                     let id = space.get_voxel(x + start_x, y, z + start_z);
                     let &Block {
@@ -300,6 +307,32 @@ impl Lights {
                         light_reduce,
                         ..
                     } = registry.get_block_by_id(id);
+
+                    if is_light {
+                        if red_light_level > 0 {
+                            space.set_red_light(x + start_x, y, z + start_z, red_light_level);
+                            red_light_queue.push_back(LightNode {
+                                voxel: [x + start_x, y, z + start_z],
+                                level: red_light_level,
+                            });
+                        }
+                        if green_light_level > 0 {
+                            space.set_green_light(x + start_x, y, z + start_z, green_light_level);
+                            green_light_queue.push_back(LightNode {
+                                voxel: [x + start_x, y, z + start_z],
+                                level: green_light_level,
+                            });
+                        }
+                        if blue_light_level > 0 {
+                            space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
+                            blue_light_queue.push_back(LightNode {
+                                voxel: [x + start_x, y, z + start_z],
+                                level: blue_light_level,
+                            });
+                        }
+                    }
+
+                    let index = (x + z * shape.2) as usize;
 
                     let [px, py, pz, nx, ny, nz] = space
                         .get_voxel_rotation(x + start_x, y, z + start_z)
@@ -320,7 +353,9 @@ impl Lights {
 
                                 mask[index] = 0;
                             }
-                        } else if py && ny {
+                        }
+                        // If the voxel is transparent, then it can pass sunlight through.
+                        else if py && ny {
                             space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
 
                             if mask[index] == max_light_level {
@@ -349,34 +384,13 @@ impl Lights {
                             mask[index] = 0;
                         }
                     }
-
-                    if is_light {
-                        if red_light_level > 0 {
-                            space.set_red_light(x + start_x, y, z + start_z, red_light_level);
-                            red_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: red_light_level,
-                            });
-                        }
-                        if green_light_level > 0 {
-                            space.set_green_light(x + start_x, y, z + start_z, green_light_level);
-                            green_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: green_light_level,
-                            });
-                        }
-                        if blue_light_level > 0 {
-                            space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
-                            blue_light_queue.push_back(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: blue_light_level,
-                            });
-                        }
-                    }
                 }
             }
         }
 
+        let elapsed2 = instant2.elapsed();
+
+        let instant3 = Instant::now();
         let shape = Vec3(shape.0 as usize, shape.1 as usize, shape.2 as usize);
 
         if !red_light_queue.is_empty() {
@@ -426,6 +440,17 @@ impl Lights {
                 Some(&shape),
             );
         }
+
+        let elapsed3 = instant3.elapsed();
+
+        info!(
+            "Lighting took {}ms, {}ms, {}ms, total {}ms with {} iterations",
+            elapsed1.as_millis(),
+            elapsed2.as_millis(),
+            elapsed3.as_millis(),
+            elapsed1.as_millis() + elapsed2.as_millis() + elapsed3.as_millis(),
+            count
+        );
 
         space.get_lights(center.0, center.1).unwrap().to_owned()
     }

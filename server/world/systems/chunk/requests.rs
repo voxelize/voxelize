@@ -50,20 +50,20 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                     chunks
                         .light_traversed_chunks(&coords)
                         .into_iter()
-                        .for_each(|n_coords| {
+                        .for_each(|coords| {
                             // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                            if chunks.raw(&n_coords).is_none()
+                            if chunks.raw(&coords).is_none()
                                 || matches!(
-                                    chunks.raw(&n_coords).unwrap().status,
+                                    chunks.raw(&coords).unwrap().status,
                                     ChunkStatus::Generating(_)
                                 )
                             {
-                                pipeline.add_chunk(&n_coords, false);
+                                pipeline.add_chunk(&coords, false);
                             }
                             // If this chunk is in the meshing stage, we re-add it to the mesher.
-                            else if let Some(chunk) = chunks.raw(&n_coords) {
+                            else if let Some(chunk) = chunks.raw(&coords) {
                                 if matches!(chunk.status, ChunkStatus::Meshing) {
-                                    mesher.add_chunk(&n_coords, false);
+                                    mesher.add_chunk(&coords, false);
                                 }
                             }
                         });
