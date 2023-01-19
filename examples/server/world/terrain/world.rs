@@ -43,16 +43,8 @@ impl ChunkStage for SoilingStage {
 
         for vx in chunk.min.0..chunk.max.0 {
             for vz in chunk.min.2..chunk.max.2 {
-                let height = chunk.get_max_height(vx, vz) as i32;
-
-                for vy in 0..=(height.max(water_level)) {
-                    // Fill in the water
-                    let id = chunk.get_voxel(vx, vy, vz);
-
-                    if registry.is_air(id) && vy < water_level {
-                        chunk.set_voxel(vx, vy, vz, water.id);
-                        continue;
-                    }
+                for vy in 0..(water_level as i32) {
+                    chunk.set_voxel(vx, vy, vz, water.id);
                 }
             }
         }
@@ -98,10 +90,11 @@ impl ChunkStage for BaseTerrainStage {
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                for vy in min_y..max_y {
-                    let density = self.terrain.get_density_at(vx, vy, vz);
-                    let biome = self.terrain.get_biome_at(vx, vz);
+                let (bias, offset) = self.terrain.get_bias_offset(vx, vz);
 
+                for vy in min_y..max_y {
+                    let density = self.terrain.get_density_from_bias_offset(bias, offset, vy);
+                    let biome = self.terrain.get_biome_at(vx, vz);
                     let block = registry.get_block_by_name(&biome.test_block);
 
                     if density > self.threshold {
@@ -211,7 +204,7 @@ pub fn setup_terrain_world() -> World {
     let erosion = TerrainLayer::new(
         "erosion",
         &NoiseParams::new()
-            .frequency(0.0016)
+            .frequency(0.01)
             .octaves(7)
             .persistence(0.5)
             .lacunarity(1.9)
@@ -223,7 +216,8 @@ pub fn setup_terrain_world() -> World {
 
     terrain.add_layer(&continentalness, 1.0);
     terrain.add_layer(&peaks_and_valleys, 0.5);
-    // terrain.add_layer(&erosion, 0.1);
+
+    terrain.add_noise_layer(&erosion, 0.015);
 
     // ●	Continentalness (weight: 1.7)
     //  ●	1.0: Low terrain, most likely water
@@ -239,9 +233,6 @@ pub fn setup_terrain_world() -> World {
     //  ●	-1.0: Mountain peaks
 
     let cap = 0.2;
-    // terrain.add_biome(&[cap, 0.0, 0.0], Biome::new("Biome 0", "Biome Test 0"));
-    // terrain.add_biome(&[0.0, 0.0, 0.0], Biome::new("Biome 1", "Biome Test 1"));
-    // terrain.add_biome(&[-cap, 0.0, 0.0], Biome::new("Biome 2", "Biome Test 2"));
 
     terrain.add_biome(&[0.0, 0.0, 0.0], Biome::new("Biome 0", "Biome Test 0"));
 
@@ -268,39 +259,19 @@ pub fn setup_terrain_world() -> World {
     terrain.add_biome(&[-cap, cap, -cap], Biome::new("Biome 19", "Biome Test 19"));
     terrain.add_biome(&[-cap, -cap, cap], Biome::new("Biome 20", "Biome Test 20"));
 
-    // terrain.add_biome(&[cap, cap, cap], Biome::new("Biome 1", "Biome Test 1"));
-    // terrain.add_biome(&[cap, cap, -cap], Biome::new("Biome 2", "Biome Test 2"));
-    // terrain.add_biome(&[cap, -cap, cap], Biome::new("Biome 3", "Biome Test 3"));
-    // terrain.add_biome(&[cap, -cap, -cap], Biome::new("Biome 4", "Biome Test 4"));
-    // terrain.add_biome(&[-cap, cap, cap], Biome::new("Biome 5", "Biome Test 5"));
-    // terrain.add_biome(&[-cap, cap, -cap], Biome::new("Biome 6", "Biome Test 6"));
-    // terrain.add_biome(&[-cap, -cap, cap], Biome::new("Biome 7", "Biome Test 7"));
-    // terrain.add_biome(&[-cap, -cap, -cap], Biome::new("Biome 8", "Biome Test 8"));
-
     {
         let mut pipeline = world.pipeline_mut();
+
+        pipeline.add_stage(SoilingStage::new(
+            config.seed,
+            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
+        ));
 
         let mut terrain_stage = BaseTerrainStage::new(terrain);
         terrain_stage.set_base(2);
         terrain_stage.set_threshold(0.0);
 
         pipeline.add_stage(terrain_stage);
-
-        // let biomes: Biomes<Biome> = Biomes::new(&config)
-        //     .add_criterion("c0", &NoiseParams::new().frequency(0.008).seed(123).build())
-        //     .add_criterion("c1", &NoiseParams::new().frequency(0.008).seed(245).build())
-        //     .add_criterion("c2", &NoiseParams::new().frequency(0.010).seed(12).build())
-        //     .add_biome(&[-1.0, -1.0, -1.0], Biome::new("ocean", "Biome Test 0"))
-        //     .add_biome(&[1.0, 1.0, 1.0], Biome::new("plains", "Biome Test 1"))
-        //     .add_biome(&[0.0, 0.0, 0.0], Biome::new("river", "Biome Test 2"))
-        //     .add_biome(&[0.5, 0.5, 1.0], Biome::new("mountain", "Biome Test 3"));
-
-        // pipeline.add_stage(BiomeStage { biomes });
-
-        pipeline.add_stage(SoilingStage::new(
-            config.seed,
-            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
-        ));
     }
 
     world

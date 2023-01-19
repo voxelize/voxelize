@@ -32,6 +32,7 @@ pub struct Terrain {
     noise: SeededNoise,
     biome_tree: KdTree<f64, Biome, Vec<f64>>,
     pub layers: Vec<(TerrainLayer, f64)>,
+    pub noise_layers: Vec<(TerrainLayer, f64)>,
 }
 
 impl Terrain {
@@ -42,6 +43,7 @@ impl Terrain {
             noise: SeededNoise::new(config.seed, &config.terrain),
             biome_tree: KdTree::new(2),
             layers: vec![],
+            noise_layers: vec![],
         }
     }
 
@@ -68,11 +70,16 @@ impl Terrain {
         self
     }
 
-    pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
-        if self.layers.is_empty() {
-            panic!("Terrain layers must be added before biomes.");
-        }
+    /// Add a noise layer to the voxelize terrain.
+    pub fn add_noise_layer(&mut self, layer: &TerrainLayer, weight: f64) -> &mut Self {
+        let mut layer = layer.to_owned();
+        layer.set_seed(self.config.seed);
+        self.noise_layers.push((layer, weight));
 
+        self
+    }
+
+    pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
         let point_vec = point.to_vec();
         let point_vec = point_vec[..self.layers.len()]
             .into_iter()
@@ -89,9 +96,8 @@ impl Terrain {
     /// 1. Calculate the height bias and height offset of each terrain layer.
     /// 2. Obtain the average height bias and height offset at this specific voxel column.
     /// 3. Get the noise value at this specific voxel coordinate, and add the average bias and height to it.
-    pub fn get_density_at(&self, vx: i32, vy: i32, vz: i32) -> f64 {
+    pub fn get_density_from_bias_offset(&self, bias: f64, offset: f64, vy: i32) -> f64 {
         let max_height = self.config.max_height as f64;
-        let (bias, offset) = self.get_bias_offset(vx, vz);
 
         // self.noise.get3d(vx, vy, vz).powi(2)
         -if self.layers.is_empty() {
@@ -104,17 +110,18 @@ impl Terrain {
     /// Get the height bias and height offset values at a voxel column. What it does is that it samples the bias and offset
     /// of all noise layers and take the average of them all.
     pub fn get_bias_offset(&self, vx: i32, vz: i32) -> (f64, f64) {
-        // if self.layers.len() == 1 {
-        //     let layer = &self.layers[0].0;
-        //     let value = layer.noise.get2d(vx, vz);
-        //     return (layer.sample_bias(value), layer.sample_offset(value));
-        // }
-
         let mut bias = 0.0;
         let mut offset = 0.0;
         let mut total_weight = 0.0;
 
         self.layers.iter().for_each(|(layer, weight)| {
+            let value = layer.noise.get2d(vx, vz);
+            bias += layer.sample_bias(value) * weight;
+            offset += layer.sample_offset(value) * weight;
+            total_weight += weight;
+        });
+
+        self.noise_layers.iter().for_each(|(layer, weight)| {
             let value = layer.noise.get2d(vx, vz);
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;

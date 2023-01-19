@@ -522,7 +522,7 @@ const start = async () => {
   await world.init();
   await setupWorld(world);
 
-  world.renderRadius = 12;
+  world.renderRadius = 8;
   gui.add(world, "renderRadius", 3, 20, 1);
 
   const bar = new VOXELIZE.ItemSlots({
