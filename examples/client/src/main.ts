@@ -18,6 +18,14 @@ import LolImage from "./assets/lol.png";
 import { Map } from "./map";
 import { setupWorld } from "./world";
 
+const createCharacter = () => {
+  const character = new VOXELIZE.Character();
+  character.head.paint("front", world.loader.getTexture(LolImage));
+  lightShined.add(character);
+  shadows.add(character);
+  return character;
+};
+
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
@@ -60,9 +68,6 @@ const world = new VOXELIZE.World({
 
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
-
-const character = new VOXELIZE.Character({});
-character.position.set(0, 10, -5);
 
 world.loader.loadTexture(LolImage, (texture) => {
   character.head.paint("front", texture);
@@ -119,7 +124,10 @@ composer.addPass(
 );
 
 const lightShined = new VOXELIZE.LightShined(world);
-lightShined.add(character);
+const shadows = new VOXELIZE.Shadows(world);
+
+const character = createCharacter();
+character.position.set(0, 10, -5);
 
 const controls = new VOXELIZE.RigidControls(
   camera,
@@ -277,13 +285,7 @@ inputs.bind(
 
 const peers = new VOXELIZE.Peers<VOXELIZE.Character>(controls.object);
 
-peers.createPeer = () => {
-  const peer = new VOXELIZE.Character();
-  peer.head.paint("front", world.loader.getTexture(LolImage));
-  lightShined.add(peer);
-  shadows.add(peer);
-  return peer;
-};
+peers.createPeer = createCharacter;
 
 peers.setOwnPeer(character);
 
@@ -402,9 +404,6 @@ inputs.bind("b", () => {
   ]);
 });
 
-const shadows = new VOXELIZE.Shadows(world);
-shadows.add(character);
-
 // Create a test for atlas
 // setTimeout(() => {
 //   let i = -Math.floor(world.materialStore.size / 2);
@@ -494,6 +493,34 @@ const start = async () => {
     if (world.initialized) {
       peers.update();
       controls.update();
+
+      const inWater =
+        world.getBlockAt(
+          ...camera.getWorldPosition(new THREE.Vector3()).toArray()
+        )?.name === "Water";
+      const fogNear = inWater
+        ? 0.1 * world.params.chunkSize * world.renderRadius
+        : 0.7 * world.params.chunkSize * world.renderRadius;
+      const fogFar = inWater
+        ? 0.8 * world.params.chunkSize * world.renderRadius
+        : world.params.chunkSize * world.renderRadius;
+      const fogColor = inWater
+        ? new THREE.Color("#5F9DF7")
+        : new THREE.Color("#B1CCFD");
+
+      world.uniforms.fogNear.value = THREE.MathUtils.lerp(
+        world.uniforms.fogNear.value,
+        fogNear,
+        0.08
+      );
+
+      world.uniforms.fogFar.value = THREE.MathUtils.lerp(
+        world.uniforms.fogFar.value,
+        fogFar,
+        0.08
+      );
+
+      world.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
       clouds.update(controls.object.position);
       sky.update(controls.object.position);
