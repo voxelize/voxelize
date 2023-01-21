@@ -551,6 +551,7 @@ const start = async () => {
 
   world.renderRadius = 8;
   gui.add(world, "renderRadius", 3, 20, 1);
+  gui.add(world.params, "inViewAngle", 0, Math.PI * 2, 0.01);
 
   const bar = new VOXELIZE.ItemSlots({
     // verticalCount: 5,

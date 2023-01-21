@@ -301,7 +301,7 @@ impl Pipeline {
 
         // Retrieve the chunk stages' Arc clones.
         let processes: Vec<(Chunk, Option<Space>, Arc<dyn ChunkStage + Send + Sync>)> = processes
-            .into_par_iter()
+            .into_iter()
             .map(|(chunk, space)| {
                 let index = if let ChunkStatus::Generating(index) = chunk.status {
                     index
@@ -314,16 +314,16 @@ impl Pipeline {
             })
             .collect();
 
-        let sender = Arc::clone(&self.sender);
+        processes
+            .into_iter()
+            .enumerate()
+            .for_each(|(_, (chunk, space, stage))| {
+                let sender = Arc::clone(&self.sender);
 
-        let registry = registry.to_owned();
-        let config = config.to_owned();
+                let registry = registry.to_owned();
+                let config = config.to_owned();
 
-        self.pool.spawn(move || {
-            processes
-                .into_par_iter()
-                .enumerate()
-                .for_each(|(_, (chunk, space, stage))| {
+                self.pool.spawn(move || {
                     let mut changes = vec![];
 
                     let mut chunk = stage.process(
@@ -344,7 +344,7 @@ impl Pipeline {
 
                     sender.send((chunk, changes)).unwrap();
                 });
-        });
+            });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`

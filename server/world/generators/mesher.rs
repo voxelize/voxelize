@@ -73,6 +73,7 @@ impl Mesher {
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()
                 .thread_name(|index| format!("chunk-meshing-{index}"))
+                .num_threads(64)
                 .build()
                 .unwrap(),
         }
@@ -113,12 +114,6 @@ impl Mesher {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        let sender = Arc::clone(&self.sender);
-        let r#type = r#type.to_owned();
-
-        let registry = registry.to_owned();
-        let config = config.to_owned();
-
         processes.iter().for_each(|(chunk, _)| {
             if self.map.contains(&chunk.coords) {
                 let curr_count = self.skips.remove(&chunk.coords).unwrap_or(0);
@@ -129,8 +124,14 @@ impl Mesher {
             self.map.insert(chunk.coords.to_owned());
         });
 
-        self.pool.spawn(move || {
-            processes.into_iter().for_each(|(mut chunk, mut space)| {
+        processes.into_iter().for_each(|(mut chunk, mut space)| {
+            let sender = Arc::clone(&self.sender);
+            let r#type = r#type.to_owned();
+
+            let registry = registry.to_owned();
+            let config = config.to_owned();
+
+            self.pool.spawn(move || {
                 let max_light_level = config.max_light_level as i32;
                 let chunk_size = config.chunk_size as i32;
 
@@ -177,7 +178,7 @@ impl Mesher {
 
                 // let instant = Instant::now();
                 sub_chunks
-                    .into_iter()
+                    .into_par_iter()
                     .map(|level| {
                         let level = level as i32;
 

@@ -111,9 +111,10 @@ fn default_info_handle(server: &Server) -> Value {
                     "generating": generating,
                     "meshing": meshing,
                     "ready": ready,
-                    "pipeline_chunks": pipeline.chunks.len(),
-                    "pipeline_queue": pipeline.queue.len(),
-                    "mesher": mesher.queue.len()
+                    "pipeline_chunks": pipeline.chunks,
+                    "pipeline_queue": pipeline.queue,
+                    "mesher_chunks": mesher.map,
+                    "mesher_queue": mesher.queue,
                 }),
             );
         }
