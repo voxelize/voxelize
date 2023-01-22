@@ -185,7 +185,7 @@ pub fn setup_main_world() -> World {
     //     .build();
 
     world.set_entity_loader("box", |world, metadata| {
-        info!("loading box entity: {:?}", metadata);
+        // info!("loading box entity: {:?}", metadata);
 
         let position = metadata.get::<PositionComp>("position").unwrap_or_default();
 
@@ -205,17 +205,17 @@ pub fn setup_main_world() -> World {
     world.set_method_handle("spawn", |world, _, payload| {
         let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
         world.spawn_entity_at("box", &data.position);
-        info!("spawn method called with payload: {:?}", data);
+        // info!("spawn method called with payload: {:?}", data);
     });
 
     world.set_method_handle("test", |world, client_id, payload| {
         let data: TestMethodPayload = serde_json::from_str(&payload).unwrap();
 
-        info!("test method called with payload: {:?}", data);
+        // info!("test method called with payload: {:?}", data);
     });
 
     world.set_event_handle("test1", |_, _, payload| {
-        info!("test1 event called with payload: {:?}", payload);
+        // info!("test1 event called with payload: {:?}", payload);
     });
 
     world

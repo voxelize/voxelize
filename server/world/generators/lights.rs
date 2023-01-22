@@ -275,7 +275,6 @@ impl Lights {
 
         let mut mask = Vec::with_capacity((shape.0 * shape.2) as usize);
 
-        let instant1 = Instant::now();
         for _ in 0..(shape.0 * shape.2) {
             mask.push(max_light_level);
         }
@@ -381,14 +380,6 @@ impl Lights {
                 }
             }
         }
-
-        let elapsed1 = instant1.elapsed();
-
-        info!(
-            "Lighting took {}ms, with {} iterations",
-            elapsed1.as_millis(),
-            count
-        );
 
         [
             sunlight_queue,

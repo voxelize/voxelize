@@ -391,10 +391,17 @@ impl Server {
             }
         }
 
+        let preload_len = self
+            .worlds
+            .values()
+            .filter(|world| world.config().preload)
+            .collect::<Vec<&World>>()
+            .len();
+
         info!(
             "✅ Total of {} world{} preloaded in {}s",
-            self.worlds.len(),
-            if self.worlds.len() == 1 { "" } else { "s" },
+            preload_len,
+            if preload_len == 1 { "" } else { "s" },
             (Instant::now() - start).as_millis() as f64 / 1000.0
         );
     }

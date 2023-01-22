@@ -655,8 +655,6 @@ impl World {
         let ent = loader(self, metadata.to_owned()).build();
         self.populate_entity(ent, id, etype, metadata);
 
-        info!("{:?}", self.ecs().read_component::<PositionComp>().get(ent));
-
         Some(ent)
     }
 
