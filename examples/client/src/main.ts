@@ -61,9 +61,9 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
   textureDimension: 16,
-  // maxProcessesPerTick: 10000,
-  // maxRequestsPerTick: 10000,
-  // maxUpdatesPerTick: 10000,
+  maxProcessesPerTick: 10000,
+  maxRequestsPerTick: 10000,
+  maxUpdatesPerTick: 10000,
 });
 
 const chat = new VOXELIZE.Chat();
@@ -142,7 +142,7 @@ const controls = new VOXELIZE.RigidControls(
 controls.attachCharacter(character);
 controls.connect(inputs, "in-game");
 
-world.addChunkInitListener([0, 0], controls.teleportToTop);
+world.addChunkInitListener([0, 0], () => controls.teleportToTop(0, 0));
 
 renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 
@@ -438,7 +438,7 @@ inputs.bind("b", () => {
 //   document.body.appendChild(canvas);
 // }
 
-const map = new Map(world);
+const map = new Map(world, document.getElementById("biomes") || document.body);
 
 inputs.bind("m", map.toggle);
 
@@ -467,9 +467,8 @@ loading.style.display = "none";
 
 const RANDOM_TELEPORT_WIDTH = 1000000;
 inputs.bind("]", () => {
-  controls.teleport(
+  controls.teleportToTop(
     Math.random() * RANDOM_TELEPORT_WIDTH,
-    100,
     Math.random() * RANDOM_TELEPORT_WIDTH
   );
 });
@@ -528,7 +527,10 @@ const start = async () => {
         controls.object.position,
         camera.getWorldDirection(new THREE.Vector3())
       );
-      map.update(controls.object.position);
+      map.update(
+        controls.object.position,
+        camera.getWorldDirection(new THREE.Vector3())
+      );
 
       network.flush();
 
@@ -551,7 +553,7 @@ const start = async () => {
 
   world.renderRadius = 8;
   gui.add(world, "renderRadius", 3, 20, 1);
-  gui.add(world.params, "inViewAngle", 0, Math.PI * 2, 0.01);
+  gui.add(map, "dimension", 1, 10, 0.1);
 
   const bar = new VOXELIZE.ItemSlots({
     // verticalCount: 5,

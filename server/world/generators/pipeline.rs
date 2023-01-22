@@ -315,7 +315,7 @@ impl Pipeline {
             .collect();
 
         processes
-            .into_iter()
+            .into_par_iter()
             .enumerate()
             .for_each(|(_, (chunk, space, stage))| {
                 let sender = Arc::clone(&self.sender);

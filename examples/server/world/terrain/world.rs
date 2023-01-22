@@ -119,7 +119,7 @@ pub fn setup_terrain_world() -> World {
                 .build(),
         )
         .preload(true)
-        .seed(12313)
+        .seed(42313)
         .build();
 
     let mut world = World::new("terrain", &config);

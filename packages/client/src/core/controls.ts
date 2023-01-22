@@ -691,10 +691,23 @@ export class RigidControls extends EventEmitter {
   /**
    * Teleport the rigid controls to the top of this voxel column.
    */
-  teleportToTop = () => {
-    const { x, z } = this.object.position;
-    const maxHeight = this.world.getMaxHeightAt(x, z);
-    this.teleport(Math.floor(x), maxHeight, Math.floor(z));
+  teleportToTop = (vx?: number, vz?: number) => {
+    if (vx === undefined || vz === undefined) {
+      const { x, z } = this.object.position;
+      const maxHeight = this.world.getMaxHeightAt(x, z);
+      this.teleport(Math.floor(x), maxHeight, Math.floor(z));
+      return;
+    }
+
+    const [cx, cz] = ChunkUtils.mapVoxelToChunk(
+      [vx, 0, vz],
+      this.world.params.chunkSize
+    );
+    this.teleport(vx, 0, vz);
+    this.world.addChunkInitListener([cx, cz], () => {
+      const maxHeight = this.world.getMaxHeightAt(vx, vz);
+      this.teleport(Math.floor(vx), maxHeight, Math.floor(vz));
+    });
   };
 
   /**

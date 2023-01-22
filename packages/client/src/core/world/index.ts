@@ -100,7 +100,7 @@ export type WorldClientParams = {
 
   inViewRadius: number;
 
-  inViewAngle: number;
+  inViewPower: number;
 };
 
 const defaultParams: WorldClientParams = {
@@ -112,8 +112,8 @@ const defaultParams: WorldClientParams = {
   rerequestTicks: 300,
   defaultRenderRadius: 8,
   textureDimension: 8,
-  inViewRadius: 4,
-  inViewAngle: (Math.PI * 3) / 8,
+  inViewRadius: 2,
+  inViewPower: 8,
 };
 
 /**
@@ -363,6 +363,8 @@ export class World extends Scene implements NetIntercept {
    * The JSON received from the world. Call `init` to initialize.
    */
   private initJSON: any = null;
+
+  private inViewAngle = 0;
 
   private _renderRadius = 0;
 
@@ -887,6 +889,12 @@ export class World extends Scene implements NetIntercept {
     listener: (chunk: Chunk) => void
   ) => {
     const name = ChunkUtils.getChunkName(coords);
+
+    if (this.chunks.loaded.has(name)) {
+      listener(this.chunks.loaded.get(name));
+      return;
+    }
+
     const listeners = this.chunkInitListeners.get(name) || [];
     listeners.push(listener);
     this.chunkInitListeners.set(name, listeners);
@@ -1380,9 +1388,9 @@ export class World extends Scene implements NetIntercept {
       this.params.chunkSize
     );
 
+    this.maintainChunks(center, direction);
     this.requestChunks(center, direction);
     this.processChunks(center);
-    this.maintainChunks(center);
 
     this.updatePhysics(delta);
     this.updateUniforms();
@@ -1469,8 +1477,19 @@ export class World extends Scene implements NetIntercept {
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
-      params: { rerequestTicks, inViewAngle },
+      params: { rerequestTicks, inViewPower },
     } = this;
+
+    const total =
+      this.chunks.loaded.size +
+      this.chunks.requested.size +
+      this.chunks.toRequest.length +
+      this.chunks.toProcess.length;
+
+    const ratio = this.chunks.loaded.size / total;
+
+    this.inViewAngle =
+      ratio === 1 ? (Math.PI * 3) / 8 : Math.max(ratio ** inViewPower, 0.1);
 
     const [centerX, centerZ] = center;
 
@@ -1486,7 +1505,9 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
-        if (!this.isChunkInView(center, [cx, cz], direction, inViewAngle)) {
+        if (
+          !this.isChunkInView(center, [cx, cz], direction, this.inViewAngle)
+        ) {
           continue;
         }
 
@@ -1625,7 +1646,7 @@ export class World extends Scene implements NetIntercept {
     });
   }
 
-  private maintainChunks(center: Coords2) {
+  private maintainChunks(center: Coords2, direction: Vector3) {
     const { deleteRadius } = this;
 
     const [centerX, centerZ] = center;
@@ -1652,7 +1673,11 @@ export class World extends Scene implements NetIntercept {
     this.chunks.requested.forEach((_, name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
 
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      if (
+        // !this.isChunkInView(center, [x, z], direction, this.inViewAngle) ||
+        (x - centerX) ** 2 + (z - centerZ) ** 2 >
+        deleteRadius ** 2
+      ) {
         this.chunks.requested.delete(name);
         deleted.push([x, z]);
       }

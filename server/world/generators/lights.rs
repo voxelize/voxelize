@@ -255,11 +255,10 @@ impl Lights {
     pub fn propagate(
         space: &mut dyn VoxelAccess,
         min: &Vec3<i32>,
-        center: &Vec2<i32>,
         shape: &Vec3<usize>,
         registry: &Registry,
         config: &WorldConfig,
-    ) -> Ndarray<u32> {
+    ) -> [VecDeque<LightNode>; 4] {
         let &WorldConfig {
             max_height,
             max_light_level,
@@ -280,20 +279,11 @@ impl Lights {
         for _ in 0..(shape.0 * shape.2) {
             mask.push(max_light_level);
         }
-        let elapsed1 = instant1.elapsed();
 
-        let instant2 = Instant::now();
         let mut count = 0;
         for y in (0..max_height as i32).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
-                    // If the voxel is too far away from the center, then light wouldn't affect it.
-                    if (x - shape.0 / 2).pow(2) + (z - shape.2 / 2).pow(2)
-                        > (config.chunk_size as i32 / 2 + config.max_light_level as i32).pow(2)
-                    {
-                        continue;
-                    }
-
                     count += 1;
 
                     let id = space.get_voxel(x + start_x, y, z + start_z);
@@ -392,71 +382,20 @@ impl Lights {
             }
         }
 
-        let elapsed2 = instant2.elapsed();
-
-        let instant3 = Instant::now();
-        let shape = Vec3(shape.0 as usize, shape.1 as usize, shape.2 as usize);
-
-        if !red_light_queue.is_empty() {
-            Lights::flood_light(
-                space,
-                red_light_queue,
-                &RED,
-                registry,
-                config,
-                Some(min),
-                Some(&shape),
-            );
-        }
-
-        if !green_light_queue.is_empty() {
-            Lights::flood_light(
-                space,
-                green_light_queue,
-                &GREEN,
-                registry,
-                config,
-                Some(min),
-                Some(&shape),
-            );
-        }
-
-        if !blue_light_queue.is_empty() {
-            Lights::flood_light(
-                space,
-                blue_light_queue,
-                &BLUE,
-                registry,
-                config,
-                Some(min),
-                Some(&shape),
-            );
-        }
-
-        if !sunlight_queue.is_empty() {
-            Lights::flood_light(
-                space,
-                sunlight_queue,
-                &SUNLIGHT,
-                registry,
-                config,
-                Some(min),
-                Some(&shape),
-            );
-        }
-
-        let elapsed3 = instant3.elapsed();
+        let elapsed1 = instant1.elapsed();
 
         info!(
-            "Lighting took {}ms, {}ms, {}ms, total {}ms with {} iterations",
+            "Lighting took {}ms, with {} iterations",
             elapsed1.as_millis(),
-            elapsed2.as_millis(),
-            elapsed3.as_millis(),
-            elapsed1.as_millis() + elapsed2.as_millis() + elapsed3.as_millis(),
             count
         );
 
-        space.get_lights(center.0, center.1).unwrap().to_owned()
+        [
+            sunlight_queue,
+            red_light_queue,
+            green_light_queue,
+            blue_light_queue,
+        ]
     }
 
     /// Check to see if light can go "into" one block, disregarding the source.

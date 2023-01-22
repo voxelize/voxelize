@@ -124,97 +124,136 @@ impl Mesher {
             self.map.insert(chunk.coords.to_owned());
         });
 
-        processes.into_iter().for_each(|(mut chunk, mut space)| {
-            let sender = Arc::clone(&self.sender);
-            let r#type = r#type.to_owned();
+        processes
+            .into_par_iter()
+            .for_each(|(mut chunk, mut space)| {
+                let sender = Arc::clone(&self.sender);
+                let r#type = r#type.to_owned();
 
-            let registry = registry.to_owned();
-            let config = config.to_owned();
+                let registry = registry.to_owned();
+                let config = config.to_owned();
 
-            self.pool.spawn(move || {
-                let max_light_level = config.max_light_level as i32;
-                let chunk_size = config.chunk_size as i32;
+                self.pool.spawn(move || {
+                    let chunk_size = config.chunk_size as i32;
 
-                if chunk.meshes.is_none() {
-                    let coords = space.coords.to_owned();
+                    if chunk.meshes.is_none() {
+                        let coords = space.coords.to_owned();
 
-                    // From the minimum coordinates of the center chunk, subtract the maximum light.
-                    let min = Vec3(
-                        coords.0 * chunk_size - max_light_level,
-                        0,
-                        coords.1 * chunk_size - max_light_level,
-                    );
-                    let shape = Vec3(
-                        (chunk_size + max_light_level * 2) as usize,
-                        space.params.max_height as usize,
-                        (chunk_size + max_light_level * 2) as usize,
-                    );
+                        let mut sunlight_queue = VecDeque::new();
+                        let mut red_light_queue = VecDeque::new();
+                        let mut green_light_queue = VecDeque::new();
+                        let mut blue_light_queue = VecDeque::new();
 
-                    // let now = Instant::now();
-                    chunk.lights =
-                        Lights::propagate(&mut space, &min, &coords, &shape, &registry, &config);
-                    // let elapsed = now.elapsed();
-                    // // Log the time spend in milliseconds to the second decimal place.
-                    // info!(
-                    //     "Chunk {:?} light propagation took {:.2?}ms",
-                    //     chunk.coords,
-                    //     elapsed.as_millis()
-                    // );
-                }
+                        // From the minimum coordinates of the center chunk, subtract the maximum light.
+                        for dx in -1..=1 {
+                            for dz in -1..=1 {
+                                let min = Vec3(
+                                    (coords.0 + dx) * chunk_size - if dx == 0 && dz == 0{1} else {0},
+                                    0,
+                                    (coords.1 + dz) * chunk_size - if dz == 0 && dz == 0{1} else {0},
+                                );
+                                let shape = Vec3(
+                                    (chunk_size) as usize + if dx == 0 && dz == 0{2} else {0},
+                                    space.params.max_height as usize,
+                                    (chunk_size) as usize + if dx == 0 && dz == 0{2} else {0},
+                                );
 
-                let sub_chunks = chunk.updated_levels.to_owned();
+                                // let now = Instant::now();
+                                let [sunlight_subqueue, 
+                                    red_light_subqueue, 
+                                    green_light_subqueue, 
+                                    blue_light_subqueue] = Lights::propagate(&mut space, &min, &shape, &registry, &config);
 
-                // space.updated_levels.clear();
-                // chunk.updated_levels.clear();
-
-                let Vec3(min_x, min_y, min_z) = chunk.min;
-                let Vec3(max_x, _, max_z) = chunk.max;
-
-                let blocks_per_sub_chunk =
-                    (space.params.max_height / space.params.sub_chunks) as i32;
-
-                let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
-                // let sub_chunks_len = sub_chunks.len();
-
-                // let instant = Instant::now();
-                sub_chunks
-                    .into_par_iter()
-                    .map(|level| {
-                        let level = level as i32;
-
-                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
-
-                        let geometries = Self::mesh_space(&min, &max, &space, &registry);
-
-                        (geometries, level)
-                    })
-                    .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
-                    .into_iter()
-                    .for_each(|(geometries, level)| {
-                        if chunk.meshes.is_none() {
-                            chunk.meshes = Some(HashMap::new());
+                                sunlight_queue.extend(sunlight_subqueue.into_iter());
+                                red_light_queue.extend(red_light_subqueue.into_iter());
+                                green_light_queue.extend(green_light_subqueue.into_iter());
+                                blue_light_queue.extend(blue_light_subqueue.into_iter());
+                            }
                         }
 
-                        chunk
-                            .meshes
-                            .as_mut()
-                            .unwrap()
-                            .insert(level as u32, MeshProtocol { level, geometries });
-                    });
+                        let min = space.min.clone();
+                        let shape = space.shape.clone();
 
-                // let elapsed = instant.elapsed();
-                // // Log the time spend in milliseconds to the second decimal place.
-                // info!(
-                //     "Chunk {:?} meshing took {:.2?}ms with {} sub-chunks",
-                //     chunk.coords,
-                //     elapsed.as_millis(),
-                //     sub_chunks_len
-                // );
+                        if !sunlight_queue.is_empty() {
+                            Lights::flood_light(&mut space, sunlight_queue, &LightColor::Sunlight, &registry, &config, Some(&min), Some(&shape));
+                        }
 
-                sender.send((chunk, r#type)).unwrap();
+                        if !red_light_queue.is_empty() {
+                            Lights::flood_light(&mut space, red_light_queue, &LightColor::Red, &registry, &config, Some(&min), Some(&shape));
+                        }
+
+                        if !green_light_queue.is_empty() {
+                            Lights::flood_light(&mut space, green_light_queue, &LightColor::Green, &registry, &config, Some(&min), Some(&shape));
+                        }
+
+                        if !blue_light_queue.is_empty() {
+                            Lights::flood_light(&mut space, blue_light_queue, &LightColor::Blue, &registry, &config, Some(&min), Some(&shape));
+                        }
+
+                        chunk.lights = space.get_lights(coords.0, coords.1).unwrap().clone();
+                        // let elapsed = now.elapsed();
+                        // // Log the time spend in milliseconds to the second decimal place.
+                        // info!(
+                        //     "Chunk {:?} light propagation took {:.2?}ms",
+                        //     chunk.coords,
+                        //     elapsed.as_millis()
+                        // );
+                    }
+
+                    let sub_chunks = chunk.updated_levels.to_owned();
+
+                    // space.updated_levels.clear();
+                    // chunk.updated_levels.clear();
+
+                    let Vec3(min_x, min_y, min_z) = chunk.min;
+                    let Vec3(max_x, _, max_z) = chunk.max;
+
+                    let blocks_per_sub_chunk =
+                        (space.params.max_height / space.params.sub_chunks) as i32;
+
+                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
+                    // let sub_chunks_len = sub_chunks.len();
+
+                    // let instant = Instant::now();
+                    sub_chunks
+                        .into_iter()
+                        .map(|level| {
+                            let level = level as i32;
+
+                            let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                            let max =
+                                Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+
+                            let geometries = Self::mesh_space(&min, &max, &space, &registry);
+
+                            (geometries, level)
+                        })
+                        .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
+                        .into_iter()
+                        .for_each(|(geometries, level)| {
+                            if chunk.meshes.is_none() {
+                                chunk.meshes = Some(HashMap::new());
+                            }
+
+                            chunk
+                                .meshes
+                                .as_mut()
+                                .unwrap()
+                                .insert(level as u32, MeshProtocol { level, geometries });
+                        });
+
+                    // let elapsed = instant.elapsed();
+                    // // Log the time spend in milliseconds to the second decimal place.
+                    // info!(
+                    //     "Chunk {:?} meshing took {:.2?}ms with {} sub-chunks",
+                    //     chunk.coords,
+                    //     elapsed.as_millis(),
+                    //     sub_chunks_len
+                    // );
+
+                    sender.send((chunk, r#type)).unwrap();
+                });
             });
-        });
     }
 
     /// Attempt to retrieve the results from `mesher.process`

@@ -14,6 +14,9 @@ const COLOR_HINT = [
   [0, 0, "out of reach"],
 ];
 
+const MAP_DIMENSION = 220;
+const MAP_GRADIENT_SCALE = 50;
+
 export class Map {
   public wrapper: HTMLDivElement = document.createElement("div");
 
@@ -21,79 +24,75 @@ export class Map {
 
   public grid: number[][] = [];
 
-  constructor(public world: World, public dimension = 30) {
+  constructor(
+    public world: World,
+    public parent = document.body,
+    public dimension = 5
+  ) {
     DOMUtils.applyStyles(this.wrapper, {
-      position: "absolute",
-      top: "0",
-      left: "0",
-      width: "100%",
-      height: "100%",
       display: "none",
+      width: `${MAP_DIMENSION}px`,
+      height: `${MAP_DIMENSION}px`,
+      position: "absolute",
+      bottom: "0",
+      right: "100%",
       zIndex: "10000000",
     });
 
-    const colorHints = document.createElement("div");
-    DOMUtils.applyStyles(colorHints, {
-      position: "absolute",
-      bottom: "10px",
-      left: "10px",
-      display: "flex",
-      flexDirection: "column",
-      width: "300px",
-      fontSize: "0.8rem",
-      gap: "5px",
-    });
+    // const colorHints = document.createElement("div");
+    // DOMUtils.applyStyles(colorHints, {
+    //   display: "flex",
+    //   flexDirection: "column",
+    //   width: "300px",
+    //   fontSize: "0.8rem",
+    //   gap: "5px",
+    // });
 
-    const colorHintItem = document.createElement("div");
-    DOMUtils.applyStyles(colorHintItem, {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "flex-start",
-    });
+    // const colorHintItem = document.createElement("div");
+    // DOMUtils.applyStyles(colorHintItem, {
+    //   display: "flex",
+    //   alignItems: "center",
+    //   justifyContent: "flex-start",
+    // });
 
-    const colorHintColor = document.createElement("div");
-    DOMUtils.applyStyles(colorHintColor, {
-      width: "20px",
-      height: "20px",
-      marginRight: "10px",
-      border: "1px solid white",
-    });
+    // const colorHintColor = document.createElement("div");
+    // DOMUtils.applyStyles(colorHintColor, {
+    //   width: "20px",
+    //   height: "20px",
+    //   marginRight: "10px",
+    //   border: "1px solid white",
+    // });
 
-    COLOR_HINT.forEach(([shade1, shade2, hint]) => {
-      const item = colorHintItem.cloneNode(true) as HTMLDivElement;
-      const color = colorHintColor.cloneNode(true) as HTMLDivElement;
+    // COLOR_HINT.forEach(([shade1, shade2, hint]) => {
+    //   const item = colorHintItem.cloneNode(true) as HTMLDivElement;
+    //   const color = colorHintColor.cloneNode(true) as HTMLDivElement;
 
-      DOMUtils.applyStyles(color, {
-        background: `rgb(${(shade2 as number) * 50}, 0, ${
-          (shade1 as number) * 50
-        })`,
-      });
+    //   DOMUtils.applyStyles(color, {
+    //     background: `rgb(${(shade2 as number) * 50}, 0, ${
+    //       (shade1 as number) * 50
+    //     })`,
+    //   });
 
-      item.appendChild(color);
-      const text = document.createElement("p");
-      text.innerHTML = `${hint}`;
-      text.style.color = "white";
-      item.appendChild(text);
+    //   item.appendChild(color);
+    //   const text = document.createElement("p");
+    //   text.innerHTML = `${hint}`;
+    //   text.style.color = "white";
+    //   item.appendChild(text);
 
-      colorHints.appendChild(item);
-    });
+    //   colorHints.appendChild(item);
+    // });
 
-    this.wrapper.appendChild(colorHints);
+    // this.wrapper.appendChild(colorHints);
 
     this.p5 = new p5((p) => {
       p.setup = () => {
-        p.createCanvas(window.innerWidth, window.innerHeight);
+        p.createCanvas(MAP_DIMENSION, MAP_DIMENSION);
       };
       p.draw = () => {};
     }, this.wrapper);
 
-    const resize = () => {
-      this.p5.resizeCanvas(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener("resize", resize);
-    resize();
-
-    document.body.appendChild(this.wrapper);
+    parent.appendChild(this.wrapper);
+    console.log(parent);
   }
 
   setVisible = (visible: boolean) => {
@@ -108,7 +107,7 @@ export class Map {
     this.setVisible(this.wrapper.style.display === "none");
   };
 
-  update(center: Vector3 = new Vector3()) {
+  update(center: Vector3 = new Vector3(), direction: Vector3 = new Vector3()) {
     this.p5.background("#000000");
 
     const width = this.wrapper.offsetWidth;
@@ -156,14 +155,18 @@ export class Map {
         if (x === 0 && z === 0) {
           this.p5.fill("#4B56D2");
         } else {
-          this.p5.fill(shade2 * 50, 0, shade * 50);
+          this.p5.fill(
+            shade2 * MAP_GRADIENT_SCALE,
+            0,
+            shade * MAP_GRADIENT_SCALE
+          );
         }
 
         this.p5.noStroke();
 
         this.p5.rect(
-          x * this.dimension + window.innerWidth / 2,
-          z * this.dimension + window.innerHeight / 2,
+          x * this.dimension + MAP_DIMENSION / 2 - this.dimension / 2,
+          z * this.dimension + MAP_DIMENSION / 2 - this.dimension / 2,
           this.dimension,
           this.dimension
         );
@@ -177,5 +180,18 @@ export class Map {
         // );
       }
     }
+
+    const vec = this.p5.createVector(
+      direction.x * this.dimension,
+      direction.z * this.dimension
+    );
+
+    this.p5.push();
+    this.p5.translate(MAP_DIMENSION / 2, MAP_DIMENSION / 2);
+    this.p5.rotate(vec.heading());
+    this.p5.stroke("#E5E0FF");
+    const arrowSize = this.dimension;
+    this.p5.triangle(0, arrowSize / 2, 0, -arrowSize / 2, arrowSize, 0);
+    this.p5.pop();
   }
 }
