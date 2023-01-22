@@ -638,6 +638,15 @@ const start = async () => {
       const slot = bar.getFocused();
       const id = slot.content;
       if (!id) return;
+
+      const { aabbs } = world.getBlockById(id);
+      if (
+        aabbs.find((aabb) =>
+          aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
+        )
+      )
+        return;
+
       world.updateVoxel(vx, vy, vz, id, rotation, yRotation);
     },
     "in-game"
