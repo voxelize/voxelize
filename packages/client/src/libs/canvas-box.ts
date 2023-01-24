@@ -260,7 +260,7 @@ export class BoxLayer extends Mesh {
         } else if (typeof art === "function") {
           art(context, canvas);
         } else {
-          console.log(art);
+          console.warn("Invalid art type: ", art);
         }
       }
 

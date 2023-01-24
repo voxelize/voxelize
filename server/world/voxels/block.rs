@@ -8,7 +8,9 @@ use std::{
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, AABB, UV};
+use crate::{
+    BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB, UV,
+};
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -40,6 +42,12 @@ pub enum BlockRotation {
     NY(f32),
     PZ(f32),
     NZ(f32),
+}
+
+impl Default for BlockRotation {
+    fn default() -> Self {
+        BlockRotation::PY(0.0)
+    }
 }
 
 const PI: f32 = f32::consts::PI;
@@ -975,8 +983,6 @@ impl Neighbors {
     }
 }
 
-pub const INDEPENDENT_FACE: &str = "_iface_";
-
 /// Serializable struct representing block data.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1050,6 +1056,17 @@ pub struct Block {
                 + Sync,
         >,
     >,
+
+    #[serde(skip)]
+    pub active_updater: Option<
+        Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + Send + Sync>,
+    >,
+
+    #[serde(skip)]
+    pub active_ticker:
+        Option<Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>>,
+
+    pub is_active: bool,
 }
 
 impl Block {
@@ -1127,6 +1144,10 @@ pub struct BlockBuilder {
                 + Sync,
         >,
     >,
+    active_updater: Option<
+        Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + Send + Sync>,
+    >,
+    active_ticker: Option<Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>>,
 }
 
 impl BlockBuilder {
@@ -1318,12 +1339,21 @@ impl BlockBuilder {
         self
     }
 
+    pub fn active_fn<
+        F1: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + 'static + Send + Sync,
+        F2: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + 'static + Send + Sync,
+    >(
+        mut self,
+        active_ticker: F1,
+        active_updater: F2,
+    ) -> Self {
+        self.active_ticker = Some(Arc::new(active_ticker));
+        self.active_updater = Some(Arc::new(active_updater));
+        self
+    }
+
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
-        if self.name.contains(INDEPENDENT_FACE) {
-            panic!("The suffix of a block name cannot be '{INDEPENDENT_FACE}' as it is a reserved keyword.");
-        }
-
         Block {
             id: self.id,
             name: self.name,
@@ -1359,6 +1389,9 @@ impl BlockBuilder {
             light_reduce: self.light_reduce,
             is_dynamic: self.dynamic_fn.is_some(),
             dynamic_fn: self.dynamic_fn,
+            is_active: self.active_updater.is_some() && self.active_ticker.is_some(),
+            active_ticker: self.active_ticker,
+            active_updater: self.active_updater,
         }
     }
 }

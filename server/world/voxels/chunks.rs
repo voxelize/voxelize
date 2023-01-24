@@ -44,6 +44,8 @@ pub struct Chunks {
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
 
+    pub(crate) active_voxels: Vec<(u64, Vec3<i32>)>,
+
     /// A listener for when a chunk is done generating or meshing.
     pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
 
@@ -343,6 +345,10 @@ impl Chunks {
     /// be done in the background.
     pub fn update_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
         self.updates.push_back((voxel.to_owned(), val))
+    }
+
+    pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
+        self.active_voxels.push((active_at, voxel.to_owned()));
     }
 
     /// Add a chunk to be saved.

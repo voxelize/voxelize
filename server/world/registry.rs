@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use hashbrown::{HashMap, HashSet};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::BlockFace;
+use crate::{BlockFace, Vec3, VoxelAccess, VoxelUpdate};
 
 use super::voxels::Block;
 
@@ -69,6 +71,23 @@ impl Registry {
         instance.record_block(&air);
 
         instance
+    }
+
+    pub fn register_air_active_fn<
+        F1: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + 'static + Send + Sync,
+        F2: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + 'static + Send + Sync,
+    >(
+        &mut self,
+        active_ticker: F1,
+        active_updater: F2,
+    ) {
+        let mut air = self.blocks_by_id.remove(&0).unwrap();
+
+        air.active_ticker = Some(Arc::new(active_ticker));
+        air.active_updater = Some(Arc::new(active_updater));
+        air.is_active = true;
+
+        self.record_block(&air);
     }
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!

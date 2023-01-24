@@ -115,6 +115,7 @@ fn default_info_handle(server: &Server) -> Value {
                     "pipeline_queue": pipeline.queue,
                     "mesher_chunks": mesher.map,
                     "mesher_queue": mesher.queue,
+                    "active_voxels": chunks.active_voxels.len()
                 }),
             );
         }

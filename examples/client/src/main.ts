@@ -8,6 +8,7 @@ import { GUI } from "lil-gui";
 import {
   EffectComposer,
   EffectPass,
+  PixelationEffect,
   // PixelationEffect,
   RenderPass,
   SMAAEffect,
@@ -20,7 +21,9 @@ import { setupWorld } from "./world";
 
 const createCharacter = () => {
   const character = new VOXELIZE.Character();
-  character.head.paint("front", world.loader.getTexture(LolImage));
+  world.loader.load().then(() => {
+    character.head.paint("front", world.loader.getTexture(LolImage));
+  });
   lightShined.add(character);
   shadows.add(character);
   return character;
@@ -61,9 +64,6 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
   textureDimension: 16,
-  maxProcessesPerTick: 10000,
-  maxRequestsPerTick: 10000,
-  maxUpdatesPerTick: 10000,
 });
 
 const chat = new VOXELIZE.Chat();
@@ -336,6 +336,10 @@ debug.registerDisplay("Sunlight", () => {
   return world.getSunlightAt(...controls.voxel);
 });
 
+debug.registerDisplay("Voxel Stage", () => {
+  return world.getVoxelStageAt(...controls.voxel);
+});
+
 debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
 debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
 debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
@@ -454,7 +458,7 @@ network
   .register(events)
   .register(peers);
 
-const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500];
+const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500, 150];
 
 // let isLoading = true;
 // const loadingFade = 500;

@@ -92,7 +92,6 @@ export class Map {
     }, this.wrapper);
 
     parent.appendChild(this.wrapper);
-    console.log(parent);
   }
 
   setVisible = (visible: boolean) => {
@@ -108,10 +107,19 @@ export class Map {
   };
 
   update(center: Vector3 = new Vector3(), direction: Vector3 = new Vector3()) {
+    // @ts-ignore
+    if (!this.p5._setupDone) {
+      return;
+    }
+
     this.p5.background("#000000");
 
     const width = this.wrapper.offsetWidth;
     const height = this.wrapper.offsetHeight;
+    const dimension =
+      Math.floor(this.dimension) % 2 === 0
+        ? this.dimension
+        : this.dimension + 1;
 
     const horizontalCount = Math.ceil(width / this.dimension);
     const verticalCount = Math.ceil(height / this.dimension);
@@ -165,10 +173,10 @@ export class Map {
         this.p5.noStroke();
 
         this.p5.rect(
-          x * this.dimension + MAP_DIMENSION / 2 - this.dimension / 2,
-          z * this.dimension + MAP_DIMENSION / 2 - this.dimension / 2,
-          this.dimension,
-          this.dimension
+          x * dimension + MAP_DIMENSION / 2 - dimension / 2,
+          z * dimension + MAP_DIMENSION / 2 - dimension / 2,
+          dimension,
+          dimension
         );
 
         this.p5.fill(255);

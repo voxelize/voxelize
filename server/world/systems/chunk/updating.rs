@@ -1,10 +1,12 @@
 use std::collections::VecDeque;
 
+use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, LightColor, LightNode, Lights, Mesher, Message,
-    MessageQueue, MessageType, Registry, UpdateProtocol, Vec2, Vec3, VoxelAccess, WorldConfig,
+    MessageQueue, MessageType, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess,
+    VoxelUpdate, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -28,18 +30,16 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
     type SystemData = (
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Registry>,
+        ReadExpect<'a, Stats>,
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, Mesher>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, mut message_queue, mut chunks, mut mesher) = data;
+        let (config, registry, stats, mut message_queue, mut chunks, mut mesher) = data;
 
-        if chunks.updates.is_empty() {
-            return;
-        }
-
+        let current_tick = stats.tick as u64;
         let max_height = config.max_height as i32;
         let max_light_level = config.max_light_level;
 
@@ -58,6 +58,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
             let updated_id = BlockUtils::extract_id(raw);
             let rotation = BlockUtils::extract_rotation(raw);
+            let stage = BlockUtils::extract_stage(raw);
             let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
 
             if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
@@ -100,6 +101,16 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             };
 
             chunks.set_voxel(vx, vy, vz, updated_id);
+            chunks.set_voxel_stage(vx, vy, vz, stage);
+
+            if updated_type.is_active {
+                let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
+                    Vec3(vx, vy, vz),
+                    &*chunks,
+                    &registry,
+                );
+                chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
+            }
 
             if updated_type.rotatable {
                 chunks.set_voxel_rotation(vx, vy, vz, &rotation);
@@ -415,5 +426,38 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             let new_message = Message::new(&MessageType::Update).updates(&results).build();
             message_queue.push((new_message, ClientFilter::All));
         }
+
+        let active_voxels = chunks.active_voxels.clone();
+
+        let new_active_voxels = active_voxels
+            .into_iter()
+            .filter(|&(activate_frame, Vec3(vx, vy, vz))| {
+                // Call the active frame function for each voxel.
+                if activate_frame == current_tick {
+                    let id = chunks.get_voxel(vx, vy, vz);
+                    let block = registry.get_block_by_id(id);
+
+                    if block.active_updater.is_none() {
+                        return false;
+                    }
+
+                    let updates = (&block.active_updater.as_ref().unwrap())(
+                        Vec3(vx, vy, vz),
+                        &*chunks,
+                        &registry,
+                    );
+
+                    if !updates.is_empty() {
+                        chunks.updates.extend(updates);
+                    }
+
+                    return false;
+                }
+
+                true
+            })
+            .collect::<Vec<(u64, Vec3<i32>)>>();
+
+        chunks.active_voxels = new_active_voxels;
     }
 }
