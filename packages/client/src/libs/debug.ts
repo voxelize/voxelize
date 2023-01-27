@@ -52,6 +52,8 @@ export type DebugParams = {
    * Whether or not should `Voxelize x.x.x` be displayed in the top-left debug panel. Defaults to `true`.
    */
   showVoxelize: boolean;
+
+  asyncPeriod: number;
 };
 
 const defaultParams: DebugParams = {
@@ -64,6 +66,7 @@ const defaultParams: DebugParams = {
   dataStyles: {},
   dataClass: "debug-data",
   showVoxelize: true,
+  asyncPeriod: 1000,
 };
 
 /**
@@ -179,6 +182,16 @@ export class Debug extends Group {
     this.dataEntries.push(newEntry);
     this.entriesWrapper.insertBefore(wrapper, this.entriesWrapper.firstChild);
 
+    if (object.constructor.name === "AsyncFunction") {
+      setInterval(() => {
+        (object as any)().then((newValue: string) => {
+          wrapper.textContent = `${title ? `${title}: ` : ""}${formatter(
+            newValue
+          )}`;
+        });
+      }, this.params.asyncPeriod);
+    }
+
     return this;
   };
 
@@ -252,6 +265,10 @@ export class Debug extends Group {
     // loop through all data entries, and get their latest updated values
     for (const { element, title, attribute, object, formatter } of this
       .dataEntries) {
+      if (object.constructor.name === "AsyncFunction") {
+        continue;
+      }
+
       const newValue = object
         ? typeof object === "function"
           ? object()

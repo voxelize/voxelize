@@ -815,7 +815,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The block data for the given name, or null if it does not exist.
    */
   getBlockByName(name: string) {
-    const block = this.registry.blocksByName.get(name);
+    const block = this.registry.blocksByName.get(name.toLowerCase());
 
     if (!block) {
       throw new Error(`Block with name ${name} does not exist`);

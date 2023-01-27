@@ -303,16 +303,6 @@ impl Registry {
         uv_map
     }
 
-    /// Calculate how many textures should be on each side.
-    fn per_side(&self) -> usize {
-        let mut i = 1.0;
-        let sqrt = (self.textures.len() as f32).sqrt().ceil();
-        while i < sqrt {
-            i = i * 2.0;
-        }
-        i as usize
-    }
-
     /// Record a block into the registry, adding this block into appropriate maps.
     fn record_block(&mut self, block: &Block) {
         let Block {
@@ -320,6 +310,9 @@ impl Registry {
         } = block;
 
         let lower_name = name.to_lowercase();
+
+        self.blocks_by_name.remove(&lower_name);
+        self.blocks_by_id.remove(id);
 
         self.blocks_by_name
             .insert(lower_name.clone(), block.clone());

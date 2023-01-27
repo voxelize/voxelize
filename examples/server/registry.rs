@@ -33,40 +33,63 @@ pub fn setup_registry() -> Registry {
             let Vec3(vx, vy, vz) = voxel;
             let mut updates = vec![];
 
-            for dx in -1..=1 {
-                for dy in -1..=1 {
-                    for dz in -1..=1 {
-                        if dx == 0 && dy == 0 && dz == 0 {
-                            continue;
-                        }
+            [
+                [1, 0, 0],
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, -1, 0],
+                [0, 0, 1],
+                [0, 0, -1],
+            ]
+            .into_iter()
+            .for_each(|[dx, dy, dz]| {
+                let id = space.get_voxel(vx + dx, vy + dy, vz + dz);
 
-                        let id = space.get_voxel(vx + dx, vy + dy, vz + dz);
-
-                        if id == 0 {
-                            continue;
-                        }
-
-                        let block = registry.get_block_by_id(id);
-
-                        if block.is_active {
-                            updates.push((
-                                Vec3(vx + dx, vy + dy, vz + dz),
-                                space.get_raw_voxel(vx + dx, vy + dy, vz + dz),
-                            ));
-                        }
-                    }
+                if id == 0 {
+                    return;
                 }
-            }
 
-            info!("Air updates: {:?}", updates);
+                let block = registry.get_block_by_id(id);
+
+                if block.is_active {
+                    updates.push((
+                        Vec3(vx + dx, vy + dy, vz + dz),
+                        space.get_raw_voxel(vx + dx, vy + dy, vz + dz),
+                    ));
+                }
+            });
+
+            let voxel_above = space.get_voxel(vx, vy + 1, vz);
+
+            if voxel_above == 1000 || voxel_above == 400 {
+                updates.push((Vec3(vx, vy + 1, vz), 0));
+            }
 
             updates
         },
     );
 
     registry.register_blocks(&[
-        Block::new("Dirt").id(1).build(),
-        Block::new("Stone").id(2).build(),
+        Block::new("Dirt")
+            .id(1)
+            .active_fn(
+                |_, _, _| 100,
+                |voxel, space, registry| {
+                    // TODO
+                    vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 2)]
+                },
+            )
+            .build(),
+        Block::new("Stone")
+            .id(2)
+            .active_fn(
+                |_, _, _| 0,
+                |voxel, space, registry| {
+                    // TODO
+                    vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 1)]
+                },
+            )
+            .build(),
         Block::new("Sand")
             .id(3)
             .faces(&BlockFaces::six_faces().build().independent_at(SIX_FACES_NX))

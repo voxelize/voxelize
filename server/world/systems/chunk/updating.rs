@@ -52,6 +52,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut blue_flood = VecDeque::default();
         let mut sun_flood = VecDeque::default();
 
+        if !chunks.updates.is_empty() {
+            info!("Voxel updates: {:?}", chunks.updates);
+        }
+
+        let mut postponed_updates = vec![];
+
         while !chunks.updates.is_empty() {
             let (voxel, raw) = chunks.updates.pop_front().unwrap();
             let Vec3(vx, vy, vz) = voxel;
@@ -66,6 +72,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             }
 
             if !chunks.is_chunk_ready(&coords) {
+                continue;
+            }
+
+            // If the chunk is currently being meshed, we need to wait until it's done for future updates.
+            if mesher.map.contains(&coords) {
+                postponed_updates.push((voxel.to_owned(), raw));
                 continue;
             }
 
@@ -110,6 +122,14 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     &registry,
                 );
                 chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
+                info!(
+                    "Tick at: {}, currently {}. old voxel: {:?} new voxel: {:?} at {:?}",
+                    ticks + current_tick,
+                    current_tick,
+                    current_id,
+                    updated_id,
+                    Vec3(vx, vy, vz)
+                );
             }
 
             if updated_type.rotatable {
@@ -336,7 +356,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 vz,
                 voxel: 0,
                 light: 0,
-            })
+            });
+
+            info!(
+                "Updated voxel from {} to {}: {:?}",
+                current_id, updated_id, voxel
+            );
         }
 
         if !red_flood.is_empty() {
@@ -433,7 +458,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             .into_iter()
             .filter(|&(activate_frame, Vec3(vx, vy, vz))| {
                 // Call the active frame function for each voxel.
-                if activate_frame == current_tick {
+                if activate_frame <= current_tick {
                     let id = chunks.get_voxel(vx, vy, vz);
                     let block = registry.get_block_by_id(id);
 
@@ -459,5 +484,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             .collect::<Vec<(u64, Vec3<i32>)>>();
 
         chunks.active_voxels = new_active_voxels;
+        chunks.updates.extend(postponed_updates);
     }
 }

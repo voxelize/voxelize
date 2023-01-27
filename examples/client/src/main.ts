@@ -558,6 +558,7 @@ const start = async () => {
   world.renderRadius = 8;
   gui.add(world, "renderRadius", 3, 20, 1);
   gui.add(map, "dimension", 1, 10, 0.1);
+  gui.add(voxelInteract.params, "ignoreFluids");
 
   const bar = new VOXELIZE.ItemSlots({
     // verticalCount: 5,
@@ -565,6 +566,12 @@ const start = async () => {
     verticalCount: HOTBAR_CONTENT.length,
   });
   document.body.appendChild(bar.element);
+
+  debug.registerDisplay("Active Voxels", async () => {
+    const data = await fetch(`${BACKEND_SERVER}info`);
+    const json = await data.json();
+    return json.worlds.terrain.chunks.active_voxels;
+  });
 
   debug.registerDisplay("Holding", () => {
     const slot = bar.getFocused();
