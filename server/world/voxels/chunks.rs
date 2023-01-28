@@ -344,7 +344,16 @@ impl Chunks {
     /// and sending the chunk to the interested clients. This process is not instant, and will
     /// be done in the background.
     pub fn update_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
-        self.updates.push_back((voxel.to_owned(), val))
+        self.updates
+            .retain(|(v, _)| !(v.0 == voxel.0 && v.1 == voxel.1 && v.2 == voxel.2));
+
+        self.updates.push_back((voxel.to_owned(), val));
+    }
+
+    pub fn update_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
+        for (voxel, val) in voxels {
+            self.update_voxel(voxel, *val);
+        }
     }
 
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {

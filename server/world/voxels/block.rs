@@ -34,7 +34,7 @@ pub const Y_ROTATION_MASK: u32 = 0xFF0FFFFF;
 pub const STAGE_MASK: u32 = 0xF0FFFFFF;
 
 /// Block rotation enumeration. There are 6 possible rotations: `(px, nx, py, ny, pz, nz)`. Default rotation is PY.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BlockRotation {
     PX(f32),
     NX(f32),

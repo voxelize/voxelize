@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use log::info;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
@@ -52,10 +53,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut blue_flood = VecDeque::default();
         let mut sun_flood = VecDeque::default();
 
-        if !chunks.updates.is_empty() {
-            info!("Voxel updates: {:?}", chunks.updates);
-        }
-
         let mut postponed_updates = vec![];
 
         while !chunks.updates.is_empty() {
@@ -85,7 +82,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
             for neighbor in chunks.light_traversed_chunks(&coords) {
                 if ready && !chunks.is_chunk_ready(&neighbor) {
-                    chunks.updates.push_back((voxel.to_owned(), raw));
+                    chunks.update_voxel(&voxel, raw);
                     ready = false;
                 }
             }
@@ -454,36 +451,48 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let active_voxels = chunks.active_voxels.clone();
 
-        let new_active_voxels = active_voxels
-            .into_iter()
-            .filter(|&(activate_frame, Vec3(vx, vy, vz))| {
-                // Call the active frame function for each voxel.
-                if activate_frame <= current_tick {
-                    let id = chunks.get_voxel(vx, vy, vz);
-                    let block = registry.get_block_by_id(id);
-
-                    if block.active_updater.is_none() {
-                        return false;
-                    }
-
-                    let updates = (&block.active_updater.as_ref().unwrap())(
-                        Vec3(vx, vy, vz),
-                        &*chunks,
-                        &registry,
-                    );
-
-                    if !updates.is_empty() {
-                        chunks.updates.extend(updates);
-                    }
-
-                    return false;
+        let active_voxels: Vec<(Option<(u64, Vec3<i32>)>, Vec<VoxelUpdate>)> = active_voxels
+            .into_par_iter()
+            .map(|(active_at, voxel)| {
+                if active_at > current_tick {
+                    return (Some((active_at, voxel)), vec![]);
                 }
 
-                true
-            })
-            .collect::<Vec<(u64, Vec3<i32>)>>();
+                let Vec3(vx, vy, vz) = voxel;
+                let id = chunks.get_voxel(vx, vy, vz);
+                let block = registry.get_block_by_id(id);
 
-        chunks.active_voxels = new_active_voxels;
-        chunks.updates.extend(postponed_updates);
+                if block.active_updater.is_none() {
+                    return (None, vec![]);
+                }
+
+                let updates = (&block.active_updater.as_ref().unwrap())(
+                    Vec3(vx, vy, vz),
+                    &*chunks,
+                    &registry,
+                );
+
+                (None, updates)
+            })
+            .collect();
+
+        let active_voxels: Vec<(u64, Vec3<i32>)> = active_voxels
+            .into_iter()
+            .filter_map(|(active_at, updates)| {
+                if !updates.is_empty() {
+                    chunks.update_voxels(&updates);
+                }
+
+                if let Some((active_at, voxel)) = active_at {
+                    return Some((active_at, voxel));
+                }
+
+                None
+            })
+            .collect();
+
+        chunks.active_voxels = active_voxels;
+
+        chunks.update_voxels(&postponed_updates);
     }
 }
