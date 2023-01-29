@@ -279,12 +279,9 @@ impl Lights {
             mask.push(max_light_level);
         }
 
-        let mut count = 0;
         for y in (0..max_height as i32).rev() {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
-                    count += 1;
-
                     let id = space.get_voxel(x + start_x, y, z + start_z);
                     let &Block {
                         is_transparent,

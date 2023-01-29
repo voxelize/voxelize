@@ -151,7 +151,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             // Updating light levels...
 
             // Straight up updating to a solid opaque block, remove all lights.
-            if updated_type.is_opaque {
+            if updated_type.is_opaque || updated_type.light_reduce {
                 if chunks.get_sunlight(vx, vy, vz) != 0 {
                     Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, &config, &registry);
                 }
@@ -306,7 +306,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         return;
                     }
 
-                    let level = chunks.get_sunlight(nvx, nvy, nvz);
+                    let level = chunks.get_sunlight(nvx, nvy, nvz)
+                        - if updated_type.light_reduce { 1 } else { 0 };
                     if level != 0 {
                         sun_flood.push_back(LightNode {
                             voxel: n_voxel,
@@ -314,7 +315,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         })
                     }
 
-                    let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED);
+                    let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
+                        - if updated_type.light_reduce { 1 } else { 0 };
                     if red_level != 0 && n_block.is_light {
                         red_flood.push_back(LightNode {
                             voxel: n_voxel,
@@ -322,7 +324,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         })
                     }
 
-                    let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN);
+                    let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
+                        - if updated_type.light_reduce { 1 } else { 0 };
                     if green_level != 0 && n_block.is_light {
                         green_flood.push_back(LightNode {
                             voxel: n_voxel,
@@ -330,7 +333,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         })
                     }
 
-                    let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE);
+                    let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
+                        - if updated_type.light_reduce { 1 } else { 0 };
                     if blue_level != 0 && n_block.is_light {
                         blue_flood.push_back(LightNode {
                             voxel: n_voxel,
