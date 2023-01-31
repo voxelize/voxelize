@@ -14,6 +14,7 @@
     "vite": "^4.0.0"
   },
   "dependencies": {
+    "@voxelize/atom": "*",
     "@voxelize/client": "*",
     "lil-gui": "^0.17.0",
     "p5": "^1.5.0",

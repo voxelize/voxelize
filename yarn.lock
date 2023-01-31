@@ -4436,6 +4436,7 @@
   dependencies:
     "@tweenjs/tween.js" "^18.6.4"
     "@voxelize/aabb" "*"
+    "@voxelize/atom" "*"
     "@voxelize/physics-engine" "*"
     "@voxelize/raycast" "*"
     "@voxelize/transport" "*"
@@ -4448,7 +4449,6 @@
     omggif "^1.0.10"
     regenerator-runtime "^0.13.9"
     socket.io-client "^4.4.1"
-    three-wboit "^1.0.12"
     uuid "^8.3.2"
 
 "@voxelize/voxel-aabb@*":
@@ -14309,11 +14309,6 @@ thenify-all@^1.0.0:
   integrity sha512-RVZSIV5IG10Hk3enotrhvz0T9em6cyHBLkH/YAZuKqd8hRkKhSfCGIcP2KUY0EPxndzANBmNllzWPwak+bheSw==
   dependencies:
     any-promise "^1.0.0"
-
-three-wboit@^1.0.12:
-  version "1.0.12"
-  resolved "https://registry.yarnpkg.com/three-wboit/-/three-wboit-1.0.12.tgz#fd68b3199e61a52b805f5a408cc5fcc727c29278"
-  integrity sha512-14RI1JF3VoE8Qw06q1zhvGTxDbJ/qj0f7I97ztJkECQOucbHVijTXqAYyvibhsXewiTSoJmNrnEFF0CdrmG0nw==
 
 three@^0.148.0:
   version "0.148.0"
