@@ -1487,6 +1487,7 @@ export class World extends Scene implements NetIntercept {
       this.chunks.toProcess.length;
 
     const ratio = this.chunks.loaded.size / total;
+    const hasDirection = direction.length() > 0;
 
     this.inViewAngle =
       ratio === 1 ? (Math.PI * 3) / 8 : Math.max(ratio ** inViewPower, 0.1);
@@ -1506,6 +1507,7 @@ export class World extends Scene implements NetIntercept {
         }
 
         if (
+          hasDirection &&
           !this.isChunkInView(center, [cx, cz], direction, this.inViewAngle)
         ) {
           continue;
