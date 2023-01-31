@@ -357,6 +357,11 @@ impl Chunks {
     }
 
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
+        if let Some(_) = self.active_voxels.iter().find(|(_, v)| v == voxel) {
+            self.active_voxels
+                .retain(|(_, v)| !(v.0 == voxel.0 && v.1 == voxel.1 && v.2 == voxel.2));
+        }
+
         self.active_voxels.push((active_at, voxel.to_owned()));
     }
 
