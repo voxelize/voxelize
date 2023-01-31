@@ -119,14 +119,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     &registry,
                 );
                 chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
-                info!(
-                    "Tick at: {}, currently {}. old voxel: {:?} new voxel: {:?} at {:?}",
-                    ticks + current_tick,
-                    current_tick,
-                    current_id,
-                    updated_id,
-                    Vec3(vx, vy, vz)
-                );
             }
 
             if updated_type.rotatable {
@@ -358,11 +350,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 voxel: 0,
                 light: 0,
             });
-
-            info!(
-                "Updated voxel from {} to {}: {:?}",
-                current_id, updated_id, voxel
-            );
         }
 
         if !red_flood.is_empty() {
