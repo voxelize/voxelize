@@ -1,4 +1,4 @@
-import { EntityProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import { MessageProtocol } from "@voxelize/transport/src/types";
 import { Group } from "three";
 
 import { NetIntercept } from "./network";
@@ -15,9 +15,11 @@ export class Entity<T = any> extends Group {
   /**
    * Called when the entity is created.
    */
-  onSpawn: (data: T) => void;
+  onCreate: (data: T) => void;
 
   onUpdate: (data: T) => void;
+
+  onDelete: (data: T) => void;
 }
 
 /**
@@ -74,7 +76,7 @@ export class Entities extends Group implements NetIntercept {
 
     if (entities && entities.length) {
       entities.forEach((entity) => {
-        const { id, type, metadata } = entity;
+        const { id, type, metadata, operation } = entity;
 
         if (!this.types.has(type)) {
           console.warn(`Entity type ${type} is not registered.`);
@@ -83,16 +85,57 @@ export class Entities extends Group implements NetIntercept {
 
         let object = this.map.get(id);
 
-        if (!object) {
-          const Entity = this.types.get(type.toLowerCase());
-          object = new Entity(id);
-          this.map.set(id, object);
-          this.add(object);
-          object.onSpawn?.(metadata);
-        }
+        switch (operation) {
+          case "CREATE": {
+            if (object) {
+              console.warn(`Entity ${id} already exists.`);
+              return;
+            }
 
-        object.onUpdate?.(metadata);
+            object = this.createEntityOfType(type, id);
+            object.onCreate?.(metadata);
+
+            break;
+          }
+          case "UPDATE": {
+            if (!object) {
+              object = this.createEntityOfType(type, id);
+              object.onCreate?.(metadata);
+            }
+
+            object.onUpdate?.(metadata);
+
+            break;
+          }
+          case "DELETE": {
+            if (!object) {
+              console.warn(`Entity ${id} does not exist.`);
+              return;
+            }
+
+            this.map.delete(id);
+            this.remove(object);
+
+            object.onDelete?.(metadata);
+
+            break;
+          }
+        }
       });
     }
+  };
+
+  private createEntityOfType = (type: string, id: string) => {
+    if (!this.types.has(type)) {
+      console.warn(`Entity type ${type} is not registered.`);
+      return;
+    }
+
+    const Entity = this.types.get(type.toLowerCase());
+    const object = new Entity(id);
+    this.map.set(id, object);
+    this.add(object);
+
+    return object;
   };
 }

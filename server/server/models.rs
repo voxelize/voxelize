@@ -14,6 +14,7 @@ pub mod protocols {
 pub use protocols::Message;
 
 pub type MessageType = protocols::message::Type;
+pub type EntityOperation = protocols::entity::Operation;
 
 impl ActixMessage for Message {
     type Result = ();
@@ -100,6 +101,7 @@ pub struct UpdateProtocol {
 /// Protocol buffer compatible entity data structure.
 #[derive(Debug, Clone, Default)]
 pub struct EntityProtocol {
+    pub operation: EntityOperation,
     pub id: String,
     pub r#type: String,
     pub metadata: Option<String>,
@@ -222,6 +224,7 @@ impl MessageBuilder {
             message.entities = entities
                 .into_iter()
                 .map(|entity| protocols::Entity {
+                    operation: entity.operation as i32,
                     id: entity.id,
                     r#type: entity.r#type,
                     metadata: entity.metadata.unwrap_or_default(),

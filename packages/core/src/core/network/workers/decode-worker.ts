@@ -1,7 +1,7 @@
 import { protocol } from "@voxelize/transport/src/protocol";
 import * as fflate from "fflate";
 
-const { Message } = protocol;
+const { Message, Entity } = protocol;
 
 self.addEventListener("message", (e) => {
   let { data: buffer } = e;
@@ -25,6 +25,10 @@ self.addEventListener("message", (e) => {
     message.entities.forEach((entity) => {
       if (entity.metadata) {
         entity.metadata = JSON.parse(entity.metadata);
+      }
+
+      if (entity.operation) {
+        entity.operation = Entity.Operation[entity.operation];
       }
     });
   }

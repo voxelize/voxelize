@@ -1,6 +1,7 @@
-import { AABB } from '@voxelize/aabb';
-import { RigidBody } from './rigid-body';
-import { sweep } from './sweep';
+import { AABB } from "@voxelize/aabb";
+
+import { RigidBody } from "./rigid-body";
+import { sweep } from "./sweep";
 
 function approxEquals(a: number, b: number) {
   return Math.abs(a - b) < 1e-5;
@@ -33,7 +34,7 @@ export class Engine {
   constructor(
     private getVoxel: (vx: number, vy: number, vz: number) => AABB[],
     private testFluid: (vx: number, vy: number, vz: number) => boolean,
-    public options: EngineOptions,
+    public options: EngineOptions
   ) {}
 
   addBody = (options: Partial<BodyOptions>) => {
@@ -68,7 +69,7 @@ export class Engine {
       gravityMultiplier,
       stepHeight,
       onStep,
-      onCollide,
+      onCollide
     );
     this.bodies.push(b);
     return b;
@@ -85,7 +86,7 @@ export class Engine {
       0,
       this.options.gravity[0] ** 2 +
         this.options.gravity[1] ** 2 +
-        this.options.gravity[2] ** 2,
+        this.options.gravity[2] ** 2
     );
     this.bodies.forEach((b) => this.iterateBody(b, dt, noGravity));
   };
@@ -268,7 +269,7 @@ export class Engine {
     const lateralVel = [...body.velocity];
     lateralVel[axis] = 0;
     const vCurr = Math.sqrt(
-      lateralVel[0] ** 2 + lateralVel[1] ** 2 + lateralVel[2] ** 2,
+      lateralVel[0] ** 2 + lateralVel[1] ** 2 + lateralVel[2] ** 2
     );
     if (approxEquals(vCurr, 0)) return;
 
@@ -302,7 +303,7 @@ export class Engine {
         resting[axis] = dir;
         vec[axis] = 0;
         return false;
-      },
+      }
     );
   };
 
@@ -333,7 +334,7 @@ export class Engine {
         axis: number,
         dir: number,
         vec: number[],
-        vox?: number[],
+        vox?: number[]
       ) {
         if (axis === 1) {
           vec[axis] = 0;
@@ -342,7 +343,7 @@ export class Engine {
           voxel = vox || [];
           return true;
         }
-      },
+      }
     );
 
     const y = body.aabb.minY;
@@ -426,7 +427,7 @@ export class Engine {
         isResting = true;
         return true;
       },
-      false,
+      false
     );
 
     return isResting;
@@ -446,5 +447,5 @@ export class Engine {
   };
 }
 
-export * from './rigid-body';
-export * from './sweep';
+export * from "./rigid-body";
+export * from "./sweep";

@@ -37,9 +37,17 @@ message Peer {
 }
 
 message Entity {
-  string id = 1;
-  string type = 2;
-  string metadata = 6;
+  enum Operation {
+    CREATE = 0;
+    REMOVE = 1;
+    UPDATE = 2;
+  }
+
+  Operation operation = 1;
+
+  string id = 2;
+  string type = 3;
+  string metadata = 4;
 }
 
 message Event {

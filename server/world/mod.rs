@@ -1,3 +1,4 @@
+mod bookkeeping;
 mod clients;
 mod components;
 mod config;
@@ -34,11 +35,12 @@ use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType},
-    EncodedMessage, EntityProtocol, PeerProtocol, Vec2, Vec3,
+    EncodedMessage, EntityOperation, EntityProtocol, PeerProtocol, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
 
+pub use bookkeeping::*;
 pub use clients::*;
 pub use components::*;
 pub use config::*;
@@ -156,9 +158,14 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
         .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
         .with(
+            EntitiesBookkeepingSystem,
+            "entities-bookkeeping",
+            &["entities-meta"],
+        )
+        .with(
             EntitiesSendingSystem,
             "entities-sending",
-            &["entities-meta"],
+            &["entities-meta", "entities-bookkeeping"],
         )
         .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
         .with(
@@ -249,6 +256,7 @@ impl World {
         ecs.insert(Events::new());
         ecs.insert(Transports::new());
         ecs.insert(ChunkInterests::new());
+        ecs.insert(Bookkeeping::new());
 
         Self {
             id,
@@ -1002,6 +1010,7 @@ impl World {
             // TODO: THIS FEELS HACKY
 
             let paths = fs::read_dir(self.entities().folder.clone()).unwrap();
+            let mut loaded_entities = vec![];
 
             for path in paths {
                 let path = path.unwrap().path();
@@ -1019,8 +1028,15 @@ impl World {
                             |_| panic!("Metadata filed does not exist on file: {:?}", path),
                         );
 
-                    self.revive_entity(&id, &etype, metadata);
+                    if let Some(ent) = self.revive_entity(&id, &etype, metadata) {
+                        loaded_entities.push(ent);
+                    }
                 }
+            }
+
+            if !loaded_entities.is_empty() {
+                let mut bookkeeping = self.write_resource::<Bookkeeping>();
+                bookkeeping.overwrite_entities(&loaded_entities);
             }
         }
     }
@@ -1063,6 +1079,9 @@ impl World {
             let j_str = metadata.to_string();
 
             entities.push(EntityProtocol {
+                // Intentionally not using the `EntityOperation::Create` variant here
+                // because the entity is already technically created.
+                operation: EntityOperation::Update,
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
                 metadata: Some(j_str),

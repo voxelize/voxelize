@@ -1,7 +1,5 @@
-use log::info;
 use voxelize::{
-    Block, BlockFaces, BlockUtils, Registry, Vec3, VoxelPacker, AABB, SIX_FACES_NX, SIX_FACES_PY,
-    SIX_FACES_PZ,
+    Block, BlockFaces, Registry, Vec3, VoxelPacker, AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ,
 };
 
 const PLANT_SCALE: f32 = 0.6;
@@ -72,23 +70,23 @@ pub fn setup_registry() -> Registry {
     registry.register_blocks(&[
         Block::new("Dirt")
             .id(1)
-            .active_fn(
-                |_, _, _| 100,
-                |voxel, space, registry| {
-                    // TODO
-                    vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 2)]
-                },
-            )
+            // .active_fn(
+            //     |_, _, _| 100,
+            //     |voxel, space, registry| {
+            //         // TODO
+            //         vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 2)]
+            //     },
+            // )
             .build(),
         Block::new("Stone")
             .id(2)
-            .active_fn(
-                |_, _, _| 0,
-                |voxel, space, registry| {
-                    // TODO
-                    vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 1)]
-                },
-            )
+            // .active_fn(
+            //     |_, _, _| 0,
+            //     |voxel, space, registry| {
+            //         // TODO
+            //         vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 1)]
+            //     },
+            // )
             .build(),
         Block::new("Sand")
             .id(3)
@@ -144,13 +142,13 @@ pub fn setup_registry() -> Registry {
             .is_y_transparent(true)
             .is_z_transparent(true)
             .rotatable(true)
-            .active_fn(
-                |_, _, _| 100,
-                |voxel, space, registry| {
-                    // TODO
-                    vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 45)]
-                },
-            )
+            // .active_fn(
+            //     |_, _, _| 100,
+            //     |voxel, space, registry| {
+            //         // TODO
+            //         vec![(Vec3(voxel.0, voxel.1 + 1, voxel.2), 45)]
+            //     },
+            // )
             .faces(
                 &BlockFaces::six_faces()
                     .scale_x(0.4)

@@ -1,8 +1,8 @@
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    ClientFilter, ETypeComp, EntityFlag, EntityProtocol, IDComp, Message, MessageQueue,
-    MessageType, MetadataComp, Stats,
+    ClientFilter, ETypeComp, EntityFlag, EntityOperation, EntityProtocol, IDComp, Message,
+    MessageQueue, MessageType, MetadataComp, Stats,
 };
 
 pub struct EntitiesSendingSystem;
@@ -39,6 +39,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
 
             entities.push(EntityProtocol {
+                operation: EntityOperation::Update,
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
                 metadata: Some(json_str),

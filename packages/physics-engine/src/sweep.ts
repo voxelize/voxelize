@@ -1,5 +1,6 @@
-import { Engine } from '.';
-import { AABB } from '@voxelize/aabb';
+import { AABB } from "@voxelize/aabb";
+
+import { Engine } from ".";
 
 function lineToPlane(unit: number[], vector: number[], normal: number[]) {
   const [ux, uy, uz] = unit;
@@ -140,10 +141,10 @@ export function sweep(
     axis: number,
     dir: number,
     leftover: number[],
-    voxel?: number[],
+    voxel?: number[]
   ) => boolean,
   translate = true,
-  maxIterations = 100,
+  maxIterations = 100
 ) {
   if (maxIterations <= 0) return;
 

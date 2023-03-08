@@ -1,4 +1,4 @@
-import { AABB } from '@voxelize/aabb';
+import { AABB } from "@voxelize/aabb";
 
 // massive thanks to https://github.com/andyhall/voxel-physics-engine/blob/master/src/rigidBody.js
 
@@ -22,7 +22,7 @@ class RigidBody {
     public gravityMultiplier: number,
     public stepHeight: number,
     public onStep?: (newAABB: AABB, resting: number[]) => void,
-    public onCollide?: (impacts?: number[]) => void,
+    public onCollide?: (impacts?: number[]) => void
   ) {
     this.airDrag = -1;
     this.fluidDrag = -1;
