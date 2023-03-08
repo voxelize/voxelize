@@ -324,7 +324,7 @@ ___
 
 ### params
 
-• **params**: [`ItemSlotsParams`](../modules.md#itemslotsparams-38)
+• **params**: [`ItemSlotsParams`](../modules.md#itemslotsparams-4)
 
 ___
 
@@ -390,7 +390,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`ItemSlotsParams`](../modules.md#itemslotsparams-38)\> |
+| `params` | `Partial`<[`ItemSlotsParams`](../modules.md#itemslotsparams-4)\> |
 
 ## Accessors
 

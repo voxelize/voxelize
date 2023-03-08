@@ -1,10 +1,15 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
 
+@font-face {
+  font-family: "ConnectionSerif-d20X";
+  src: url("./assets/ConnectionSerif-d20X.otf");
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: "Space Mono", monospace;
+  font-family: "ConnectionSerif-d20X", monospace;
 }
 
 html,
@@ -93,4 +98,28 @@ body {
   color: #eee;
   opacity: 0;
   transition: all 0.1s ease;
+}
+
+#chat {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+}
+
+#chat-history {
+  width: 300px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #181d3133;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  padding: 8px;
+  margin: 8px 0;
+}
+
+#chat-history p {
+  color: #eee;
 }

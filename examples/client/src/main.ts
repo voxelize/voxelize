@@ -8,7 +8,6 @@ import { GUI } from "lil-gui";
 import {
   EffectComposer,
   EffectPass,
-  PixelationEffect,
   // PixelationEffect,
   RenderPass,
   SMAAEffect,
@@ -178,7 +177,13 @@ const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
 });
 world.add(voxelInteract);
 
-const debug = new VOXELIZE.Debug(document.body);
+const debug = new VOXELIZE.Debug(document.body, {
+  dataStyles: {
+    top: "unset",
+    bottom: "10px",
+    left: "10px",
+  },
+});
 
 const gui = new GUI();
 gui.domElement.style.top = "10px";
@@ -561,9 +566,12 @@ const start = async () => {
   gui.add(voxelInteract.params, "ignoreFluids");
 
   const bar = new VOXELIZE.ItemSlots({
-    // verticalCount: 5,
-    horizontalCount: 1,
-    verticalCount: HOTBAR_CONTENT.length,
+    verticalCount: 1,
+    horizontalCount: HOTBAR_CONTENT.length,
+    wrapperStyles: {
+      top: "0",
+      left: "0",
+    },
   });
   document.body.appendChild(bar.element);
 
@@ -591,9 +599,13 @@ const start = async () => {
     return block ? block.name : "<Empty>";
   });
 
+  debug.registerDisplay("Concurrent WebWorkers", () => {
+    return VOXELIZE.WorkerPool.WORKING_COUNT;
+  });
+
   HOTBAR_CONTENT.forEach((id, index) => {
     const mesh = world.makeBlockMesh(id, { material: "standard" });
-    const slot = bar.getSlot(index, 0);
+    const slot = bar.getSlot(0, index);
     slot.setObject(mesh);
 
     if (id === 500) {
@@ -608,7 +620,7 @@ const start = async () => {
       key,
       () => {
         const index = parseInt(key);
-        bar.setFocused(index - 1, 0);
+        bar.setFocused(0, index - 1);
       },
       "in-game"
     );

@@ -113,7 +113,7 @@ Construct a light shined effect manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world that the effect is applied to. |
-| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-38)\> | Parameters to customize the effect. |
+| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams-4)\> | Parameters to customize the effect. |
 
 ## Properties
 
@@ -135,7 +135,7 @@ ___
 
 ### params
 
-• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-38)
+• **params**: [`LightShinedParams`](../modules.md#lightshinedparams-4)
 
 Parameters to customize the effect.
 

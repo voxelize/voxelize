@@ -153,7 +153,7 @@ export class Network {
    * The worker pool for decoding network packets.
    */
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
-    maxWorker: window.navigator.hardwareConcurrency || 4,
+    maxWorker: 4,
   });
 
   /**

@@ -3,7 +3,6 @@ import * as VOXELIZE from "@voxelize/client";
 import * as THREE from "three";
 
 import TestImage from "./assets/cat.jpeg";
-import FunnyGif from "./assets/funny.gif";
 import LolImage from "./assets/lol.jpeg";
 import ChoGeImage from "./assets/lol.png";
 import AndesiteImage from "./assets/own/andesite.png";
@@ -101,25 +100,25 @@ export async function setupWorld(world: VOXELIZE.World) {
 
   await world.applyBlockTextures(biomeTextures);
 
-  const biomesDOM = document.getElementById("biomes") as HTMLUListElement;
+  // const biomesDOM = document.getElementById("biomes") as HTMLUListElement;
 
-  biomeTextures.forEach((biome, i) => {
-    const portion = biomes[i];
+  // biomeTextures.forEach((biome, i) => {
+  //   const portion = biomes[i];
 
-    const colorStr = `#${biome.source.getHexString()}`;
-    const biomeEntry = document.createElement("li");
+  //   const colorStr = `#${biome.source.getHexString()}`;
+  //   const biomeEntry = document.createElement("li");
 
-    const biomeTitle = document.createElement("p");
-    biomeTitle.innerText = `(${portion[0]},${portion[1]},${portion[2]})`;
+  //   const biomeTitle = document.createElement("p");
+  //   biomeTitle.innerText = `(${portion[0]},${portion[1]},${portion[2]})`;
 
-    const biomeColor = document.createElement("div");
-    biomeColor.style.backgroundColor = colorStr;
+  //   const biomeColor = document.createElement("div");
+  //   biomeColor.style.backgroundColor = colorStr;
 
-    biomeEntry.appendChild(biomeTitle);
-    biomeEntry.appendChild(biomeColor);
+  //   biomeEntry.appendChild(biomeTitle);
+  //   biomeEntry.appendChild(biomeColor);
 
-    biomesDOM.appendChild(biomeEntry);
-  });
+  //   biomesDOM.appendChild(biomeEntry);
+  // });
 
   await world.applyBlockTextures([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },

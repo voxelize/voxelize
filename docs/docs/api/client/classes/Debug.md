@@ -45,7 +45,7 @@ Create a new [Debug](Debug.md) instance.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `domElement` | `HTMLElement` | `document.body` | The DOM element to append the debug panel to. |
-| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-38)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
+| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams-4)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
 
 #### Overrides
 
@@ -80,7 +80,7 @@ ___
 
 ### params
 
-• **params**: [`DebugParams`](../modules.md#debugparams-38)
+• **params**: [`DebugParams`](../modules.md#debugparams-4)
 
 Parameters to create a [Debug](Debug.md) instance.
 
@@ -130,18 +130,24 @@ ___
 
 ### registerDisplay
 
-▸ **registerDisplay**(`title`, `object?`, `attribute?`, `formatter?`): `this`
+▸ **registerDisplay**<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
 
-Register a new object attribute to track. Needs to call [update](Debug.md#update-38) in the game loop
+Register a new object attribute to track. Needs to call [update](Debug.md#update-4) in the game loop
 to update the value.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | `any` |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `title` | `string` | The title of the debug entry. |
-| `object?` | `any` | The object to track. |
-| `attribute?` | `string` | The attribute of the object to track. |
+| `object?` | `T` | The object to track. |
+| `attribute?` | keyof `T` | The attribute of the object to track. |
 | `formatter` | (`str`: `string`) => `string` | A function to format the value of the attribute. |
 
 #### Returns
