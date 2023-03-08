@@ -1,5 +1,3 @@
-import url from "url";
-
 import * as fflate from "fflate";
 import {
   client as WebSocket,
@@ -68,8 +66,8 @@ export class Transport extends WebSocket {
       }
     }
 
-    const q = url.parse(address, true);
-    super.connect(`${q.href}ws/?secret=${secret}&is_transport=true`);
+    const q = new URLSearchParams(address);
+    super.connect(`${q.get("href")}ws/?secret=${secret}&is_transport=true`);
 
     return new Promise<void>((resolve) => {
       this.removeAllListeners("connect");

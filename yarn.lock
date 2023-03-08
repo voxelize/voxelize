@@ -4432,11 +4432,10 @@
     eslint-visitor-keys "^3.0.0"
 
 "@voxelize/core@file:packages/core":
-  version "1.3.101"
+  version "0.1.102"
   dependencies:
     "@tweenjs/tween.js" "^18.6.4"
     "@voxelize/aabb" "*"
-    "@voxelize/atom" "*"
     "@voxelize/physics-engine" "*"
     "@voxelize/raycast" "*"
     "@voxelize/transport" "*"
@@ -4450,15 +4449,6 @@
     regenerator-runtime "^0.13.9"
     socket.io-client "^4.4.1"
     uuid "^8.3.2"
-
-"@voxelize/voxel-aabb@*":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@voxelize/voxel-aabb/-/voxel-aabb-1.0.0.tgz#4c30dd70d6f84c9983f24bdff6680dcae7486ec0"
-  integrity sha512-1C51JIve2wbwN7pcfOVV/7aMew+h0EmybXtdhVH2O2LH1gxggjv6rWZLRKoApcN24mThltK55t3CkQKchh4a0A==
-  dependencies:
-    tsup "^5.12.7"
-    typescript "^4.6.4"
-    vitest "^0.10.4"
 
 "@webassemblyjs/ast@1.11.1":
   version "1.11.1"
@@ -12440,11 +12430,6 @@ pump@^3.0.0:
     end-of-stream "^1.1.0"
     once "^1.3.1"
 
-punycode@1.3.2:
-  version "1.3.2"
-  resolved "https://registry.npmjs.org/punycode/-/punycode-1.3.2.tgz"
-  integrity sha512-RofWgt/7fL5wP1Y7fxE7/EmTLzQVnB0ycyibJ0OOHIlJqTNzglYFxVwETOcIoJqJmpDXJ9xImDv+Fq34F/d4Dw==
-
 punycode@^1.3.2:
   version "1.4.1"
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-1.4.1.tgz#c0d5a63b2718800ad8e1eb0fa5269c84dd41845e"
@@ -12483,11 +12468,6 @@ qs@6.9.6:
   version "6.9.6"
   resolved "https://registry.npmjs.org/qs/-/qs-6.9.6.tgz"
   integrity sha512-TIRk4aqYLNoJUbd+g2lEdz5kLWIuTMRagAXxl78Q0RiVjAOugHmeKNGdd3cwo/ktpf9aL9epCfFqWDEKysUlLQ==
-
-querystring@0.2.0:
-  version "0.2.0"
-  resolved "https://registry.npmjs.org/querystring/-/querystring-0.2.0.tgz"
-  integrity sha512-X/xY82scca2tau62i9mDyU9K+I+djTMUsvwf7xnUX5GLvVzgJybOJf4Y6o9Zx3oJK/LSXg5tTZBjwzqVPaPO2g==
 
 queue-microtask@^1.2.2:
   version "1.2.3"
@@ -14953,14 +14933,6 @@ url-parse-lax@^3.0.0:
   integrity sha512-NjFKA0DidqPa5ciFcSrXnAltTtzz84ogy+NebPvfEgAck0+TNg4UJ4IN+fB7zRZfbgUf0syOo9MDxFkDSMuFaQ==
   dependencies:
     prepend-http "^2.0.0"
-
-url@^0.11.0:
-  version "0.11.0"
-  resolved "https://registry.npmjs.org/url/-/url-0.11.0.tgz"
-  integrity sha512-kbailJa29QrtXnxgq+DdCEGlbTeYM2eJUxsz6vjZavrCYPMIFHMKQmSKYAIuUK2i7hgPm28a8piX5NTUtM/LKQ==
-  dependencies:
-    punycode "1.3.2"
-    querystring "0.2.0"
 
 use-composed-ref@^1.3.0:
   version "1.3.0"

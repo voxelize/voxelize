@@ -1,4 +1,4 @@
-import { AABB } from '@voxelize/voxel-aabb';
+import { AABB } from '@voxelize/aabb';
 
 // massive thanks to https://github.com/andyhall/voxel-physics-engine/blob/master/src/rigidBody.js
 

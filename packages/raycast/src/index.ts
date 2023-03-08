@@ -1,4 +1,4 @@
-import { AABB } from '@voxelize/voxel-aabb';
+import { AABB } from '@voxelize/aabb';
 
 export function raycastAABB(
   origin: number[],
