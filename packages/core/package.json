@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/core",
-  "version": "0.1.104",
+  "version": "0.1.106",
   "license": "MIT",
   "main": "dist/index.cjs.js",
   "module": "dist/index.js",
@@ -19,13 +19,13 @@
   },
   "peerDependencies": {
     "postprocessing": "^6.29.1",
-    "three": "^0.148.0"
+    "three": "^0.150.1"
   },
   "devDependencies": {
     "@types/gl-vec3": "^1.1.1",
     "@types/ndarray": "^1.0.11",
     "@types/omggif": "^1.0.3",
-    "@types/three": "^0.146.0",
+    "@types/three": "^0.149.0",
     "@types/uuid": "^8.3.4",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-copy-watch": "^0.0.1"

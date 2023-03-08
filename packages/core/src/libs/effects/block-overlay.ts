@@ -50,7 +50,7 @@ export class BlockOverlayEffect extends Effect {
     super("BlockOverlayEffect", OverlayFragmentShader, {
       uniforms: new Map([
         ["overlay", new Uniform(new Vector3(0, 0, 1))],
-        ["opacity", new Uniform(0.0)],
+        ["opacity", new Uniform(0.0 as any)],
       ]),
     });
   }
