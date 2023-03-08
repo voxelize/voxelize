@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-import * as VOXELIZE from "@voxelize/client";
+import * as VOXELIZE from "@voxelize/core";
 import * as THREE from "three";
 
 export const CharacterView = () => {

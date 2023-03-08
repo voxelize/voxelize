@@ -1,9 +1,9 @@
 import "./style.css";
 
-// For official use, you should do `@voxelize/client/styles.css` instead.
-import "@voxelize/client/src/styles.css";
+// For official use, you should do `@voxelize/core/styles.css` instead.
+import "@voxelize/core/src/styles.css";
 
-import * as VOXELIZE from "@voxelize/client";
+import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
 import {
   EffectComposer,

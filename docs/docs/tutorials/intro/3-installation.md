@@ -21,11 +21,11 @@ voxelize = "0.8.11"
 
 ## Client Setup
 
-The client-side npm package of Voxelize is called [`@voxelize/client`](https://www.npmjs.com/package/@voxelize/client). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. As you can see in the template, they have been added to our project.
+The client-side npm package of Voxelize is called [`@voxelize/core`](https://www.npmjs.com/package/@voxelize/core). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. As you can see in the template, they have been added to our project.
 
 ```json title="package.json"
 "dependencies": {
-  "@voxelize/client": "^1.3.38",
+  "@voxelize/core": "^1.3.38",
   "three": "^0.141.0"
 }
 ```

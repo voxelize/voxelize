@@ -4431,7 +4431,7 @@
     "@typescript-eslint/types" "5.21.0"
     eslint-visitor-keys "^3.0.0"
 
-"@voxelize/client@file:packages/client":
+"@voxelize/core@file:packages/core":
   version "1.3.101"
   dependencies:
     "@tweenjs/tween.js" "^18.6.4"

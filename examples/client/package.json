@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@voxelize/atom": "*",
-    "@voxelize/client": "*",
+    "@voxelize/core": "*",
     "lil-gui": "^0.17.0",
     "p5": "^1.5.0",
     "postprocessing": "^6.29.1",

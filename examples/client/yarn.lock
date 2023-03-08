@@ -232,9 +232,9 @@
     typescript "^4.6.4"
     vitest "^0.10.4"
 
-"@voxelize/client@*":
+"@voxelize/core@*":
   version "1.3.101"
-  resolved "https://registry.yarnpkg.com/@voxelize/client/-/client-1.3.101.tgz#40702bf0c251ce281ac05bcb45d279e27999b3d3"
+  resolved "https://registry.yarnpkg.com/@voxelize/core/-/client-1.3.101.tgz#40702bf0c251ce281ac05bcb45d279e27999b3d3"
   integrity sha512-u8iyNUQPVQA/peKEs/PFldNDAbH/89IvwBjr1bTXgwsYlckoZ8SxMUwQsgHWE/YhshjAjKkt0zB/eCMaTRTk0w==
   dependencies:
     "@tweenjs/tween.js" "^18.6.4"

@@ -11,7 +11,7 @@
   <a href="https://discord.gg/6AfEkpjsTS">
   <img alt="Discord Server" src="https://img.shields.io/discord/1003378871753777263?label=Discord&logo=Discord&style=for-the-badge">
   </a>
-  <img src="https://img.shields.io/npm/v/@voxelize/client?logo=npm&style=for-the-badge">
+  <img src="https://img.shields.io/npm/v/@voxelize/core?logo=npm&style=for-the-badge">
   <img src="https://img.shields.io/crates/v/voxelize?style=for-the-badge"/>
 </p>
 

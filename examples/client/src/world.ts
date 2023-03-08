@@ -1,5 +1,5 @@
 import { AABB } from "@voxelize/aabb";
-import * as VOXELIZE from "@voxelize/client";
+import * as VOXELIZE from "@voxelize/core";
 import * as THREE from "three";
 
 import TestImage from "./assets/cat.jpeg";

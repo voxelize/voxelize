@@ -203,10 +203,10 @@ const config = {
     [
       "docusaurus-plugin-typedoc",
       {
-        entryPoints: ["../packages/client/src/index.ts"],
-        id: "@voxelize/client",
+        entryPoints: ["../packages/core/src/index.ts"],
+        id: "@voxelize/core",
         out: "api/client",
-        tsconfig: "../packages/client/tsconfig.json",
+        tsconfig: "../packages/core/tsconfig.json",
         ...sharedTypeDocConfig("Client API"),
       },
     ],

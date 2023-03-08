@@ -1,4 +1,4 @@
-import { ChunkUtils, Coords3, DOMUtils, World } from "@voxelize/client";
+import { ChunkUtils, Coords3, DOMUtils, World } from "@voxelize/core";
 import p5 from "p5";
 import { Vector3 } from "three";
 
