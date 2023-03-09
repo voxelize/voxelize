@@ -6,11 +6,10 @@ use serde::{Deserialize, Serialize};
 use specs::{Builder, Component, DispatcherBuilder, NullStorage, WorldExt};
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
-    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem,
-    EntitiesBookkeepingSystem, EntitiesMetaSystem, EntitiesSavingSystem, EntitiesSendingSystem,
-    EventsSystem, FlatlandStage, InteractorComp, PeersMetaSystem, PeersSendingSystem,
-    PhysicsSystem, PositionComp, Registry, RigidBody, RigidBodyComp, UpdateStatsSystem, Vec3,
-    World, WorldConfig, AABB,
+    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, EntitiesMetaSystem,
+    EntitiesSavingSystem, EntitiesSendingSystem, EventsSystem, FlatlandStage, InteractorComp,
+    PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, Registry, RigidBody,
+    RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
 };
 
 use self::{comps::CountdownComp, systems::CountdownSystem};
@@ -60,14 +59,9 @@ pub fn setup_flat_world(registry: &Registry) -> World {
             .with(CountdownSystem, "countdown", &["entities-meta"])
             .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
             .with(
-                EntitiesBookkeepingSystem,
-                "entities-bookkeeping",
-                &["entities-meta"],
-            )
-            .with(
                 EntitiesSendingSystem,
                 "entities-sending",
-                &["entities-meta", "entities-bookkeeping"],
+                &["entities-meta"],
             )
             .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
             .with(
@@ -99,7 +93,7 @@ pub fn setup_flat_world(registry: &Registry) -> World {
             .with(PositionComp::default())
             .with(RigidBodyComp::new(&body))
             .with(InteractorComp::new(&interactor))
-            .with(CountdownComp::new(1000))
+            .with(CountdownComp::new(300))
             .with(position)
     });
 

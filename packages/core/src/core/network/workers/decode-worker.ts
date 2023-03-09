@@ -27,9 +27,7 @@ self.addEventListener("message", (e) => {
         entity.metadata = JSON.parse(entity.metadata);
       }
 
-      if (entity.operation) {
-        entity.operation = Entity.Operation[entity.operation];
-      }
+      entity.operation = Entity.Operation[entity.operation];
     });
   }
 

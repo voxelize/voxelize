@@ -39,7 +39,7 @@ message Peer {
 message Entity {
   enum Operation {
     CREATE = 0;
-    REMOVE = 1;
+    DELETE = 1;
     UPDATE = 2;
   }
 

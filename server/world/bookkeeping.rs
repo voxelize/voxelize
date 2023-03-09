@@ -1,14 +1,15 @@
 use hashbrown::HashSet;
 use specs::Entity;
 
-pub enum BookkeepingAction {
-    CreateEntity(Entity),
-    RemoveEntity(Entity),
+#[derive(Default)]
+pub struct BookkeepingUpdate {
+    pub created: HashSet<String>,
+    pub deleted: HashSet<String>,
 }
 
 #[derive(Default)]
 pub struct Bookkeeping {
-    entities: HashSet<Entity>,
+    entity_ids: HashSet<String>,
 }
 
 impl Bookkeeping {
@@ -16,35 +17,33 @@ impl Bookkeeping {
         Self::default()
     }
 
-    pub fn overwrite_entities(&mut self, entities: &Vec<Entity>) {
-        self.entities = entities.iter().cloned().collect();
+    pub fn overwrite_entity_ids(&mut self, entity_ids: &Vec<String>) {
+        self.entity_ids = entity_ids.iter().cloned().collect();
     }
 
     pub fn differentiate_entities(
         &mut self,
-        updated_entities: &Vec<Entity>,
-    ) -> Vec<BookkeepingAction> {
-        let mut actions = Vec::new();
+        updated_entity_ids: &Vec<String>,
+    ) -> BookkeepingUpdate {
+        let mut result = BookkeepingUpdate::default();
 
         let mut new_entities = HashSet::new();
-        for entity in updated_entities {
-            if !self.entities.contains(entity) {
-                new_entities.insert(*entity);
-                actions.push(BookkeepingAction::CreateEntity(*entity));
+        for entity_id in updated_entity_ids {
+            if !self.entity_ids.contains(entity_id) {
+                new_entities.insert(entity_id.to_owned());
+                result.created.insert(entity_id.to_owned());
             }
         }
 
-        let mut removed_entities = HashSet::new();
-        for entity in &self.entities {
-            if !updated_entities.contains(entity) {
-                removed_entities.insert(*entity);
-                actions.push(BookkeepingAction::RemoveEntity(*entity));
+        for entity_id in &self.entity_ids {
+            if !updated_entity_ids.contains(entity_id) {
+                result.deleted.insert(entity_id.to_owned());
             }
         }
 
-        self.entities = new_entities;
-        self.entities.extend(updated_entities.iter().cloned());
+        self.entity_ids = new_entities;
+        self.entity_ids.extend(updated_entity_ids.iter().cloned());
 
-        actions
+        result
     }
 }

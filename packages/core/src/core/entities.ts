@@ -78,11 +78,6 @@ export class Entities extends Group implements NetIntercept {
       entities.forEach((entity) => {
         const { id, type, metadata, operation } = entity;
 
-        if (!this.types.has(type)) {
-          console.warn(`Entity type ${type} is not registered.`);
-          return;
-        }
-
         let object = this.map.get(id);
 
         switch (operation) {

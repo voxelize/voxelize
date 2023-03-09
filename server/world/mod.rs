@@ -158,14 +158,9 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
         .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
         .with(
-            EntitiesBookkeepingSystem,
-            "entities-bookkeeping",
-            &["entities-meta"],
-        )
-        .with(
             EntitiesSendingSystem,
             "entities-sending",
-            &["entities-meta", "entities-bookkeeping"],
+            &["entities-meta"],
         )
         .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
         .with(
@@ -1018,15 +1013,15 @@ impl World {
                             |_| panic!("Metadata filed does not exist on file: {:?}", path),
                         );
 
-                    if let Some(ent) = self.revive_entity(&id, &etype, metadata) {
-                        loaded_entities.push(ent);
+                    if self.revive_entity(&id, &etype, metadata).is_some() {
+                        loaded_entities.push(id.to_owned());
                     }
                 }
             }
 
             if !loaded_entities.is_empty() {
                 let mut bookkeeping = self.write_resource::<Bookkeeping>();
-                bookkeeping.overwrite_entities(&loaded_entities);
+                bookkeeping.overwrite_entity_ids(&loaded_entities);
             }
         }
     }
