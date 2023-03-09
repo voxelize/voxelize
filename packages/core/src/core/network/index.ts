@@ -21,11 +21,19 @@ export type ProtocolWS = WebSocket & {
   sendEvent: (event: any) => void;
 };
 
+export type NetworkParams = {
+  maxPacketsPerTick: number;
+};
+
+const defaultParams: NetworkParams = {
+  maxPacketsPerTick: 8,
+};
+
 /**
  * Parameters to customize the connection to a Voxelize server. For example, setting a secret
  * key to authenticate the connection with the server.
  */
-export type NetworkParams = {
+export type NetworkConnectionParams = {
   /**
    * On disconnection, the timeout to attempt to reconnect. Defaults to 5000.
    */
@@ -58,6 +66,8 @@ export type NetworkParams = {
  * @category Core
  */
 export class Network {
+  public params: NetworkParams;
+
   /**
    * Information about the client that is sent to the server on connection. Initialize the username
    * through `setUsername` and the id through `setID`. If nothing is set, then the information will
@@ -88,11 +98,6 @@ export class Network {
    * interceptors by calling `register` and remove them by calling `unregister`.
    */
   public intercepts: NetIntercept[] = [];
-
-  /**
-   * Parameters to start the network connection, passed in to `connect`.
-   */
-  public params: NetworkParams;
 
   /**
    * The inner WebSocket client for Voxelize, with support for protocol buffers.
@@ -177,8 +182,11 @@ export class Network {
   /**
    * Create a new network instance.
    */
-  constructor() {
-    // NOTHING TO DO HERE.
+  constructor(params: Partial<NetworkParams> = {}) {
+    this.params = {
+      ...defaultParams,
+      ...params,
+    };
   }
 
   /**
@@ -190,7 +198,7 @@ export class Network {
    * @param params Parameters to customize the connection to a Voxelize server.
    * @returns A promise that resolves when the client has connected to the server.
    */
-  connect = async (serverURL: string, params: NetworkParams = {}) => {
+  connect = async (serverURL: string, params: NetworkConnectionParams = {}) => {
     if (!serverURL) {
       throw new Error("No server URL provided.");
     }
@@ -198,8 +206,6 @@ export class Network {
     if (typeof serverURL !== "string") {
       throw new Error("Server URL must be a string.");
     }
-
-    this.params = params;
 
     this.url = new DOMUrl(serverURL);
     this.url.protocol = this.url.protocol.replace(/ws/, "http");
@@ -211,7 +217,7 @@ export class Network {
     this.socket = new URL(socketURL.toString());
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
-    this.socket.searchParams.set("secret", this.params.secret || "");
+    this.socket.searchParams.set("secret", params.secret || "");
     this.socket.searchParams.set("client_id", this.clientInfo.id || "");
 
     const MAX = 10000;
@@ -257,10 +263,10 @@ export class Network {
         this.onDisconnect?.();
 
         // fire reconnection every "reconnectTimeout" ms
-        if (this.params.reconnectTimeout) {
+        if (params.reconnectTimeout) {
           this.reconnection = setTimeout(() => {
             this.connect(serverURL, params);
-          }, this.params.reconnectTimeout);
+          }, params.reconnectTimeout);
         }
       };
 
@@ -336,13 +342,16 @@ export class Network {
       return;
     }
 
-    this.decode(this.packetQueue.splice(0, this.packetQueue.length)).then(
-      (messages) => {
-        messages.forEach((message) => {
-          this.onMessage(message);
-        });
-      }
-    );
+    this.decode(
+      this.packetQueue.splice(
+        0,
+        Math.min(this.params.maxPacketsPerTick, this.packetQueue.length)
+      )
+    ).then((messages) => {
+      messages.forEach((message) => {
+        this.onMessage(message);
+      });
+    });
   };
 
   /**
