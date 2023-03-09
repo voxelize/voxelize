@@ -191,7 +191,7 @@ Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/do
   - **Should be dependent on `CurrentChunkSystem` and `UpdateStatsSystem`.**
   - Updates `RigidBodyComp` according to chunk data.
   - Calculates `CollisionsComp` through `InteractorComp` by calculating the physics collisions through [rapier physics](https://rapier.rs/).
-- `EntitiesSavingSystem`
+- `DataSavingSystem`
   - **Should be dependent on `EntitiesMetaSystem` and any non-client metadata systems.**
   - Every `config.save_interval`, saves the entities data into `config.save_dir` if `config.saving` is set true.
 - `EntitiesSendingSystem`

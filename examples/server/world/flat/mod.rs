@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use specs::{Builder, Component, DispatcherBuilder, NullStorage, WorldExt};
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
-    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, EntitiesMetaSystem,
-    EntitiesSavingSystem, EntitiesSendingSystem, EventsSystem, FlatlandStage, InteractorComp,
+    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
+    EntitiesMetaSystem, EntitiesSendingSystem, EventsSystem, FlatlandStage, InteractorComp,
     PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, Registry, RigidBody,
-    RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
+    RigidBodyComp, StatsSendingSystem, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
 };
 
 use self::{comps::CountdownComp, systems::CountdownSystem};
@@ -57,17 +57,23 @@ pub fn setup_flat_world(registry: &Registry) -> World {
             .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
             .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
             .with(CountdownSystem, "countdown", &["entities-meta"])
-            .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
+            .with(DataSavingSystem, "entities-saving", &["entities-meta"])
             .with(
                 EntitiesSendingSystem,
                 "entities-sending",
                 &["entities-meta"],
             )
             .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
+            .with(StatsSendingSystem, "stats-sending", &[])
             .with(
                 BroadcastSystem,
                 "broadcast",
-                &["entities-sending", "peers-sending"],
+                &[
+                    "stats-sending",
+                    "chunk-sending",
+                    "entities-sending",
+                    "peers-sending",
+                ],
             )
             .with(
                 CleanupSystem,

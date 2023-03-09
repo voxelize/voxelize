@@ -488,6 +488,10 @@ pub struct Disconnect {
 #[rtype(result = "Value")]
 pub struct Info;
 
+#[derive(ActixMessage)]
+#[rtype(result = "u64")]
+pub struct TimeTick(pub String);
+
 /// Send message to specific world
 #[derive(ActixMessage)]
 #[rtype(result = "Option<String>")]
@@ -580,6 +584,22 @@ impl Handler<Info> for Server {
 
     fn handle(&mut self, _: Info, _: &mut Context<Self>) -> Self::Result {
         MessageResult(self.get_info())
+    }
+}
+
+impl Handler<TimeTick> for Server {
+    type Result = MessageResult<TimeTick>;
+
+    fn handle(&mut self, TimeTick(world_name): TimeTick, _: &mut Context<Self>) -> Self::Result {
+        let world = self.worlds.get(&world_name);
+
+        if world.is_none() {
+            return MessageResult(0);
+        }
+
+        let world = world.unwrap();
+
+        MessageResult(world.read_resource::<Stats>().time_tick)
     }
 }
 

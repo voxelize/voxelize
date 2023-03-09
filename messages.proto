@@ -90,6 +90,7 @@ message Message {
     TRANSPORT = 11;
     EVENT = 12;
     ACTION = 13;
+    STATS = 14;
   }
 
   Type type = 1;

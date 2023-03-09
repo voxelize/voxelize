@@ -44,7 +44,7 @@ The default dispatcher consists of the following systems:
   - 2 dependencies: "current-chunk", "update-stats"
   - Ticks the rigid bodies in the voxel world
   - Detects any interactions/collisions between `InteractorComp`s
-- `EntitiesSavingSystem` ("entities-saving")
+- `DataSavingSystem` ("entities-saving")
   - 1 dependency: "entities-meta"
   - Saves the entities' metadata that have been modified to the disk
 - `EntitiesSendingSystem` ("entities-sending")

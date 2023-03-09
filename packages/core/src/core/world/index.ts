@@ -9,21 +9,21 @@ import {
   Color,
   Float32BufferAttribute,
   FrontSide,
+  Group,
   Int32BufferAttribute,
   Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
   Scene,
   ShaderLib,
   ShaderMaterial,
   Texture,
-  UniformsUtils,
-  MeshBasicMaterial,
-  MeshStandardMaterial,
   // @ts-ignore
   TwoPassDoubleSide,
+  Uniform,
+  UniformsUtils,
   Vector3,
   Vector4,
-  Group,
-  Uniform,
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
@@ -40,8 +40,8 @@ import { AtlasTexture } from "./textures";
 export * from "./block";
 export * from "./loader";
 export * from "./registry";
-export * from "./textures";
 export * from "./shaders";
+export * from "./textures";
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -166,6 +166,8 @@ export type WorldServerParams = {
   airDrag: number;
   fluidDrag: number;
   fluidDensity: number;
+
+  ticksPerDay: number;
 };
 
 export type WorldParams = WorldClientParams & WorldServerParams;
@@ -365,6 +367,8 @@ export class World extends Scene implements NetIntercept {
   private initJSON: any = null;
 
   private inViewAngle = 0;
+
+  private timeTick = 0;
 
   private _renderRadius = 0;
 
@@ -1320,7 +1324,9 @@ export class World extends Scene implements NetIntercept {
       );
     }
 
-    const { blocks, params } = this.initJSON;
+    const { blocks, params, stats } = this.initJSON;
+
+    this.timeTick = stats.timeTick;
 
     // Loading the registry
     Object.keys(blocks).forEach((name) => {
@@ -1411,6 +1417,11 @@ export class World extends Scene implements NetIntercept {
         const { json } = message;
 
         this.initJSON = json;
+
+        break;
+      }
+      case "STATS": {
+        const { json } = message;
 
         break;
       }

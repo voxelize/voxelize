@@ -1,16 +1,16 @@
 use std::time::SystemTime;
 
-use specs::{System, WriteExpect};
+use specs::{ReadExpect, System, WriteExpect};
 
-use crate::world::stats::Stats;
+use crate::{world::stats::Stats, WorldConfig};
 
 pub struct UpdateStatsSystem;
 
 impl<'a> System<'a> for UpdateStatsSystem {
-    type SystemData = (WriteExpect<'a, Stats>,);
+    type SystemData = (ReadExpect<'a, WorldConfig>, WriteExpect<'a, Stats>);
 
     fn run(&mut self, data: Self::SystemData) {
-        let (mut stats,) = data;
+        let (config, mut stats) = data;
 
         let now = SystemTime::now();
 
@@ -24,5 +24,7 @@ impl<'a> System<'a> for UpdateStatsSystem {
         stats.prev_time = now;
 
         stats.tick += 1;
+
+        stats.time_tick = (stats.time_tick + 1) % config.ticks_per_day;
     }
 }

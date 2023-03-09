@@ -1,4 +1,18 @@
-use std::time::{Duration, Instant, SystemTime};
+use std::{
+    fs,
+    io::Write,
+    path::PathBuf,
+    time::{Duration, Instant, SystemTime},
+};
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsJson {
+    pub tick: u64,
+    pub time_tick: u64,
+}
 
 /// A general statistical manager of Voxelize.
 pub struct Stats {
@@ -11,23 +25,54 @@ pub struct Stats {
     /// Tick of the game
     pub tick: u64,
 
+    /// A number between 0 to config.ticks_per_day
+    pub time_tick: u64,
+
     /// The time of the last tick.
     pub prev_time: SystemTime,
+
+    path: PathBuf,
+
+    saving: bool,
 }
 
 impl Stats {
     /// Create a new statistics instance.
-    pub fn new() -> Self {
+    pub fn new(saving: bool, directory: &str) -> Self {
+        let mut path = PathBuf::from(&directory);
+        path.push("stats.json");
+
         Self {
             delta: 0.0,
             tick: 0,
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
+            time_tick: 0,
+            path,
+            saving,
         }
     }
 
     /// Get how long this server has been running.
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
+    }
+
+    pub fn get_stats(&self) -> StatsJson {
+        StatsJson {
+            tick: self.tick,
+            time_tick: self.time_tick,
+        }
+    }
+
+    pub fn save(&self) {
+        if !self.saving {
+            return;
+        }
+
+        let mut file = fs::File::create(&self.path).expect("Unable to create stats file...");
+        let j = serde_json::to_string(&self.get_stats()).unwrap();
+        file.write_all(j.as_bytes())
+            .expect("Unable to write stats file.");
     }
 }

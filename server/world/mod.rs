@@ -156,17 +156,23 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
-        .with(EntitiesSavingSystem, "entities-saving", &["entities-meta"])
+        .with(DataSavingSystem, "entities-saving", &["entities-meta"])
         .with(
             EntitiesSendingSystem,
             "entities-sending",
             &["entities-meta"],
         )
+        .with(StatsSendingSystem, "stats-sending", &[])
         .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
         .with(
             BroadcastSystem,
             "broadcast",
-            &["entities-sending", "peers-sending"],
+            &[
+                "stats-sending",
+                "chunk-sending",
+                "entities-sending",
+                "peers-sending",
+            ],
         )
         .with(
             CleanupSystem,
@@ -240,13 +246,13 @@ impl World {
 
         ecs.insert(Chunks::new(config));
         ecs.insert(EntitiesSaver::new(config.saving, &config.save_dir));
+        ecs.insert(Stats::new(config.saving, &config.save_dir));
         ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
         ecs.insert(MessageQueue::new());
-        ecs.insert(Stats::new());
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
         ecs.insert(Transports::new());
@@ -1033,6 +1039,10 @@ impl World {
         json.insert("id".to_owned(), json!(id));
         json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
         json.insert("params".to_owned(), json!(config));
+        json.insert(
+            "stats".to_owned(),
+            json!(self.read_resource::<Stats>().get_stats()),
+        );
 
         /* ------------------------ Loading other the clients ----------------------- */
         let ids = self.read_component::<IDComp>();

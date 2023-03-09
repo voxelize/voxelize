@@ -79,7 +79,8 @@ export type MessageProtocol<
     | "CHAT"
     | "TRANSPORT"
     | "EVENT"
-    | "ACTION";
+    | "ACTION"
+    | "STATS";
   json?: T;
   text?: string;
 
