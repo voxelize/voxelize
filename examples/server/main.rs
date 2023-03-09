@@ -4,7 +4,10 @@ use specs::{Component, NullStorage};
 use voxelize::{
     ChunkStage, FlatlandStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig,
 };
-use world::{main::setup_main_world, terrain::world::setup_terrain_world, test::setup_test_world};
+use world::{
+    flat::setup_flat_world, main::setup_main_world, terrain::setup_terrain_world,
+    test::setup_test_world,
+};
 
 mod registry;
 mod world;
@@ -52,11 +55,13 @@ impl ChunkStage for LimitedStage {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let registry = setup_registry();
+
     let mut server = Server::new()
         .port(4000)
         .secret("test")
         // .serve("./examples/client/build")
-        .registry(&setup_registry())
+        .registry(&registry)
         .build();
 
     server
@@ -70,6 +75,10 @@ async fn main() -> std::io::Result<()> {
     server
         .add_world(setup_terrain_world())
         .expect("Could not create terrain world.");
+
+    server
+        .add_world(setup_flat_world(&registry))
+        .expect("Could not create flat world.");
 
     server.set_action_handle("create_world", |value, server| {
         info!("World creating...");

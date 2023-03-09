@@ -556,7 +556,7 @@ const start = async () => {
   animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
-  await network.join("main");
+  await network.join("flat");
   await world.init();
   await setupWorld(world);
 

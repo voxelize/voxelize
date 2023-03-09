@@ -244,7 +244,7 @@ impl World {
         ecs.insert(config.clone());
 
         ecs.insert(Chunks::new(config));
-        ecs.insert(Entities::new(config.saving, &config.save_dir));
+        ecs.insert(EntitiesSaver::new(config.saving, &config.save_dir));
         ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());
@@ -523,16 +523,6 @@ impl World {
     /// Access a mutable clients map in the ECS world.
     pub fn clients_mut(&mut self) -> FetchMut<Clients> {
         self.write_resource::<Clients>()
-    }
-
-    /// Access all entities metadata save-load manager.
-    pub fn entities(&self) -> Fetch<Entities> {
-        self.read_resource::<Entities>()
-    }
-
-    /// Access a mutable entities metadata save-load manager.
-    pub fn entities_mut(&mut self) -> FetchMut<Entities> {
-        self.write_resource::<Entities>()
     }
 
     /// Access the registry in the ECS world.
@@ -1009,7 +999,7 @@ impl World {
         if self.config().saving {
             // TODO: THIS FEELS HACKY
 
-            let paths = fs::read_dir(self.entities().folder.clone()).unwrap();
+            let paths = fs::read_dir(self.read_resource::<EntitiesSaver>().folder.clone()).unwrap();
             let mut loaded_entities = vec![];
 
             for path in paths {

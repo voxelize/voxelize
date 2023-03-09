@@ -1,23 +1,21 @@
 use hashbrown::HashMap;
 use serde_json::json;
-use specs::{Builder, Entity, EntityBuilder, World as ECSWorld, WorldExt};
+use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use crate::{ETypeComp, IDComp, MetadataComp, PositionComp, RigidBodyComp, World};
+use crate::{ETypeComp, IDComp, MetadataComp, PositionComp, RigidBodyComp};
 
 /// Takes all the metadata components, and saves them into the
 /// world saving directory by their ID's.
 #[derive(Clone)]
-pub struct Entities {
+pub struct EntitiesSaver {
     pub folder: PathBuf,
-    // pub loaders:
-    //     HashMap<String, Arc<dyn Fn(String, String, MetadataComp, &mut World) -> EntityBuilder>>,
+    pub saving: bool,
 }
 
-impl Entities {
+impl EntitiesSaver {
     pub fn new(saving: bool, directory: &str) -> Self {
         let mut folder = PathBuf::from(&directory);
         folder.push("entities");
@@ -26,10 +24,14 @@ impl Entities {
             fs::create_dir_all(&folder).expect("Unable to create entities directory...");
         }
 
-        Self { folder }
+        Self { saving, folder }
     }
 
     pub fn save(&self, id: &IDComp, etype: &ETypeComp, metadata: &MetadataComp) {
+        if !self.saving {
+            return;
+        }
+
         let mut map = HashMap::new();
         map.insert("etype".to_owned(), json!(etype.0.to_lowercase()));
         map.insert("metadata".to_owned(), json!(metadata));
@@ -39,6 +41,16 @@ impl Entities {
         let j = serde_json::to_string(&json!(map)).unwrap();
         file.write_all(j.as_bytes())
             .expect("Unable to write entity file.");
+    }
+
+    pub fn remove(&self, id: &IDComp) {
+        if !self.saving {
+            return;
+        }
+
+        let mut path = self.folder.clone();
+        path.push(format!("{}.json", id.0));
+        fs::remove_file(&path).expect("Unable to remove entity file.");
     }
 }
 

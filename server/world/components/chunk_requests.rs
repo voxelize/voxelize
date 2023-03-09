@@ -1,4 +1,3 @@
-use hashbrown::HashSet;
 use specs::{Component, VecStorage};
 
 use crate::Vec2;

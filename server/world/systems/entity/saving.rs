@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{ETypeComp, Entities, IDComp, MetadataComp, Stats, WorldConfig};
+use crate::{ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig};
 
 pub struct EntitiesSavingSystem;
 
@@ -10,7 +10,7 @@ impl<'a> System<'a> for EntitiesSavingSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         ReadExpect<'a, WorldConfig>,
-        ReadExpect<'a, Entities>,
+        ReadExpect<'a, EntitiesSaver>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
         WriteStorage<'a, MetadataComp>,
@@ -20,7 +20,7 @@ impl<'a> System<'a> for EntitiesSavingSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, config, entities, ids, etypes, mut metadatas) = data;
+        let (stats, config, entities_saver, ids, etypes, mut metadatas) = data;
 
         if !config.saving {
             return;
@@ -30,12 +30,12 @@ impl<'a> System<'a> for EntitiesSavingSystem {
             return;
         }
 
-        let entities = Arc::new(entities);
+        let entities_saver = Arc::new(entities_saver);
 
         (&ids, &etypes, &mut metadatas)
             .par_join()
             .for_each(|(id, etype, metadata)| {
-                entities.save(id, etype, metadata);
+                entities_saver.save(id, etype, metadata);
             });
     }
 }

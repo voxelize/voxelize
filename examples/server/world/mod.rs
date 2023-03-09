@@ -1,3 +1,4 @@
+pub mod flat;
 pub mod main;
 pub mod terrain;
 pub mod test;
