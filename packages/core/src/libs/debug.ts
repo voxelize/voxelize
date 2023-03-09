@@ -324,6 +324,7 @@ export class Debug extends Group {
         bottom: "unset",
         left: "unset",
         zIndex: "1000000000000",
+        marginTop: "13.333px",
       });
     }
   };
@@ -334,6 +335,7 @@ export class Debug extends Group {
   private setup = () => {
     if (this.params.showVoxelize) {
       this.displayTitle(`Voxelize ${"__buildVersion__"}`);
+      this.displayNewline();
     }
   };
 
