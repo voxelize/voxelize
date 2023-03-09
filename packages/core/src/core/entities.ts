@@ -83,7 +83,6 @@ export class Entities extends Group implements NetIntercept {
         switch (operation) {
           case "CREATE": {
             if (object) {
-              console.warn(`Entity ${id} already exists.`);
               return;
             }
 

@@ -55,7 +55,7 @@ class Box extends VOXELIZE.Entity<{
   };
 
   onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
-    this.position.lerp(new THREE.Vector3(...data.position), 0.8);
+    this.position.set(...data.position);
   };
 }
 
@@ -497,6 +497,8 @@ const start = async () => {
     //     setTimeout(() => (loading.style.display = "none"), loadingFade);
     //   }
     // }
+
+    network.sync();
 
     if (world.initialized) {
       peers.update();

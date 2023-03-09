@@ -995,7 +995,7 @@ impl World {
             // TODO: THIS FEELS HACKY
 
             let paths = fs::read_dir(self.read_resource::<EntitiesSaver>().folder.clone()).unwrap();
-            let mut loaded_entities = vec![];
+            let mut loaded_entities = HashMap::new();
 
             for path in paths {
                 let path = path.unwrap().path();
@@ -1013,15 +1013,15 @@ impl World {
                             |_| panic!("Metadata filed does not exist on file: {:?}", path),
                         );
 
-                    if self.revive_entity(&id, &etype, metadata).is_some() {
-                        loaded_entities.push(id.to_owned());
+                    if let Some(ent) = self.revive_entity(&id, &etype, metadata) {
+                        loaded_entities.insert(id.to_owned(), ent);
                     }
                 }
             }
 
             if !loaded_entities.is_empty() {
                 let mut bookkeeping = self.write_resource::<Bookkeeping>();
-                bookkeeping.overwrite_entity_ids(&loaded_entities);
+                bookkeeping.entities = loaded_entities;
             }
         }
     }

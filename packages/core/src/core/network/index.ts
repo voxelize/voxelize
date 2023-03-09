@@ -172,6 +172,8 @@ export class Network {
    */
   private joinReject: (reason: string) => void = null;
 
+  private packetQueue: any[] = [];
+
   /**
    * Create a new network instance.
    */
@@ -248,9 +250,7 @@ export class Network {
       };
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
-        this.decode(new Uint8Array(data)).then((data) => {
-          this.onMessage(data);
-        });
+        this.packetQueue.push(new Uint8Array(data));
       };
       ws.onclose = () => {
         this.connected = false;
@@ -329,6 +329,20 @@ export class Network {
         data,
       },
     });
+  };
+
+  sync = () => {
+    if (!this.packetQueue.length) {
+      return;
+    }
+
+    this.decode(this.packetQueue.splice(0, this.packetQueue.length)).then(
+      (messages) => {
+        messages.forEach((message) => {
+          this.onMessage(message);
+        });
+      }
+    );
   };
 
   /**
@@ -497,11 +511,11 @@ export class Network {
   /**
    * Decode a message asynchronously by giving it to the web worker pool.
    */
-  private decode = async (data: Uint8Array) => {
+  private decode = async (data: Uint8Array[]) => {
     return new Promise<any>((resolve) => {
       this.pool.addJob({
         message: data,
-        buffers: [data.buffer],
+        buffers: data.map((d) => d.buffer),
         resolve,
       });
     });

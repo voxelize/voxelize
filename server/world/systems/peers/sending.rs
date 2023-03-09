@@ -9,7 +9,6 @@ pub struct PeersSendingSystem;
 
 impl<'a> System<'a> for PeersSendingSystem {
     type SystemData = (
-        ReadExpect<'a, Stats>,
         ReadExpect<'a, Clients>,
         WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, ClientFlag>,
@@ -21,9 +20,9 @@ impl<'a> System<'a> for PeersSendingSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (stats, clients, mut queue, flag, ids, names, mut metadatas) = data;
+        let (clients, mut queue, flag, ids, names, mut metadatas) = data;
 
-        if stats.tick % 2 == 0 || clients.len() <= 1 {
+        if clients.len() <= 1 {
             return;
         }
 
