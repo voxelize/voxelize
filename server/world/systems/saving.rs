@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
-use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{
-    ClientFilter, ETypeComp, EntitiesSaver, IDComp, Message, MessageQueue, MessageType,
-    MetadataComp, Stats, WorldConfig,
-};
+use crate::{ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig};
 
 pub struct DataSavingSystem;
 
@@ -14,7 +11,6 @@ impl<'a> System<'a> for DataSavingSystem {
         ReadExpect<'a, Stats>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, EntitiesSaver>,
-        WriteExpect<'a, MessageQueue>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
         WriteStorage<'a, MetadataComp>,
@@ -24,7 +20,7 @@ impl<'a> System<'a> for DataSavingSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, config, entities_saver, mut queue, ids, etypes, mut metadatas) = data;
+        let (stats, config, entities_saver, ids, etypes, mut metadatas) = data;
 
         if !config.saving {
             return;

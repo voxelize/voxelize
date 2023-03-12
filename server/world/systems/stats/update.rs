@@ -25,6 +25,8 @@ impl<'a> System<'a> for UpdateStatsSystem {
 
         stats.tick += 1;
 
-        stats.time_tick = (stats.time_tick + 1) % config.ticks_per_day;
+        if config.ticks_per_day > 0 {
+            stats.time = (stats.time + stats.delta) % (config.ticks_per_day as f32);
+        }
     }
 }

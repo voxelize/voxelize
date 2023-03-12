@@ -18,6 +18,7 @@ import {
   ShaderLib,
   ShaderMaterial,
   Texture,
+  MathUtils as ThreeMathUtils,
   // @ts-ignore
   TwoPassDoubleSide,
   Uniform,
@@ -26,6 +27,8 @@ import {
   Vector4,
 } from "three";
 
+import { Clouds, CloudsParams } from "../../libs/clouds";
+import { Sky, SkyParams } from "../../libs/sky";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 
@@ -83,6 +86,12 @@ export type WorldClientParams = {
    */
   minBrightness: number;
 
+  sunlightStartTickFrac: number;
+
+  sunlightEndTickFrac: number;
+
+  sunlightChangeSpan: number;
+
   /**
    * The ticks until a chunk should be re-requested to the server. Defaults to `300` ticks.
    */
@@ -101,6 +110,10 @@ export type WorldClientParams = {
   inViewRadius: number;
 
   inViewPower: number;
+
+  skyParams: Partial<SkyParams>;
+
+  cloudsParams: Partial<CloudsParams>;
 };
 
 const defaultParams: WorldClientParams = {
@@ -108,12 +121,17 @@ const defaultParams: WorldClientParams = {
   maxProcessesPerTick: 20,
   maxUpdatesPerTick: 1000,
   minBrightness: 0.04,
+  sunlightStartTickFrac: 0.25,
+  sunlightEndTickFrac: 0.7,
+  sunlightChangeSpan: 0.1,
   generateMeshes: true,
   rerequestTicks: 300,
   defaultRenderRadius: 8,
   textureDimension: 8,
   inViewRadius: 2,
   inViewPower: 8,
+  skyParams: {},
+  cloudsParams: {},
 };
 
 /**
@@ -235,6 +253,10 @@ export class World extends Scene implements NetIntercept {
    * The voxel physics engine using `@voxelize/physics-engine`.
    */
   public physics: PhysicsEngine;
+
+  public sky: Sky;
+
+  public clouds: Clouds;
 
   /**
    * Whether or not this world is connected to the server and initialized with server data.
@@ -368,7 +390,7 @@ export class World extends Scene implements NetIntercept {
 
   private inViewAngle = 0;
 
-  private timeTick = 0;
+  private _time = 0;
 
   private _renderRadius = 0;
 
@@ -383,12 +405,17 @@ export class World extends Scene implements NetIntercept {
 
     this.setupPhysics();
 
-    const { minBrightness } =
+    const { minBrightness, skyParams, cloudsParams } =
       // @ts-ignore
       (this.params = {
         ...defaultParams,
         ...params,
       });
+
+    this.sky = new Sky(skyParams);
+    this.clouds = new Clouds(cloudsParams);
+
+    this.add(this.sky, this.clouds);
 
     this.uniforms.minBrightness.value = minBrightness;
   }
@@ -1326,7 +1353,7 @@ export class World extends Scene implements NetIntercept {
 
     const { blocks, params, stats } = this.initJSON;
 
-    this.timeTick = stats.timeTick;
+    this.time = stats.time;
 
     // Loading the registry
     Object.keys(blocks).forEach((name) => {
@@ -1374,6 +1401,8 @@ export class World extends Scene implements NetIntercept {
 
     await this.loadMaterials();
 
+    this.initSkyAndClouds();
+
     this.initialized = true;
 
     this.renderRadius = this.params.defaultRenderRadius;
@@ -1394,12 +1423,15 @@ export class World extends Scene implements NetIntercept {
       this.params.chunkSize
     );
 
+    this._time = (this.time + delta) % this.params.ticksPerDay;
+
     this.maintainChunks(center, direction);
     this.requestChunks(center, direction);
     this.processChunks(center);
 
     this.updatePhysics(delta);
     this.updateUniforms();
+    this.updateSkyAndClouds(position);
 
     this.emitServerUpdates();
   }
@@ -1422,6 +1454,8 @@ export class World extends Scene implements NetIntercept {
       }
       case "STATS": {
         const { json } = message;
+
+        // console.log(json.time, this.time);
 
         break;
       }
@@ -1461,6 +1495,14 @@ export class World extends Scene implements NetIntercept {
         break;
       }
     }
+  }
+
+  get time() {
+    return this._time;
+  }
+
+  private set time(time: number) {
+    this._time = time;
   }
 
   get renderRadius() {
@@ -1775,6 +1817,60 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
+  public updateSkyAndClouds(position: Vector3, timeOverride?: number) {
+    const time = timeOverride !== undefined ? timeOverride : this.time;
+
+    this.sky.update(position, time);
+    this.clouds.update(position);
+
+    // Update the sunlight intensity
+    const {
+      sunlightStartTickFrac,
+      sunlightEndTickFrac,
+      sunlightChangeSpan,
+      ticksPerDay,
+      minBrightness,
+    } = this.params;
+    const sunlightStartTick = Math.floor(sunlightStartTickFrac * ticksPerDay);
+    const sunlightEndTick = Math.floor(sunlightEndTickFrac * ticksPerDay);
+    const sunlightChangeSpanTicks = Math.floor(
+      sunlightChangeSpan * ticksPerDay
+    );
+
+    let sunlightIntensity = this.uniforms.sunlightIntensity.value;
+
+    if (
+      time >= sunlightStartTick &&
+      time <= sunlightChangeSpanTicks + sunlightStartTick
+    ) {
+      sunlightIntensity = Math.max(
+        minBrightness,
+        (time - sunlightStartTick) / sunlightChangeSpanTicks
+      );
+    } else if (
+      time >= sunlightEndTick &&
+      time <= sunlightChangeSpanTicks + sunlightEndTick
+    ) {
+      sunlightIntensity = Math.max(
+        minBrightness,
+        1 - (time - sunlightEndTick) / sunlightChangeSpanTicks
+      );
+    }
+
+    this.uniforms.sunlightIntensity.value = sunlightIntensity;
+
+    // Update the clouds' colors based on the sky's colors.
+    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
+    const cloudColorHSL = cloudColor.getHSL({});
+    cloudColor.setHSL(
+      cloudColorHSL.h,
+      cloudColorHSL.s,
+      ThreeMathUtils.clamp(sunlightIntensity, 0, 1)
+    );
+
+    this.uniforms.fogColor.value?.copy(this.sky.uMiddleColor.value);
+  }
+
   /**
    * Update the uniform values.
    */
@@ -2015,6 +2111,29 @@ export class World extends Scene implements NetIntercept {
 
         this.materialStore.set(key, mat);
       }
+    }
+  }
+
+  private initSkyAndClouds() {
+    this.params.ticksPerDay = 50;
+    this.sky.ticksPerDay = this.params.ticksPerDay;
+
+    Object.keys(this.sky.shadingData).forEach((key) => {
+      const keyNum = parseFloat(key);
+      const data = this.sky.shadingData[keyNum];
+
+      delete this.sky.shadingData[keyNum];
+      this.sky.shadingData[Math.floor(keyNum * this.params.ticksPerDay)] = data;
+    });
+
+    const temp = new Vector3();
+
+    for (let i = this.time; i < this.params.ticksPerDay; i += 1 / 60) {
+      this.updateSkyAndClouds(temp, i);
+    }
+
+    for (let i = 0; i < this.time; i += 1 / 60) {
+      this.updateSkyAndClouds(temp, i);
     }
   }
 

@@ -77,15 +77,90 @@ inputs.on("namespace", (namespace) => {
 });
 inputs.setNamespace("menu");
 
-const sky = new VOXELIZE.Sky(2000);
-sky.paint("top", VOXELIZE.artFunctions.drawSun);
-world.add(sky);
-
-const clouds = new VOXELIZE.Clouds({
-  uFogColor: sky.uMiddleColor,
+(
+  [
+    [
+      0,
+      {
+        color: {
+          top: new THREE.Color("#000"),
+          middle: new THREE.Color("#000"),
+          bottom: new THREE.Color("#000"),
+        },
+        skyOffset: 0.1,
+        voidOffset: 0.6,
+      },
+    ],
+    // start of sunrise
+    [
+      0.2,
+      {
+        color: {
+          top: new THREE.Color("#7694CF"),
+          middle: new THREE.Color("#B0483A"),
+          bottom: new THREE.Color("#222"),
+        },
+        skyOffset: 0.05,
+        voidOffset: 0.6,
+      },
+    ],
+    // end of sunrise
+    [
+      0.25,
+      {
+        color: {
+          top: new THREE.Color("#73A3FB"),
+          middle: new THREE.Color("#B1CCFD"),
+          bottom: new THREE.Color("#222"),
+        },
+        skyOffset: 0,
+        voidOffset: 0.6,
+      },
+    ],
+    // start of sunset
+    [
+      0.7,
+      {
+        color: {
+          top: new THREE.Color("#A57A59"),
+          middle: new THREE.Color("#FC5935"),
+          bottom: new THREE.Color("#222"),
+        },
+        skyOffset: 0.05,
+        voidOffset: 0.6,
+      },
+    ],
+    // end of sunset
+    [
+      0.75,
+      {
+        color: {
+          top: new THREE.Color("#000"),
+          middle: new THREE.Color("#000"),
+          bottom: new THREE.Color("#000"),
+        },
+        skyOffset: 0.1,
+        voidOffset: 0.6,
+      },
+    ],
+  ] as [number, VOXELIZE.SkyShadingData][]
+).forEach(([time, skyData]) => {
+  world.sky.registerShadingData(time, skyData);
 });
 
-world.add(clouds);
+world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
+world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
+world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
+
+// const sky = new VOXELIZE.Sky(2000);
+// sky.paint("top", VOXELIZE.artFunctions.drawSun);
+// world.add(sky);
+
+// const clouds = new VOXELIZE.Clouds({
+//   uFogColor: sky.uMiddleColor,
+// });
+
+// world.add(clouds);
 // world.setFogColor(sky.getMiddleColor());
 
 const camera = new THREE.PerspectiveCamera(
@@ -337,6 +412,10 @@ inputs.bind("j", debug.toggle, "*");
 
 debug.registerDisplay("Position", controls, "voxel");
 
+debug.registerDisplay("Time tick", () => {
+  return world.time.toFixed(2);
+});
+
 debug.registerDisplay("Sunlight", () => {
   return world.getSunlightAt(...controls.voxel);
 });
@@ -532,8 +611,8 @@ const start = async () => {
 
       world.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
-      clouds.update(controls.object.position);
-      sky.update(controls.object.position);
+      // clouds.update(controls.object.position);
+      // sky.update(controls.object.position);
       world.update(
         controls.object.position,
         camera.getWorldDirection(new THREE.Vector3())
@@ -564,6 +643,7 @@ const start = async () => {
 
   world.renderRadius = 8;
   gui.add(world, "renderRadius", 3, 20, 1);
+  gui.add(world, "time", 0, world.params.ticksPerDay, 0.01);
   gui.add(map, "dimension", 1, 10, 0.1);
   gui.add(voxelInteract.params, "ignoreFluids");
 
@@ -577,11 +657,11 @@ const start = async () => {
   });
   document.body.appendChild(bar.element);
 
-  debug.registerDisplay("Active Voxels", async () => {
-    const data = await fetch(`${BACKEND_SERVER}info`);
-    const json = await data.json();
-    return json.worlds.terrain.chunks.active_voxels;
-  });
+  // debug.registerDisplay("Active Voxels", async () => {
+  //   const data = await fetch(`${BACKEND_SERVER}info`);
+  //   const json = await data.json();
+  //   return json.worlds.terrain.chunks.active_voxels;
+  // });
 
   debug.registerDisplay("Holding", () => {
     const slot = bar.getFocused();
