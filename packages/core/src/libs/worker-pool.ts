@@ -107,7 +107,9 @@ export class WorkerPool {
       const workerCallback = ({ data }: any) => {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
+        worker.terminate();
         this.available.push(index);
+        this.workers[index] = new this.Proto();
         resolve(data);
         requestAnimationFrame(this.process);
       };
