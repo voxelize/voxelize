@@ -29,6 +29,10 @@ const createCharacter = () => {
 };
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
+
+const currentWorldName =
+  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
   BACKEND_SERVER_INSTANCE.port = "4000";
@@ -558,11 +562,19 @@ const start = async () => {
   animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
-  await network.join("flat");
+  await network.join(currentWorldName);
   await world.init();
   await setupWorld(world);
 
   world.renderRadius = 8;
+
+  gui
+    .add({ world: currentWorldName }, "world", ["terrain", "main", "flat"])
+    .onChange((worldName: string) => {
+      localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
+      window.location.reload();
+    });
+
   gui.add(world, "renderRadius", 3, 20, 1);
   gui.add(map, "dimension", 1, 10, 0.1);
   gui.add(voxelInteract.params, "ignoreFluids");

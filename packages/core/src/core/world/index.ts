@@ -105,7 +105,7 @@ export type WorldClientParams = {
 
 const defaultParams: WorldClientParams = {
   maxRequestsPerTick: 1200,
-  maxProcessesPerTick: 20,
+  maxProcessesPerTick: 1200,
   maxUpdatesPerTick: 1000,
   minBrightness: 0.04,
   generateMeshes: true,
