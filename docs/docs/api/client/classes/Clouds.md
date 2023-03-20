@@ -41,9 +41,9 @@ Group.constructor
 
 ## Properties
 
-### initialized
+### isInitialized
 
-• **initialized**: `boolean` = `false`
+• **isInitialized**: `boolean` = `false`
 
 Whether or not are the clouds done generating.
 

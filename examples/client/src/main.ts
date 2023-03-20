@@ -29,6 +29,10 @@ const createCharacter = () => {
 };
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
+
+const currentWorldName =
+  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
 
 if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
   BACKEND_SERVER_INSTANCE.port = "4000";
@@ -62,7 +66,7 @@ class Box extends VOXELIZE.Entity<{
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
-  textureDimension: 16,
+  textureUnitDimension: 16,
 });
 
 const chat = new VOXELIZE.Chat();
@@ -494,10 +498,10 @@ inputs.bind("b", () => {
 
 // Create a test for atlas
 // setTimeout(() => {
-//   let i = -Math.floor(world.materialStore.size / 2);
+//   let i = -Math.floor(world.chunkmaterials.size / 2);
 //   const width = 2;
 
-//   for (const mat of world.materialStore.values()) {
+//   for (const mat of world.chunkmaterials.values()) {
 //     const plane = new THREE.Mesh(
 //       new THREE.PlaneGeometry(width, width),
 //       new THREE.MeshBasicMaterial({
@@ -579,7 +583,7 @@ const start = async () => {
 
     network.sync();
 
-    if (world.initialized) {
+    if (world.isInitialized) {
       peers.update();
       controls.update();
 
@@ -597,19 +601,19 @@ const start = async () => {
         ? new THREE.Color("#5F9DF7")
         : new THREE.Color("#B1CCFD");
 
-      world.uniforms.fogNear.value = THREE.MathUtils.lerp(
-        world.uniforms.fogNear.value,
+      world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+        world.chunks.uniforms.fogNear.value,
         fogNear,
         0.08
       );
 
-      world.uniforms.fogFar.value = THREE.MathUtils.lerp(
-        world.uniforms.fogFar.value,
+      world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+        world.chunks.uniforms.fogFar.value,
         fogFar,
         0.08
       );
 
-      world.uniforms.fogColor.value.lerp(fogColor, 0.08);
+      world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
       // clouds.update(controls.object.position);
       // sky.update(controls.object.position);
@@ -637,11 +641,19 @@ const start = async () => {
   animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
-  await network.join("flat");
-  await world.init();
+  await network.join(currentWorldName);
+  await world.initialize();
   await setupWorld(world);
 
   world.renderRadius = 8;
+
+  gui
+    .add({ world: currentWorldName }, "world", ["terrain", "main", "flat"])
+    .onChange((worldName: string) => {
+      localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
+      window.location.reload();
+    });
+
   gui.add(world, "renderRadius", 3, 20, 1);
   gui.add(world, "time", 0, world.params.ticksPerDay, 0.01);
   gui.add(map, "dimension", 1, 10, 0.1);

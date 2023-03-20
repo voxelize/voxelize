@@ -60,7 +60,7 @@ uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
 uniform float uSunlightIntensity;
-uniform float uMinBrightness;
+uniform float uminLightLevel;
 uniform float uTime;
 varying float vAO;
 varying vec4 vLight; 
@@ -75,7 +75,7 @@ varying vec4 vWorldPosition;
 #include <envmap_fragment>
 
 // Intensity of light is wavelength ** 2 
-float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinBrightness) + uMinBrightness, 1.0);
+float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uminLightLevel) + uminLightLevel, 1.0);
 float scale = 2.0;
 
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));

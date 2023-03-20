@@ -52,7 +52,7 @@ ___
 
 A list of ChunkProtocol objects that are received from the server and are waiting to be
 loaded into meshes within the world and actual chunk instances. This list empties out at the rate
-defined at [WorldClientParams.maxProcessesPerTick](../modules.md#worldclientparams-114).
+defined at [WorldClientParams.maxProcessesPerUpdate](../modules.md#worldclientparams-114).
 
 ___
 
@@ -61,7 +61,7 @@ ___
 • **toRequest**: `string`[] = `[]`
 
 A list of chunk representations ready to be sent to the server to be loaded. The rate at which
-this list is taken out can be configured at [WorldClientParams.maxRequestsPerTick](../modules.md#worldclientparams-114). Items of
+this list is taken out can be configured at [WorldClientParams.maxChunkRequestsPerUpdate](../modules.md#worldclientparams-114). Items of
 this list will be taken out whenever the server responds with any corresponding chunks.
 
 ___
@@ -71,4 +71,4 @@ ___
 • **toUpdate**: [`BlockUpdate`](../modules.md#blockupdate-114)[] = `[]`
 
 A list of [BlockUpdate](../modules.md#blockupdate-114) objects that awaits to be sent to the server to make actual voxel
-updates. This list empties out at the rate defined at [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-114).
+updates. This list empties out at the rate defined at [WorldClientParams.maxUpdatesPerUpdate](../modules.md#worldclientparams-114).

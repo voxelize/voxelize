@@ -361,9 +361,9 @@ ___
 
 ___
 
-### CustomShaderMaterial
+### CustomChunkShaderMaterial
 
-Ƭ **CustomShaderMaterial**: `ShaderMaterial` & { `map`: `Texture`  }
+Ƭ **CustomChunkShaderMaterial**: `ShaderMaterial` & { `map`: `Texture`  }
 
 Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
 if you want to change its map, you also have to change its `uniforms.map`.
@@ -838,15 +838,15 @@ The client-side parameters to create a world. These are client-side only and can
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `defaultRenderRadius` | `number` | The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks. |
-| `generateMeshes` | `boolean` | Whether or not should the world generate ThreeJS meshes. Defaults to `true`. |
-| `inViewPower` | `number` | - |
+| `shouldGenerateChunkMeshes` | `boolean` | Whether or not should the world generate ThreeJS meshes. Defaults to `true`. |
+| `chunkLoadExponent` | `number` | - |
 | `inViewRadius` | `number` | - |
-| `maxProcessesPerTick` | `number` | The maximum amount of chunks received from the server that can be processed per tick. Defaults to `8` chunks. |
-| `maxRequestsPerTick` | `number` | The maximum chunk requests this world can request from the server per tick. Defaults to `4` chunks. |
-| `maxUpdatesPerTick` | `number` | The maximum voxel updates that can be sent to the server. Defaults to `1000` updates. |
-| `minBrightness` | `number` | The minimum brightness of the chunk mesh even at sunlight and torch light level 0. Defaults to `0.04`. |
-| `rerequestTicks` | `number` | The ticks until a chunk should be re-requested to the server. Defaults to `300` ticks. |
-| `textureDimension` | `number` | The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution. |
+| `maxProcessesPerUpdate` | `number` | The maximum amount of chunks received from the server that can be processed per tick. Defaults to `8` chunks. |
+| `maxChunkRequestsPerUpdate` | `number` | The maximum chunk requests this world can request from the server per tick. Defaults to `4` chunks. |
+| `maxUpdatesPerUpdate` | `number` | The maximum voxel updates that can be sent to the server. Defaults to `1000` updates. |
+| `minLightLevel` | `number` | The minimum brightness of the chunk mesh even at sunlight and torch light level 0. Defaults to `0.04`. |
+| `chunkRerequestInterval` | `number` | The ticks until a chunk should be re-requested to the server. Defaults to `300` ticks. |
+| `textureUnitDimension` | `number` | The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution. |
 
 ___
 

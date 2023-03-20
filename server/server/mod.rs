@@ -490,7 +490,7 @@ pub struct Info;
 
 #[derive(ActixMessage)]
 #[rtype(result = "f32")]
-pub struct TimeTick(pub String);
+pub struct Time(pub String);
 
 /// Send message to specific world
 #[derive(ActixMessage)]
@@ -587,10 +587,10 @@ impl Handler<Info> for Server {
     }
 }
 
-impl Handler<TimeTick> for Server {
-    type Result = MessageResult<TimeTick>;
+impl Handler<Time> for Server {
+    type Result = MessageResult<Time>;
 
-    fn handle(&mut self, TimeTick(world_name): TimeTick, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, Time(world_name): Time, _: &mut Context<Self>) -> Self::Result {
         let world = self.worlds.get(&world_name);
 
         if world.is_none() {

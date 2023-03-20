@@ -163,7 +163,7 @@ ___
 
 ### customizeMaterialShaders
 
-▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomShaderMaterial`](../modules.md#customshadermaterial-4)
+▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)
 
 #### Parameters
 
@@ -178,7 +178,7 @@ ___
 
 #### Returns
 
-[`CustomShaderMaterial`](../modules.md#customshadermaterial-4)
+[`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)
 
 ___
 
@@ -371,7 +371,7 @@ ___
 
 ### getMaterial
 
-▸ **getMaterial**(`idOrName`, `faceName?`): [`CustomShaderMaterial`](../modules.md#customshadermaterial-4)
+▸ **getMaterial**(`idOrName`, `faceName?`): [`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)
 
 #### Parameters
 
@@ -382,7 +382,7 @@ ___
 
 #### Returns
 
-[`CustomShaderMaterial`](../modules.md#customshadermaterial-4)
+[`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)
 
 ___
 
@@ -686,7 +686,7 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-4) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-4) times
+[World.chunks.toUpdate](World.md#chunks-4) and scaffolded to the server [WorldClientParams.maxUpdatesPerUpdate](../modules.md#worldclientparams-4) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 - Rotation: [PX_ROTATION](../modules.md#px_rotation-4) | [NX_ROTATION](../modules.md#nx_rotation-4) | [PY_ROTATION](../modules.md#py_rotation-4) | [NY_ROTATION](../modules.md#ny_rotation-4) | [PZ_ROTATION](../modules.md#pz_rotation-4) | [NZ_ROTATION](../modules.md#nz_rotation-4)
 - Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-4) - 1.
@@ -716,7 +716,7 @@ ___
 ▸ **updateVoxels**(`updates`): `void`
 
 This sends a list of block updates to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-4) and scaffolded to the server [WorldClientParams.maxUpdatesPerTick](../modules.md#worldclientparams-4) times
+[World.chunks.toUpdate](World.md#chunks-4) and scaffolded to the server [WorldClientParams.maxUpdatesPerUpdate](../modules.md#worldclientparams-4) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
 - Rotation: [PX_ROTATION](../modules.md#px_rotation-4) | [NX_ROTATION](../modules.md#nx_rotation-4) | [PY_ROTATION](../modules.md#py_rotation-4) | [NY_ROTATION](../modules.md#ny_rotation-4) | [PZ_ROTATION](../modules.md#pz_rotation-4) | [NZ_ROTATION](../modules.md#nz_rotation-4)
@@ -745,11 +745,11 @@ The manager that holds all chunk-related data.
 
 ___
 
-### initialized
+### isInitialized
 
-• **initialized**: `boolean` = `false`
+• **isInitialized**: `boolean` = `false`
 
-Whether or not this world is connected to the server and initialized with server data.
+Whether or not this world is connected to the server and isInitialized with server data.
 
 ___
 
@@ -761,9 +761,9 @@ An asset loader to load in things like textures, images, GIFs and audio buffers.
 
 ___
 
-### materialStore
+### chunkmaterials
 
-• **materialStore**: `Map`<`string`, [`CustomShaderMaterial`](../modules.md#customshadermaterial-4)\>
+• **chunkmaterials**: `Map`<`string`, [`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)\>
 
 A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
 
@@ -811,8 +811,8 @@ The WebGL uniforms that are used in the chunk shader.
 | `fogFar.value` | `number` | The value passed into the chunk shader. |
 | `fogNear` | { `value`: `number`  } | The near distance of the fog. Defaults to `100` units. |
 | `fogNear.value` | `number` | The value passed into the chunk shader. |
-| `minBrightness` | { `value`: `number`  } | The minimum brightness of the world at light level `0`. Defaults to `0.2`. |
-| `minBrightness.value` | `number` | The value passed into the chunk shader. |
+| `minLightLevel` | { `value`: `number`  } | The minimum brightness of the world at light level `0`. Defaults to `0.2`. |
+| `minLightLevel.value` | `number` | The value passed into the chunk shader. |
 | `sunlightIntensity` | { `value`: `number`  } | The sunlight intensity of the world. Changing this to `0` would effectively simulate night time in Voxelize. Defaults to `1.0`. |
 | `sunlightIntensity.value` | `number` | The value passed into the chunk shader. |
 | `time` | { `value`: `number`  } | The time constant `performance.now()` that is used to animate the world. Defaults to `performance.now()`. |
