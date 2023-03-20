@@ -142,9 +142,9 @@ export class Inputs<T extends string = any> extends EventEmitter {
   constructor() {
     super();
 
-    this.initKeyListener();
-    this.initClickListener();
-    this.initScrollListener();
+    this.initializeKeyListeners();
+    this.initializeClickListeners();
+    this.initializeScrollListeners();
   }
 
   /**
@@ -395,7 +395,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * Initialize the keyboard input listeners.
    */
-  private initKeyListener = () => {
+  private initializeKeyListeners = () => {
     // Handle all three types of key events while checking namespace.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
@@ -423,7 +423,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * Initialize the mouse input listeners.
    */
-  private initClickListener = () => {
+  private initializeClickListeners = () => {
     (["left", "middle", "right"] as ClickType[]).forEach((type) =>
       this.clickCallbacks.set(type, new Map())
     );
@@ -451,7 +451,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * Initialize the mouse scroll listeners.
    */
-  private initScrollListener = () => {
+  private initializeScrollListeners = () => {
     const listener = ({ deltaY }: any) => {
       this.scrollCallbacks.forEach(({ up, down, namespace }) => {
         if (this.namespace === namespace || namespace === "*") {

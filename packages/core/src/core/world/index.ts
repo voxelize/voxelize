@@ -23,7 +23,6 @@ import {
   Uniform,
   UniformsUtils,
   Vector3,
-  Vector4,
 } from "three";
 
 import { Coords2, Coords3 } from "../../types";
@@ -105,6 +104,8 @@ export type WorldClientParams = {
    * Defaults to `8`.
    */
   chunkLoadExponent: number;
+
+  chunkUniformsOverwrite: Partial<Chunks["uniforms"]>;
 };
 
 const defaultParams: WorldClientParams = {
@@ -117,6 +118,7 @@ const defaultParams: WorldClientParams = {
   defaultRenderRadius: 8,
   textureUnitDimension: 8,
   chunkLoadExponent: 8,
+  chunkUniformsOverwrite: {},
 };
 
 /**
@@ -173,6 +175,9 @@ export type WorldServerParams = {
   ticksPerDay: number;
 };
 
+/**
+ * The parameters to create a world. This consists of {@link WorldClientParams} and {@link WorldServerParams}.
+ */
 export type WorldParams = WorldClientParams & WorldServerParams;
 
 /**
@@ -220,7 +225,7 @@ export class World extends Scene implements NetIntercept {
   public params: WorldParams;
 
   /**
-   * The block registry that holds all block data.
+   * The block registry that holds all block data, such as texture and block properties.
    */
   public registry: Registry;
 
@@ -240,108 +245,9 @@ export class World extends Scene implements NetIntercept {
   public physics: PhysicsEngine;
 
   /**
-   * Whether or not this world is connected to the server and initialized with server data.
+   * Whether or not this world is connected to the server and isInitialized with data from the server.
    */
-  public initialized = false;
-
-  /**
-   * A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
-   */
-  public materialStore: Map<string, CustomChunkShaderMaterial> = new Map();
-
-  /**
-   * The WebGL uniforms that are used in the chunk shader.
-   */
-  public uniforms: {
-    /**
-     * The fog color that is applied onto afar chunks. It is recommended to set this to the
-     * middle color of the sky. Defaults to a new THREE.JS white color instance.
-     */
-    fogColor: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: Color;
-    };
-    /**
-     * The near distance of the fog. Defaults to `100` units.
-     */
-    fogNear: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: number;
-    };
-    /**
-     * The far distance of the fog. Defaults to `200` units.
-     */
-    fogFar: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: number;
-    };
-    /**
-     * The ambient occlusion levels that are applied onto the chunk meshes. Check out [this article](https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/)
-     * for more information on ambient occlusion for voxel worlds. Defaults to `new Vector4(100.0, 170.0, 210.0, 255.0)`.
-     */
-    ao: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: Vector4;
-    };
-    /**
-     * The minimum brightness of the world at light level `0`. Defaults to `0.2`.
-     */
-    minLightLevel: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: number;
-    };
-    /**
-     * The sunlight intensity of the world. Changing this to `0` would effectively simulate night time
-     * in Voxelize. Defaults to `1.0`.
-     */
-    sunlightIntensity: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: number;
-    };
-    /**
-     * The time constant `performance.now()` that is used to animate the world. Defaults to `performance.now()`.
-     */
-    time: {
-      /**
-       * The value passed into the chunk shader.
-       */
-      value: number;
-    };
-  } = {
-    fogColor: {
-      value: new Color("#B1CCFD"),
-    },
-    fogNear: {
-      value: 100,
-    },
-    fogFar: {
-      value: 200,
-    },
-    ao: {
-      value: new Vector4(100.0, 170.0, 210.0, 255.0),
-    },
-    minLightLevel: {
-      value: 0,
-    },
-    sunlightIntensity: {
-      value: 1,
-    },
-    time: {
-      value: performance.now(),
-    },
-  };
+  public isInitialized = false;
 
   /**
    * The network packets to be sent to the server.
@@ -355,27 +261,34 @@ export class World extends Scene implements NetIntercept {
   private oldBlocks: Map<string, number[]> = new Map();
 
   /**
-   * The internal clock that keeps track of the clock.
+   * The internal clock.
    */
   private clock = new Clock();
 
   /**
    * A map of initialize listeners on chunks.
    */
-  private chunkInitListeners = new Map<string, ((chunk: Chunk) => void)[]>();
+  private chunkInitializeListeners = new Map<
+    string,
+    ((chunk: Chunk) => void)[]
+  >();
 
   /**
-   * The JSON received from the world. Call `init` to initialize.
+   * The JSON data received from the world. Call `initialize` to initialize.
    */
-  private initJSON: any = null;
+  private initialData: any = null;
 
-  private inViewAngle = 0;
-
-  private timeTick = 0;
-
+  /**
+   * The internal render radius in chunks.
+   */
   private _renderRadius = 0;
 
+  /**
+   * The internal delete radius in chunks.
+   */
   private _deleteRadius = 0;
+
+  private _time = 0;
 
   constructor(params: Partial<WorldParams> = {}) {
     super();
@@ -393,7 +306,7 @@ export class World extends Scene implements NetIntercept {
         ...params,
       });
 
-    this.uniforms.minLightLevel.value = minLightLevel;
+    this.chunks.uniforms.minLightLevel.value = minLightLevel;
   }
 
   async applyBlockTexture(
@@ -401,7 +314,7 @@ export class World extends Scene implements NetIntercept {
     faceNames: string | string[],
     source: string | Color | HTMLImageElement | Texture
   ) {
-    this.initCheck("apply block texture", false);
+    this.checkIsInitialized("apply block texture", false);
 
     const block = this.getBlockOf(idOrName);
 
@@ -457,7 +370,7 @@ export class World extends Scene implements NetIntercept {
     keyframes: [number, string | Color | HTMLImageElement][],
     fadeFrames = 0
   ) {
-    this.initCheck("apply block animation", false);
+    this.checkIsInitialized("apply block animation", false);
 
     const block = this.getBlockOf(idOrName);
 
@@ -517,7 +430,7 @@ export class World extends Scene implements NetIntercept {
     source: string,
     interval = 66.6666667
   ) {
-    this.initCheck("apply GIF animation", false);
+    this.checkIsInitialized("apply GIF animation", false);
 
     if (!source.endsWith(".gif")) {
       console.warn(
@@ -539,7 +452,7 @@ export class World extends Scene implements NetIntercept {
     faceNames: string | string[],
     resolution: number
   ) {
-    this.initCheck("apply resolution", false);
+    this.checkIsInitialized("apply resolution", false);
 
     const block = this.getBlockOf(idOrName);
 
@@ -589,7 +502,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The chunk with the given name, or undefined if it does not exist.
    */
   getChunkByName(name: string) {
-    this.initCheck("get chunk by name", false);
+    this.checkIsInitialized("get chunk by name", false);
     return this.chunks.loaded.get(name);
   }
 
@@ -601,7 +514,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The chunk at the given coordinates, or undefined if it does not exist.
    */
   getChunkByCoords(cx: number, cz: number) {
-    this.initCheck("get chunk by coords", false);
+    this.checkIsInitialized("get chunk by coords", false);
     const name = ChunkUtils.getChunkName([cx, cz]);
     return this.getChunkByName(name);
   }
@@ -615,7 +528,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The chunk that contains the position at the given position, or undefined if it does not exist.
    */
   getChunkByPosition(px: number, py: number, pz: number) {
-    this.initCheck("get chunk by position", false);
+    this.checkIsInitialized("get chunk by position", false);
     const coords = ChunkUtils.mapVoxelToChunk(
       [px | 0, py | 0, pz | 0],
       this.params.chunkSize
@@ -632,7 +545,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel at the given position, or 0 if it does not exist.
    */
   getVoxelAt(px: number, py: number, pz: number) {
-    this.initCheck("get voxel", false);
+    this.checkIsInitialized("get voxel", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
     return chunk.getVoxel(px, py, pz);
@@ -647,7 +560,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel rotation at the given position, or the default rotation if it does not exist.
    */
   getVoxelRotationAt(px: number, py: number, pz: number) {
-    this.initCheck("get voxel rotation", false);
+    this.checkIsInitialized("get voxel rotation", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return new BlockRotation();
     return chunk.getVoxelRotation(px, py, pz);
@@ -662,7 +575,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel stage at the given position, or 0 if it does not exist.
    */
   getVoxelStageAt(px: number, py: number, pz: number) {
-    this.initCheck("get voxel stage", false);
+    this.checkIsInitialized("get voxel stage", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
     return chunk.getVoxelStage(px, py, pz);
@@ -677,7 +590,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel sunlight at the given position, or 0 if it does not exist.
    */
   getSunlightAt(px: number, py: number, pz: number) {
-    this.initCheck("get sunlight", false);
+    this.checkIsInitialized("get sunlight", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
     return chunk.getSunlight(px, py, pz);
@@ -693,7 +606,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel torchlight at the given position, or 0 if it does not exist.
    */
   getTorchLightAt(px: number, py: number, pz: number, color: LightColor) {
-    this.initCheck("get torch light", false);
+    this.checkIsInitialized("get torch light", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
     return chunk.getTorchLight(px, py, pz, color);
@@ -711,14 +624,14 @@ export class World extends Scene implements NetIntercept {
    * @returns The voxel's light color at the given coordinate.
    */
   getLightColorAt(vx: number, vy: number, vz: number) {
-    this.initCheck("get light color", false);
+    this.checkIsInitialized("get light color", false);
 
     const sunlight = this.getSunlightAt(vx, vy, vz);
     const redLight = this.getTorchLightAt(vx, vy, vz, "RED");
     const greenLight = this.getTorchLightAt(vx, vy, vz, "GREEN");
     const blueLight = this.getTorchLightAt(vx, vy, vz, "BLUE");
 
-    const { sunlightIntensity, minLightLevel } = this.uniforms;
+    const { sunlightIntensity, minLightLevel } = this.chunks.uniforms;
 
     const s = Math.min(
       (sunlight / this.params.maxLightLevel) ** 2 *
@@ -744,7 +657,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The block at the given position, or null if it does not exist.
    */
   getBlockAt(px: number, py: number, pz: number) {
-    this.initCheck("get block", false);
+    this.checkIsInitialized("get block", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return null;
     const id = chunk.getVoxel(px, py, pz);
@@ -760,7 +673,7 @@ export class World extends Scene implements NetIntercept {
    * @returns The highest block at the given position, or 0 if it does not exist.
    */
   getMaxHeightAt(px: number, pz: number) {
-    this.initCheck("get max height", false);
+    this.checkIsInitialized("get max height", false);
 
     const vx = px | 0;
     const vz = pz | 0;
@@ -873,15 +786,17 @@ export class World extends Scene implements NetIntercept {
   }
 
   getMaterial(idOrName: number | string, faceName?: string) {
-    this.initCheck("get material", false);
+    this.checkIsInitialized("get material", false);
 
     const block = this.getBlockOf(idOrName);
 
     if (faceName && block.independentFaces.has(faceName)) {
-      return this.materialStore.get(this.makeMaterialKey(block.id, faceName));
+      return this.chunks.materials.get(
+        this.makeChunkMaterialKey(block.id, faceName)
+      );
     }
 
-    return this.materialStore.get(this.makeMaterialKey(block.id));
+    return this.chunks.materials.get(this.makeChunkMaterialKey(block.id));
   }
 
   /**
@@ -902,9 +817,9 @@ export class World extends Scene implements NetIntercept {
       return;
     }
 
-    const listeners = this.chunkInitListeners.get(name) || [];
+    const listeners = this.chunkInitializeListeners.get(name) || [];
     listeners.push(listener);
-    this.chunkInitListeners.set(name, listeners);
+    this.chunkInitializeListeners.set(name, listeners);
   };
 
   /**
@@ -974,7 +889,7 @@ export class World extends Scene implements NetIntercept {
       ignoreList?: number[];
     } = {}
   ) => {
-    this.initCheck("raycast voxels", false);
+    this.checkIsInitialized("raycast voxels", false);
 
     const { ignoreFluids, ignorePassables, ignoreSeeThrough } = {
       ignoreFluids: true,
@@ -1079,7 +994,7 @@ export class World extends Scene implements NetIntercept {
    * @param updates A list of updates to send to the server.
    */
   updateVoxels = (updates: BlockUpdate[]) => {
-    this.initCheck("update voxels", false);
+    this.checkIsInitialized("update voxels", false);
 
     this.chunks.toUpdate.push(
       ...updates
@@ -1140,7 +1055,7 @@ export class World extends Scene implements NetIntercept {
       material: "basic" | "standard";
     }> = {}
   ) => {
-    this.initCheck("make block mesh", false);
+    this.checkIsInitialized("make block mesh", false);
 
     if (!idOrName) {
       return null;
@@ -1269,7 +1184,7 @@ export class World extends Scene implements NetIntercept {
       uniforms: {},
     }
   ) => {
-    this.initCheck("customize material shaders", false);
+    this.checkIsInitialized("customize material shaders", false);
 
     const {
       vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
@@ -1300,7 +1215,7 @@ export class World extends Scene implements NetIntercept {
     idOrName: number | string,
     fn: Block["dynamicFn"]
   ) => {
-    this.initCheck("customize block dynamic", false);
+    this.checkIsInitialized("customize block dynamic", false);
 
     const block = this.getBlockOf(idOrName);
 
@@ -1317,21 +1232,22 @@ export class World extends Scene implements NetIntercept {
    * Initialize the world with the data received from the server. This includes populating
    * the registry, setting the parameters, and creating the texture atlas.
    */
-  async init() {
-    if (this.initialized) {
-      console.warn("World has already been initialized.");
+  async initialize() {
+    if (this.isInitialized) {
+      console.warn("World has already been isInitialized.");
       return;
     }
 
-    if (this.initJSON === null) {
+    if (this.initialData === null) {
       throw new Error(
         "World has not received any initialization data from the server."
       );
     }
 
-    const { blocks, params, stats } = this.initJSON;
+    const { blocks, params, stats } = this.initialData;
 
-    this.timeTick = stats.timeTick;
+    const { time } = stats;
+    this._time = time;
 
     // Loading the registry
     Object.keys(blocks).forEach((name) => {
@@ -1379,7 +1295,7 @@ export class World extends Scene implements NetIntercept {
 
     await this.loadMaterials();
 
-    this.initialized = true;
+    this.isInitialized = true;
 
     this.renderRadius = this.params.defaultRenderRadius;
   }
@@ -1388,7 +1304,7 @@ export class World extends Scene implements NetIntercept {
     position: Vector3 = new Vector3(),
     direction: Vector3 = new Vector3()
   ) {
-    if (!this.initialized) {
+    if (!this.isInitialized) {
       return;
     }
 
@@ -1398,6 +1314,8 @@ export class World extends Scene implements NetIntercept {
       position.toArray() as Coords3,
       this.params.chunkSize
     );
+
+    this._time += delta;
 
     this.maintainChunks(center, direction);
     this.requestChunks(center, direction);
@@ -1421,12 +1339,14 @@ export class World extends Scene implements NetIntercept {
       case "INIT": {
         const { json } = message;
 
-        this.initJSON = json;
+        this.initialData = json;
 
         break;
       }
       case "STATS": {
         const { json } = message;
+
+        // console.log(this.time - json.time);
 
         break;
       }
@@ -1468,12 +1388,20 @@ export class World extends Scene implements NetIntercept {
     }
   }
 
+  get time() {
+    return this._time;
+  }
+
+  set time(time: number) {
+    this._time = time;
+  }
+
   get renderRadius() {
     return this._renderRadius;
   }
 
   set renderRadius(radius: number) {
-    this.initCheck("set render radius", false);
+    this.checkIsInitialized("set render radius", false);
 
     radius = Math.floor(radius);
 
@@ -1482,8 +1410,8 @@ export class World extends Scene implements NetIntercept {
 
     const { chunkSize } = this.params;
 
-    this.uniforms.fogNear.value = radius * 0.7 * chunkSize;
-    this.uniforms.fogFar.value = radius * chunkSize;
+    this.chunks.uniforms.fogNear.value = radius * 0.7 * chunkSize;
+    this.chunks.uniforms.fogFar.value = radius * chunkSize;
   }
 
   get deleteRadius() {
@@ -1505,7 +1433,7 @@ export class World extends Scene implements NetIntercept {
     const ratio = this.chunks.loaded.size / total;
     const hasDirection = direction.length() > 0;
 
-    this.inViewAngle =
+    const angleThreshold =
       ratio === 1
         ? (Math.PI * 3) / 8
         : Math.max(ratio ** chunkLoadExponent, 0.1);
@@ -1526,7 +1454,7 @@ export class World extends Scene implements NetIntercept {
 
         if (
           hasDirection &&
-          !this.isChunkInView(center, [cx, cz], direction, this.inViewAngle)
+          !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
         ) {
           continue;
         }
@@ -1618,11 +1546,11 @@ export class World extends Scene implements NetIntercept {
     } = this.params;
 
     const triggerInitListener = (chunk: Chunk) => {
-      const listeners = this.chunkInitListeners.get(chunk.name);
+      const listeners = this.chunkInitializeListeners.get(chunk.name);
 
       if (Array.isArray(listeners)) {
         listeners.forEach((listener) => listener(chunk));
-        this.chunkInitListeners.delete(chunk.name);
+        this.chunkInitializeListeners.delete(chunk.name);
       }
     };
 
@@ -1696,11 +1624,7 @@ export class World extends Scene implements NetIntercept {
     this.chunks.requested.forEach((_, name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
 
-      if (
-        // !this.isChunkInView(center, [x, z], direction, this.inViewAngle) ||
-        (x - centerX) ** 2 + (z - centerZ) ** 2 >
-        deleteRadius ** 2
-      ) {
+      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         this.chunks.requested.delete(name);
         deleted.push([x, z]);
       }
@@ -1726,7 +1650,7 @@ export class World extends Scene implements NetIntercept {
     // Remove any listeners for deleted chunks.
     deleted.forEach((coords) => {
       const name = ChunkUtils.getChunkName(coords);
-      this.chunkInitListeners.delete(name);
+      this.chunkInitializeListeners.delete(name);
     });
 
     if (deleted.length) {
@@ -1789,7 +1713,7 @@ export class World extends Scene implements NetIntercept {
    * Update the uniform values.
    */
   private updateUniforms = () => {
-    this.uniforms.time.value = performance.now();
+    this.chunks.uniforms.time.value = performance.now();
   };
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
@@ -1937,19 +1861,24 @@ export class World extends Scene implements NetIntercept {
     vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
     uniforms: any = {}
   ) => {
+    const chunksUniforms = {
+      ...this.chunks.uniforms,
+      ...this.params.chunkUniformsOverwrite,
+    };
+
     const material = new ShaderMaterial({
       vertexColors: true,
       fragmentShader,
       vertexShader,
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-        uSunlightIntensity: this.uniforms.sunlightIntensity,
-        uAOTable: this.uniforms.ao,
-        uminLightLevel: this.uniforms.minLightLevel,
-        uFogNear: this.uniforms.fogNear,
-        uFogFar: this.uniforms.fogFar,
-        uFogColor: this.uniforms.fogColor,
-        uTime: this.uniforms.time,
+        uSunlightIntensity: chunksUniforms.sunlightIntensity,
+        uAOTable: chunksUniforms.ao,
+        uminLightLevel: chunksUniforms.minLightLevel,
+        uFogNear: chunksUniforms.fogNear,
+        uFogFar: chunksUniforms.fogFar,
+        uFogColor: chunksUniforms.fogColor,
+        uTime: chunksUniforms.time,
         ...uniforms,
       },
     }) as CustomChunkShaderMaterial;
@@ -2007,9 +1936,9 @@ export class World extends Scene implements NetIntercept {
       const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
 
       const mat = make(block.isSeeThrough, atlas);
-      const key = this.makeMaterialKey(block.id);
+      const key = this.makeChunkMaterialKey(block.id);
 
-      this.materialStore.set(key, mat);
+      this.chunks.materials.set(key, mat);
 
       // Process independent faces
       for (const face of block.faces) {
@@ -2021,27 +1950,27 @@ export class World extends Scene implements NetIntercept {
           AtlasTexture.makeUnknownTexture(textureUnitDimension)
         );
 
-        const key = this.makeMaterialKey(block.id, face.name);
+        const key = this.makeChunkMaterialKey(block.id, face.name);
 
-        this.materialStore.set(key, mat);
+        this.chunks.materials.set(key, mat);
       }
     }
   }
 
-  private makeMaterialKey(id: number, faceName?: string) {
+  private makeChunkMaterialKey(id: number, faceName?: string) {
     return faceName ? `${id}-${faceName}` : `${id}`;
   }
 
   /**
    * A sanity check to make sure that an action is not being performed after
-   * the world has been initialized.
+   * the world has been isInitialized.
    */
-  private initCheck(action: string, beforeInit = true) {
-    if (beforeInit ? this.initialized : !this.initialized) {
+  private checkIsInitialized(action: string, beforeInit = true) {
+    if (beforeInit ? this.isInitialized : !this.isInitialized) {
       throw new Error(
         `Cannot ${action} ${beforeInit ? "after" : "before"} the world ${
           beforeInit ? "has been" : "is"
-        } initialized. ${
+        } isInitialized. ${
           beforeInit
             ? "This has to be called before `world.init`."
             : "Remember to call the asynchronous function `world.init` beforehand."

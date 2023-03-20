@@ -14,17 +14,15 @@ impl<'a> System<'a> for UpdateStatsSystem {
 
         let now = SystemTime::now();
 
-        stats.delta = (now
+        stats.delta = now
             .duration_since(stats.prev_time)
             .unwrap_or_default()
-            .as_millis() as f32
-            / 1000.0)
-            .max(0.008)
-            .min(0.020);
+            .as_nanos() as f32
+            / 1000000000.0;
         stats.prev_time = now;
 
         stats.tick += 1;
 
-        stats.time_tick = (stats.time_tick + 1) % config.ticks_per_day;
+        stats.time = (stats.time + stats.delta) % (config.ticks_per_day as f32);
     }
 }

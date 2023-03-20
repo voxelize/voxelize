@@ -745,11 +745,11 @@ The manager that holds all chunk-related data.
 
 ___
 
-### initialized
+### isInitialized
 
-• **initialized**: `boolean` = `false`
+• **isInitialized**: `boolean` = `false`
 
-Whether or not this world is connected to the server and initialized with server data.
+Whether or not this world is connected to the server and isInitialized with server data.
 
 ___
 
@@ -761,9 +761,9 @@ An asset loader to load in things like textures, images, GIFs and audio buffers.
 
 ___
 
-### materialStore
+### chunkmaterials
 
-• **materialStore**: `Map`<`string`, [`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)\>
+• **chunkmaterials**: `Map`<`string`, [`CustomChunkShaderMaterial`](../modules.md#CustomChunkShaderMaterial-4)\>
 
 A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
 

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct StatsJson {
     pub tick: u64,
-    pub time_tick: u64,
+    pub time: f32,
 }
 
 /// A general statistical manager of Voxelize.
@@ -26,7 +26,7 @@ pub struct Stats {
     pub tick: u64,
 
     /// A number between 0 to config.ticks_per_day
-    pub time_tick: u64,
+    pub time: f32,
 
     /// The time of the last tick.
     pub prev_time: SystemTime,
@@ -47,7 +47,7 @@ impl Stats {
             tick: 0,
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
-            time_tick: 0,
+            time: 0.0,
             path,
             saving,
         }
@@ -61,7 +61,7 @@ impl Stats {
     pub fn get_stats(&self) -> StatsJson {
         StatsJson {
             tick: self.tick,
-            time_tick: self.time_tick,
+            time: self.time,
         }
     }
 

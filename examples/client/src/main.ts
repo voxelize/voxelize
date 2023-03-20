@@ -419,10 +419,10 @@ inputs.bind("b", () => {
 
 // Create a test for atlas
 // setTimeout(() => {
-//   let i = -Math.floor(world.materialStore.size / 2);
+//   let i = -Math.floor(world.chunkmaterials.size / 2);
 //   const width = 2;
 
-//   for (const mat of world.materialStore.values()) {
+//   for (const mat of world.chunkmaterials.values()) {
 //     const plane = new THREE.Mesh(
 //       new THREE.PlaneGeometry(width, width),
 //       new THREE.MeshBasicMaterial({
@@ -504,7 +504,7 @@ const start = async () => {
 
     network.sync();
 
-    if (world.initialized) {
+    if (world.isInitialized) {
       peers.update();
       controls.update();
 
@@ -522,19 +522,19 @@ const start = async () => {
         ? new THREE.Color("#5F9DF7")
         : new THREE.Color("#B1CCFD");
 
-      world.uniforms.fogNear.value = THREE.MathUtils.lerp(
-        world.uniforms.fogNear.value,
+      world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+        world.chunks.uniforms.fogNear.value,
         fogNear,
         0.08
       );
 
-      world.uniforms.fogFar.value = THREE.MathUtils.lerp(
-        world.uniforms.fogFar.value,
+      world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+        world.chunks.uniforms.fogFar.value,
         fogFar,
         0.08
       );
 
-      world.uniforms.fogColor.value.lerp(fogColor, 0.08);
+      world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
       clouds.update(controls.object.position);
       sky.update(controls.object.position);
@@ -563,7 +563,7 @@ const start = async () => {
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);
-  await world.init();
+  await world.initialize();
   await setupWorld(world);
 
   world.renderRadius = 8;

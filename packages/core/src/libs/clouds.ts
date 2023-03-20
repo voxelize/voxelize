@@ -1,4 +1,4 @@
-import ndarray, { NdArray } from "ndarray";
+import ndarray from "ndarray";
 import {
   BufferGeometry,
   Clock,
@@ -157,7 +157,7 @@ export class Clouds extends Group {
   /**
    * Whether or not are the clouds done generating.
    */
-  public initialized = false;
+  public isInitialized = false;
 
   /**
    * The shard shader material used to render the clouds.
@@ -265,7 +265,7 @@ export class Clouds extends Group {
    * @param position The new position that this cloud should be centered around.
    */
   update = (position: Vector3) => {
-    if (!this.initialized) return;
+    if (!this.isInitialized) return;
 
     // Normalize the delta
     const delta = Math.min(0.1, this.clock.getDelta());
@@ -324,7 +324,7 @@ export class Clouds extends Group {
       this.meshes.push(arr);
     }
 
-    this.initialized = true;
+    this.isInitialized = true;
   };
 
   /**
