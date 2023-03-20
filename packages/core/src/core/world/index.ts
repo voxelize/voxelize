@@ -47,7 +47,7 @@ export * from "./textures";
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
  * if you want to change its map, you also have to change its `uniforms.map`.
  */
-export type CustomShaderMaterial = ShaderMaterial & {
+export type CustomChunkShaderMaterial = ShaderMaterial & {
   /**
    * The texture that this map runs on.
    */
@@ -59,34 +59,35 @@ export type CustomShaderMaterial = ShaderMaterial & {
  */
 export type WorldClientParams = {
   /**
-   * The maximum chunk requests this world can request from the server per tick. Defaults to `4` chunks.
+   * The maximum chunk requests this world can request from the server per world update. Defaults to `12` chunks.
    */
-  maxRequestsPerTick: number;
+  maxChunkRequestsPerUpdate: number;
 
   /**
-   * The maximum amount of chunks received from the server that can be processed per tick. Defaults to `8` chunks.
+   * The maximum amount of chunks received from the server that can be processed per world update.
+   * By process, it means to be turned into a `Chunk` instance. Defaults to `100` chunks.
    */
-  maxProcessesPerTick: number;
+  maxProcessesPerUpdate: number;
 
   /**
-   * The maximum voxel updates that can be sent to the server. Defaults to `1000` updates.
+   * The maximum voxel updates that can be sent to the server per world update. Defaults to `1000` updates.
    */
-  maxUpdatesPerTick: number;
+  maxUpdatesPerUpdate: number;
 
   /**
    * Whether or not should the world generate ThreeJS meshes. Defaults to `true`.
    */
-  generateMeshes: boolean;
+  shouldGenerateChunkMeshes: boolean;
 
   /**
-   * The minimum brightness of the chunk mesh even at sunlight and torch light level 0. Defaults to `0.04`.
+   * The minimum light level even when sunlight and torch light levels are at zero. Defaults to `0.04`.
    */
-  minBrightness: number;
+  minLightLevel: number;
 
   /**
-   * The ticks until a chunk should be re-requested to the server. Defaults to `300` ticks.
+   * The interval between each time a chunk is re-requested to the server. Defaults to `300` updates.
    */
-  rerequestTicks: number;
+  chunkRerequestInterval: number;
 
   /**
    * The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks.
@@ -94,30 +95,32 @@ export type WorldClientParams = {
   defaultRenderRadius: number;
 
   /**
-   * The default dimension to a block texture. If any texture loaded is greater, it will be downscaled to this resolution.
+   * The default dimension to a single unit of a block face texture. If any texture loaded is greater, it will be downscaled to this resolution.
+   * Defaults to `8` pixels.
    */
-  textureDimension: number;
+  textureUnitDimension: number;
 
-  inViewRadius: number;
-
-  inViewPower: number;
+  /**
+   * The exponent applied to the ratio that chunks are loaded, which would then be used to determine whether an angle to a chunk is worth loading.
+   * Defaults to `8`.
+   */
+  chunkLoadExponent: number;
 };
 
 const defaultParams: WorldClientParams = {
-  maxRequestsPerTick: 1200,
-  maxProcessesPerTick: 1200,
-  maxUpdatesPerTick: 1000,
-  minBrightness: 0.04,
-  generateMeshes: true,
-  rerequestTicks: 300,
+  maxChunkRequestsPerUpdate: 12,
+  maxProcessesPerUpdate: 100,
+  maxUpdatesPerUpdate: 1000,
+  shouldGenerateChunkMeshes: true,
+  minLightLevel: 0.04,
+  chunkRerequestInterval: 300,
   defaultRenderRadius: 8,
-  textureDimension: 8,
-  inViewRadius: 2,
-  inViewPower: 8,
+  textureUnitDimension: 8,
+  chunkLoadExponent: 8,
 };
 
 /**
- * The parameters defined on the server-side, passed to the client on connection.
+ * The parameters defined on the server-side, passed to the client on network joining.
  */
 export type WorldServerParams = {
   /**
@@ -244,7 +247,7 @@ export class World extends Scene implements NetIntercept {
   /**
    * A map of all block faces to their corresponding ThreeJS shader materials. This also holds their corresponding textures.
    */
-  public materialStore: Map<string, CustomShaderMaterial> = new Map();
+  public materialStore: Map<string, CustomChunkShaderMaterial> = new Map();
 
   /**
    * The WebGL uniforms that are used in the chunk shader.
@@ -291,7 +294,7 @@ export class World extends Scene implements NetIntercept {
     /**
      * The minimum brightness of the world at light level `0`. Defaults to `0.2`.
      */
-    minBrightness: {
+    minLightLevel: {
       /**
        * The value passed into the chunk shader.
        */
@@ -329,7 +332,7 @@ export class World extends Scene implements NetIntercept {
     ao: {
       value: new Vector4(100.0, 170.0, 210.0, 255.0),
     },
-    minBrightness: {
+    minLightLevel: {
       value: 0,
     },
     sunlightIntensity: {
@@ -383,14 +386,14 @@ export class World extends Scene implements NetIntercept {
 
     this.setupPhysics();
 
-    const { minBrightness } =
+    const { minLightLevel } =
       // @ts-ignore
       (this.params = {
         ...defaultParams,
         ...params,
       });
 
-    this.uniforms.minBrightness.value = minBrightness;
+    this.uniforms.minLightLevel.value = minLightLevel;
   }
 
   async applyBlockTexture(
@@ -715,13 +718,13 @@ export class World extends Scene implements NetIntercept {
     const greenLight = this.getTorchLightAt(vx, vy, vz, "GREEN");
     const blueLight = this.getTorchLightAt(vx, vy, vz, "BLUE");
 
-    const { sunlightIntensity, minBrightness } = this.uniforms;
+    const { sunlightIntensity, minLightLevel } = this.uniforms;
 
     const s = Math.min(
       (sunlight / this.params.maxLightLevel) ** 2 *
         sunlightIntensity.value *
-        (1 - minBrightness.value) +
-        minBrightness.value,
+        (1 - minLightLevel.value) +
+        minLightLevel.value,
       1
     );
 
@@ -932,7 +935,10 @@ export class World extends Scene implements NetIntercept {
     const [cx, cz] = center;
     const [tx, tz] = target;
 
-    if ((cx - tx) ** 2 + (cz - tz) ** 2 < this.params.inViewRadius ** 2) {
+    if (
+      (cx - tx) ** 2 + (cz - tz) ** 2 <
+      Math.floor(this.renderRadius / 4) ** 2
+    ) {
       return true;
     }
 
@@ -1033,7 +1039,7 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * This sends a block update to the server and updates across the network. Block updates are queued to
-   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick} times
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerUpdate} times
    * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
    * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
    * - Y-rotation: 0 to {@link Y_ROT_SEGMENTS} - 1.
@@ -1061,7 +1067,7 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * This sends a list of block updates to the server and updates across the network. Block updates are queued to
-   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerTick} times
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerUpdate} times
    * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
    *
    * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
@@ -1180,7 +1186,6 @@ export class World extends Scene implements NetIntercept {
         const matParams = {
           transparent: isSeeThrough,
           map: chunkMat.map,
-          alphaTest: 0.3,
           side: isSeeThrough ? TwoPassDoubleSide : FrontSide,
         };
 
@@ -1488,7 +1493,7 @@ export class World extends Scene implements NetIntercept {
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
-      params: { rerequestTicks, inViewPower },
+      params: { chunkRerequestInterval, chunkLoadExponent },
     } = this;
 
     const total =
@@ -1501,7 +1506,9 @@ export class World extends Scene implements NetIntercept {
     const hasDirection = direction.length() > 0;
 
     this.inViewAngle =
-      ratio === 1 ? (Math.PI * 3) / 8 : Math.max(ratio ** inViewPower, 0.1);
+      ratio === 1
+        ? (Math.PI * 3) / 8
+        : Math.max(ratio ** chunkLoadExponent, 0.1);
 
     const [centerX, centerZ] = center;
 
@@ -1542,7 +1549,7 @@ export class World extends Scene implements NetIntercept {
           const name = ChunkUtils.getChunkName([cx, cz]);
           const count = this.chunks.requested.get(name);
 
-          if (count + 1 > rerequestTicks) {
+          if (count + 1 > chunkRerequestInterval) {
             this.chunks.requested.delete(name);
             this.chunks.toRequest.push([cx, cz]);
           } else {
@@ -1567,9 +1574,12 @@ export class World extends Scene implements NetIntercept {
       return ad - bd;
     });
 
-    const { maxRequestsPerTick } = this.params;
+    const { maxChunkRequestsPerUpdate } = this.params;
 
-    const toRequest = this.chunks.toRequest.splice(0, maxRequestsPerTick);
+    const toRequest = this.chunks.toRequest.splice(
+      0,
+      maxChunkRequestsPerUpdate
+    );
 
     this.packets.push({
       type: "LOAD",
@@ -1600,11 +1610,11 @@ export class World extends Scene implements NetIntercept {
     });
 
     const {
-      maxProcessesPerTick,
+      maxProcessesPerUpdate,
       chunkSize,
       maxHeight,
       subChunks,
-      generateMeshes,
+      shouldGenerateChunkMeshes,
     } = this.params;
 
     const triggerInitListener = (chunk: Chunk) => {
@@ -1616,7 +1626,7 @@ export class World extends Scene implements NetIntercept {
       }
     };
 
-    const toProcess = this.chunks.toProcess.splice(0, maxProcessesPerTick);
+    const toProcess = this.chunks.toProcess.splice(0, maxProcessesPerUpdate);
 
     toProcess.forEach((data) => {
       const { x, z, id, meshes } = data;
@@ -1636,7 +1646,7 @@ export class World extends Scene implements NetIntercept {
 
       this.chunks.loaded.set(name, chunk);
 
-      if (generateMeshes) {
+      if (shouldGenerateChunkMeshes) {
         let frame: any;
 
         const process = (index: number) => {
@@ -1883,7 +1893,7 @@ export class World extends Scene implements NetIntercept {
     if (this.chunks.toUpdate.length >= 0) {
       const updates = this.chunks.toUpdate.splice(
         0,
-        this.params.maxUpdatesPerTick
+        this.params.maxUpdatesPerUpdate
       );
 
       if (updates.length) {
@@ -1935,14 +1945,14 @@ export class World extends Scene implements NetIntercept {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         uSunlightIntensity: this.uniforms.sunlightIntensity,
         uAOTable: this.uniforms.ao,
-        uMinBrightness: this.uniforms.minBrightness,
+        uminLightLevel: this.uniforms.minLightLevel,
         uFogNear: this.uniforms.fogNear,
         uFogFar: this.uniforms.fogFar,
         uFogColor: this.uniforms.fogColor,
         uTime: this.uniforms.time,
         ...uniforms,
       },
-    }) as CustomShaderMaterial;
+    }) as CustomChunkShaderMaterial;
 
     Object.defineProperty(material, "renderStage", {
       get: function () {
@@ -1962,7 +1972,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   private async loadMaterials() {
-    const { textureDimension } = this.params;
+    const { textureUnitDimension } = this.params;
 
     const perSide = (total: number) => {
       let countPerSide = 1;
@@ -1994,7 +2004,7 @@ export class World extends Scene implements NetIntercept {
 
       const countPerSide = perSide(totalFaces);
 
-      const atlas = new AtlasTexture(countPerSide, textureDimension);
+      const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
 
       const mat = make(block.isSeeThrough, atlas);
       const key = this.makeMaterialKey(block.id);
@@ -2008,7 +2018,7 @@ export class World extends Scene implements NetIntercept {
         // For independent faces, we need to create a new material for it with a non-atlas texture.
         const mat = make(
           block.isSeeThrough,
-          AtlasTexture.makeUnknownTexture(textureDimension)
+          AtlasTexture.makeUnknownTexture(textureUnitDimension)
         );
 
         const key = this.makeMaterialKey(block.id, face.name);

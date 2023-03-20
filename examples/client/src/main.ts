@@ -66,7 +66,7 @@ class Box extends VOXELIZE.Entity<{
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
-  textureDimension: 16,
+  textureUnitDimension: 16,
 });
 
 const chat = new VOXELIZE.Chat();
