@@ -6,7 +6,7 @@ use nanoid::nanoid;
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    BlockUtils, Chunk, ChunkInterests, ChunkParams, ChunkRequestsComp, ChunkStatus, ChunkUtils,
+    BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRequestsComp, ChunkStatus, ChunkUtils,
     Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Vec2, Vec3,
     VoxelAccess, WorldConfig,
 };
@@ -163,7 +163,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     &nanoid!(),
                     coords.0,
                     coords.1,
-                    &ChunkParams {
+                    &ChunkOptions {
                         max_height: config.max_height,
                         sub_chunks: config.sub_chunks,
                         size: config.chunk_size,

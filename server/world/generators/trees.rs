@@ -3,7 +3,7 @@ use std::f64;
 use hashbrown::HashMap;
 use nalgebra::{Rotation3, Vector3};
 
-use crate::{LSystem, NoiseParams, SeededNoise, Vec3, VoxelUpdate};
+use crate::{LSystem, NoiseOptions, SeededNoise, Vec3, VoxelUpdate};
 
 /// There are a set of L-system symbols for the tree generator.
 /// The symbols are:
@@ -33,10 +33,10 @@ pub struct Trees {
 }
 
 impl Trees {
-    pub fn new(seed: u32, params: &NoiseParams) -> Trees {
+    pub fn new(seed: u32, options: &NoiseOptions) -> Trees {
         Trees {
             threshold: 0.5,
-            noise: SeededNoise::new(seed, params),
+            noise: SeededNoise::new(seed, options),
             trees: HashMap::new(),
         }
     }

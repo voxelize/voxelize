@@ -1,5 +1,5 @@
 use log::info;
-use voxelize::{Chunk, ChunkStage, NoiseParams, Resources, SeededNoise, Space, VoxelAccess};
+use voxelize::{Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, VoxelAccess};
 
 pub const MOUNTAIN_HEIGHT: f64 = 0.6;
 pub const RIVER_HEIGHT: f64 = 0.16;
@@ -15,9 +15,9 @@ pub struct SoilingStage {
 }
 
 impl SoilingStage {
-    pub fn new(seed: u32, params: &NoiseParams) -> Self {
+    pub fn new(seed: u32, options: &NoiseOptions) -> Self {
         Self {
-            noise: SeededNoise::new(seed, params),
+            noise: SeededNoise::new(seed, options),
         }
     }
 }

@@ -12,7 +12,7 @@ import { World } from "../core/world/index";
 /**
  * Parameters to create a shadow.
  */
-export type ShadowParams = {
+export type ShadowOptions = {
   /**
    * The maximum distance from the object to the ground to cast a shadow. The shadow's scale scales inversely with distance. Defaults to `10`.
    */
@@ -24,7 +24,7 @@ export type ShadowParams = {
   maxRadius: number;
 };
 
-const defaultParams: ShadowParams = {
+const defaultOptions: ShadowOptions = {
   maxDistance: 10,
   maxRadius: 0.5,
 };
@@ -36,9 +36,9 @@ const defaultParams: ShadowParams = {
  */
 export class Shadow extends Mesh {
   /**
-   * The parameters of the shadow.
+   * The options of the shadow.
    */
-  public params: ShadowParams;
+  public options: ShadowOptions;
 
   /**
    * The shared material for all shadows.
@@ -54,7 +54,7 @@ export class Shadow extends Mesh {
   /**
    * The shared geometry for all shadows.
    */
-  static readonly GEOMETRY = new CircleGeometry(defaultParams.maxRadius, 30);
+  static readonly GEOMETRY = new CircleGeometry(defaultOptions.maxRadius, 30);
 
   /**
    * The y-offset of the shadow from the ground.
@@ -65,14 +65,14 @@ export class Shadow extends Mesh {
    * Create a shadow instance.
    *
    * @param world The world to cast shadows in.
-   * @param params The parameters of the shadow.
+   * @param options The options of the shadow.
    */
-  constructor(public world: World, params: Partial<ShadowParams> = {}) {
+  constructor(public world: World, options: Partial<ShadowOptions> = {}) {
     super(Shadow.GEOMETRY, Shadow.MATERIAL);
 
-    this.params = {
-      ...defaultParams,
-      ...params,
+    this.options = {
+      ...defaultOptions,
+      ...options,
     };
 
     this.rotateX(Math.PI / 2);
@@ -88,7 +88,7 @@ export class Shadow extends Mesh {
     const position = new Vector3();
     this.parent.getWorldPosition(position);
 
-    const { maxDistance } = this.params;
+    const { maxDistance } = this.options;
 
     const result = this.world.raycastVoxels(
       position.toArray(),
@@ -184,10 +184,10 @@ export class Shadows extends Array<Shadow> {
    * Add a shadow to an object under the shadow manager.
    *
    * @param object The object to add a shadow to.
-   * @param params The parameters of the shadow.
+   * @param options The options of the shadow.
    */
-  add = (object: Object3D, params: Partial<ShadowParams> = {}) => {
-    const shadow = new Shadow(this.world, params);
+  add = (object: Object3D, options: Partial<ShadowOptions> = {}) => {
+    const shadow = new Shadow(this.world, options);
     object.add(shadow);
     this.push(shadow);
   };

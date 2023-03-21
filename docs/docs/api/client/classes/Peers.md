@@ -11,7 +11,7 @@ a [NetIntercept](../interfaces/NetIntercept.md) that intercepts all peer-related
 the behavior of multiplayer functionality. This class also extends a `THREE.Group` that allows
 you to dynamically turn on/off multiplayer visibility.
 
-Override [packInfo](Peers.md#packinfo) to customize the information that is sent to other peers.
+Override [packInfo](Peers.md#packinfo-14) to customize the information that is sent to other peers.
 
 TODO-DOC
 
@@ -62,7 +62,7 @@ peers.update();
 
 ### constructor
 
-• **new Peers**<`C`, `T`\>(`object?`, `params?`)
+• **new Peers**<`C`, `T`\>(`object?`, `options?`)
 
 Create a peers manager to add multiplayer functionality to your Voxelize game.
 
@@ -78,7 +78,7 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object?` | `Object3D`<`Event`\> | The object that is used to send client's own data back to the server. |
-| `params` | `Partial`<[`PeersParams`](../modules.md#peersparams)\> | Parameters to customize the effect. |
+| `options` | `Partial`<[`PeersOptions`](../modules.md#peersoptions-4)\> | Parameters to customize the effect. |
 
 #### Overrides
 
@@ -125,7 +125,7 @@ ___
 
 ▸ (`id`): `void`
 
-A function called when a player joins the game. By default, the function calls the [createPeer](Peers.md#createpeer)
+A function called when a player joins the game. By default, the function calls the [createPeer](Peers.md#createpeer-14)
 function to create a new peer object and adds it to the peers group. Customize this function to add additional
 behavior.
 
@@ -191,6 +191,14 @@ customize the behavior of the peer object.
 
 ___
 
+### options
+
+• **options**: [`PeersOptions`](../modules.md#peersoptions-4)
+
+Parameters to customize the peers manager.
+
+___
+
 ### ownID
 
 • **ownID**: `string` = `""`
@@ -203,7 +211,7 @@ ___
 
 • `Optional` **ownPeer**: `C`
 
-The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer).
+The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer-14).
 
 ___
 
@@ -212,14 +220,6 @@ ___
 • **ownUsername**: `string` = `""`
 
 The client's own username. This is set when the client first connects to the server.
-
-___
-
-### params
-
-• **params**: [`PeersParams`](../modules.md#peersparams)
-
-Parameters to customize the peers manager.
 
 ## Methods
 
@@ -301,7 +301,7 @@ ___
 ▸ **update**(): `void`
 
 Update the peers manager. Internally, this attempts to call any children that has a `update` method.
-You can turn this behavior off by setting `params.updateChildren` to `false`.
+You can turn this behavior off by setting `options.updateChildren` to `false`.
 
 This function should be called in the render loop.
 

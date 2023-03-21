@@ -322,9 +322,9 @@ ___
 
 ___
 
-### params
+### options
 
-• **params**: [`ItemSlotsParams`](../modules.md#itemslotsparams)
+• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-2)
 
 ___
 
@@ -378,7 +378,7 @@ ___
 
 ### constructor
 
-• **new ItemSlots**<`T`\>(`params?`)
+• **new ItemSlots**<`T`\>(`options?`)
 
 #### Type parameters
 
@@ -390,7 +390,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`ItemSlotsParams`](../modules.md#itemslotsparams)\> |
+| `options` | `Partial`<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-2)\> |
 
 ## Accessors
 

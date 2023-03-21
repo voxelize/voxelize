@@ -13,7 +13,7 @@ export type ClickType = "left" | "middle" | "right";
 export type InputOccasion = "keydown" | "keypress" | "keyup";
 
 /**
- * The specific parameters of the key to listen to.
+ * The specific options of the key to listen to.
  */
 export type InputSpecifics = {
   /**
@@ -185,7 +185,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * @param key The key to listen for. This checks the `event.key` or the `event.code` property.
    * @param callback The callback to call when the key is pressed.
    * @param namespace The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace.
-   * @param specifics The specific parameters of the key to listen for.
+   * @param specifics The specific options of the key to listen for.
    * @returns A function to unbind the key.
    */
   bind = (

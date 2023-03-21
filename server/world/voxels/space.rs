@@ -18,7 +18,7 @@ pub struct SpaceData {
 
 /// Parameters of constructing a Space data structure.
 #[derive(Default, Clone)]
-pub struct SpaceParams {
+pub struct SpaceOptions {
     /// By how many blocks does the space extend from the center chunk.
     pub margin: usize,
 
@@ -55,7 +55,7 @@ pub struct Space {
     pub min: Vec3<i32>,
 
     /// Parameters to construct the space.
-    pub params: SpaceParams,
+    pub options: SpaceOptions,
 
     /// A set of sub-chunks that have been updated.
     pub updated_levels: HashSet<u32>,
@@ -73,7 +73,7 @@ pub struct Space {
 impl Space {
     /// Converts a voxel position to a chunk coordinate and a chunk local coordinate.
     fn to_local(&self, vx: i32, vy: i32, vz: i32) -> (Vec2<i32>, Vec3<usize>) {
-        let SpaceParams { chunk_size, .. } = self.params;
+        let SpaceOptions { chunk_size, .. } = self.options;
 
         let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, chunk_size);
         let local = ChunkUtils::map_voxel_to_chunk_local(vx, vy, vz, chunk_size);
@@ -86,7 +86,7 @@ impl Space {
 pub struct SpaceBuilder<'a> {
     pub chunks: &'a Chunks,
     pub coords: Vec2<i32>,
-    pub params: SpaceParams,
+    pub options: SpaceOptions,
 
     pub needs_voxels: bool,
     pub needs_lights: bool,
@@ -130,12 +130,12 @@ impl SpaceBuilder<'_> {
 
     /// Create a `Space` instance with the instructed data loaded in.
     pub fn build(self) -> Space {
-        let SpaceParams {
+        let SpaceOptions {
             margin,
             chunk_size,
             max_height,
             ..
-        } = self.params;
+        } = self.options;
 
         let Vec2(cx, cz) = self.coords;
 
@@ -186,7 +186,7 @@ impl SpaceBuilder<'_> {
 
         Space {
             coords: self.coords.to_owned(),
-            params: self.params.to_owned(),
+            options: self.options.to_owned(),
 
             width,
             shape,
@@ -259,8 +259,8 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if vy as usize >= self.params.max_height {
-            return LightUtils::insert_sunlight(0, self.params.max_light_level);
+        if vy as usize >= self.options.max_height {
+            return LightUtils::insert_sunlight(0, self.options.max_light_level);
         }
 
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
@@ -290,7 +290,8 @@ impl VoxelAccess for Space {
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);
 
         if let Some(lights) = self.lights.get_mut(&coords) {
-            let chunk_level = vy as u32 / (self.params.max_height / self.params.sub_chunks) as u32;
+            let chunk_level =
+                vy as u32 / (self.options.max_height / self.options.sub_chunks) as u32;
             self.updated_levels.insert(chunk_level);
 
             lights[&[lx, ly, lz]] = level;
@@ -306,7 +307,7 @@ impl VoxelAccess for Space {
             return if vy < 0 {
                 0
             } else {
-                self.params.max_light_level
+                self.options.max_light_level
             };
         }
 
@@ -342,7 +343,7 @@ impl VoxelAccess for Space {
         let (coords, _) = self.to_local(vx, vy, vz);
 
         vy >= 0
-            && vy < self.params.max_height as i32
+            && vy < self.options.max_height as i32
             && (self.lights.contains_key(&coords)
                 || self.voxels.contains_key(&coords)
                 || self.height_maps.contains_key(&coords))

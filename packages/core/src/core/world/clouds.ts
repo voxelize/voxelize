@@ -22,7 +22,7 @@ import { Coords2, Coords3 } from "../../types";
 /**
  * Parameters used to create a new {@link Clouds} instance.
  */
-export type CloudsParams = {
+export type CloudsOptions = {
   /**
    * The scale of the noise used to generate the clouds. Defaults to `0.08`.
    */
@@ -118,7 +118,7 @@ export type CloudsParams = {
   };
 };
 
-const defaultParams: CloudsParams = {
+const defaultOptions: CloudsOptions = {
   alpha: 0.8,
   color: "#fff",
   count: 16,
@@ -151,7 +151,7 @@ export class Clouds extends Group {
   /**
    * Parameters used to create a new {@link Clouds} instance.
    */
-  public params: CloudsParams;
+  public options: CloudsOptions;
 
   /**
    * Whether or not are the clouds done generating.
@@ -205,17 +205,17 @@ export class Clouds extends Group {
   /**
    * Create a new {@link Clouds} instance, initializing it asynchronously automatically.
    *
-   * @param params Parameters used to create a new {@link Clouds} instance.
+   * @param options Parameters used to create a new {@link Clouds} instance.
    */
-  constructor(params: Partial<CloudsParams> = {}) {
+  constructor(options: Partial<CloudsOptions> = {}) {
     super();
 
-    this.params = { ...defaultParams, ...params };
+    this.options = { ...defaultOptions, ...options };
 
-    const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.params;
+    const { seed, color, alpha, uFogNear, uFogFar, uFogColor } = this.options;
 
     if (seed === -1) {
-      this.params.seed = Math.floor(Math.random() * 10230123);
+      this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
     this.material = new ShaderMaterial({
@@ -269,7 +269,7 @@ export class Clouds extends Group {
     // Normalize the delta
     const delta = Math.min(0.1, this.clock.getDelta());
 
-    const { speedFactor, count, dimensions } = this.params;
+    const { speedFactor, count, dimensions } = this.options;
 
     this.newPosition = this.position.clone();
     this.newPosition.z -= speedFactor * delta;
@@ -301,14 +301,14 @@ export class Clouds extends Group {
       }
     }
 
-    this.position.lerp(this.newPosition, this.params.lerpFactor);
+    this.position.lerp(this.newPosition, this.options.lerpFactor);
   };
 
   /**
    * Initialize the clouds asynchronously.
    */
   private initialize = async () => {
-    const { width } = this.params;
+    const { width } = this.options;
     const [lx, lz] = this.locatedCell;
 
     for (let x = 0; x < width; x++) {
@@ -330,7 +330,7 @@ export class Clouds extends Group {
    * Generate a new cloud row in the `+/- x` direction.
    */
   private shiftX = async (direction = 1) => {
-    const { width } = this.params;
+    const { width } = this.options;
 
     const arr = direction > 0 ? this.meshes.shift() : this.meshes.pop();
 
@@ -355,7 +355,7 @@ export class Clouds extends Group {
    * Generate a new cloud row in the `+/- z` direction.
    */
   private shiftZ = async (direction = 1) => {
-    const { width } = this.params;
+    const { width } = this.options;
 
     for (let x = 0; x < width; x++) {
       const arr = this.meshes[x];
@@ -397,7 +397,7 @@ export class Clouds extends Group {
       cloudHeight,
       octaves,
       falloff,
-    } = this.params;
+    } = this.options;
 
     const array = mesh
       ? mesh.userData.data

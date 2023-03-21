@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use super::generators::NoiseParams;
+use super::generators::NoiseOptions;
 
 /// World configuration, storing information of how a world is constructed.
 #[derive(Clone, Serialize)]
@@ -76,8 +76,8 @@ pub struct WorldConfig {
     /// Seed of the world. Default is "Voxelize".
     pub seed: u32,
 
-    /// Terrain parameters
-    pub terrain: NoiseParams,
+    /// Terrain options
+    pub terrain: NoiseOptions,
 
     /// Whether this world is saved.
     pub saving: bool,
@@ -158,7 +158,7 @@ pub struct WorldConfigBuilder {
     fluid_drag: f32,
     fluid_density: f32,
     collision_repulsion: f32,
-    terrain: NoiseParams,
+    terrain: NoiseOptions,
     saving: bool,
     save_dir: String,
     save_interval: usize,
@@ -195,7 +195,7 @@ impl WorldConfigBuilder {
             saving: DEFAULT_SAVING,
             save_dir: DEFAULT_SAVE_DIR.to_owned(),
             save_interval: DEFAULT_SAVE_INTERVAL,
-            terrain: NoiseParams::default(),
+            terrain: NoiseOptions::default(),
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
         }
     }
@@ -307,8 +307,8 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the terrain of the world. Default, check out NoiseParams.
-    pub fn terrain(mut self, terrain: &NoiseParams) -> Self {
+    /// Configure the terrain of the world. Default, check out NoiseOptions.
+    pub fn terrain(mut self, terrain: &NoiseOptions) -> Self {
         self.terrain = terrain.to_owned();
         self
     }
@@ -347,7 +347,7 @@ impl WorldConfigBuilder {
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
         if self.max_chunk[0] < self.min_chunk[0] || self.max_chunk[1] < self.min_chunk[1] {
-            panic!("Min/max chunk parameters do not make sense.");
+            panic!("Min/max chunk options do not make sense.");
         }
 
         if self.max_height % self.sub_chunks != 0 {

@@ -32,11 +32,11 @@ import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
-import { Clouds, CloudsParams } from "./clouds";
+import { Clouds, CloudsOptions } from "./clouds";
 import { Loader } from "./loader";
 import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
-import { Sky, SkyParams } from "./sky";
+import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 
 export * from "./block";
@@ -59,9 +59,9 @@ export type CustomChunkShaderMaterial = ShaderMaterial & {
 };
 
 /**
- * The client-side parameters to create a world. These are client-side only and can be customized to specific use.
+ * The client-side options to create a world. These are client-side only and can be customized to specific use.
  */
-export type WorldClientParams = {
+export type WorldClientOptions = {
   /**
    * The maximum chunk requests this world can request from the server per world update. Defaults to `12` chunks.
    */
@@ -127,14 +127,14 @@ export type WorldClientParams = {
   chunkLoadExponent: number;
 
   /**
-   * The parameters to create the sky. Defaults to `{}`.
+   * The options to create the sky. Defaults to `{}`.
    */
-  skyParams: Partial<SkyParams>;
+  skyOptions: Partial<SkyOptions>;
 
   /**
-   * The parameters to create the clouds. Defaults to `{}`.
+   * The options to create the clouds. Defaults to `{}`.
    */
-  cloudsParams: Partial<CloudsParams>;
+  cloudsOptions: Partial<CloudsOptions>;
 
   /**
    * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
@@ -142,7 +142,7 @@ export type WorldClientParams = {
   chunkUniformsOverwrite: Partial<Chunks["uniforms"]>;
 };
 
-const defaultParams: WorldClientParams = {
+const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 12,
   maxProcessesPerUpdate: 8,
   maxUpdatesPerUpdate: 1000,
@@ -152,8 +152,8 @@ const defaultParams: WorldClientParams = {
   defaultRenderRadius: 8,
   textureUnitDimension: 8,
   chunkLoadExponent: 8,
-  skyParams: {},
-  cloudsParams: {},
+  skyOptions: {},
+  cloudsOptions: {},
   chunkUniformsOverwrite: {},
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,
@@ -161,9 +161,9 @@ const defaultParams: WorldClientParams = {
 };
 
 /**
- * The parameters defined on the server-side, passed to the client on network joining.
+ * The options defined on the server-side, passed to the client on network joining.
  */
-export type WorldServerParams = {
+export type WorldServerOptions = {
   /**
    * The amount of sub-chunks that divides a chunk vertically.
    */
@@ -215,9 +215,9 @@ export type WorldServerParams = {
 };
 
 /**
- * The parameters to create a world. This consists of {@link WorldClientParams} and {@link WorldServerParams}.
+ * The options to create a world. This consists of {@link WorldClientOptions} and {@link WorldServerOptions}.
  */
-export type WorldParams = WorldClientParams & WorldServerParams;
+export type WorldOptions = WorldClientOptions & WorldServerOptions;
 
 /**
  * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
@@ -259,9 +259,9 @@ export type WorldParams = WorldClientParams & WorldServerParams;
  */
 export class World extends Scene implements NetIntercept {
   /**
-   * The parameters to create the world.
+   * The options to create the world.
    */
-  public params: WorldParams;
+  public options: WorldOptions;
 
   /**
    * The block registry that holds all block data, such as texture and block properties.
@@ -333,7 +333,7 @@ export class World extends Scene implements NetIntercept {
    */
   private _deleteRadius = 0;
 
-  constructor(params: Partial<WorldParams> = {}) {
+  constructor(options: Partial<WorldOptions> = {}) {
     super();
 
     this.registry = new Registry();
@@ -342,15 +342,15 @@ export class World extends Scene implements NetIntercept {
 
     this.setupPhysics();
 
-    const { minLightLevel, skyParams, cloudsParams } =
+    const { minLightLevel, skyOptions, cloudsOptions } =
       // @ts-ignore
-      (this.params = {
-        ...defaultParams,
-        ...params,
+      (this.options = {
+        ...defaultOptions,
+        ...options,
       });
 
-    this.sky = new Sky(skyParams);
-    this.clouds = new Clouds(cloudsParams);
+    this.sky = new Sky(skyOptions);
+    this.clouds = new Clouds(cloudsOptions);
 
     this.add(this.sky, this.clouds);
 
@@ -579,7 +579,7 @@ export class World extends Scene implements NetIntercept {
     this.checkIsInitialized("get chunk by position", false);
     const coords = ChunkUtils.mapVoxelToChunk(
       [px | 0, py | 0, pz | 0],
-      this.params.chunkSize
+      this.options.chunkSize
     );
     return this.getChunkByCoords(...coords);
   }
@@ -682,7 +682,7 @@ export class World extends Scene implements NetIntercept {
     const { sunlightIntensity, minLightLevel } = this.chunks.uniforms;
 
     const s = Math.min(
-      (sunlight / this.params.maxLightLevel) ** 2 *
+      (sunlight / this.options.maxLightLevel) ** 2 *
         sunlightIntensity.value *
         (1 - minLightLevel.value) +
         minLightLevel.value,
@@ -690,9 +690,9 @@ export class World extends Scene implements NetIntercept {
     );
 
     return new Color(
-      s + Math.pow(redLight / this.params.maxLightLevel, 2),
-      s + Math.pow(greenLight / this.params.maxLightLevel, 2),
-      s + Math.pow(blueLight / this.params.maxLightLevel, 2)
+      s + Math.pow(redLight / this.options.maxLightLevel, 2),
+      s + Math.pow(greenLight / this.options.maxLightLevel, 2),
+      s + Math.pow(blueLight / this.options.maxLightLevel, 2)
     );
   }
 
@@ -726,7 +726,7 @@ export class World extends Scene implements NetIntercept {
     const vx = px | 0;
     const vz = pz | 0;
 
-    for (let vy = this.params.maxHeight - 1; vy >= 0; vy--) {
+    for (let vy = this.options.maxHeight - 1; vy >= 0; vy--) {
       const block = this.getBlockAt(vx, vy, vz);
 
       if (!block.isEmpty) {
@@ -872,14 +872,14 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
-   * is within {@link WorldServerParams | WorldServerParams.minChunk} and {@link WorldServerParams | WorldServerParams.maxChunk}.
+   * is within {@link WorldServerOptions | WorldServerOptions.minChunk} and {@link WorldServerOptions | WorldServerOptions.maxChunk}.
    *
    * @param cx The chunk's X position.
    * @param cz The chunk's Z position.
    * @returns Whether or not this chunk is within the bounds of the world.
    */
   isWithinWorld(cx: number, cz: number) {
-    const { minChunk, maxChunk } = this.params;
+    const { minChunk, maxChunk } = this.options;
 
     return (
       cx >= minChunk[0] &&
@@ -1002,7 +1002,7 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * This sends a block update to the server and updates across the network. Block updates are queued to
-   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerUpdate} times
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientOptions | WorldClientOptions.maxUpdatesPerUpdate} times
    * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
    * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
    * - Y-rotation: 0 to {@link Y_ROT_SEGMENTS} - 1.
@@ -1030,7 +1030,7 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * This sends a list of block updates to the server and updates across the network. Block updates are queued to
-   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientParams | WorldClientParams.maxUpdatesPerUpdate} times
+   * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientOptions | WorldClientOptions.maxUpdatesPerUpdate} times
    * per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
    *
    * - Rotation: {@link PX_ROTATION} | {@link NX_ROTATION} | {@link PY_ROTATION} | {@link NY_ROTATION} | {@link PZ_ROTATION} | {@link NZ_ROTATION}
@@ -1047,7 +1047,7 @@ export class World extends Scene implements NetIntercept {
     this.chunks.toUpdate.push(
       ...updates
         .filter((update) => {
-          if (update.vy < 0 || update.vy >= this.params.maxHeight) {
+          if (update.vy < 0 || update.vy >= this.options.maxHeight) {
             return false;
           }
 
@@ -1089,15 +1089,15 @@ export class World extends Scene implements NetIntercept {
    * Get a mesh of the model of the given block.
    *
    * @param id The ID of the block.
-   * @param params The params of creating this block mesh.
-   * @param params.material The type of material to use for this generated mesh.
-   * @param params.separateFaces: Whether or not to separate the faces of the block into different meshes.
-   * @param params.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
+   * @param options The options of creating this block mesh.
+   * @param options.material The type of material to use for this generated mesh.
+   * @param options.separateFaces: Whether or not to separate the faces of the block into different meshes.
+   * @param options.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
    * @returns A 3D mesh (group) of the block model.
    */
   makeBlockMesh = (
     idOrName: number | string,
-    params: Partial<{
+    options: Partial<{
       separateFaces: boolean;
       crumbs: boolean;
       material: "basic" | "standard";
@@ -1116,7 +1116,7 @@ export class World extends Scene implements NetIntercept {
       separateFaces: false,
       crumbs: false,
       material: "basic",
-      ...params,
+      ...options,
     };
 
     const { faces, isSeeThrough } = block;
@@ -1146,7 +1146,7 @@ export class World extends Scene implements NetIntercept {
       if (!geometry) {
         const chunkMat = this.getMaterial(block.id, name);
 
-        const matParams = {
+        const matOptions = {
           transparent: isSeeThrough,
           map: chunkMat.map,
           side: isSeeThrough ? TwoPassDoubleSide : FrontSide,
@@ -1154,8 +1154,8 @@ export class World extends Scene implements NetIntercept {
 
         const mat =
           material === "basic"
-            ? new MeshBasicMaterial(matParams)
-            : new MeshStandardMaterial(matParams);
+            ? new MeshBasicMaterial(matOptions)
+            : new MeshStandardMaterial(matOptions);
 
         geometry = {
           identifier,
@@ -1278,7 +1278,7 @@ export class World extends Scene implements NetIntercept {
 
   /**
    * Initialize the world with the data received from the server. This includes populating
-   * the registry, setting the parameters, and creating the texture atlas.
+   * the registry, setting the options, and creating the texture atlas.
    */
   async initialize() {
     if (this.isInitialized) {
@@ -1292,7 +1292,7 @@ export class World extends Scene implements NetIntercept {
       );
     }
 
-    const { blocks, params, stats } = this.initialData;
+    const { blocks, options, stats } = this.initialData;
 
     this.time = stats.time;
 
@@ -1332,19 +1332,19 @@ export class World extends Scene implements NetIntercept {
       this.registry.idMap.set(id, lowerName);
     });
 
-    // Loading the parameters
-    this.params = {
-      ...this.params,
-      ...params,
+    // Loading the options
+    this.options = {
+      ...this.options,
+      ...options,
     };
 
-    this.physics.options = this.params;
+    this.physics.options = this.options;
 
     await this.loadMaterials();
 
     this.isInitialized = true;
 
-    this.renderRadius = this.params.defaultRenderRadius;
+    this.renderRadius = this.options.defaultRenderRadius;
   }
 
   update(
@@ -1359,10 +1359,10 @@ export class World extends Scene implements NetIntercept {
 
     const center = ChunkUtils.mapVoxelToChunk(
       position.toArray() as Coords3,
-      this.params.chunkSize
+      this.options.chunkSize
     );
 
-    this._time = (this.time + delta) % this.params.timePerDay;
+    this._time = (this.time + delta) % this.options.timePerDay;
 
     this.maintainChunks(center, direction);
     this.requestChunks(center, direction);
@@ -1394,7 +1394,7 @@ export class World extends Scene implements NetIntercept {
       case "STATS": {
         const { json } = message;
 
-        // console.log(json.time - this.time, this.params.timePerDay);
+        // console.log(json.time - this.time, this.options.timePerDay);
 
         break;
       }
@@ -1456,7 +1456,7 @@ export class World extends Scene implements NetIntercept {
     this._renderRadius = radius;
     this._deleteRadius = radius * 1.2;
 
-    const { chunkSize } = this.params;
+    const { chunkSize } = this.options;
 
     this.chunks.uniforms.fogNear.value = radius * 0.7 * chunkSize;
     this.chunks.uniforms.fogFar.value = radius * chunkSize;
@@ -1469,7 +1469,7 @@ export class World extends Scene implements NetIntercept {
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
-      params: { chunkRerequestInterval, chunkLoadExponent },
+      options: { chunkRerequestInterval, chunkLoadExponent },
     } = this;
 
     const total =
@@ -1550,7 +1550,7 @@ export class World extends Scene implements NetIntercept {
       return ad - bd;
     });
 
-    const { maxChunkRequestsPerUpdate } = this.params;
+    const { maxChunkRequestsPerUpdate } = this.options;
 
     const toRequest = this.chunks.toRequest.splice(
       0,
@@ -1591,7 +1591,7 @@ export class World extends Scene implements NetIntercept {
       maxHeight,
       subChunks,
       shouldGenerateChunkMeshes,
-    } = this.params;
+    } = this.options;
 
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
@@ -1734,18 +1734,18 @@ export class World extends Scene implements NetIntercept {
    * Update the physics engine by ticking all inner AABBs.
    */
   private updatePhysics = (delta: number) => {
-    if (!this.physics || !this.params.gravity) return;
+    if (!this.physics || !this.options.gravity) return;
 
     const noGravity =
-      this.params.gravity[0] ** 2 +
-        this.params.gravity[1] ** 2 +
-        this.params.gravity[2] ** 2 <
+      this.options.gravity[0] ** 2 +
+        this.options.gravity[1] ** 2 +
+        this.options.gravity[2] ** 2 <
       0.01;
 
     this.physics.bodies.forEach((body) => {
       const coords = ChunkUtils.mapVoxelToChunk(
         body.getPosition() as Coords3,
-        this.params.chunkSize
+        this.options.chunkSize
       );
       const chunk = this.getChunkByPosition(...(body.getPosition() as Coords3));
 
@@ -1764,7 +1764,7 @@ export class World extends Scene implements NetIntercept {
       sunlightChangeSpan,
       timePerDay,
       minLightLevel,
-    } = this.params;
+    } = this.options;
 
     this.sky.update(position, this.time, timePerDay);
     this.clouds.update(position);
@@ -1816,7 +1816,7 @@ export class World extends Scene implements NetIntercept {
       return;
     }
 
-    const { maxHeight, subChunks, chunkSize } = this.params;
+    const { maxHeight, subChunks, chunkSize } = this.options;
     const { level, geometries } = data;
 
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
@@ -1875,7 +1875,7 @@ export class World extends Scene implements NetIntercept {
    * Setup the physics engine for this world.
    */
   private setupPhysics() {
-    // initialize the physics engine with server provided parameters.
+    // initialize the physics engine with server provided options.
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
         if (!this.getChunkByPosition(vx, vy, vz)) return [];
@@ -1897,7 +1897,7 @@ export class World extends Scene implements NetIntercept {
         const { isFluid } = this.getBlockById(id);
         return isFluid;
       },
-      this.params
+      this.options
     );
   }
 
@@ -1909,7 +1909,7 @@ export class World extends Scene implements NetIntercept {
     if (this.chunks.toUpdate.length >= 0) {
       const updates = this.chunks.toUpdate.splice(
         0,
-        this.params.maxUpdatesPerUpdate
+        this.options.maxUpdatesPerUpdate
       );
 
       if (updates.length) {
@@ -1955,7 +1955,7 @@ export class World extends Scene implements NetIntercept {
   ) => {
     const chunksUniforms = {
       ...this.chunks.uniforms,
-      ...this.params.chunkUniformsOverwrite,
+      ...this.options.chunkUniformsOverwrite,
     };
 
     const material = new ShaderMaterial({
@@ -1993,7 +1993,7 @@ export class World extends Scene implements NetIntercept {
   };
 
   private async loadMaterials() {
-    const { textureUnitDimension } = this.params;
+    const { textureUnitDimension } = this.options;
 
     const perSide = (total: number) => {
       let countPerSide = 1;

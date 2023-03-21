@@ -1,4 +1,4 @@
-import { ChunkProtocol, MeshProtocol } from "@voxelize/transport/src/types";
+import { ChunkProtocol } from "@voxelize/transport/src/types";
 import ndarray, { NdArray } from "ndarray";
 import { Mesh } from "three";
 
@@ -7,14 +7,14 @@ import { BlockUtils, ChunkUtils, LightColor, LightUtils } from "../../utils";
 
 import { BlockRotation } from "./block";
 
-export type ChunkParams = {
+export type ChunkOptions = {
   size: number;
   maxHeight: number;
   subChunks: number;
 };
 
 export class Chunk {
-  public params: ChunkParams;
+  public options: ChunkOptions;
 
   public id: string;
 
@@ -34,14 +34,14 @@ export class Chunk {
 
   public added = false;
 
-  constructor(id: string, coords: Coords2, params: ChunkParams) {
+  constructor(id: string, coords: Coords2, options: ChunkOptions) {
     this.id = id;
     this.name = ChunkUtils.getChunkName(coords);
 
     this.coords = coords;
-    this.params = params;
+    this.options = options;
 
-    const { size, maxHeight } = params;
+    const { size, maxHeight } = options;
 
     this.voxels = ndarray([] as any, [size, maxHeight, size]);
     this.lights = ndarray([] as any, [size, maxHeight, size]);
@@ -515,7 +515,7 @@ export class Chunk {
   }
 
   private contains(vx: number, vy: number, vz: number) {
-    const { size, maxHeight } = this.params;
+    const { size, maxHeight } = this.options;
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
 
     return lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size;

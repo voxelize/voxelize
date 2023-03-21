@@ -40,11 +40,11 @@ The y-offset of the shadow from the ground.
 
 ___
 
-### params
+### options
 
-• **params**: [`ShadowParams`](../modules.md#shadowparams)
+• **options**: [`ShadowOptions`](../modules.md#shadowoptions-2)
 
-The parameters of the shadow.
+The options of the shadow.
 
 ___
 
@@ -58,7 +58,7 @@ The world to cast shadows in.
 
 ### constructor
 
-• **new Shadow**(`world`, `params?`)
+• **new Shadow**(`world`, `options?`)
 
 Create a shadow instance.
 
@@ -67,7 +67,7 @@ Create a shadow instance.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world to cast shadows in. |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams)\> | The parameters of the shadow. |
+| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-2)\> | The options of the shadow. |
 
 #### Overrides
 

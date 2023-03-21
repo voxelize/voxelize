@@ -3,7 +3,7 @@ pub mod biomes;
 use kdtree::{distance::squared_euclidean, KdTree};
 use noise::{Curve, Fbm, HybridMulti, MultiFractal, Perlin, ScaleBias};
 use voxelize::{
-    Biome, Chunk, ChunkStage, NoiseParams, Resources, SeededNoise, Space, Terrain, TerrainLayer,
+    Biome, Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Terrain, TerrainLayer,
     Vec3, VoxelAccess, World, WorldConfig,
 };
 
@@ -23,9 +23,9 @@ pub struct SoilingStage {
 }
 
 impl SoilingStage {
-    pub fn new(seed: u32, params: &NoiseParams) -> Self {
+    pub fn new(seed: u32, options: &NoiseOptions) -> Self {
         Self {
-            noise: SeededNoise::new(seed, params),
+            noise: SeededNoise::new(seed, options),
         }
     }
 }
@@ -113,7 +113,7 @@ impl ChunkStage for BaseTerrainStage {
 pub fn setup_terrain_world() -> World {
     let config = WorldConfig::new()
         .terrain(
-            &NoiseParams::new()
+            &NoiseOptions::new()
                 .frequency(0.005)
                 .octaves(8)
                 .persistence(0.5)
@@ -159,7 +159,7 @@ pub fn setup_terrain_world() -> World {
     // The closer to 0, the more plains-like the terrain will be.
     let continentalness = TerrainLayer::new(
         "continentalness",
-        &NoiseParams::new()
+        &NoiseOptions::new()
             .frequency(0.001)
             .octaves(7)
             .persistence(0.5)
@@ -184,7 +184,7 @@ pub fn setup_terrain_world() -> World {
     // The lower the value, the more plains-like the terrain will be.
     let peaks_and_valleys = TerrainLayer::new(
         "peaks_and_valleys",
-        &NoiseParams::new()
+        &NoiseOptions::new()
             .frequency(0.003)
             .octaves(7)
             .persistence(0.56)
@@ -205,7 +205,7 @@ pub fn setup_terrain_world() -> World {
 
     let erosion = TerrainLayer::new(
         "erosion",
-        &NoiseParams::new()
+        &NoiseOptions::new()
             .frequency(0.01)
             .octaves(7)
             .persistence(0.5)
@@ -266,7 +266,7 @@ pub fn setup_terrain_world() -> World {
 
         pipeline.add_stage(SoilingStage::new(
             config.seed,
-            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
+            &NoiseOptions::new().frequency(0.04).lacunarity(3.0).build(),
         ));
 
         let mut terrain_stage = BaseTerrainStage::new(terrain);

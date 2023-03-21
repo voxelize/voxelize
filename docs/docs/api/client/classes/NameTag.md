@@ -21,15 +21,15 @@ using the [ColorText](ColorText.md) syntax. Name tags can be treated like any ot
 
 ### constructor
 
-• **new NameTag**(`text`, `params?`)
+• **new NameTag**(`text`, `options?`)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `text` | `string` |
-| `params` | `Partial`<[`NameTagParams`](../modules.md#nametagparams)\> |
+| `options` | `Partial`<[`NameTagOptions`](../modules.md#nametagoptions-2)\> |
 
 #### Overrides
 
-[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor)
+[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-14)

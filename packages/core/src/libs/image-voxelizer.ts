@@ -5,7 +5,7 @@
 // /**
 //  * Parameters to process an image voxelization.
 //  */
-// export type ImageVoxelizerParams = {
+// export type ImageVoxelizerOptions = {
 //   /**
 //    * The width, in blocks, of the voxelized image. Defaults to `64`.
 //    */
@@ -28,7 +28,7 @@
 //   orientation: "x" | "z";
 // };
 
-// const defaultParams: ImageVoxelizerParams = {
+// const defaultOptions: ImageVoxelizerOptions = {
 //   width: 64,
 //   height: 64,
 //   lockedRatio: true,
@@ -63,7 +63,7 @@
 //  */
 // export class ImageVoxelizer {
 //   /**
-//    * Parse a command line string into image voxelization parameters.
+//    * Parse a command line string into image voxelization options.
 //    *
 //    * @example
 //    * ```js
@@ -72,7 +72,7 @@
 //    * // Turns into this object
 //    * {
 //    *   url: "https://example.com/image.png",
-//    *   params: {
+//    *   options: {
 //    *     width: 64,
 //    *     height: 64,
 //    *     lockedRatio: true,
@@ -96,20 +96,20 @@
 //       imgURL = imgURL.substring(0, imgURL.length - 1);
 //     }
 
-//     let params: Partial<ImageVoxelizerParams>;
+//     let options: Partial<ImageVoxelizerOptions>;
 
 //     try {
-//       params = JSON.parse(rest.substring(index) || "{}");
+//       options = JSON.parse(rest.substring(index) || "{}");
 //     } catch (e) {
-//       throw new Error("Image voxelizer could not parse parameters.");
+//       throw new Error("Image voxelizer could not parse options.");
 //     }
 
 //     return {
 //       url: imgURL,
-//       params: {
-//         ...defaultParams,
-//         ...params,
-//       } as ImageVoxelizerParams,
+//       options: {
+//         ...defaultOptions,
+//         ...options,
+//       } as ImageVoxelizerOptions,
 //     };
 //   };
 
@@ -119,14 +119,14 @@
 //    * @param imgURL The URL of the image to be voxelized. This will be used to create an `Image` object.
 //    * @param world The world to be updated.
 //    * @param position The position to start voxelizing the image. This will be the bottom middle of the voxelized image.
-//    * @param params The extra parameters to process the image voxelization.
+//    * @param options The extra options to process the image voxelization.
 //    * @returns A list of block updates that corresponds to a mosaic of the given image.
 //    */
 //   static build = async (
 //     imgURL: string,
 //     world: World,
 //     position: Vector3,
-//     params: ImageVoxelizerParams
+//     options: ImageVoxelizerOptions
 //   ) => {
 //     console.log(`Starting to voxelize image: ${imgURL}`);
 
@@ -234,8 +234,8 @@
 //       original.onload = () => {
 //         const canvas = document.createElement("canvas");
 //         const context = canvas.getContext("2d");
-//         let { width, height, orientation } = params;
-//         const { lockedRatio } = params;
+//         let { width, height, orientation } = options;
+//         const { lockedRatio } = options;
 //         if (lockedRatio) {
 //           width = (height * original.width) / original.height;
 //         }

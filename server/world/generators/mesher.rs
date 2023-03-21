@@ -154,7 +154,7 @@ impl Mesher {
                                 );
                                 let shape = Vec3(
                                     (chunk_size) as usize + if dx == 0 && dz == 0{2} else {0},
-                                    space.params.max_height as usize,
+                                    space.options.max_height as usize,
                                     (chunk_size) as usize + if dx == 0 && dz == 0{2} else {0},
                                 );
 
@@ -209,7 +209,7 @@ impl Mesher {
                     let Vec3(max_x, _, max_z) = chunk.max;
 
                     let blocks_per_sub_chunk =
-                        (space.params.max_height / space.params.sub_chunks) as i32;
+                        (space.options.max_height / space.options.sub_chunks) as i32;
 
                     let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
                     // let sub_chunks_len = sub_chunks.len();

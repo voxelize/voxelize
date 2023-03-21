@@ -10,14 +10,14 @@ const position = new Vector3();
 /**
  * Parameters to create a light shine effect.
  */
-export type LightShinedParams = {
+export type LightShinedOptions = {
   /**
    * The lerping factor of the brightness of each mesh. Defaults to `0.1`.
    */
   lerpFactor: number;
 };
 
-const defaultParams: LightShinedParams = {
+const defaultOptions: LightShinedOptions = {
   lerpFactor: 0.1,
 };
 
@@ -46,7 +46,7 @@ export class LightShined {
   /**
    * Parameters to customize the effect.
    */
-  public params: LightShinedParams;
+  public options: LightShinedOptions;
 
   /**
    * A list of meshes that are effected by this effect.
@@ -62,10 +62,10 @@ export class LightShined {
    * Construct a light shined effect manager.
    *
    * @param world The world that the effect is applied to.
-   * @param params Parameters to customize the effect.
+   * @param options Parameters to customize the effect.
    */
-  constructor(public world: World, params: Partial<LightShinedParams> = {}) {
-    this.params = { ...defaultParams, ...params };
+  constructor(public world: World, options: Partial<LightShinedOptions> = {}) {
+    this.options = { ...defaultOptions, ...options };
 
     this.ignore(Shadow);
     this.ignore(NameTag);

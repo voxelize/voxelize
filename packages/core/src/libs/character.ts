@@ -9,7 +9,7 @@ import {
 
 import { MathUtils as VoxMathUtils } from "../utils";
 
-import { CanvasBox, CanvasBoxParams } from "./canvas-box";
+import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
 import { NameTag } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
@@ -33,7 +33,7 @@ const CHARACTER_SCALE = 0.9;
  * ```
  * where `CHARACTER_SCALE` is 0.9.
  */
-export type HeadParams = CanvasBoxParams & {
+export type HeadOptions = CanvasBoxOptions & {
   /**
    * The distance between the head and the body.
    */
@@ -54,7 +54,7 @@ export type HeadParams = CanvasBoxParams & {
  * ```
  * where `CHARACTER_SCALE` is 0.9.
  */
-export type BodyParams = CanvasBoxParams;
+export type BodyOptions = CanvasBoxOptions;
 
 /**
  * Parameters to create the legs of a character.
@@ -76,7 +76,7 @@ export type BodyParams = CanvasBoxParams;
  * where `CHARACTER_SCALE` is 0.9.
  */
 
-export type LegParams = CanvasBoxParams & {
+export type LegOptions = CanvasBoxOptions & {
   /**
    * The gap between the legs.
    */
@@ -102,7 +102,7 @@ export type LegParams = CanvasBoxParams & {
  * }
  * ```
  */
-export type ArmsParams = CanvasBoxParams & {
+export type ArmsOptions = CanvasBoxOptions & {
   /**
    * The distance from the top of the body to the top of the arms.
    */
@@ -117,7 +117,7 @@ export type ArmsParams = CanvasBoxParams & {
 /**
  * Parameters to create a character.
  */
-export type CharacterParams = {
+export type CharacterOptions = {
   /**
    * The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`.
    */
@@ -146,25 +146,25 @@ export type CharacterParams = {
   /**
    * Parameters to create the character's head.
    */
-  head?: Partial<HeadParams>;
+  head?: Partial<HeadOptions>;
 
   /**
    * Parameters to create the character's body.
    */
-  body?: Partial<BodyParams>;
+  body?: Partial<BodyOptions>;
 
   /**
    * Parameters to create the character's legs.
    */
-  legs?: Partial<LegParams>;
+  legs?: Partial<LegOptions>;
 
   /**
    * Parameters to create the character's arms.
    */
-  arms?: Partial<ArmsParams>;
+  arms?: Partial<ArmsOptions>;
 };
 
-const defaultCharacterParams: CharacterParams = {
+const defaultCharacterOptions: CharacterOptions = {
   swingLerp: 0.8,
   walkingSpeed: 1.4,
   positionLerp: 0.7,
@@ -172,7 +172,7 @@ const defaultCharacterParams: CharacterParams = {
   idleArmSwing: 0.06,
 };
 
-const defaultHeadParams: HeadParams = {
+const defaultHeadOptions: HeadOptions = {
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -185,7 +185,7 @@ const defaultHeadParams: HeadParams = {
   neckGap: 0.05 * CHARACTER_SCALE,
 };
 
-const defaultBodyParams: BodyParams = {
+const defaultBodyOptions: BodyOptions = {
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -193,7 +193,7 @@ const defaultBodyParams: BodyParams = {
   widthSegments: 16,
 };
 
-const defaultArmsParams: ArmsParams = {
+const defaultArmsOptions: ArmsOptions = {
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -207,7 +207,7 @@ const defaultArmsParams: ArmsParams = {
   shoulderDrop: 0.25 * CHARACTER_SCALE,
 };
 
-const defaultLegsParams: LegParams = {
+const defaultLegsOptions: LegOptions = {
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -252,7 +252,7 @@ export class Character extends Group {
   /**
    * Parameters to create a Voxelize character.
    */
-  public params: CharacterParams;
+  public options: CharacterOptions;
 
   /**
    * The sub-mesh holding the character's head.
@@ -322,7 +322,7 @@ export class Character extends Group {
   /**
    * The speed where the character has detected movements at. When speed is 0, the
    * arms swing slowly in idle mode, and when speed is greater than 0, the arms swing
-   * faster depending on the passed-in parameters.
+   * faster depending on the passed-in options.
    */
   public speed = 0;
 
@@ -354,47 +354,49 @@ export class Character extends Group {
   /**
    * Create a new Voxelize character.
    *
-   * @param params Parameters to create a Voxelize character.
+   * @param options Parameters to create a Voxelize character.
    */
-  constructor(params: Partial<CharacterParams> = {}) {
+  constructor(options: Partial<CharacterOptions> = {}) {
     super();
 
-    this.params = {
-      ...defaultCharacterParams,
-      ...params,
+    this.options = {
+      ...defaultCharacterOptions,
+      ...options,
       head: {
-        ...defaultHeadParams,
-        ...(params.head || {}),
+        ...defaultHeadOptions,
+        ...(options.head || {}),
         depth:
-          params.head?.depth || params.head?.width || defaultHeadParams.width,
+          options.head?.depth ||
+          options.head?.width ||
+          defaultHeadOptions.width,
         height:
-          params.head?.height ||
-          defaultHeadParams.height ||
-          defaultHeadParams.width,
+          options.head?.height ||
+          defaultHeadOptions.height ||
+          defaultHeadOptions.width,
       },
       body: {
-        ...defaultBodyParams,
-        ...(params.body || {}),
+        ...defaultBodyOptions,
+        ...(options.body || {}),
         depth:
-          params.body?.depth ||
-          defaultBodyParams.depth ||
-          defaultBodyParams.width,
+          options.body?.depth ||
+          defaultBodyOptions.depth ||
+          defaultBodyOptions.width,
         height:
-          params.body?.height ||
-          defaultBodyParams.height ||
-          defaultBodyParams.width,
+          options.body?.height ||
+          defaultBodyOptions.height ||
+          defaultBodyOptions.width,
       },
       arms: {
-        ...defaultArmsParams,
-        ...(params.arms || {}),
-        depth: params.arms?.depth || defaultArmsParams.width,
-        height: params.arms?.height || defaultArmsParams.height,
+        ...defaultArmsOptions,
+        ...(options.arms || {}),
+        depth: options.arms?.depth || defaultArmsOptions.width,
+        height: options.arms?.height || defaultArmsOptions.height,
       },
       legs: {
-        ...defaultLegsParams,
-        ...(params.legs || {}),
-        depth: params.legs?.depth || defaultLegsParams.width,
-        height: params.legs?.height || defaultLegsParams.height,
+        ...defaultLegsOptions,
+        ...(options.legs || {}),
+        depth: options.legs?.depth || defaultLegsOptions.width,
+        height: options.legs?.height || defaultLegsOptions.height,
       },
     };
 
@@ -469,10 +471,10 @@ export class Character extends Group {
    */
   get eyeHeight() {
     return (
-      this.params.legs.height +
-      this.params.body.height +
-      this.params.head.neckGap +
-      this.params.head.height / 2
+      this.options.legs.height +
+      this.options.body.height +
+      this.options.head.neckGap +
+      this.options.head.height / 2
     );
   }
 
@@ -482,10 +484,10 @@ export class Character extends Group {
    */
   get totalHeight() {
     return (
-      this.params.legs.height +
-      this.params.body.height +
-      this.params.head.neckGap +
-      this.params.head.height
+      this.options.legs.height +
+      this.options.body.height +
+      this.options.head.neckGap +
+      this.options.head.height
     );
   }
 
@@ -494,33 +496,33 @@ export class Character extends Group {
    */
   private createModel = () => {
     const head = new CanvasBox({
-      ...defaultHeadParams,
-      ...(this.params.head ? this.params.head : {}),
+      ...defaultHeadOptions,
+      ...(this.options.head ? this.options.head : {}),
     });
 
     const body = new CanvasBox({
-      ...defaultBodyParams,
-      ...(this.params.body ? this.params.body : {}),
+      ...defaultBodyOptions,
+      ...(this.options.body ? this.options.body : {}),
     });
 
     const leftArm = new CanvasBox({
-      ...defaultArmsParams,
-      ...(this.params.arms ? this.params.arms : {}),
+      ...defaultArmsOptions,
+      ...(this.options.arms ? this.options.arms : {}),
     });
 
     const rightArm = new CanvasBox({
-      ...defaultArmsParams,
-      ...(this.params.arms ? this.params.arms : {}),
+      ...defaultArmsOptions,
+      ...(this.options.arms ? this.options.arms : {}),
     });
 
     const leftLeg = new CanvasBox({
-      ...defaultLegsParams,
-      ...(this.params.legs ? this.params.legs : {}),
+      ...defaultLegsOptions,
+      ...(this.options.legs ? this.options.legs : {}),
     });
 
     const rightLeg = new CanvasBox({
-      ...defaultLegsParams,
-      ...(this.params.legs ? this.params.legs : {}),
+      ...defaultLegsOptions,
+      ...(this.options.legs ? this.options.legs : {}),
     });
 
     this.headGroup = new Group();
@@ -534,8 +536,8 @@ export class Character extends Group {
     head.position.y += head.height / 2;
     this.headGroup.position.y += body.height + leftLeg.height;
 
-    if (this.params.head && this.params.head.neckGap) {
-      this.headGroup.position.y += this.params.head.neckGap;
+    if (this.options.head && this.options.head.neckGap) {
+      this.headGroup.position.y += this.options.head.neckGap;
     }
 
     this.bodyGroup.add(body);
@@ -554,15 +556,15 @@ export class Character extends Group {
     this.rightArmGroup.position.y += body.height;
     this.rightArmGroup.position.x += body.width / 2;
 
-    if (this.params.arms) {
-      if (this.params.arms.shoulderDrop) {
-        this.leftArmGroup.position.y -= this.params.arms.shoulderDrop;
-        this.rightArmGroup.position.y -= this.params.arms.shoulderDrop;
+    if (this.options.arms) {
+      if (this.options.arms.shoulderDrop) {
+        this.leftArmGroup.position.y -= this.options.arms.shoulderDrop;
+        this.rightArmGroup.position.y -= this.options.arms.shoulderDrop;
       }
 
-      if (this.params.arms.shoulderGap) {
-        this.leftArmGroup.position.x -= this.params.arms.shoulderGap;
-        this.rightArmGroup.position.x += this.params.arms.shoulderGap;
+      if (this.options.arms.shoulderGap) {
+        this.leftArmGroup.position.x -= this.options.arms.shoulderGap;
+        this.rightArmGroup.position.x += this.options.arms.shoulderGap;
       }
     }
 
@@ -574,9 +576,9 @@ export class Character extends Group {
     rightLeg.position.y -= rightLeg.height / 2;
     rightLeg.position.x += rightLeg.width / 2;
 
-    if (this.params.legs && this.params.legs.betweenLegsGap) {
-      this.leftLegGroup.position.x -= this.params.legs.betweenLegsGap / 2;
-      this.rightLegGroup.position.x += this.params.legs.betweenLegsGap / 2;
+    if (this.options.legs && this.options.legs.betweenLegsGap) {
+      this.leftLegGroup.position.x -= this.options.legs.betweenLegsGap / 2;
+      this.rightLegGroup.position.x += this.options.legs.betweenLegsGap / 2;
     }
 
     head.paint("all", new Color("#96baff"));
@@ -618,7 +620,7 @@ export class Character extends Group {
     const dist = p1.distanceTo(p2);
     if (dist > 0.00001) {
       if (this.speed === 0) this.onMove?.();
-      this.speed = this.params.walkingSpeed;
+      this.speed = this.options.walkingSpeed;
     } else {
       if (this.speed > 0) this.onIdle?.();
       this.speed = 0;
@@ -633,7 +635,7 @@ export class Character extends Group {
     // or else network latency will result in a weird
     // animation defect where body glitches out.
     if (this.newPosition.length() !== 0) {
-      this.position.lerp(this.newPosition, this.params.positionLerp);
+      this.position.lerp(this.newPosition, this.options.positionLerp);
     }
 
     // Head rotates immediately.
@@ -644,7 +646,7 @@ export class Character extends Group {
     if (this.newBodyDirection.length() !== 0) {
       this.bodyGroup.quaternion.slerp(
         this.newBodyDirection,
-        this.params.rotationLerp
+        this.options.rotationLerp
       );
     }
   };
@@ -654,29 +656,29 @@ export class Character extends Group {
    */
   private playArmSwingAnimation = () => {
     const scale = 100;
-    const speed = Math.max(this.speed, this.params.idleArmSwing);
+    const speed = Math.max(this.speed, this.options.idleArmSwing);
     const amplitude = speed * 1;
 
     this.leftArmGroup.rotation.x = MathUtils.lerp(
       this.leftArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale) * amplitude,
-      this.params.swingLerp
+      this.options.swingLerp
     );
     this.leftArmGroup.rotation.z = MathUtils.lerp(
       this.leftArmGroup.rotation.z,
       Math.cos((performance.now() * speed) / scale) ** 2 * amplitude * 0.1,
-      this.params.swingLerp
+      this.options.swingLerp
     );
 
     this.rightArmGroup.rotation.x = MathUtils.lerp(
       this.rightArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale + Math.PI) * amplitude,
-      this.params.swingLerp
+      this.options.swingLerp
     );
     this.rightArmGroup.rotation.z = MathUtils.lerp(
       this.rightArmGroup.rotation.z,
       -(Math.sin((performance.now() * speed) / scale) ** 2 * amplitude * 0.1),
-      this.params.swingLerp
+      this.options.swingLerp
     );
   };
 

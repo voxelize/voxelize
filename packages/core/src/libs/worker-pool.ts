@@ -23,20 +23,20 @@ export type WorkerPoolJob = {
 /**
  * Parameters to create a worker pool.
  */
-export type WorkerPoolParams = {
+export type WorkerPoolOptions = {
   /**
    * The maximum number of workers to create. Defaults to `8`.
    */
   maxWorker: number;
 };
 
-const defaultParams: WorkerPoolParams = {
+const defaultOptions: WorkerPoolOptions = {
   maxWorker: 8,
 };
 
 /**
  * A pool of web workers that can be used to execute jobs. The pool will create
- * workers up to the maximum number of workers specified in the parameters.
+ * workers up to the maximum number of workers specified in the options.
  * When a job is queued, the pool will find the first available worker and
  * execute the job. If no workers are available, the job will be queued until
  * a worker becomes available.
@@ -66,13 +66,13 @@ export class WorkerPool {
    * Create a new worker pool.
    *
    * @param Proto The worker class to create.
-   * @param params The parameters to create the worker pool.
+   * @param options The options to create the worker pool.
    */
   constructor(
     public Proto: new () => Worker,
-    public params: WorkerPoolParams = defaultParams
+    public options: WorkerPoolOptions = defaultOptions
   ) {
-    const { maxWorker } = params;
+    const { maxWorker } = options;
 
     for (let i = 0; i < maxWorker; i++) {
       this.workers.push(new Proto());

@@ -21,12 +21,12 @@ export type ProtocolWS = WebSocket & {
   sendEvent: (event: any) => void;
 };
 
-export type NetworkParams = {
+export type NetworkOptions = {
   maxPacketQueueSize: number;
   maxPacketsPerTick: number;
 };
 
-const defaultParams: NetworkParams = {
+const defaultOptions: NetworkOptions = {
   maxPacketQueueSize: 300,
   maxPacketsPerTick: 8,
 };
@@ -35,7 +35,7 @@ const defaultParams: NetworkParams = {
  * Parameters to customize the connection to a Voxelize server. For example, setting a secret
  * key to authenticate the connection with the server.
  */
-export type NetworkConnectionParams = {
+export type NetworkConnectionOptions = {
   /**
    * On disconnection, the timeout to attempt to reconnect. Defaults to 5000.
    */
@@ -68,7 +68,7 @@ export type NetworkConnectionParams = {
  * @category Core
  */
 export class Network {
-  public params: NetworkParams;
+  public options: NetworkOptions;
 
   /**
    * Information about the client that is sent to the server on connection. Initialize the username
@@ -107,7 +107,7 @@ export class Network {
   public ws: ProtocolWS;
 
   /**
-   * A {@link https://github.com/Mikhus/domurl | domurl Url instance} constructed with `network.params.serverURL`,
+   * A {@link https://github.com/Mikhus/domurl | domurl Url instance} constructed with `network.options.serverURL`,
    * representing a HTTP connection URL to the server.
    */
   public url: DOMUrl<{
@@ -121,7 +121,7 @@ export class Network {
   public world: string;
 
   /**
-   * A native URL instance constructed with `network.params.serverURL`,
+   * A native URL instance constructed with `network.options.serverURL`,
    * representing a WebSocket connection URL to the server.
    */
   public socket: URL;
@@ -184,10 +184,10 @@ export class Network {
   /**
    * Create a new network instance.
    */
-  constructor(params: Partial<NetworkParams> = {}) {
-    this.params = {
-      ...defaultParams,
-      ...params,
+  constructor(options: Partial<NetworkOptions> = {}) {
+    this.options = {
+      ...defaultOptions,
+      ...options,
     };
   }
 
@@ -197,10 +197,13 @@ export class Network {
    * would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
    *
    * @param serverURL The URL to the Voxelize server.
-   * @param params Parameters to customize the connection to a Voxelize server.
+   * @param options Parameters to customize the connection to a Voxelize server.
    * @returns A promise that resolves when the client has connected to the server.
    */
-  connect = async (serverURL: string, params: NetworkConnectionParams = {}) => {
+  connect = async (
+    serverURL: string,
+    options: NetworkConnectionOptions = {}
+  ) => {
     if (!serverURL) {
       throw new Error("No server URL provided.");
     }
@@ -219,7 +222,7 @@ export class Network {
     this.socket = new URL(socketURL.toString());
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
-    this.socket.searchParams.set("secret", params.secret || "");
+    this.socket.searchParams.set("secret", options.secret || "");
     this.socket.searchParams.set("client_id", this.clientInfo.id || "");
 
     const MAX = 10000;
@@ -261,7 +264,7 @@ export class Network {
         this.packetQueue.push(new Uint8Array(data));
 
         // If the packet queue is too long, we will start to drop packets.
-        if (this.packetQueue.length > this.params.maxPacketQueueSize) {
+        if (this.packetQueue.length > this.options.maxPacketQueueSize) {
           this.packetQueue.shift();
         }
       };
@@ -270,10 +273,10 @@ export class Network {
         this.onDisconnect?.();
 
         // fire reconnection every "reconnectTimeout" ms
-        if (params.reconnectTimeout) {
+        if (options.reconnectTimeout) {
           this.reconnection = setTimeout(() => {
-            this.connect(serverURL, params);
-          }, params.reconnectTimeout);
+            this.connect(serverURL, options);
+          }, options.reconnectTimeout);
         }
       };
 
@@ -349,27 +352,17 @@ export class Network {
       return;
     }
 
-    console.log(
-      `Network: ${this.packetQueue.length} packets in queue, decoding...`
-    );
-
     while (this.packetQueue.length && !this.pool.isBusy) {
       this.decode(
         this.packetQueue.splice(
           0,
-          Math.min(this.params.maxPacketsPerTick, this.packetQueue.length)
+          Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
         )
       ).then((messages) => {
         messages.forEach((message) => {
           this.onMessage(message);
         });
       });
-    }
-
-    if (this.packetQueue.length) {
-      console.log(
-        `Network: ${this.packetQueue.length} packets left in queue, skipping...`
-      );
     }
   };
 

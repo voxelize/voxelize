@@ -8,7 +8,7 @@ custom_edit_url: null
 
 ## Classes
 
-- [Transport](classes/Transport.md)
+- [Transport](Transport.md)
 
 ## Type Aliases
 
@@ -36,7 +36,7 @@ ___
 | :------ | :------ |
 | `id` | `string` |
 | `lights` | `Uint32Array` |
-| `meshes` | [`MeshProtocol`](modules.md#meshprotocol)[] |
+| `meshes` | [`MeshProtocol`](../modules.md#meshprotocol-4)[] |
 | `voxels` | `Uint32Array` |
 | `x` | `number` |
 | `z` | `number` |
@@ -47,7 +47,7 @@ ___
 
 Ƭ **EntityProtocol**<`T`\>: `Object`
 
-#### Type parameters
+#### Type options
 
 | Name |
 | :------ |
@@ -68,7 +68,7 @@ ___
 
 Ƭ **EventProtocol**<`T`\>: `Object`
 
-#### Type parameters
+#### Type options
 
 | Name |
 | :------ |
@@ -108,7 +108,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `geometries` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
+| `geometries` | [`GeometryProtocol`](../modules.md#geometryprotocol-4)[] |
 | `level` | `number` |
 
 ___
@@ -117,7 +117,7 @@ ___
 
 Ƭ **MessageProtocol**<`T`, `Peer`, `Entity`, `Event`, `Method`\>: `Object`
 
-#### Type parameters
+#### Type options
 
 | Name | Type |
 | :------ | :------ |
@@ -131,16 +131,16 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
-| `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
-| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)<`Entity`\>[] |
-| `events?` | [`EventProtocol`](modules.md#eventprotocol)<`Event`\>[] |
+| `chat?` | [`ChatProtocol`](../modules.md#chatprotocol-4) |
+| `chunks?` | [`ChunkProtocol`](../modules.md#chunkprotocol-4)[] |
+| `entities?` | [`EntityProtocol`](../modules.md#entityprotocol-4)<`Entity`\>[] |
+| `events?` | [`EventProtocol`](../modules.md#eventprotocol-4)<`Event`\>[] |
 | `json?` | `T` |
-| `method?` | [`MethodProtocol`](modules.md#methodprotocol)<`Method`\> |
-| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)<`Peer`\>[] |
+| `method?` | [`MethodProtocol`](../modules.md#methodprotocol-4)<`Method`\> |
+| `peers?` | [`PeerProtocol`](../modules.md#peerprotocol-4)<`Peer`\>[] |
 | `text?` | `string` |
 | `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` \| ``"STATS"`` |
-| `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
+| `updates?` | [`UpdateProtocol`](../modules.md#updateprotocol-4)[] |
 
 ___
 
@@ -148,7 +148,7 @@ ___
 
 Ƭ **MethodProtocol**<`T`\>: `Object`
 
-#### Type parameters
+#### Type options
 
 | Name |
 | :------ |
@@ -167,7 +167,7 @@ ___
 
 Ƭ **PeerProtocol**<`T`\>: `Object`
 
-#### Type parameters
+#### Type options
 
 | Name |
 | :------ |

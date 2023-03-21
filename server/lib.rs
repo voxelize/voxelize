@@ -32,12 +32,12 @@ async fn ws_route(
     stream: web::Payload,
     srv: web::Data<Addr<Server>>,
     secret: web::Data<Option<String>>,
-    params: Query<HashMap<String, String>>,
+    options: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
     if !secret.is_none() {
         let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
 
-        if let Some(client_secret) = params.get("secret") {
+        if let Some(client_secret) = options.get("secret") {
             if *client_secret != secret.as_deref().unwrap() {
                 warn!(
                     "An attempt to join with a wrong secret was made: {}",
@@ -51,13 +51,13 @@ async fn ws_route(
         }
     }
 
-    let id = if let Some(id) = params.get("client_id") {
+    let id = if let Some(id) = options.get("client_id") {
         id.to_owned()
     } else {
         "".to_owned()
     };
 
-    let is_transport = params.contains_key("is_transport");
+    let is_transport = options.contains_key("is_transport");
 
     if is_transport {
         info!("A new transport server has connected.");

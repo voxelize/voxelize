@@ -6360,7 +6360,7 @@ cssnano-preset-default@^5.2.13:
     postcss-merge-rules "^5.1.3"
     postcss-minify-font-values "^5.1.0"
     postcss-minify-gradients "^5.1.1"
-    postcss-minify-params "^5.1.4"
+    postcss-minify-options "^5.1.4"
     postcss-minify-selectors "^5.2.1"
     postcss-normalize-charset "^5.1.0"
     postcss-normalize-display-values "^5.1.0"
@@ -12018,9 +12018,9 @@ postcss-minify-gradients@^5.1.1:
     cssnano-utils "^3.1.0"
     postcss-value-parser "^4.2.0"
 
-postcss-minify-params@^5.1.4:
+postcss-minify-options@^5.1.4:
   version "5.1.4"
-  resolved "https://registry.yarnpkg.com/postcss-minify-params/-/postcss-minify-params-5.1.4.tgz#c06a6c787128b3208b38c9364cfc40c8aa5d7352"
+  resolved "https://registry.yarnpkg.com/postcss-minify-options/-/postcss-minify-options-5.1.4.tgz#c06a6c787128b3208b38c9364cfc40c8aa5d7352"
   integrity sha512-+mePA3MgdmVmv6g+30rn57USjOGSAyuxUmkfiWpzalZ8aiBkdPYjXWtHuwJGm1v5Ojy0Z0LaSYhHaLJQB0P8Jw==
   dependencies:
     browserslist "^4.21.4"

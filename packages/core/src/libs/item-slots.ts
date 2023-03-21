@@ -1,8 +1,6 @@
 import merge from "deepmerge";
 import {
-  Box3,
   DirectionalLight,
-  Mesh,
   Object3D,
   OrthographicCamera,
   Scene,
@@ -13,10 +11,9 @@ import {
 
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
-import { World } from "../core/world/index";
 import { DOMUtils } from "../utils";
 
-export type ItemSlotsParams = {
+export type ItemSlotsOptions = {
   wrapperClass: string;
   wrapperStyles: Partial<CSSStyleDeclaration>;
 
@@ -37,7 +34,7 @@ export type ItemSlotsParams = {
   perspective: CameraPerspective;
 };
 
-const defaultParams: ItemSlotsParams = {
+const defaultOptions: ItemSlotsOptions = {
   wrapperClass: "item-slots",
   wrapperStyles: {},
 
@@ -197,7 +194,7 @@ export class ItemSlot<T = number> {
 }
 
 export class ItemSlots<T = number> {
-  public params: ItemSlotsParams;
+  public options: ItemSlotsOptions;
 
   public wrapper: HTMLDivElement;
 
@@ -254,10 +251,10 @@ export class ItemSlots<T = number> {
 
   private animationFrame = -1;
 
-  constructor(params: Partial<ItemSlotsParams> = {}) {
-    const { focusFirstByDefault, activatedByDefault } = (this.params = merge(
-      defaultParams,
-      params
+  constructor(options: Partial<ItemSlotsOptions> = {}) {
+    const { focusFirstByDefault, activatedByDefault } = (this.options = merge(
+      defaultOptions,
+      options
     ));
 
     this.generate();
@@ -337,7 +334,7 @@ export class ItemSlots<T = number> {
 
     if (hadPrevious) {
       const slot = this.slots[this.focusedRow][this.focusedCol];
-      slot.element.classList.remove(this.params.slotFocusClass);
+      slot.element.classList.remove(this.options.slotFocusClass);
     }
 
     this.focusedRow = row;
@@ -350,7 +347,7 @@ export class ItemSlots<T = number> {
       slot
     );
 
-    slot.element.classList.add(this.params.slotFocusClass);
+    slot.element.classList.add(this.options.slotFocusClass);
     this.onSlotClick(slot);
   };
 
@@ -395,7 +392,7 @@ export class ItemSlots<T = number> {
     const col = x / this.slotTotalWidth;
 
     const { slotMargin, slotPadding } = this;
-    const { verticalCount, horizontalCount } = this.params;
+    const { verticalCount, horizontalCount } = this.options;
 
     if (row < 0 || row >= verticalCount) return { row: -1, col: -1 };
     if (col < 0 || col >= horizontalCount) return { row: -1, col: -1 };
@@ -415,14 +412,14 @@ export class ItemSlots<T = number> {
   };
 
   getSlot = (row: number, col: number) => {
-    if (row < 0 || row >= this.params.verticalCount) return null;
-    if (col < 0 || col >= this.params.horizontalCount) return null;
+    if (row < 0 || row >= this.options.verticalCount) return null;
+    if (col < 0 || col >= this.options.horizontalCount) return null;
 
     return this.slots[row][col];
   };
 
   connect = (inputs: Inputs, namespace = "*") => {
-    const { slotHoverClass } = this.params;
+    const { slotHoverClass } = this.options;
 
     let mouseHoverPrevRow = null;
     let mouseHoverPrevCol = null;
@@ -496,7 +493,7 @@ export class ItemSlots<T = number> {
         if (!this.activated) return;
         if (this.focusedRow === -1 || this.focusedCol === -1) return;
 
-        const { horizontalCount, verticalCount } = this.params;
+        const { horizontalCount, verticalCount } = this.options;
 
         const row = this.focusedRow;
         const col = this.focusedCol;
@@ -515,7 +512,7 @@ export class ItemSlots<T = number> {
         if (!this.activated) return;
         if (this.focusedRow === -1 || this.focusedCol === -1) return;
 
-        const { horizontalCount, verticalCount } = this.params;
+        const { horizontalCount, verticalCount } = this.options;
 
         const row = this.focusedRow;
         const col = this.focusedCol;
@@ -546,7 +543,7 @@ export class ItemSlots<T = number> {
 
     if (!this.activated) return;
 
-    const { horizontalCount, verticalCount } = this.params;
+    const { horizontalCount, verticalCount } = this.options;
 
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
@@ -616,7 +613,7 @@ export class ItemSlots<T = number> {
       verticalCount,
       zoom,
       perspective,
-    } = this.params;
+    } = this.options;
 
     const { slotWidth, slotHeight, slotMargin, slotPadding } = this;
 

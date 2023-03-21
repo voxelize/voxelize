@@ -1,6 +1,6 @@
 use kdtree::{distance::squared_euclidean, KdTree};
 use voxelize::{
-    Chunk, ChunkStage, NoiseParams, Resources, SeededNoise, Space, Vec3, VoxelAccess, WorldConfig,
+    Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Vec3, VoxelAccess, WorldConfig,
 };
 
 pub struct Biomes<T: PartialEq> {
@@ -30,9 +30,9 @@ impl<T: std::cmp::PartialEq> Biomes<T> {
         result.1
     }
 
-    pub fn add_criterion(mut self, name: &str, params: &NoiseParams) -> Self {
+    pub fn add_criterion(mut self, name: &str, options: &NoiseOptions) -> Self {
         self.criteria
-            .push(SeededNoise::new(self.config.seed, params));
+            .push(SeededNoise::new(self.config.seed, options));
         self.tree = KdTree::new(self.criteria.len());
         self
     }
@@ -91,9 +91,9 @@ impl ChunkStage for BiomeStage {
 }
 
 // let biomes: Biomes<Biome> = Biomes::new(&config)
-//     .add_criterion("c0", &NoiseParams::new().frequency(0.008).build())
-//     .add_criterion("c1", &NoiseParams::new().frequency(0.003).build())
-//     .add_criterion("c2", &NoiseParams::new().frequency(0.012).build())
+//     .add_criterion("c0", &NoiseOptions::new().frequency(0.008).build())
+//     .add_criterion("c1", &NoiseOptions::new().frequency(0.003).build())
+//     .add_criterion("c2", &NoiseOptions::new().frequency(0.012).build())
 //     .add_biome(&[-1.0, -1.0, -1.0], Biome::new("ocean", "Biome Test 0"))
 //     .add_biome(&[1.0, 1.0, 1.0], Biome::new("plains", "Biome Test 1"))
 //     .add_biome(&[0.0, 0.0, 0.0], Biome::new("river", "Biome Test 2"))

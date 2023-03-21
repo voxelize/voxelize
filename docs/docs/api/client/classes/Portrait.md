@@ -56,9 +56,9 @@ The target of this portrait.
 
 ___
 
-### params
+### options
 
-• **params**: [`PortraitParams`](../modules.md#portraitparams)
+• **options**: [`PortraitOptions`](../modules.md#portraitoptions-2)
 
 Parameters to create this portrait with.
 
@@ -83,7 +83,7 @@ The THREE.js scene to use for rendering this portrait.
 
 ### constructor
 
-• **new Portrait**(`object`, `params?`)
+• **new Portrait**(`object`, `options?`)
 
 Create a new portrait. This automatically starts a render loop.
 
@@ -92,7 +92,7 @@ Create a new portrait. This automatically starts a render loop.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`<`Event`\> | The object to render to the canvas. |
-| `params` | `Partial`<[`PortraitParams`](../modules.md#portraitparams)\> | The parameters to create this portrait with. |
+| `options` | `Partial`<[`PortraitOptions`](../modules.md#portraitoptions-2)\> | The options to create this portrait with. |
 
 ## Methods
 

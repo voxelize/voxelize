@@ -1,5 +1,5 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
-import { Vector3, Quaternion, Object3D, Group } from "three";
+import { Group, Object3D, Quaternion, Vector3 } from "three";
 
 import { Character } from "../libs";
 
@@ -11,7 +11,7 @@ const emptyP = new Vector3();
 /**
  * Parameters to customize the peers manager.
  */
-export type PeersParams = {
+export type PeersOptions = {
   /**
    * Whether or not should the client themselves be counted as "updated". In other words,
    * whether or not should the update function be called on the client's own data. Defaults
@@ -26,7 +26,7 @@ export type PeersParams = {
   updateChildren: boolean;
 };
 
-const defaultParams: PeersParams = {
+const defaultOptions: PeersOptions = {
   countSelf: false,
   updateChildren: true,
 };
@@ -82,7 +82,7 @@ export class Peers<
   /**
    * Parameters to customize the peers manager.
    */
-  public params: PeersParams;
+  public options: PeersOptions;
 
   /**
    * The client's own peer ID. This is set when the client first connects to the server.
@@ -110,12 +110,12 @@ export class Peers<
    * Create a peers manager to add multiplayer functionality to your Voxelize game.
    *
    * @param object The object that is used to send client's own data back to the server.
-   * @param params Parameters to customize the effect.
+   * @param options Parameters to customize the effect.
    */
-  constructor(public object?: Object3D, params: Partial<PeersParams> = {}) {
+  constructor(public object?: Object3D, options: Partial<PeersOptions> = {}) {
     super();
 
-    this.params = { ...defaultParams, ...params };
+    this.options = { ...defaultOptions, ...options };
   }
 
   /**
@@ -188,7 +188,7 @@ export class Peers<
       }
       case "JOIN": {
         const { text: id } = message;
-        if (!this.params.countSelf && (!this.ownID || this.ownID === id))
+        if (!this.options.countSelf && (!this.ownID || this.ownID === id))
           return;
 
         if (!this.createPeer) {
@@ -224,7 +224,7 @@ export class Peers<
 
     if (peers) {
       peers.forEach((peer: any) => {
-        if (!this.params.countSelf && (!this.ownID || peer.id === this.ownID))
+        if (!this.options.countSelf && (!this.ownID || peer.id === this.ownID))
           return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id);
 
@@ -304,7 +304,7 @@ export class Peers<
 
   /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
-   * You can turn this behavior off by setting `params.updateChildren` to `false`.
+   * You can turn this behavior off by setting `options.updateChildren` to `false`.
    *
    * This function should be called in the render loop.
    */
@@ -329,7 +329,7 @@ export class Peers<
       this.packets.push(event);
     }
 
-    if (this.params.updateChildren) {
+    if (this.options.updateChildren) {
       this.children.forEach((child) => {
         if (child === this.ownPeer) return;
 

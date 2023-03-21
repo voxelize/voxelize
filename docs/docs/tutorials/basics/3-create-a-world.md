@@ -78,7 +78,7 @@ Here are the properties that can be configured in a world config:
 - `seed`
   - Seed of the voxelize world, used in `Terrain`.
 - `terrain`
-  - A set of noise parameters that can be used to generate the terrain shape.
+  - A set of noise options that can be used to generate the terrain shape.
 - `saving`
   - Whether or not should the world be saved.
 - `save_dir`

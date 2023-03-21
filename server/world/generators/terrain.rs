@@ -6,7 +6,7 @@ use splines::interpolate::Interpolator;
 use crate::WorldConfig;
 
 use super::{
-    noise::{NoiseParams, SeededNoise},
+    noise::{NoiseOptions, SeededNoise},
     spline::SplineMap,
 };
 
@@ -156,19 +156,19 @@ pub struct TerrainLayer {
     pub name: String,
     #[serde(skip_serializing)]
     pub noise: SeededNoise,
-    pub params: NoiseParams,
+    pub options: NoiseOptions,
     pub height_bias_spline: SplineMap,
     pub height_offset_spline: SplineMap,
 }
 
 impl TerrainLayer {
-    /// Create a new terrain layer from a specific noise configuration. The noise params are used for this layer
+    /// Create a new terrain layer from a specific noise configuration. The noise options are used for this layer
     /// to be mapped to the height bias and height offset spline graphs.
-    pub fn new(name: &str, params: &NoiseParams) -> Self {
+    pub fn new(name: &str, options: &NoiseOptions) -> Self {
         TerrainLayer {
             name: name.to_owned(),
-            noise: SeededNoise::new(0, params),
-            params: params.to_owned(),
+            noise: SeededNoise::new(0, options),
+            options: options.to_owned(),
             height_bias_spline: SplineMap::default(),
             height_offset_spline: SplineMap::default(),
         }
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn terrain_layer_remap() {
-        let mut layer = TerrainLayer::new("Test", &NoiseParams::default()).add_bias_points(&[
+        let mut layer = TerrainLayer::new("Test", &NoiseOptions::default()).add_bias_points(&[
             [-1.0, 3.5],
             [0.0, 3.0],
             [0.4, 5.0],

@@ -14,7 +14,7 @@ import { CameraPerspective } from "../common";
 /**
  * Parameters to create a portrait with.
  */
-export type PortraitParams = {
+export type PortraitOptions = {
   /**
    * The arbitrary zoom from the camera to the object. This is used to calculate the zoom
    * of the camera. Defaults to `1`.
@@ -50,7 +50,7 @@ export type PortraitParams = {
   lightRotationOffset: number;
 };
 
-const defaultParams: PortraitParams = {
+const defaultOptions: PortraitOptions = {
   zoom: 1,
   perspective: "pxyz",
   width: 100,
@@ -88,7 +88,7 @@ export class Portrait {
   /**
    * Parameters to create this portrait with.
    */
-  public params: PortraitParams;
+  public options: PortraitOptions;
 
   /**
    * The THREE.js camera to use for rendering this portrait.
@@ -124,9 +124,9 @@ export class Portrait {
    * Create a new portrait. This automatically starts a render loop.
    *
    * @param object The object to render to the canvas.
-   * @param params The parameters to create this portrait with.
+   * @param options The options to create this portrait with.
    */
-  constructor(object: Object3D, params: Partial<PortraitParams> = {}) {
+  constructor(object: Object3D, options: Partial<PortraitOptions> = {}) {
     if (!object) {
       throw new Error("A target object is required for portraits.");
     }
@@ -134,9 +134,9 @@ export class Portrait {
     Portrait.renderer.outputEncoding = sRGBEncoding;
 
     const { width, height, zoom, perspective, lightRotationOffset } =
-      (this.params = {
-        ...defaultParams,
-        ...params,
+      (this.options = {
+        ...defaultOptions,
+        ...options,
       });
 
     this.canvas = document.createElement("canvas");
@@ -205,7 +205,7 @@ export class Portrait {
     this.animationFrameId = requestAnimationFrame(this.render);
 
     const renderer = Portrait.renderer;
-    const { renderOnce } = this.params;
+    const { renderOnce } = this.options;
 
     // Get the renderer's sizes
     const { width, height } = renderer.getSize(new Vector2(0, 0));

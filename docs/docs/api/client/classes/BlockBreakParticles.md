@@ -47,7 +47,7 @@ particles.update();
 
 ### constructor
 
-• **new BlockBreakParticles**(`world`, `params?`)
+• **new BlockBreakParticles**(`world`, `options?`)
 
 Create a new block break particle system.
 
@@ -56,7 +56,7 @@ Create a new block break particle system.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world that the particle system is in. |
-| `params` | `Partial`<[`BlockBreakParticlesParams`](../modules.md#blockbreakparticlesparams-114)\> | Parameters to create a block break particle system. |
+| `options` | `Partial`<[`BlockBreakParticlesOptions`](../modules.md#blockbreakparticlesoptions-114)\> | Parameters to create a block break particle system. |
 
 #### Overrides
 

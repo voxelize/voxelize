@@ -128,7 +128,7 @@ export class Map {
 
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(
       center.toArray() as Coords3,
-      this.world.params.chunkSize
+      this.world.options.chunkSize
     );
 
     for (

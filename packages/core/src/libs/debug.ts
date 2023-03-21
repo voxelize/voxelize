@@ -6,7 +6,7 @@ import { DOMUtils } from "../utils";
 /**
  * Parameters to create a {@link Debug} instance.
  */
-export type DebugParams = {
+export type DebugOptions = {
   /**
    * Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`.
    */
@@ -56,7 +56,7 @@ export type DebugParams = {
   asyncPeriod: number;
 };
 
-const defaultParams: DebugParams = {
+const defaultOptions: DebugOptions = {
   stats: true,
   onByDefault: true,
   entryStyles: {},
@@ -96,7 +96,7 @@ export class Debug extends Group {
   /**
    * Parameters to create a {@link Debug} instance.
    */
-  public params: DebugParams;
+  public options: DebugOptions;
 
   /**
    * The stats.js instance, situated in the top-left corner after the data entries.
@@ -134,17 +134,17 @@ export class Debug extends Group {
    * Create a new {@link Debug} instance.
    *
    * @param domElement The DOM element to append the debug panel to.
-   * @param params Parameters to create a {@link Debug} instance.
+   * @param options Parameters to create a {@link Debug} instance.
    */
   constructor(
     domElement: HTMLElement = document.body,
-    params: Partial<DebugParams> = {}
+    options: Partial<DebugOptions> = {}
   ) {
     super();
 
     this.domElement = domElement;
 
-    const { onByDefault } = (this.params = { ...defaultParams, ...params });
+    const { onByDefault } = (this.options = { ...defaultOptions, ...options });
 
     this.makeDOM();
     this.setup();
@@ -189,7 +189,7 @@ export class Debug extends Group {
             newValue
           )}`;
         });
-      }, this.params.asyncPeriod);
+      }, this.options.asyncPeriod);
     }
 
     return this;
@@ -290,11 +290,11 @@ export class Debug extends Group {
    */
   private makeDataEntry = (newline = false) => {
     const dataEntry = document.createElement("p");
-    dataEntry.classList.add(this.params.lineClass);
+    dataEntry.classList.add(this.options.lineClass);
 
     DOMUtils.applyStyles(dataEntry, {
       ...(newline ? { height: "16px" } : {}),
-      ...(this.params.lineStyles || {}),
+      ...(this.options.lineStyles || {}),
     });
 
     return dataEntry;
@@ -306,15 +306,15 @@ export class Debug extends Group {
   private makeDOM = () => {
     this.dataWrapper = document.createElement("div");
     this.dataWrapper.id = "data-wrapper";
-    this.dataWrapper.classList.add(this.params.dataClass);
+    this.dataWrapper.classList.add(this.options.dataClass);
 
     this.entriesWrapper = document.createElement("div");
-    this.entriesWrapper.classList.add(this.params.entriesClass);
+    this.entriesWrapper.classList.add(this.options.entriesClass);
 
-    DOMUtils.applyStyles(this.dataWrapper, this.params.dataStyles);
-    DOMUtils.applyStyles(this.entriesWrapper, this.params.entryStyles);
+    DOMUtils.applyStyles(this.dataWrapper, this.options.dataStyles);
+    DOMUtils.applyStyles(this.entriesWrapper, this.options.entryStyles);
 
-    if (this.params.stats) {
+    if (this.options.stats) {
       this.stats = Stats();
       this.stats.dom.parentNode?.removeChild(this.stats.dom);
 
@@ -333,7 +333,7 @@ export class Debug extends Group {
    * Final setup of the debug panel.
    */
   private setup = () => {
-    if (this.params.showVoxelize) {
+    if (this.options.showVoxelize) {
       this.displayTitle(`Voxelize ${"__buildVersion__"}`);
       this.displayNewline();
     }

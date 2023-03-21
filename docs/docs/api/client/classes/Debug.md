@@ -36,7 +36,7 @@ debug.update();
 
 ### constructor
 
-• **new Debug**(`domElement?`, `params?`)
+• **new Debug**(`domElement?`, `options?`)
 
 Create a new [Debug](Debug.md) instance.
 
@@ -45,7 +45,7 @@ Create a new [Debug](Debug.md) instance.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `domElement` | `HTMLElement` | `document.body` | The DOM element to append the debug panel to. |
-| `params` | `Partial`<[`DebugParams`](../modules.md#debugparams)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
+| `options` | `Partial`<[`DebugOptions`](../modules.md#debugoptions-2)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
 
 #### Overrides
 
@@ -78,9 +78,9 @@ A HTML element wrapping all registered debug entries.
 
 ___
 
-### params
+### options
 
-• **params**: [`DebugParams`](../modules.md#debugparams)
+• **options**: [`DebugOptions`](../modules.md#debugoptions-2)
 
 Parameters to create a [Debug](Debug.md) instance.
 
@@ -132,7 +132,7 @@ ___
 
 ▸ **registerDisplay**<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
 
-Register a new object attribute to track. Needs to call [update](Debug.md#update) in the game loop
+Register a new object attribute to track. Needs to call [update](Debug.md#update-14) in the game loop
 to update the value.
 
 #### Type parameters

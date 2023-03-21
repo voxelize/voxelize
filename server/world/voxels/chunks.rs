@@ -10,14 +10,14 @@ use std::{
 };
 
 use crate::{
-    ChunkParams, ChunkStatus, ChunkUtils, LightUtils, MessageType, Vec2, Vec3, VoxelUpdate,
+    ChunkOptions, ChunkStatus, ChunkUtils, LightUtils, MessageType, Vec2, Vec3, VoxelUpdate,
     WorldConfig,
 };
 
 use super::{
     access::VoxelAccess,
     chunk::Chunk,
-    space::{SpaceBuilder, SpaceParams},
+    space::{SpaceBuilder, SpaceOptions},
 };
 
 /// Prototype for chunk's internal data used to send to client
@@ -114,7 +114,7 @@ impl Chunks {
                 &id,
                 coords.0,
                 coords.1,
-                &ChunkParams {
+                &ChunkOptions {
                     max_height: self.config.max_height,
                     sub_chunks: self.config.sub_chunks,
                     size: self.config.chunk_size,
@@ -304,7 +304,7 @@ impl Chunks {
         SpaceBuilder {
             chunks: self,
             coords: coords.to_owned(),
-            params: SpaceParams {
+            options: SpaceOptions {
                 margin,
                 chunk_size: self.config.chunk_size,
                 sub_chunks: self.config.sub_chunks,

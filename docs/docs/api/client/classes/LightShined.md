@@ -104,7 +104,7 @@ This should be called in the render loop.
 
 ### constructor
 
-• **new LightShined**(`world`, `params?`)
+• **new LightShined**(`world`, `options?`)
 
 Construct a light shined effect manager.
 
@@ -113,7 +113,7 @@ Construct a light shined effect manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world that the effect is applied to. |
-| `params` | `Partial`<[`LightShinedParams`](../modules.md#lightshinedparams)\> | Parameters to customize the effect. |
+| `options` | `Partial`<[`LightShinedOptions`](../modules.md#lightshinedoptions-2)\> | Parameters to customize the effect. |
 
 ## Properties
 
@@ -133,9 +133,9 @@ A list of meshes that are effected by this effect.
 
 ___
 
-### params
+### options
 
-• **params**: [`LightShinedParams`](../modules.md#lightshinedparams)
+• **options**: [`LightShinedOptions`](../modules.md#lightshinedoptions-2)
 
 Parameters to customize the effect.
 

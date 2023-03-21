@@ -66,7 +66,7 @@ export class Transport extends WebSocket {
       }
     }
 
-    const q = new URLSearchParams(address);
+    const q = new URLSearchOptions(address);
     super.connect(`${q.get("href")}ws/?secret=${secret}&is_transport=true`);
 
     return new Promise<void>((resolve) => {

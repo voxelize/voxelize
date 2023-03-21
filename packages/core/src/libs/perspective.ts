@@ -1,4 +1,3 @@
-import { raycast } from "@voxelize/raycast";
 import { Vector3 } from "three";
 
 import { RigidControls } from "../core/controls";
@@ -8,7 +7,7 @@ import { World } from "../core/world";
 /**
  * Parameters to create a new {@link Perspective} instance.
  */
-export type PerspectiveParams = {
+export type PerspectiveOptions = {
   /**
    * The maximum distance the camera can go from the player's center.
    * Defaults to `5`.
@@ -37,7 +36,7 @@ export type PerspectiveParams = {
   ignoreFluids: boolean;
 };
 
-const defaultParams: PerspectiveParams = {
+const defaultOptions: PerspectiveOptions = {
   maxDistance: 5,
   blockMargin: 0.3,
   lerpFactor: 0.5,
@@ -68,7 +67,7 @@ export class Perspective {
   /**
    * Parameters to configure the perspective.
    */
-  public params: PerspectiveParams;
+  public options: PerspectiveOptions;
 
   /**
    * The rigid controls that this perspective instance is attached to.
@@ -107,12 +106,12 @@ export class Perspective {
    *
    * @param controls The rigid controls that this perspective instance is attached to.
    * @param world The world that this perspective instance is working with.
-   * @param params Parameters to configure the perspective.
+   * @param options Parameters to configure the perspective.
    */
   constructor(
     controls: RigidControls,
     world: World,
-    params: Partial<PerspectiveParams> = {}
+    options: Partial<PerspectiveOptions> = {}
   ) {
     if (!controls) {
       throw new Error("Perspective: invalid rigid controls.");
@@ -125,9 +124,9 @@ export class Perspective {
     this.controls = controls;
     this.world = world;
 
-    this.params = {
-      ...defaultParams,
-      ...params,
+    this.options = {
+      ...defaultOptions,
+      ...options,
     };
 
     this.firstPersonPosition.copy(this.controls.camera.position);
@@ -207,20 +206,20 @@ export class Perspective {
       const pos = new Vector3();
       object.getWorldPosition(pos);
 
-      pos.add(dir.clone().multiplyScalar(this.params.blockMargin));
+      pos.add(dir.clone().multiplyScalar(this.options.blockMargin));
 
       const result = this.world.raycastVoxels(
         pos.toArray(),
         dir.toArray(),
-        this.params.maxDistance,
+        this.options.maxDistance,
         {
-          ignoreFluids: this.params.ignoreFluids,
-          ignoreSeeThrough: this.params.ignoreSeeThrough,
+          ignoreFluids: this.options.ignoreFluids,
+          ignoreSeeThrough: this.options.ignoreSeeThrough,
         }
       );
 
       if (!result) {
-        return this.params.maxDistance;
+        return this.options.maxDistance;
       }
 
       return pos.distanceTo(new Vector3(...result.point));
@@ -233,14 +232,14 @@ export class Perspective {
       case "second": {
         const newPos = camera.position.clone();
         newPos.z = -getDistance();
-        camera.position.lerp(newPos, this.params.lerpFactor);
+        camera.position.lerp(newPos, this.options.lerpFactor);
         camera.lookAt(object.position);
         break;
       }
       case "third": {
         const newPos = camera.position.clone();
         newPos.z = getDistance();
-        camera.position.lerp(newPos, this.params.lerpFactor);
+        camera.position.lerp(newPos, this.options.lerpFactor);
         break;
       }
     }

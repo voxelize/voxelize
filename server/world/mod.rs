@@ -1029,7 +1029,7 @@ impl World {
 
         json.insert("id".to_owned(), json!(id));
         json.insert("blocks".to_owned(), json!(self.registry().blocks_by_name));
-        json.insert("params".to_owned(), json!(config));
+        json.insert("options".to_owned(), json!(config));
         json.insert(
             "stats".to_owned(),
             json!(self.read_resource::<Stats>().get_stats()),

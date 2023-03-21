@@ -24,7 +24,7 @@ pub struct Physics {
     body_set: RapierBodySet,
     collider_set: ColliderSet,
     pipeline: PhysicsPipeline,
-    integration_parameters: IntegrationParameters,
+    integration_options: IntegrationParameters,
     island_manager: IslandManager,
     broad_phase: BroadPhase,
     narrow_phase: NarrowPhase,
@@ -49,7 +49,7 @@ impl Physics {
             ccd_solver: CCDSolver::default(),
             collider_set: ColliderSet::default(),
             impulse_joint_set: ImpulseJointSet::default(),
-            integration_parameters: IntegrationParameters::default(),
+            integration_options: IntegrationParameters::default(),
             island_manager: IslandManager::default(),
             multibody_joint_set: MultibodyJointSet::default(),
             narrow_phase: NarrowPhase::default(),
@@ -60,11 +60,11 @@ impl Physics {
     }
 
     pub fn step(&mut self, dt: f32) -> Vec<CollisionEvent> {
-        self.integration_parameters.dt = dt;
+        self.integration_options.dt = dt;
 
         self.pipeline.step(
             &self.gravity,
-            &self.integration_parameters,
+            &self.integration_options,
             &mut self.island_manager,
             &mut self.broad_phase,
             &mut self.narrow_phase,

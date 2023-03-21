@@ -9,45 +9,45 @@ pub struct SeededNoise {
     /// Core noise instance.
     regular: HybridMulti<Perlin>,
     ridged: RidgedMulti<Perlin>,
-    params: NoiseParams,
+    options: NoiseOptions,
 }
 
 impl SeededNoise {
     /// Create a new seeded simplex noise.
-    pub fn new(seed: u32, params: &NoiseParams) -> Self {
+    pub fn new(seed: u32, options: &NoiseOptions) -> Self {
         let regular = HybridMulti::new(seed)
-            .set_frequency(params.frequency)
-            .set_lacunarity(params.lacunarity)
-            .set_persistence(params.persistence)
-            .set_octaves(params.octaves);
+            .set_frequency(options.frequency)
+            .set_lacunarity(options.lacunarity)
+            .set_persistence(options.persistence)
+            .set_octaves(options.octaves);
         let ridged = RidgedMulti::new(seed)
-            .set_frequency(params.frequency)
-            .set_lacunarity(params.lacunarity)
-            .set_persistence(params.persistence)
-            .set_attenuation(params.attenuation)
-            .set_octaves(params.octaves);
+            .set_frequency(options.frequency)
+            .set_lacunarity(options.lacunarity)
+            .set_persistence(options.persistence)
+            .set_attenuation(options.attenuation)
+            .set_octaves(options.octaves);
 
         Self {
             regular,
             ridged,
-            params: params.clone(),
+            options: options.clone(),
         }
     }
 
-    /// Get the 2D multi-fractal value at voxel column with noise parameters.
-    /// Noise values are attempted to be scaled to -1.0 to 1.0, but noise parameters may change that.
+    /// Get the 2D multi-fractal value at voxel column with noise options.
+    /// Noise values are attempted to be scaled to -1.0 to 1.0, but noise options may change that.
     pub fn get2d(&self, vx: i32, vz: i32) -> f64 {
-        if self.params.ridged {
+        if self.options.ridged {
             self.ridged.get([vx as f64, vz as f64])
         } else {
             self.regular.get([vx as f64, vz as f64])
         }
     }
 
-    /// Get the 3D multi-fractal value at voxel column with noise parameters.
-    /// Noise values are attempted to be scaled to -1.0 to 1.0, but noise parameters may change that.
+    /// Get the 3D multi-fractal value at voxel column with noise options.
+    /// Noise values are attempted to be scaled to -1.0 to 1.0, but noise options may change that.
     pub fn get3d(&self, vx: i32, vy: i32, vz: i32) -> f64 {
-        if self.params.ridged {
+        if self.options.ridged {
             self.ridged.get([vx as f64, vy as f64, vz as f64])
         } else {
             self.regular.get([vx as f64, vy as f64, vz as f64])
@@ -56,15 +56,15 @@ impl SeededNoise {
 
     /// Set the noise of this seeded noise as a whole.
     pub fn set_seed(&mut self, seed: u32) -> &mut Self {
-        self.regular = self.regular.clone().set_seed(seed + self.params.seed);
-        self.ridged = self.ridged.clone().set_seed(seed + self.params.seed);
+        self.regular = self.regular.clone().set_seed(seed + self.options.seed);
+        self.ridged = self.ridged.clone().set_seed(seed + self.options.seed);
         self
     }
 }
 
-/// Multi-fractal noise parameters.
+/// Multi-fractal noise options.
 #[derive(Clone, Default, Serialize, Debug)]
-pub struct NoiseParams {
+pub struct NoiseOptions {
     pub seed: u32,
 
     /// How frequently should noise be sampled. The bigger the value, the more condensed noise
@@ -80,7 +80,7 @@ pub struct NoiseParams {
     /// By how far apart should each successive noise sample be sampled at. Defaults to 1.0.
     pub lacunarity: f64,
 
-    /// How much should each noise value contribute for RIDGED NOISE!!! `params.ridged` needs to be `true`
+    /// How much should each noise value contribute for RIDGED NOISE!!! `options.ridged` needs to be `true`
     /// for this to be used. Defaults to 2.0.
     pub attenuation: f64,
 
@@ -96,9 +96,9 @@ const DEFAULT_OCTAVES: usize = 6;
 const DEFAULT_PERSISTENCE: f64 = 1.0;
 const DEFAULT_RIDGED: bool = false;
 
-impl NoiseParams {
-    pub fn new() -> NoiseParamsBuilder {
-        NoiseParamsBuilder {
+impl NoiseOptions {
+    pub fn new() -> NoiseOptionsBuilder {
+        NoiseOptionsBuilder {
             seed: DEFAULT_SEED,
             frequency: DEFAULT_FREQUENCY,
             lacunarity: DEFAULT_LACUNARITY,
@@ -110,9 +110,9 @@ impl NoiseParams {
     }
 }
 
-/// Idiomatic builder pattern for `NoiseParams`.
+/// Idiomatic builder pattern for `NoiseOptions`.
 #[derive(Default)]
-pub struct NoiseParamsBuilder {
+pub struct NoiseOptionsBuilder {
     seed: u32,
     frequency: f64,
     octaves: usize,
@@ -122,7 +122,7 @@ pub struct NoiseParamsBuilder {
     ridged: bool,
 }
 
-impl NoiseParamsBuilder {
+impl NoiseOptionsBuilder {
     /// Configure the seed of the noise parameter. Defaults to 0.
     pub fn seed(mut self, seed: u32) -> Self {
         self.seed = seed;
@@ -166,8 +166,8 @@ impl NoiseParamsBuilder {
     }
 
     /// Build a noise parameter instance.
-    pub fn build(self) -> NoiseParams {
-        NoiseParams {
+    pub fn build(self) -> NoiseOptions {
+        NoiseOptions {
             seed: self.seed,
             frequency: self.frequency,
             octaves: self.octaves,

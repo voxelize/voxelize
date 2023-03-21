@@ -5,7 +5,7 @@ use specs::{Builder, Component, NullStorage, WorldExt};
 use std::f64;
 use voxelize::{
     default_client_parser, BaseTerrainStage, Chunk, ChunkStage, CurrentChunkComp, ETypeComp,
-    EntityFlag, IDComp, InteractorComp, LSystem, MetadataComp, NoiseParams, PositionComp,
+    EntityFlag, IDComp, InteractorComp, LSystem, MetadataComp, NoiseOptions, PositionComp,
     Resources, RigidBody, RigidBodyComp, SeededNoise, Space, Terrain, TerrainLayer, Tree, Trees,
     Vec3, VoxelAccess, World, WorldConfig, AABB,
 };
@@ -72,7 +72,7 @@ struct SpawnMethodPayload {
 pub fn setup_main_world() -> World {
     let config = WorldConfig::new()
         .terrain(
-            &NoiseParams::new()
+            &NoiseOptions::new()
                 .frequency(0.005)
                 .octaves(8)
                 .persistence(0.5)
@@ -97,7 +97,7 @@ pub fn setup_main_world() -> World {
 
     let continentalness = TerrainLayer::new(
         "continentalness",
-        &NoiseParams::new()
+        &NoiseOptions::new()
             .frequency(0.0035)
             .octaves(7)
             .persistence(0.5)
@@ -152,7 +152,7 @@ pub fn setup_main_world() -> World {
 
         let mut trees = Trees::new(
             config.seed,
-            &NoiseParams::new().frequency(0.4).lacunarity(2.9).build(),
+            &NoiseOptions::new().frequency(0.4).lacunarity(2.9).build(),
         );
         trees.set_threshold(1.5);
 
@@ -162,7 +162,7 @@ pub fn setup_main_world() -> World {
         pipeline.add_stage(terrain_stage);
         pipeline.add_stage(SoilingStage::new(
             config.seed,
-            &NoiseParams::new().frequency(0.04).lacunarity(3.0).build(),
+            &NoiseOptions::new().frequency(0.04).lacunarity(3.0).build(),
         ));
         pipeline.add_stage(TreeStage::new(trees));
 

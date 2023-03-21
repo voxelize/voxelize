@@ -7,7 +7,7 @@ custom_edit_url: null
 ---
 
 A pool of web workers that can be used to execute jobs. The pool will create
-workers up to the maximum number of workers specified in the parameters.
+workers up to the maximum number of workers specified in the options.
 When a job is queued, the pool will find the first available worker and
 execute the job. If no workers are available, the job will be queued until
 a worker becomes available.
@@ -34,17 +34,17 @@ A static count of working web workers across all worker pools.
 
 ___
 
-### params
+### options
 
-• **params**: [`WorkerPoolParams`](../modules.md#workerpoolparams) = `defaultParams`
+• **options**: [`WorkerPoolOptions`](../modules.md#workerpooloptions-2) = `defaultOptions`
 
-The parameters to create the worker pool.
+The options to create the worker pool.
 
 ___
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob-14)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
 
@@ -60,7 +60,7 @@ Append a new job to be executed by a worker.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob) | The job to queue. |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob-14) | The job to queue. |
 
 #### Returns
 
@@ -70,7 +70,7 @@ Append a new job to be executed by a worker.
 
 ### constructor
 
-• **new WorkerPool**(`Proto`, `params?`)
+• **new WorkerPool**(`Proto`, `options?`)
 
 Create a new worker pool.
 
@@ -79,7 +79,7 @@ Create a new worker pool.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `Proto` | () => `Worker` | `undefined` | The worker class to create. |
-| `params` | [`WorkerPoolParams`](../modules.md#workerpoolparams) | `defaultParams` | The parameters to create the worker pool. |
+| `options` | [`WorkerPoolOptions`](../modules.md#workerpooloptions-2) | `defaultOptions` | The options to create the worker pool. |
 
 ## Accessors
 

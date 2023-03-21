@@ -9,7 +9,7 @@ import {
 /**
  * Parameters to create an arrow.
  */
-export type ArrowParams = {
+export type ArrowOptions = {
   /**
    * The radius of the body of the arrow. Defaults to `0.1`.
    */
@@ -36,7 +36,7 @@ export type ArrowParams = {
   color: string | Color;
 };
 
-const defaultParams: ArrowParams = {
+const defaultOptions: ArrowOptions = {
   radius: 0.1,
   height: 0.8,
   coneRadius: 0.2,
@@ -67,25 +67,25 @@ export class Arrow extends ArrowHelper {
   /**
    * Parameters used to create the arrow.
    */
-  public params: ArrowParams;
+  public options: ArrowOptions;
 
   /**
    * Create a new arrow.
    *
-   * @param params - Parameters to create the arrow.
+   * @param options - Parameters to create the arrow.
    */
-  constructor(params: Partial<ArrowParams> = {}) {
+  constructor(options: Partial<ArrowOptions> = {}) {
     super();
 
-    const { radius, height, coneRadius, coneHeight } = (this.params = {
-      ...defaultParams,
-      ...params,
+    const { radius, height, coneRadius, coneHeight } = (this.options = {
+      ...defaultOptions,
+      ...options,
     });
 
     const color =
-      typeof this.params.color === "string"
-        ? new Color(this.params.color)
-        : this.params.color;
+      typeof this.options.color === "string"
+        ? new Color(this.options.color)
+        : this.options.color;
 
     [...this.children].forEach((child) => this.remove(child));
 

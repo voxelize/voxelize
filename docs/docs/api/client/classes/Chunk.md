@@ -640,9 +640,9 @@ through [getChunkName](ChunkUtils.md#getchunkname-114).
 
 ___
 
-### params
+### options
 
-• **params**: [`ChunkParams`](../modules.md#chunkparams-114)
+• **options**: [`ChunkOptions`](../modules.md#chunkoptions-114)
 
 Parameters to create a new chunk.
 
@@ -658,9 +658,9 @@ The voxel data within this chunk, represented by a 1D n-dimensional array.
 
 ### constructor
 
-• **new Chunk**(`id`, `x`, `z`, `params`)
+• **new Chunk**(`id`, `x`, `z`, `options`)
 
-Create a new chunk with the given parameters.
+Create a new chunk with the given options.
 
 #### Parameters
 
@@ -669,7 +669,7 @@ Create a new chunk with the given parameters.
 | `id` | `string` | The ID of the chunk generated on the server-side. |
 | `x` | `number` | The x coordinate of the chunk. |
 | `z` | `number` | The z coordinate of the chunk. |
-| `params` | [`ChunkParams`](../modules.md#chunkparams-114) | The parameters to create a new chunk. |
+| `options` | [`ChunkOptions`](../modules.md#chunkoptions-114) | The options to create a new chunk. |
 
 ## Accessors
 

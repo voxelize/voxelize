@@ -5,7 +5,7 @@ import { SpriteText } from "./sprite-text";
 /**
  * Parameters to create a name tag.
  */
-export type NameTagParams = {
+export type NameTagOptions = {
   /**
    * The font face to create the name tag. Defaults to `"monospace"`.
    */
@@ -32,7 +32,7 @@ export type NameTagParams = {
   backgroundColor?: string;
 };
 
-const defaultParams: NameTagParams = {
+const defaultOptions: NameTagOptions = {
   fontFace: "monospace",
   fontSize: 0.1,
   yOffset: 0,
@@ -49,12 +49,12 @@ const defaultParams: NameTagParams = {
  * @noInheritDoc
  */
 export class NameTag extends SpriteText {
-  constructor(text: string, params: Partial<NameTagParams> = {}) {
-    super(text, params.fontSize ?? defaultParams.fontSize);
+  constructor(text: string, options: Partial<NameTagOptions> = {}) {
+    super(text, options.fontSize ?? defaultOptions.fontSize);
 
     const { fontFace, yOffset, backgroundColor, color } = {
-      ...defaultParams,
-      ...params,
+      ...defaultOptions,
+      ...options,
     };
 
     this.fontFace = fontFace;

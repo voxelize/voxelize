@@ -7,7 +7,7 @@ import {
   Vector3,
 } from "three";
 
-import { CanvasBox, CanvasBoxParams } from "../../libs/canvas-box";
+import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl";
 
@@ -23,7 +23,7 @@ export type SkyShadingCycleData = {
   voidOffset: number;
 };
 
-export type SkyParams = {
+export type SkyOptions = {
   /**
    * The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
    */
@@ -38,7 +38,7 @@ export type SkyParams = {
   transitionSpan: number;
 };
 
-const defaultParams: SkyParams = {
+const defaultOptions: SkyOptions = {
   dimension: 2000,
   lerpFactor: 0.1,
   transitionSpan: 0.05,
@@ -69,7 +69,7 @@ const defaultParams: SkyParams = {
  *
  */
 export class Sky extends CanvasBox {
-  public params: CanvasBoxParams & SkyParams;
+  public options: CanvasBoxOptions & SkyOptions;
 
   /**
    * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.
@@ -108,10 +108,11 @@ export class Sky extends CanvasBox {
    * @param dimension The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
    * @param lerpFactor The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
    */
-  constructor(params: Partial<SkyParams> = {}) {
+  constructor(options: Partial<SkyOptions> = {}) {
     super({
       width:
-        (params.dimension ? params.dimension : defaultParams.dimension) * 0.8,
+        (options.dimension ? options.dimension : defaultOptions.dimension) *
+        0.8,
       side: BackSide,
       transparent: true,
       widthSegments: 512,
@@ -119,10 +120,10 @@ export class Sky extends CanvasBox {
       depthSegments: 512,
     });
 
-    this.params = {
-      ...this.params,
-      ...defaultParams,
-      ...params,
+    this.options = {
+      ...this.options,
+      ...defaultOptions,
+      ...options,
     };
 
     this.boxMaterials.forEach((m) => (m.depthWrite = false));
@@ -202,7 +203,7 @@ export class Sky extends CanvasBox {
     }
 
     const shadingStack: [number, SkyShadingCycleData][] = [];
-    const transitionTime = this.params.transitionSpan * timePerDay;
+    const transitionTime = this.options.transitionSpan * timePerDay;
 
     for (let i = 0; i < this.shadingData.length; i++) {
       const data = this.shadingData[i];
@@ -341,7 +342,7 @@ export class Sky extends CanvasBox {
       value: voidOffset,
     };
 
-    const shadingGeometry = new DodecahedronGeometry(this.params.dimension, 2);
+    const shadingGeometry = new DodecahedronGeometry(this.options.dimension, 2);
     const shadingMaterial = new ShaderMaterial({
       uniforms: {
         uTopColor: this.uTopColor,

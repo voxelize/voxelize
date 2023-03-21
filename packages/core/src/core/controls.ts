@@ -3,12 +3,12 @@ import { EventEmitter } from "events";
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
 import {
-  Euler,
-  Vector3,
-  Group,
-  Quaternion,
-  PerspectiveCamera,
   Clock,
+  Euler,
+  Group,
+  PerspectiveCamera,
+  Quaternion,
+  Vector3,
 } from "three";
 
 import { Character } from "../libs";
@@ -101,7 +101,7 @@ const defaultControlState: RigidControlState = {
 /**
  * Parameters to initialize the Voxelize {@link Controls}.
  */
-export type RigidControlsParams = {
+export type RigidControlsOptions = {
   /**
    * The mouse sensitivity. Defaults to `100`.
    */
@@ -253,7 +253,7 @@ export type RigidControlsParams = {
   stepHeight: number;
 };
 
-const defaultParams: RigidControlsParams = {
+const defaultOptions: RigidControlsOptions = {
   sensitivity: 100,
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
@@ -317,7 +317,7 @@ export class RigidControls extends EventEmitter {
   /**
    * Parameters to initialize the Voxelize controls.
    */
-  public params: RigidControlsParams;
+  public options: RigidControlsOptions;
 
   /**
    * Reference linking to the Voxelize camera instance.
@@ -364,9 +364,9 @@ export class RigidControls extends EventEmitter {
 
   /**
    * The physical rigid body of the client, dimensions described by:
-   * - `params.bodyWidth`
-   * - `params.bodyHeight`
-   * - `params.bodyDepth`
+   * - `options.bodyWidth`
+   * - `options.bodyHeight`
+   * - `options.bodyDepth`
    *
    * Keep in mind that by calling {@link RigidControls.attachCharacter}, the body is
    * resized to match the character's bounding box.
@@ -447,7 +447,7 @@ export class RigidControls extends EventEmitter {
     camera: PerspectiveCamera,
     domElement: HTMLElement,
     world: World,
-    options: Partial<RigidControlsParams> = {}
+    options: Partial<RigidControlsOptions> = {}
   ) {
     super();
 
@@ -468,8 +468,8 @@ export class RigidControls extends EventEmitter {
     this.domElement = domElement;
     this.state = defaultControlState;
 
-    const { bodyWidth, bodyHeight, bodyDepth } = (this.params = {
-      ...defaultParams,
+    const { bodyWidth, bodyHeight, bodyDepth } = (this.options = {
+      ...defaultOptions,
       ...options,
     });
 
@@ -479,20 +479,20 @@ export class RigidControls extends EventEmitter {
     this.body = world.physics.addBody({
       aabb: new AABB(0, 0, 0, bodyWidth, bodyHeight, bodyDepth),
       onStep: (newAABB) => {
-        const { positionLerp, stepLerp } = this.params;
+        const { positionLerp, stepLerp } = this.options;
 
-        this.params.positionLerp = stepLerp;
+        this.options.positionLerp = stepLerp;
         this.body.aabb = newAABB.clone();
 
         const stepTimeout = setTimeout(() => {
-          this.params.positionLerp = positionLerp;
+          this.options.positionLerp = positionLerp;
           clearTimeout(stepTimeout);
         }, 500);
       },
-      stepHeight: this.params.stepHeight,
+      stepHeight: this.options.stepHeight,
     });
 
-    this.teleport(...this.params.initialPosition);
+    this.teleport(...this.options.initialPosition);
   }
 
   /**
@@ -518,8 +518,8 @@ export class RigidControls extends EventEmitter {
     // Normalize the delta
     const delta = Math.min(0.1, this.clock.getDelta());
 
-    this.object.quaternion.slerp(this.quaternion, this.params.rotationLerp);
-    this.object.position.lerp(this.newPosition, this.params.positionLerp);
+    this.object.quaternion.slerp(this.quaternion, this.options.rotationLerp);
+    this.object.position.lerp(this.newPosition, this.options.positionLerp);
 
     if (this.character) {
       const {
@@ -550,8 +550,8 @@ export class RigidControls extends EventEmitter {
    * Keep in mind that if {@link Inputs.remap} is used to remap any controls, they will
    * not be unbound when the returned function is called.
    *
-   * @params inputs {@link Inputs} instance to bind the controls to.
-   * @params namespace The namespace to bind the controls to.
+   * @options inputs {@link Inputs} instance to bind the controls to.
+   * @options namespace The namespace to bind the controls to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
     const unbinds = [];
@@ -680,7 +680,7 @@ export class RigidControls extends EventEmitter {
    * @param vz The z voxel coordinate to teleport to.
    */
   teleport = (vx: number, vy: number, vz: number) => {
-    const { bodyHeight, eyeHeight } = this.params;
+    const { bodyHeight, eyeHeight } = this.options;
     this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight + 1, vz + 0.5);
 
     if (this.body) {
@@ -701,7 +701,7 @@ export class RigidControls extends EventEmitter {
 
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(
       [vx, 0, vz],
-      this.world.params.chunkSize
+      this.world.options.chunkSize
     );
     this.teleport(vx, 0, vz);
     this.world.addChunkInitListener([cx, cz], () => {
@@ -745,7 +745,7 @@ export class RigidControls extends EventEmitter {
   toggleGhostMode = () => {
     const { aabb } = this.body;
     const [px, py, pz] = this.body.getPosition();
-    const { bodyWidth, bodyHeight, bodyDepth } = this.params;
+    const { bodyWidth, bodyHeight, bodyDepth } = this.options;
 
     if (this.ghostMode) {
       aabb.minX = px - bodyWidth / 2;
@@ -790,7 +790,7 @@ export class RigidControls extends EventEmitter {
    * Reset the controls instance. This will reset the camera's position and rotation, and reset all movements.
    */
   reset = () => {
-    this.teleport(...this.params.initialPosition);
+    this.teleport(...this.options.initialPosition);
     this.object.rotation.set(0, 0, 0);
 
     this.resetMovements();
@@ -836,17 +836,17 @@ export class RigidControls extends EventEmitter {
     }
 
     // Change lerp factors to one.
-    character.params.positionLerp = newLerpFactor;
-    // character.params.rotationLerp = newLerpFactor;
+    character.options.positionLerp = newLerpFactor;
+    // character.options.rotationLerp = newLerpFactor;
 
-    this.params.bodyHeight = character.totalHeight;
-    this.params.bodyWidth = character.body.width;
-    this.params.bodyDepth = character.body.depth;
-    this.params.eyeHeight = character.eyeHeight / character.totalHeight;
+    this.options.bodyHeight = character.totalHeight;
+    this.options.bodyWidth = character.body.width;
+    this.options.bodyDepth = character.body.depth;
+    this.options.eyeHeight = character.eyeHeight / character.totalHeight;
 
-    this.body.aabb.maxX = this.body.aabb.minX + this.params.bodyWidth;
-    this.body.aabb.maxY = this.body.aabb.minY + this.params.bodyHeight;
-    this.body.aabb.maxZ = this.body.aabb.minZ + this.params.bodyDepth;
+    this.body.aabb.maxX = this.body.aabb.minX + this.options.bodyWidth;
+    this.body.aabb.maxY = this.body.aabb.minY + this.options.bodyHeight;
+    this.body.aabb.maxZ = this.body.aabb.minZ + this.options.bodyDepth;
 
     this.character = character;
   };
@@ -872,7 +872,11 @@ export class RigidControls extends EventEmitter {
   get voxel() {
     const [x, y, z] = this.body.getPosition();
 
-    return ChunkUtils.mapWorldToVoxel([x, y - this.params.bodyHeight * 0.5, z]);
+    return ChunkUtils.mapWorldToVoxel([
+      x,
+      y - this.options.bodyHeight * 0.5,
+      z,
+    ]);
   }
 
   /**
@@ -880,7 +884,7 @@ export class RigidControls extends EventEmitter {
    */
   get position() {
     const position = new Vector3(...this.body.getPosition());
-    position.y -= this.params.bodyHeight * 0.5;
+    position.y -= this.options.bodyHeight * 0.5;
     return position;
   }
 
@@ -888,7 +892,7 @@ export class RigidControls extends EventEmitter {
    * The chunk that the client is situated in.
    */
   get chunk() {
-    return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.params.chunkSize);
+    return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.options.chunkSize);
   }
 
   /**
@@ -947,7 +951,7 @@ export class RigidControls extends EventEmitter {
     state.crouching = down;
 
     // apply sprint state change
-    state.sprinting = this.params.alwaysSprint ? true : sprint;
+    state.sprinting = this.options.alwaysSprint ? true : sprint;
 
     // means landed, no more fly
     if (!this.ghostMode) {
@@ -979,7 +983,7 @@ export class RigidControls extends EventEmitter {
       flyForce,
       flySpeed,
       fluidPushForce,
-    } = this.params;
+    } = this.options;
 
     if (this.body.gravityMultiplier) {
       // jumping
@@ -1134,7 +1138,7 @@ export class RigidControls extends EventEmitter {
     }
 
     const [x, y, z] = this.body.getPosition();
-    const { eyeHeight, bodyHeight } = this.params;
+    const { eyeHeight, bodyHeight } = this.options;
     this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
   };
 
@@ -1156,12 +1160,12 @@ export class RigidControls extends EventEmitter {
 
     this.euler.setFromQuaternion(this.quaternion);
 
-    this.euler.y -= (movementX * this.params.sensitivity * 0.002) / 100;
-    this.euler.x -= (movementY * this.params.sensitivity * 0.002) / 100;
+    this.euler.y -= (movementX * this.options.sensitivity * 0.002) / 100;
+    this.euler.x -= (movementY * this.options.sensitivity * 0.002) / 100;
 
     this.euler.x = Math.max(
-      PI_2 - this.params.maxPolarAngle,
-      Math.min(PI_2 - this.params.minPolarAngle, this.euler.x)
+      PI_2 - this.options.maxPolarAngle,
+      Math.min(PI_2 - this.options.minPolarAngle, this.euler.x)
     );
 
     this.quaternion.setFromEuler(this.euler);

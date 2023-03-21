@@ -1,4 +1,4 @@
-import { MessageProtocol, ChatProtocol } from "@voxelize/transport/src/types";
+import { ChatProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 
 import { NetIntercept } from "./network";
 
@@ -136,7 +136,7 @@ export class Chat implements NetIntercept {
   public onMessage = (message: MessageProtocol) => {
     switch (message.type) {
       case "INIT": {
-        const { commandSymbol } = message.json.params;
+        const { commandSymbol } = message.json.options;
         this._commandSymbol = commandSymbol;
         break;
       }

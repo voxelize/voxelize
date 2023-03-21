@@ -402,7 +402,7 @@ debug.registerDisplay("Position", controls, "voxel");
 
 debug.registerDisplay("Time", () => {
   return `${Math.floor(
-    (world.time / world.params.timePerDay) * 100
+    (world.time / world.options.timePerDay) * 100
   )}% (${world.time.toFixed(2)})`;
 });
 
@@ -578,11 +578,11 @@ const start = async () => {
           ...camera.getWorldPosition(new THREE.Vector3()).toArray()
         )?.name === "Water";
       const fogNear = inWater
-        ? 0.1 * world.params.chunkSize * world.renderRadius
-        : 0.7 * world.params.chunkSize * world.renderRadius;
+        ? 0.1 * world.options.chunkSize * world.renderRadius
+        : 0.7 * world.options.chunkSize * world.renderRadius;
       const fogFar = inWater
-        ? 0.8 * world.params.chunkSize * world.renderRadius
-        : world.params.chunkSize * world.renderRadius;
+        ? 0.8 * world.options.chunkSize * world.renderRadius
+        : world.options.chunkSize * world.renderRadius;
       const fogColor = inWater
         ? new THREE.Color("#5F9DF7")
         : new THREE.Color("#B1CCFD");
@@ -642,8 +642,8 @@ const start = async () => {
 
   gui.add(world, "renderRadius", 3, 20, 1);
   gui.add(map, "dimension", 1, 10, 0.1);
-  gui.add(world, "time", 0, world.params.timePerDay, 0.01);
-  gui.add(voxelInteract.params, "ignoreFluids");
+  gui.add(world, "time", 0, world.options.timePerDay, 0.01);
+  gui.add(voxelInteract.options, "ignoreFluids");
 
   const bar = new VOXELIZE.ItemSlots({
     verticalCount: 1,

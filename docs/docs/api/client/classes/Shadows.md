@@ -30,7 +30,7 @@ shadows.update();
 
 ### add
 
-▸ **add**(`object`, `params?`): `void`
+▸ **add**(`object`, `options?`): `void`
 
 Add a shadow to an object under the shadow manager.
 
@@ -39,7 +39,7 @@ Add a shadow to an object under the shadow manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`<`Event`\> | The object to add a shadow to. |
-| `params` | `Partial`<[`ShadowParams`](../modules.md#shadowparams)\> | The parameters of the shadow. |
+| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-2)\> | The options of the shadow. |
 
 #### Returns
 

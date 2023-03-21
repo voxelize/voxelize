@@ -29,7 +29,7 @@ TODO-DOC
 
 ## Hierarchy
 
-- `Map`<`string`, [`EventHandler`](../modules.md#eventhandler)\>
+- `Map`<`string`, [`EventHandler`](../modules.md#eventhandler-14)\>
 
   ↳ **`Events`**
 
@@ -43,7 +43,7 @@ TODO-DOC
 
 ▸ **addEventListener**(`name`, `handler`): `void`
 
-Synonym for [on](Events.md#on), adds a listener to a Voxelize server event.
+Synonym for [on](Events.md#on-14), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -51,7 +51,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler-14) | What to do when this event is received? |
 
 #### Returns
 
@@ -88,7 +88,7 @@ Emit multiple events to the server.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `events` | [`Event`](../modules.md#event)[] | A list of events to emit. |
+| `events` | [`Event`](../modules.md#event-14)[] | A list of events to emit. |
 
 #### Returns
 
@@ -100,7 +100,7 @@ ___
 
 ▸ **on**(`name`, `handler`): `void`
 
-Synonym for [addEventListener](Events.md#addeventlistener), adds a listener to a Voxelize server event.
+Synonym for [addEventListener](Events.md#addeventlistener-14), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -108,7 +108,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler-14) | What to do when this event is received? |
 
 #### Returns
 

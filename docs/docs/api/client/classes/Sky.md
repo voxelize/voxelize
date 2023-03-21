@@ -44,7 +44,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-14)
 
 ___
 
@@ -56,7 +56,7 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-14)
 
 ___
 
@@ -68,25 +68,25 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-14)
 
 ___
 
-### params
+### options
 
-• **params**: [`CanvasBoxParams`](../modules.md#canvasboxparams) & [`SkyParams`](../modules.md#skyparams)
+• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions-2) & [`SkyOptions`](../modules.md#skyoptions-2)
 
 Parameters for creating a canvas box.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[params](CanvasBox.md#params)
+[CanvasBox](CanvasBox.md).[options](CanvasBox.md#options-4)
 
 ___
 
 ### shadingData
 
-• **shadingData**: [`SkyShadingCycleData`](../modules.md#skyshadingcycledata)[] = `[]`
+• **shadingData**: [`SkyShadingCycleData`](../modules.md#skyshadingcycledata-14)[] = `[]`
 
 ___
 
@@ -164,7 +164,7 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-14)
 
 ## Accessors
 
@@ -186,7 +186,7 @@ CanvasBox.boxMaterials
 
 ### constructor
 
-• **new Sky**(`params?`)
+• **new Sky**(`options?`)
 
 Create a new sky instance.
 
@@ -194,11 +194,11 @@ Create a new sky instance.
 
 | Name | Type |
 | :------ | :------ |
-| `params` | `Partial`<[`SkyParams`](../modules.md#skyparams)\> |
+| `options` | `Partial`<[`SkyOptions`](../modules.md#skyoptions-2)\> |
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor)
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-14)
 
 ## Methods
 
@@ -255,8 +255,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-14) \| [`BoxSides`](../modules.md#boxsides-14)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-14) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -265,7 +265,7 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-14)
 
 ___
 
@@ -277,7 +277,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`SkyShadingCycleData`](../modules.md#skyshadingcycledata)[] |
+| `data` | [`SkyShadingCycleData`](../modules.md#skyshadingcycledata-14)[] |
 
 #### Returns
 

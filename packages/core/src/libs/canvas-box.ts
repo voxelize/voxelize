@@ -18,7 +18,7 @@ import { DOMUtils } from "../utils";
 /**
  * Parameters to create a canvas box.
  */
-export type CanvasBoxParams = {
+export type CanvasBoxOptions = {
   /**
    * The gap between the layers of the box. Defaults to `0`.
    */
@@ -96,7 +96,7 @@ export type BoxSides =
   | "sides"
   | "all";
 
-const defaultParams: CanvasBoxParams = {
+const defaultOptions: CanvasBoxOptions = {
   gap: 0,
   layers: 1,
   width: 1,
@@ -348,7 +348,7 @@ export class CanvasBox extends Group {
   /**
    * Parameters for creating a canvas box.
    */
-  public params: CanvasBoxParams;
+  public options: CanvasBoxOptions;
 
   /**
    * The inner layers of the canvas box.
@@ -373,14 +373,14 @@ export class CanvasBox extends Group {
   /**
    * Create a new canvas box.
    *
-   * @param params The parameters for creating a canvas box.
+   * @param options The options for creating a canvas box.
    */
-  constructor(params: Partial<CanvasBoxParams> = {}) {
+  constructor(options: Partial<CanvasBoxOptions> = {}) {
     super();
 
-    this.params = {
-      ...defaultParams,
-      ...params,
+    this.options = {
+      ...defaultOptions,
+      ...options,
     };
 
     this.makeBoxes();
@@ -424,7 +424,7 @@ export class CanvasBox extends Group {
       heightSegments,
       depthSegments,
       transparent,
-    } = this.params;
+    } = this.options;
 
     if (!width) {
       throw new Error("CanvasBox width must be specified.");

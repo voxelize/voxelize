@@ -28,7 +28,7 @@ import { Arrow } from "./arrow";
 /**
  * Parameters to customize the {@link VoxelInteract} instance.
  */
-export type VoxelInteractParams = {
+export type VoxelInteractOptions = {
   /**
    * The maximum distance of reach for the {@link VoxelInteract} instance. Defaults to `32`.
    */
@@ -77,7 +77,7 @@ export type VoxelInteractParams = {
   potentialVisuals: boolean;
 };
 
-const defaultParams: VoxelInteractParams = {
+const defaultOptions: VoxelInteractOptions = {
   reachDistance: 32,
   ignoreFluids: true,
   highlightType: "box",
@@ -123,7 +123,7 @@ export class VoxelInteract extends Group {
   /**
    * Parameters to customize the {@link VoxelInteract} instance.
    */
-  public params: VoxelInteractParams;
+  public options: VoxelInteractOptions;
 
   /**
    * Whether or not is this {@link VoxelInteract} instance currently active.
@@ -195,12 +195,12 @@ export class VoxelInteract extends Group {
    *
    * @param object The object that the interactions should be raycasting from.
    * @param world The {@link World} instance that the interactions should be raycasting in.
-   * @param params Parameters to customize the {@link VoxelInteract} instance.
+   * @param options Parameters to customize the {@link VoxelInteract} instance.
    */
   constructor(
     public object: Object3D,
     public world: World,
-    params: Partial<VoxelInteractParams> = {}
+    options: Partial<VoxelInteractOptions> = {}
   ) {
     super();
 
@@ -212,9 +212,9 @@ export class VoxelInteract extends Group {
       throw new Error("VoxelInteract: a world is required to be operated on");
     }
 
-    const { potentialVisuals } = (this.params = {
-      ...defaultParams,
-      ...params,
+    const { potentialVisuals } = (this.options = {
+      ...defaultOptions,
+      ...options,
     });
 
     this.setup();
@@ -244,12 +244,15 @@ export class VoxelInteract extends Group {
   update = () => {
     if (!this.active) return;
 
-    const { reachDistance, highlightScale } = this.params;
+    const { reachDistance, highlightScale } = this.options;
 
-    this.targetGroup.scale.lerp(this.newTargetScale, this.params.highlightLerp);
+    this.targetGroup.scale.lerp(
+      this.newTargetScale,
+      this.options.highlightLerp
+    );
     this.targetGroup.position.lerp(
       this.newTargetPosition,
-      this.params.highlightLerp
+      this.options.highlightLerp
     );
 
     const objPos = new Vector3();
@@ -258,7 +261,7 @@ export class VoxelInteract extends Group {
     this.object.getWorldDirection(objDir);
     objDir.normalize();
 
-    if (this.params.inverseDirection) {
+    if (this.options.inverseDirection) {
       objDir.multiplyScalar(-1);
     }
 
@@ -267,7 +270,7 @@ export class VoxelInteract extends Group {
       objDir.toArray(),
       reachDistance,
       {
-        ignoreFluids: this.params.ignoreFluids,
+        ignoreFluids: this.options.ignoreFluids,
       }
     );
 
@@ -428,7 +431,7 @@ export class VoxelInteract extends Group {
    */
   private setup = () => {
     const { highlightType, highlightScale, highlightColor, highlightOpacity } =
-      this.params;
+      this.options;
 
     const mat = new MeshBasicMaterial({
       color: new Color(highlightColor),

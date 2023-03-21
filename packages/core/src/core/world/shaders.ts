@@ -100,16 +100,16 @@ export const customShaders = {
    * Create a custom shader that sways the chunk with the wind. This shader's swaying is based on the y axis
    * subtracted by the floored y axis. Therefore, blocks on integer y axis values will not sway.
    *
-   * @params params The parameters to pass into the shader.
-   * @params params.speed The speed of the sway.
-   * @params params.amplitude The amplitude of the sway.
-   * @params params.scale The scale that is applied to the final sway.
-   * @params params.rooted Whether or not should the y-value be floored to 0 first.
-   * @params params.yScale The scale that is applied to the y-axis.
+   * @options options The options to pass into the shader.
+   * @options options.speed The speed of the sway.
+   * @options options.amplitude The amplitude of the sway.
+   * @options options.scale The scale that is applied to the final sway.
+   * @options options.rooted Whether or not should the y-value be floored to 0 first.
+   * @options options.yScale The scale that is applied to the y-axis.
    * @returns Shaders to pass into {@link World.overwriteTransparentMaterial}
    */
   sway(
-    params: Partial<{
+    options: Partial<{
       speed: number;
       amplitude: number;
       scale: number;
@@ -123,7 +123,7 @@ export const customShaders = {
       rooted: false,
       scale: 1,
       yScale: 1,
-      ...params,
+      ...options,
     };
 
     return {

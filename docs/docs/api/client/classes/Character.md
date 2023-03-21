@@ -167,9 +167,9 @@ A listener called when a character starts moving.
 
 ___
 
-### params
+### options
 
-• **params**: [`CharacterParams`](../modules.md#characterparams)
+• **options**: [`CharacterOptions`](../modules.md#characteroptions-2)
 
 Parameters to create a Voxelize character.
 
@@ -213,13 +213,13 @@ ___
 
 The speed where the character has detected movements at. When speed is 0, the
 arms swing slowly in idle mode, and when speed is greater than 0, the arms swing
-faster depending on the passed-in parameters.
+faster depending on the passed-in options.
 
 ## Constructors
 
 ### constructor
 
-• **new Character**(`params?`)
+• **new Character**(`options?`)
 
 Create a new Voxelize character.
 
@@ -227,7 +227,7 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `params` | `Partial`<[`CharacterParams`](../modules.md#characterparams)\> | Parameters to create a Voxelize character. |
+| `options` | `Partial`<[`CharacterOptions`](../modules.md#characteroptions-2)\> | Parameters to create a Voxelize character. |
 
 #### Overrides
 
