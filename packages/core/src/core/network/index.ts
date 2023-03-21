@@ -158,7 +158,7 @@ export class Network {
    * The worker pool for decoding network packets.
    */
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
-    maxWorker: 4,
+    maxWorker: window.navigator.hardwareConcurrency || 4,
   });
 
   /**
@@ -257,6 +257,11 @@ export class Network {
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
         this.packetQueue.push(new Uint8Array(data));
+
+        // If the packet queue is too long, we will start to drop packets.
+        if (this.packetQueue.length > 300) {
+          this.packetQueue.shift();
+        }
       };
       ws.onclose = () => {
         this.connected = false;
@@ -342,6 +347,10 @@ export class Network {
       return;
     }
 
+    console.log(
+      `Network: ${this.packetQueue.length} packets in queue, decoding...`
+    );
+
     while (this.packetQueue.length && !this.pool.isBusy) {
       this.decode(
         this.packetQueue.splice(
@@ -353,6 +362,12 @@ export class Network {
           this.onMessage(message);
         });
       });
+    }
+
+    if (this.packetQueue.length) {
+      console.log(
+        `Network: ${this.packetQueue.length} packets left in queue, skipping...`
+      );
     }
   };
 

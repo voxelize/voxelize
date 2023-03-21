@@ -53,8 +53,8 @@ class Box extends VOXELIZE.Entity<{
       )
     );
 
-    // shadows.add(this);
-    // lightShined.add(this);
+    shadows.add(this);
+    lightShined.add(this);
   }
 
   onCreate = (data: { position: VOXELIZE.Coords3 }) => {
