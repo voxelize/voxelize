@@ -460,6 +460,13 @@ export class Network {
   }
 
   /**
+   * The number of network packets waiting to be decoded.
+   */
+  get packetQueueLength() {
+    return this.packetQueue.length;
+  }
+
+  /**
    * The listener to protocol buffer events. Basically sends the event packets into
    * the network intercepts.
    */

@@ -683,6 +683,8 @@ const start = async () => {
     return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
   });
 
+  debug.registerDisplay("Packet queue length", network, "packetQueueLength");
+
   HOTBAR_CONTENT.forEach((id, index) => {
     const mesh = world.makeBlockMesh(id, { material: "standard" });
     const slot = bar.getSlot(0, index);
