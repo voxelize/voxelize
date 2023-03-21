@@ -25,7 +25,7 @@ pub struct Stats {
     /// Tick of the game
     pub tick: u64,
 
-    /// A number between 0 to config.ticks_per_day
+    /// A number between 0 to config.time_per_day
     pub time: f32,
 
     /// The time of the last tick.
@@ -70,9 +70,19 @@ impl Stats {
             return;
         }
 
-        let mut file = fs::File::create(&self.path).expect("Unable to create stats file...");
-        let j = serde_json::to_string(&self.get_stats()).unwrap();
-        file.write_all(j.as_bytes())
-            .expect("Unable to write stats file.");
+        if let Ok(mut file) = fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&self.path)
+        {
+            let j = serde_json::to_string(&self.get_stats()).unwrap();
+            file.write_all(j.as_bytes())
+                .expect("Unable to write stats file.");
+        } else {
+            let mut file = fs::File::create(&self.path).expect("Unable to create stats file...");
+            let j = serde_json::to_string(&self.get_stats()).unwrap();
+            file.write_all(j.as_bytes())
+                .expect("Unable to write stats file.");
+        }
     }
 }

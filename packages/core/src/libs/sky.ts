@@ -2,7 +2,6 @@ import {
   BackSide,
   Color,
   DodecahedronGeometry,
-  MathUtils,
   Mesh,
   ShaderMaterial,
   Vector3,
@@ -12,7 +11,9 @@ import { CanvasBox, CanvasBoxParams } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
 
-export type SkyShadingData = {
+export type SkyShadingCycleData = {
+  start: number;
+  name: string;
   color: {
     top: Color;
     middle: Color;
@@ -34,13 +35,13 @@ export type SkyParams = {
    */
   lerpFactor: number;
 
-  changeSpan: number;
+  transitionSpan: number;
 };
 
 const defaultParams: SkyParams = {
   dimension: 2000,
   lerpFactor: 0.1,
-  changeSpan: 0.05,
+  transitionSpan: 0.05,
 };
 
 /**
@@ -99,40 +100,7 @@ export class Sky extends CanvasBox {
     value: number;
   };
 
-  public shadingData: { [progress: number]: SkyShadingData } = {};
-
-  public ticksPerDay: number;
-
-  private oldTopColor: Color;
-
-  private oldMiddleColor: Color;
-
-  private oldBottomColor: Color;
-
-  private oldSkyOffset: number;
-
-  private oldVoidOffset: number;
-
-  /**
-   * The internal new color of the top of the sky gradient.
-   */
-  private newTopColor: Color;
-
-  /**
-   * The internal new color of the middle of the sky gradient.
-   */
-  private newMiddleColor: Color;
-
-  /**
-   * The internal new color of the bottom of the sky gradient.
-   */
-  private newBottomColor: Color;
-
-  private newSkyOffset: number;
-
-  private newVoidOffset: number;
-
-  private lastColorChangeTick = 0;
+  public shadingData: SkyShadingCycleData[] = [];
 
   /**
    * Create a new sky instance.
@@ -164,53 +132,24 @@ export class Sky extends CanvasBox {
     this.createSkyShading();
   }
 
-  registerShadingData = (
-    progress: number /** 0 to 1 */,
-    data: {
-      color: {
-        top: Color;
-        middle: Color;
-        bottom: Color;
-      };
-      skyOffset: number;
-      voidOffset: number;
-    }
-  ) => {
-    if (this.ticksPerDay) {
-      throw new Error(
-        "Cannot register shading data after the world has been initialized."
-      );
-    }
-
-    // Check to see if progress is already registered.
-    if (this.shadingData[progress]) {
-      console.warn(
-        `Progress ${progress} is already registered. Overwriting existing data.`
-      );
-    }
-
-    if (progress < 0 || progress > 1) {
-      console.warn(
-        `Progress ${progress} is out of range. Progress must be between 0 and 1.`
-      );
+  setShadingPhases = (data: SkyShadingCycleData[]) => {
+    if (data.length === 0) {
       return;
     }
 
-    if (data.skyOffset < 0 || data.skyOffset > 1) {
-      console.warn(
-        `Sky offset ${data.skyOffset} is out of range. Sky offset must be between 0 and 1.`
-      );
-      return;
+    if (data.length === 1) {
+      this.uTopColor.value.copy(data[0].color.top);
+      this.uMiddleColor.value.copy(data[0].color.middle);
+      this.uBottomColor.value.copy(data[0].color.bottom);
+      this.uSkyOffset.value = data[0].skyOffset;
+      this.uVoidOffset.value = data[0].voidOffset;
     }
 
-    if (data.voidOffset < 0 || data.voidOffset > 1) {
-      console.warn(
-        `Void offset ${data.voidOffset} is out of range. Void offset must be between 0 and 1.`
-      );
-      return;
-    }
+    this.shadingData = data;
 
-    this.shadingData[progress] = data;
+    // Sort the shading data by start
+
+    this.shadingData.sort((a, b) => a.start - b.start);
   };
 
   /**
@@ -246,98 +185,8 @@ export class Sky extends CanvasBox {
    *
    * @param position The new position to center the sky at.
    */
-  update = (position: Vector3, timeTick: number) => {
-    if (this.ticksPerDay === undefined) {
-      throw new Error("Sky ticks per day is undefined. Something went wrong.");
-    }
-
-    const flooredTimeTick = Math.floor(timeTick);
-    const changeSpanTicks = this.params.changeSpan * this.ticksPerDay;
-    const { uTopColor, uMiddleColor, uBottomColor } = this;
-
-    if (
-      this.shadingData[flooredTimeTick] &&
-      flooredTimeTick !== this.lastColorChangeTick
-    ) {
-      const { color, skyOffset, voidOffset } =
-        this.shadingData[flooredTimeTick];
-
-      this.oldTopColor = this.newTopColor?.clone();
-      this.oldMiddleColor = this.newMiddleColor?.clone();
-      this.oldBottomColor = this.newBottomColor?.clone();
-      this.oldSkyOffset = this.newSkyOffset;
-      this.oldVoidOffset = this.newVoidOffset;
-
-      this.newTopColor = color.top;
-      this.newMiddleColor = color.middle;
-      this.newBottomColor = color.bottom;
-      this.newSkyOffset = skyOffset;
-      this.newVoidOffset = voidOffset;
-
-      this.lastColorChangeTick = flooredTimeTick;
-
-      return;
-    }
-
-    // Calculate old and new weights by the last color change time.
-    const ticksElapsedSinceLastChange =
-      timeTick > this.lastColorChangeTick
-        ? timeTick - this.lastColorChangeTick
-        : this.ticksPerDay - this.lastColorChangeTick + timeTick;
-
-    // Supposedly, the color should change into new weight after
-    // lastColorChangeTick + changeSpanTicks ticks.
-    const oldWeight = Math.min(
-      1,
-      ticksElapsedSinceLastChange / changeSpanTicks
-    );
-
-    // Set the colors as a blend between the old and new colors.
-    if (this.oldTopColor) {
-      uTopColor.value = this.oldTopColor
-        .clone()
-        .lerp(this.newTopColor, oldWeight);
-    } else if (this.newTopColor) {
-      uTopColor.value = this.newTopColor;
-    }
-
-    if (this.oldMiddleColor) {
-      uMiddleColor.value = this.oldMiddleColor
-        .clone()
-        .lerp(this.newMiddleColor, oldWeight);
-    } else if (this.newMiddleColor) {
-      uMiddleColor.value = this.newMiddleColor;
-    }
-
-    if (this.oldBottomColor) {
-      uBottomColor.value = this.oldBottomColor
-        .clone()
-        .lerp(this.newBottomColor, oldWeight);
-    } else if (this.newBottomColor) {
-      uBottomColor.value = this.newBottomColor;
-    }
-
-    if (this.oldSkyOffset !== undefined) {
-      this.uSkyOffset.value = MathUtils.lerp(
-        this.oldSkyOffset,
-        this.newSkyOffset,
-        oldWeight
-      );
-    } else {
-      this.uSkyOffset.value = this.newSkyOffset;
-    }
-
-    if (this.oldVoidOffset !== undefined) {
-      this.uVoidOffset.value = MathUtils.lerp(
-        this.oldVoidOffset,
-        this.newVoidOffset,
-        oldWeight
-      );
-    } else {
-      this.uVoidOffset.value = this.newVoidOffset;
-    }
-
-    this.rotation.z = Math.PI * 2 * (timeTick / this.ticksPerDay);
+  update = (position: Vector3, time: number, timePerDay: number) => {
+    this.rotation.z = Math.PI * 2 * (time / timePerDay);
 
     ["top", "right", "left", "front", "back"].forEach((face) => {
       const mat = this.boxMaterials.get(face);
@@ -347,6 +196,115 @@ export class Sky extends CanvasBox {
     });
 
     this.position.copy(position);
+
+    if (this.shadingData.length <= 1) {
+      return;
+    }
+
+    const shadingStack: [number, SkyShadingCycleData][] = [];
+    const transitionTime = this.params.transitionSpan * timePerDay;
+
+    for (let i = 0; i < this.shadingData.length; i++) {
+      const data = this.shadingData[i];
+      const nextData = this.shadingData[(i + 1) % this.shadingData.length];
+
+      const { start } = data;
+      const startTime = start * timePerDay;
+      const nextStartTime = nextData.start * timePerDay;
+
+      if (
+        startTime < nextStartTime
+          ? time >= startTime && time < nextStartTime
+          : time < nextStartTime || time >= startTime
+      ) {
+        const weight = Math.max(
+          Math.min(
+            time >= startTime
+              ? (time - startTime) / transitionTime
+              : (time + timePerDay - startTime) / transitionTime,
+            1.0
+          ),
+          0.0
+        );
+
+        shadingStack.push([weight, data]);
+
+        if (
+          time >= startTime
+            ? time < startTime + transitionTime
+            : time + timePerDay < startTime + transitionTime
+        ) {
+          const previousData =
+            this.shadingData[
+              (i - 1 < 0 ? i - 1 + this.shadingData.length : i - 1) %
+                this.shadingData.length
+            ];
+
+          shadingStack.push([1 - weight, previousData]);
+        }
+
+        break;
+      }
+    }
+
+    const weightedTopRGB = [0, 0, 0];
+    const weightedMiddleRGB = [0, 0, 0];
+    const weightedBottomRGB = [0, 0, 0];
+    let weightedSkyOffset = 0;
+    let weightedVoidOffset = 0;
+
+    const emptyRGB = {
+      r: 0,
+      g: 0,
+      b: 0,
+    };
+
+    shadingStack.forEach(([weight, data]) => {
+      const {
+        skyOffset,
+        voidOffset,
+        color: { top, middle, bottom },
+      } = data;
+
+      top.getRGB(emptyRGB);
+      weightedTopRGB[0] += emptyRGB.r * weight;
+      weightedTopRGB[1] += emptyRGB.g * weight;
+      weightedTopRGB[2] += emptyRGB.b * weight;
+
+      middle.getRGB(emptyRGB);
+      weightedMiddleRGB[0] += emptyRGB.r * weight;
+      weightedMiddleRGB[1] += emptyRGB.g * weight;
+      weightedMiddleRGB[2] += emptyRGB.b * weight;
+
+      bottom.getRGB(emptyRGB);
+      weightedBottomRGB[0] += emptyRGB.r * weight;
+      weightedBottomRGB[1] += emptyRGB.g * weight;
+      weightedBottomRGB[2] += emptyRGB.b * weight;
+
+      weightedSkyOffset += weight * skyOffset;
+      weightedVoidOffset += weight * voidOffset;
+    });
+
+    this.uTopColor.value.setRGB(
+      weightedTopRGB[0],
+      weightedTopRGB[1],
+      weightedTopRGB[2]
+    );
+
+    this.uMiddleColor.value.setRGB(
+      weightedMiddleRGB[0],
+      weightedMiddleRGB[1],
+      weightedMiddleRGB[2]
+    );
+
+    this.uBottomColor.value.setRGB(
+      weightedBottomRGB[0],
+      weightedBottomRGB[1],
+      weightedBottomRGB[2]
+    );
+
+    this.uSkyOffset.value = weightedSkyOffset;
+    this.uVoidOffset.value = weightedVoidOffset;
   };
 
   /**

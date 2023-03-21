@@ -67,7 +67,7 @@ export type WorldClientParams = {
 
   /**
    * The maximum amount of chunks received from the server that can be processed per world update.
-   * By process, it means to be turned into a `Chunk` instance. Defaults to `100` chunks.
+   * By process, it means to be turned into a `Chunk` instance. Defaults to `8` chunks.
    */
   maxProcessesPerUpdate: number;
 
@@ -86,9 +86,9 @@ export type WorldClientParams = {
    */
   minLightLevel: number;
 
-  sunlightStartTickFrac: number;
+  sunlightStartTimeFrac: number;
 
-  sunlightEndTickFrac: number;
+  sunlightEndTimeFrac: number;
 
   sunlightChangeSpan: number;
 
@@ -123,7 +123,7 @@ export type WorldClientParams = {
 
 const defaultParams: WorldClientParams = {
   maxChunkRequestsPerUpdate: 12,
-  maxProcessesPerUpdate: 100,
+  maxProcessesPerUpdate: 8,
   maxUpdatesPerUpdate: 1000,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
@@ -134,8 +134,8 @@ const defaultParams: WorldClientParams = {
   skyParams: {},
   cloudsParams: {},
   chunkUniformsOverwrite: {},
-  sunlightStartTickFrac: 0.25,
-  sunlightEndTickFrac: 0.7,
+  sunlightStartTimeFrac: 0.25,
+  sunlightEndTimeFrac: 0.7,
   sunlightChangeSpan: 0.1,
 };
 
@@ -190,7 +190,7 @@ export type WorldServerParams = {
   fluidDrag: number;
   fluidDensity: number;
 
-  ticksPerDay: number;
+  timePerDay: number;
 };
 
 /**
@@ -1321,9 +1321,8 @@ export class World extends Scene implements NetIntercept {
 
     await this.loadMaterials();
 
-    this.initSkyAndClouds();
-
     this.isInitialized = true;
+    this.params.timePerDay = 20;
 
     this.renderRadius = this.params.defaultRenderRadius;
   }
@@ -1343,7 +1342,7 @@ export class World extends Scene implements NetIntercept {
       this.params.chunkSize
     );
 
-    this._time = (this.time + delta) % this.params.ticksPerDay;
+    this._time = (this.time + delta) % this.params.timePerDay;
 
     this.maintainChunks(center, direction);
     this.requestChunks(center, direction);
@@ -1381,6 +1380,7 @@ export class World extends Scene implements NetIntercept {
       }
       case "LOAD": {
         const { chunks } = message;
+        console.log(chunks.length);
 
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
@@ -1421,7 +1421,7 @@ export class World extends Scene implements NetIntercept {
     return this._time;
   }
 
-  private set time(time: number) {
+  set time(time: number) {
     this._time = time;
   }
 
@@ -1739,44 +1739,36 @@ export class World extends Scene implements NetIntercept {
   };
 
   public updateSkyAndClouds(position: Vector3, timeOverride?: number) {
+    const {
+      sunlightStartTimeFrac,
+      sunlightEndTimeFrac,
+      sunlightChangeSpan,
+      timePerDay,
+      minLightLevel,
+    } = this.params;
+
     const time = timeOverride !== undefined ? timeOverride : this.time;
 
-    this.sky.update(position, time);
+    this.sky.update(position, time, timePerDay);
     this.clouds.update(position);
 
     // Update the sunlight intensity
-    const {
-      sunlightStartTickFrac,
-      sunlightEndTickFrac,
-      sunlightChangeSpan,
-      ticksPerDay,
+    const sunlightStartTime = Math.floor(sunlightStartTimeFrac * timePerDay);
+    const sunlightEndTime = Math.floor(sunlightEndTimeFrac * timePerDay);
+    const sunlightChangeSpanTime = Math.floor(sunlightChangeSpan * timePerDay);
+
+    const sunlightIntensity = Math.max(
       minLightLevel,
-    } = this.params;
-    const sunlightStartTick = Math.floor(sunlightStartTickFrac * ticksPerDay);
-    const sunlightEndTick = Math.floor(sunlightEndTickFrac * ticksPerDay);
-    const sunlightChangeSpanTicks = Math.floor(
-      sunlightChangeSpan * ticksPerDay
+      time < sunlightStartTime
+        ? 0.0
+        : time < sunlightStartTime + sunlightChangeSpanTime
+        ? (time - sunlightStartTime) / sunlightChangeSpanTime
+        : time <= sunlightEndTime
+        ? 1.0
+        : time <= sunlightEndTime + sunlightChangeSpanTime
+        ? 1 - (time - sunlightEndTime) / sunlightChangeSpanTime
+        : 0.0
     );
-
-    let sunlightIntensity = this.chunks.uniforms.sunlightIntensity.value;
-
-    if (
-      time >= sunlightStartTick &&
-      time <= sunlightChangeSpanTicks + sunlightStartTick
-    ) {
-      sunlightIntensity = Math.max(
-        minLightLevel,
-        (time - sunlightStartTick) / sunlightChangeSpanTicks
-      );
-    } else if (
-      time >= sunlightEndTick &&
-      time <= sunlightChangeSpanTicks + sunlightEndTick
-    ) {
-      sunlightIntensity = Math.max(
-        minLightLevel,
-        1 - (time - sunlightEndTick) / sunlightChangeSpanTicks
-      );
-    }
 
     this.chunks.uniforms.sunlightIntensity.value = sunlightIntensity;
 
@@ -2037,29 +2029,6 @@ export class World extends Scene implements NetIntercept {
 
         this.chunks.materials.set(key, mat);
       }
-    }
-  }
-
-  private initSkyAndClouds() {
-    this.params.ticksPerDay = 50;
-    this.sky.ticksPerDay = this.params.ticksPerDay;
-
-    Object.keys(this.sky.shadingData).forEach((key) => {
-      const keyNum = parseFloat(key);
-      const data = this.sky.shadingData[keyNum];
-
-      delete this.sky.shadingData[keyNum];
-      this.sky.shadingData[Math.floor(keyNum * this.params.ticksPerDay)] = data;
-    });
-
-    const temp = new Vector3();
-
-    for (let i = this.time; i < this.params.ticksPerDay; i += 1 / 60) {
-      this.updateSkyAndClouds(temp, i);
-    }
-
-    for (let i = 0; i < this.time; i += 1 / 60) {
-      this.updateSkyAndClouds(temp, i);
     }
   }
 

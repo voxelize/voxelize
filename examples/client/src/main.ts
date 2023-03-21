@@ -49,12 +49,15 @@ class Box extends VOXELIZE.Entity<{
     this.add(
       new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 0.5, 0.5),
-        new THREE.MeshNormalMaterial()
+        new THREE.MeshBasicMaterial()
       )
     );
+
+    // shadows.add(this);
+    // lightShined.add(this);
   }
 
-  onSpawn = (data: { position: VOXELIZE.Coords3 }) => {
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
     this.position.set(...data.position);
   };
 
@@ -81,78 +84,59 @@ inputs.on("namespace", (namespace) => {
 });
 inputs.setNamespace("menu");
 
-(
-  [
-    [
-      0,
-      {
-        color: {
-          top: new THREE.Color("#000"),
-          middle: new THREE.Color("#000"),
-          bottom: new THREE.Color("#000"),
-        },
-        skyOffset: 0.1,
-        voidOffset: 0.6,
-      },
-    ],
-    // start of sunrise
-    [
-      0.2,
-      {
-        color: {
-          top: new THREE.Color("#7694CF"),
-          middle: new THREE.Color("#B0483A"),
-          bottom: new THREE.Color("#222"),
-        },
-        skyOffset: 0.05,
-        voidOffset: 0.6,
-      },
-    ],
-    // end of sunrise
-    [
-      0.25,
-      {
-        color: {
-          top: new THREE.Color("#73A3FB"),
-          middle: new THREE.Color("#B1CCFD"),
-          bottom: new THREE.Color("#222"),
-        },
-        skyOffset: 0,
-        voidOffset: 0.6,
-      },
-    ],
-    // start of sunset
-    [
-      0.7,
-      {
-        color: {
-          top: new THREE.Color("#A57A59"),
-          middle: new THREE.Color("#FC5935"),
-          bottom: new THREE.Color("#222"),
-        },
-        skyOffset: 0.05,
-        voidOffset: 0.6,
-      },
-    ],
-    // end of sunset
-    [
-      0.75,
-      {
-        color: {
-          top: new THREE.Color("#000"),
-          middle: new THREE.Color("#000"),
-          bottom: new THREE.Color("#000"),
-        },
-        skyOffset: 0.1,
-        voidOffset: 0.6,
-      },
-    ],
-  ] as [number, VOXELIZE.SkyShadingData][]
-).forEach(([time, skyData]) => {
-  world.sky.registerShadingData(time, skyData);
-});
+world.sky.setShadingPhases([
+  // start of sunrise
+  {
+    name: "sunrise",
+    color: {
+      top: new THREE.Color("#7694CF"),
+      middle: new THREE.Color("#B0483A"),
+      bottom: new THREE.Color("#222"),
+    },
+    skyOffset: 0.05,
+    voidOffset: 0.6,
+    start: 0.2,
+  },
+  // end of sunrise
+  {
+    name: "daylight",
+    color: {
+      top: new THREE.Color("#73A3FB"),
+      middle: new THREE.Color("#B1CCFD"),
+      bottom: new THREE.Color("#222"),
+    },
+    skyOffset: 0,
+    voidOffset: 0.6,
+    start: 0.25,
+  },
+  // start of sunset
+  {
+    name: "sunset",
+    color: {
+      top: new THREE.Color("#A57A59"),
+      middle: new THREE.Color("#FC5935"),
+      bottom: new THREE.Color("#222"),
+    },
+    skyOffset: 0.05,
+    voidOffset: 0.6,
+    start: 0.7,
+  },
+  // end of sunset
+  {
+    name: "night",
+    color: {
+      top: new THREE.Color("#000"),
+      middle: new THREE.Color("#000"),
+      bottom: new THREE.Color("#000"),
+    },
+    skyOffset: 0.1,
+    voidOffset: 0.6,
+    start: 0.75,
+  },
+]);
 
 world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
+world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
 world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
 world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
 
@@ -416,8 +400,10 @@ inputs.bind("j", debug.toggle, "*");
 
 debug.registerDisplay("Position", controls, "voxel");
 
-debug.registerDisplay("Time tick", () => {
-  return world.time.toFixed(2);
+debug.registerDisplay("Time", () => {
+  return `${Math.floor(
+    (world.time / world.params.timePerDay) * 100
+  )}% (${world.time.toFixed(2)})`;
 });
 
 debug.registerDisplay("Sunlight", () => {
@@ -655,8 +641,8 @@ const start = async () => {
     });
 
   gui.add(world, "renderRadius", 3, 20, 1);
-  gui.add(world, "time", 0, world.params.ticksPerDay, 0.01);
   gui.add(map, "dimension", 1, 10, 0.1);
+  gui.add(world, "time", 0, world.params.timePerDay, 0.01);
   gui.add(voxelInteract.params, "ignoreFluids");
 
   const bar = new VOXELIZE.ItemSlots({

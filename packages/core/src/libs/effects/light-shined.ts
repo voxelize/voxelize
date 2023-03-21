@@ -145,7 +145,7 @@ export class LightShined {
         : [obj.material];
       materials.forEach((mat) => {
         if (mat && mat.color) {
-          mat.color.lerp(color, this.params.lerpFactor);
+          mat.color.copy(color);
         }
       });
     }

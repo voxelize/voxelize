@@ -46,7 +46,7 @@ pub struct WorldConfig {
     pub max_saves_per_tick: usize,
 
     /// The amount of ticks per day. Default is 24000 ticks.
-    pub ticks_per_day: u64,
+    pub time_per_day: u64,
 
     /// The interval in which the server checks the time with the clients. Default is 20 ticks.
     pub stats_sync_interval: usize,
@@ -148,7 +148,7 @@ pub struct WorldConfigBuilder {
     max_updates_per_tick: usize,
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
-    ticks_per_day: u64,
+    time_per_day: u64,
     stats_sync_interval: usize,
     water_level: usize,
     seed: u32,
@@ -182,7 +182,7 @@ impl WorldConfigBuilder {
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
-            ticks_per_day: DEFAULT_TICKS_PER_DAY,
+            time_per_day: DEFAULT_TICKS_PER_DAY,
             stats_sync_interval: DEFAULT_STATS_SYNC_INTERVAL,
             water_level: DEFAULT_WATER_LEVEL,
             seed: DEFAULT_SEED,
@@ -284,8 +284,8 @@ impl WorldConfigBuilder {
     }
 
     /// Configure the amount of ticks per day. Default is 24000 ticks.
-    pub fn ticks_per_day(mut self, ticks_per_day: u64) -> Self {
-        self.ticks_per_day = ticks_per_day;
+    pub fn time_per_day(mut self, time_per_day: u64) -> Self {
+        self.time_per_day = time_per_day;
         self
     }
 
@@ -368,7 +368,7 @@ impl WorldConfigBuilder {
             max_updates_per_tick: self.max_updates_per_tick,
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,
-            ticks_per_day: self.ticks_per_day,
+            time_per_day: self.time_per_day,
             stats_sync_interval: self.stats_sync_interval,
             water_level: self.water_level,
             seed: self.seed,

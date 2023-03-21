@@ -30,7 +30,7 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         .max_chunk([50, 50])
         .saving(true)
         .save_dir("data/worlds/flat")
-        .ticks_per_day(2400)
+        .time_per_day(2400)
         .build();
 
     let mut world = World::new("flat", &config);
