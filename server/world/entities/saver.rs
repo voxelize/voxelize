@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use serde_json::json;
+use serde_json::{json, Value};
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
 use std::io::Write;
@@ -27,29 +27,29 @@ impl EntitiesSaver {
         Self { saving, folder }
     }
 
-    pub fn save(&self, id: &IDComp, etype: &ETypeComp, metadata: &MetadataComp) {
+    pub fn save(&self, id: &str, etype: &str, metadata: &HashMap<String, Value>) {
         if !self.saving {
             return;
         }
 
         let mut map = HashMap::new();
-        map.insert("etype".to_owned(), json!(etype.0.to_lowercase()));
+        map.insert("etype".to_owned(), json!(etype.to_lowercase()));
         map.insert("metadata".to_owned(), json!(metadata));
         let mut path = self.folder.clone();
-        path.push(format!("{}.json", id.0));
+        path.push(format!("{}.json", id));
         let mut file = File::create(&path).expect("Could not create entity file...");
         let j = serde_json::to_string(&json!(map)).unwrap();
         file.write_all(j.as_bytes())
             .expect("Unable to write entity file.");
     }
 
-    pub fn remove(&self, id: &IDComp) {
+    pub fn remove(&self, id: &str) {
         if !self.saving {
             return;
         }
 
         let mut path = self.folder.clone();
-        path.push(format!("{}.json", id.0));
+        path.push(format!("{}.json", id));
         fs::remove_file(&path).expect("Unable to remove entity file.");
     }
 }

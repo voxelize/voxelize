@@ -118,6 +118,23 @@ export class LightShined {
     });
   };
 
+  private updateObject = (obj: Object3D, color: Color) => {
+    for (const type of this.ignored) {
+      if (obj instanceof type) return;
+    }
+
+    if (obj instanceof Mesh) {
+      const materials = Array.isArray(obj.material)
+        ? obj.material
+        : [obj.material];
+      materials.forEach((mat) => {
+        if (mat && mat.color) {
+          mat.color.copy(color);
+        }
+      });
+    }
+  };
+
   /**
    * Recursively update an object and its children's brightness.
    */
@@ -139,23 +156,9 @@ export class LightShined {
       color = this.world.getLightColorAt(...voxel);
     }
 
-    if (obj instanceof Mesh) {
-      const materials = Array.isArray(obj.material)
-        ? obj.material
-        : [obj.material];
-      materials.forEach((mat) => {
-        if (mat && mat.color) {
-          mat.color.copy(color);
-        }
-      });
-    }
-
-    if (obj.children.length === 0) {
-      return;
-    }
-
-    obj.children.forEach((child) => {
-      this.recursiveUpdate(child, color);
+    this.updateObject(obj, color);
+    obj.traverse((child) => {
+      this.updateObject(child, color);
     });
   };
 }

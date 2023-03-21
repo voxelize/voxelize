@@ -2,8 +2,8 @@ use hashbrown::{HashMap, HashSet};
 use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    Bookkeeping, ClientFilter, ETypeComp, EntityFlag, EntityOperation, EntityProtocol, IDComp,
-    Message, MessageQueue, MessageType, MetadataComp, Stats,
+    Bookkeeping, ClientFilter, ETypeComp, EntitiesSaver, EntityFlag, EntityOperation,
+    EntityProtocol, IDComp, Message, MessageQueue, MessageType, MetadataComp, Stats,
 };
 
 pub struct EntitiesSendingSystem;
@@ -11,6 +11,7 @@ pub struct EntitiesSendingSystem;
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
+        ReadExpect<'a, EntitiesSaver>,
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, Bookkeeping>,
         ReadStorage<'a, EntityFlag>,
@@ -22,7 +23,16 @@ impl<'a> System<'a> for EntitiesSendingSystem {
     fn run(&mut self, data: Self::SystemData) {
         use specs::Join;
 
-        let (entities, mut queue, mut bookkeeping, flags, ids, etypes, mut metadatas) = data;
+        let (
+            entities,
+            entities_saver,
+            mut queue,
+            mut bookkeeping,
+            flags,
+            ids,
+            etypes,
+            mut metadatas,
+        ) = data;
 
         let mut updated_entities = vec![];
 
@@ -54,6 +64,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if found {
                 return;
             }
+
+            entities_saver.remove(id);
 
             entity_updates.push(EntityProtocol {
                 operation: EntityOperation::Delete,

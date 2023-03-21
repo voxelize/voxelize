@@ -1,7 +1,7 @@
 import { protocol } from "@voxelize/transport/src/protocol";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
-import DecodeWorker from "web-worker:./workers/decode-worker";
+import DecodeWorker from "web-worker:./workers/decode-worker.ts";
 
 import { WorkerPool } from "../../libs/worker-pool";
 
