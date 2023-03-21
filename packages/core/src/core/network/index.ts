@@ -22,10 +22,12 @@ export type ProtocolWS = WebSocket & {
 };
 
 export type NetworkParams = {
+  maxPacketQueueSize: number;
   maxPacketsPerTick: number;
 };
 
 const defaultParams: NetworkParams = {
+  maxPacketQueueSize: 300,
   maxPacketsPerTick: 8,
 };
 
@@ -259,7 +261,7 @@ export class Network {
         this.packetQueue.push(new Uint8Array(data));
 
         // If the packet queue is too long, we will start to drop packets.
-        if (this.packetQueue.length > 300) {
+        if (this.packetQueue.length > this.params.maxPacketQueueSize) {
           this.packetQueue.shift();
         }
       };
