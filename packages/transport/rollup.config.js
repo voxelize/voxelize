@@ -1,7 +1,6 @@
 import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
-import peerDepsExternal from "rollup-plugin-peer-deps-external";
 import swc from "rollup-plugin-swc3";
 import { terser } from "rollup-plugin-terser";
 
@@ -17,12 +16,10 @@ export default {
     {
       file: packageJson.main,
       format: "cjs",
-      sourcemap: true,
     },
     {
       file: packageJson.module,
       format: "esm",
-      sourcemap: true,
     },
   ],
   onwarn: (warning, next) => {
@@ -39,7 +36,6 @@ export default {
       preferBuiltins: true,
     }),
     commonjs(),
-    peerDepsExternal(),
     swc({
       sourceMaps: true,
       tsconfig: "./tsconfig.json",
