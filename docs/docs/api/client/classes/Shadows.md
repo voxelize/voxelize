@@ -39,7 +39,7 @@ Add a shadow to an object under the shadow manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`<`Event`\> | The object to add a shadow to. |
-| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-2)\> | The options of the shadow. |
+| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-6)\> | The options of the shadow. |
 
 #### Returns
 

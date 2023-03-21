@@ -58,7 +58,7 @@ ___
 
 ### options
 
-• **options**: [`PortraitOptions`](../modules.md#portraitoptions-2)
+• **options**: [`PortraitOptions`](../modules.md#portraitoptions-6)
 
 Parameters to create this portrait with.
 
@@ -92,7 +92,7 @@ Create a new portrait. This automatically starts a render loop.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`<`Event`\> | The object to render to the canvas. |
-| `options` | `Partial`<[`PortraitOptions`](../modules.md#portraitoptions-2)\> | The options to create this portrait with. |
+| `options` | `Partial`<[`PortraitOptions`](../modules.md#portraitoptions-6)\> | The options to create this portrait with. |
 
 ## Methods
 

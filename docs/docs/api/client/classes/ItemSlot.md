@@ -180,7 +180,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective-14) |
+| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective-18) |
 
 #### Returns
 

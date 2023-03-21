@@ -165,7 +165,7 @@ const defaultOptions: WorldClientOptions = {
  */
 export type WorldServerOptions = {
   /**
-   * The amount of sub-chunks that divides a chunk vertically.
+   * The number of sub-chunks that divides a chunk vertically.
    */
   subChunks: number;
 
@@ -208,9 +208,20 @@ export type WorldServerOptions = {
    * The air drag of everything physical.
    */
   airDrag: number;
+
+  /**
+   * The fluid drag of everything physical.
+   */
   fluidDrag: number;
+
+  /**
+   * The density of the fluid in this world.
+   */
   fluidDensity: number;
 
+  /**
+   * The time per day in seconds.
+   */
   timePerDay: number;
 };
 
