@@ -10,13 +10,13 @@ custom_edit_url: null
 
 ### blocksById
 
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-2)\>
+• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-14)\>
 
 ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-2)\>
+• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-14)\>
 
 ___
 

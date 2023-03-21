@@ -162,7 +162,7 @@ const defaultOptions: WorldClientOptions = {
   chunkUniformsOverwrite: {},
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,
-  sunlightChangeSpan: 0.1,
+  sunlightChangeSpan: 0.15,
   timeForceThreshold: 0.1,
 };
 

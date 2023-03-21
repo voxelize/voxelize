@@ -37,7 +37,7 @@ controls.update();
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [connect](RigidControls.md#connect-2) is called.
+when [connect](RigidControls.md#connect-14) is called.
 
 ___
 
@@ -50,7 +50,7 @@ The physical rigid body of the client, dimensions described by:
 - `options.bodyHeight`
 - `options.bodyDepth`
 
-Keep in mind that by calling [attachCharacter](RigidControls.md#attachcharacter-2), the body is
+Keep in mind that by calling [attachCharacter](RigidControls.md#attachcharacter-14), the body is
 resized to match the character's bounding box.
 
 ___
@@ -68,7 +68,7 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [attachCharacter](RigidControls.md#attachcharacter-2) to add a mesh for 2nd and 3rd person
+calling [attachCharacter](RigidControls.md#attachcharacter-14) to add a mesh for 2nd and 3rd person
 view.
 
 ___
@@ -86,7 +86,7 @@ ___
 • `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[connect](RigidControls.md#connect-2), which registers the keyboard inputs for the controls.
+[connect](RigidControls.md#connect-14), which registers the keyboard inputs for the controls.
 
 ___
 
@@ -129,7 +129,7 @@ ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-2)
+• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-14)
 
 Parameters to initialize the Voxelize controls.
 
@@ -137,7 +137,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-2)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-14)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -182,7 +182,7 @@ Sets up all event listeners for controls, including:
 - Control lock/unlock events
 
 This function returns a function that can be called to disconnect the controls.
-Keep in mind that if [remap](Inputs.md#remap-2) is used to remap any controls, they will
+Keep in mind that if [remap](Inputs.md#remap-14) is used to remap any controls, they will
 not be unbound when the returned function is called.
 
 **`Options`**
@@ -449,13 +449,13 @@ to the new position and rotation. If a character is attached, then the character
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-2)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-14)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-2)
+[`Coords2`](../modules.md#coords2-14)
 
 ___
 
@@ -497,14 +497,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-2)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-14)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-2)
+[`Coords3`](../modules.md#coords3-14)
 
 ## Constructors
 
@@ -522,7 +522,7 @@ to the world's physics engine, and applies movement to the camera.
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
 | `world` | [`World`](World.md) | The world to apply the controls to. |
-| `options` | `Partial`<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-2)\> | The options to initialize the controls with. |
+| `options` | `Partial`<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-14)\> | The options to initialize the controls with. |
 
 #### Overrides
 

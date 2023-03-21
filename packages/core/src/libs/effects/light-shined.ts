@@ -156,6 +156,17 @@ export class LightShined {
       color = this.world.getLightColorAt(...voxel);
     }
 
+    if (obj.userData.voxelizeLightShined) {
+      const oldColor = obj.userData.voxelizeLightShined;
+      const subbedColor = (oldColor as Color).sub(color);
+      const colorDifference =
+        subbedColor.r ** 2 + subbedColor.g ** 2 + subbedColor.b ** 2;
+
+      if (colorDifference < 0.01) {
+        return;
+      }
+    }
+
     this.updateObject(obj, color);
     obj.traverse((child) => {
       this.updateObject(child, color);

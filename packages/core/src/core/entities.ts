@@ -108,8 +108,8 @@ export class Entities extends Group implements NetIntercept {
             }
 
             this.map.delete(id);
-            this.remove(object);
 
+            object.parent?.remove(object);
             object.onDelete?.(metadata);
 
             break;
