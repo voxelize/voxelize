@@ -18,7 +18,7 @@ use std::sync::Arc;
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
-    ChunkStatus, Mesher, Stats,
+    ChunkStatus, Mesher, MessageQueue, Stats,
 };
 
 pub use models::*;
@@ -489,8 +489,8 @@ pub struct Disconnect {
 pub struct Info;
 
 #[derive(ActixMessage)]
-#[rtype(result = "u64")]
-pub struct TimeTick(pub String);
+#[rtype(result = "f32")]
+pub struct Time(pub String);
 
 /// Send message to specific world
 #[derive(ActixMessage)]
@@ -587,19 +587,19 @@ impl Handler<Info> for Server {
     }
 }
 
-impl Handler<TimeTick> for Server {
-    type Result = MessageResult<TimeTick>;
+impl Handler<Time> for Server {
+    type Result = MessageResult<Time>;
 
-    fn handle(&mut self, TimeTick(world_name): TimeTick, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, Time(world_name): Time, _: &mut Context<Self>) -> Self::Result {
         let world = self.worlds.get(&world_name);
 
         if world.is_none() {
-            return MessageResult(0);
+            return MessageResult(0.0);
         }
 
         let world = world.unwrap();
 
-        MessageResult(world.read_resource::<Stats>().time_tick)
+        MessageResult(world.read_resource::<Stats>().time)
     }
 }
 

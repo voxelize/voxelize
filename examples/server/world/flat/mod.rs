@@ -28,6 +28,9 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         .preload(true)
         .min_chunk([-50, -50])
         .max_chunk([50, 50])
+        .saving(true)
+        .save_dir("data/worlds/flat")
+        .time_per_day(2400)
         .build();
 
     let mut world = World::new("flat", &config);

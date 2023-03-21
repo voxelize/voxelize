@@ -207,20 +207,11 @@ impl World {
         if config.saving {
             let folder = PathBuf::from(&config.save_dir);
 
+            // If folder doesn't exist, create it.
             if !folder.exists() {
-                panic!(
-                    "World folder not created at: '{}'",
-                    if folder.is_absolute() {
-                        folder.to_path_buf()
-                    } else {
-                        if let Ok(curr_dir) = env::current_dir() {
-                            curr_dir.join(folder)
-                        } else {
-                            folder
-                        }
-                    }
-                    .to_string_lossy()
-                );
+                if let Err(e) = fs::create_dir_all(&folder) {
+                    panic!("Could not create world folder: {}", e);
+                }
             }
         }
 

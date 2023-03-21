@@ -1,6 +1,6 @@
-import { Color, sRGBEncoding } from "three";
 import {
   BoxGeometry,
+  Color,
   FrontSide,
   Group,
   LinearMipMapLinearFilter,
@@ -10,6 +10,7 @@ import {
   RepeatWrapping,
   Side,
   Texture,
+  sRGBEncoding,
 } from "three";
 
 import { DOMUtils } from "../utils";
@@ -456,50 +457,151 @@ export class CanvasBox extends Group {
  * @param context The canvas context to draw on.
  * @param canvas The canvas to draw on.
  */
-const drawSun: ArtFunction = (
-  context: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement
-) => {
-  const radius = 50;
-  const sunColor = "#f8ffb5";
+const drawSun =
+  (sunRadius = 50, sunColor = "#f8ffb5") =>
+  (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+    const color = new Color(sunColor);
 
-  const color = new Color(sunColor);
+    context.save();
 
-  context.save();
+    // bg glow
+    context.beginPath();
+    let x = canvas.width / 2;
+    let y = canvas.height / 2;
+    const grd = context.createRadialGradient(x, y, 1, x, y, sunRadius * 2);
+    grd.addColorStop(0, DOMUtils.rgba(1, 1, 1, 0.3));
+    grd.addColorStop(1, DOMUtils.rgba(1, 1, 1, 0));
+    context.arc(x, y, sunRadius * 3, 0, 2 * Math.PI, false);
+    context.fillStyle = grd;
+    context.fill();
+    context.closePath();
 
-  // bg glow
-  context.beginPath();
-  let x = canvas.width / 2;
-  let y = canvas.height / 2;
-  const grd = context.createRadialGradient(x, y, 1, x, y, radius * 2);
-  grd.addColorStop(0, DOMUtils.rgba(1, 1, 1, 0.3));
-  grd.addColorStop(1, DOMUtils.rgba(1, 1, 1, 0));
-  context.arc(x, y, radius * 3, 0, 2 * Math.PI, false);
-  context.fillStyle = grd;
-  context.fill();
-  context.closePath();
+    // outer sun
+    context.beginPath();
+    x = canvas.width / 2 - sunRadius / 2;
+    y = canvas.height / 2 - sunRadius / 2;
+    context.rect(x, y, sunRadius, sunRadius);
+    context.fillStyle = DOMUtils.rgba(color.r, color.g, color.b, 1);
+    context.fill();
+    context.closePath();
 
-  // outer sun
-  context.beginPath();
-  x = canvas.width / 2 - radius / 2;
-  y = canvas.height / 2 - radius / 2;
-  context.rect(x, y, radius, radius);
-  context.fillStyle = DOMUtils.rgba(color.r, color.g, color.b, 1);
-  context.fill();
-  context.closePath();
+    // inner sun
+    context.beginPath();
+    const r = sunRadius / 1.6;
+    x = canvas.width / 2 - r / 2;
+    y = canvas.height / 2 - r / 2;
+    context.rect(x, y, r, r);
+    context.fillStyle = DOMUtils.rgba(1, 1, 1, 0.5);
+    context.fill();
+    context.closePath();
 
-  // inner sun
-  context.beginPath();
-  const r = radius / 1.6;
-  x = canvas.width / 2 - r / 2;
-  y = canvas.height / 2 - r / 2;
-  context.rect(x, y, r, r);
-  context.fillStyle = DOMUtils.rgba(1, 1, 1, 0.5);
-  context.fill();
-  context.closePath();
+    context.restore();
+  };
 
-  context.restore();
-};
+const drawMoon =
+  (moonRadius = 20, moonColor = "#e6e2d1", phase = 1) =>
+  (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+    const color = new Color(moonColor);
+
+    const x = canvas.width / 2;
+    const y = canvas.height / 2;
+
+    // bg glow
+    context.beginPath();
+    const grd = context.createRadialGradient(
+      x + moonRadius / 2,
+      y + moonRadius / 2,
+      1,
+      x + moonRadius / 2,
+      y + moonRadius / 2,
+      moonRadius * 2
+    );
+    grd.addColorStop(0, DOMUtils.rgba(1, 1, 1, 0.3));
+    grd.addColorStop(1, DOMUtils.rgba(1, 1, 1, 0));
+    context.arc(
+      x + moonRadius / 2,
+      y + moonRadius / 2,
+      moonRadius * 2,
+      0,
+      2 * Math.PI,
+      false
+    );
+    context.fillStyle = grd;
+    context.fill();
+    context.closePath();
+
+    // clipping region
+    context.save();
+    context.beginPath();
+    context.rect(x, y, moonRadius, moonRadius);
+    context.clip();
+
+    // moon bg
+    context.beginPath();
+    context.rect(x, y, moonRadius, moonRadius);
+    context.fillStyle = DOMUtils.rgba(color.r, color.g, color.b, 1);
+    context.fill();
+
+    context.translate(x, y);
+
+    // lighter inside
+    context.beginPath();
+    context.rect(4, 4, moonRadius - 8, moonRadius - 8);
+    context.fillStyle = DOMUtils.rgba(1, 1, 1, 0.8);
+    context.fill();
+
+    // moon phase
+    const px = phase * moonRadius * 2 - moonRadius;
+    context.beginPath();
+    context.rect(px, 0, moonRadius, moonRadius);
+    context.fillStyle = DOMUtils.rgba(0, 0, 0, 0.8);
+    context.fill();
+    context.beginPath();
+    context.rect(2 + px, 2, moonRadius - 4, moonRadius - 4);
+    context.fillStyle = DOMUtils.rgba(0, 0, 0, 0.9);
+    context.fill();
+
+    context.restore();
+  };
+
+const drawStars =
+  (
+    starCount = 100,
+    starColors = [
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#FFFFFF",
+      "#8589FF",
+      "#FF8585",
+    ]
+  ) =>
+  (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+    const alpha = context.globalAlpha;
+    for (let i = 0; i < starCount; i++) {
+      context.globalAlpha = Math.random() * 1 + 0.5;
+      context.beginPath();
+      context.arc(
+        Math.random() * canvas.width,
+        Math.random() * canvas.height,
+        Math.random() * 0.5,
+        0,
+        2 * Math.PI,
+        false
+      );
+      context.fillStyle =
+        starColors[Math.floor(Math.random() * starColors.length)];
+      context.fill();
+    }
+
+    context.globalAlpha = alpha;
+  };
 
 /**
  * An art function to draw a crown to a canvas box.
@@ -553,4 +655,6 @@ const drawCrown: ArtFunction = (context: CanvasRenderingContext2D) => {
 export const artFunctions = {
   drawCrown,
   drawSun,
+  drawMoon,
+  drawStars,
 };

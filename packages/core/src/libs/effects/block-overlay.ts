@@ -75,7 +75,7 @@ export class BlockOverlayEffect extends Effect {
    * @hidden
    */
   update = () => {
-    if (!this.world.initialized) {
+    if (!this.world.isInitialized) {
       return;
     }
 

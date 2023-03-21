@@ -109,6 +109,7 @@ export class WorkerPool {
         worker.removeEventListener("message", workerCallback);
         worker.terminate();
         this.available.push(index);
+        worker.terminate();
         this.workers[index] = new this.Proto();
         resolve(data);
         requestAnimationFrame(this.process);

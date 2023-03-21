@@ -7,9 +7,42 @@ import {
   Vector3,
 } from "three";
 
-import { CanvasBox } from "./canvas-box";
+import { CanvasBox, CanvasBoxParams } from "./canvas-box";
 import SkyFragmentShader from "./shaders/sky/fragment.glsl";
 import SkyVertexShader from "./shaders/sky/vertex.glsl";
+
+export type SkyShadingCycleData = {
+  start: number;
+  name: string;
+  color: {
+    top: Color;
+    middle: Color;
+    bottom: Color;
+  };
+  skyOffset: number;
+  voidOffset: number;
+};
+
+export type SkyParams = {
+  /**
+   * The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
+   */
+  dimension: number;
+
+  /**
+   * The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
+   * set by the `setTopColor`, `setMiddleColor`, and `setBottomColor` methods.
+   */
+  lerpFactor: number;
+
+  transitionSpan: number;
+};
+
+const defaultParams: SkyParams = {
+  dimension: 2000,
+  lerpFactor: 0.1,
+  transitionSpan: 0.05,
+};
 
 /**
  * Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a {@link CanvasBox} that renders custom sky textures (
@@ -36,6 +69,8 @@ import SkyVertexShader from "./shaders/sky/vertex.glsl";
  *
  */
 export class Sky extends CanvasBox {
+  public params: CanvasBoxParams & SkyParams;
+
   /**
    * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.
    */
@@ -57,31 +92,15 @@ export class Sky extends CanvasBox {
     value: Color;
   };
 
-  /**
-   * The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
-   */
-  public dimension: number;
+  public uSkyOffset: {
+    value: number;
+  };
 
-  /**
-   * The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
-   * set by the `setTopColor`, `setMiddleColor`, and `setBottomColor` methods.
-   */
-  public lerpFactor: number;
+  public uVoidOffset: {
+    value: number;
+  };
 
-  /**
-   * The internal new color of the top of the sky gradient.
-   */
-  private newTopColor: Color;
-
-  /**
-   * The internal new color of the middle of the sky gradient.
-   */
-  private newMiddleColor: Color;
-
-  /**
-   * The internal new color of the bottom of the sky gradient.
-   */
-  private newBottomColor: Color;
+  public shadingData: SkyShadingCycleData[] = [];
 
   /**
    * Create a new sky instance.
@@ -89,9 +108,10 @@ export class Sky extends CanvasBox {
    * @param dimension The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
    * @param lerpFactor The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
    */
-  constructor(dimension = 2000, lerpFactor = 0.01) {
+  constructor(params: Partial<SkyParams> = {}) {
     super({
-      width: dimension * 0.8,
+      width:
+        (params.dimension ? params.dimension : defaultParams.dimension) * 0.8,
       side: BackSide,
       transparent: true,
       widthSegments: 512,
@@ -99,8 +119,11 @@ export class Sky extends CanvasBox {
       depthSegments: 512,
     });
 
-    this.dimension = dimension;
-    this.lerpFactor = lerpFactor;
+    this.params = {
+      ...this.params,
+      ...defaultParams,
+      ...params,
+    };
 
     this.boxMaterials.forEach((m) => (m.depthWrite = false));
     this.frustumCulled = false;
@@ -109,34 +132,24 @@ export class Sky extends CanvasBox {
     this.createSkyShading();
   }
 
-  /**
-   * Set the new top color of the sky gradient. This will not affect the sky gradient immediately, but
-   * will instead lerp the current color to the new color.
-   *
-   * @param color The new color of the top of the sky gradient.
-   */
-  setTopColor = (color: Color) => {
-    this.newTopColor = color;
-  };
+  setShadingPhases = (data: SkyShadingCycleData[]) => {
+    if (data.length === 0) {
+      return;
+    }
 
-  /**
-   * Set the new middle color of the sky gradient. This will not affect the sky gradient immediately, but
-   * will instead lerp the current color to the new color.
-   *
-   * @param color The new color of the middle of the sky gradient.
-   */
-  setMiddleColor = (color: Color) => {
-    this.newMiddleColor = color;
-  };
+    if (data.length === 1) {
+      this.uTopColor.value.copy(data[0].color.top);
+      this.uMiddleColor.value.copy(data[0].color.middle);
+      this.uBottomColor.value.copy(data[0].color.bottom);
+      this.uSkyOffset.value = data[0].skyOffset;
+      this.uVoidOffset.value = data[0].voidOffset;
+    }
 
-  /**
-   * Set the new bottom color of the sky gradient. This will not affect the sky gradient immediately, but
-   * will instead lerp the current color to the new color.
-   *
-   * @param color The new color of the bottom of the sky gradient.
-   */
-  setBottomColor = (color: Color) => {
-    this.newBottomColor = color;
+    this.shadingData = data;
+
+    // Sort the shading data by start
+
+    this.shadingData.sort((a, b) => a.start - b.start);
   };
 
   /**
@@ -172,22 +185,126 @@ export class Sky extends CanvasBox {
    *
    * @param position The new position to center the sky at.
    */
-  update = (position: Vector3) => {
-    const { uTopColor, uMiddleColor, uBottomColor } = this;
+  update = (position: Vector3, time: number, timePerDay: number) => {
+    this.rotation.z = Math.PI * 2 * (time / timePerDay);
+
+    ["top", "right", "left", "front", "back"].forEach((face) => {
+      const mat = this.boxMaterials.get(face);
+      if (mat) {
+        // Update sky opacity to hide stars when the sun is up.
+      }
+    });
 
     this.position.copy(position);
 
-    if (this.newTopColor) {
-      uTopColor.value.lerp(this.newTopColor, this.lerpFactor);
+    if (this.shadingData.length <= 1) {
+      return;
     }
 
-    if (this.newMiddleColor) {
-      uMiddleColor.value.lerp(this.newMiddleColor, this.lerpFactor);
+    const shadingStack: [number, SkyShadingCycleData][] = [];
+    const transitionTime = this.params.transitionSpan * timePerDay;
+
+    for (let i = 0; i < this.shadingData.length; i++) {
+      const data = this.shadingData[i];
+      const nextData = this.shadingData[(i + 1) % this.shadingData.length];
+
+      const { start } = data;
+      const startTime = start * timePerDay;
+      const nextStartTime = nextData.start * timePerDay;
+
+      if (
+        startTime < nextStartTime
+          ? time >= startTime && time < nextStartTime
+          : time < nextStartTime || time >= startTime
+      ) {
+        const weight = Math.max(
+          Math.min(
+            time >= startTime
+              ? (time - startTime) / transitionTime
+              : (time + timePerDay - startTime) / transitionTime,
+            1.0
+          ),
+          0.0
+        );
+
+        shadingStack.push([weight, data]);
+
+        if (
+          time >= startTime
+            ? time < startTime + transitionTime
+            : time + timePerDay < startTime + transitionTime
+        ) {
+          const previousData =
+            this.shadingData[
+              (i - 1 < 0 ? i - 1 + this.shadingData.length : i - 1) %
+                this.shadingData.length
+            ];
+
+          shadingStack.push([1 - weight, previousData]);
+        }
+
+        break;
+      }
     }
 
-    if (this.newBottomColor) {
-      uBottomColor.value.lerp(this.newBottomColor, this.lerpFactor);
-    }
+    const weightedTopRGB = [0, 0, 0];
+    const weightedMiddleRGB = [0, 0, 0];
+    const weightedBottomRGB = [0, 0, 0];
+    let weightedSkyOffset = 0;
+    let weightedVoidOffset = 0;
+
+    const emptyRGB = {
+      r: 0,
+      g: 0,
+      b: 0,
+    };
+
+    shadingStack.forEach(([weight, data]) => {
+      const {
+        skyOffset,
+        voidOffset,
+        color: { top, middle, bottom },
+      } = data;
+
+      top.getRGB(emptyRGB);
+      weightedTopRGB[0] += emptyRGB.r * weight;
+      weightedTopRGB[1] += emptyRGB.g * weight;
+      weightedTopRGB[2] += emptyRGB.b * weight;
+
+      middle.getRGB(emptyRGB);
+      weightedMiddleRGB[0] += emptyRGB.r * weight;
+      weightedMiddleRGB[1] += emptyRGB.g * weight;
+      weightedMiddleRGB[2] += emptyRGB.b * weight;
+
+      bottom.getRGB(emptyRGB);
+      weightedBottomRGB[0] += emptyRGB.r * weight;
+      weightedBottomRGB[1] += emptyRGB.g * weight;
+      weightedBottomRGB[2] += emptyRGB.b * weight;
+
+      weightedSkyOffset += weight * skyOffset;
+      weightedVoidOffset += weight * voidOffset;
+    });
+
+    this.uTopColor.value.setRGB(
+      weightedTopRGB[0],
+      weightedTopRGB[1],
+      weightedTopRGB[2]
+    );
+
+    this.uMiddleColor.value.setRGB(
+      weightedMiddleRGB[0],
+      weightedMiddleRGB[1],
+      weightedMiddleRGB[2]
+    );
+
+    this.uBottomColor.value.setRGB(
+      weightedBottomRGB[0],
+      weightedBottomRGB[1],
+      weightedBottomRGB[2]
+    );
+
+    this.uSkyOffset.value = weightedSkyOffset;
+    this.uVoidOffset.value = weightedVoidOffset;
   };
 
   /**
@@ -200,9 +317,9 @@ export class Sky extends CanvasBox {
       voidOffset,
     } = {
       color: {
-        top: new Color("#73A3FB"),
-        middle: new Color("#B1CCFD"),
-        bottom: new Color("#B1CCFD"),
+        top: new Color("#222"),
+        middle: new Color("#222"),
+        bottom: new Color("#222"),
       },
       skyOffset: 0,
       voidOffset: 1200,
@@ -217,15 +334,21 @@ export class Sky extends CanvasBox {
     this.uBottomColor = {
       value: new Color(bottom),
     };
+    this.uSkyOffset = {
+      value: skyOffset,
+    };
+    this.uVoidOffset = {
+      value: voidOffset,
+    };
 
-    const shadingGeometry = new DodecahedronGeometry(this.dimension, 2);
+    const shadingGeometry = new DodecahedronGeometry(this.params.dimension, 2);
     const shadingMaterial = new ShaderMaterial({
       uniforms: {
         uTopColor: this.uTopColor,
         uMiddleColor: this.uMiddleColor,
         uBottomColor: this.uBottomColor,
-        uSkyOffset: { value: skyOffset },
-        uVoidOffset: { value: voidOffset },
+        uSkyOffset: this.uSkyOffset,
+        uVoidOffset: this.uVoidOffset,
         uExponent: { value: 0.6 },
         uExponent2: { value: 1.2 },
       },
@@ -236,6 +359,7 @@ export class Sky extends CanvasBox {
     });
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
 
-    this.add(shadingMesh);
+    // We use attach here so that the sky shading is not affected by the box's rotation.
+    this.attach(shadingMesh);
   };
 }
