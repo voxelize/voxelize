@@ -42,7 +42,7 @@ ___
 
 ### options
 
-• **options**: [`ShadowOptions`](../modules.md#shadowoptions-14)
+• **options**: [`ShadowOptions`](../modules.md#shadowoptions-120)
 
 The options of the shadow.
 
@@ -67,7 +67,7 @@ Create a shadow instance.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `world` | [`World`](World.md) | The world to cast shadows in. |
-| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-14)\> | The options of the shadow. |
+| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-120)\> | The options of the shadow. |
 
 #### Overrides
 

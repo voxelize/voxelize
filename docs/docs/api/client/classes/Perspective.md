@@ -31,7 +31,7 @@ perspective.update();
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-perspective"``
 
 This is the identifier that is used to bind the perspective's keyboard inputs
-when [connect](Perspective.md#connect-14) is called.
+when [connect](Perspective.md#connect-120) is called.
 
 ___
 
@@ -75,7 +75,7 @@ ___
 
 ### options
 
-• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions-14)
+• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions-120)
 
 Parameters to configure the perspective.
 
@@ -156,7 +156,7 @@ perspective is the first person perspective.
 | :------ | :------ | :------ |
 | `controls` | [`RigidControls`](RigidControls.md) | The rigid controls that this perspective instance is attached to. |
 | `world` | [`World`](World.md) | The world that this perspective instance is working with. |
-| `options` | `Partial`<[`PerspectiveOptions`](../modules.md#perspectiveoptions-14)\> | Parameters to configure the perspective. |
+| `options` | `Partial`<[`PerspectiveOptions`](../modules.md#perspectiveoptions-120)\> | Parameters to configure the perspective. |
 
 ## Accessors
 
@@ -172,7 +172,7 @@ Getter for the perspective's state.
 
 • `set` **state**(`state`): `void`
 
-Setter for the perspective's state. This will call [onChangeState](Perspective.md#onchangestate-14) if it is implemented.
+Setter for the perspective's state. This will call [onChangeState](Perspective.md#onchangestate-120) if it is implemented.
 
 #### Parameters
 

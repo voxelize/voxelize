@@ -1,7 +1,7 @@
 /**
  * A worker pool job is queued to a worker pool and is executed by a worker.
  */
-export type WorkerPoolJob = {
+export type SharedWorkerPoolJob = {
   /**
    * A JSON serializable object that is passed to the worker.
    */
@@ -23,14 +23,14 @@ export type WorkerPoolJob = {
 /**
  * Parameters to create a worker pool.
  */
-export type WorkerPoolOptions = {
+export type SharedWorkerPoolOptions = {
   /**
    * The maximum number of workers to create. Defaults to `8`.
    */
   maxWorker: number;
 };
 
-const defaultOptions: WorkerPoolOptions = {
+const defaultOptions: SharedWorkerPoolOptions = {
   maxWorker: 8,
 };
 
@@ -41,11 +41,11 @@ const defaultOptions: WorkerPoolOptions = {
  * execute the job. If no workers are available, the job will be queued until
  * a worker becomes available.
  */
-export class WorkerPool {
+export class SharedWorkerPool {
   /**
    * The queue of jobs that are waiting to be executed.
    */
-  public queue: WorkerPoolJob[] = [];
+  public queue: SharedWorkerPoolJob[] = [];
 
   /**
    * A static count of working web workers across all worker pools.
@@ -55,7 +55,7 @@ export class WorkerPool {
   /**
    * The list of workers in the pool.
    */
-  private workers: Worker[] = [];
+  private workers: SharedWorker[] = [];
 
   /**
    * The list of available workers' indices.
@@ -69,13 +69,15 @@ export class WorkerPool {
    * @param options The options to create the worker pool.
    */
   constructor(
-    public Proto: new () => Worker,
-    public options: WorkerPoolOptions = defaultOptions
+    public Proto: new () => SharedWorker,
+    public options: SharedWorkerPoolOptions = defaultOptions
   ) {
     const { maxWorker } = options;
 
     for (let i = 0; i < maxWorker; i++) {
-      this.workers.push(new Proto());
+      const worker = new Proto();
+      worker.port.start();
+      this.workers.push(worker);
       this.available.push(i);
     }
   }
@@ -85,7 +87,7 @@ export class WorkerPool {
    *
    * @param job The job to queue.
    */
-  addJob = (job: WorkerPoolJob) => {
+  addJob = (job: SharedWorkerPoolJob) => {
     this.queue.push(job);
     this.process();
   };
@@ -99,23 +101,21 @@ export class WorkerPool {
       const index = this.available.shift() as number;
       const worker = this.workers[index];
 
-      const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
+      const { message, buffers, resolve } =
+        this.queue.shift() as SharedWorkerPoolJob;
 
-      worker.postMessage(message, buffers || []);
-      WorkerPool.WORKING_COUNT++;
+      worker.port.postMessage(message, buffers || []);
+      SharedWorkerPool.WORKING_COUNT++;
 
       const workerCallback = ({ data }: any) => {
-        WorkerPool.WORKING_COUNT--;
-        worker.removeEventListener("message", workerCallback);
-        worker.terminate();
+        SharedWorkerPool.WORKING_COUNT--;
+        worker.port.removeEventListener("message", workerCallback);
         this.available.push(index);
-        worker.terminate();
-        this.workers[index] = new this.Proto();
         resolve(data);
         requestAnimationFrame(this.process);
       };
 
-      worker.addEventListener("message", workerCallback);
+      worker.port.addEventListener("message", workerCallback);
     }
   };
 

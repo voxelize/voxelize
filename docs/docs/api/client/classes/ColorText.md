@@ -53,7 +53,7 @@ The symbol used to separate a text into a colored text object array.
 
 ▸ `Static` **split**(`text`, `defaultColor?`): { `color`: `string` ; `text`: `string`  }[]
 
-Split a text into a colored text object array by [SPLITTER](ColorText.md#splitter-14).
+Split a text into a colored text object array by [SPLITTER](ColorText.md#splitter-120).
 
 #### Parameters
 

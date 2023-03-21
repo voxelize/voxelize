@@ -79,70 +79,75 @@ function contains(voxel, min, max) {
   return vx < ex && vx >= sx && vy < ey && vy >= sy && vz < ez && vz >= sz;
 }
 
-onmessage = function (e) {
-  const {
-    data,
-    configs: { dimensions, min, max, realMin, realMax, stride },
-  } = e.data;
+// @ts-ignore
+onconnect = function (e) {
+  const port = e.ports[0];
 
-  const positions = [];
-  const normals = [];
-  const indices = [];
+  port.onmessage = function (e) {
+    const {
+      data,
+      configs: { dimensions, min, max, realMin, realMax, stride },
+    } = e.data;
 
-  const [startX, startY, startZ] = min;
-  const [endX, endY, endZ] = max;
+    const positions = [];
+    const normals = [];
+    const indices = [];
 
-  const [dx, dy, dz] = dimensions;
+    const [startX, startY, startZ] = min;
+    const [endX, endY, endZ] = max;
 
-  for (let vx = startX, x = 0; vx < endX; ++vx, ++x) {
-    for (let vz = startZ, z = 0; vz < endZ; ++vz, ++z) {
-      for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
-        const voxel = get(data, vx, vy, vz, stride);
+    const [dx, dy, dz] = dimensions;
 
-        if (voxel) {
-          // There is a voxel here but do we need faces for it?
-          for (const { dir, corners } of FACES) {
-            const nvx = vx + dir[0];
-            const nvy = vy + dir[1];
-            const nvz = vz + dir[2];
+    for (let vx = startX, x = 0; vx < endX; ++vx, ++x) {
+      for (let vz = startZ, z = 0; vz < endZ; ++vz, ++z) {
+        for (let vy = startY, y = 0; vy < endY; ++vy, ++y) {
+          const voxel = get(data, vx, vy, vz, stride);
 
-            const nVoxel = [nvx, nvy, nvz];
+          if (voxel) {
+            // There is a voxel here but do we need faces for it?
+            for (const { dir, corners } of FACES) {
+              const nvx = vx + dir[0];
+              const nvy = vy + dir[1];
+              const nvz = vz + dir[2];
 
-            if (
-              !get(data, nvx, nvy, nvz, stride) ||
-              !contains(nVoxel, realMin, realMax)
-            ) {
-              // this voxel has no neighbor in this direction so we need a face.
-              const ndx = positions.length / 3;
+              const nVoxel = [nvx, nvy, nvz];
 
-              for (const pos of corners) {
-                const posX = pos[0] + x;
-                const posY = pos[1] + y;
-                const posZ = pos[2] + z;
+              if (
+                !get(data, nvx, nvy, nvz, stride) ||
+                !contains(nVoxel, realMin, realMax)
+              ) {
+                // this voxel has no neighbor in this direction so we need a face.
+                const ndx = positions.length / 3;
 
-                positions.push(posX * dx, posY * dy, posZ * dz);
-                normals.push(...dir);
+                for (const pos of corners) {
+                  const posX = pos[0] + x;
+                  const posY = pos[1] + y;
+                  const posZ = pos[2] + z;
+
+                  positions.push(posX * dx, posY * dy, posZ * dz);
+                  normals.push(...dir);
+                }
+
+                indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
               }
-
-              indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
             }
           }
         }
       }
     }
-  }
 
-  const positionsArray = new Float32Array(positions);
-  const normalsArray = new Float32Array(normals);
-  const indicesArray = new Float32Array(indices);
+    const positionsArray = new Float32Array(positions);
+    const normalsArray = new Float32Array(normals);
+    const indicesArray = new Float32Array(indices);
 
-  postMessage(
-    {
-      positions: positionsArray,
-      normals: normalsArray,
-      indices: indicesArray,
-    },
-    // @ts-ignore
-    [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer]
-  );
+    postMessage(
+      {
+        positions: positionsArray,
+        normals: normalsArray,
+        indices: indicesArray,
+      },
+      // @ts-ignore
+      [positionsArray.buffer, normalsArray.buffer, indicesArray.buffer]
+    );
+  };
 };

@@ -324,7 +324,7 @@ ___
 
 ### options
 
-• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-14)
+• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-120)
 
 ___
 
@@ -390,7 +390,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-14)\> |
+| `options` | `Partial`<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-120)\> |
 
 ## Accessors
 

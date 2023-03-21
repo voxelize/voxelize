@@ -34,44 +34,49 @@ function noise(
   return total / maxVal;
 }
 
-onmessage = function (e) {
-  const {
-    data,
-    configs: {
-      min,
-      max,
-      noiseScale,
-      threshold,
-      stride,
-      octaves,
-      falloff,
-      seed,
-    },
-  } = e.data;
+// @ts-ignore
+onconnect = function (e) {
+  const port = e.ports[0];
 
-  instance.seed(seed);
+  port.onmessage = function (e) {
+    const {
+      data,
+      configs: {
+        min,
+        max,
+        noiseScale,
+        threshold,
+        stride,
+        octaves,
+        falloff,
+        seed,
+      },
+    } = e.data;
 
-  const [startX, startY, startZ] = min;
-  const [endX, endY, endZ] = max;
+    instance.seed(seed);
 
-  for (let vx = startX, lx = 0; vx < endX; ++vx, ++lx) {
-    for (let vz = startZ, lz = 0; vz < endZ; ++vz, ++lz) {
-      for (let vy = startY, ly = 0; vy < endY; ++vy, ++ly) {
-        const value =
-          noise(
-            vx * noiseScale,
-            vy * noiseScale,
-            vz * noiseScale,
-            octaves,
-            falloff
-          ) > threshold
-            ? 1
-            : 0;
-        set(data, lx, ly, lz, stride, value);
+    const [startX, startY, startZ] = min;
+    const [endX, endY, endZ] = max;
+
+    for (let vx = startX, lx = 0; vx < endX; ++vx, ++lx) {
+      for (let vz = startZ, lz = 0; vz < endZ; ++vz, ++lz) {
+        for (let vy = startY, ly = 0; vy < endY; ++vy, ++ly) {
+          const value =
+            noise(
+              vx * noiseScale,
+              vy * noiseScale,
+              vz * noiseScale,
+              octaves,
+              falloff
+            ) > threshold
+              ? 1
+              : 0;
+          set(data, lx, ly, lz, stride, value);
+        }
       }
     }
-  }
 
-  // @ts-ignore
-  postMessage(data, [data.buffer]);
+    // @ts-ignore
+    postMessage(data, [data.buffer]);
+  };
 };

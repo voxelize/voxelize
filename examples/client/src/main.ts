@@ -680,7 +680,7 @@ const start = async () => {
   });
 
   debug.registerDisplay("Concurrent WebWorkers", () => {
-    return VOXELIZE.WorkerPool.WORKING_COUNT;
+    return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
   });
 
   HOTBAR_CONTENT.forEach((id, index) => {

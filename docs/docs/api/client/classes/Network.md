@@ -57,7 +57,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `options` | [`NetworkConnectionOptions`](../modules.md#networkconnectionoptions-14) | Parameters to customize the connection to a Voxelize server. |
+| `options` | [`NetworkConnectionOptions`](../modules.md#networkconnectionoptions-120) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -357,7 +357,7 @@ ___
 
 ### options
 
-• **options**: [`NetworkOptions`](../modules.md#networkoptions-14)
+• **options**: [`NetworkOptions`](../modules.md#networkoptions-120)
 
 ___
 
@@ -390,7 +390,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-14)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-120)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 
@@ -418,4 +418,4 @@ Create a new network instance.
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`<[`NetworkOptions`](../modules.md#networkoptions-14)\> |
+| `options` | `Partial`<[`NetworkOptions`](../modules.md#networkoptions-120)\> |

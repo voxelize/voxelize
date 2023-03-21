@@ -1,9 +1,9 @@
 import { protocol } from "@voxelize/transport/src/protocol";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
-import DecodeWorker from "web-worker:./workers/decode-worker.ts";
+import DecodeWorker from "shared-worker:./workers/decode-worker.ts";
 
-import { WorkerPool } from "../../libs/worker-pool";
+import { SharedWorkerPool } from "../../libs/worker-pool";
 
 import { NetIntercept } from "./intercept";
 
@@ -22,12 +22,10 @@ export type ProtocolWS = WebSocket & {
 };
 
 export type NetworkOptions = {
-  maxPacketQueueSize: number;
   maxPacketsPerTick: number;
 };
 
 const defaultOptions: NetworkOptions = {
-  maxPacketQueueSize: 300,
   maxPacketsPerTick: 8,
 };
 
@@ -159,7 +157,7 @@ export class Network {
   /**
    * The worker pool for decoding network packets.
    */
-  private pool: WorkerPool = new WorkerPool(DecodeWorker, {
+  private pool: SharedWorkerPool = new SharedWorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
   });
 
@@ -262,11 +260,6 @@ export class Network {
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
         this.packetQueue.push(new Uint8Array(data));
-
-        // If the packet queue is too long, we will start to drop packets.
-        if (this.packetQueue.length > this.options.maxPacketQueueSize) {
-          this.packetQueue.shift();
-        }
       };
       ws.onclose = () => {
         this.connected = false;

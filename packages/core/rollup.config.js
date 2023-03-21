@@ -46,6 +46,22 @@ export default {
         ]),
   ],
   onwarn: (warning, next) => {
+    // ignore Error when using sourcemap for reporting an error: Can't resolve original location of error.
+    if (
+      warning.code === "SOURCEMAP_ERROR" ||
+      warning.message.includes("sourcemap")
+    ) {
+      return;
+    }
+
+    // ignore (!) `this` has been rewritten to `undefined`
+    if (
+      warning.code === "THIS_IS_UNDEFINED" ||
+      warning.message.includes("this has been rewritten to undefined")
+    ) {
+      return;
+    }
+
     if (
       !warning.message.includes("Use of eval is strongly discouraged") &&
       !(warning.importer || warning.id || []).includes("protobufjs")
