@@ -58,7 +58,7 @@ ___
 
 ### params
 
-• **params**: [`PortraitParams`](../modules.md#portraitparams-4)
+• **params**: [`PortraitParams`](../modules.md#portraitparams)
 
 Parameters to create this portrait with.
 
@@ -92,7 +92,7 @@ Create a new portrait. This automatically starts a render loop.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`<`Event`\> | The object to render to the canvas. |
-| `params` | `Partial`<[`PortraitParams`](../modules.md#portraitparams-4)\> | The parameters to create this portrait with. |
+| `params` | `Partial`<[`PortraitParams`](../modules.md#portraitparams)\> | The parameters to create this portrait with. |
 
 ## Methods
 

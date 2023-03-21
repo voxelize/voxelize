@@ -20,33 +20,42 @@ custom_edit_url: null
 
 ## Properties
 
-### DefaultMatrixAutoUpdate
+### DEFAULT\_MATRIX\_AUTO\_UPDATE
 
-▪ `Static` **DefaultMatrixAutoUpdate**: `boolean`
+▪ `Static` **DEFAULT\_MATRIX\_AUTO\_UPDATE**: `boolean`
+
+The default setting for [matrixAutoUpdate](Entity.md#matrixautoupdate) for newly created Object3Ds.
 
 #### Inherited from
 
-Group.DefaultMatrixAutoUpdate
+Group.DEFAULT\_MATRIX\_AUTO\_UPDATE
 
 ___
 
-### DefaultMatrixWorldAutoUpdate
+### DEFAULT\_MATRIX\_WORLD\_AUTO\_UPDATE
 
-▪ `Static` **DefaultMatrixWorldAutoUpdate**: `boolean`
+▪ `Static` **DEFAULT\_MATRIX\_WORLD\_AUTO\_UPDATE**: `boolean`
+
+The default setting for [matrixWorldAutoUpdate](Entity.md#matrixworldautoupdate) for newly created Object3Ds.
 
 #### Inherited from
 
-Group.DefaultMatrixWorldAutoUpdate
+Group.DEFAULT\_MATRIX\_WORLD\_AUTO\_UPDATE
 
 ___
 
-### DefaultUp
+### DEFAULT\_UP
 
-▪ `Static` **DefaultUp**: `Vector3`
+▪ `Static` **DEFAULT\_UP**: `Vector3`
+
+The default [up](Entity.md#up) direction for objects, also used as the default position for DirectionalLight,
+HemisphereLight and Spotlight (which creates lights shining from the top down).
+
+Set to ( 0, 1, 0 ) by default.
 
 #### Inherited from
 
-Group.DefaultUp
+Group.DEFAULT\_UP
 
 ___
 
@@ -217,12 +226,8 @@ ___
 
 • **matrixAutoUpdate**: `boolean`
 
-When this is set, it calculates the matrix of position, (rotation or quaternion) and scale every frame and also
-recalculates the matrixWorld property.
-
-**`Default`**
-
-THREE.Object3D.DefaultMatrixAutoUpdate
+When this is set, it calculates the matrix of position, (rotation or quaternion) and
+scale every frame and also recalculates the matrixWorld property. Default is Object3D.DEFAULT_MATRIX_AUTO_UPDATE (true).
 
 #### Inherited from
 
@@ -250,12 +255,9 @@ ___
 
 • **matrixWorldAutoUpdate**: `boolean`
 
-When this is set, the renderer checks every frame if the object and its children need matrix updates.
-Otherwise, you have to maintain all matrices in the object and its children yourself.
-
-**`Default`**
-
-THREE.Object3D.DefaultMatrixWorldAutoUpdate
+If set, then the renderer checks every frame if the object and its children need matrix updates.
+When it isn't, then you have to maintain all matrices in the object and its children yourself.
+Default is Object3D.DEFAULT_MATRIX_WORLD_AUTO_UPDATE (true).
 
 #### Inherited from
 
@@ -385,15 +387,35 @@ Group.onBeforeRender
 
 ___
 
-### onSpawn
+### onCreate
 
-• **onSpawn**: (`data`: `T`) => `void`
+• **onCreate**: (`data`: `T`) => `void`
 
 #### Type declaration
 
 ▸ (`data`): `void`
 
 Called when the entity is created.
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `data` | `T` |
+
+##### Returns
+
+`void`
+
+___
+
+### onDelete
+
+• **onDelete**: (`data`: `T`) => `void`
+
+#### Type declaration
+
+▸ (`data`): `void`
 
 ##### Parameters
 
@@ -555,11 +577,13 @@ ___
 
 • **up**: `Vector3`
 
-Up direction.
+This is used by the [lookAt](Entity.md#lookat) method, for example, to determine the orientation of the result.
+
+Default is Object3D.DEFAULT_UP - that is, `( 0, 1, 0 )`.
 
 **`Default`**
 
-THREE.Object3D.DefaultUp.clone()
+Object3D.DEFAULT_UP
 
 #### Inherited from
 
@@ -855,12 +879,15 @@ ___
 
 ▸ **getObjectByProperty**(`name`, `value`): `Object3D`<`Event`\>
 
+Searches through an object and its children, starting with the object itself,
+and returns the first with a property that matches the value given.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `name` | `string` |
-| `value` | `any` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | the property name to search for. |
+| `value` | `any` | value of the given property. |
 
 #### Returns
 
@@ -869,6 +896,30 @@ ___
 #### Inherited from
 
 Group.getObjectByProperty
+
+___
+
+### getObjectsByProperty
+
+▸ **getObjectsByProperty**(`name`, `value`): `Object3D`<`Event`\>[]
+
+Searches through an object and its children, starting with the object itself,
+and returns all the objects with a property that matches the value given.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | the property name to search for. |
+| `value` | `any` | value of the given property. |
+
+#### Returns
+
+`Object3D`<`Event`\>[]
+
+#### Inherited from
+
+Group.getObjectsByProperty
 
 ___
 

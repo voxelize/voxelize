@@ -88,10 +88,20 @@ export type WorldClientParams = {
    */
   minLightLevel: number;
 
+  /**
+   * The fraction of the day that sunlight starts to appear. Defaults to `0.25`.
+   */
   sunlightStartTimeFrac: number;
 
+  /**
+   * The fraction of the day that sunlight starts to disappear. Defaults to `0.7`.
+   */
   sunlightEndTimeFrac: number;
 
+  /**
+   * The fraction of the day that sunlight takes to change from appearing to disappearing
+   * or disappearing to appearing. Defaults to `0.1`.
+   */
   sunlightChangeSpan: number;
 
   /**
@@ -116,10 +126,19 @@ export type WorldClientParams = {
    */
   chunkLoadExponent: number;
 
+  /**
+   * The parameters to create the sky. Defaults to `{}`.
+   */
   skyParams: Partial<SkyParams>;
 
+  /**
+   * The parameters to create the clouds. Defaults to `{}`.
+   */
   cloudsParams: Partial<CloudsParams>;
 
+  /**
+   * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
+   */
   chunkUniformsOverwrite: Partial<Chunks["uniforms"]>;
 };
 

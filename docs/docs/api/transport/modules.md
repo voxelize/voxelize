@@ -59,6 +59,7 @@ ___
 | :------ | :------ |
 | `id` | `string` |
 | `metadata` | `T` |
+| `operation` | ``"CREATE"`` \| ``"UPDATE"`` \| ``"DELETE"`` |
 | `type` | `string` |
 
 ___
@@ -138,7 +139,7 @@ ___
 | `method?` | [`MethodProtocol`](modules.md#methodprotocol)<`Method`\> |
 | `peers?` | [`PeerProtocol`](modules.md#peerprotocol)<`Peer`\>[] |
 | `text?` | `string` |
-| `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` |
+| `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` \| ``"STATS"`` |
 | `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
 
 ___

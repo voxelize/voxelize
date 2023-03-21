@@ -57,7 +57,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `params` | [`NetworkParams`](../modules.md#networkparams-4) | Parameters to customize the connection to a Voxelize server. |
+| `params` | [`NetworkConnectionParams`](../modules.md#networkconnectionparams) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -198,6 +198,16 @@ otherwise the client will be assigned a `Guest XXXXX` username.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `username` | `string` | The username of the client that is used to identify the client on server connection. |
+
+#### Returns
+
+`void`
+
+___
+
+### sync
+
+▸ **sync**(): `void`
 
 #### Returns
 
@@ -347,9 +357,7 @@ ___
 
 ### params
 
-• **params**: [`NetworkParams`](../modules.md#networkparams-4)
-
-Parameters to start the network connection, passed in to `connect`.
+• **params**: [`NetworkParams`](../modules.md#networkparams)
 
 ___
 
@@ -382,7 +390,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws-4)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 
@@ -402,6 +410,12 @@ The number of active web workers decoding network packets.
 
 ### constructor
 
-• **new Network**()
+• **new Network**(`params?`)
 
 Create a new network instance.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `params` | `Partial`<[`NetworkParams`](../modules.md#networkparams)\> |
