@@ -26,23 +26,25 @@ import {
   Vector3,
 } from "three";
 
-import { Clouds, CloudsParams } from "../../libs/clouds";
-import { Sky, SkyParams } from "../../libs/sky";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 
 import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
+import { Clouds, CloudsParams } from "./clouds";
 import { Loader } from "./loader";
 import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
+import { Sky, SkyParams } from "./sky";
 import { AtlasTexture } from "./textures";
 
 export * from "./block";
+export * from "./clouds";
 export * from "./loader";
 export * from "./registry";
 export * from "./shaders";
+export * from "./sky";
 export * from "./textures";
 
 /**

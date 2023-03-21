@@ -174,7 +174,7 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(world, camera));
 
 const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
+overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.01);
 
 composer.addPass(
   new EffectPass(
