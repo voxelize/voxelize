@@ -140,6 +140,11 @@ export type WorldClientOptions = {
    * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
    */
   chunkUniformsOverwrite: Partial<Chunks["uniforms"]>;
+
+  /**
+   * The threshold to force the server's time to the client's time. Defaults to `0.1`.
+   */
+  timeForceThreshold: number;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -158,6 +163,7 @@ const defaultOptions: WorldClientOptions = {
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,
   sunlightChangeSpan: 0.1,
+  timeForceThreshold: 0.1,
 };
 
 /**
@@ -235,13 +241,16 @@ export type WorldOptions = WorldClientOptions & WorldServerOptions;
  * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
  * This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
  * also implements {@link NetIntercept}, which means it intercepts chunk-related packets from the server
- * and constructs chunk meshes from them.
+ * and constructs chunk meshes from them. You can optionally disable this by setting `shouldGenerateChunkMeshes` to `false`
+ * in the options.
  *
  * There are a couple components that are by default created by the world that holds data:
  * - {@link World.registry}: A block registry that handles block textures and block instances.
  * - {@link World.chunks}: A chunk manager that stores all the chunks in the world.
  * - {@link World.physics}: A physics engine that handles voxel AABB physics simulation of client-side physics.
  * - {@link World.loader}: An asset loader that handles loading textures and other assets.
+ * - {@link World.sky}: A sky that can render the sky and the sun.
+ * - {@link World.clouds}: A clouds that renders the cubical clouds.
  *
  * One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
  * This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
@@ -285,7 +294,7 @@ export class World extends Scene implements NetIntercept {
   public loader: Loader;
 
   /**
-   * The manager that holds all chunk-related data.
+   * The manager that holds all chunk-related data, such as chunk meshes and voxel data.
    */
   public chunks: Chunks;
 
@@ -294,12 +303,18 @@ export class World extends Scene implements NetIntercept {
    */
   public physics: PhysicsEngine;
 
+  /**
+   * The sky that renders the sky and the sun.
+   */
   public sky: Sky;
 
+  /**
+   * The clouds that renders the cubical clouds.
+   */
   public clouds: Clouds;
 
   /**
-   * Whether or not this world is connected to the server and isInitialized with data from the server.
+   * Whether or not this world is connected to the server and initialized with data from the server.
    */
   public isInitialized = false;
 
@@ -332,6 +347,9 @@ export class World extends Scene implements NetIntercept {
    */
   private initialData: any = null;
 
+  /**
+   * The internal time in seconds.
+   */
   private _time = 0;
 
   /**
@@ -344,30 +362,32 @@ export class World extends Scene implements NetIntercept {
    */
   private _deleteRadius = 0;
 
+  /**
+   * Create a new Voxelize world.
+   *
+   * @param options The options to create the world.
+   */
   constructor(options: Partial<WorldOptions> = {}) {
     super();
 
-    this.registry = new Registry();
-    this.loader = new Loader();
-    this.chunks = new Chunks();
+    // @ts-ignore
+    this.options = {
+      ...defaultOptions,
+      ...options,
+    };
 
-    this.setupPhysics();
-
-    const { minLightLevel, skyOptions, cloudsOptions } =
-      // @ts-ignore
-      (this.options = {
-        ...defaultOptions,
-        ...options,
-      });
-
-    this.sky = new Sky(skyOptions);
-    this.clouds = new Clouds(cloudsOptions);
-
-    this.add(this.sky, this.clouds);
-
-    this.chunks.uniforms.minLightLevel.value = minLightLevel;
+    this.setupComponents();
+    this.setupUniforms();
   }
 
+  /**
+   * Apply a texture to a face or faces of a block. This will automatically load the image from the source
+   * and draw it onto the block's texture atlas.
+   *
+   * @param idOrName The ID or name of the block.
+   * @param faceNames The face names to apply the texture to.
+   * @param source The source of the texture.
+   */
   async applyBlockTexture(
     idOrName: number | string,
     faceNames: string | string[],
@@ -379,6 +399,7 @@ export class World extends Scene implements NetIntercept {
 
     faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
 
+    // If it is a string, load the image.
     const data =
       typeof source === "string" ? await this.loader.loadImage(source) : source;
 
@@ -391,8 +412,10 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      const mat = this.getMaterial(block.id, faceName);
+      const mat = this.getBlockFaceMaterial(block.id, faceName);
 
+      // If the face is independent, that means this face does not share a texture atlas with other faces.
+      // In this case, we can just set the map to the texture.
       if (face.independent) {
         if (source instanceof Texture) {
           mat.map = source;
@@ -404,11 +427,18 @@ export class World extends Scene implements NetIntercept {
         return;
       }
 
+      // Otherwise, we need to draw the image onto the texture atlas.
       const atlas = mat.map as AtlasTexture;
       atlas.drawImageToRange(face.range, data);
     });
   }
 
+  /**
+   * Apply multiple block textures at once. See {@link applyBlockTexture} for more information.
+   *
+   * @param data The data to apply the block textures.
+   * @returns A promise that resolves when all the textures are applied.
+   */
   async applyBlockTextures(
     data: {
       idOrName: number | string;
@@ -423,6 +453,15 @@ export class World extends Scene implements NetIntercept {
     );
   }
 
+  /**
+   * Apply a set of keyframes to a block. This will load the keyframes from the sources and start the animation
+   * to play the keyframes on the block's texture atlas.
+   *
+   * @param idOrName The ID or name of the block.
+   * @param faceNames The face name or names to apply the texture to.
+   * @param keyframes The keyframes to apply to the texture.
+   * @param fadeFrames The number of frames to fade between each keyframe.
+   */
   async applyBlockFrames(
     idOrName: number | string,
     faceNames: string | string[],
@@ -435,6 +474,7 @@ export class World extends Scene implements NetIntercept {
 
     const realKeyframes = [];
 
+    // Convert string sources to images.
     for (const [duration, source] of keyframes) {
       if (typeof source === "string") {
         realKeyframes.push([duration, await this.loader.loadImage(source)]);
@@ -455,8 +495,9 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      const mat = this.getMaterial(block.id, faceName);
+      const mat = this.getBlockFaceMaterial(block.id, faceName);
 
+      // If the block's material is not set up to an atlas texture, we need to set it up.
       if (!(mat.map instanceof AtlasTexture)) {
         const { image } = mat.map;
 
@@ -475,6 +516,7 @@ export class World extends Scene implements NetIntercept {
         }
       }
 
+      // Register the animation. This will start the animation.
       (mat.map as AtlasTexture).registerAnimation(
         face.range,
         realKeyframes,
@@ -483,11 +525,20 @@ export class World extends Scene implements NetIntercept {
     });
   }
 
+  /**
+   * Apply a GIF animation to a block. This will load the GIF from the source and start the animation
+   * using {@link applyBlockFrames} internally.
+   *
+   * @param idOrName The ID or name of the block.
+   * @param faceNames The face name or names to apply the texture to.
+   * @param source The source of the GIF. Note that this must be a GIF file ending with `.gif`.
+   * @param interval The interval between each frame of the GIF in milliseconds. Defaults to `66.666667ms`.
+   */
   async applyBlockGif(
     idOrName: string,
     faceNames: string[] | string,
     source: string,
-    interval = 66.6666667
+    interval = 66.666667
   ) {
     this.checkIsInitialized("apply GIF animation", false);
 
@@ -497,6 +548,7 @@ export class World extends Scene implements NetIntercept {
       );
     }
 
+    // Load the keyframes from this GIF.
     const images = await this.loader.loadGifImages(source);
 
     const keyframes = images.map(
@@ -506,6 +558,14 @@ export class World extends Scene implements NetIntercept {
     await this.applyBlockFrames(idOrName, faceNames, keyframes);
   }
 
+  /**
+   * Apply a resolution to a block. This will set the resolution of the block's texture atlas.
+   * Keep in mind that this face or faces must be independent.
+   *
+   * @param idOrName The ID or name of the block.
+   * @param faceNames The face name or names to apply the resolution to.
+   * @param resolution The resolution to apply to the block, in pixels.
+   */
   setResolutionOf(
     idOrName: number | string,
     faceNames: string | string[],
@@ -532,7 +592,7 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      const mat = this.getMaterial(block.id, faceName);
+      const mat = this.getBlockFaceMaterial(block.id, faceName);
 
       // We know that this atlas texture will only be used for one single face.
       if (mat.map instanceof AtlasTexture) {
@@ -844,7 +904,7 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getMaterial(idOrName: number | string, faceName?: string) {
+  getBlockFaceMaterial(idOrName: number | string, faceName?: string) {
     this.checkIsInitialized("get material", false);
 
     const block = this.getBlockOf(idOrName);
@@ -1155,7 +1215,7 @@ export class World extends Scene implements NetIntercept {
       let geometry = geometries.get(identifier);
 
       if (!geometry) {
-        const chunkMat = this.getMaterial(block.id, name);
+        const chunkMat = this.getBlockFaceMaterial(block.id, name);
 
         const matOptions = {
           transparent: isSeeThrough,
@@ -1251,7 +1311,7 @@ export class World extends Scene implements NetIntercept {
       uniforms = {},
     } = data;
 
-    const mat = this.getMaterial(idOrName, faceName);
+    const mat = this.getBlockFaceMaterial(idOrName, faceName);
 
     if (!mat) {
       throw new Error(
@@ -1405,7 +1465,9 @@ export class World extends Scene implements NetIntercept {
       case "STATS": {
         const { json } = message;
 
-        // console.log(json.time - this.time, this.options.timePerDay);
+        if (json.time - this.time > this.options.timeForceThreshold) {
+          this.time = json.time;
+        }
 
         break;
       }
@@ -1858,7 +1920,7 @@ export class World extends Scene implements NetIntercept {
       geometry.setAttribute("light", new Int32BufferAttribute(lights, 1));
       geometry.setIndex(indices);
 
-      const material = this.getMaterial(voxel, faceName);
+      const material = this.getBlockFaceMaterial(voxel, faceName);
       if (!material) return;
 
       const mesh = new Mesh(geometry, material);
@@ -1882,10 +1944,18 @@ export class World extends Scene implements NetIntercept {
     chunk.meshes.set(level, mesh);
   }
 
-  /**
-   * Setup the physics engine for this world.
-   */
-  private setupPhysics() {
+  private setupComponents() {
+    const { skyOptions, cloudsOptions } = this.options;
+
+    this.registry = new Registry();
+    this.loader = new Loader();
+    this.chunks = new Chunks();
+
+    this.sky = new Sky(skyOptions);
+    this.clouds = new Clouds(cloudsOptions);
+
+    this.add(this.sky, this.clouds);
+
     // initialize the physics engine with server provided options.
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
@@ -1906,10 +1976,17 @@ export class World extends Scene implements NetIntercept {
 
         const id = this.getVoxelAt(vx, vy, vz);
         const { isFluid } = this.getBlockById(id);
+
         return isFluid;
       },
       this.options
     );
+  }
+
+  private setupUniforms() {
+    const { minLightLevel } = this.options;
+
+    this.chunks.uniforms.minLightLevel.value = minLightLevel;
   }
 
   /**

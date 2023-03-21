@@ -10,13 +10,16 @@ A Voxelize world handles the chunk loading and rendering, as well as any 3D obje
 **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
 This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
 also implements [NetIntercept](../interfaces/NetIntercept.md), which means it intercepts chunk-related packets from the server
-and constructs chunk meshes from them.
+and constructs chunk meshes from them. You can optionally disable this by setting `shouldGenerateChunkMeshes` to `false`
+in the options.
 
 There are a couple components that are by default created by the world that holds data:
-- [registry](World.md#registry-18): A block registry that handles block textures and block instances.
-- [chunks](World.md#chunks-18): A chunk manager that stores all the chunks in the world.
-- [physics](World.md#physics-18): A physics engine that handles voxel AABB physics simulation of client-side physics.
-- [loader](World.md#loader-18): An asset loader that handles loading textures and other assets.
+- [registry](World.md#registry-2): A block registry that handles block textures and block instances.
+- [chunks](World.md#chunks-2): A chunk manager that stores all the chunks in the world.
+- [physics](World.md#physics-2): A physics engine that handles voxel AABB physics simulation of client-side physics.
+- [loader](World.md#loader-2): An asset loader that handles loading textures and other assets.
+- [sky](World.md#sky-2): A sky that can render the sky and the sun.
+- [clouds](World.md#clouds-2): A clouds that renders the cubical clouds.
 
 One thing to keep in mind that there are no specific setters like `setVoxelByVoxel` or `setVoxelRotationByVoxel`.
 This is because, instead, you should use `updateVoxel` and `updateVoxels` to update voxels.
@@ -63,7 +66,7 @@ This is useful for, for example, teleporting the player to the top of the chunk 
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-18) | The chunk coordinates to listen to. |
+| `coords` | [`Coords2`](../modules.md#coords2-2) | The chunk coordinates to listen to. |
 | `listener` | (`chunk`: `Chunk`) => `void` | The listener to add. |
 
 #### Returns
@@ -76,14 +79,17 @@ ___
 
 ▸ **applyBlockFrames**(`idOrName`, `faceNames`, `keyframes`, `fadeFrames?`): `Promise`<`void`\>
 
+Apply a set of keyframes to a block. This will load the keyframes from the sources and start the animation
+to play the keyframes on the block's texture atlas.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `idOrName` | `string` \| `number` | `undefined` |
-| `faceNames` | `string` \| `string`[] | `undefined` |
-| `keyframes` | [`number`, `string` \| `Color` \| `HTMLImageElement`][] | `undefined` |
-| `fadeFrames` | `number` | `0` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `idOrName` | `string` \| `number` | `undefined` | The ID or name of the block. |
+| `faceNames` | `string` \| `string`[] | `undefined` | The face name or names to apply the texture to. |
+| `keyframes` | [`number`, `string` \| `Color` \| `HTMLImageElement`][] | `undefined` | The keyframes to apply to the texture. |
+| `fadeFrames` | `number` | `0` | The number of frames to fade between each keyframe. |
 
 #### Returns
 
@@ -95,14 +101,17 @@ ___
 
 ▸ **applyBlockGif**(`idOrName`, `faceNames`, `source`, `interval?`): `Promise`<`void`\>
 
+Apply a GIF animation to a block. This will load the GIF from the source and start the animation
+using [applyBlockFrames](World.md#applyblockframes-2) internally.
+
 #### Parameters
 
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `idOrName` | `string` | `undefined` |
-| `faceNames` | `string` \| `string`[] | `undefined` |
-| `source` | `string` | `undefined` |
-| `interval` | `number` | `66.6666667` |
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `idOrName` | `string` | `undefined` | The ID or name of the block. |
+| `faceNames` | `string` \| `string`[] | `undefined` | The face name or names to apply the texture to. |
+| `source` | `string` | `undefined` | The source of the GIF. Note that this must be a GIF file ending with `.gif`. |
+| `interval` | `number` | `66.666667` | The interval between each frame of the GIF in milliseconds. Defaults to `66.666667ms`. |
 
 #### Returns
 
@@ -114,13 +123,16 @@ ___
 
 ▸ **applyBlockTexture**(`idOrName`, `faceNames`, `source`): `Promise`<`void`\>
 
+Apply a texture to a face or faces of a block. This will automatically load the image from the source
+and draw it onto the block's texture atlas.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `idOrName` | `string` \| `number` |
-| `faceNames` | `string` \| `string`[] |
-| `source` | `string` \| `Color` \| `Texture` \| `HTMLImageElement` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `idOrName` | `string` \| `number` | The ID or name of the block. |
+| `faceNames` | `string` \| `string`[] | The face names to apply the texture to. |
+| `source` | `string` \| `Color` \| `Texture` \| `HTMLImageElement` | The source of the texture. |
 
 #### Returns
 
@@ -132,15 +144,19 @@ ___
 
 ▸ **applyBlockTextures**(`data`): `Promise`<`void`[]\>
 
+Apply multiple block textures at once. See [applyBlockTexture](World.md#applyblocktexture-2) for more information.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `data` | { `faceNames`: `string` \| `string`[] ; `idOrName`: `string` \| `number` ; `source`: `string` \| `Color`  }[] |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `data` | { `faceNames`: `string` \| `string`[] ; `idOrName`: `string` \| `number` ; `source`: `string` \| `Color`  }[] | The data to apply the block textures. |
 
 #### Returns
 
 `Promise`<`void`[]\>
+
+A promise that resolves when all the textures are applied.
 
 ___
 
@@ -153,7 +169,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `idOrName` | `string` \| `number` |
-| `fn` | (`pos`: [`Coords3`](../modules.md#coords3-18), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `independent`: `boolean` ; `name`: `string` ; `range`: [`TextureRange`](../modules.md#texturerange-18)  }[] ; `isTransparent`: `boolean`[]  } |
+| `fn` | (`pos`: [`Coords3`](../modules.md#coords3-2), `world`: [`World`](World.md)) => { `aabbs`: `AABB`[] ; `faces`: { `corners`: { `pos`: `number`[] ; `uv`: `number`[]  }[] ; `dir`: `number`[] ; `independent`: `boolean` ; `name`: `string` ; `range`: [`TextureRange`](../modules.md#texturerange-2)  }[] ; `isTransparent`: `boolean`[]  } |
 
 #### Returns
 
@@ -163,7 +179,7 @@ ___
 
 ### customizeMaterialShaders
 
-▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-18)
+▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-2)
 
 #### Parameters
 
@@ -178,13 +194,13 @@ ___
 
 #### Returns
 
-[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-18)
+[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-2)
 
 ___
 
 ### getBlockAt
 
-▸ **getBlockAt**(`px`, `py`, `pz`): [`Block`](../modules.md#block-18)
+▸ **getBlockAt**(`px`, `py`, `pz`): [`Block`](../modules.md#block-2)
 
 Get the block type data by a 3D world position.
 
@@ -198,7 +214,7 @@ Get the block type data by a 3D world position.
 
 #### Returns
 
-[`Block`](../modules.md#block-18)
+[`Block`](../modules.md#block-2)
 
 The block at the given position, or null if it does not exist.
 
@@ -206,7 +222,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block-18)
+▸ **getBlockById**(`id`): [`Block`](../modules.md#block-2)
 
 Get the block type data by a block id.
 
@@ -218,7 +234,7 @@ Get the block type data by a block id.
 
 #### Returns
 
-[`Block`](../modules.md#block-18)
+[`Block`](../modules.md#block-2)
 
 The block data for the given id, or null if it does not exist.
 
@@ -226,7 +242,7 @@ ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-18)
+▸ **getBlockByName**(`name`): [`Block`](../modules.md#block-2)
 
 Get the block type data by a block name.
 
@@ -238,15 +254,32 @@ Get the block type data by a block name.
 
 #### Returns
 
-[`Block`](../modules.md#block-18)
+[`Block`](../modules.md#block-2)
 
 The block data for the given name, or null if it does not exist.
 
 ___
 
+### getBlockFaceMaterial
+
+▸ **getBlockFaceMaterial**(`idOrName`, `faceName?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-2)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `idOrName` | `string` \| `number` |
+| `faceName?` | `string` |
+
+#### Returns
+
+[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-2)
+
+___
+
 ### getBlockOf
 
-▸ **getBlockOf**(`idOrName`): [`Block`](../modules.md#block-18)
+▸ **getBlockOf**(`idOrName`): [`Block`](../modules.md#block-2)
 
 #### Parameters
 
@@ -256,7 +289,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block-18)
+[`Block`](../modules.md#block-2)
 
 ___
 
@@ -369,23 +402,6 @@ The voxel's light color at the given coordinate.
 
 ___
 
-### getMaterial
-
-▸ **getMaterial**(`idOrName`, `faceName?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-18)
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `idOrName` | `string` \| `number` |
-| `faceName?` | `string` |
-
-#### Returns
-
-[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial-18)
-
-___
-
 ### getMaxHeightAt
 
 ▸ **getMaxHeightAt**(`px`, `pz`): `number`
@@ -464,7 +480,7 @@ Get a voxel torch light by a 3D world position.
 | `px` | `number` | The x coordinate of the position. |
 | `py` | `number` | The y coordinate of the position. |
 | `pz` | `number` | The z coordinate of the position. |
-| `color` | [`LightColor`](../modules.md#lightcolor-18) | The color of the torch light. |
+| `color` | [`LightColor`](../modules.md#lightcolor-2) | The color of the torch light. |
 
 #### Returns
 
@@ -561,8 +577,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `center` | [`Coords2`](../modules.md#coords2-18) |
-| `target` | [`Coords2`](../modules.md#coords2-18) |
+| `center` | [`Coords2`](../modules.md#coords2-2) |
+| `target` | [`Coords2`](../modules.md#coords2-2) |
 | `direction` | `Vector3` |
 | `threshold` | `number` |
 
@@ -577,7 +593,7 @@ ___
 ▸ **isWithinWorld**(`cx`, `cz`): `boolean`
 
 Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
-is within [WorldServerOptions.minChunk](../modules.md#worldserveroptions-6) and [WorldServerOptions.maxChunk](../modules.md#worldserveroptions-6).
+is within [WorldServerOptions.minChunk](../modules.md#worldserveroptions-2) and [WorldServerOptions.maxChunk](../modules.md#worldserveroptions-2).
 
 #### Parameters
 
@@ -625,8 +641,8 @@ Raycast through the world of voxels and return the details of the first block in
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `origin` | [`Coords3`](../modules.md#coords3-18) | The origin of the ray. |
-| `direction` | [`Coords3`](../modules.md#coords3-18) | The direction of the ray. |
+| `origin` | [`Coords3`](../modules.md#coords3-2) | The origin of the ray. |
+| `direction` | [`Coords3`](../modules.md#coords3-2) | The direction of the ray. |
 | `maxDistance` | `number` | The maximum distance of the ray. |
 | `options` | `Object` | The options for the ray. |
 | `options.ignoreFluids?` | `boolean` | Whether or not to ignore fluids. Defaults to `true`. |
@@ -650,13 +666,16 @@ ___
 
 ▸ **setResolutionOf**(`idOrName`, `faceNames`, `resolution`): `void`
 
+Apply a resolution to a block. This will set the resolution of the block's texture atlas.
+Keep in mind that this face or faces must be independent.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `idOrName` | `string` \| `number` |
-| `faceNames` | `string` \| `string`[] |
-| `resolution` | `number` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `idOrName` | `string` \| `number` | The ID or name of the block. |
+| `faceNames` | `string` \| `string`[] | The face name or names to apply the resolution to. |
+| `resolution` | `number` | The resolution to apply to the block, in pixels. |
 
 #### Returns
 
@@ -702,13 +721,13 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `rotation?`, `yRotation?`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-18) and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions-6) times
+[World.chunks.toUpdate](World.md#chunks-2) and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions-2) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-18) | [NX_ROTATION](../modules.md#nx_rotation-18) | [PY_ROTATION](../modules.md#py_rotation-18) | [NY_ROTATION](../modules.md#ny_rotation-18) | [PZ_ROTATION](../modules.md#pz_rotation-18) | [NZ_ROTATION](../modules.md#nz_rotation-18)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-18) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-2) | [NX_ROTATION](../modules.md#nx_rotation-2) | [PY_ROTATION](../modules.md#py_rotation-2) | [NY_ROTATION](../modules.md#ny_rotation-2) | [PZ_ROTATION](../modules.md#pz_rotation-2) | [NZ_ROTATION](../modules.md#nz_rotation-2)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-2) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-18) (Same for if
-block is not [Block.yRotatable](../modules.md#block-18)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-2) (Same for if
+block is not [Block.yRotatable](../modules.md#block-2)).
 
 #### Parameters
 
@@ -732,20 +751,20 @@ ___
 ▸ **updateVoxels**(`updates`): `void`
 
 This sends a list of block updates to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks-18) and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions-6) times
+[World.chunks.toUpdate](World.md#chunks-2) and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions-2) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
-- Rotation: [PX_ROTATION](../modules.md#px_rotation-18) | [NX_ROTATION](../modules.md#nx_rotation-18) | [PY_ROTATION](../modules.md#py_rotation-18) | [NY_ROTATION](../modules.md#ny_rotation-18) | [PZ_ROTATION](../modules.md#pz_rotation-18) | [NZ_ROTATION](../modules.md#nz_rotation-18)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-18) - 1.
+- Rotation: [PX_ROTATION](../modules.md#px_rotation-2) | [NX_ROTATION](../modules.md#nx_rotation-2) | [PY_ROTATION](../modules.md#py_rotation-2) | [NY_ROTATION](../modules.md#ny_rotation-2) | [PZ_ROTATION](../modules.md#pz_rotation-2) | [NZ_ROTATION](../modules.md#nz_rotation-2)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments-2) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-18) (Same for if
-block is not [Block.yRotatable](../modules.md#block-18)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block-2) (Same for if
+block is not [Block.yRotatable](../modules.md#block-2)).
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate-18)[] | A list of updates to send to the server. |
+| `updates` | [`BlockUpdate`](../modules.md#blockupdate-2)[] | A list of updates to send to the server. |
 
 #### Returns
 
@@ -757,7 +776,7 @@ block is not [Block.yRotatable](../modules.md#block-18)).
 
 • **chunks**: `Chunks`
 
-The manager that holds all chunk-related data.
+The manager that holds all chunk-related data, such as chunk meshes and voxel data.
 
 ___
 
@@ -765,13 +784,15 @@ ___
 
 • **clouds**: [`Clouds`](Clouds.md)
 
+The clouds that renders the cubical clouds.
+
 ___
 
 ### isInitialized
 
 • **isInitialized**: `boolean` = `false`
 
-Whether or not this world is connected to the server and isInitialized with data from the server.
+Whether or not this world is connected to the server and initialized with data from the server.
 
 ___
 
@@ -785,7 +806,7 @@ ___
 
 ### options
 
-• **options**: [`WorldOptions`](../modules.md#worldoptions-6)
+• **options**: [`WorldOptions`](../modules.md#worldoptions-2)
 
 The options to create the world.
 
@@ -811,17 +832,21 @@ ___
 
 • **sky**: [`Sky`](Sky.md)
 
+The sky that renders the sky and the sun.
+
 ## Constructors
 
 ### constructor
 
 • **new World**(`options?`)
 
+Create a new Voxelize world.
+
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
-| `options` | `Partial`<[`WorldOptions`](../modules.md#worldoptions-6)\> |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `options` | `Partial`<[`WorldOptions`](../modules.md#worldoptions-2)\> | The options to create the world. |
 
 #### Overrides
 

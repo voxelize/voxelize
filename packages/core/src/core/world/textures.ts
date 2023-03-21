@@ -7,10 +7,28 @@ import {
   sRGBEncoding,
 } from "three";
 
+/**
+ * The UV range of a texture on the texture atlas.
+ */
 export type TextureRange = {
+  /**
+   * The starting U coordinate of the texture.
+   */
   startU: number;
+
+  /**
+   * The ending U coordinate of the texture.
+   */
   endU: number;
+
+  /**
+   * The starting V coordinate of the texture.
+   */
   startV: number;
+
+  /**
+   * The ending V coordinate of the texture.
+   */
   endV: number;
 };
 
@@ -24,10 +42,17 @@ export type TextureRange = {
  *
  * ![Texture bleeding](/img/docs/texture-bleeding.png)
  *
+ * @noInheritDoc
  */
 export class AtlasTexture extends CanvasTexture {
+  /**
+   * The number of textures per side of the texture atlas
+   */
   public countPerSide: number;
 
+  /**
+   * Since the texture atlas is a square, the dimension is the length of one side.
+   */
   public dimension: number;
 
   /**
@@ -338,8 +363,9 @@ export class AtlasTexture extends CanvasTexture {
   }
 }
 
-export class AnimatedTexture {}
-
+/**
+ * The animation data that is used internally in an atlas texture. This holds the data and will be used to draw on the texture atlas.
+ */
 export class FaceAnimation {
   /**
    * The range of the texture atlas that this animation uses.

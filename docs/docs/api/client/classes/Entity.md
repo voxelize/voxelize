@@ -24,7 +24,7 @@ custom_edit_url: null
 
 ▪ `Static` **DEFAULT\_MATRIX\_AUTO\_UPDATE**: `boolean`
 
-The default setting for [matrixAutoUpdate](Entity.md#matrixautoupdate-18) for newly created Object3Ds.
+The default setting for [matrixAutoUpdate](Entity.md#matrixautoupdate-2) for newly created Object3Ds.
 
 #### Inherited from
 
@@ -36,7 +36,7 @@ ___
 
 ▪ `Static` **DEFAULT\_MATRIX\_WORLD\_AUTO\_UPDATE**: `boolean`
 
-The default setting for [matrixWorldAutoUpdate](Entity.md#matrixworldautoupdate-18) for newly created Object3Ds.
+The default setting for [matrixWorldAutoUpdate](Entity.md#matrixworldautoupdate-2) for newly created Object3Ds.
 
 #### Inherited from
 
@@ -48,7 +48,7 @@ ___
 
 ▪ `Static` **DEFAULT\_UP**: `Vector3`
 
-The default [up](Entity.md#up-18) direction for objects, also used as the default position for DirectionalLight,
+The default [up](Entity.md#up-2) direction for objects, also used as the default position for DirectionalLight,
 HemisphereLight and Spotlight (which creates lights shining from the top down).
 
 Set to ( 0, 1, 0 ) by default.
@@ -577,7 +577,7 @@ ___
 
 • **up**: `Vector3`
 
-This is used by the [lookAt](Entity.md#lookat-18) method, for example, to determine the orientation of the result.
+This is used by the [lookAt](Entity.md#lookat-2) method, for example, to determine the orientation of the result.
 
 Default is Object3D.DEFAULT_UP - that is, `( 0, 1, 0 )`.
 
