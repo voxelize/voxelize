@@ -342,16 +342,18 @@ export class Network {
       return;
     }
 
-    this.decode(
-      this.packetQueue.splice(
-        0,
-        Math.min(this.params.maxPacketsPerTick, this.packetQueue.length)
-      )
-    ).then((messages) => {
-      messages.forEach((message) => {
-        this.onMessage(message);
+    while (this.packetQueue.length && !this.pool.isBusy) {
+      this.decode(
+        this.packetQueue.splice(
+          0,
+          Math.min(this.params.maxPacketsPerTick, this.packetQueue.length)
+        )
+      ).then((messages) => {
+        messages.forEach((message) => {
+          this.onMessage(message);
+        });
       });
-    });
+    }
   };
 
   /**

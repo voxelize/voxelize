@@ -1322,7 +1322,6 @@ export class World extends Scene implements NetIntercept {
     await this.loadMaterials();
 
     this.isInitialized = true;
-    this.params.timePerDay = 20;
 
     this.renderRadius = this.params.defaultRenderRadius;
   }
@@ -1374,13 +1373,12 @@ export class World extends Scene implements NetIntercept {
       case "STATS": {
         const { json } = message;
 
-        // console.log(json.time, this.time);
+        // console.log(json.time - this.time, this.params.timePerDay);
 
         break;
       }
       case "LOAD": {
         const { chunks } = message;
-        console.log(chunks.length);
 
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
@@ -1738,7 +1736,7 @@ export class World extends Scene implements NetIntercept {
     });
   };
 
-  public updateSkyAndClouds(position: Vector3, timeOverride?: number) {
+  public updateSkyAndClouds(position: Vector3) {
     const {
       sunlightStartTimeFrac,
       sunlightEndTimeFrac,
@@ -1747,9 +1745,7 @@ export class World extends Scene implements NetIntercept {
       minLightLevel,
     } = this.params;
 
-    const time = timeOverride !== undefined ? timeOverride : this.time;
-
-    this.sky.update(position, time, timePerDay);
+    this.sky.update(position, this.time, timePerDay);
     this.clouds.update(position);
 
     // Update the sunlight intensity
@@ -1759,14 +1755,14 @@ export class World extends Scene implements NetIntercept {
 
     const sunlightIntensity = Math.max(
       minLightLevel,
-      time < sunlightStartTime
+      this.time < sunlightStartTime
         ? 0.0
-        : time < sunlightStartTime + sunlightChangeSpanTime
-        ? (time - sunlightStartTime) / sunlightChangeSpanTime
-        : time <= sunlightEndTime
+        : this.time < sunlightStartTime + sunlightChangeSpanTime
+        ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
+        : this.time <= sunlightEndTime
         ? 1.0
-        : time <= sunlightEndTime + sunlightChangeSpanTime
-        ? 1 - (time - sunlightEndTime) / sunlightChangeSpanTime
+        : this.time <= sunlightEndTime + sunlightChangeSpanTime
+        ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
         : 0.0
     );
 
