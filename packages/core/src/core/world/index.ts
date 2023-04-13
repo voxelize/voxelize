@@ -1465,7 +1465,7 @@ export class World extends Scene implements NetIntercept {
       case "STATS": {
         const { json } = message;
 
-        if (json.time - this.time > this.options.timeForceThreshold) {
+        if (Math.abs(json.time - this.time) > this.options.timeForceThreshold) {
           this.time = json.time;
         }
 
@@ -1950,6 +1950,10 @@ export class World extends Scene implements NetIntercept {
     this.registry = new Registry();
     this.loader = new Loader();
     this.chunks = new Chunks();
+
+    if (!cloudsOptions.uFogColor) {
+      cloudsOptions.uFogColor = this.chunks.uniforms.fogColor;
+    }
 
     this.sky = new Sky(skyOptions);
     this.clouds = new Clouds(cloudsOptions);

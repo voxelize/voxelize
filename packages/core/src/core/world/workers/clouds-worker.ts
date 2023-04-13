@@ -77,6 +77,6 @@ onconnect = function (e) {
     }
 
     // @ts-ignore
-    postMessage(data, [data.buffer]);
+    port.postMessage(data, [data.buffer]);
   };
 };

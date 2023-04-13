@@ -437,11 +437,11 @@ world.add(entities);
 
 const method = new VOXELIZE.Method();
 
-// inputs.bind("m", () => {
-//   method.call("test", {
-//     test: "Hello World",
-//   });
-// });
+inputs.bind("v", () => {
+  method.call("time", {
+    time: world.options.timePerDay / 2,
+  });
+});
 
 inputs.bind("z", () => {
   method.call("spawn", {

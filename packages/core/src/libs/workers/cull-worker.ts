@@ -140,7 +140,7 @@ onconnect = function (e) {
     const normalsArray = new Float32Array(normals);
     const indicesArray = new Float32Array(indices);
 
-    postMessage(
+    port.postMessage(
       {
         positions: positionsArray,
         normals: normalsArray,

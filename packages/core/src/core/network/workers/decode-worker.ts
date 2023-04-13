@@ -8,6 +8,7 @@ onconnect = (e) => {
   const port = e.ports[0];
 
   port.onmessage = (e) => {
+    console.log(e);
     let { data: buffers } = e;
 
     if (!Array.isArray(buffers)) {

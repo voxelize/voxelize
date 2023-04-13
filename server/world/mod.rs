@@ -572,6 +572,16 @@ impl World {
         self.write_resource::<Search>()
     }
 
+    /// Access the stats manager in the ECS world.
+    pub fn stats(&self) -> Fetch<Stats> {
+        self.read_resource::<Stats>()
+    }
+
+    /// Access the mutable stats manager in the ECS world.
+    pub fn stats_mut(&mut self) -> FetchMut<Stats> {
+        self.write_resource::<Stats>()
+    }
+
     /// Access pipeline management in the ECS world.
     pub fn pipeline(&self) -> Fetch<Pipeline> {
         self.read_resource::<Pipeline>()

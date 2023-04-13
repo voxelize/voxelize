@@ -1,6 +1,7 @@
 mod comps;
 mod systems;
 
+use log::info;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
 use specs::{Builder, Component, DispatcherBuilder, NullStorage, WorldExt};
@@ -21,6 +22,11 @@ struct BoxFlag;
 #[derive(Serialize, Deserialize, Debug)]
 struct SpawnMethodPayload {
     position: Vec3<f32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TimeMethodPayload {
+    time: f32,
 }
 
 pub fn setup_flat_world(registry: &Registry) -> World {
@@ -109,6 +115,12 @@ pub fn setup_flat_world(registry: &Registry) -> World {
     world.set_method_handle("spawn", |world, _, payload| {
         let data: SpawnMethodPayload = serde_json::from_str(&payload).unwrap();
         world.spawn_entity_at("box", &data.position);
+    });
+
+    world.set_method_handle("time", |world, _, payload| {
+        let time_per_day = world.config().time_per_day as f32;
+        let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
+        world.stats_mut().set_time(new_time.time % time_per_day);
     });
 
     world

@@ -65,6 +65,10 @@ impl Stats {
         }
     }
 
+    pub fn set_time(&mut self, time: f32) {
+        self.time = time;
+    }
+
     pub fn save(&self) {
         if !self.saving {
             return;

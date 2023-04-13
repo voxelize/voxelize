@@ -157,7 +157,7 @@ export class Network {
   /**
    * The worker pool for decoding network packets.
    */
-  private pool: SharedWorkerPool = new SharedWorkerPool(DecodeWorker, {
+  private pool = new SharedWorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
   });
 
