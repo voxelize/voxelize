@@ -10,7 +10,7 @@ use voxelize::{
     ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
     EntitiesMetaSystem, EntitiesSendingSystem, EventsSystem, FlatlandStage, InteractorComp,
     PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, Registry, RigidBody,
-    RigidBodyComp, StatsSendingSystem, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
+    RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
 };
 
 use self::{comps::CountdownComp, systems::CountdownSystem};
@@ -73,16 +73,10 @@ pub fn setup_flat_world(registry: &Registry) -> World {
                 &["entities-meta"],
             )
             .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
-            .with(StatsSendingSystem, "stats-sending", &[])
             .with(
                 BroadcastSystem,
                 "broadcast",
-                &[
-                    "stats-sending",
-                    "chunk-sending",
-                    "entities-sending",
-                    "peers-sending",
-                ],
+                &["chunk-sending", "entities-sending", "peers-sending"],
             )
             .with(
                 CleanupSystem,

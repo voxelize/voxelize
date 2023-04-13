@@ -365,7 +365,7 @@ export class Network {
    */
   flush = () => {
     this.intercepts.forEach((intercept) => {
-      if (intercept.packets) {
+      if (intercept.packets && intercept.packets.length) {
         intercept.packets
           .splice(0, intercept.packets.length)
           .forEach((packet) => {

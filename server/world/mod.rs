@@ -162,17 +162,11 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             "entities-sending",
             &["entities-meta"],
         )
-        .with(StatsSendingSystem, "stats-sending", &[])
         .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
         .with(
             BroadcastSystem,
             "broadcast",
-            &[
-                "stats-sending",
-                "chunk-sending",
-                "entities-sending",
-                "peers-sending",
-            ],
+            &["chunk-sending", "entities-sending", "peers-sending"],
         )
         .with(
             CleanupSystem,
@@ -250,7 +244,7 @@ impl World {
         ecs.insert(ChunkInterests::new());
         ecs.insert(Bookkeeping::new());
 
-        Self {
+        let mut world = Self {
             id,
             name: name.to_owned(),
             started: false,
@@ -267,7 +261,19 @@ impl World {
             client_modifier: None,
             transport_handle: None,
             command_handle: None,
-        }
+        };
+
+        world.set_method_handle("builtin:get-stats", |world, client_id, _| {
+            let stats_json = world.stats().get_stats();
+            world.write_resource::<MessageQueue>().push((
+                Message::new(&MessageType::Stats)
+                    .json(&serde_json::to_string(&stats_json).unwrap())
+                    .build(),
+                ClientFilter::Direct(client_id.to_owned()),
+            ));
+        });
+
+        world
     }
 
     /// Get a reference to the ECS world..

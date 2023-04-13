@@ -48,9 +48,6 @@ pub struct WorldConfig {
     /// The amount of ticks per day. Default is 24000 ticks.
     pub time_per_day: u64,
 
-    /// The interval in which the server checks the time with the clients. Default is 20 ticks.
-    pub stats_sync_interval: usize,
-
     /// Water level of the voxelize world.
     pub water_level: usize,
 
@@ -119,7 +116,6 @@ const DEFAULT_MAX_UPDATES_PER_TICK: usize = 1000;
 const DEFAULT_MAX_RESPONSE_PER_TICK: usize = 4;
 const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 const DEFAULT_TICKS_PER_DAY: u64 = 24000;
-const DEFAULT_STATS_SYNC_INTERVAL: usize = 20;
 const DEFAULT_WATER_LEVEL: usize = 60;
 const DEFAULT_SEED: u32 = 123123123;
 const DEFAULT_GRAVITY: [f32; 3] = [0.0, -24.8, 0.0];
@@ -149,7 +145,6 @@ pub struct WorldConfigBuilder {
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
     time_per_day: u64,
-    stats_sync_interval: usize,
     water_level: usize,
     seed: u32,
     gravity: [f32; 3],
@@ -183,7 +178,6 @@ impl WorldConfigBuilder {
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
             time_per_day: DEFAULT_TICKS_PER_DAY,
-            stats_sync_interval: DEFAULT_STATS_SYNC_INTERVAL,
             water_level: DEFAULT_WATER_LEVEL,
             seed: DEFAULT_SEED,
             air_drag: DEFAULT_AIR_DRAG,
@@ -289,12 +283,6 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the interval of time syncs. Default is 20 ticks.
-    pub fn stats_sync_interval(mut self, stats_sync_interval: usize) -> Self {
-        self.stats_sync_interval = stats_sync_interval;
-        self
-    }
-
     /// Configure the water level of the voxelize world.
     pub fn water_level(mut self, water_level: usize) -> Self {
         self.water_level = water_level;
@@ -369,7 +357,6 @@ impl WorldConfigBuilder {
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,
             time_per_day: self.time_per_day,
-            stats_sync_interval: self.stats_sync_interval,
             water_level: self.water_level,
             seed: self.seed,
             min_chunk: self.min_chunk,

@@ -145,6 +145,11 @@ export type WorldClientOptions = {
    * The threshold to force the server's time to the client's time. Defaults to `0.1`.
    */
   timeForceThreshold: number;
+
+  /**
+   * The interval between each time the world requests the server for its stats. Defaults to 500ms.
+   */
+  statsSyncInterval: number;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -164,6 +169,7 @@ const defaultOptions: WorldClientOptions = {
   sunlightEndTimeFrac: 0.7,
   sunlightChangeSpan: 0.15,
   timeForceThreshold: 0.1,
+  statsSyncInterval: 500,
 };
 
 /**
@@ -371,13 +377,23 @@ export class World extends Scene implements NetIntercept {
     super();
 
     // @ts-ignore
-    this.options = {
+    const { statsSyncInterval } = (this.options = {
       ...defaultOptions,
       ...options,
-    };
+    });
 
     this.setupComponents();
     this.setupUniforms();
+
+    setInterval(() => {
+      this.packets.push({
+        type: "METHOD",
+        method: {
+          name: "builtin:get-stats",
+          payload: {},
+        },
+      });
+    }, statsSyncInterval);
   }
 
   /**
@@ -1464,6 +1480,8 @@ export class World extends Scene implements NetIntercept {
       }
       case "STATS": {
         const { json } = message;
+
+        console.log(json);
 
         if (Math.abs(json.time - this.time) > this.options.timeForceThreshold) {
           this.time = json.time;
