@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
+import { MessageProtocol } from "@voxelize/transport/src/types";
 import {
   Clock,
   Euler,
@@ -16,6 +17,7 @@ import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
 import { Inputs } from "./inputs";
+import { NetIntercept } from "./network";
 import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
@@ -313,7 +315,7 @@ const defaultOptions: RigidControlsOptions = {
  * @noInheritDoc
  * @category Core
  */
-export class RigidControls extends EventEmitter {
+export class RigidControls extends EventEmitter implements NetIntercept {
   /**
    * Parameters to initialize the Voxelize controls.
    */
@@ -494,6 +496,32 @@ export class RigidControls extends EventEmitter {
 
     this.teleport(...this.options.initialPosition);
   }
+
+  onMessage = (
+    message: MessageProtocol<any, any, any, [number, number, number]>
+  ) => {
+    switch (message.type) {
+      case "EVENT": {
+        const { events } = message;
+
+        for (const event of events) {
+          switch (event.name.toLowerCase()) {
+            case "impulse": {
+              this.body.applyImpulse(event.payload);
+              break;
+            }
+
+            case "force": {
+              this.body.applyForce(event.payload);
+              break;
+            }
+          }
+        }
+
+        break;
+      }
+    }
+  };
 
   /**
    * An event handler for when the pointerlock is locked/unlocked.

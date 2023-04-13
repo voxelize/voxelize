@@ -530,7 +530,8 @@ network
   .register(world)
   .register(method)
   .register(events)
-  .register(peers);
+  .register(peers)
+  .register(controls);
 
 const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500, 150];
 

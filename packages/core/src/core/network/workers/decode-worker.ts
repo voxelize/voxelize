@@ -1,6 +1,4 @@
 import { protocol } from "@voxelize/transport/src/protocol";
-
-// @ts-ignore
 import * as fflate from "fflate";
 
 const { Message, Entity } = protocol;
@@ -8,8 +6,6 @@ const { Message, Entity } = protocol;
 // @ts-ignore
 onconnect = (e) => {
   const port = e.ports[0];
-
-  port.start();
 
   port.onmessage = (e) => {
     let { data: buffers } = e;
@@ -49,6 +45,12 @@ onconnect = (e) => {
           if (peer.metadata) {
             peer.metadata = JSON.parse(peer.metadata);
           }
+        });
+      }
+
+      if (message.events) {
+        message.events.forEach((event) => {
+          event.payload = JSON.parse(event.payload);
         });
       }
 

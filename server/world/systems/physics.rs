@@ -13,7 +13,7 @@ use crate::{
         voxels::Chunks,
         WorldConfig,
     },
-    ClientFlag, CollisionsComp, InteractorComp, Vec3,
+    ClientFilter, ClientFlag, CollisionsComp, Event, Events, IDComp, InteractorComp, Vec3,
 };
 
 #[derive(Default)]
@@ -26,7 +26,9 @@ impl<'a> System<'a> for PhysicsSystem {
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Chunks>,
+        WriteExpect<'a, Events>,
         WriteExpect<'a, Physics>,
+        ReadStorage<'a, IDComp>,
         ReadStorage<'a, CurrentChunkComp>,
         ReadStorage<'a, InteractorComp>,
         ReadStorage<'a, ClientFlag>,
@@ -45,7 +47,9 @@ impl<'a> System<'a> for PhysicsSystem {
             registry,
             config,
             chunks,
+            mut events,
             mut physics,
+            ids,
             curr_chunks,
             interactors,
             client_flag,
@@ -129,9 +133,8 @@ impl<'a> System<'a> for PhysicsSystem {
         }
 
         // Collision detection, push bodies away from one another.
-        (&curr_chunks, &mut bodies, &interactors, !&client_flag)
-            .join()
-            .for_each(|(curr_chunk, body, interactor, _)| {
+        (&curr_chunks, &mut bodies, &interactors).join().for_each(
+            |(curr_chunk, body, interactor)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
                     return;
                 }
@@ -170,6 +173,32 @@ impl<'a> System<'a> for PhysicsSystem {
                     (dy * config.collision_repulsion).min(3.0),
                     (dz * config.collision_repulsion).min(3.0),
                 );
-            });
+            },
+        );
+
+        // Send "EVENT" type messages to the client to move
+        for (body, id, _) in (&mut bodies, &ids, &client_flag).join() {
+            if body.0.forces.len() > 0.0 {
+                events.dispatch(
+                    Event::new("FORCE")
+                        .payload(body.0.forces.to_owned())
+                        .filter(ClientFilter::Direct(id.0.to_owned()))
+                        .build(),
+                );
+
+                body.0.forces.set(0.0, 0.0, 0.0);
+            }
+
+            if body.0.impulses.len() > 0.0 {
+                events.dispatch(
+                    Event::new("IMPULSE")
+                        .payload(body.0.impulses.to_owned())
+                        .filter(ClientFilter::Direct(id.0.to_owned()))
+                        .build(),
+                );
+
+                body.0.impulses.set(0.0, 0.0, 0.0);
+            }
+        }
     }
 }

@@ -143,25 +143,14 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
    *
    * @hidden
    */
-  handle = (name: string, payload: string) => {
+  handle = (name: string, payload: any) => {
     const handler = this.get(name);
 
     if (!handler) {
-      console.warn(
-        `Received Voxelize event of "${name}", but no handlers are registered!`
-      );
       return;
     }
 
-    let deserialized: any;
-    try {
-      deserialized = JSON.parse(payload);
-    } catch {
-      console.error(`Could not serialize event payload of ${name}: ${payload}`);
-      return;
-    }
-
-    handler(deserialized);
+    handler(payload);
   };
 
   /**
