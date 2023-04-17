@@ -355,9 +355,8 @@ const peers = new VOXELIZE.Peers<VOXELIZE.Character>(controls.object);
 
 peers.createPeer = createCharacter;
 
-peers.setOwnPeer(character);
-
 peers.onPeerUpdate = (object, data, info) => {
+  console.log(data.position, data.direction);
   object.set(data.position, data.direction);
   object.username = info.username;
 };

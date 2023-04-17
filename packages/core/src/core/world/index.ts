@@ -1481,8 +1481,6 @@ export class World extends Scene implements NetIntercept {
       case "STATS": {
         const { json } = message;
 
-        console.log(json);
-
         if (Math.abs(json.time - this.time) > this.options.timeForceThreshold) {
           this.time = json.time;
         }

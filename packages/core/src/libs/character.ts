@@ -445,7 +445,7 @@ export class Character extends Group {
   set username(username: string) {
     if (!this.nametag) {
       this.nametag = new NameTag(username, {
-        yOffset: this.head.height,
+        yOffset: this.totalHeight / 2 + this.head.height / 2 + 0.1,
         fontSize: 0.2,
       });
       this.add(this.nametag);
@@ -598,8 +598,8 @@ export class Character extends Group {
       this.rightLegGroup
     );
 
-    this.headGroup.position.y -= this.eyeHeight;
-    this.bodyGroup.position.y -= this.eyeHeight;
+    this.headGroup.position.y -= this.totalHeight / 2;
+    this.bodyGroup.position.y -= this.totalHeight / 2;
 
     this.head = head;
     this.body = body;

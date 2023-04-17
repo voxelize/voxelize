@@ -61,9 +61,9 @@ impl<'a> System<'a> for PhysicsSystem {
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).
-        (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
+        (&curr_chunks, &mut bodies, &mut positions)
             .par_join()
-            .for_each(|(curr_chunk, body, position, _)| {
+            .for_each(|(curr_chunk, body, position)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
                     return;
                 }
@@ -175,30 +175,5 @@ impl<'a> System<'a> for PhysicsSystem {
                 );
             },
         );
-
-        // Send "EVENT" type messages to the client to move
-        for (body, id, _) in (&mut bodies, &ids, &client_flag).join() {
-            if body.0.forces.len() > 0.0 {
-                events.dispatch(
-                    Event::new("FORCE")
-                        .payload(body.0.forces.to_owned())
-                        .filter(ClientFilter::Direct(id.0.to_owned()))
-                        .build(),
-                );
-
-                body.0.forces.set(0.0, 0.0, 0.0);
-            }
-
-            if body.0.impulses.len() > 0.0 {
-                events.dispatch(
-                    Event::new("IMPULSE")
-                        .payload(body.0.impulses.to_owned())
-                        .filter(ClientFilter::Direct(id.0.to_owned()))
-                        .build(),
-                );
-
-                body.0.impulses.set(0.0, 0.0, 0.0);
-            }
-        }
     }
 }

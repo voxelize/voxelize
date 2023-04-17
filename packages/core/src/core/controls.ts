@@ -506,13 +506,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         for (const event of events) {
           switch (event.name.toLowerCase()) {
-            case "impulse": {
-              this.body.applyImpulse(event.payload);
-              break;
-            }
-
-            case "force": {
-              this.body.applyForce(event.payload);
+            case "position": {
+              this.body.setPosition(event.payload);
               break;
             }
           }
@@ -558,7 +553,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
         .normalize();
 
-      this.character.set(this.object.position.toArray(), [dx, dy, dz]);
+      const cameraPosition = this.object.position.toArray();
+
+      cameraPosition[1] += this.character.head.height / 2;
+      cameraPosition[1] -= this.character.totalHeight / 2;
+
+      this.character.set(cameraPosition, [dx, dy, dz]);
       this.character.update();
     }
 

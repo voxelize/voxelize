@@ -252,6 +252,16 @@ impl Vec3<f32> {
         }
         self.to_owned()
     }
+
+    /// Squared distance between two vectors.
+    pub fn sq_distance(&self, other: &Self) -> f32 {
+        let Self(x, y, z) = self;
+        let Self(ox, oy, oz) = other;
+        let dx = x - ox;
+        let dy = y - oy;
+        let dz = z - oz;
+        dx * dx + dy * dy + dz * dz
+    }
 }
 
 impl<T: Num + Clone> Index<usize> for Vec3<T> {
