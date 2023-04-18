@@ -7,8 +7,6 @@ node_modules
 
 /data
 
-examples/server/worlds/world3/*
-
 client/protocol/index.*
 Cargo.lock
 .vscode
