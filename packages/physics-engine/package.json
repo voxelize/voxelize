@@ -17,7 +17,6 @@
   "scripts": {
     "dev": "yarn run build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
-    "test": "vitest run",
     "prepublishOnly": "yarn run build",
     "start": "webpack serve --config example/webpack.config.js"
   },

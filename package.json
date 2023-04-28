@@ -14,11 +14,14 @@
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
+    "test-dev": "jest --watch",
+    "test": "jest",
     "lint": "eslint --fix --ext js,ts,tsx .",
     "docs": "cd docs && yarn run start",
     "proto": "cd packages/transport && yarn run proto"
   },
   "devDependencies": {
+    "@rollup/plugin-alias": "^5.0.0",
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.1.3",

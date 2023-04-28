@@ -2,7 +2,10 @@ use std::io::{Cursor, Write};
 
 use actix::Message as ActixMessage;
 use libflate::zlib::Encoder;
+use log::info;
 use prost::Message as ProstMesssage;
+use prost_wkt_types::Struct;
+use serde_json::json;
 
 use crate::libs::Ndarray;
 
@@ -237,7 +240,9 @@ impl MessageBuilder {
                 .into_iter()
                 .map(|event| protocols::Event {
                     name: event.name,
-                    payload: event.payload,
+                    // Convert payload from json to struct
+                    payload: serde_json::from_str(&event.payload)
+                        .expect("Failed to parse event payload json"),
                 })
                 .collect()
         }

@@ -1,6 +1,8 @@
 syntax = "proto3";
 package protocol;
 
+import "google/protobuf/struct.proto";
+
 message Geometry {
   uint32 voxel = 1;
   optional string faceName = 2;
@@ -22,12 +24,6 @@ message Chunk {
   repeated Mesh meshes = 4;
   repeated uint32 voxels = 5 [ packed = true ];
   repeated uint32 lights = 6 [ packed = true ];
-}
-
-message Vector3 {
-  float x = 1;
-  float y = 2;
-  float z = 3;
 }
 
 message Peer {
@@ -52,7 +48,7 @@ message Entity {
 
 message Event {
   string name = 1;
-  string payload = 2;
+  google.protobuf.Struct payload = 2;
 }
 
 message Method {

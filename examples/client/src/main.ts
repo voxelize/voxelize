@@ -356,7 +356,6 @@ const peers = new VOXELIZE.Peers<VOXELIZE.Character>(controls.object);
 peers.createPeer = createCharacter;
 
 peers.onPeerUpdate = (object, data, info) => {
-  console.log(data.position, data.direction);
   object.set(data.position, data.direction);
   object.username = info.username;
 };
@@ -450,30 +449,40 @@ inputs.bind("z", () => {
 
 const events = new VOXELIZE.Events();
 
-events.on("test2", (payload) => {
-  console.log("test2 event:", payload);
-});
-
-events.on("test1", (payload) => {
-  console.log("test1 event:", payload);
+events.on("test", (payload) => {
+  console.log("test event:", payload);
 });
 
 inputs.bind("n", () => {
-  events.emit("test2", {
+  events.emit("test", {
     test: "Hello World",
+    nested: {
+      test: "Hello World",
+      array: [1, 2, 3],
+      arrayOfObjects: [
+        {
+          test: "Hello World",
+
+          nested: {
+            test: "Hello World",
+            array: [1, 2, 3],
+
+            arrayOfObjects: [
+              {
+                test: "Hello World",
+              },
+            ],
+          },
+        },
+      ],
+    },
   });
 });
 
 inputs.bind("b", () => {
   events.emitMany([
     {
-      name: "test1",
-      payload: {
-        test: "Hello World",
-      },
-    },
-    {
-      name: "test2",
+      name: "test",
       payload: {
         test: "Hello World",
       },

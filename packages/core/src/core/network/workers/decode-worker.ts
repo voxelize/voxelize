@@ -1,4 +1,5 @@
 import { protocol } from "@voxelize/transport/src/protocol";
+import { decodeStructToObject } from "@voxelize/transport/src/utils/decode-struct-to-object";
 import * as fflate from "fflate";
 
 const { Message, Entity } = protocol;
@@ -50,8 +51,9 @@ onconnect = (e) => {
       }
 
       if (message.events) {
+        console.log(message.events);
         message.events.forEach((event) => {
-          event.payload = JSON.parse(event.payload);
+          event.payload = decodeStructToObject(event.payload);
         });
       }
 

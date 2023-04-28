@@ -1,5 +1,6 @@
 import path from "path";
 
+import alias from "@rollup/plugin-alias";
 import commonjs from "@rollup/plugin-commonjs";
 import json from "@rollup/plugin-json";
 import resolve from "@rollup/plugin-node-resolve";
@@ -59,6 +60,18 @@ export default {
       targetPlatform: "browser",
       extensions: [".ts"],
       skipPlugins: ["liveServer", "serve", "livereload", "copy+watch"],
+    }),
+    alias({
+      customResolver: resolve({
+        extensions: [".ts", ".js"],
+      }),
+      entries: [
+        { find: "utils", replacement: path.resolve(__dirname, "./src/utils") },
+        {
+          find: "@voxelize/transport",
+          replacement: path.resolve(__dirname, "../transport"),
+        },
+      ],
     }),
     resolve({
       browser: true,

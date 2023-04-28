@@ -8,6 +8,8 @@ import protocol from "./protocol";
 import { MessageProtocol } from "./types";
 
 export * from "./types";
+export * from "./utils";
+export { protocol };
 
 const { Message } = protocol.protocol;
 

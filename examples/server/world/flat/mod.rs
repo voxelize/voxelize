@@ -8,7 +8,7 @@ use specs::{Builder, Component, DispatcherBuilder, NullStorage, WorldExt};
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
     ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
-    EntitiesMetaSystem, EntitiesSendingSystem, EventsSystem, FlatlandStage, InteractorComp,
+    EntitiesMetaSystem, EntitiesSendingSystem, Event, EventsSystem, FlatlandStage, InteractorComp,
     PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, Registry, RigidBody,
     RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
 };
@@ -115,6 +115,12 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         let time_per_day = world.config().time_per_day as f32;
         let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
         world.stats_mut().set_time(new_time.time % time_per_day);
+    });
+
+    world.set_event_handle("test", |world, _, payload| {
+        world
+            .events_mut()
+            .dispatch(Event::new("test").payload(payload).build());
     });
 
     world
