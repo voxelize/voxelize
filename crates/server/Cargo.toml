@@ -1,0 +1,12 @@
+[package]
+name = "voxelize"
+version = "0.8.36"
+description = "A fast multiplayer voxel engine."
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "voxelize"
+path = "src/lib.rs"
+
+[dependencies]
