@@ -651,7 +651,6 @@ const start = async () => {
 
   gui.add(world, "renderRadius", 3, 20, 1);
   gui.add(map, "dimension", 1, 10, 0.1);
-  gui.add(world, "time", 0, world.options.timePerDay, 0.01);
   gui.add(voxelInteract.options, "ignoreFluids");
   gui
     .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)

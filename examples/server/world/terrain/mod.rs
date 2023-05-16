@@ -2,6 +2,7 @@ pub mod biomes;
 
 use kdtree::{distance::squared_euclidean, KdTree};
 use noise::{Curve, Fbm, HybridMulti, MultiFractal, Perlin, ScaleBias};
+use serde::{Deserialize, Serialize};
 use voxelize::{
     Biome, Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Terrain, TerrainLayer,
     Vec3, VoxelAccess, World, WorldConfig,
@@ -108,6 +109,11 @@ impl ChunkStage for BaseTerrainStage {
 
         chunk
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct TimeMethodPayload {
+    time: f32,
 }
 
 pub fn setup_terrain_world() -> World {
@@ -275,6 +281,12 @@ pub fn setup_terrain_world() -> World {
 
         pipeline.add_stage(terrain_stage);
     }
+
+    world.set_method_handle("time", |world, _, payload| {
+        let time_per_day = world.config().time_per_day as f32;
+        let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
+        world.stats_mut().set_time(new_time.time % time_per_day);
+    });
 
     world
 }

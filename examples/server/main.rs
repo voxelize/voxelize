@@ -60,7 +60,7 @@ async fn main() -> std::io::Result<()> {
     let mut server = Server::new()
         .port(4000)
         .secret("test")
-        // .serve("./examples/client/build")
+        .serve("./examples/client/dist")
         .registry(&registry)
         .build();
 

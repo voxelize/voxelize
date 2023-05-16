@@ -598,8 +598,11 @@ export class Character extends Group {
       this.rightLegGroup
     );
 
-    this.headGroup.position.y -= this.totalHeight / 2;
-    this.bodyGroup.position.y -= this.totalHeight / 2;
+    // this.headGroup.position.y -= this.totalHeight / 2;
+    // this.bodyGroup.position.y -= this.totalHeight / 2;
+
+    this.headGroup.position.y -= this.eyeHeight;
+    this.bodyGroup.position.y -= this.eyeHeight;
 
     this.head = head;
     this.body = body;

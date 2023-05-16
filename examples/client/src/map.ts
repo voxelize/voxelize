@@ -2,17 +2,17 @@ import { ChunkUtils, Coords3, DOMUtils, World } from "@voxelize/core";
 import p5 from "p5";
 import { Vector3 } from "three";
 
-const COLOR_HINT = [
-  [1, 1, "to request, within delete radius"],
-  [1, 2, "to request, within render radius"],
-  [2, 1, "requested, within delete radius"],
-  [2, 2, "requested, within render radius"],
-  [3, 1, "processing, within delete radius"],
-  [3, 2, "processing, within render radius"],
-  [4, 1, "loaded, within delete radius"],
-  [4, 2, "loaded, within render radius"],
-  [0, 0, "out of reach"],
-];
+// const COLOR_HINT = [
+//   [1, 1, "to request, within delete radius"],
+//   [1, 2, "to request, within render radius"],
+//   [2, 1, "requested, within delete radius"],
+//   [2, 2, "requested, within render radius"],
+//   [3, 1, "processing, within delete radius"],
+//   [3, 2, "processing, within render radius"],
+//   [4, 1, "loaded, within delete radius"],
+//   [4, 2, "loaded, within render radius"],
+//   [0, 0, "out of reach"],
+// ];
 
 const MAP_DIMENSION = 220;
 const MAP_GRADIENT_SCALE = 50;

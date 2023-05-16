@@ -61,9 +61,9 @@ impl<'a> System<'a> for PhysicsSystem {
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).
-        (&curr_chunks, &mut bodies, &mut positions)
+        (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
             .par_join()
-            .for_each(|(curr_chunk, body, position)| {
+            .for_each(|(curr_chunk, body, position, _)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
                     return;
                 }
