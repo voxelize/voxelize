@@ -1,7 +1,7 @@
 [workspace]
 members = [
   "examples/server",
-  "crates/server"
+  "crates/*"
 ]
 
 [profile.release]

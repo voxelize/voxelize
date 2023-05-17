@@ -13,7 +13,7 @@
     "dev:ts": "lerna run --parallel dev",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn demo",
-    "demo:rs": "cd examples/server && cross-env RUST_BACKTRACE=full cargo watch -w . -w ../../crates/* -x \"run --release\"",
+    "demo:rs": "cd examples/server && cross-env RUST_BACKTRACE=full cargo watch -w . -w ../../crates -x \"run --release\"",
     "test-dev": "jest --watch",
     "test": "jest",
     "lint": "eslint --fix --ext js,ts,tsx .",

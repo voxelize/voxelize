@@ -10,3 +10,7 @@ name = "voxelize"
 path = "src/lib.rs"
 
 [dependencies]
+actix = "0.13.0"
+actix-web-actors = "4.2.0"
+serde = "1.0.163"
+serde_json = "1.0.96"
