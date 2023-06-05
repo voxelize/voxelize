@@ -1,17 +1,17 @@
 use prost_wkt_types::Struct;
 use serde::Serialize;
 
-use crate::{utils::serialize_into_struct, EventData};
+use crate::{utils::serialize_into_struct, ActionData};
 
 #[derive(Default)]
-pub struct EventDataBuilder {
+pub struct ActionDataBuilder {
     pub name: String,
     pub payload: Option<Struct>,
 }
 
-impl EventDataBuilder {
-    pub fn name(mut self, name: String) -> Self {
-        self.name = name;
+impl ActionDataBuilder {
+    pub fn name(mut self, name: &str) -> Self {
+        self.name = name.to_owned();
         self
     }
 
@@ -20,8 +20,8 @@ impl EventDataBuilder {
         self
     }
 
-    pub fn build(self) -> EventData {
-        EventData {
+    pub fn build(self) -> ActionData {
+        ActionData {
             name: self.name,
             payload: self.payload,
         }

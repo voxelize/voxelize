@@ -1,3 +1,4 @@
+mod action;
 mod chunk;
 mod entity;
 mod event;
@@ -6,6 +7,7 @@ mod mesh;
 mod method;
 mod packet;
 
+pub use action::*;
 pub use chunk::*;
 pub use entity::*;
 pub use event::*;

@@ -1,10 +1,10 @@
 use prost_wkt_types::Struct;
 use serde::Serialize;
 
-use crate::{utils::serialize_into_struct, Entity, EntityOperation};
+use crate::{utils::serialize_into_struct, EntityData, EntityOperation};
 
 #[derive(Default)]
-pub struct EntityBuilder {
+pub struct EntityDataBuilder {
     pub operation: EntityOperation,
 
     pub id: String,
@@ -13,7 +13,7 @@ pub struct EntityBuilder {
     pub metainfo: Option<Struct>,
 }
 
-impl EntityBuilder {
+impl EntityDataBuilder {
     pub fn operation(mut self, operation: EntityOperation) -> Self {
         self.operation = operation;
         self
@@ -34,8 +34,8 @@ impl EntityBuilder {
         self
     }
 
-    pub fn build(self) -> Entity {
-        Entity {
+    pub fn build(self) -> EntityData {
+        EntityData {
             operation: self.operation as i32,
             id: self.id,
             r#type: self.r#type,

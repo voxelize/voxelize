@@ -1,7 +1,7 @@
-use crate::Geometry;
+use crate::GeometryData;
 
 #[derive(Default)]
-pub struct GeometryBuilder {
+pub struct GeometryDataBuilder {
     pub block_id: u32,
     pub face_name: Option<String>,
     pub positions: Vec<f32>,
@@ -10,7 +10,7 @@ pub struct GeometryBuilder {
     pub lights: Vec<i32>,
 }
 
-impl GeometryBuilder {
+impl GeometryDataBuilder {
     pub fn block_id(mut self, block_id: u32) -> Self {
         self.block_id = block_id;
         self
@@ -42,8 +42,8 @@ impl GeometryBuilder {
         self
     }
 
-    pub fn build(self) -> Geometry {
-        Geometry {
+    pub fn build(self) -> GeometryData {
+        GeometryData {
             block_id: self.block_id,
             face_name: self.face_name,
             positions: self.positions,

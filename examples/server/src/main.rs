@@ -1,40 +1,38 @@
 use actix::Actor;
 use actix_web::{web, App, HttpServer};
-use voxelize::{EventReactor, Server};
+use voxelize::{Server, World};
 
-struct Test {}
+struct TestWorld {}
 
-impl EventReactor for Test {
-    fn init(&mut self) {
-        println!("init");
+impl World for TestWorld {
+    fn add_client(&mut self, client: voxelize::Client) {
+        println!("add_client");
     }
 
-    fn error(&mut self, error: String) {
-        println!("error: {}", error);
+    fn remove_client(&mut self, client_id: &str) {
+        println!("remove_client");
     }
 
-    fn entity(&mut self, entity: String) {
-        println!("entity: {}", entity);
+    fn on_packet(&mut self, client_id: &str, packet: voxelize_protocol::Packet) {
+        println!("on_packet");
     }
 
-    fn event(&mut self, event: String) {
-        println!("event: {}", event);
+    fn id(&self) -> &str {
+        "test"
     }
 
-    fn chunk(&mut self, chunk: String) {
-        println!("chunk: {}", chunk);
+    fn name(&self) -> &str {
+        "Test"
     }
 
-    fn unchunk(&mut self, block: String) {
-        println!("unchunk: {}", block);
+    fn packets(&self) -> Vec<(voxelize::ClientFilter, voxelize_protocol::Packet)> {
+        println!("packets");
+        vec![]
     }
 
-    fn method(&mut self, method: String) {
-        println!("method: {}", method);
-    }
-
-    fn stats(&mut self, stats: String) {
-        println!("stats: {}", stats);
+    fn clients(&self) -> Vec<voxelize::Client> {
+        println!("clients");
+        vec![]
     }
 }
 
@@ -42,7 +40,7 @@ impl EventReactor for Test {
 async fn main() -> std::io::Result<()> {
     let mut server = Server::new();
 
-    server.react(Test {});
+    server.add_world(TestWorld {});
 
     let server_addr = server.start();
 

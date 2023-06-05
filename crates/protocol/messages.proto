@@ -51,6 +51,11 @@ message Method {
   google.protobuf.Struct payload = 2;
 }
 
+message Action {
+  string name = 1;
+  google.protobuf.Struct payload = 2;
+}
+
 message Packet {
   enum Type {
     INIT = 0;
@@ -68,10 +73,11 @@ message Packet {
   google.protobuf.Struct json = 2;
 
   Method method = 3;
+  Action action = 4;
 
-  repeated Entity entities = 4;
-  repeated Chunk chunks = 5;
-  repeated Event events = 6;
+  repeated Entity entities = 5;
+  repeated Chunk chunks = 6;
+  repeated Event events = 7;
 }
 
 message Message {

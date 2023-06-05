@@ -1,17 +1,38 @@
-pub trait EventReactor {
-    fn init(&mut self);
+use voxelize_protocol::Packet;
 
-    fn error(&mut self, error: String);
+use crate::{Client, ClientFilter};
 
-    fn entity(&mut self, entity: String);
+pub trait World {
+    /// Returns the world's *unique* id.
+    fn id(&self) -> &str;
 
-    fn event(&mut self, event: String);
+    /// Returns the world's name.
+    fn name(&self) -> &str;
 
-    fn chunk(&mut self, chunk: String);
+    /// The server starts the world.
+    fn start(&mut self) {}
 
-    fn unchunk(&mut self, block: String);
+    /// Called every `update_interval` milliseconds.
+    fn update(&mut self) {}
 
-    fn method(&mut self, method: String);
+    /// The server stops the world.
+    fn stop(&mut self) {}
 
-    fn stats(&mut self, stats: String);
+    /// A list of packets to send back to the clients.
+    fn packets(&self) -> Vec<(ClientFilter, Packet)>;
+
+    /// A list of clients in this world.
+    fn clients(&self) -> Vec<Client>;
+
+    /// Adds a client to the world. This is called by the server when a new
+    /// client is connected to this world.
+    fn add_client(&mut self, client: Client);
+
+    /// Removes a client from the world. This is called by the server when a client
+    /// is disconnected from this world.
+    fn remove_client(&mut self, client_id: &str);
+
+    /// Handles a packet from a client. This is called by the server when a packet is
+    /// received from a client.
+    fn on_packet(&mut self, client_id: &str, packet: Packet);
 }

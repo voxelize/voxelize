@@ -2,14 +2,18 @@ mod builders;
 mod utils;
 
 use builders::{
-    ChunkBuilder, EntityBuilder, EventBuilder, GeometryBuilder, MeshBuilder, PacketBuilder,
+    ActionDataBuilder, ChunkDataBuilder, EntityDataBuilder, EventDataBuilder, GeometryDataBuilder,
+    MeshDataBuilder, MethodDataBuilder, PacketBuilder,
 };
 
 pub mod protocols {
     include!(concat!(env!("OUT_DIR"), "/protocol.rs"));
 }
 
-pub use protocols::{Chunk, Entity, Event, Geometry, Mesh, Message, Method, Packet};
+pub use protocols::{
+    Action as ActionData, Chunk as ChunkData, Entity as EntityData, Event as EventData,
+    Geometry as GeometryData, Mesh as MeshData, Message, Method as MethodData, Packet,
+};
 
 /// The type of packet this is.
 pub type PacketType = protocols::packet::Type;
@@ -31,29 +35,34 @@ impl Packet {
             ..Default::default()
         }
     }
+
+    pub fn get_type(&self) -> PacketType {
+        PacketType::from_i32(self.r#type)
+            .expect("Failed to convert packet type from i32 to PacketType")
+    }
 }
 
-impl Geometry {
-    pub fn new(block_id: u32) -> GeometryBuilder {
-        GeometryBuilder {
+impl GeometryData {
+    pub fn new(block_id: u32) -> GeometryDataBuilder {
+        GeometryDataBuilder {
             block_id,
             ..Default::default()
         }
     }
 }
 
-impl Mesh {
-    pub fn new(level: i32) -> MeshBuilder {
-        MeshBuilder {
+impl MeshData {
+    pub fn new(level: i32) -> MeshDataBuilder {
+        MeshDataBuilder {
             level,
             ..Default::default()
         }
     }
 }
 
-impl Chunk {
-    pub fn new(x: i32, z: i32) -> ChunkBuilder {
-        ChunkBuilder {
+impl ChunkData {
+    pub fn new(x: i32, z: i32) -> ChunkDataBuilder {
+        ChunkDataBuilder {
             x,
             z,
             ..Default::default()
@@ -61,18 +70,41 @@ impl Chunk {
     }
 }
 
-impl Entity {
-    pub fn new(operation: EntityOperation) -> EntityBuilder {
-        EntityBuilder {
-            operation,
+impl MethodData {
+    pub fn new(name: &str) -> MethodDataBuilder {
+        MethodDataBuilder {
+            name: name.to_owned(),
             ..Default::default()
         }
     }
 }
 
-impl Event {
-    pub fn new(name: &str) -> EventBuilder {
-        EventBuilder {
+impl ActionData {
+    pub fn new(name: &str) -> ActionDataBuilder {
+        ActionDataBuilder {
+            name: name.to_owned(),
+            ..Default::default()
+        }
+    }
+}
+
+impl EntityData {
+    pub fn new(operation: EntityOperation) -> EntityDataBuilder {
+        EntityDataBuilder {
+            operation,
+            ..Default::default()
+        }
+    }
+
+    pub fn get_operation(&self) -> EntityOperation {
+        EntityOperation::from_i32(self.operation)
+            .expect("Failed to convert entity operation from i32 to EntityOperation")
+    }
+}
+
+impl EventData {
+    pub fn new(name: &str) -> EventDataBuilder {
+        EventDataBuilder {
             name: name.to_owned(),
             ..Default::default()
         }

@@ -1,20 +1,20 @@
 use prost_wkt_types::Struct;
 use serde::Serialize;
 
-use crate::{utils::serialize_into_struct, Chunk, Mesh};
+use crate::{utils::serialize_into_struct, ChunkData, MeshData};
 
 #[derive(Default)]
-pub struct ChunkBuilder {
+pub struct ChunkDataBuilder {
     pub x: i32,
     pub z: i32,
     pub id: String,
-    pub meshes: Vec<Mesh>,
+    pub meshes: Vec<MeshData>,
     pub blocks: Vec<u32>,
     pub lights: Vec<u32>,
     pub metainfo: Option<Struct>,
 }
 
-impl ChunkBuilder {
+impl ChunkDataBuilder {
     pub fn x(mut self, x: i32) -> Self {
         self.x = x;
         self
@@ -30,7 +30,7 @@ impl ChunkBuilder {
         self
     }
 
-    pub fn meshes(mut self, meshes: Vec<Mesh>) -> Self {
+    pub fn meshes(mut self, meshes: Vec<MeshData>) -> Self {
         self.meshes = meshes;
         self
     }
@@ -50,8 +50,8 @@ impl ChunkBuilder {
         self
     }
 
-    pub fn build(self) -> Chunk {
-        Chunk {
+    pub fn build(self) -> ChunkData {
+        ChunkData {
             x: self.x,
             z: self.z,
             id: self.id,

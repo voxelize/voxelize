@@ -1,15 +1,15 @@
 use prost_wkt_types::Struct;
 use serde::Serialize;
 
-use crate::{utils::serialize_into_struct, Method};
+use crate::{utils::serialize_into_struct, MethodData};
 
 #[derive(Default)]
-pub struct MethodBuilder {
+pub struct MethodDataBuilder {
     pub name: String,
     pub payload: Option<Struct>,
 }
 
-impl MethodBuilder {
+impl MethodDataBuilder {
     pub fn name(mut self, name: &str) -> Self {
         self.name = name.to_owned();
         self
@@ -20,8 +20,8 @@ impl MethodBuilder {
         self
     }
 
-    pub fn build(self) -> Method {
-        Method {
+    pub fn build(self) -> MethodData {
+        MethodData {
             name: self.name,
             payload: self.payload,
         }
