@@ -9,11 +9,11 @@
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"dev:rs\" \"dev:ts\"",
-    "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
+    "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w ./crates -x \"build --release\"",
     "dev:ts": "lerna run --parallel dev",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:ts": "cd examples/client && yarn demo",
-    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
+    "demo:rs": "cd examples/server && cross-env RUST_BACKTRACE=full cargo watch -w . -w ../../crates -x \"run --release\"",
     "test-dev": "jest --watch",
     "test": "jest",
     "lint": "eslint --fix --ext js,ts,tsx .",
