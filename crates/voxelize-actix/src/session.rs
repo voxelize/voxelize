@@ -1,7 +1,7 @@
 use actix::{Actor, Addr};
 use actix_web_actors::ws;
 
-use crate::Server;
+use crate::server::Server;
 
 /// A session is a connection to the server.
 pub struct Session {

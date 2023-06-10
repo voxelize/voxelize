@@ -9,5 +9,5 @@ edition = "2021"
 actix = "0.13.0"
 actix-web = "4.3.1"
 
-voxelize = { path = "../../crates/server" }
-voxelize-protocol = { path = "../../crates/protocol" }
+voxelize = { path = "../../crates/voxelize" }
+voxelize-protocol = { path = "../../crates/voxelize-protocol" }

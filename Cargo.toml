@@ -1,10 +1,12 @@
 [workspace]
 members = [
   "examples/server",
-  "crates/server",
-  "crates/protocol",
-  "crates/events"
+  "./crates/voxelize",
+  "./crates/voxelize-actix",
+  "./crates/voxelize-events",
+  "./crates/voxelize-protocol"
 ]
+resolver = "2"
 
 [profile.release]
 lto = true

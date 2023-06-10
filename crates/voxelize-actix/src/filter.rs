@@ -1,6 +1,6 @@
 use hashbrown::HashSet;
 
-use crate::Client;
+use crate::client::Client;
 
 /// A filter for clients, used for specific broadcasting.
 #[derive(Clone)]

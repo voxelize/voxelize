@@ -1,7 +1,5 @@
 use voxelize_protocol::Packet;
 
-use crate::{Client, ClientFilter};
-
 pub trait World {
     /// Returns the world's *unique* id.
     fn id(&self) -> &str;
@@ -19,14 +17,14 @@ pub trait World {
     fn stop(&mut self) {}
 
     /// A list of packets to send back to the clients.
-    fn packets(&self) -> Vec<(ClientFilter, Packet)>;
+    // fn packets(&self) -> Vec<(ClientFilter, Self::Packet)>;
 
     /// A list of clients in this world.
-    fn clients(&self) -> Vec<Client>;
+    // fn clients(&self) -> Vec<Client>;
 
     /// Adds a client to the world. This is called by the server when a new
     /// client is connected to this world.
-    fn add_client(&mut self, client: Client);
+    // fn add_client(&mut self, client: Client);
 
     /// Removes a client from the world. This is called by the server when a client
     /// is disconnected from this world.

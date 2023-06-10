@@ -1,7 +1,5 @@
 use actix::{Actor, AsyncContext, Context};
-use hashbrown::HashMap;
-
-use crate::World;
+use voxelize::World;
 
 pub struct StartSession {
     pub id: String,
