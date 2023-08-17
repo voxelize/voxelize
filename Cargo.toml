@@ -1,7 +1,9 @@
 [workspace]
 members = [
   "examples/server",
-  "crates/voxelize-protocol"
+  "crates/voxelize-actix",
+  "crates/voxelize-protocol",
+  "crates/voxelize",
 ]
 resolver = "2"
 
