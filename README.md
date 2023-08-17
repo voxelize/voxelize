@@ -68,7 +68,10 @@ cd voxelize
 yarn
 
 # generate protocol buffers
-yarn --cwd transport run proto
+yarn run proto
+
+# in a separate terminal, run built in documentation server, accessible on port 8080
+yarn run docs
 
 # start development
 yarn run dev
