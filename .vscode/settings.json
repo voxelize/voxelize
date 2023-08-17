@@ -1,3 +1,4 @@
 {
-  "rust-analyzer.linkedProjects": ["./crates/voxelize-protocol/Cargo.toml"]
+  "rust-analyzer.linkedProjects": ["./crates/voxelize-protocol/Cargo.toml"],
+  "rust-analyzer.showUnlinkedFileNotification": false
 }
