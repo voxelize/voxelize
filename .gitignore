@@ -1,1 +1,6 @@
 data
+
+yarn-error.log
+
+/target
+/Cargo.lock

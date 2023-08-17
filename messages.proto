@@ -24,12 +24,7 @@ message Chunk {
   repeated Mesh meshes = 4;
   repeated uint32 voxels = 5 [ packed = true ];
   repeated uint32 lights = 6 [ packed = true ];
-}
-
-message Peer {
-  string id = 1;
-  string username = 2;
-  string metadata = 3;
+  repeated google.protobuf.Struct metainfo = 7; 
 }
 
 message Entity {
@@ -43,7 +38,7 @@ message Entity {
 
   string id = 2;
   string type = 3;
-  string metadata = 4;
+  google.protobuf.Struct metainfo = 4;
 }
 
 message Event {
@@ -53,52 +48,32 @@ message Event {
 
 message Method {
   string name = 1;
-  string payload = 2;
+  google.protobuf.Struct payload = 2;
 }
 
-message Update {
-  int32 vx = 1;
-  int32 vy = 2;
-  int32 vz = 3;
-  uint32 voxel = 4;
-  uint32 light = 5;
-}
-
-message ChatMessage {
-  string type = 1;
-  string sender = 2;
-  string body = 3;
-}
-
-message Message {
+message Packet {
   enum Type {
     INIT = 0;
-    JOIN = 1;
-    LEAVE = 2;
-    ERROR = 3;
-    PEER = 4;
-    ENTITY = 5;
-    LOAD = 6;
-    UNLOAD = 7;
-    UPDATE = 8;
-    METHOD = 9;
-    CHAT = 10;
-    TRANSPORT = 11;
-    EVENT = 12;
-    ACTION = 13;
-    STATS = 14;
+    ERROR = 1;
+    ENTITY = 2;
+    CHUNK = 3;
+    UNCHUNK = 4;
+    METHOD = 5;
+    EVENT = 6;
+    ACTION = 7;
+    STATS = 8;
   }
 
   Type type = 1;
-  string json = 2;
-  string text = 3;
+  google.protobuf.Struct json = 2;
 
-  Method method = 4;
-  ChatMessage chat = 5;
+  Method method = 3;
 
-  repeated Peer peers = 6;
-  repeated Entity entities = 7;
-  repeated Chunk chunks = 8;
-  repeated Event events = 9;
-  repeated Update updates = 10;
+  repeated Entity entities = 4;
+  repeated Chunk chunks = 5;
+  repeated Event events = 6;
+}
+
+message Message {
+  repeated Packet packets = 1;
 }
