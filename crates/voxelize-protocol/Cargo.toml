@@ -1,0 +1,12 @@
+[package]
+name = "voxelize-protocol"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+
+
+[build-dependencies]
+prost-build = "0.11.9"
+prost-wkt-build = "0.4.2"

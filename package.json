@@ -11,8 +11,8 @@
     "examples/client"
   ],
   "scripts": {
-    "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w crates -x \"build --release\"",
-    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w crates -x \"run --release --example demo\""
+    "dev:rs": "cross-env RUST_BACKTRACE=full cargo watch -w crates -x \"build --bin server --release\"",
+    "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w crates -x \"run --bin server --release\""
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
