@@ -4,5 +4,7 @@ yarn-error.log
 
 /target
 /Cargo.lock
+# All target directories
+**/target/
 
 node_modules
