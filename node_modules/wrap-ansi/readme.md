@@ -1,4 +1,4 @@
-# wrap-ansi [![Build Status](https://travis-ci.com/chalk/wrap-ansi.svg?branch=master)](https://travis-ci.com/chalk/wrap-ansi) [![Coverage Status](https://coveralls.io/repos/github/chalk/wrap-ansi/badge.svg?branch=master)](https://coveralls.io/github/chalk/wrap-ansi?branch=master)
+# wrap-ansi
 
 > Wordwrap a string with [ANSI escape codes](https://en.wikipedia.org/wiki/ANSI_escape_code#Colors_and_Styles)
 
@@ -11,8 +11,8 @@ $ npm install wrap-ansi
 ## Usage
 
 ```js
-const chalk = require('chalk');
-const wrapAnsi = require('wrap-ansi');
+import chalk from 'chalk';
+import wrapAnsi from 'wrap-ansi';
 
 const input = 'The quick brown ' + chalk.red('fox jumped over ') +
 	'the lazy ' + chalk.green('dog and then ran away with the unicorn.');

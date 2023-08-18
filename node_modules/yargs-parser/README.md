@@ -9,7 +9,7 @@ The mighty option parser used by [yargs](https://github.com/yargs/yargs).
 
 visit the [yargs website](http://yargs.js.org/) for more examples, and thorough usage instructions.
 
-<img width="250" src="https://raw.githubusercontent.com/yargs/yargs-parser/main/yargs-logo.png">
+<img width="250" src="https://raw.githubusercontent.com/yargs/yargs-parser/master/yargs-logo.png">
 
 ## Example
 
@@ -22,8 +22,8 @@ const argv = require('yargs-parser')(process.argv.slice(2))
 console.log(argv)
 ```
 
-```console
-$ node example.js --foo=33 --bar hello
+```sh
+node example.js --foo=33 --bar hello
 { _: [], foo: 33, bar: 'hello' }
 ```
 
@@ -34,7 +34,7 @@ const argv = require('yargs-parser')('--foo=99 --bar=33')
 console.log(argv)
 ```
 
-```console
+```sh
 { _: [], foo: 99, bar: 33 }
 ```
 
@@ -174,15 +174,15 @@ var parsed = parser(['--no-dice'], {
 
 Should a group of short-options be treated as boolean flags?
 
-```console
-$ node example.js -abc
+```sh
+node example.js -abc
 { _: [], a: true, b: true, c: true }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js -abc
+```sh
+node example.js -abc
 { _: [], abc: true }
 ```
 
@@ -193,15 +193,15 @@ $ node example.js -abc
 
 Should hyphenated arguments be expanded into camel-case aliases?
 
-```console
-$ node example.js --foo-bar
+```sh
+node example.js --foo-bar
 { _: [], 'foo-bar': true, fooBar: true }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js --foo-bar
+```sh
+node example.js --foo-bar
 { _: [], 'foo-bar': true }
 ```
 
@@ -212,15 +212,15 @@ $ node example.js --foo-bar
 
 Should keys that contain `.` be treated as objects?
 
-```console
-$ node example.js --foo.bar
+```sh
+node example.js --foo.bar
 { _: [], foo: { bar: true } }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js --foo.bar
+```sh
+node example.js --foo.bar
 { _: [], "foo.bar": true }
 ```
 
@@ -231,15 +231,15 @@ $ node example.js --foo.bar
 
 Should keys that look like numbers be treated as such?
 
-```console
-$ node example.js --foo=99.3
+```sh
+node example.js --foo=99.3
 { _: [], foo: 99.3 }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js --foo=99.3
+```sh
+node example.js --foo=99.3
 { _: [], foo: "99.3" }
 ```
 
@@ -250,15 +250,15 @@ $ node example.js --foo=99.3
 
 Should positional keys that look like numbers be treated as such.
 
-```console
-$ node example.js 99.3
-{ _: [99.3] }
+```sh
+node example.js 99.3
+{ _: [99] }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js 99.3
+```sh
+node example.js 99.3
 { _: ['99.3'] }
 ```
 
@@ -269,15 +269,15 @@ $ node example.js 99.3
 
 Should variables prefixed with `--no` be treated as negations?
 
-```console
-$ node example.js --no-foo
+```sh
+node example.js --no-foo
 { _: [], foo: false }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js --no-foo
+```sh
+node example.js --no-foo
 { _: [], "no-foo": true }
 ```
 
@@ -296,15 +296,15 @@ a configuration file.
 
 Should arguments be coerced into an array when duplicated:
 
-```console
-$ node example.js -x 1 -x 2
+```sh
+node example.js -x 1 -x 2
 { _: [], x: [1, 2] }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js -x 1 -x 2
+```sh
+node example.js -x 1 -x 2
 { _: [], x: 2 }
 ```
 
@@ -315,15 +315,15 @@ $ node example.js -x 1 -x 2
 
 Should array arguments be coerced into a single array when duplicated:
 
-```console
-$ node example.js -x 1 2 -x 3 4
+```sh
+node example.js -x 1 2 -x 3 4
 { _: [], x: [1, 2, 3, 4] }
 ```
 
 _if disabled:_
 
-```console
-$ node example.js -x 1 2 -x 3 4
+```sh
+node example.js -x 1 2 -x 3 4
 { _: [], x: [[1, 2], [3, 4]] }
 ```
 
@@ -334,16 +334,16 @@ $ node example.js -x 1 2 -x 3 4
 
 Should arrays consume more than one positional argument following their flag.
 
-```console
-$ node example --arr 1 2
-{ _: [], arr: [1, 2] }
+```sh
+node example --arr 1 2
+{ _[], arr: [1, 2] }
 ```
 
 _if disabled:_
 
-```console
-$ node example --arr 1 2
-{ _: [2], arr: [1] }
+```sh
+node example --arr 1 2
+{ _[2], arr: [1] }
 ```
 
 **Note: in `v18.0.0` we are considering defaulting greedy arrays to `false`.**
@@ -362,15 +362,15 @@ Should nargs consume dash options as well as positional arguments.
 
 The prefix to use for negated boolean variables.
 
-```console
-$ node example.js --no-foo
+```sh
+node example.js --no-foo
 { _: [], foo: false }
 ```
 
 _if set to `quux`:_
 
-```console
-$ node example.js --quuxfoo
+```sh
+node example.js --quuxfoo
 { _: [], foo: false }
 ```
 
@@ -383,15 +383,15 @@ Should unparsed flags be stored in `--` or `_`.
 
 _If disabled:_
 
-```console
-$ node example.js a -b -- x y
+```sh
+node example.js a -b -- x y
 { _: [ 'a', 'x', 'y' ], b: true }
 ```
 
 _If enabled:_
 
-```console
-$ node example.js a -b -- x y
+```sh
+node example.js a -b -- x y
 { _: [ 'a' ], '--': [ 'x', 'y' ], b: true }
 ```
 
@@ -404,15 +404,15 @@ Should a placeholder be added for keys not set via the corresponding CLI argumen
 
 _If disabled:_
 
-```console
-$ node example.js -a 1 -c 2
+```sh
+node example.js -a 1 -c 2
 { _: [], a: 1, c: 2 }
 ```
 
 _If enabled:_
 
-```console
-$ node example.js -a 1 -c 2
+```sh
+node example.js -a 1 -c 2
 { _: [], a: 1, b: undefined, c: 2 }
 ```
 
@@ -425,15 +425,15 @@ Should parsing stop at the first positional argument? This is similar to how e.g
 
 _If disabled:_
 
-```console
-$ node example.js -a run b -x y
+```sh
+node example.js -a run b -x y
 { _: [ 'b' ], a: 'run', x: 'y' }
 ```
 
 _If enabled:_
 
-```console
-$ node example.js -a run b -x y
+```sh
+node example.js -a run b -x y
 { _: [ 'b', '-x', 'y' ], a: 'run' }
 ```
 
@@ -446,15 +446,15 @@ Should aliases be removed before returning results?
 
 _If disabled:_
 
-```console
-$ node example.js --test-field 1
+```sh
+node example.js --test-field 1
 { _: [], 'test-field': 1, testField: 1, 'test-alias': 1, testAlias: 1 }
 ```
 
 _If enabled:_
 
-```console
-$ node example.js --test-field 1
+```sh
+node example.js --test-field 1
 { _: [], 'test-field': 1, testField: 1 }
 ```
 
@@ -468,15 +468,15 @@ Should dashed keys be removed before returning results?  This option has no effe
 
 _If disabled:_
 
-```console
-$ node example.js --test-field 1
+```sh
+node example.js --test-field 1
 { _: [], 'test-field': 1, testField: 1 }
 ```
 
 _If enabled:_
 
-```console
-$ node example.js --test-field 1
+```sh
+node example.js --test-field 1
 { _: [], testField: 1 }
 ```
 
@@ -490,15 +490,15 @@ configured in `opts`.
 
 _If disabled_
 
-```console
-$ node example.js --unknown-option --known-option 2 --string-option --unknown-option2
+```sh
+node example.js --unknown-option --known-option 2 --string-option --unknown-option2
 { _: [], unknownOption: true, knownOption: 2, stringOption: '', unknownOption2: true }
 ```
 
 _If enabled_
 
-```console
-$ node example.js --unknown-option --known-option 2 --string-option --unknown-option2
+```sh
+node example.js --unknown-option --known-option 2 --string-option --unknown-option2
 { _: ['--unknown-option'], knownOption: 2, stringOption: '--unknown-option2' }
 ```
 

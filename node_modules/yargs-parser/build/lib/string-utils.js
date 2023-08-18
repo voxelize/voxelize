@@ -1,15 +1,5 @@
-/**
- * @license
- * Copyright (c) 2016, Contributors
- * SPDX-License-Identifier: ISC
- */
 export function camelCase(str) {
-    // Handle the case where an argument is provided as camel case, e.g., fooBar.
-    // by ensuring that the string isn't already mixed case:
-    const isCamelCase = str !== str.toLowerCase() && str !== str.toUpperCase();
-    if (!isCamelCase) {
-        str = str.toLowerCase();
-    }
+    str = str.toLocaleLowerCase();
     if (str.indexOf('-') === -1 && str.indexOf('_') === -1) {
         return str;
     }
@@ -21,10 +11,11 @@ export function camelCase(str) {
             let chr = str.charAt(i);
             if (nextChrUpper) {
                 nextChrUpper = false;
-                chr = chr.toUpperCase();
+                chr = chr.toLocaleUpperCase();
             }
             if (i !== 0 && (chr === '-' || chr === '_')) {
                 nextChrUpper = true;
+                continue;
             }
             else if (chr !== '-' && chr !== '_') {
                 camelcase += chr;
@@ -34,7 +25,7 @@ export function camelCase(str) {
     }
 }
 export function decamelize(str, joinString) {
-    const lowercase = str.toLowerCase();
+    const lowercase = str.toLocaleLowerCase();
     joinString = joinString || '-';
     let notCamelcase = '';
     for (let i = 0; i < str.length; i++) {
@@ -59,7 +50,7 @@ export function looksLikeNumber(x) {
     if (/^0x[0-9a-f]+$/i.test(x))
         return true;
     // don't treat 0123 as a number; as it drops the leading '0'.
-    if (/^0[^.]/.test(x))
+    if (x.length > 1 && x[0] === '0')
         return false;
     return /^[-]?(?:\d+(?:\.\d*)?|\.\d+)(e[-+]?\d+)?$/.test(x);
 }
