@@ -24,7 +24,7 @@ pub struct Disconnect {
 
 /// Send message to specific world
 #[derive(ActixMessage)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<(), &'static str>")]
 pub struct ClientMessage {
     /// Id of the client session
     pub id: String,

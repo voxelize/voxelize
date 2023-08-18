@@ -23,14 +23,16 @@ async fn main() -> std::io::Result<()> {
     )
     .start();
 
-    HttpServer::new(move || {
+    let app = HttpServer::new(move || {
         App::new()
             .service(hello)
             .service(echo)
             .app_data(web::Data::new(server_addr.clone()))
             .route("/hey", web::get().to(manual_hello))
     })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
+    .bind(("127.0.0.1", 8080))?;
+
+    println!("Starting server at http://127.0.0.1:8080");
+
+    app.run().await
 }

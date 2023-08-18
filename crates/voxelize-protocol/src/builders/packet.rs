@@ -11,6 +11,7 @@ pub struct PacketBuilder {
     pub r#type: PacketType,
 
     pub json: Option<Struct>,
+    pub text: Option<String>,
     pub method: Option<MethodData>,
     pub action: Option<ActionData>,
 
@@ -27,6 +28,11 @@ impl PacketBuilder {
 
     pub fn json<T: Serialize>(mut self, json: T) -> Self {
         self.json = Some(serialize_into_struct(json));
+        self
+    }
+
+    pub fn text(mut self, text: &str) -> Self {
+        self.text = Some(text.to_owned());
         self
     }
 
@@ -59,6 +65,7 @@ impl PacketBuilder {
         Packet {
             r#type: self.r#type as i32,
             json: self.json,
+            text: self.text,
             method: self.method,
             action: self.action,
             entities: self.entities,

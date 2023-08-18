@@ -15,6 +15,8 @@ pub use protocols::{
     Geometry as GeometryData, Mesh as MeshData, Message, Method as MethodData, Packet,
 };
 
+pub use utils::{decode_message, encode_message, serialize_into_struct};
+
 /// The type of packet this is.
 pub type PacketType = protocols::packet::Type;
 
@@ -25,6 +27,10 @@ pub type EntityOperation = protocols::entity::Operation;
 impl Message {
     pub fn new(packets: Vec<Packet>) -> Self {
         Self { packets }
+    }
+
+    pub fn from_packet(packet: Packet) -> Self {
+        Self::new(vec![packet])
     }
 }
 
@@ -39,6 +45,10 @@ impl Packet {
     pub fn get_type(&self) -> PacketType {
         PacketType::from_i32(self.r#type)
             .expect("Failed to convert packet type from i32 to PacketType")
+    }
+
+    pub fn from_type(r#type: PacketType) -> PacketBuilder {
+        Packet::new(r#type)
     }
 }
 

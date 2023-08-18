@@ -139,9 +139,11 @@ impl Handler<Disconnect> for Server {
 
 /// Handler for client-side messages.
 impl Handler<ClientMessage> for Server {
-    type Result = ();
+    type Result = Result<(), &'static str>;
 
-    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) -> Self::Result {
         self.on_request(&msg.id, msg.data);
+
+        Ok(())
     }
 }
