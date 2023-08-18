@@ -1,0 +1,29 @@
+{
+  "name": "@voxelize/network",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/voxelize-network.umd.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/voxelize-network.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:*",
+    "dev:type": "tsc --watch --preserveWatchOutput",
+    "dev:build": "vite build --watch",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^4.4.5"
+  },
+  "dependencies": {}
+}
