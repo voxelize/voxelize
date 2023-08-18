@@ -16,6 +16,15 @@ pub struct Session {
     pub addr: Addr<Server>,
 }
 
+impl Session {
+    pub fn new(id: &str, addr: &Addr<Server>) -> Self {
+        Self {
+            addr: addr.clone(),
+            id: id.to_owned(),
+        }
+    }
+}
+
 impl Actor for Session {
     type Context = ws::WebsocketContext<Self>;
 
