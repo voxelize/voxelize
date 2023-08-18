@@ -1,5 +1,10 @@
+mod world;
+
+use actix::Actor;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use voxelize_actix::Server;
+
+use crate::world::TestWorld;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -8,11 +13,14 @@ async fn hello() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let server_addr = Server::new(
+    let mut server = Server::new(
         // 60 ticks per second = 16.666666666666668 ms per tick
         std::time::Duration::from_millis(16),
-    )
-    .start();
+    );
+
+    server.add_world(TestWorld::default());
+
+    let server_addr = server.start();
 
     let app = HttpServer::new(move || {
         App::new()

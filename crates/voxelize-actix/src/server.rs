@@ -57,12 +57,6 @@ impl Server {
         todo!("Remove client from world");
     }
 
-    pub fn start(&mut self) {
-        for world in &mut self.worlds {
-            world.start();
-        }
-    }
-
     /// Updates the server state.
     pub fn update(&mut self) {
         for world in &mut self.worlds {
@@ -83,6 +77,12 @@ impl Server {
             client_id,
             data
         )
+    }
+
+    fn start(&mut self) {
+        for world in &mut self.worlds {
+            world.start();
+        }
     }
 }
 
