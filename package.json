@@ -17,7 +17,8 @@
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w crates -x \"run --bin server --release\"",
     "demo:ts": "cd examples/client && yarn demo",
-    "lint": "eslint --fix --ext js,ts,tsx ."
+    "lint": "eslint --fix --ext js,ts,tsx .",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
