@@ -1,8 +1,4 @@
-import './app.css'
-import App from './App.svelte'
+import { sum } from "@voxelize/protocol";
+import "./style.css";
 
-const app = new App({
-  target: document.getElementById('app'),
-})
-
-export default app
+console.log("Hello, world!", sum(1, 2));

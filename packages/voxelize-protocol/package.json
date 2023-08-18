@@ -1,0 +1,35 @@
+{
+  "name": "@voxelize/protocol",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/voxelize-protocol.umd.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/voxelize-protocol.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:*",
+    "dev:type": "tsc --watch --preserveWatchOutput",
+    "dev:build": "vite build --watch",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "generate:ts": "pbts -o ./src/generated/protocol.d.ts ./src/generated/protocol.js",
+    "generate:js": "pbjs -t static-module -w es6 -o ./src/generated/protocol.js ../../crates/voxelize-protocol/messages.proto",
+    "generate": "yarn run generate:js && yarn run generate:ts && mkdir -p dist && cp src/generated/protocol.* dist/"
+  },
+  "devDependencies": {
+    "protobufjs-cli": "^1.1.1",
+    "vite": "^4.4.5"
+  },
+  "dependencies": {
+    "protobufjs": "^7.2.4"
+  }
+}
