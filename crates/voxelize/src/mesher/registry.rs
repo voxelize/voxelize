@@ -15,12 +15,13 @@ impl MesherRegistry {
         self.meshers.insert(0, Box::new(mesher));
     }
 
-    pub fn get_mesher_for(&self, block_id: u32) -> &dyn Mesher {
+    pub fn get_mesher_by_block_id(&self, block_id: u32) -> &dyn Mesher {
         for mesher in &self.meshers {
             if mesher.is_applicable(block_id) {
                 return &**mesher;
             }
         }
+
         panic!("No applicable mesher found, even though a default should always exist!");
     }
 }

@@ -27,7 +27,7 @@ impl<'a> RegionMesher<'a> {
                 for z in min_coords.2..=max_coords.2 {
                     let block_id = block_access.get_block_id(x, y, z);
 
-                    let mesher = self.mesher_registry.get_mesher_for(block_id);
+                    let mesher = self.mesher_registry.get_mesher_by_block_id(block_id);
                     let geometry = mesher.mesh(&Vec3(x, y, z), block_access);
 
                     if geometries.contains_key(&block_id) {
