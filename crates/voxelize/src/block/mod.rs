@@ -14,7 +14,7 @@ pub use update::*;
 pub use utils::*;
 pub use uv::*;
 
-pub trait Block {
+pub trait BlockIdentity {
     fn id(&self) -> BlockId;
 
     fn name(&self) -> &str;

@@ -1,11 +1,13 @@
+mod block;
 mod world;
 
 use actix::Actor;
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use voxelize::Registry;
 use voxelize_actix::Server;
 
-use crate::world::TestWorld;
+use crate::{block::Block, world::TestWorld};
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -18,6 +20,11 @@ async fn main() -> std::io::Result<()> {
         // 60 ticks per second = 16.666666666666668 ms per tick
         std::time::Duration::from_millis(16),
     );
+
+    let air = Block::new(0, "air").build();
+    let stone = Block::new(1, "stone").build();
+
+    let registry = Registry::with_blocks(vec![air, stone]);
 
     server.add_world(TestWorld::default());
 

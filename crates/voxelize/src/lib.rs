@@ -7,6 +7,6 @@ mod registry;
 mod utils;
 mod world;
 
-pub use block::Block;
+pub use block::*;
 pub use registry::Registry;
 pub use world::World;
