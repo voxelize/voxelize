@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 actix = "0.13.0"
 actix-web = "4"
+actix-cors = "0.6.4"
 
 voxelize = { path = "../../crates/voxelize" }
 voxelize-actix = { path = "../../crates/voxelize-actix" }

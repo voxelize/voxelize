@@ -46,15 +46,17 @@ impl Server {
             .insert(id.to_owned(), Client::new(id.to_owned(), client))
         {
             println!("Client {} already exists, replacing with new client", id);
+        } else {
+            println!("Client {} added", id);
         }
     }
 
     pub fn remove_client(&mut self, id: &str) {
         if let Some(_) = self.clients.remove(id) {
             println!("Client {} removed", id);
+        } else {
+            println!("Client {} does not exist", id);
         }
-
-        todo!("Remove client from world");
     }
 
     /// Updates the server state.

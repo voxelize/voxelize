@@ -23,7 +23,11 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/domurl": "^0.0.7",
     "vite": "^4.4.5"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@voxelize/protocol": "*",
+    "domurl": "^2.3.4"
+  }
 }

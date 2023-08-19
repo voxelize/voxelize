@@ -9,7 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@voxelize/protocol": "*"
+    "@voxelize/protocol": "*",
+    "@voxelize/network": "*"
   },
   "devDependencies": {
     "typescript": "^5.0.2",

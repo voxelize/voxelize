@@ -1,4 +1,11 @@
-import { sum } from "@voxelize/protocol";
+import { Network } from "@voxelize/network";
 import "./style.css";
 
-console.log("Hello, world!", sum(1, 2));
+const network = new Network();
+
+async function start() {
+  await network.connect();
+  console.log("connected!");
+}
+
+start();

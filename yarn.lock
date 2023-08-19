@@ -796,6 +796,11 @@
   resolved "https://registry.yarnpkg.com/@types/argparse/-/argparse-1.0.38.tgz#a81fd8606d481f873a3800c6ebae4f1d768a56a9"
   integrity sha512-ebDJ9b0e702Yr7pWgB0jzm+CX4Srzz8RcXtLJDJB+BSccqMa36uyH/zUsSYao5+BD1ytv3k3rPYCq4mAE1hsXA==
 
+"@types/domurl@^0.0.7":
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/@types/domurl/-/domurl-0.0.7.tgz#b27adc79c61dd2d0f30b7b2e22f8c284e1993978"
+  integrity sha512-7g9ZQLV7aIoAG2oDk4YgMc8KW7IQ3aqaCB+7XYW+xEisAplBrvf6c1+mSxNVSCP8quFiLOamyhxZamD7Icfv1g==
+
 "@types/estree@^1.0.0":
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/@types/estree/-/estree-1.0.1.tgz#aa22750962f3bf0e79d753d3cc067f010c95f194"
@@ -1883,6 +1888,11 @@ doctrine@^3.0.0:
   integrity sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==
   dependencies:
     esutils "^2.0.2"
+
+domurl@^2.3.4:
+  version "2.3.4"
+  resolved "https://registry.yarnpkg.com/domurl/-/domurl-2.3.4.tgz#fc0de7f9185b197ca7afe8a989e30d462c082489"
+  integrity sha512-/pmFKQbQqjsCB5qppxfGexcaVykxcawJi2S9aRq3iF9fcIUrkUd9ceXxehP2ARbCbmhh4O21YBRC1pn86rpujg==
 
 dot-prop@^5.1.0:
   version "5.3.0"

@@ -1,6 +1,7 @@
 mod world;
 
 use actix::Actor;
+use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use voxelize_actix::Server;
 
@@ -23,7 +24,10 @@ async fn main() -> std::io::Result<()> {
     let server_addr = server.start();
 
     let app = HttpServer::new(move || {
+        let cors = Cors::permissive();
+
         App::new()
+            .wrap(cors)
             .service(hello)
             .app_data(web::Data::new(server_addr.clone()))
             .route("/ws/", web::get().to(voxelize_actix::voxelize_index))
