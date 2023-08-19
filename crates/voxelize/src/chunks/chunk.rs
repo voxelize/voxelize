@@ -9,7 +9,7 @@ use crate::{
     Registry,
 };
 
-use super::ChunkUtils;
+use super::{ChunkCoords, ChunkUtils};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ChunkStatus {
@@ -37,7 +37,7 @@ pub struct ChunkOptions {
 pub struct Chunk {
     pub id: String,
     pub name: String,
-    pub coords: Vec2<i32>,
+    pub coords: ChunkCoords,
 
     pub status: ChunkStatus,
 

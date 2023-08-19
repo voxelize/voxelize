@@ -1,5 +1,7 @@
 use crate::libs::{Vec2, Vec3};
 
+use super::ChunkCoords;
+
 const CONCAT: &str = "|";
 
 /// A set of utility functions for chunk operations.
@@ -20,7 +22,7 @@ impl ChunkUtils {
     }
 
     /// Parse a chunk coordinate from a chunk representation.
-    pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
+    pub fn parse_chunk_name(name: &str) -> ChunkCoords {
         let vec = name.split(CONCAT).collect::<Vec<&str>>();
         Vec2(vec[0].parse().unwrap(), vec[1].parse().unwrap())
     }
@@ -41,7 +43,7 @@ impl ChunkUtils {
     }
 
     /// Map a voxel coordinate to a chunk coordinate.
-    pub fn map_voxel_to_chunk(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> Vec2<i32> {
+    pub fn map_voxel_to_chunk(vx: i32, vy: i32, vz: i32, chunk_size: usize) -> ChunkCoords {
         let scaled = Vec3::<i32>::from(&floor_scale_coords(
             vx as f32,
             vy as f32,
@@ -63,7 +65,7 @@ impl ChunkUtils {
         )
     }
 
-    pub fn distance_squared(a: &Vec2<i32>, b: &Vec2<i32>) -> f32 {
+    pub fn distance_squared(a: &ChunkCoords, b: &ChunkCoords) -> f32 {
         let dx = a.0 - b.0;
         let dz = a.1 - b.1;
         (dx * dx + dz * dz) as f32
