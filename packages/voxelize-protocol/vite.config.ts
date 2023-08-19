@@ -17,7 +17,7 @@ export default defineConfig({
       },
       formats: ["es", "umd"],
     },
-    // emptyOutDir: false,
+    emptyOutDir: false,
     rollupOptions: {
       onwarn: (warning, next) => {
         if (

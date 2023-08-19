@@ -17,7 +17,7 @@ export type ChunkData<T> = {
   z: number;
   id: string;
   meshes: MeshData[];
-  voxels: Uint32Array;
+  blocks: Uint32Array;
   lights: Uint32Array;
   metainfo: T;
 };

@@ -2,11 +2,11 @@ use actix::{Actor, AsyncContext, Context, Handler, MessageResult};
 use hashbrown::HashMap;
 use nanoid::nanoid;
 use voxelize::World;
-use voxelize_protocol::Message;
+use voxelize_protocol::{encode_message, Message};
 
 use crate::{
     client::Client,
-    messages::{ClientMessage, Connect, Disconnect, MessageRecipient},
+    messages::{ClientMessage, Connect, Disconnect, EncodedMessage, MessageRecipient},
 };
 
 /// A Voxelize server is a websocket server that listens for connections from
@@ -74,11 +74,12 @@ impl Server {
     }
 
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
-        todo!(
-            "Handle request from client {} with data {:?}",
-            client_id,
-            data
-        )
+        // Echo the message back to the client.
+        if let Some(client) = self.clients.get_mut(client_id) {
+            client
+                .recipient
+                .do_send(EncodedMessage(encode_message(&data)));
+        }
     }
 
     fn start(&mut self) {
