@@ -1,5 +1,8 @@
 mod block;
+mod chunks;
 mod libs;
+mod light;
+mod physics;
 mod registry;
 mod utils;
 mod world;
