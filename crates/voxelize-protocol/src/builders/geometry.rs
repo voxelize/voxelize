@@ -1,5 +1,14 @@
 use crate::GeometryData;
 
+impl GeometryData {
+    pub fn append(&mut self, other: &mut GeometryData) {
+        self.positions.append(&mut other.positions);
+        self.uvs.append(&mut other.uvs);
+        self.indices.append(&mut other.indices);
+        self.lights.append(&mut other.lights);
+    }
+}
+
 #[derive(Default)]
 pub struct GeometryDataBuilder {
     pub block_id: u32,

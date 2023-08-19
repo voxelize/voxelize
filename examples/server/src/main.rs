@@ -4,7 +4,7 @@ mod world;
 use actix::Actor;
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use voxelize::Registry;
+use voxelize::BlockRegistry;
 use voxelize_actix::Server;
 
 use crate::{block::Block, world::TestWorld};
@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
     let air = Block::new(0, "air").build();
     let stone = Block::new(1, "stone").build();
 
-    let registry = Registry::with_blocks(vec![air, stone]);
+    let block_registry = BlockRegistry::with_blocks(vec![air, stone]);
 
     server.add_world(TestWorld::default());
 

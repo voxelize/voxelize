@@ -6,7 +6,6 @@ use voxelize_protocol::{ChunkData, MeshData};
 use crate::{
     block::{BlockAccess, BlockUpdate},
     libs::{Ndarray, Vec2, Vec3},
-    Registry,
 };
 
 use super::{ChunkCoords, ChunkUtils};

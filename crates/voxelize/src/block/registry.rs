@@ -3,20 +3,20 @@ use hashbrown::HashMap;
 use crate::BlockIdentity;
 
 #[derive(Clone)]
-pub struct Registry<T: BlockIdentity + Clone> {
+pub struct BlockRegistry<T: BlockIdentity + Clone> {
     blocks_by_id: HashMap<u32, Box<T>>,
     blocks_by_name: HashMap<String, Box<T>>,
 }
 
-impl<T: BlockIdentity + Clone> Registry<T> {
-    pub fn new() -> Registry<T> {
+impl<T: BlockIdentity + Clone> BlockRegistry<T> {
+    pub fn new() -> BlockRegistry<T> {
         Self {
             blocks_by_id: HashMap::new(),
             blocks_by_name: HashMap::new(),
         }
     }
 
-    pub fn with_blocks(blocks: Vec<T>) -> Registry<T> {
+    pub fn with_blocks(blocks: Vec<T>) -> BlockRegistry<T> {
         let mut registry = Self::new();
 
         for block in blocks {
