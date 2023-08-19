@@ -65,9 +65,9 @@ export class Network {
       const ws = new WebSocket(this.wsUrl.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
       // custom Protobuf event sending
-      ws.sendEvent = (event: any) => {
-        // ws.send(Network.encodeSync(event));
-      };
+      // ws.sendEvent = (event: any) => {
+      // ws.send(Network.encodeSync(event));
+      // };
       ws.onopen = () => {
         this.connected = true;
         this.onConnect?.();

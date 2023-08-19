@@ -27,9 +27,12 @@
   },
   "devDependencies": {
     "protobufjs-cli": "^1.1.1",
+    "rollup-plugin-web-worker-loader": "darionco/rollup-plugin-web-worker-loader",
     "vite": "^4.4.5"
   },
   "dependencies": {
+    "@voxelize/utilities": "*",
+    "fflate": "^0.8.0",
     "protobufjs": "^7.2.4"
   }
 }
