@@ -13,9 +13,7 @@ use super::{ChunkCoords, ChunkUtils};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ChunkStatus {
     Generating(usize),
-
     Meshing,
-
     Ready,
 }
 
