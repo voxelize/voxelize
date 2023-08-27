@@ -9,5 +9,6 @@ edition = "2021"
 num = "0.4.1"
 hashbrown = "0.14.0"
 serde = { version = "1.0.183", features = ["derive"] }
+nanoid = "0.4.0"
 
 voxelize-protocol = { path = "../voxelize-protocol" }

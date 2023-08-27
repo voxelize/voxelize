@@ -13,6 +13,7 @@ use super::{ChunkCoords, ChunkUtils};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ChunkStatus {
     Generating(usize),
+    Lighting,
     Meshing,
     Ready,
 }
@@ -25,9 +26,26 @@ impl Default for ChunkStatus {
 
 #[derive(Debug, Default, Clone)]
 pub struct ChunkOptions {
-    pub size: usize,
-    pub max_height: usize,
+    pub chunk_size: usize,
+    pub chunk_height: usize,
     pub sub_chunks: usize,
+    pub max_light_levels: usize,
+}
+
+impl ChunkOptions {
+    pub fn new(
+        chunk_size: usize,
+        chunk_height: usize,
+        sub_chunks: usize,
+        max_light_levels: usize,
+    ) -> Self {
+        Self {
+            chunk_size,
+            chunk_height,
+            sub_chunks,
+            max_light_levels,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -56,20 +74,21 @@ pub struct Chunk {
 impl Chunk {
     pub fn new(id: &str, cx: i32, cz: i32, options: &ChunkOptions) -> Self {
         let ChunkOptions {
-            size,
-            max_height,
+            chunk_size,
+            chunk_height,
             sub_chunks,
+            ..
         } = *options;
 
-        let blocks = Ndarray::new(&[size, max_height, size], 0);
-        let lights = Ndarray::new(&[size, max_height, size], 0);
-        let height_map = Ndarray::new(&[size, size], 0);
+        let blocks = Ndarray::new(&[chunk_size, chunk_height, chunk_size], 0);
+        let lights = Ndarray::new(&[chunk_size, chunk_height, chunk_size], 0);
+        let height_map = Ndarray::new(&[chunk_size, chunk_size], 0);
 
-        let min = Vec3(cx * size as i32, 0, cz * size as i32);
+        let min = Vec3(cx * chunk_size as i32, 0, cz * chunk_size as i32);
         let max = Vec3(
-            (cx + 1) * size as i32,
-            max_height as i32,
-            (cz + 1) * size as i32,
+            (cx + 1) * chunk_size as i32,
+            chunk_height as i32,
+            (cz + 1) * chunk_size as i32,
         );
 
         Self {
@@ -118,7 +137,7 @@ impl Chunk {
 
     /// Flag a level of sub-chunk as dirty, waiting to be remeshed.
     pub fn add_updated_level(&mut self, vy: i32) {
-        let partition = (self.options.max_height / self.options.sub_chunks) as i32;
+        let partition = (self.options.chunk_height / self.options.sub_chunks) as i32;
 
         let level = vy / partition;
         let remainder = vy % partition;
@@ -159,7 +178,7 @@ impl BlockAccess for Chunk {
     /// Panics if the coordinates are outside of chunk.
     fn set_raw_block_data(&mut self, vx: i32, vy: i32, vz: i32, val: u32) -> bool {
         if !self.contains(vx, vy, vz) {
-            if vy >= 0 && vy < self.options.max_height as i32 {
+            if vy >= 0 && vy < self.options.chunk_height as i32 {
                 self.extra_updates.push((Vec3(vx, vy, vz), val));
             }
 
@@ -207,7 +226,7 @@ impl BlockAccess for Chunk {
     /// Returns `max_height` if it's not within the chunk.
     fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
         if !self.contains(vx, 0, vz) {
-            return self.options.max_height as u32;
+            return self.options.chunk_height as u32;
         }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
@@ -239,10 +258,12 @@ impl BlockAccess for Chunk {
     /// Check if chunk contains this voxel coordinate.
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         let ChunkOptions {
-            size, max_height, ..
+            chunk_size,
+            chunk_height,
+            ..
         } = self.options;
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
 
-        lx < size && ly < max_height && lz < size
+        lx < chunk_size && ly < chunk_height && lz < chunk_size
     }
 }

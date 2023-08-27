@@ -8,5 +8,7 @@ mod utils;
 mod world;
 
 pub use block::*;
+pub use chunks::*;
+pub use libs::*;
 pub use mesher::*;
 pub use world::World;
