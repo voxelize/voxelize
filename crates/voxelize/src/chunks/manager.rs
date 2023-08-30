@@ -1,4 +1,6 @@
 use std::{
+    any::Any,
+    marker::PhantomData,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -11,7 +13,9 @@ use hashbrown::HashMap;
 use nanoid::nanoid;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use crate::{ChunkOptions, Space, Vec2};
+use crate::{
+    BlockIdentity, BlockRegistry, ChunkOptions, MesherRegistry, RegionMesher, Space, Vec2, Vec3,
+};
 
 use super::{Chunk, ChunkCoords, ChunkStatus};
 
@@ -47,16 +51,17 @@ impl JobTicket {
     }
 }
 
-pub struct Job {
+pub struct Job<T: BlockIdentity> {
     ticket: JobTicket,
     chunk: Option<Chunk>,
     space: Option<Space>,
     options: ChunkOptions,
     stages: Vec<Arc<dyn ChunkStage>>,
+    _marker: PhantomData<T>,
 }
 
-impl Job {
-    fn process(&mut self) {
+impl<T: BlockIdentity> Job<T> {
+    fn process(&mut self, block_registry: &BlockRegistry<T>, region_mesher: &RegionMesher<T>) {
         match &self.ticket {
             JobTicket::Generate(id, coords) => {
                 // Generate the chunk
@@ -77,7 +82,27 @@ impl Job {
             JobTicket::Mesh(id, coords) => {
                 // Mesh the chunk
 
+                let ChunkOptions {
+                    chunk_size,
+                    chunk_height,
+                    sub_chunks,
+                    ..
+                } = self.options;
+
                 if let Some(chunk) = self.chunk.as_mut() {
+                    let height_per_sub_chunk = chunk_height / sub_chunks;
+
+                    for i in 0..sub_chunks {
+                        let min = Vec3(chunk.min.0, (i * height_per_sub_chunk) as i32, chunk.min.2);
+                        let max = Vec3(
+                            chunk.max.0,
+                            ((i + 1) * height_per_sub_chunk) as i32,
+                            chunk.max.2,
+                        );
+
+                        let geometries = region_mesher.mesh(chunk, min, max);
+                    }
+
                     chunk.status = ChunkStatus::Ready;
                 }
             }
@@ -91,16 +116,18 @@ pub struct JobResult {
     pub coords: ChunkCoords,
 }
 
-pub struct ChunkManager {
+pub struct ChunkManager<T: BlockIdentity + Clone> {
     pub options: ChunkOptions,
 
     pub chunks: HashMap<ChunkCoords, Chunk>,
 
-    job_sender: Sender<Job>,
-    job_receiver: Arc<Mutex<Receiver<Job>>>,
-    job_queue: Arc<Mutex<Vec<Job>>>,
+    job_sender: Sender<Job<T>>,
+    job_receiver: Arc<Mutex<Receiver<Job<T>>>>,
+    job_queue: Arc<Mutex<Vec<Job<T>>>>,
     result_queue: Arc<Mutex<Vec<JobResult>>>,
 
+    block_registry: BlockRegistry<T>,
+    mesh_registry: MesherRegistry<T>,
     chunk_dependency_map: HashMap<ChunkCoords, Vec<ChunkCoords>>,
 
     workers: Vec<thread::JoinHandle<()>>,
@@ -108,8 +135,12 @@ pub struct ChunkManager {
     stages: Vec<Arc<dyn ChunkStage>>,
 }
 
-impl ChunkManager {
-    pub fn new(options: &ChunkOptions) -> Self {
+impl<T: BlockIdentity + Clone> ChunkManager<T> {
+    pub fn new(
+        block_registry: BlockRegistry<T>,
+        mesh_registry: MesherRegistry<T>,
+        options: &ChunkOptions,
+    ) -> Self {
         let (job_sender, job_receiver) = mpsc::channel();
 
         Self {
@@ -120,13 +151,15 @@ impl ChunkManager {
             job_queue: Arc::new(Mutex::new(Vec::new())),
             result_queue: Arc::new(Mutex::new(Vec::new())),
             chunk_dependency_map: HashMap::new(),
+            block_registry,
+            mesh_registry,
             workers: Vec::new(),
             stop_signal: Arc::new(AtomicBool::new(false)),
             stages: Vec::new(),
         }
     }
 
-    pub fn add_stage<T: ChunkStage + 'static>(&mut self, stage: T) {
+    pub fn add_stage<S: ChunkStage + 'static>(&mut self, stage: S) {
         self.stages.push(Arc::new(stage));
     }
 
@@ -188,6 +221,7 @@ impl ChunkManager {
             chunk,
             options: self.options.clone(),
             stages: self.stages.clone(),
+            _marker: PhantomData,
         };
 
         self.job_sender.send(job).unwrap();
@@ -204,13 +238,12 @@ impl ChunkManager {
             .lock()
             .unwrap()
             .drain(..)
-            .collect::<Vec<Job>>();
+            .collect::<Vec<Job<T>>>();
 
         for job in jobs.drain(..) {
             let ticket = job.ticket.to_owned();
             let chunk = job.chunk.unwrap();
 
-            println!("Chunk status pushin: {:?}", chunk.status);
             self.chunks.insert(chunk.coords.clone(), chunk);
 
             // Remove this chunk from all the chunk dependency maps
@@ -220,8 +253,6 @@ impl ChunkManager {
 
             // If the dependency map of this chunk is empty, add it to the job queue
             if let Some(dependencies) = self.chunk_dependency_map.get(&ticket.get_coords()) {
-                println!("Dependencies: {:?}", dependencies);
-
                 if dependencies.is_empty() {
                     match ticket {
                         JobTicket::Generate(id, coords) => {
@@ -250,10 +281,19 @@ impl ChunkManager {
             let job_queue = self.job_queue.clone();
             let stop_signal = self.stop_signal.clone();
 
+            let block_registry = self.block_registry.clone();
+            let mesh_registry = self.mesh_registry.clone();
+
             let worker = thread::spawn(move || {
+                let block_registry = block_registry;
+                let mesh_registry = mesh_registry;
+
+                let region_mesher =
+                    RegionMesher::new(mesh_registry.clone(), block_registry.clone());
+
                 while !stop_signal.load(Ordering::SeqCst) {
                     if let Ok(mut job) = job_receiver.lock().unwrap().recv() {
-                        job.process();
+                        job.process(&block_registry, &region_mesher);
                         job_queue.lock().unwrap().push(job);
                     } else {
                         // Sleep for a small duration if there's no job

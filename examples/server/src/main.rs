@@ -4,7 +4,7 @@ mod world;
 use actix::Actor;
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use voxelize::{BlockRegistry, Job, JobTicket, MesherRegistry, Vec2};
+use voxelize::{BlockRegistry, Job, JobTicket, MesherRegistry, RegionMesher, Vec2};
 use voxelize_actix::Server;
 
 use crate::{block::Block, world::TestWorld};
@@ -20,12 +20,6 @@ async fn main() -> std::io::Result<()> {
         // 60 ticks per second = 16.666666666666668 ms per tick
         std::time::Duration::from_millis(16),
     );
-
-    let air = Block::new(0, "air").build();
-    let stone = Block::new(1, "stone").build();
-
-    let block_registry = BlockRegistry::with_blocks(vec![air, stone]);
-    let mesher_registry = MesherRegistry::new();
 
     let mut new_world = TestWorld::default();
 

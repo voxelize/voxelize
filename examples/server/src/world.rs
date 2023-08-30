@@ -1,5 +1,10 @@
-use voxelize::{BlockAccess, Chunk, ChunkManager, ChunkOptions, ChunkStage, Space, Vec3, World};
-use voxelize_protocol::Packet;
+use voxelize::{
+    BlockAccess, BlockIdentity, BlockRegistry, Chunk, ChunkManager, ChunkOptions, ChunkStage,
+    Mesher, MesherRegistry, Space, Vec3, World,
+};
+use voxelize_protocol::{GeometryData, Packet};
+
+use crate::block::{self, Block};
 
 pub struct TestStage;
 
@@ -24,16 +29,45 @@ impl ChunkStage for TestStage {
     }
 }
 
-pub struct TestWorld {
+pub struct TestWorld<T: BlockIdentity + Clone> {
     clients: Vec<String>,
     id: String,
-    pub chunk_manager: ChunkManager,
+    pub chunk_manager: ChunkManager<T>,
 }
 
-impl Default for TestWorld {
+pub struct BlockMesher;
+
+impl Mesher<Block> for BlockMesher {
+    fn is_applicable(&self, block_id: u32) -> bool {
+        block_id != 0
+    }
+
+    fn mesh(
+        &self,
+        voxel: &Vec3<i32>,
+        block_access: &dyn BlockAccess,
+        registry: &BlockRegistry<Block>,
+    ) -> Vec<GeometryData> {
+        let &Vec3(vx, vy, vz) = voxel;
+        let block_id: u32 = block_access.get_block_id(vx, vy, vz);
+
+        vec![GeometryData::new(block_id).build()]
+    }
+}
+
+impl Default for TestWorld<Block> {
     fn default() -> Self {
         let chunk_options = ChunkOptions::new(16, 256, 4, 16);
-        let mut chunk_manager = ChunkManager::new(&chunk_options);
+
+        let air = Block::new(0, "air").build();
+        let stone = Block::new(1, "stone").build();
+
+        let block_registry = BlockRegistry::with_blocks(vec![air, stone]);
+
+        let mut mesher_registry = MesherRegistry::new();
+        mesher_registry.register(BlockMesher);
+
+        let mut chunk_manager = ChunkManager::new(block_registry, mesher_registry, &chunk_options);
 
         chunk_manager.start_job_processor(8);
         chunk_manager.add_stage(TestStage);
@@ -46,7 +80,7 @@ impl Default for TestWorld {
     }
 }
 
-impl World for TestWorld {
+impl World for TestWorld<Block> {
     fn id(&self) -> &str {
         &self.id
     }

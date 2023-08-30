@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::block::BlockFace;
+use crate::Face;
 
 /// Axis-aligned Bounding Box.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -26,7 +26,7 @@ impl AABB {
         AABBBuilder::new()
     }
 
-    pub fn from_faces(faces: &[BlockFace]) -> AABB {
+    pub fn from_faces(faces: &[Face]) -> AABB {
         let mut min_x = std::f32::MAX;
         let mut min_y = std::f32::MAX;
         let mut min_z = std::f32::MAX;

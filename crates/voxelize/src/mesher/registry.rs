@@ -1,27 +1,30 @@
-use super::{default::DefaultMesher, Mesher};
+use std::sync::Arc;
 
-pub struct MesherRegistry {
-    meshers: Vec<Box<dyn Mesher>>,
+use crate::BlockIdentity;
+
+use super::Mesher;
+
+#[derive(Clone)]
+pub struct MesherRegistry<T: BlockIdentity> {
+    meshers: Vec<Arc<dyn Mesher<T>>>,
 }
 
-impl MesherRegistry {
+impl<T: BlockIdentity> MesherRegistry<T> {
     pub fn new() -> Self {
-        Self {
-            meshers: vec![Box::new(DefaultMesher)], // DefaultMesher is added first
-        }
+        Self { meshers: vec![] }
     }
 
-    pub fn register<T: 'static + Mesher>(&mut self, mesher: T) {
-        self.meshers.insert(0, Box::new(mesher));
+    pub fn register<M: Mesher<T>>(&mut self, mesher: M) {
+        self.meshers.push(Arc::new(mesher));
     }
 
-    pub fn get_mesher_by_block_id(&self, block_id: u32) -> &dyn Mesher {
+    pub fn get_mesher_by_block_id(&self, block_id: u32) -> Option<&dyn Mesher<T>> {
         for mesher in &self.meshers {
             if mesher.is_applicable(block_id) {
-                return &**mesher;
+                return Some(&**mesher);
             }
         }
 
-        panic!("No applicable mesher found, even though a default should always exist!");
+        None
     }
 }
