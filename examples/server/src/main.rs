@@ -1,17 +1,30 @@
 mod block;
 mod world;
 
-use actix::Actor;
+use actix::{Actor, Addr};
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use serde_json::json;
 use voxelize::{BlockRegistry, Job, JobTicket, MesherRegistry, RegionMesher, Vec2};
-use voxelize_actix::Server;
+use voxelize_actix::{GetWorlds, Server};
 
 use crate::{block::Block, world::TestWorld};
 
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
+}
+
+#[get("/worlds")]
+async fn worlds(server: web::Data<Addr<Server>>) -> impl Responder {
+    let worlds_data = server.send(GetWorlds).await.unwrap();
+
+    HttpResponse::Ok().json(
+        worlds_data
+            .into_iter()
+            .map(|(id, data)| json!({ "id": id, "data": data}))
+            .collect::<Vec<_>>(),
+    )
 }
 
 #[actix_web::main]
@@ -45,6 +58,7 @@ async fn main() -> std::io::Result<()> {
             .service(hello)
             .app_data(web::Data::new(server_addr.clone()))
             .route("/ws/", web::get().to(voxelize_actix::voxelize_index))
+            .service(worlds)
     })
     .bind(("127.0.0.1", 8080))?;
 

@@ -7,7 +7,7 @@ use voxelize_protocol::{deserialize_from_struct, encode_message, Message, Packet
 
 use crate::{
     client::Client,
-    messages::{ClientMessage, Connect, Disconnect, EncodedMessage, MessageRecipient},
+    messages::{ClientMessage, Connect, Disconnect, EncodedMessage, GetWorlds, MessageRecipient},
 };
 
 /// A Voxelize server is a websocket server that listens for connections from
@@ -20,7 +20,7 @@ pub struct Server {
     pub update_interval: std::time::Duration,
 
     /// A list of worlds that the server manages.
-    pub worlds: Vec<Box<dyn World>>,
+    pub worlds: HashMap<String, Box<dyn World>>,
 
     /// A list of clients that are connected to the server, mapped by their
     /// unique ID to their actor address.
@@ -32,13 +32,13 @@ impl Server {
     pub fn new(update_interval: std::time::Duration) -> Self {
         Self {
             update_interval,
-            worlds: vec![],
+            worlds: HashMap::new(),
             clients: HashMap::new(),
         }
     }
 
     pub fn add_world<T: World + 'static>(&mut self, world: T) {
-        self.worlds.push(Box::new(world));
+        self.worlds.insert(nanoid!(), Box::new(world));
     }
 
     pub fn add_client(&mut self, id: &str, client: MessageRecipient) {
@@ -62,37 +62,51 @@ impl Server {
 
     /// Updates the server state.
     pub fn update(&mut self) {
-        for world in &mut self.worlds {
+        for world in self.worlds.values_mut() {
             world.update();
+
+            // Go through all the packets and send them to the clients.
+            for (client_id, packets) in world.packets() {
+                if let Some(client) = self.clients.get_mut(&client_id) {
+                    for packet in packets {
+                        client
+                            .recipient
+                            .do_send(EncodedMessage(encode_message(&Message::new(vec![packet]))));
+                    }
+                }
+            }
         }
     }
 
     /// Stops the server.
     pub fn stop(&mut self) {
-        for world in &mut self.worlds {
+        for world in self.worlds.values_mut() {
             world.stop();
         }
     }
 
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
-        // Echo the message back to the client.
-        if let Some(client) = self.clients.get_mut(client_id) {
-            client
-                .recipient
-                .do_send(EncodedMessage(encode_message(&data)));
-        }
+        // // Echo the message back to the client.
+        // if let Some(client) = self.clients.get_mut(client_id) {
+        //     client
+        //         .recipient
+        //         .do_send(EncodedMessage(encode_message(&data)));
+        // }
 
         for packet in data.packets {
             match packet.get_type() {
-                PacketType::Init => {
-                    #[derive(serde::Deserialize, Debug)]
-                    struct Test {
-                        name: String,
+                PacketType::Join => {
+                    if let Some(world_id) = packet.text {
+                        if let Some(world) = self.worlds.get_mut(&world_id) {
+                            world.add_client(client_id);
+                        }
                     }
-
-                    if let Some(json) = packet.json {
-                        let test = deserialize_from_struct::<Test>(&json);
-                        println!("Test: {:?}", test);
+                }
+                PacketType::Leave => {
+                    if let Some(world_id) = packet.text {
+                        if let Some(world) = self.worlds.get_mut(&world_id) {
+                            world.remove_client(client_id);
+                        }
                     }
                 }
                 _ => {}
@@ -101,7 +115,7 @@ impl Server {
     }
 
     fn start(&mut self) {
-        for world in &mut self.worlds {
+        for world in self.worlds.values_mut() {
             world.start();
         }
     }
@@ -166,5 +180,28 @@ impl Handler<ClientMessage> for Server {
         self.on_request(&msg.id, msg.data);
 
         Ok(())
+    }
+}
+
+/// Handler for GetWorlds message.
+impl Handler<GetWorlds> for Server {
+    type Result = MessageResult<GetWorlds>;
+
+    fn handle(&mut self, _: GetWorlds, _: &mut Context<Self>) -> Self::Result {
+        // Return a clone of the worlds HashMap
+        let mut worlds = HashMap::new();
+
+        for (id, world) in self.worlds.iter() {
+            worlds.insert(
+                id.clone(),
+                json!({
+                    "id": id,
+                    "name": world.name(),
+                    "clients": world.clients(),
+                }),
+            );
+        }
+
+        MessageResult(worlds)
     }
 }

@@ -1,8 +1,9 @@
+use serde::Serialize;
 use voxelize::{
     BlockAccess, BlockIdentity, BlockRegistry, Chunk, ChunkManager, ChunkOptions, ChunkStage,
     Mesher, MesherRegistry, Space, Vec3, World,
 };
-use voxelize_protocol::{GeometryData, Packet};
+use voxelize_protocol::{GeometryData, Packet, PacketType};
 
 use crate::block::{self, Block};
 
@@ -29,10 +30,16 @@ impl ChunkStage for TestStage {
     }
 }
 
+#[derive(Clone, Serialize)]
+pub struct TestWorldInitData {
+    name: String,
+}
+
 pub struct TestWorld<T: BlockIdentity + Clone> {
     clients: Vec<String>,
     id: String,
     pub chunk_manager: ChunkManager<T>,
+    pub packets: Vec<(String, Vec<Packet>)>,
 }
 
 pub struct BlockMesher;
@@ -76,6 +83,7 @@ impl Default for TestWorld<Block> {
             clients: vec![],
             id: "test".to_string(),
             chunk_manager,
+            packets: vec![],
         }
     }
 }
@@ -95,10 +103,24 @@ impl World for TestWorld<Block> {
 
     fn add_client(&mut self, client_id: &str) {
         self.clients.push(client_id.to_string());
+
+        // Send the init packet to the client
+        self.packets.push((
+            client_id.to_string(),
+            vec![Packet::new(PacketType::Init)
+                .json(TestWorldInitData {
+                    name: self.name().to_string(),
+                })
+                .build()],
+        ))
     }
 
     fn remove_client(&mut self, client_id: &str) {
         self.clients.retain(|s| s != client_id);
+    }
+
+    fn packets(&mut self) -> Vec<(String, Vec<Packet>)> {
+        self.packets.drain(..).collect()
     }
 
     fn on_packet(&mut self, client_id: &str, packet: Packet) {

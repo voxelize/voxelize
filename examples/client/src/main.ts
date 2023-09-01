@@ -25,6 +25,30 @@ packetTest.addEventListener("click", () => {
   ]);
 });
 
+async function testStart() {
+  const worlds = await fetch("http://localhost:8080/worlds").then((res) =>
+    res.json(),
+  );
+
+  const wrapper = document.getElementById("worlds") as HTMLDivElement;
+
+  worlds.forEach((world: any) => {
+    const button = document.createElement("button");
+    button.innerText = world.data.name;
+    button.addEventListener("click", () => {
+      network.sendPackets([
+        {
+          type: "JOIN",
+          text: world.id,
+        },
+      ]);
+    });
+    wrapper.appendChild(button);
+  });
+}
+
+testStart();
+
 class Test implements NetIntercept {
   onMessages(messages: Message[]) {
     console.log(messages);

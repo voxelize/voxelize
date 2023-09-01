@@ -17,7 +17,7 @@ pub trait World {
     fn stop(&mut self) {}
 
     /// A list of packets to send back to the clients.
-    fn packets(&self) -> Vec<(String, Vec<Packet>)> {
+    fn packets(&mut self) -> Vec<(String, Vec<Packet>)> {
         vec![]
     }
 

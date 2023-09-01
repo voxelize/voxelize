@@ -59,14 +59,16 @@ message Action {
 message Packet {
   enum Type {
     INIT = 0;
-    ERROR = 1;
-    ENTITY = 2;
-    CHUNK = 3;
-    UNCHUNK = 4;
-    METHOD = 5;
-    EVENT = 6;
-    ACTION = 7;
-    STATS = 8;
+    JOIN = 1;
+    LEAVE = 2;
+    ERROR = 3;
+    ENTITY = 4;
+    CHUNK = 5;
+    UNCHUNK = 6;
+    METHOD = 7;
+    EVENT = 8;
+    ACTION = 9;
+    STATS = 10;
   }
 
   Type type = 1;

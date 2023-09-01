@@ -56,6 +56,8 @@ export type Packet<
 > = {
   type:
     | "INIT"
+    | "JOIN"
+    | "LEAVE"
     | "ERROR"
     | "ENTITY"
     | "CHUNK"

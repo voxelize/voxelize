@@ -3,7 +3,7 @@ use crate::messages::MessageRecipient;
 pub struct Client {
     pub id: String,
     pub recipient: MessageRecipient,
-    pub world: Option<String>,
+    pub world_id: Option<String>,
 }
 
 impl Client {
@@ -11,7 +11,7 @@ impl Client {
         Self {
             id,
             recipient,
-            world: None,
+            world_id: None,
         }
     }
 }

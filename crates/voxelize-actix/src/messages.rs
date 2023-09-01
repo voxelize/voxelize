@@ -1,4 +1,7 @@
 use actix::{Message as ActixMessage, Recipient};
+use hashbrown::HashMap;
+use serde_json::Value;
+use voxelize::World;
 use voxelize_protocol::Message;
 
 #[derive(ActixMessage, Clone)]
@@ -32,3 +35,7 @@ pub struct ClientMessage {
     /// Protobuf message
     pub data: Message,
 }
+
+#[derive(ActixMessage)]
+#[rtype(result = "HashMap<String, Value>")]
+pub struct GetWorlds;
