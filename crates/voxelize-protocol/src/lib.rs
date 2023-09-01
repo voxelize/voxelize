@@ -15,7 +15,7 @@ pub use protocols::{
     Geometry as GeometryData, Mesh as MeshData, Message, Method as MethodData, Packet,
 };
 
-pub use utils::{decode_message, encode_message, serialize_into_struct};
+pub use utils::{decode_message, deserialize_from_struct, encode_message, serialize_into_struct};
 
 /// The type of packet this is.
 pub type PacketType = protocols::packet::Type;

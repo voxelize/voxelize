@@ -46,7 +46,8 @@ impl ChunkDataBuilder {
     }
 
     pub fn metainfo<T: Serialize>(mut self, metainfo: T) -> Self {
-        self.metainfo = Some(serialize_into_struct(metainfo));
+        self.metainfo =
+            Some(serialize_into_struct(metainfo).expect("Failed to serialize metainfo"));
         self
     }
 

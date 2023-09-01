@@ -1,8 +1,9 @@
 use actix::{Actor, AsyncContext, Context, Handler, MessageResult};
 use hashbrown::HashMap;
 use nanoid::nanoid;
+use serde_json::{json, Value};
 use voxelize::World;
-use voxelize_protocol::{encode_message, Message};
+use voxelize_protocol::{deserialize_from_struct, encode_message, Message, PacketType};
 
 use crate::{
     client::Client,
@@ -79,6 +80,23 @@ impl Server {
             client
                 .recipient
                 .do_send(EncodedMessage(encode_message(&data)));
+        }
+
+        for packet in data.packets {
+            match packet.get_type() {
+                PacketType::Init => {
+                    #[derive(serde::Deserialize, Debug)]
+                    struct Test {
+                        name: String,
+                    }
+
+                    if let Some(json) = packet.json {
+                        let test = deserialize_from_struct::<Test>(&json);
+                        println!("Test: {:?}", test);
+                    }
+                }
+                _ => {}
+            }
         }
     }
 

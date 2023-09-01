@@ -27,7 +27,7 @@ impl PacketBuilder {
     }
 
     pub fn json<T: Serialize>(mut self, json: T) -> Self {
-        self.json = Some(serialize_into_struct(json));
+        self.json = Some(serialize_into_struct(json).expect("Failed to serialize json"));
         self
     }
 

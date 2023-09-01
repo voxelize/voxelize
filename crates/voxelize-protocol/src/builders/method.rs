@@ -16,7 +16,7 @@ impl MethodDataBuilder {
     }
 
     pub fn payload<T: Serialize>(mut self, payload: T) -> Self {
-        self.payload = Some(serialize_into_struct(payload));
+        self.payload = Some(serialize_into_struct(payload).expect("Failed to serialize payload"));
         self
     }
 
