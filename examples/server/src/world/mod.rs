@@ -2,14 +2,12 @@ mod block;
 mod mesher;
 mod stages;
 
-use hashbrown::HashMap;
 use serde::Serialize;
 use voxelize::{
-    vertex_ao, BlockAccess, BlockIdentity, BlockRegistry, Chunk, ChunkManager, ChunkOptions,
-    ChunkStage, CornerData, Face, LightUtils, Mesher, MesherRegistry, SixFacesBuilder, Space,
-    TextureAtlas, Vec3, World, BLUE, GREEN, RED, UV,
+    BlockAccess, BlockIdentity, BlockRegistry, ChunkManager, ChunkOptions, Face, MesherRegistry,
+    SixFacesBuilder, TextureAtlas, Vec3, World,
 };
-use voxelize_protocol::{GeometryData, Packet, PacketType};
+use voxelize_protocol::{Packet, PacketType};
 
 use self::{block::Block, mesher::BlockMesher, stages::TestStage};
 
