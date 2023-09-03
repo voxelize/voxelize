@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 
 use crate::{Face, UV};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TextureAtlas {
     pub groups: HashMap<String, Vec<Face>>,
 }
@@ -26,6 +26,10 @@ impl TextureAtlas {
         } else {
             self.groups.insert(group.to_string(), faces.to_vec());
         }
+    }
+
+    pub fn get_faces(&self, group: &str) -> Option<&Vec<Face>> {
+        self.groups.get(group)
     }
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!

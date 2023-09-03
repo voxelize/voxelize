@@ -28,7 +28,7 @@ export type AtlasDrawable =
  *
  * @noInheritDoc
  */
-export class TextureAtlas extends CanvasTexture {
+export class AtlasTexture extends CanvasTexture {
   /**
    * The number of textures per side of the texture atlas
    */
@@ -126,7 +126,7 @@ export class TextureAtlas extends CanvasTexture {
     this.needsUpdate = true;
     this.colorSpace = SRGBColorSpace;
 
-    const unknown = TextureAtlas.makeUnknownImage(canvasWidth / countPerSide);
+    const unknown = AtlasTexture.makeUnknownImage(canvasWidth / countPerSide);
 
     for (let x = 0; x < countPerSide; x++) {
       for (let y = 0; y < countPerSide; y++) {
@@ -149,18 +149,18 @@ export class TextureAtlas extends CanvasTexture {
   ) {
     const { dimension = 32 } = options;
 
-    const atlasMap = new Map<string, TextureAtlas>();
+    const atlasMap = new Map<string, AtlasTexture>();
 
     for (const [id, faces] of json) {
       const independentFaces = faces.filter((face) => face.independent);
 
       if (independentFaces.length > 0) {
         for (const face of independentFaces) {
-          const atlas = new TextureAtlas(1, dimension, [face]);
+          const atlas = new AtlasTexture(1, dimension, [face]);
 
           atlas.drawImageToRange(
             face.range,
-            TextureAtlas.makeUnknownImage(dimension),
+            AtlasTexture.makeUnknownImage(dimension),
           );
 
           atlas.needsUpdate = true;
@@ -183,12 +183,12 @@ export class TextureAtlas extends CanvasTexture {
         countPerSide *= 2;
       }
 
-      const atlas = new TextureAtlas(countPerSide, dimension, dependentFaces);
+      const atlas = new AtlasTexture(countPerSide, dimension, dependentFaces);
 
       for (const face of faces) {
         atlas.drawImageToRange(
           face.range,
-          TextureAtlas.makeUnknownImage(dimension, face.name),
+          AtlasTexture.makeUnknownImage(dimension, face.name),
         );
       }
 
@@ -414,7 +414,7 @@ export class TextureAtlas extends CanvasTexture {
   }
 
   static makeUnknownTexture(dimension: number) {
-    const texture = new CanvasTexture(TextureAtlas.makeUnknownImage(dimension));
+    const texture = new CanvasTexture(AtlasTexture.makeUnknownImage(dimension));
 
     texture.minFilter = NearestFilter;
     texture.magFilter = NearestFilter;

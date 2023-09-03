@@ -48,8 +48,8 @@ impl<T: BlockIdentity + Clone> BlockRegistry<T> {
             .insert(block.name().to_lowercase(), Box::new(block));
     }
 
-    pub fn get_block_by_id(&self, id: u32) -> Option<&Box<T>> {
-        self.blocks_by_id.get(&id)
+    pub fn get_block_by_id(&self, id: u32) -> &Box<T> {
+        self.blocks_by_id.get(&id).unwrap()
     }
 
     pub fn get_block_by_name(&self, name: &str) -> Option<&Box<T>> {

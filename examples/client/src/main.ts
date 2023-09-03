@@ -1,4 +1,4 @@
-import { TextureAtlas } from "@voxelize/core";
+import { AtlasTexture } from "@voxelize/core";
 import { NetIntercept, Network } from "@voxelize/network";
 import { Message } from "@voxelize/protocol";
 import * as THREE from "three";
@@ -37,7 +37,7 @@ class World implements NetIntercept {
           case "INIT":
             const { atlas, name } = packet.json;
 
-            const textureAtlasMap = TextureAtlas.fromJSON(atlas);
+            const textureAtlasMap = AtlasTexture.fromJSON(atlas);
 
             let i = 0;
 

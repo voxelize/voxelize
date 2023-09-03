@@ -13,8 +13,11 @@ use hashbrown::HashMap;
 use nanoid::nanoid;
 use std::sync::mpsc::{self, Receiver, Sender};
 
+use voxelize_protocol::MeshData;
+
 use crate::{
-    BlockIdentity, BlockRegistry, ChunkOptions, MesherRegistry, RegionMesher, Space, Vec2, Vec3,
+    BlockIdentity, BlockRegistry, ChunkOptions, Face, MesherRegistry, RegionMesher, Space,
+    TextureAtlas, Vec2, Vec3,
 };
 
 use super::{Chunk, ChunkCoords, ChunkStatus};
@@ -101,6 +104,13 @@ impl<T: BlockIdentity> Job<T> {
                         );
 
                         let geometries = region_mesher.mesh(chunk, min, max);
+                        let mesh = MeshData::new(i as i32).geometries(geometries).build();
+
+                        if chunk.meshes.is_none() {
+                            chunk.meshes = Some(HashMap::new());
+                        }
+
+                        chunk.meshes.as_mut().unwrap().insert(i as u32, mesh);
                     }
 
                     chunk.status = ChunkStatus::Ready;
@@ -128,6 +138,7 @@ pub struct ChunkManager<T: BlockIdentity + Clone> {
 
     block_registry: BlockRegistry<T>,
     mesh_registry: MesherRegistry<T>,
+    texture_atlas: TextureAtlas,
     chunk_dependency_map: HashMap<ChunkCoords, Vec<ChunkCoords>>,
 
     workers: Vec<thread::JoinHandle<()>>,
@@ -139,6 +150,7 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
     pub fn new(
         block_registry: BlockRegistry<T>,
         mesh_registry: MesherRegistry<T>,
+        texture_atlas: TextureAtlas,
         options: &ChunkOptions,
     ) -> Self {
         let (job_sender, job_receiver) = mpsc::channel();
@@ -153,6 +165,7 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
             chunk_dependency_map: HashMap::new(),
             block_registry,
             mesh_registry,
+            texture_atlas,
             workers: Vec::new(),
             stop_signal: Arc::new(AtomicBool::new(false)),
             stages: Vec::new(),
@@ -283,13 +296,17 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
 
             let block_registry = self.block_registry.clone();
             let mesh_registry = self.mesh_registry.clone();
+            let texture_atlas = self.texture_atlas.clone();
 
             let worker = thread::spawn(move || {
                 let block_registry = block_registry;
                 let mesh_registry = mesh_registry;
 
-                let region_mesher =
-                    RegionMesher::new(mesh_registry.clone(), block_registry.clone());
+                let region_mesher = RegionMesher::new(
+                    mesh_registry.clone(),
+                    block_registry.clone(),
+                    texture_atlas.clone(),
+                );
 
                 while !stop_signal.load(Ordering::SeqCst) {
                     if let Ok(mut job) = job_receiver.lock().unwrap().recv() {

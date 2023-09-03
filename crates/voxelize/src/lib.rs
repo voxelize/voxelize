@@ -11,6 +11,7 @@ mod world;
 pub use block::*;
 pub use chunks::*;
 pub use libs::*;
+pub use light::*;
 pub use mesher::*;
 pub use texture::*;
 pub use world::World;

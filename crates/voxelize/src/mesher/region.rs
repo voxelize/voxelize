@@ -1,7 +1,7 @@
 use hashbrown::HashMap;
 use voxelize_protocol::GeometryData;
 
-use crate::{libs::Vec3, BlockAccess, BlockIdentity, BlockRegistry};
+use crate::{libs::Vec3, BlockAccess, BlockIdentity, BlockRegistry, Face, TextureAtlas};
 
 use super::MesherRegistry;
 
@@ -9,13 +9,19 @@ use super::MesherRegistry;
 pub struct RegionMesher<T: BlockIdentity> {
     mesher_registry: MesherRegistry<T>,
     block_registry: BlockRegistry<T>,
+    texture_atlas: TextureAtlas,
 }
 
 impl<T: BlockIdentity> RegionMesher<T> {
-    pub fn new(mesher_registry: MesherRegistry<T>, block_registry: BlockRegistry<T>) -> Self {
+    pub fn new(
+        mesher_registry: MesherRegistry<T>,
+        block_registry: BlockRegistry<T>,
+        texture_atlas: TextureAtlas,
+    ) -> Self {
         Self {
             mesher_registry,
             block_registry,
+            texture_atlas,
         }
     }
 
@@ -36,8 +42,14 @@ impl<T: BlockIdentity> RegionMesher<T> {
                     let block_id = block_access.get_block_id(x, y, z);
 
                     if let Some(mesher) = self.mesher_registry.get_mesher_by_block_id(block_id) {
-                        let geometries =
-                            mesher.mesh(&Vec3(x, y, z), block_access, &self.block_registry);
+                        let geometries = mesher.mesh(
+                            &min_coords,
+                            &max_coords,
+                            &Vec3(x, y, z),
+                            block_access,
+                            &self.block_registry,
+                            &self.texture_atlas,
+                        );
 
                         for mut geometry in geometries {
                             let identifier = get_identifier(&geometry.face_name, block_id);

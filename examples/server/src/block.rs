@@ -5,6 +5,7 @@ pub struct Block {
     pub id: BlockId,
     pub name: String,
     pub is_solid: bool,
+    pub is_transparent: bool,
 }
 
 impl Block {
@@ -18,6 +19,7 @@ pub struct BlockBuilder {
     id: BlockId,
     name: String,
     is_solid: bool,
+    is_transparent: bool,
 }
 
 impl BlockBuilder {
@@ -34,11 +36,17 @@ impl BlockBuilder {
         self
     }
 
+    pub fn is_transparent(mut self, is_transparent: bool) -> Self {
+        self.is_transparent = is_transparent;
+        self
+    }
+
     pub fn build(self) -> Block {
         Block {
             id: self.id,
             name: self.name,
             is_solid: self.is_solid,
+            is_transparent: self.is_transparent,
         }
     }
 }
