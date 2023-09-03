@@ -71,14 +71,18 @@ impl Default for TestWorld<Block> {
 
         let air = Block::new(0, "air").build();
         let stone = Block::new(1, "stone").build();
+        let dirt = Block::new(2, "dirt").build();
 
-        let block_registry = BlockRegistry::with_blocks(vec![air, stone]);
+        let block_registry = BlockRegistry::with_blocks(vec![air, stone, dirt]);
 
         let mut mesher_registry = MesherRegistry::new();
         mesher_registry.register(BlockMesher);
 
+        let six_faces = SixFacesBuilder::new().build();
+
         let mut texture_atlas = TextureAtlas::new();
-        texture_atlas.add_faces("stone", &SixFacesBuilder::new().build());
+        texture_atlas.add_faces("stone", &six_faces);
+        texture_atlas.add_faces("dirt", &six_faces);
         texture_atlas.generate();
 
         let mut chunk_manager = ChunkManager::new(block_registry, mesher_registry, &chunk_options);

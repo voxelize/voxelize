@@ -3,6 +3,7 @@ import { NetIntercept, Network } from "@voxelize/network";
 import { Message } from "@voxelize/protocol";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import Cat404Image from "./assets/404.png";
 import "./style.css";
 
 const packetTest = document.getElementById("packet-test") as HTMLButtonElement;
@@ -38,6 +39,8 @@ class World implements NetIntercept {
 
             const textureAtlasMap = TextureAtlas.fromJSON(atlas);
 
+            let i = 0;
+
             for (const textureAtlas of textureAtlasMap.values()) {
               const plane = new THREE.Mesh(
                 new THREE.PlaneGeometry(1, 1),
@@ -49,7 +52,18 @@ class World implements NetIntercept {
               );
 
               scene.add(plane);
+
+              plane.position.x = i * 1.1;
+
+              i++;
             }
+
+            const image = new Image();
+            image.src = Cat404Image;
+            image.onload = () => {
+              console.log(image);
+              textureAtlasMap.get("dirt")?.drawImageToFace("px", image);
+            };
 
             console.log(textureAtlasMap);
 

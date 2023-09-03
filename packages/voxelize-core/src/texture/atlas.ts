@@ -7,7 +7,14 @@ import {
   Texture,
 } from "three";
 import { UV } from ".";
-import { CornerData } from "./corner";
+import { Face } from "./face";
+
+export type AtlasDrawable =
+  | typeof Image
+  | HTMLImageElement
+  | HTMLCanvasElement
+  | Color
+  | Texture;
 
 /**
  * A texture atlas is a collection of textures that are packed into a single texture.
@@ -57,6 +64,8 @@ export class TextureAtlas extends CanvasTexture {
    */
   public animations: { animation: FaceAnimation; timer: any }[] = [];
 
+  public faces: Face[] = [];
+
   /**
    * Create a new texture this.
    *
@@ -68,6 +77,7 @@ export class TextureAtlas extends CanvasTexture {
   constructor(
     countPerSide: number,
     dimension: number,
+    faces: Face[] = [],
     canvas = document.createElement("canvas"),
   ) {
     super(canvas);
@@ -76,6 +86,7 @@ export class TextureAtlas extends CanvasTexture {
 
     this.countPerSide = countPerSide;
     this.dimension = dimension;
+    this.faces = faces;
 
     if (countPerSide === 1) {
       this.atlasOffset = 0;
@@ -131,21 +142,12 @@ export class TextureAtlas extends CanvasTexture {
   }
 
   static fromJSON(
-    json: [
-      string,
-      {
-        name: string;
-        independent: boolean;
-        dir: [number, number, number];
-        corners: [CornerData, CornerData, CornerData, CornerData];
-        range: UV;
-      }[],
-    ][],
+    json: [string, Face[]][],
     options: Partial<{
       dimension: number;
     }> = {},
   ) {
-    const { dimension = 64 } = options;
+    const { dimension = 32 } = options;
 
     const atlasMap = new Map<string, TextureAtlas>();
 
@@ -154,7 +156,7 @@ export class TextureAtlas extends CanvasTexture {
 
       if (independentFaces.length > 0) {
         for (const face of independentFaces) {
-          const atlas = new TextureAtlas(1, dimension);
+          const atlas = new TextureAtlas(1, dimension, [face]);
 
           atlas.drawImageToRange(
             face.range,
@@ -181,7 +183,7 @@ export class TextureAtlas extends CanvasTexture {
         countPerSide *= 2;
       }
 
-      const atlas = new TextureAtlas(countPerSide, dimension);
+      const atlas = new TextureAtlas(countPerSide, dimension, dependentFaces);
 
       for (const face of faces) {
         atlas.drawImageToRange(
@@ -198,6 +200,21 @@ export class TextureAtlas extends CanvasTexture {
     return atlasMap;
   }
 
+  drawImageToFace(
+    faceName: string,
+    image: AtlasDrawable,
+    clearRect = true,
+    opacity = 1.0,
+  ) {
+    const face = this.faces.find((face) => face.name === faceName);
+
+    if (!face) {
+      return;
+    }
+
+    this.drawImageToRange(face.range, image, clearRect, opacity);
+  }
+
   /**
    * Draw a texture to a range on the texture atlas.
    *
@@ -206,12 +223,7 @@ export class TextureAtlas extends CanvasTexture {
    */
   drawImageToRange(
     range: UV,
-    image:
-      | typeof Image
-      | HTMLImageElement
-      | HTMLCanvasElement
-      | Color
-      | Texture,
+    image: AtlasDrawable,
     clearRect = true,
     opacity = 1.0,
   ) {
@@ -288,6 +300,8 @@ export class TextureAtlas extends CanvasTexture {
     );
 
     context.restore();
+
+    this.needsUpdate = true;
   }
 
   registerAnimation(
