@@ -1,4 +1,3 @@
-mod block;
 mod world;
 
 use actix::{Actor, Addr};
@@ -7,8 +6,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use serde_json::json;
 use voxelize::{BlockRegistry, Job, JobTicket, MesherRegistry, RegionMesher, Vec2};
 use voxelize_actix::{GetWorlds, Server};
-
-use crate::{block::Block, world::TestWorld};
+use world::TestWorld;
 
 #[get("/")]
 async fn hello() -> impl Responder {
