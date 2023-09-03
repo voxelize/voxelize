@@ -3,11 +3,11 @@ use hashbrown::HashMap;
 use crate::{Face, UV};
 
 #[derive(Default)]
-pub struct Atlas {
+pub struct TextureAtlas {
     pub groups: HashMap<String, Vec<Face>>,
 }
 
-impl Atlas {
+impl TextureAtlas {
     pub fn new() -> Self {
         Self::default()
     }

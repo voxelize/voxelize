@@ -46,13 +46,13 @@ export type ActionData<T> = {
 
 export type Packet<
   T extends {
-    chunk?: unknown;
-    entity?: unknown;
-    event?: unknown;
-    method?: unknown;
-    action?: unknown;
-    json?: unknown;
-  } = Record<string, unknown>,
+    chunk?: any;
+    entity?: any;
+    event?: any;
+    method?: any;
+    action?: any;
+    json?: any;
+  } = Record<string, any>,
 > = {
   type:
     | "INIT"

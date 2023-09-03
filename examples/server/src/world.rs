@@ -1,7 +1,8 @@
+use hashbrown::HashMap;
 use serde::Serialize;
 use voxelize::{
-    BlockAccess, BlockIdentity, BlockRegistry, Chunk, ChunkManager, ChunkOptions, ChunkStage,
-    Mesher, MesherRegistry, Space, Vec3, World,
+    BlockAccess, BlockIdentity, BlockRegistry, Chunk, ChunkManager, ChunkOptions, ChunkStage, Face,
+    Mesher, MesherRegistry, SixFacesBuilder, Space, TextureAtlas, Vec3, World,
 };
 use voxelize_protocol::{GeometryData, Packet, PacketType};
 
@@ -33,11 +34,13 @@ impl ChunkStage for TestStage {
 #[derive(Clone, Serialize)]
 pub struct TestWorldInitData {
     name: String,
+    atlas: Vec<(String, Vec<Face>)>,
 }
 
 pub struct TestWorld<T: BlockIdentity + Clone> {
     clients: Vec<String>,
     id: String,
+    atlas: TextureAtlas,
     pub chunk_manager: ChunkManager<T>,
     pub packets: Vec<(String, Vec<Packet>)>,
 }
@@ -74,6 +77,10 @@ impl Default for TestWorld<Block> {
         let mut mesher_registry = MesherRegistry::new();
         mesher_registry.register(BlockMesher);
 
+        let mut texture_atlas = TextureAtlas::new();
+        texture_atlas.add_faces("stone", &SixFacesBuilder::new().build());
+        texture_atlas.generate();
+
         let mut chunk_manager = ChunkManager::new(block_registry, mesher_registry, &chunk_options);
 
         chunk_manager.start_job_processor(8);
@@ -82,6 +89,7 @@ impl Default for TestWorld<Block> {
         Self {
             clients: vec![],
             id: "test".to_string(),
+            atlas: texture_atlas,
             chunk_manager,
             packets: vec![],
         }
@@ -110,6 +118,12 @@ impl World for TestWorld<Block> {
             vec![Packet::new(PacketType::Init)
                 .json(TestWorldInitData {
                     name: self.name().to_string(),
+                    atlas: self
+                        .atlas
+                        .groups
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
                 })
                 .build()],
         ))
