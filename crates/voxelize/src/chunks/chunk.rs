@@ -111,10 +111,10 @@ impl Chunk {
     }
 
     /// Convert chunk to protocol model.
-    pub fn to_model(&self, mesh: bool, data: bool, levels: Range<u32>) -> ChunkData {
+    pub fn to_model(&self, include_mesh: bool, levels: Range<u32>) -> ChunkData {
         let mut meshes = vec![];
 
-        if mesh {
+        if include_mesh {
             if self.meshes.is_some() {
                 levels.for_each(|level| {
                     if let Some(mesh) = self.meshes.as_ref().unwrap().get(&level) {

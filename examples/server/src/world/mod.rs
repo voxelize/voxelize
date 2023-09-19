@@ -3,9 +3,13 @@ mod components;
 mod mesher;
 mod stages;
 mod systems;
+mod types;
 
 use serde::{Deserialize, Serialize};
-use specs::{Builder, DispatcherBuilder, Entity, Join, World, WorldExt};
+use specs::{
+    shred::{Fetch, FetchMut},
+    Builder, DispatcherBuilder, Entity, Join, World, WorldExt,
+};
 use voxelize::{
     BlockAccess, BlockIdentity, BlockRegistry, ChunkCoords, ChunkManager, ChunkOptions, Face,
     MesherRegistry, SixFacesBuilder, TextureAtlas, Vec3, World as WorldLike,
@@ -16,7 +20,8 @@ use self::{
     components::{ChunkRequests, ClientFlag, ClientId},
     mesher::BlockMesher,
     stages::TestStage,
-    systems::ChunkingSystem,
+    systems::{ChunkRequestingSystem, ChunkingSystem},
+    types::PacketQueue,
 };
 
 pub use self::block::Block;
@@ -31,7 +36,6 @@ pub struct VoxelizeWorld {
     id: String,
     atlas: TextureAtlas,
     pub ecs: World,
-    pub packets: Vec<(String, Vec<Packet>)>,
 }
 
 impl VoxelizeWorld {
@@ -45,6 +49,10 @@ impl VoxelizeWorld {
         }
 
         None
+    }
+
+    pub fn packet_queue_mut(&mut self) -> FetchMut<PacketQueue> {
+        self.ecs.write_resource::<PacketQueue>()
     }
 }
 
@@ -80,9 +88,12 @@ impl Default for VoxelizeWorld {
 
         let mut ecs = World::new();
 
+        let packet_queue = PacketQueue::new();
+
         ecs.insert(block_registry);
         ecs.insert(mesher_registry);
         ecs.insert(chunk_manager);
+        ecs.insert(packet_queue);
 
         ecs.register::<ClientId>();
         ecs.register::<ChunkRequests>();
@@ -92,7 +103,6 @@ impl Default for VoxelizeWorld {
             id: "test".to_string(),
             atlas: texture_atlas,
             ecs,
-            packets: vec![],
         }
     }
 }
@@ -123,18 +133,20 @@ impl WorldLike for VoxelizeWorld {
             .build();
 
         // Send the init packet to the client
-        self.packets.push((
+        let name = self.name().to_string();
+        let atlas = self
+            .atlas
+            .groups
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        let mut packet_queue = self.packet_queue_mut();
+
+        packet_queue.push((
             client_id.to_string(),
             vec![Packet::new(PacketType::Init)
-                .json(VoxelizeWorldInitData {
-                    name: self.name().to_string(),
-                    atlas: self
-                        .atlas
-                        .groups
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect(),
-                })
+                .json(VoxelizeWorldInitData { name, atlas })
                 .build()],
         ))
     }
@@ -156,7 +168,7 @@ impl WorldLike for VoxelizeWorld {
     }
 
     fn packets(&mut self) -> Vec<(String, Vec<Packet>)> {
-        self.packets.drain(..).collect()
+        self.packet_queue_mut().drain(..).collect()
     }
 
     fn on_packet(&mut self, client_id: &str, packet: Packet) {
@@ -188,28 +200,12 @@ impl WorldLike for VoxelizeWorld {
 
     fn update(&mut self) {
         let mut dispatcher = DispatcherBuilder::new()
-            .with(ChunkingSystem, "chunking_system", &[])
+            .with(ChunkingSystem, "chunking", &[])
+            .with(ChunkRequestingSystem, "chunk_requesting", &["chunking"])
             .build();
 
         dispatcher.dispatch(&self.ecs);
 
         self.ecs.maintain();
-
-        let chunk_manager: &mut ChunkManager<Block> =
-            self.ecs.get_mut::<ChunkManager<Block>>().unwrap();
-
-        let done_jobs = chunk_manager.get_done_jobs();
-
-        for job in done_jobs {
-            let coords = job.coords;
-            let chunk = chunk_manager.chunks.get(&coords);
-
-            if let Some(chunk) = chunk {
-                println!("Chunk status: {:?} {:?}", chunk.coords, chunk.status);
-
-                let Vec3(x, y, z) = chunk.min;
-                println!("Block at 0, 0, 0: {}", chunk.get_block_id(x, y, z));
-            }
-        }
     }
 }

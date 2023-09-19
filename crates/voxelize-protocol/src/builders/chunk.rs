@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use prost_wkt_types::Struct;
 use serde::Serialize;
 

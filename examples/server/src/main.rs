@@ -32,7 +32,7 @@ async fn main() -> std::io::Result<()> {
         std::time::Duration::from_millis(16),
     );
 
-    let mut new_world = VoxelizeWorld::default();
+    let new_world = VoxelizeWorld::default();
 
     server.add_world(new_world);
 

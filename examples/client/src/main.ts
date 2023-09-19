@@ -84,6 +84,23 @@ class World implements NetIntercept {
             console.log(atlas);
             break;
 
+          case "CHUNK": {
+            const { chunks } = packet;
+            console.log(chunks);
+
+            if (!chunks) break;
+
+            for (const chunk of chunks) {
+              const { meshes } = chunk;
+
+              meshes.forEach((mesh) => {
+                console.log(mesh);
+              });
+            }
+
+            break;
+          }
+
           default: {
             console.log(packet);
           }
