@@ -11,7 +11,7 @@ packetTest.addEventListener("click", () => {
   network.sendPackets([
     {
       type: "INIT",
-      json: { name: "test" },
+      json: { name: "test", email: "test@gmail.com", number: 42 },
       chunks: [
         {
           x: 0,
@@ -25,6 +25,20 @@ packetTest.addEventListener("click", () => {
           metainfo: {},
         },
       ],
+    },
+  ]);
+});
+
+const chunkingTest = document.getElementById(
+  "chunking-test",
+) as HTMLButtonElement;
+chunkingTest.addEventListener("click", () => {
+  network.sendPackets([
+    {
+      type: "CHUNK",
+      json: {
+        chunks: [[0, 0]],
+      },
     },
   ]);
 });

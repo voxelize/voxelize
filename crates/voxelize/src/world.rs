@@ -22,7 +22,7 @@ pub trait World {
     }
 
     /// A list of clients in this world.
-    fn clients(&self) -> Vec<&str>;
+    fn clients(&self) -> Vec<String>;
 
     /// Adds a client to the world. This is called by the server when a new
     /// client is connected to this world.

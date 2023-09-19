@@ -86,19 +86,17 @@ impl Server {
     }
 
     pub(crate) fn on_request(&mut self, client_id: &str, data: Message) {
-        // // Echo the message back to the client.
-        // if let Some(client) = self.clients.get_mut(client_id) {
-        //     client
-        //         .recipient
-        //         .do_send(EncodedMessage(encode_message(&data)));
-        // }
-
         for packet in data.packets {
             match packet.get_type() {
                 PacketType::Join => {
                     if let Some(world_id) = packet.text {
                         if let Some(world) = self.worlds.get_mut(&world_id) {
                             world.add_client(client_id);
+                        }
+
+                        // Set the world ID of the client
+                        if let Some(client) = self.clients.get_mut(client_id) {
+                            client.world_id = Some(world_id);
                         }
                     }
                 }
@@ -107,9 +105,29 @@ impl Server {
                         if let Some(world) = self.worlds.get_mut(&world_id) {
                             world.remove_client(client_id);
                         }
+
+                        // Remove the world ID of the client
+                        if let Some(client) = self.clients.get_mut(client_id) {
+                            client.world_id = None;
+                        }
                     }
                 }
-                _ => {}
+                _ => {
+                    if let Some(client) = self.clients.get(client_id) {
+                        if let Some(world_id) = client.world_id.as_ref() {
+                            if let Some(world) = self.worlds.get_mut(world_id) {
+                                world.on_packet(client_id, packet);
+                            } else {
+                                println!("World {} does not exist", world_id);
+                            }
+                        } else {
+                            println!("Client {} is not in a world", client_id);
+                        }
+                    } else {
+                        // TODO: implement a proper error system
+                        println!("Client {} does not exist", client_id);
+                    }
+                }
             }
         }
     }

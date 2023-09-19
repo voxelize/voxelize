@@ -9,9 +9,9 @@ use std::{
     time::Duration,
 };
 
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::HashMap;
 use nanoid::nanoid;
-use std::sync::mpsc::{self, Receiver, Sender};
 
 use voxelize_protocol::MeshData;
 
@@ -37,9 +37,10 @@ pub trait ChunkStage: Send + Sync {
     fn process(&self, chunk: Chunk) -> Chunk;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum JobTicket {
-    Generate(String, ChunkCoords),
+    // id, coords, is_dependent
+    Generate(String, ChunkCoords, bool),
     Light(String, ChunkCoords),
     Mesh(String, ChunkCoords),
 }
@@ -47,7 +48,7 @@ pub enum JobTicket {
 impl JobTicket {
     pub fn get_coords(&self) -> ChunkCoords {
         match self {
-            JobTicket::Generate(_, coords) => coords.to_owned(),
+            JobTicket::Generate(_, coords, _) => coords.to_owned(),
             JobTicket::Light(_, coords) => coords.to_owned(),
             JobTicket::Mesh(_, coords) => coords.to_owned(),
         }
@@ -66,7 +67,7 @@ pub struct Job<T: BlockIdentity> {
 impl<T: BlockIdentity> Job<T> {
     fn process(&mut self, block_registry: &BlockRegistry<T>, region_mesher: &RegionMesher<T>) {
         match &self.ticket {
-            JobTicket::Generate(id, coords) => {
+            JobTicket::Generate(id, coords, is_dependent) => {
                 // Generate the chunk
                 let mut chunk: Chunk = Chunk::new(&nanoid!(), coords.0, coords.1, &self.options);
                 for stage in &self.stages {
@@ -131,13 +132,13 @@ pub struct ChunkManager<T: BlockIdentity + Clone> {
 
     pub chunks: HashMap<ChunkCoords, Chunk>,
 
-    job_sender: Sender<Job<T>>,
+    job_sender: Arc<Sender<Job<T>>>,
     job_receiver: Arc<Mutex<Receiver<Job<T>>>>,
     job_queue: Arc<Mutex<Vec<Job<T>>>>,
     result_queue: Arc<Mutex<Vec<JobResult>>>,
 
     block_registry: BlockRegistry<T>,
-    mesh_registry: MesherRegistry<T>,
+    mesher_registry: MesherRegistry<T>,
     texture_atlas: TextureAtlas,
     chunk_dependency_map: HashMap<ChunkCoords, Vec<ChunkCoords>>,
 
@@ -148,28 +149,32 @@ pub struct ChunkManager<T: BlockIdentity + Clone> {
 
 impl<T: BlockIdentity + Clone> ChunkManager<T> {
     pub fn new(
-        block_registry: BlockRegistry<T>,
-        mesh_registry: MesherRegistry<T>,
-        texture_atlas: TextureAtlas,
+        block_registry: &BlockRegistry<T>,
+        mesher_registry: &MesherRegistry<T>,
+        texture_atlas: &TextureAtlas,
         options: &ChunkOptions,
     ) -> Self {
-        let (job_sender, job_receiver) = mpsc::channel();
+        let (job_sender, job_receiver) = unbounded();
 
         Self {
             options: options.clone(),
             chunks: HashMap::new(),
-            job_sender,
+            job_sender: Arc::new(job_sender),
             job_receiver: Arc::new(Mutex::new(job_receiver)),
             job_queue: Arc::new(Mutex::new(Vec::new())),
             result_queue: Arc::new(Mutex::new(Vec::new())),
             chunk_dependency_map: HashMap::new(),
-            block_registry,
-            mesh_registry,
-            texture_atlas,
+            block_registry: block_registry.clone(),
+            mesher_registry: mesher_registry.clone(),
+            texture_atlas: texture_atlas.clone(),
             workers: Vec::new(),
             stop_signal: Arc::new(AtomicBool::new(false)),
             stages: Vec::new(),
         }
+    }
+
+    pub fn get_chunk(&self, coords: &ChunkCoords) -> Option<Chunk> {
+        self.chunks.get(coords).cloned()
     }
 
     pub fn add_stage<S: ChunkStage + 'static>(&mut self, stage: S) {
@@ -203,16 +208,37 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
             (self.options.max_light_levels as f32 / self.options.chunk_size as f32).ceil() as i32;
 
         match &ticket {
-            JobTicket::Generate(id, coords) => {
+            JobTicket::Generate(id, coords, is_dependent) => {
                 // Add chunks into the chunk dependency map
-                for x in -light_chunk_radius..light_chunk_radius {
-                    for z in -light_chunk_radius..light_chunk_radius {
-                        let coords = Vec2(coords.0 + x, coords.1 + z);
+                for x in -light_chunk_radius..(light_chunk_radius + 1) {
+                    for z in -light_chunk_radius..(light_chunk_radius + 1) {
+                        if x == 0 && z == 0 {
+                            continue;
+                        }
 
-                        self.chunk_dependency_map
-                            .entry(coords.to_owned())
-                            .or_insert_with(Vec::new)
-                            .push(coords);
+                        println!(
+                            "Adding chunk {:?} as a dependency of {:?}",
+                            coords,
+                            Vec2(coords.0 + x, coords.1 + z)
+                        );
+
+                        let neighbor_coords = Vec2(coords.0 + x, coords.1 + z);
+
+                        if let Some(dependencies) = self.chunk_dependency_map.get_mut(coords) {
+                            dependencies.push(neighbor_coords.to_owned());
+                        } else {
+                            self.chunk_dependency_map
+                                .insert(coords.clone(), vec![coords.to_owned()]);
+                        }
+
+                        // Add the chunk as a job ticket
+                        if !*is_dependent {
+                            self.add_job_ticket(JobTicket::Generate(
+                                id.to_owned(),
+                                neighbor_coords,
+                                true,
+                            ));
+                        }
                     }
                 }
             }
@@ -220,7 +246,7 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
         }
 
         let space = match &ticket {
-            JobTicket::Generate(_, _) => None,
+            JobTicket::Generate(_, _, _) => None,
             JobTicket::Light(_, coords) => Some(self.generate_space(coords, light_chunk_radius)),
             JobTicket::Mesh(_, coords) => Some(self.generate_space(coords, 1)),
         };
@@ -268,7 +294,7 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
             if let Some(dependencies) = self.chunk_dependency_map.get(&ticket.get_coords()) {
                 if dependencies.is_empty() {
                     match ticket {
-                        JobTicket::Generate(id, coords) => {
+                        JobTicket::Generate(id, coords, _) => {
                             self.add_job_ticket(JobTicket::Light(id, coords))
                         }
                         JobTicket::Light(id, coords) => {
@@ -295,15 +321,12 @@ impl<T: BlockIdentity + Clone> ChunkManager<T> {
             let stop_signal = self.stop_signal.clone();
 
             let block_registry = self.block_registry.clone();
-            let mesh_registry = self.mesh_registry.clone();
+            let mesher_registry = self.mesher_registry.clone();
             let texture_atlas = self.texture_atlas.clone();
 
             let worker = thread::spawn(move || {
-                let block_registry = block_registry;
-                let mesh_registry = mesh_registry;
-
                 let region_mesher = RegionMesher::new(
-                    mesh_registry.clone(),
+                    mesher_registry.clone(),
                     block_registry.clone(),
                     texture_atlas.clone(),
                 );
