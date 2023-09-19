@@ -112,6 +112,23 @@ impl Physics {
         (body_handle, collider_handle)
     }
 
+    pub fn unregister(&mut self, body_handle: &RapierBodyHandle, collider_handle: &ColliderHandle) {
+        self.body_set.remove(
+            body_handle.to_owned(),
+            &mut self.island_manager,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            true,
+        );
+        self.collider_set.remove(
+            collider_handle.to_owned(),
+            &mut self.island_manager,
+            &mut self.body_set,
+            true,
+        );
+    }
+
     pub fn get(&self, body_handle: &RapierBodyHandle) -> &RapierBody {
         &self.body_set[body_handle.to_owned()]
     }

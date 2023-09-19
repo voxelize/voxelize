@@ -400,6 +400,28 @@ impl World {
 
         if let Some(client) = removed {
             {
+                // Remove rapier physics body.
+                let interactors = self.ecs.read_storage::<InteractorComp>();
+                let interactor = interactors
+                    .get(client.entity)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "Something went wrong with deleting this client: {}",
+                            client.id
+                        )
+                    })
+                    .to_owned();
+
+                let body_handle = interactor.body_handle().to_owned();
+                let collider_handle = interactor.collider_handle().to_owned();
+
+                drop(interactors);
+
+                {
+                    let mut physics = self.physics_mut();
+                    physics.unregister(&body_handle, &collider_handle);
+                }
+
                 let entities = self.ecs.entities();
 
                 entities.delete(client.entity).unwrap_or_else(|_| {
