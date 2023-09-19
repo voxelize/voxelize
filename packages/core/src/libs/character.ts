@@ -425,6 +425,8 @@ export class Character extends Group {
    * @param direction The new direction of the character.
    */
   set(position: number[], direction: number[]) {
+    if (!position || !direction) return;
+
     this.newPosition.set(position[0], position[1], position[2]);
 
     this.newDirection.copy(
@@ -445,7 +447,7 @@ export class Character extends Group {
   set username(username: string) {
     if (!this.nametag) {
       this.nametag = new NameTag(username, {
-        yOffset: this.totalHeight / 2 + this.head.height / 2 + 0.1,
+        yOffset: this.head.height / 2 + 0.2,
         fontSize: 0.2,
       });
       this.add(this.nametag);

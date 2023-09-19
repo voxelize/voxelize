@@ -369,9 +369,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * - `options.bodyWidth`
    * - `options.bodyHeight`
    * - `options.bodyDepth`
-   *
-   * Keep in mind that by calling {@link RigidControls.attachCharacter}, the body is
-   * resized to match the character's bounding box.
    */
   public body: RigidBody;
 
@@ -554,9 +551,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         .normalize();
 
       const cameraPosition = this.object.position.toArray();
-
-      cameraPosition[1] += this.character.head.height / 2;
-      cameraPosition[1] -= this.character.totalHeight / 2;
 
       this.character.set(cameraPosition, [dx, dy, dz]);
       this.character.update();

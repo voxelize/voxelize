@@ -189,7 +189,6 @@ const lightShined = new VOXELIZE.LightShined(world);
 const shadows = new VOXELIZE.Shadows(world);
 
 const character = createCharacter();
-character.position.set(0, 10, -5);
 
 const controls = new VOXELIZE.RigidControls(
   camera,

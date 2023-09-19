@@ -69,7 +69,7 @@ impl RigidBody {
         self.mark_active()
     }
 
-    /// Get the position of the rigid body, which is the bottom center of the rigid body.
+    /// Get the position of the rigid body, which is the center of the rigid body.
     pub fn get_position(&self) -> Vec3<f32> {
         let [offset_w, offset_h, offset_d] = self.aabb_offset();
         Vec3(

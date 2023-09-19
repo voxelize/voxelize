@@ -94,9 +94,6 @@ export class Peers<
    */
   public ownUsername = "";
 
-  /**
-   * The peer object that represents the client themselves. This is set when you call {@link Peers.setOwnPeer}.
-   */
   public ownPeer?: C;
 
   /**

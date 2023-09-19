@@ -26,9 +26,7 @@ impl<'a> System<'a> for PhysicsSystem {
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Chunks>,
-        WriteExpect<'a, Events>,
         WriteExpect<'a, Physics>,
-        ReadStorage<'a, IDComp>,
         ReadStorage<'a, CurrentChunkComp>,
         ReadStorage<'a, InteractorComp>,
         ReadStorage<'a, ClientFlag>,
@@ -47,9 +45,7 @@ impl<'a> System<'a> for PhysicsSystem {
             registry,
             config,
             chunks,
-            mut events,
             mut physics,
-            ids,
             curr_chunks,
             interactors,
             client_flag,
@@ -84,96 +80,95 @@ impl<'a> System<'a> for PhysicsSystem {
             });
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
-        physics
-            .step(stats.delta)
-            .into_iter()
-            .for_each(|event| match event {
-                CollisionEvent::Started(ch1, ch2, _) => {
-                    let ent1 = if let Some(ent) = collision_map.get(&ch1) {
-                        ent
-                    } else {
-                        return;
-                    };
-                    let ent2 = if let Some(ent) = collision_map.get(&ch2) {
-                        ent
-                    } else {
-                        return;
-                    };
+        let collision_events = physics.step(stats.delta);
+        let mut started_collisions = Vec::new();
+        let mut stopped_collisions = Vec::new();
 
-                    if let Some(collision_comp) = collisions.get_mut(*ent1) {
-                        collision_comp.0.push((event, *ent2))
-                    }
-                    if let Some(collision_comp) = collisions.get_mut(*ent2) {
-                        collision_comp.0.push((event, *ent1))
+        for event in collision_events {
+            match event {
+                CollisionEvent::Started(ch1, ch2, _) => {
+                    if let (Some(ent1), Some(ent2)) =
+                        (collision_map.get(&ch1), collision_map.get(&ch2))
+                    {
+                        started_collisions.push((*ent1, *ent2, event));
                     }
                 }
                 CollisionEvent::Stopped(ch1, ch2, _) => {
-                    let ent1 = if let Some(ent) = collision_map.get(&ch1) {
-                        ent
-                    } else {
-                        return;
-                    };
-                    let ent2 = if let Some(ent) = collision_map.get(&ch2) {
-                        ent
-                    } else {
-                        return;
-                    };
-
-                    if let Some(collision_comp) = collisions.get_mut(*ent1) {
-                        collision_comp.0.push((event, *ent2))
-                    }
-                    if let Some(collision_comp) = collisions.get_mut(*ent2) {
-                        collision_comp.0.push((event, *ent1))
+                    if let (Some(ent1), Some(ent2)) =
+                        (collision_map.get(&ch1), collision_map.get(&ch2))
+                    {
+                        stopped_collisions.push((*ent1, *ent2, event));
                     }
                 }
-            });
+                _ => {}
+            }
+        }
+
+        for (ent1, ent2, event) in started_collisions {
+            if let Some(collision_comp) = collisions.get_mut(ent1) {
+                collision_comp.0.push((event, ent2));
+            }
+            if let Some(collision_comp) = collisions.get_mut(ent2) {
+                collision_comp.0.push((event, ent1));
+            }
+        }
+
+        for (ent1, ent2, event) in stopped_collisions {
+            if let Some(collision_comp) = collisions.get_mut(ent1) {
+                collision_comp.0.push((event, ent2));
+            }
+            if let Some(collision_comp) = collisions.get_mut(ent2) {
+                collision_comp.0.push((event, ent1));
+            }
+        }
 
         if config.collision_repulsion <= f32::EPSILON {
             return;
         }
 
         // Collision detection, push bodies away from one another.
-        (&curr_chunks, &mut bodies, &interactors).join().for_each(
-            |(curr_chunk, body, interactor)| {
-                if !chunks.is_chunk_ready(&curr_chunk.coords) {
-                    return;
-                }
+        let mut collision_data = Vec::new();
+        for (curr_chunk, body, interactor) in (&curr_chunks, &mut bodies, &interactors).join() {
+            if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                continue;
+            }
 
-                let rapier_body = physics.get(&interactor.0);
-                let after = rapier_body.translation();
+            let rapier_body = physics.get(&interactor.0);
+            let after = rapier_body.translation();
 
-                let Vec3(px, py, pz) = body.0.get_position();
+            let Vec3(px, py, pz) = body.0.get_position();
 
-                let dx = after.x - px;
-                let dy = after.y - py;
-                let dz = after.z - pz;
+            let dx = after.x - px;
+            let dy = after.y - py;
+            let dz = after.z - pz;
 
-                let dx = if dx.abs() < 0.001 { 0.0 } else { dx };
-                let dy = if dy.abs() < 0.001 { 0.0 } else { dy };
-                let dz = if dz.abs() < 0.001 { 0.0 } else { dz };
+            let dx = if dx.abs() < 0.001 { 0.0 } else { dx };
+            let dy = if dy.abs() < 0.001 { 0.0 } else { dy };
+            let dz = if dz.abs() < 0.001 { 0.0 } else { dz };
 
-                let len = (dx * dx + dy * dy + dz * dz).sqrt();
+            let len = (dx * dx + dy * dy + dz * dz).sqrt();
 
-                if len <= 0.0001 {
-                    return;
-                }
+            if len > 0.0001 {
+                collision_data.push((body, dx, dy, dz, len));
+            }
+        }
 
-                let mut dx = dx / len;
-                let dy = dy / len;
-                let mut dz = dz / len;
+        for (body, dx, dy, dz, len) in collision_data {
+            let mut dx = dx / len;
+            let dy = dy / len;
+            let mut dz = dz / len;
 
-                // If only dy movements, add a little bias to eliminate stack overflow.
-                if dx.abs() < 0.001 && dz.abs() < 0.001 {
-                    dx = fastrand::i32(-10..10) as f32 / 1000.0;
-                    dz = fastrand::i32(-10..10) as f32 / 1000.0;
-                }
+            // If only dy movements, add a little bias to eliminate stack overflow.
+            if dx.abs() < 0.001 && dz.abs() < 0.001 {
+                dx = fastrand::i32(-10..10) as f32 / 1000.0;
+                dz = fastrand::i32(-10..10) as f32 / 1000.0;
+            }
 
-                body.0.apply_impulse(
-                    (dx * config.collision_repulsion).min(3.0),
-                    (dy * config.collision_repulsion).min(3.0),
-                    (dz * config.collision_repulsion).min(3.0),
-                );
-            },
-        );
+            body.0.apply_impulse(
+                (dx * config.collision_repulsion).min(3.0),
+                (dy * config.collision_repulsion).min(3.0),
+                (dz * config.collision_repulsion).min(3.0),
+            );
+        }
     }
 }
