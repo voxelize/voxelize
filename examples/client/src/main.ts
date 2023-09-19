@@ -203,6 +203,8 @@ const controls = new VOXELIZE.RigidControls(
 controls.attachCharacter(character);
 controls.connect(inputs, "in-game");
 
+world.add(character);
+
 world.addChunkInitListener([0, 0], () => controls.teleportToTop(0, 0));
 
 renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
