@@ -349,8 +349,6 @@ export class Network {
       return;
     }
 
-    console.log(this.packetQueue.length);
-
     this.decode(
       this.packetQueue.splice(
         0,
