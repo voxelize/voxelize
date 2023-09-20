@@ -413,9 +413,11 @@ export class Network {
    * Disconnect the client from the server.
    */
   disconnect = () => {
-    this.ws.onclose = null;
-    this.ws.onmessage = null;
-    this.ws.close();
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onmessage = null;
+      this.ws.close();
+    }
 
     if (this.reconnection) {
       clearTimeout(this.reconnection);
