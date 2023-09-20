@@ -1,27 +1,25 @@
 import { protocol } from "@voxelize/transport/src/protocol";
-import { decodeStructToObject } from "@voxelize/transport/src/utils/decode-struct-to-object";
 import * as fflate from "fflate";
 
 const { Message, Entity } = protocol;
 
 // @ts-ignore
-onconnect = (e) => {
-  const port = e.ports[0];
+onmessage = async (e) => {
+  let { data: buffers } = e;
 
-  port.onmessage = (e) => {
-    console.log(e);
-    let { data: buffers } = e;
+  if (!Array.isArray(buffers)) {
+    buffers = [buffers];
+  }
 
-    if (!Array.isArray(buffers)) {
-      buffers = [buffers];
-    }
+  const transferables = [];
 
-    const transferables = [];
-
-    const messages = buffers.map((buffer) => {
-      // if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-      // }
-      buffer = fflate.unzlibSync(buffer);
+  const messages = await Promise.all(
+    buffers.map(async (buffer) => {
+      if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
+        buffer = await new Promise<any>((resolve) =>
+          fflate.unzlib(buffer, (err, data) => resolve(data))
+        );
+      }
 
       const message = Message.toObject(Message.decode(buffer), {
         defaults: true,
@@ -51,9 +49,8 @@ onconnect = (e) => {
       }
 
       if (message.events) {
-        console.log(message.events);
         message.events.forEach((event) => {
-          event.payload = decodeStructToObject(event.payload);
+          event.payload = JSON.parse(event.payload);
         });
       }
 
@@ -93,9 +90,9 @@ onconnect = (e) => {
       }
 
       return message;
-    });
+    })
+  );
 
-    // @ts-ignore
-    port.postMessage(messages, transferables);
-  };
+  // @ts-ignore
+  postMessage(messages, transferables);
 };

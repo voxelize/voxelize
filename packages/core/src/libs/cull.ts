@@ -3,7 +3,7 @@ import CullWorker from "shared-worker:./workers/cull-worker.ts";
 
 import { Coords3 } from "../types";
 
-import { SharedWorkerPool } from "./worker-pool";
+import { SharedWorkerPool } from "./shared-worker-pool";
 
 export type MeshResultType = {
   positions: Float32Array;

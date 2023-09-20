@@ -52,6 +52,34 @@ export class Chunk {
     this.max = [(x + 1) * size, maxHeight, (z + 1) * size];
   }
 
+  serialize(): [object, ArrayBuffer[]] {
+    const {
+      id,
+      coords: [x, z],
+      voxels,
+      lights,
+      options,
+    } = this;
+    const buffers = [voxels.data.buffer, lights.data.buffer];
+    return [
+      { id, x, z, voxels: buffers[0], lights: buffers[1], options },
+      buffers.map((buffer) => buffer.slice(0)),
+    ];
+  }
+
+  static deserialize(data: any): Chunk {
+    const { id, x, z, voxels, lights, options } = data;
+
+    const chunk = new Chunk(id, [x, z], options);
+
+    if (lights && lights.byteLength)
+      chunk.lights.data = new Uint32Array(lights);
+    if (voxels && voxels.byteLength)
+      chunk.voxels.data = new Uint32Array(voxels);
+
+    return chunk;
+  }
+
   setData(data: ChunkProtocol) {
     const { id, x, z } = data;
 

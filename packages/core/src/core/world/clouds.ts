@@ -14,7 +14,7 @@ import {
 } from "three";
 
 import { cull } from "../../libs/cull";
-import { SharedWorkerPool } from "../../libs/worker-pool";
+import { SharedWorkerPool } from "../../libs/shared-worker-pool";
 import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl";
 import { Coords2, Coords3 } from "../../types";

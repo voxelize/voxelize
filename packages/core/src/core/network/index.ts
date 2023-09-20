@@ -1,9 +1,9 @@
 import { protocol } from "@voxelize/transport/src/protocol";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
-import DecodeWorker from "shared-worker:./workers/decode-worker.ts";
+import DecodeWorker from "web-worker:./workers/decode-worker.ts";
 
-import { SharedWorkerPool } from "../../libs/worker-pool";
+import { WorkerPool } from "../../libs/worker-pool";
 
 import { NetIntercept } from "./intercept";
 
@@ -157,7 +157,7 @@ export class Network {
   /**
    * The worker pool for decoding network packets.
    */
-  private pool = new SharedWorkerPool(DecodeWorker, {
+  private pool = new WorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
   });
 

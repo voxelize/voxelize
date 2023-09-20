@@ -25,7 +25,9 @@ import {
   UniformsUtils,
   Vector3,
 } from "three";
+import MeshWorker from "web-worker:./workers/mesh-worker.ts";
 
+import { WorkerPool } from "../../libs";
 import { Coords2, Coords3 } from "../../types";
 import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
 
@@ -40,6 +42,7 @@ import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 
 export * from "./block";
+export * from "./chunk";
 export * from "./clouds";
 export * from "./loader";
 export * from "./registry";
@@ -368,6 +371,10 @@ export class World extends Scene implements NetIntercept {
    */
   private _deleteRadius = 0;
 
+  private meshWorkerPool = new WorkerPool(MeshWorker, {
+    maxWorker: 4,
+  });
+
   /**
    * Create a new Voxelize world.
    *
@@ -394,6 +401,16 @@ export class World extends Scene implements NetIntercept {
         },
       });
     }, statsSyncInterval);
+  }
+
+  async testMeshWorker(data: any, buffers: ArrayBuffer[]) {
+    return new Promise<void>((resolve) => {
+      this.meshWorkerPool.addJob({
+        message: data,
+        buffers,
+        resolve,
+      });
+    });
   }
 
   /**

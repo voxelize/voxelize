@@ -12,6 +12,7 @@ export * from "./nametag";
 export * from "./perspective";
 export * from "./portrait";
 export * from "./shadows";
+export * from "./shared-worker-pool";
 export * from "./sprite-text";
 export * from "./voxel-interact";
 export * from "./worker-pool";
