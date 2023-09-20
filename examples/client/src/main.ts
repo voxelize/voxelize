@@ -168,7 +168,7 @@ renderer.setSize(
 );
 renderer.setPixelRatio(1);
 
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(world, camera));

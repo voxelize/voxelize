@@ -3,7 +3,7 @@ import {
   Object3D,
   OrthographicCamera,
   Scene,
-  sRGBEncoding,
+  SRGBColorSpace,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -131,7 +131,7 @@ export class Portrait {
       throw new Error("A target object is required for portraits.");
     }
 
-    Portrait.renderer.outputEncoding = sRGBEncoding;
+    Portrait.renderer.outputColorSpace = SRGBColorSpace;
 
     const { width, height, zoom, perspective, lightRotationOffset } =
       (this.options = {

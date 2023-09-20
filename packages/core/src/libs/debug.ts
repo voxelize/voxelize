@@ -315,7 +315,7 @@ export class Debug extends Group {
     DOMUtils.applyStyles(this.entriesWrapper, this.options.entryStyles);
 
     if (this.options.stats) {
-      this.stats = Stats();
+      this.stats = new Stats();
       this.stats.dom.parentNode?.removeChild(this.stats.dom);
 
       DOMUtils.applyStyles(this.stats.dom, {

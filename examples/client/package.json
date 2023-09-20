@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@types/p5": "^1.4.3",
+    "@types/three": "^0.156.0",
     "typescript": "^4.9.3",
     "vite": "^4.0.0"
   },
@@ -17,7 +18,7 @@
     "@voxelize/core": "*",
     "lil-gui": "^0.17.0",
     "p5": "^1.5.0",
-    "postprocessing": "^6.29.1",
-    "three": "^0.148.0"
+    "postprocessing": "^6.33.1",
+    "three": "^0.156.0"
   }
 }

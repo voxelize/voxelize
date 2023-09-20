@@ -8,9 +8,9 @@ import {
   MeshBasicMaterial,
   NearestFilter,
   RepeatWrapping,
+  SRGBColorSpace,
   Side,
   Texture,
-  sRGBEncoding,
 } from "three";
 
 import { DOMUtils } from "../utils";
@@ -295,7 +295,7 @@ export class BoxLayer extends Mesh {
       material.map.wrapS = RepeatWrapping;
       material.map.wrapT = RepeatWrapping;
       material.map.needsUpdate = true;
-      material.map.encoding = sRGBEncoding;
+      material.map.colorSpace = SRGBColorSpace;
     }
 
     return material;

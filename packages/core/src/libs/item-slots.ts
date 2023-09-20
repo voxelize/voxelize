@@ -4,7 +4,7 @@ import {
   Object3D,
   OrthographicCamera,
   Scene,
-  sRGBEncoding,
+  SRGBColorSpace,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -681,7 +681,7 @@ export class ItemSlots<T = number> {
       antialias: false,
       alpha: true,
     });
-    this.renderer.outputEncoding = sRGBEncoding;
+    this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.setSize(width, height);
   };
 }

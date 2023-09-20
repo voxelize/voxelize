@@ -3,8 +3,8 @@ import {
   ClampToEdgeWrapping,
   Color,
   NearestFilter,
+  SRGBColorSpace,
   Texture,
-  sRGBEncoding,
 } from "three";
 
 /**
@@ -136,7 +136,7 @@ export class AtlasTexture extends CanvasTexture {
     this.magFilter = NearestFilter;
     this.generateMipmaps = false;
     this.needsUpdate = true;
-    this.encoding = sRGBEncoding;
+    this.colorSpace = SRGBColorSpace;
 
     const unknown = AtlasTexture.makeUnknownImage(canvasWidth / countPerSide);
 
@@ -357,7 +357,7 @@ export class AtlasTexture extends CanvasTexture {
     texture.magFilter = NearestFilter;
     texture.generateMipmaps = false;
     texture.needsUpdate = true;
-    texture.encoding = sRGBEncoding;
+    texture.colorSpace = SRGBColorSpace;
 
     return texture;
   }
