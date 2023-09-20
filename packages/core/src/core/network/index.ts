@@ -413,6 +413,10 @@ export class Network {
    * Disconnect the client from the server.
    */
   disconnect = () => {
+    if (!this.connected) {
+      return;
+    }
+
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;

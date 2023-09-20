@@ -3,9 +3,9 @@ use nalgebra::Vector3;
 use rapier3d::prelude::{
     vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
     ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
-    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBody as RapierBody,
-    RigidBodyBuilder as RapierBodyBuilder, RigidBodyHandle as RapierBodyHandle,
-    RigidBodySet as RapierBodySet,
+    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsHooks, PhysicsPipeline,
+    RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
+    RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
 };
 
 use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
@@ -62,6 +62,8 @@ impl Physics {
     pub fn step(&mut self, dt: f32) -> Vec<CollisionEvent> {
         self.integration_options.dt = dt;
 
+        let physics_hooks = ();
+
         self.pipeline.step(
             &self.gravity,
             &self.integration_options,
@@ -73,7 +75,8 @@ impl Physics {
             &mut self.impulse_joint_set,
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
-            &(),
+            None,
+            &physics_hooks,
             &self.event_handler,
         );
 

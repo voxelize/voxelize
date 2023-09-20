@@ -1,8 +1,6 @@
 syntax = "proto3";
 package protocol;
 
-import "google/protobuf/struct.proto";
-
 message Geometry {
   uint32 voxel = 1;
   optional string faceName = 2;
@@ -48,7 +46,7 @@ message Entity {
 
 message Event {
   string name = 1;
-  google.protobuf.Struct payload = 2;
+  string payload = 2;
 }
 
 message Method {

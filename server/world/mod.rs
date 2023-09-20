@@ -20,7 +20,6 @@ use actix::Recipient;
 use hashbrown::HashMap;
 use log::{info, warn};
 use nanoid::nanoid;
-use prost_wkt_types::Struct;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
@@ -129,7 +128,7 @@ pub struct World {
     method_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str)>>,
 
     /// The handlers for `Event`s.
-    event_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &Option<Struct>)>>,
+    event_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str)>>,
 
     /// The handler for `Transport`s.
     transport_handle: Option<Arc<dyn Fn(&mut World, Value)>>,
@@ -464,7 +463,7 @@ impl World {
             .insert(method.to_lowercase(), Arc::new(handle));
     }
 
-    pub fn set_event_handle<F: Fn(&mut World, &str, &Option<Struct>) + 'static>(
+    pub fn set_event_handle<F: Fn(&mut World, &str, &str) + 'static>(
         &mut self,
         event: &str,
         handle: F,

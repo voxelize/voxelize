@@ -16,7 +16,7 @@ exclude = [
 ]
 license = "MIT"
 name = "voxelize"
-version = "0.8.38"
+version = "0.8.39"
 
 [lib]
 name = "voxelize"
@@ -32,35 +32,32 @@ actix-cors = "0.6.1"
 actix-files = "0.6"
 actix-web = "4"
 actix-web-actors = "4.1"
-base64 = "0.20.0"
+base64 = "0.21.4"
 byteorder = "1.4.3"
 crossbeam-channel = "0.5.4"
-fastrand = "1.8.0"
-hashbrown = {version = "0.13.1", features = ["serde"]}
+fastrand = "2.0.0"
+hashbrown = {version = "0.14.0", features = ["serde"]}
 indicatif = "0.17.0"
 kdtree = "0.7.0"
-libflate = "1.2.0"
-nalgebra = "0.31.0"
+libflate = "2.0.0"
+nalgebra = "0.32.3"
 nanoid = "0.4.0"
 noise = "0.8.2"
 num = "0.4.0"
-prost = "0.11.0"
-rapier3d = {version = "0.16.1", features = ["simd-stable"]}
+prost = "0.12.1"
+rapier3d = {version = "0.17.2", features = ["simd-stable"]}
 rayon = "1.5.2"
 serde = {version = "1.0.136", features = ["derive"]}
 serde_json = "1.0.79"
-specs = {version = "0.18.0", features = ["specs-derive", "serde"]}
+specs = {version = "0.19.0", features = ["specs-derive", "serde"]}
 splines = {version = "4.1.0", features = ["serde"]}
-prost-wkt = "0.4.1"
-prost-wkt-types = "0.4.1"
 
 chrono = "0.4.19"
 fern = {version = "0.6.0", features = ["colored"]}
 log = "0.4.16"
 
 [build-dependencies]
-prost-build = "0.11.1"
-prost-wkt-build = "0.4"
+prost-build = "0.12.1"
 
 [profile.release]
 opt-level = 3
