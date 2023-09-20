@@ -258,8 +258,6 @@ impl Mesher {
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Vec<GeometryProtocol> {
-        let start = Instant::now();
-
         let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
 
         let &Vec3(min_x, min_y, min_z) = min;
@@ -355,10 +353,6 @@ impl Mesher {
                 }
             }
         }
-
-        let end = Instant::now();
-        let duration = end.duration_since(start);
-        info!("Meshing took {}ms", duration.as_millis());
 
         map.into_iter()
             .map(|(_, geometry)| geometry)
