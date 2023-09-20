@@ -19,9 +19,9 @@ onconnect = (e) => {
     const transferables = [];
 
     const messages = buffers.map((buffer) => {
-      if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-        buffer = fflate.unzlibSync(buffer);
-      }
+      // if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
+      // }
+      buffer = fflate.unzlibSync(buffer);
 
       const message = Message.toObject(Message.decode(buffer), {
         defaults: true,
