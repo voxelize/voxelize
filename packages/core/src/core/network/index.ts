@@ -345,18 +345,22 @@ export class Network {
       return;
     }
 
-    while (this.packetQueue.length && !this.pool.isBusy) {
-      this.decode(
-        this.packetQueue.splice(
-          0,
-          Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
-        )
-      ).then((messages) => {
-        messages.forEach((message) => {
-          this.onMessage(message);
-        });
-      });
+    if (this.pool.isBusy) {
+      return;
     }
+
+    console.log(this.packetQueue.length);
+
+    this.decode(
+      this.packetQueue.splice(
+        0,
+        Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
+      )
+    ).then((messages) => {
+      messages.forEach((message) => {
+        this.onMessage(message);
+      });
+    });
   };
 
   /**

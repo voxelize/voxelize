@@ -55,8 +55,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let mut postponed_updates = vec![];
 
-        while !chunks.updates.is_empty() {
-            let (voxel, raw) = chunks.updates.pop_front().unwrap();
+        while let Some((voxel, raw)) = chunks.updates.pop_front() {
             let Vec3(vx, vy, vz) = voxel;
 
             let updated_id = BlockUtils::extract_id(raw);

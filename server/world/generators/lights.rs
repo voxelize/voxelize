@@ -45,7 +45,7 @@ impl Lights {
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
-        let &WorldConfig {
+        let WorldConfig {
             max_height,
             min_chunk,
             max_chunk,
@@ -53,20 +53,18 @@ impl Lights {
             ..
         } = config;
 
-        let [start_cx, start_cz] = min_chunk;
-        let [end_cx, end_cz] = max_chunk;
+        let [start_cx, start_cz] = *min_chunk;
+        let [end_cx, end_cz] = *max_chunk;
 
-        let max_height = max_height as i32;
+        let max_height = *max_height as i32;
         let is_sunlight = *color == LightColor::Sunlight;
 
-        while !queue.is_empty() {
-            let LightNode { voxel, level } = queue.pop_front().unwrap();
-            let [vx, vy, vz] = voxel;
-
+        while let Some(LightNode { voxel, level }) = queue.pop_front() {
             if level == 0 {
                 continue;
             }
 
+            let [vx, vy, vz] = voxel;
             let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
             let source_transparency =
                 if !is_sunlight && source_block.get_torch_light_level(color) > 0 {
@@ -75,7 +73,7 @@ impl Lights {
                     source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
                 };
 
-            for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
+            for [ox, oy, oz] in &VOXEL_NEIGHBORS {
                 let nvy = vy + oy;
 
                 if nvy < 0 || nvy >= max_height {
@@ -93,17 +91,13 @@ impl Lights {
                     || ncz < start_cz
                     || ncx > end_cx
                     || ncz > end_cz
-                    || if let Some(&Vec3(start_x, _, start_z)) = min {
+                    || min.map_or(false, |&Vec3(start_x, _, start_z)| {
                         nvx < start_x
                             || nvz < start_z
-                            || if let Some(&Vec3(shape0, _, shape2)) = shape {
+                            || shape.map_or(false, |&Vec3(shape0, _, shape2)| {
                                 nvx >= start_x + shape0 as i32 || nvz >= start_z + shape2 as i32
-                            } else {
-                                false
-                            }
-                    } else {
-                        false
-                    }
+                            })
+                    })
                 {
                     continue;
                 }
@@ -115,8 +109,8 @@ impl Lights {
                 let next_level = level
                     - if is_sunlight
                         && !n_block.light_reduce
-                        && oy == -1
-                        && level == max_light_level
+                        && *oy == -1
+                        && level == *max_light_level
                     {
                         0
                     } else {
@@ -126,7 +120,7 @@ impl Lights {
                 // To not continue:
                 // (1) Light cannot be flooded from source block to neighbor.
                 // (2) Neighbor light level is greater or equal to self.
-                if !Lights::can_enter(&source_transparency, &n_transparency, ox, oy, oz)
+                if !Lights::can_enter(&source_transparency, &n_transparency, *ox, *oy, *oz)
                     || (if is_sunlight {
                         space.get_sunlight(nvx, nvy, nvz)
                     } else {
@@ -142,7 +136,8 @@ impl Lights {
                     space.set_torch_light(nvx, nvy, nvz, next_level, color);
                 }
 
-                queue.push_back(LightNode {
+                // Instead of pushing to the back of the queue, push to the front to achieve depth-first search
+                queue.push_front(LightNode {
                     voxel: next_voxel,
                     level: next_level,
                 });
@@ -181,11 +176,10 @@ impl Lights {
             space.set_torch_light(vx, vy, vz, 0, color);
         }
 
-        while !queue.is_empty() {
-            let LightNode { voxel, level } = queue.pop_front().unwrap();
+        while let Some(LightNode { voxel, level }) = queue.pop_front() {
             let [vx, vy, vz] = voxel;
 
-            for [ox, oy, oz] in VOXEL_NEIGHBORS.into_iter() {
+            for [ox, oy, oz] in &VOXEL_NEIGHBORS {
                 let nvy = vy + oy;
 
                 if nvy < 0 || nvy >= max_height {
@@ -203,7 +197,7 @@ impl Lights {
                     true
                 } else {
                     n_block.get_torch_light_level(color) == 0
-                } && !Lights::can_enter_into(&n_transparency, ox, oy, oz)
+                } && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz)
                 {
                     continue;
                 }
@@ -222,7 +216,7 @@ impl Lights {
                 // if level is less, or if sunlight is propagating downwards without stopping
                 if nl < level
                     || (is_sunlight
-                        && oy == -1
+                        && *oy == -1
                         && level == max_light_level
                         && nl == max_light_level)
                 {
@@ -236,7 +230,7 @@ impl Lights {
                     } else {
                         space.set_torch_light(nvx, nvy, nvz, 0, color);
                     }
-                } else if if is_sunlight && oy == -1 {
+                } else if if is_sunlight && *oy == -1 {
                     nl > level
                 } else {
                     nl >= level
@@ -273,11 +267,7 @@ impl Lights {
         let Vec3(start_x, _, start_z) = min;
         let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
 
-        let mut mask = Vec::with_capacity((shape.0 * shape.2) as usize);
-
-        for _ in 0..(shape.0 * shape.2) {
-            mask.push(max_light_level);
-        }
+        let mut mask = vec![max_light_level; (shape.0 * shape.2) as usize];
 
         for y in (0..max_height as i32).rev() {
             for x in 0..shape.0 {

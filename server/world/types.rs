@@ -9,5 +9,17 @@ pub enum LightColor {
     Blue,
 }
 
+impl LightColor {
+    pub fn from(color: usize) -> LightColor {
+        match color {
+            0 => LightColor::Sunlight,
+            1 => LightColor::Red,
+            2 => LightColor::Green,
+            3 => LightColor::Blue,
+            _ => panic!("Invalid light color!"),
+        }
+    }
+}
+
 /// Denoting a change in block in the world.
 pub type VoxelUpdate = (Vec3<i32>, u32);
