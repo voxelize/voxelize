@@ -139,71 +139,63 @@ impl Mesher {
                     if chunk.meshes.is_none() {
                         let coords = space.coords.to_owned();
 
-                        let mut sunlight_queue = VecDeque::new();
-                        let mut red_light_queue = VecDeque::new();
-                        let mut green_light_queue = VecDeque::new();
-                        let mut blue_light_queue = VecDeque::new();
+                        let mut light_queues = vec![VecDeque::new(); 4];
 
                         // From the minimum coordinates of the center chunk, subtract the maximum light.
                         for dx in -1..=1 {
                             for dz in -1..=1 {
                                 let min = Vec3(
-                                    (coords.0 + dx) * chunk_size - if dx == 0 && dz == 0{1} else {0},
+                                    (coords.0 + dx) * chunk_size
+                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
                                     0,
-                                    (coords.1 + dz) * chunk_size - if dz == 0 && dz == 0{1} else {0},
+                                    (coords.1 + dz) * chunk_size
+                                        - if dz == 0 && dz == 0 { 1 } else { 0 },
                                 );
                                 let shape = Vec3(
-                                    (chunk_size) as usize + if dx == 0 && dz == 0{2} else {0},
+                                    (chunk_size) as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
                                     space.options.max_height as usize,
-                                    (chunk_size) as usize + if dx == 0 && dz == 0{2} else {0},
+                                    (chunk_size) as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
                                 );
 
-                                // let now = Instant::now();
-                                let [sunlight_subqueue, 
-                                    red_light_subqueue, 
-                                    green_light_subqueue, 
-                                    blue_light_subqueue] = Lights::propagate(&mut space, &min, &shape, &registry, &config);
+                                let light_subqueues =
+                                    Lights::propagate(&mut space, &min, &shape, &registry, &config);
 
-                                sunlight_queue.extend(sunlight_subqueue.into_iter());
-                                red_light_queue.extend(red_light_subqueue.into_iter());
-                                green_light_queue.extend(green_light_subqueue.into_iter());
-                                blue_light_queue.extend(blue_light_subqueue.into_iter());
+                                for (queue, subqueue) in
+                                    light_queues.iter_mut().zip(light_subqueues.into_iter())
+                                {
+                                    queue.extend(subqueue.into_iter());
+                                }
                             }
                         }
 
                         let min = space.min.clone();
                         let shape = space.shape.clone();
 
-                        if !sunlight_queue.is_empty() {
-                            Lights::flood_light(&mut space, sunlight_queue, &LightColor::Sunlight, &registry, &config, Some(&min), Some(&shape));
-                        }
+                        let light_colors = [
+                            LightColor::Sunlight,
+                            LightColor::Red,
+                            LightColor::Green,
+                            LightColor::Blue,
+                        ];
 
-                        if !red_light_queue.is_empty() {
-                            Lights::flood_light(&mut space, red_light_queue, &LightColor::Red, &registry, &config, Some(&min), Some(&shape));
-                        }
-
-                        if !green_light_queue.is_empty() {
-                            Lights::flood_light(&mut space, green_light_queue, &LightColor::Green, &registry, &config, Some(&min), Some(&shape));
-                        }
-
-                        if !blue_light_queue.is_empty() {
-                            Lights::flood_light(&mut space, blue_light_queue, &LightColor::Blue, &registry, &config, Some(&min), Some(&shape));
+                        for (queue, color) in light_queues.into_iter().zip(light_colors.iter()) {
+                            if !queue.is_empty() {
+                                Lights::flood_light(
+                                    &mut space,
+                                    queue,
+                                    color,
+                                    &registry,
+                                    &config,
+                                    Some(&min),
+                                    Some(&shape),
+                                );
+                            }
                         }
 
                         chunk.lights = space.get_lights(coords.0, coords.1).unwrap().clone();
-                        // let elapsed = now.elapsed();
-                        // // Log the time spend in milliseconds to the second decimal place.
-                        // info!(
-                        //     "Chunk {:?} light propagation took {:.2?}ms",
-                        //     chunk.coords,
-                        //     elapsed.as_millis()
-                        // );
                     }
 
                     let sub_chunks = chunk.updated_levels.to_owned();
-
-                    // space.updated_levels.clear();
-                    // chunk.updated_levels.clear();
 
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
@@ -212,11 +204,9 @@ impl Mesher {
                         (space.options.max_height / space.options.sub_chunks) as i32;
 
                     let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
-                    // let sub_chunks_len = sub_chunks.len();
 
-                    // let instant = Instant::now();
                     sub_chunks
-                        .into_iter()
+                        .into_par_iter()
                         .map(|level| {
                             let level = level as i32;
 
@@ -231,25 +221,11 @@ impl Mesher {
                         .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
                         .into_iter()
                         .for_each(|(geometries, level)| {
-                            if chunk.meshes.is_none() {
-                                chunk.meshes = Some(HashMap::new());
-                            }
-
                             chunk
                                 .meshes
-                                .as_mut()
-                                .unwrap()
+                                .get_or_insert_with(HashMap::new)
                                 .insert(level as u32, MeshProtocol { level, geometries });
                         });
-
-                    // let elapsed = instant.elapsed();
-                    // // Log the time spend in milliseconds to the second decimal place.
-                    // info!(
-                    //     "Chunk {:?} meshing took {:.2?}ms with {} sub-chunks",
-                    //     chunk.coords,
-                    //     elapsed.as_millis(),
-                    //     sub_chunks_len
-                    // );
 
                     sender.send((chunk, r#type)).unwrap();
                 });
@@ -282,6 +258,8 @@ impl Mesher {
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Vec<GeometryProtocol> {
+        let start = Instant::now();
+
         let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
 
         let &Vec3(min_x, min_y, min_z) = min;
@@ -377,6 +355,10 @@ impl Mesher {
                 }
             }
         }
+
+        let end = Instant::now();
+        let duration = end.duration_since(start);
+        info!("Meshing took {}ms", duration.as_millis());
 
         map.into_iter()
             .map(|(_, geometry)| geometry)

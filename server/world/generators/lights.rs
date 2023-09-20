@@ -16,7 +16,7 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 ];
 
 /// Node of a light propagation queue.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LightNode {
     pub voxel: [i32; 3],
     pub level: u32,
