@@ -1,14 +1,14 @@
 /**
  * Axis-aligned Bounding Box.
  */
-class AABB {
+export class AABB {
   constructor(
     public minX: number,
     public minY: number,
     public minZ: number,
     public maxX: number,
     public maxY: number,
-    public maxZ: number,
+    public maxZ: number
   ) {}
 
   /**
@@ -47,7 +47,7 @@ class AABB {
     return Math.sqrt(
       (this.maxX - this.minX) ** 2 +
         (this.maxY - this.minY) ** 2 +
-        (this.maxZ - this.minZ) ** 2,
+        (this.maxZ - this.minZ) ** 2
     );
   }
 
@@ -64,7 +64,7 @@ class AABB {
     } else if (axis === 2) {
       return this.minZ;
     } else {
-      throw new Error('GetMinError: Unknown axis.');
+      throw new Error("GetMinError: Unknown axis.");
     }
   };
 
@@ -81,7 +81,7 @@ class AABB {
     } else if (axis === 2) {
       this.minZ = value;
     } else {
-      throw new Error('SetMinError: Unknown axis.');
+      throw new Error("SetMinError: Unknown axis.");
     }
   };
 
@@ -98,7 +98,7 @@ class AABB {
     } else if (axis === 2) {
       return this.maxZ;
     } else {
-      throw new Error('GetMaxError: Unknown axis.');
+      throw new Error("GetMaxError: Unknown axis.");
     }
   };
 
@@ -115,7 +115,7 @@ class AABB {
     } else if (axis === 2) {
       this.maxZ = value;
     } else {
-      throw new Error('SetMaxError: Unknown axis.');
+      throw new Error("SetMaxError: Unknown axis.");
     }
   };
 
@@ -150,7 +150,7 @@ class AABB {
       this.minZ += delta;
       this.maxZ += delta;
     } else {
-      throw new Error('TranslateAxisError: Unknown axis.');
+      throw new Error("TranslateAxisError: Unknown axis.");
     }
     return this;
   };
@@ -213,7 +213,7 @@ class AABB {
       Math.min(this.minZ, aabb.minZ),
       Math.max(this.maxX, aabb.maxX),
       Math.max(this.maxY, aabb.maxY),
-      Math.max(this.maxZ, aabb.maxZ),
+      Math.max(this.maxZ, aabb.maxZ)
     );
   };
 
@@ -229,7 +229,7 @@ class AABB {
       Math.max(this.minZ, aabb.minZ),
       Math.min(this.maxX, aabb.maxX),
       Math.min(this.maxY, aabb.maxY),
-      Math.min(this.maxZ, aabb.maxZ),
+      Math.min(this.maxZ, aabb.maxZ)
     );
   };
 
@@ -339,9 +339,27 @@ class AABB {
       this.minZ,
       this.maxX,
       this.maxY,
-      this.maxZ,
+      this.maxZ
     );
   };
-}
 
-export { AABB };
+  static union = (all: AABB[]) => {
+    let minX = all[0].minX;
+    let minY = all[0].minY;
+    let minZ = all[0].minZ;
+    let maxX = all[0].maxX;
+    let maxY = all[0].maxY;
+    let maxZ = all[0].maxZ;
+
+    for (const aabb of all) {
+      minX = Math.min(minX, aabb.minX);
+      minY = Math.min(minY, aabb.minY);
+      minZ = Math.min(minZ, aabb.minZ);
+      maxX = Math.max(maxX, aabb.maxX);
+      maxY = Math.max(maxY, aabb.maxY);
+      maxZ = Math.max(maxZ, aabb.maxZ);
+    }
+
+    return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+  };
+}

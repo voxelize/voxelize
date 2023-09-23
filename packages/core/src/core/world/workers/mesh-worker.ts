@@ -1,3 +1,4 @@
+import { AABB } from "@voxelize/aabb";
 import { GeometryProtocol } from "@voxelize/transport/src/types";
 import { Coords2 } from "types";
 
@@ -178,6 +179,22 @@ onmessage = function (e) {
           const nIsVoid = !getChunkByCoords(nCoords);
           const nBlock = registry.blocksById.get(neighborId);
 
+          let seeThroughCheck = false;
+
+          if (isSeeThrough && !isOpaque && nBlock.isOpaque) {
+            const selfBounding = AABB.union(block.aabbs);
+            const nBounding = AABB.union(nBlock.aabbs);
+            nBounding.translate(dir);
+            if (
+              !(
+                selfBounding.intersects(nBounding) ||
+                selfBounding.touches(nBounding)
+              )
+            ) {
+              seeThroughCheck = true;
+            }
+          }
+
           if (
             (nIsVoid && nBlock.isEmpty) ||
             (isSeeThrough &&
@@ -186,7 +203,8 @@ onmessage = function (e) {
               ((isSeeThrough &&
                 neighborId == id &&
                 nBlock.transparentStandalone) ||
-                (neighborId == id && (isSeeThrough || nBlock.isSeeThrough)))) ||
+                (neighborId == id && (isSeeThrough || nBlock.isSeeThrough)) ||
+                seeThroughCheck)) ||
             (!isSeeThrough && (!isOpaque || !nBlock.isOpaque))
           ) {
             const { startU, startV, endU, endV } = uvMap[face.name];
@@ -232,10 +250,14 @@ onmessage = function (e) {
               const sumGreenLights: number[] = [];
               const sumBlueLights: number[] = [];
 
-              const b011 = !getBlockAt(vx + 0, vy + dy, vz + dz).isOpaque;
-              const b101 = !getBlockAt(vx + dx, vy + 0, vz + dz).isOpaque;
-              const b110 = !getBlockAt(vx + dx, vy + dy, vz + 0).isOpaque;
-              const b111 = !getBlockAt(vx + dx, vy + dy, vz + dz).isOpaque;
+              const b011 = !getBlockAt(vx + 0, vy + unitDy, vz + unitDz)
+                .isOpaque;
+              const b101 = !getBlockAt(vx + unitDx, vy + 0, vz + unitDz)
+                .isOpaque;
+              const b110 = !getBlockAt(vx + unitDx, vy + unitDy, vz + 0)
+                .isOpaque;
+              const b111 = !getBlockAt(vx + unitDx, vy + unitDy, vz + unitDz)
+                .isOpaque;
 
               const ao = isSeeThrough
                 ? 3
@@ -358,7 +380,7 @@ onmessage = function (e) {
                         }
 
                         // Two corners are blocked
-                        if (diagonalYZ.isOpaque && diagonalXZ.isOpaque) {
+                        if (diagonalXY.isOpaque && diagonalXZ.isOpaque) {
                           const neighborY = getBlockAt(vx, vy + offsetY, vz);
                           const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
 
@@ -367,20 +389,20 @@ onmessage = function (e) {
                           }
                         }
 
-                        if (diagonalYZ.isOpaque && diagonalXY.isOpaque) {
-                          const neighborY = getBlockAt(vx, vy + offsetY, vz);
-                          const neighborX = getBlockAt(vx + offsetX, vy, vz);
-
-                          if (neighborY.isOpaque && neighborX.isOpaque) {
-                            continue;
-                          }
-                        }
-
-                        if (diagonalXZ.isOpaque && diagonalXY.isOpaque) {
+                        if (diagonalXY.isOpaque && diagonalYZ.isOpaque) {
                           const neighborX = getBlockAt(vx + offsetX, vy, vz);
                           const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
 
                           if (neighborX.isOpaque && neighborZ.isOpaque) {
+                            continue;
+                          }
+                        }
+
+                        if (diagonalXZ.isOpaque && diagonalYZ.isOpaque) {
+                          const neighborX = getBlockAt(vx + offsetX, vy, vz);
+                          const neighborY = getBlockAt(vx, vy + offsetY, vz);
+
+                          if (neighborX.isOpaque && neighborY.isOpaque) {
                             continue;
                           }
                         }
@@ -511,23 +533,25 @@ onmessage = function (e) {
   }
 
   const arrayBuffers: ArrayBuffer[] = [];
-  const geometriesPacked = Object.values(geometries).map((geometry) => {
-    const packedGeometry = {
-      indices: new Uint16Array(geometry.indices),
-      lights: new Uint32Array(geometry.lights),
-      positions: new Float32Array(geometry.positions),
-      uvs: new Float32Array(geometry.uvs),
-      voxel: geometry.voxel,
-      faceName: geometry.faceName,
-    };
+  const geometriesPacked = Object.values(geometries)
+    .map((geometry) => {
+      const packedGeometry = {
+        indices: new Uint16Array(geometry.indices),
+        lights: new Uint32Array(geometry.lights),
+        positions: new Float32Array(geometry.positions),
+        uvs: new Float32Array(geometry.uvs),
+        voxel: geometry.voxel,
+        faceName: geometry.faceName,
+      };
 
-    arrayBuffers.push(packedGeometry.indices.buffer);
-    arrayBuffers.push(packedGeometry.lights.buffer);
-    arrayBuffers.push(packedGeometry.positions.buffer);
-    arrayBuffers.push(packedGeometry.uvs.buffer);
+      arrayBuffers.push(packedGeometry.indices.buffer);
+      arrayBuffers.push(packedGeometry.lights.buffer);
+      arrayBuffers.push(packedGeometry.positions.buffer);
+      arrayBuffers.push(packedGeometry.uvs.buffer);
 
-    return packedGeometry;
-  });
+      return packedGeometry;
+    })
+    .filter((geometry) => geometry.positions.length > 0);
 
   // @ts-ignore
   postMessage({ geometries: geometriesPacked }, arrayBuffers);

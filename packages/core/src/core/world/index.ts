@@ -401,6 +401,10 @@ export class World extends Scene implements NetIntercept {
     maxWorker: 4,
   });
 
+  private chunksTracker: [Coords2, number][] = [];
+
+  private isTrackingChunks = false;
+
   /**
    * Create a new Voxelize world.
    *
@@ -458,6 +462,8 @@ export class World extends Scene implements NetIntercept {
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (const chunk of chunks) {
+      if (!chunk) chunksData.push(null);
+
       const [chunkData, arrayBuffers] = chunk.serialize();
 
       chunksData.push(chunkData);
@@ -794,6 +800,7 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
     chunk.setVoxel(px, py, pz, voxel);
+    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -829,6 +836,7 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
     chunk.setVoxelRotation(px, py, pz, rotation);
+    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -866,6 +874,7 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
     chunk.setSunlight(px, py, pz, level);
+    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -895,6 +904,7 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
     chunk.setTorchLight(px, py, pz, level, color);
+    this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -1329,7 +1339,7 @@ export class World extends Scene implements NetIntercept {
     const blueFlood: LightNode[] = [];
     const sunFlood: LightNode[] = [];
 
-    console.time("update voxels");
+    this.isTrackingChunks = true;
     for (const voxelUpdate of voxelUpdates) {
       const { type, vx, vy, vz, rotation, yRotation } = voxelUpdate;
       const currentBlock = this.getBlockAt(vx, vy, vz);
@@ -1339,12 +1349,22 @@ export class World extends Scene implements NetIntercept {
         currentRotation
       );
       const updatedBlock = this.getBlockById(type);
+      const updatedRotation = BlockRotation.encode(rotation, yRotation);
       const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
         updatedBlock,
-        BlockRotation.encode(rotation, yRotation)
+        updatedRotation
       );
 
       this.setVoxelAt(vx, vy, vz, type);
+
+      if (updatedBlock.rotatable) {
+        this.setVoxelRotationAt(
+          vx,
+          vy,
+          vz,
+          BlockRotation.encode(rotation, yRotation)
+        );
+      }
 
       if (updatedBlock.rotatable) {
         this.setVoxelRotationAt(
@@ -1521,14 +1541,14 @@ export class World extends Scene implements NetIntercept {
           // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
           if (
             !(
-              LightUtils.canEnter(
+              !LightUtils.canEnter(
                 currentTransparency,
                 nTransparency,
                 ox,
                 oy,
                 oz
               ) &&
-              !LightUtils.canEnter(
+              LightUtils.canEnter(
                 updatedTransparency,
                 nTransparency,
                 ox,
@@ -1588,14 +1608,12 @@ export class World extends Scene implements NetIntercept {
     this.floodLight(greenFlood, "GREEN");
     this.floodLight(blueFlood, "BLUE");
 
-    console.timeEnd("update voxels");
+    this.isTrackingChunks = false;
+    const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
 
-    const { vx, vy, vz } = voxelUpdates[0];
-    const coords = ChunkUtils.mapVoxelToChunk(
-      [vx, vy, vz],
-      this.options.chunkSize
-    );
-    this.meshChunkLocally(coords[0], coords[1], 1);
+    dirtyChunks.forEach(([coords, level]) => {
+      this.meshChunkLocally(coords[0], coords[1], level);
+    });
   };
 
   floodLight(
@@ -2083,7 +2101,7 @@ export class World extends Scene implements NetIntercept {
     this.updateUniforms();
     this.updateSkyAndClouds(position);
 
-    this.emitServerUpdates();
+    // this.emitServerUpdates();
   }
 
   /**
@@ -2783,6 +2801,47 @@ export class World extends Scene implements NetIntercept {
 
   private makeChunkMaterialKey(id: number, faceName?: string) {
     return faceName ? `${id}-${faceName}` : `${id}`;
+  }
+
+  private trackChunkAt(vx: number, vy: number, vz: number) {
+    if (!this.isTrackingChunks) return;
+    const { chunkSize, maxHeight, subChunks } = this.options;
+
+    const voxel = [vx | 0, vy | 0, vz | 0] as Coords3;
+    const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxel, chunkSize);
+    const [lcx, , lcz] = ChunkUtils.mapVoxelToChunkLocal(voxel, chunkSize);
+
+    if (this.chunksTracker.find(([[cxt, czt]]) => cxt === cx && czt === cz)) {
+      return;
+    }
+
+    const level = Math.floor(vy / (maxHeight / subChunks));
+
+    this.chunksTracker.push([[cx, cz], level]);
+
+    if (lcx === 0) {
+      this.chunksTracker.push([[cx - 1, cz], level]);
+    }
+
+    if (lcz === 0) {
+      this.chunksTracker.push([[cx, cz - 1], level]);
+    }
+
+    if (lcx === 0 && lcz === 0) {
+      this.chunksTracker.push([[cx - 1, cz - 1], level]);
+    }
+
+    if (lcx === chunkSize - 1) {
+      this.chunksTracker.push([[cx + 1, cz], level]);
+    }
+
+    if (lcz === chunkSize - 1) {
+      this.chunksTracker.push([[cx, cz + 1], level]);
+    }
+
+    if (lcx === chunkSize - 1 && lcz === chunkSize - 1) {
+      this.chunksTracker.push([[cx + 1, cz + 1], level]);
+    }
   }
 
   /**
