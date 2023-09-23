@@ -4,21 +4,21 @@ import * as fflate from "fflate";
 const { Message, Entity } = protocol;
 
 // @ts-ignore
-onmessage = async (e) => {
-  let { data: buffers } = e;
+onconnect = (e) => {
+  const port = e.ports[0];
 
-  if (!Array.isArray(buffers)) {
-    buffers = [buffers];
-  }
+  port.onmessage = (e) => {
+    let { data: buffers } = e;
 
-  const transferables = [];
+    if (!Array.isArray(buffers)) {
+      buffers = [buffers];
+    }
 
-  const messages = await Promise.all(
-    buffers.map(async (buffer) => {
+    const transferables = [];
+
+    const messages = buffers.map((buffer) => {
       if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-        buffer = await new Promise<any>((resolve) =>
-          fflate.unzlib(buffer, (err, data) => resolve(data))
-        );
+        buffer = fflate.unzlibSync(buffer);
       }
 
       const message = Message.toObject(Message.decode(buffer), {
@@ -90,9 +90,9 @@ onmessage = async (e) => {
       }
 
       return message;
-    })
-  );
+    });
 
-  // @ts-ignore
-  postMessage(messages, transferables);
+    // @ts-ignore
+    port.postMessage(messages, transferables);
+  };
 };

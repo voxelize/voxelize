@@ -1,4 +1,6 @@
-import { BlockRotation } from "../core/world/block";
+import { Block, BlockRotation } from "../core/world/block";
+
+import { LightColor } from "./light-utils";
 
 const ROTATION_MASK = 0xfff0ffff;
 const Y_ROTATION_MASK = 0xff0fffff;
@@ -91,6 +93,23 @@ export class BlockUtils {
   static insertStage = (voxel: number, stage: number) => {
     return (voxel & STAGE_MASK) | (stage << 24);
   };
+
+  static getBlockTorchLightLevel = (block: Block, color: LightColor) => {
+    switch (color) {
+      case "RED":
+        return block.redLightLevel;
+      case "GREEN":
+        return block.greenLightLevel;
+      case "BLUE":
+        return block.blueLightLevel;
+    }
+
+    return 0;
+  };
+
+  static getBlockRotatedTransparency(block: Block, rotation: BlockRotation) {
+    return rotation.rotateTransparency(block.isTransparent);
+  }
 
   private constructor() {
     // NOTHING

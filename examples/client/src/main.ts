@@ -771,20 +771,6 @@ const start = async () => {
     "in-game"
   );
 
-  inputs.bind("o", () => {
-    const chunk = world.getChunkByCoords(0, 0);
-    const registryData = world.registry.serialize();
-    const [chunkData, arrayBuffers] = chunk.serialize();
-
-    world.testMeshWorker(
-      {
-        registryData,
-        chunkData,
-      },
-      arrayBuffers
-    );
-  });
-
   bar.connect(inputs);
 };
 

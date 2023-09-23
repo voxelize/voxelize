@@ -97,20 +97,22 @@ export class WorkerPool {
    */
   private process = () => {
     if (this.queue.length !== 0 && this.available.length > 0) {
-      const index = this.available.shift() as number;
+      const index = this.available.pop() as number;
       const worker = this.workers[index];
 
       const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
 
-      worker.postMessage(message, buffers || []);
+      worker.postMessage(message, buffers);
       WorkerPool.WORKING_COUNT++;
 
       const workerCallback = ({ data }: any) => {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
-        this.available.push(index);
+        this.available.unshift(index);
         resolve(data);
-        requestAnimationFrame(this.process);
+        if (this.queue.length > 0) {
+          setTimeout(this.process, 0);
+        }
       };
 
       worker.addEventListener("message", workerCallback);

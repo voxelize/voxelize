@@ -1,6 +1,7 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
+import { GeometryProtocol } from "@voxelize/transport";
 import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
@@ -29,7 +30,17 @@ import MeshWorker from "web-worker:./workers/mesh-worker.ts";
 
 import { WorkerPool } from "../../libs";
 import { Coords2, Coords3 } from "../../types";
-import { BlockUtils, ChunkUtils, LightColor, MathUtils } from "../../utils";
+import {
+  BLUE_LIGHT,
+  BlockUtils,
+  ChunkUtils,
+  GREEN_LIGHT,
+  LightColor,
+  LightUtils,
+  MathUtils,
+  RED_LIGHT,
+  SUNLIGHT,
+} from "../../utils";
 
 import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
 import { Chunk } from "./chunk";
@@ -49,6 +60,21 @@ export * from "./registry";
 export * from "./shaders";
 export * from "./sky";
 export * from "./textures";
+export * from "./uv";
+
+export type LightNode = {
+  voxel: Coords3;
+  level: number;
+};
+
+const VOXEL_NEIGHBORS = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+  [0, 1, 0],
+  [0, -1, 0],
+];
 
 /**
  * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
@@ -403,14 +429,74 @@ export class World extends Scene implements NetIntercept {
     }, statsSyncInterval);
   }
 
-  async testMeshWorker(data: any, buffers: ArrayBuffer[]) {
-    return new Promise<void>((resolve) => {
+  async meshChunkLocally(cx: number, cz: number, level: number) {
+    const neighbors = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [0, -1],
+      [0, 0],
+      [0, 1],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+
+    const chunks = neighbors.map(([dx, dz]) =>
+      this.getChunkByCoords(cx + dx, cz + dz)
+    );
+
+    const centerChunk = chunks[4];
+    const { min, max } = centerChunk;
+    const heightPerSubChunk = Math.floor(
+      this.options.maxHeight / this.options.subChunks
+    );
+    const subChunkMin = [min[0], heightPerSubChunk * level, min[2]];
+    const subChunkMax = [max[0], heightPerSubChunk * (level + 1), max[2]];
+
+    const chunksData: any[] = [];
+    const arrayBuffers: ArrayBuffer[] = [];
+
+    for (const chunk of chunks) {
+      const [chunkData, arrayBuffers] = chunk.serialize();
+
+      chunksData.push(chunkData);
+      arrayBuffers.push(...arrayBuffers);
+    }
+
+    const registryData = this.registry.serialize();
+
+    const data = {
+      registryData,
+      chunksData,
+      options: this.options,
+      min: subChunkMin,
+      max: subChunkMax,
+    };
+
+    const { geometries } = await new Promise<{
+      geometries: GeometryProtocol[];
+    }>((resolve) => {
       this.meshWorkerPool.addJob({
         message: data,
-        buffers,
+        buffers: arrayBuffers,
         resolve,
       });
     });
+
+    const mesh: MeshProtocol = {
+      level,
+      geometries: geometries.map((geometry) => ({
+        indices: Array.from(geometry.indices),
+        positions: Array.from(geometry.positions),
+        uvs: Array.from(geometry.uvs),
+        lights: Array.from(geometry.lights),
+        voxel: geometry.voxel,
+        faceName: geometry.faceName,
+      })),
+    };
+
+    this.buildChunkMesh(cx, cz, mesh);
   }
 
   /**
@@ -703,6 +789,13 @@ export class World extends Scene implements NetIntercept {
     return chunk.getVoxel(px, py, pz);
   }
 
+  setVoxelAt(px: number, py: number, pz: number, voxel: number) {
+    this.checkIsInitialized("set voxel", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setVoxel(px, py, pz, voxel);
+  }
+
   /**
    * Get a voxel rotation by a 3D world position.
    *
@@ -716,6 +809,26 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return new BlockRotation();
     return chunk.getVoxelRotation(px, py, pz);
+  }
+
+  /**
+   * Set a voxel rotation at a 3D world position.
+   *
+   * @param px The x coordinate of the position.
+   * @param py The y coordinate of the position.
+   * @param pz The z coordinate of the position.
+   * @param rotation The rotation to set.
+   */
+  setVoxelRotationAt(
+    px: number,
+    py: number,
+    pz: number,
+    rotation: BlockRotation
+  ) {
+    this.checkIsInitialized("set voxel rotation", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setVoxelRotation(px, py, pz, rotation);
   }
 
   /**
@@ -748,6 +861,13 @@ export class World extends Scene implements NetIntercept {
     return chunk.getSunlight(px, py, pz);
   }
 
+  setSunlightAt(px: number, py: number, pz: number, level: number) {
+    this.checkIsInitialized("set sunlight", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setSunlight(px, py, pz, level);
+  }
+
   /**
    * Get a voxel torch light by a 3D world position.
    *
@@ -762,6 +882,19 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return 0;
     return chunk.getTorchLight(px, py, pz, color);
+  }
+
+  setTorchLightAt(
+    px: number,
+    py: number,
+    pz: number,
+    level: number,
+    color: LightColor
+  ) {
+    this.checkIsInitialized("set torch light", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setTorchLight(px, py, pz, level, color);
   }
 
   /**
@@ -1093,7 +1226,7 @@ export class World extends Scene implements NetIntercept {
         return (
           isDynamic
             ? dynamicFn
-              ? dynamicFn([wx | 0, wy | 0, wz | 0], this).aabbs
+              ? dynamicFn([wx | 0, wy | 0, wz | 0]).aabbs
               : aabbs
             : aabbs
         ).map((aabb) => rotation.rotateAABB(aabb));
@@ -1148,46 +1281,520 @@ export class World extends Scene implements NetIntercept {
   updateVoxels = (updates: BlockUpdate[]) => {
     this.checkIsInitialized("update voxels", false);
 
-    this.chunks.toUpdate.push(
-      ...updates
-        .filter((update) => {
-          if (update.vy < 0 || update.vy >= this.options.maxHeight) {
-            return false;
+    const voxelUpdates = updates
+      .filter((update) => {
+        if (update.vy < 0 || update.vy >= this.options.maxHeight) {
+          return false;
+        }
+
+        const { vx, vy, vz, type, rotation, yRotation } = update;
+
+        const currId = this.getVoxelAt(vx, vy, vz);
+        const currRot = this.getVoxelRotationAt(vx, vy, vz);
+
+        if (!this.getBlockById(type)) {
+          console.warn(`Block ID ${type} does not exist.`);
+          return false;
+        }
+
+        if (
+          currId === type &&
+          (rotation !== undefined ? currRot.value === rotation : false) &&
+          (yRotation !== undefined ? currRot.yRotation === yRotation : false)
+        ) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((update) => {
+        if (isNaN(update.rotation)) {
+          update.rotation = 0;
+        }
+
+        if (!this.getBlockById(update.type).yRotatable) {
+          update.yRotation = 0;
+        }
+
+        return update;
+      });
+
+    this.chunks.toUpdate.push(...voxelUpdates);
+
+    const { maxHeight, maxLightLevel } = this.options;
+
+    // Placing a light
+    const redFlood: LightNode[] = [];
+    const greenFlood: LightNode[] = [];
+    const blueFlood: LightNode[] = [];
+    const sunFlood: LightNode[] = [];
+
+    console.time("update voxels");
+    for (const voxelUpdate of voxelUpdates) {
+      const { type, vx, vy, vz, rotation, yRotation } = voxelUpdate;
+      const currentBlock = this.getBlockAt(vx, vy, vz);
+      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
+      const currentTransparency = BlockUtils.getBlockRotatedTransparency(
+        currentBlock,
+        currentRotation
+      );
+      const updatedBlock = this.getBlockById(type);
+      const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
+        updatedBlock,
+        BlockRotation.encode(rotation, yRotation)
+      );
+
+      this.setVoxelAt(vx, vy, vz, type);
+
+      if (updatedBlock.rotatable) {
+        this.setVoxelRotationAt(
+          vx,
+          vy,
+          vz,
+          BlockRotation.encode(rotation, yRotation)
+        );
+      }
+
+      if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
+        if (this.getSunlightAt(vx, vy, vz) > 0) {
+          this.removeLight([vx, vy, vz], "SUNLIGHT");
+        }
+
+        ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map((color) => {
+          if (this.getTorchLightAt(vx, vy, vz, color) > 0) {
+            this.removeLight([vx, vy, vz], color);
+          }
+        });
+      } else {
+        let removeCount = 0;
+
+        const lightData = [
+          [SUNLIGHT, this.getSunlightAt(vx, vy, vz)],
+          [RED_LIGHT, this.getTorchLightAt(vx, vy, vz, "RED")],
+          [GREEN_LIGHT, this.getTorchLightAt(vx, vy, vz, "GREEN")],
+          [BLUE_LIGHT, this.getTorchLightAt(vx, vy, vz, "BLUE")],
+        ] as const;
+
+        VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
+          const nvy = vy + oy;
+          if (nvy < 0 || nvy >= maxHeight) {
+            return;
           }
 
-          const { vx, vy, vz, type, rotation, yRotation } = update;
+          const nvx = vx + ox;
+          const nvz = vz + oz;
 
-          const currId = this.getVoxelAt(vx, vy, vz);
-          const currRot = this.getVoxelRotationAt(vx, vy, vz);
-
-          if (!this.getBlockById(type)) {
-            console.warn(`Block ID ${type} does not exist.`);
-            return false;
-          }
+          const nBlock = this.getBlockAt(nvx, nvy, nvz);
+          const nTransparency = BlockUtils.getBlockRotatedTransparency(
+            nBlock,
+            // Maybe use the new rotation?
+            currentRotation
+          );
 
           if (
-            currId === type &&
-            (rotation !== undefined ? currRot.value === rotation : false) &&
-            (yRotation !== undefined ? currRot.yRotation === yRotation : false)
+            !(
+              LightUtils.canEnter(
+                currentTransparency,
+                nTransparency,
+                ox,
+                oy,
+                oz
+              ) &&
+              !LightUtils.canEnter(
+                updatedTransparency,
+                nTransparency,
+                ox,
+                oy,
+                oz
+              )
+            )
           ) {
-            return false;
+            return;
           }
 
-          return true;
-        })
-        .map((update) => {
-          if (isNaN(update.rotation)) {
-            update.rotation = 0;
+          lightData.forEach(([color, sourceLevel]) => {
+            const isSunlight = color === SUNLIGHT;
+
+            const nLevel = isSunlight
+              ? this.getSunlightAt(nvx, nvy, nvz)
+              : this.getTorchLightAt(nvx, nvy, nvz, color);
+
+            if (
+              nLevel < sourceLevel ||
+              (oy === -1 &&
+                isSunlight &&
+                nLevel === maxLightLevel &&
+                sourceLevel === maxLightLevel)
+            ) {
+              removeCount += 1;
+              this.removeLight([nvx, nvy, nvz], color);
+            }
+          });
+        });
+
+        if (removeCount === 0) {
+          if (this.getSunlightAt(vx, vy, vz) !== 0) {
+            this.removeLight([vx, vy, vz], "SUNLIGHT");
           }
 
-          if (!this.getBlockById(update.type).yRotatable) {
-            update.yRotation = 0;
+          ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map(
+            (color) => {
+              if (this.getTorchLightAt(vx, vy, vz, color) !== 0) {
+                this.removeLight([vx, vy, vz], color);
+              }
+            }
+          );
+        }
+      }
+
+      if (updatedBlock.isLight) {
+        if (updatedBlock.redLightLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, updatedBlock.redLightLevel, "RED");
+          redFlood.push({
+            voxel: [vx, vy, vz],
+            level: updatedBlock.redLightLevel,
+          });
+        }
+
+        if (updatedBlock.greenLightLevel > 0) {
+          this.setTorchLightAt(
+            vx,
+            vy,
+            vz,
+            updatedBlock.greenLightLevel,
+            "GREEN"
+          );
+          greenFlood.push({
+            voxel: [vx, vy, vz],
+            level: updatedBlock.greenLightLevel,
+          });
+        }
+
+        if (updatedBlock.blueLightLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, updatedBlock.blueLightLevel, "BLUE");
+          blueFlood.push({
+            voxel: [vx, vy, vz],
+            level: updatedBlock.blueLightLevel,
+          });
+        }
+      } else {
+        // Check the six neighbors.
+        VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
+          const nvy = vy + oy;
+
+          if (nvy < 0) {
+            return;
           }
 
-          return update;
-        })
+          // Sunlight should propagate downwards here.
+          if (nvy >= maxHeight) {
+            // Light can go downwards into this block.
+            if (
+              LightUtils.canEnter(
+                [true, true, true, true, true, true],
+                updatedTransparency,
+                ox,
+                -1,
+                oz
+              )
+            ) {
+              sunFlood.push({
+                voxel: [vx + ox, vy, vz + oz],
+                level: maxLightLevel,
+              });
+            }
+
+            return;
+          }
+
+          const nvx = vx + ox;
+          const nvz = vz + oz;
+
+          const nBlock = this.getBlockAt(nvx, nvy, nvz);
+          const nTransparency = BlockUtils.getBlockRotatedTransparency(
+            nBlock,
+            this.getVoxelRotationAt(nvx, nvy, nvz)
+          );
+
+          const nVoxel = [nvx, nvy, nvz] as Coords3;
+
+          // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
+          if (
+            !(
+              LightUtils.canEnter(
+                currentTransparency,
+                nTransparency,
+                ox,
+                oy,
+                oz
+              ) &&
+              !LightUtils.canEnter(
+                updatedTransparency,
+                nTransparency,
+                ox,
+                oy,
+                oz
+              )
+            )
+          ) {
+            return;
+          }
+
+          const level =
+            this.getSunlightAt(nvx, nvy, nvz) -
+            (updatedBlock.lightReduce ? 1 : 0);
+          if (level !== 0) {
+            sunFlood.push({
+              voxel: nVoxel,
+              level,
+            });
+          }
+
+          const redLevel =
+            this.getTorchLightAt(nvx, nvy, nvz, "RED") -
+            (updatedBlock.lightReduce ? 1 : 0);
+          if (redLevel !== 0 && nBlock.isLight) {
+            redFlood.push({
+              voxel: nVoxel,
+              level: redLevel,
+            });
+          }
+
+          const greenLevel =
+            this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
+            (updatedBlock.lightReduce ? 1 : 0);
+          if (greenLevel !== 0 && nBlock.isLight) {
+            greenFlood.push({
+              voxel: nVoxel,
+              level: greenLevel,
+            });
+          }
+
+          const blueLevel =
+            this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
+            (updatedBlock.lightReduce ? 1 : 0);
+          if (blueLevel !== 0 && nBlock.isLight) {
+            blueFlood.push({
+              voxel: nVoxel,
+              level: blueLevel,
+            });
+          }
+        });
+      }
+    }
+
+    this.floodLight(sunFlood, "SUNLIGHT");
+    this.floodLight(redFlood, "RED");
+    this.floodLight(greenFlood, "GREEN");
+    this.floodLight(blueFlood, "BLUE");
+
+    console.timeEnd("update voxels");
+
+    const { vx, vy, vz } = voxelUpdates[0];
+    const coords = ChunkUtils.mapVoxelToChunk(
+      [vx, vy, vz],
+      this.options.chunkSize
     );
+    this.meshChunkLocally(coords[0], coords[1], 1);
   };
+
+  floodLight(
+    queue: LightNode[],
+    color: LightColor,
+    min?: Coords3,
+    max?: Coords3
+  ) {
+    if (!queue.length) {
+      return;
+    }
+
+    const { maxHeight, minChunk, maxChunk, maxLightLevel, chunkSize } =
+      this.options;
+
+    const [startCX, startCZ] = minChunk;
+    const [endCX, endCZ] = maxChunk;
+
+    const isSunlight = color === "SUNLIGHT";
+
+    while (queue.length) {
+      const node = queue.shift();
+      const { voxel, level } = node;
+
+      if (level === 0) {
+        continue;
+      }
+
+      const [vx, vy, vz] = voxel;
+      const sourceBlock = this.getBlockAt(vx, vy, vz);
+      const sourceTransparency =
+        !isSunlight &&
+        BlockUtils.getBlockTorchLightLevel(sourceBlock, color) > 0
+          ? [true, true, true, true, true, true]
+          : BlockUtils.getBlockRotatedTransparency(
+              sourceBlock,
+              this.getVoxelRotationAt(vx, vy, vz)
+            );
+
+      for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+        const nvy = vy + oy;
+
+        if (nvy < 0 || nvy >= maxHeight) {
+          continue;
+        }
+
+        const nvx = vx + ox;
+        const nvz = vz + oz;
+
+        const [ncx, ncz] = ChunkUtils.mapVoxelToChunk(
+          [nvx, nvy, nvz],
+          chunkSize
+        );
+
+        if (
+          ncx < startCX ||
+          ncx > endCX ||
+          ncz < startCZ ||
+          ncz > endCZ ||
+          (min && (nvx < min[0] || nvz < min[2])) ||
+          (max && (nvx > max[0] || nvz > max[2]))
+        ) {
+          continue;
+        }
+
+        const nextVoxel = [nvx, nvy, nvz] as Coords3;
+        const nBlock = this.getBlockAt(nvx, nvy, nvz);
+        const nTransparency = BlockUtils.getBlockRotatedTransparency(
+          nBlock,
+          this.getVoxelRotationAt(nvx, nvy, nvz)
+        );
+        const nextLevel =
+          level -
+          (isSunlight &&
+          !nBlock.lightReduce &&
+          oy === -1 &&
+          level === maxLightLevel
+            ? 0
+            : 1);
+
+        if (
+          !LightUtils.canEnter(sourceTransparency, nTransparency, ox, oy, oz) ||
+          (isSunlight
+            ? this.getSunlightAt(nvx, nvy, nvz)
+            : this.getTorchLightAt(nvx, nvy, nvz, color)) >= nextLevel
+        ) {
+          continue;
+        }
+
+        if (isSunlight) {
+          this.setSunlightAt(nvx, nvy, nvz, nextLevel);
+        } else {
+          this.setTorchLightAt(nvx, nvy, nvz, nextLevel, color);
+        }
+
+        queue.unshift({ voxel: nextVoxel, level: nextLevel });
+      }
+    }
+  }
+
+  public removeLight(voxel: Coords3, color: LightColor) {
+    const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
+      this.options;
+
+    const fill: LightNode[] = [];
+    const queue: LightNode[] = [];
+
+    const isSunlight = color === "SUNLIGHT";
+    const [vx, vy, vz] = voxel;
+
+    queue.push({
+      voxel,
+      level: isSunlight
+        ? this.getSunlightAt(vx, vy, vz)
+        : this.getTorchLightAt(vx, vy, vz, color),
+    });
+
+    if (isSunlight) {
+      this.setSunlightAt(vx, vy, vz, 0);
+    } else {
+      this.setTorchLightAt(vx, vy, vz, 0, color);
+    }
+
+    while (queue.length) {
+      const node = queue.shift();
+      const { voxel, level } = node;
+
+      const [vx, vy, vz] = voxel;
+
+      for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+        const nvy = vy + oy;
+
+        if (nvy < 0 || nvy >= maxHeight) {
+          continue;
+        }
+
+        const nvx = vx + ox;
+        const nvz = vz + oz;
+        const [ncx, ncz] = ChunkUtils.mapVoxelToChunk(
+          [nvx, nvy, nvz],
+          chunkSize
+        );
+
+        if (
+          ncx < minChunk[0] ||
+          ncz < minChunk[1] ||
+          ncx > maxChunk[0] ||
+          ncz > maxChunk[1]
+        ) {
+          continue;
+        }
+
+        const nBlock = this.getBlockAt(nvx, nvy, nvz);
+        const rotation = this.getVoxelRotationAt(nvx, nvy, nvz);
+        const nTransparency = BlockUtils.getBlockRotatedTransparency(
+          nBlock,
+          rotation
+        );
+
+        if (
+          (isSunlight
+            ? true
+            : BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0) &&
+          !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
+        ) {
+          continue;
+        }
+
+        const nVoxel = [nvx, nvy, nvz] as Coords3;
+        const nl = isSunlight
+          ? this.getSunlightAt(nvx, nvy, nvz)
+          : this.getTorchLightAt(nvx, nvy, nvz, color);
+
+        if (nl === 0) {
+          continue;
+        }
+
+        if (
+          nl < level ||
+          (isSunlight &&
+            oy === -1 &&
+            level === maxLightLevel &&
+            nl === maxLightLevel)
+        ) {
+          queue.push({ voxel: nVoxel, level: nl });
+
+          if (isSunlight) {
+            this.setSunlightAt(nvx, nvy, nvz, 0);
+          } else {
+            this.setTorchLightAt(nvx, nvy, nvz, 0, color);
+          }
+        } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
+          fill.push({ voxel: nVoxel, level: nl });
+        }
+      }
+    }
+
+    this.floodLight(fill, color);
+  }
 
   /**
    * Get a mesh of the model of the given block.
@@ -1560,7 +2167,7 @@ export class World extends Scene implements NetIntercept {
     radius = Math.floor(radius);
 
     this._renderRadius = radius;
-    this._deleteRadius = radius * 1.2;
+    this._deleteRadius = radius * 1.1;
 
     const { chunkSize } = this.options;
 

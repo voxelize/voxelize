@@ -103,6 +103,113 @@ export class LightUtils {
     return (light & 0xfff0) | level;
   };
 
+  /**
+   * Check to see if light can go "into" one block, disregarding the source.
+   *
+   * @param target The target block's transparency.
+   * @param dx The change in x direction.
+   * @param dy The change in y direction.
+   * @param dz The change in z direction.
+   * @returns Whether light can enter into the target block.
+   */
+  static canEnterInto = (
+    target: boolean[],
+    dx: number,
+    dy: number,
+    dz: number
+  ) => {
+    if (Math.abs(dx + dy + dz) !== 1) {
+      throw new Error(
+        "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
+      );
+    }
+
+    const [px, py, pz, nx, ny, nz] = target;
+
+    // Going into the NX of the target.
+    if (dx === 1) {
+      return nx;
+    }
+
+    // Going into the PX of the target.
+    if (dx === -1) {
+      return px;
+    }
+
+    // Going into the NY of the target.
+    if (dy === 1) {
+      return ny;
+    }
+
+    // Going into the PY of the target.
+    if (dy === -1) {
+      return py;
+    }
+
+    // Going into the NZ of the target.
+    if (dz === 1) {
+      return nz;
+    }
+
+    // Going into the PZ of the target.
+    return pz;
+  };
+
+  /**
+   * Check to see if light can enter from one block to another.
+   *
+   * @param source The source block's transparency.
+   * @param target The target block's transparency.
+   * @param dx The change in x direction.
+   * @param dy The change in y direction.
+   * @param dz The change in z direction.
+   * @returns Whether light can enter from the source block to the target block.
+   */
+  static canEnter = (
+    source: boolean[],
+    target: boolean[],
+    dx: number,
+    dy: number,
+    dz: number
+  ) => {
+    if (Math.abs(dx + dy + dz) !== 1) {
+      throw new Error(
+        "This isn't supposed to happen. Light neighboring direction should be on 1 axis only."
+      );
+    }
+
+    const [spx, spy, spz, snx, sny, snz] = source;
+    const [tpx, tpy, tpz, tnx, tny, tnz] = target;
+
+    // Going from PX of source to NX of target
+    if (dx === 1) {
+      return spx && tnx;
+    }
+
+    // Going from NX of source to PX of target
+    if (dx === -1) {
+      return snx && tpx;
+    }
+
+    // Going from PY of source to NY of target
+    if (dy === 1) {
+      return spy && tny;
+    }
+
+    // Going from NY of source to PY of target
+    if (dy === -1) {
+      return sny && tpy;
+    }
+
+    // Going from PZ of source to NZ of target
+    if (dz === 1) {
+      return spz && tnz;
+    }
+
+    // Going from NZ of source to PZ of target
+    return snz && tpz;
+  };
+
   private constructor() {
     // NOTHING
   }

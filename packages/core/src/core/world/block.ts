@@ -2,7 +2,7 @@ import { AABB } from "@voxelize/aabb";
 
 import { Coords3 } from "../../types";
 
-import { TextureRange, World } from ".";
+import { UV } from "./uv";
 
 /**
  * A block type in the world. This is defined by the server.
@@ -77,16 +77,18 @@ export type Block = {
    * Whether or not is this block transparent viewing from all six sides. The sides
    * are defined as PX, PY, PZ, NX, NY, NZ.
    */
-  isTransparent: boolean[];
+  isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
+
+  transparentStandalone: boolean;
 
   /**
    * A list of block face data that this block has.
    */
   faces: {
-    corners: { pos: number[]; uv: number[] }[];
-    dir: number[];
+    corners: { pos: [number, number, number]; uv: number[] }[];
+    dir: [number, number, number];
     independent: boolean;
-    range: TextureRange;
+    range: UV;
     name: string;
   }[];
 
@@ -114,10 +116,7 @@ export type Block = {
    * @param world The world instance.
    * @returns The dynamic faces and AABB's of the block.
    */
-  dynamicFn: (
-    pos: Coords3,
-    world: World
-  ) => {
+  dynamicFn: (pos: Coords3) => {
     faces: Block["faces"];
     aabbs: Block["aabbs"];
     isTransparent: Block["isTransparent"];
@@ -398,6 +397,47 @@ export class BlockRotation {
       realMax[2]
     );
   };
+
+  public rotateTransparency([px, py, pz, nx, ny, nz]: [
+    boolean,
+    boolean,
+    boolean,
+    boolean,
+    boolean,
+    boolean
+  ]) {
+    const rot = this.value;
+
+    if (Math.abs(rot) < Number.EPSILON) {
+      return [px, py, pz, nx, ny, nz];
+    }
+
+    const positive = [1.0, 2.0, 3.0];
+    const negative = [4.0, 5.0, 6.0];
+
+    this.rotateNode(positive as Coords3, true, false);
+    this.rotateNode(negative as Coords3, true, false);
+
+    const p = positive.map((n) => {
+      if (n === 1.0) return px;
+      if (n === 2.0) return py;
+      if (n === 3.0) return pz;
+      if (n === 4.0) return nx;
+      if (n === 5.0) return ny;
+      return nz;
+    });
+
+    const n = negative.map((n) => {
+      if (n === 1.0) return px;
+      if (n === 2.0) return py;
+      if (n === 3.0) return pz;
+      if (n === 4.0) return nx;
+      if (n === 5.0) return ny;
+      return nz;
+    });
+
+    return [p[0], p[1], p[2], n[0], n[1], n[2]];
+  }
 
   // Reference:
   // https://www.khanacademy.org/computer-programming/cube-rotated-around-x-y-and-z/4930679668473856

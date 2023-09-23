@@ -10,6 +10,7 @@ import {
   Vector3,
 } from "three";
 
+import { World } from "../core/world";
 import {
   NX_ROTATION,
   NY_ROTATION,
@@ -17,9 +18,8 @@ import {
   PX_ROTATION,
   PY_ROTATION,
   PZ_ROTATION,
-  World,
   Y_ROT_MAP,
-} from "../core/world";
+} from "../core/world/block";
 import { Coords3 } from "../types";
 import { ChunkUtils, MathUtils } from "../utils";
 
@@ -305,7 +305,7 @@ export class VoxelInteract extends Group {
       const { isDynamic, dynamicFn } = lookingAt;
 
       const aabbs = isDynamic
-        ? dynamicFn(voxel as Coords3, this.world).aabbs
+        ? dynamicFn(voxel as Coords3).aabbs
         : lookingAt.aabbs;
 
       if (!aabbs.length) return;

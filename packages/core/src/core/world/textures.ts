@@ -7,30 +7,7 @@ import {
   Texture,
 } from "three";
 
-/**
- * The UV range of a texture on the texture atlas.
- */
-export type TextureRange = {
-  /**
-   * The starting U coordinate of the texture.
-   */
-  startU: number;
-
-  /**
-   * The ending U coordinate of the texture.
-   */
-  endU: number;
-
-  /**
-   * The starting V coordinate of the texture.
-   */
-  startV: number;
-
-  /**
-   * The ending V coordinate of the texture.
-   */
-  endV: number;
-};
+import { UV } from "./uv";
 
 /**
  * A texture atlas is a collection of textures that are packed into a single texture.
@@ -160,7 +137,7 @@ export class AtlasTexture extends CanvasTexture {
    * @param image The texture to draw to the range.
    */
   drawImageToRange(
-    range: TextureRange,
+    range: UV,
     image:
       | typeof Image
       | HTMLImageElement
@@ -246,7 +223,7 @@ export class AtlasTexture extends CanvasTexture {
   }
 
   registerAnimation(
-    range: TextureRange,
+    range: UV,
     keyframes: [number, Color | HTMLImageElement][],
     fadeFrames = 0
   ) {
@@ -370,7 +347,7 @@ export class FaceAnimation {
   /**
    * The range of the texture atlas that this animation uses.
    */
-  public range: TextureRange;
+  public range: UV;
 
   /**
    * The keyframes of the animation. This will be queried and drawn to the
@@ -391,7 +368,7 @@ export class FaceAnimation {
    * @param fadeFrames The fading duration between each keyframe in milliseconds.
    */
   constructor(
-    range: TextureRange,
+    range: UV,
     keyframes: [number, HTMLImageElement | Color][],
     fadeFrames = 0
   ) {
