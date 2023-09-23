@@ -40,7 +40,7 @@ onmessage = function (e) {
     const centerCoords = chunks[4].coords;
     const dx = coords[0] - centerCoords[0];
     const dy = coords[1] - centerCoords[1];
-    const index = 4 + dy + dx * 3;
+    const index = (dy + 1) * 3 + (dx + 1);
     if (index < 0 || index >= chunks.length) {
       throw new Error(`Invalid coordinates: ${coords}`);
     }

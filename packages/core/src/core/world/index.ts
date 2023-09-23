@@ -438,9 +438,9 @@ export class World extends Scene implements NetIntercept {
       [-1, -1],
       [0, -1],
       [1, -1],
-      [0, -1],
+      [-1, 0],
       [0, 0],
-      [0, 1],
+      [1, 0],
       [-1, 1],
       [0, 1],
       [1, 1],
@@ -2101,7 +2101,7 @@ export class World extends Scene implements NetIntercept {
     this.updateUniforms();
     this.updateSkyAndClouds(position);
 
-    // this.emitServerUpdates();
+    this.emitServerUpdates();
   }
 
   /**
