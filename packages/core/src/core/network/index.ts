@@ -187,6 +187,8 @@ export class Network {
       ...defaultOptions,
       ...options,
     };
+
+    setInterval(this.sync, 1000 / 60);
   }
 
   /**
@@ -259,7 +261,7 @@ export class Network {
       };
       ws.onerror = console.error;
       ws.onmessage = ({ data }) => {
-        this.packetQueue.push(new Uint8Array(data));
+        this.packetQueue.push(data);
       };
       ws.onclose = () => {
         this.connected = false;
@@ -341,19 +343,17 @@ export class Network {
   };
 
   sync = () => {
-    if (!this.packetQueue.length) {
-      return;
-    }
-
-    if (this.pool.isBusy) {
+    if (!this.connected || !this.packetQueue.length || this.pool.isBusy) {
       return;
     }
 
     this.decode(
-      this.packetQueue.splice(
-        0,
-        Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
-      )
+      this.packetQueue
+        .splice(
+          0,
+          Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
+        )
+        .map((buffer) => new Uint8Array(buffer))
     ).then((messages) => {
       messages.forEach((message) => {
         this.onMessage(message);
