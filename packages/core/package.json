@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/core",
-  "version": "0.1.116",
+  "version": "0.1.117",
   "license": "MIT",
   "main": "dist/index.cjs.js",
   "module": "dist/index.js",
