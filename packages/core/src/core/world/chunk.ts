@@ -9,6 +9,7 @@ export class Chunk extends RawChunk {
   public meshes = new Map<number, Mesh[]>();
 
   public added = false;
+  public isDirty = false;
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     super(id, coords, options);

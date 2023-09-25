@@ -519,6 +519,15 @@ export class World extends Scene implements NetIntercept {
       })),
     };
 
+    const chunk = this.getChunkByCoords(cx, cz);
+
+    // This means the server was faster than the client, so we can just ignore this.
+    if (!chunk.isDirty) {
+      return;
+    }
+
+    chunk.isDirty = false;
+
     this.buildChunkMesh(cx, cz, mesh);
   }
 
@@ -1626,7 +1635,11 @@ export class World extends Scene implements NetIntercept {
     const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
 
     dirtyChunks.forEach(([coords, level]) => {
-      this.meshChunkLocally(coords[0], coords[1], level);
+      const [cx, cz] = coords;
+      const chunk = this.getChunkByCoords(cx, cz);
+      chunk.isDirty = true;
+
+      this.meshChunkLocally(cx, cz, level);
     });
   };
 
@@ -2175,7 +2188,6 @@ export class World extends Scene implements NetIntercept {
             return;
           }
 
-          console.log(voxel);
           this.attemptBlockCache(vx, vy, vz, voxel);
 
           if (chunk) {
@@ -2376,6 +2388,7 @@ export class World extends Scene implements NetIntercept {
       }
 
       chunk.setData(data);
+      chunk.isDirty = false;
 
       this.chunks.loaded.set(name, chunk);
 
@@ -2573,33 +2586,23 @@ export class World extends Scene implements NetIntercept {
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
-
-    if (!chunk) {
-      // May be already maintained and deleted.
-      return;
-    }
+    if (!chunk) return; // May be already maintained and deleted.
 
     const { maxHeight, subChunks, chunkSize } = this.options;
     const { level, geometries } = data;
-
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
-
-    const original = chunk.meshes.get(level);
-
-    if (original) {
-      original.forEach((mesh) => {
-        mesh.geometry.dispose();
-        this.remove(mesh);
-      });
-
-      chunk.meshes.delete(level);
-    }
 
     if (geometries.length === 0) return;
 
+    chunk.meshes.get(level)?.forEach((mesh) => {
+      mesh.geometry.dispose();
+      this.remove(mesh);
+    });
+
+    chunk.meshes.delete(level);
+
     const mesh = geometries.map((geo) => {
       const { voxel, faceName, indices, lights, positions, uvs } = geo;
-
       const geometry = new BufferGeometry();
 
       geometry.setAttribute(
@@ -2614,21 +2617,17 @@ export class World extends Scene implements NetIntercept {
       if (!material) return;
 
       const mesh = new Mesh(geometry, material);
-
       mesh.position.set(
         cx * chunkSize,
         level * heightPerSubChunk,
         cz * chunkSize
       );
-
       mesh.updateMatrix();
       mesh.matrixAutoUpdate = false;
       mesh.matrixWorldAutoUpdate = false;
-      mesh.userData.isChunk = true;
-      mesh.userData.voxel = voxel;
+      mesh.userData = { isChunk: true, voxel };
 
       this.add(mesh);
-
       return mesh;
     });
 
