@@ -764,6 +764,10 @@ const start = async () => {
   );
 
   bar.connect(inputs);
+
+  world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
+    console.log("block update", voxel, oldValue, newValue);
+  });
 };
 
 start();

@@ -67,6 +67,12 @@ export type LightNode = {
   level: number;
 };
 
+export type BlockUpdateListener = (args: {
+  oldValue: number;
+  newValue: number;
+  voxel: Coords3;
+}) => void;
+
 const VOXEL_NEIGHBORS = [
   [1, 0, 0],
   [-1, 0, 0],
@@ -376,6 +382,8 @@ export class World extends Scene implements NetIntercept {
     string,
     ((chunk: Chunk) => void)[]
   >();
+
+  private blockUpdateListeners = new Set<BlockUpdateListener>();
 
   /**
    * The JSON data received from the world. Call `initialize` to initialize.
@@ -1126,6 +1134,10 @@ export class World extends Scene implements NetIntercept {
     this.chunkInitializeListeners.set(name, listeners);
   };
 
+  addBlockUpdateListener = (listener: BlockUpdateListener) => {
+    this.blockUpdateListeners.add(listener);
+  };
+
   /**
    * Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
    * is within {@link WorldServerOptions | WorldServerOptions.minChunk} and {@link WorldServerOptions | WorldServerOptions.maxChunk}.
@@ -1365,18 +1377,17 @@ export class World extends Scene implements NetIntercept {
         updatedRotation
       );
 
+      const newValue = BlockUtils.insertAll(
+        updatedBlock.id,
+        updatedBlock.rotatable ? updatedRotation : undefined
+      );
+      this.attemptBlockCache(vx, vy, vz, newValue);
+
       this.setVoxelAt(vx, vy, vz, type);
 
       if (updatedBlock.rotatable) {
         this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
       }
-
-      const value = BlockUtils.insertAll(
-        currentBlock.id,
-        currentBlock.rotatable ? currentRotation : undefined
-      );
-
-      this.attemptBlockCache(vx, vy, vz, value);
 
       if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
         if (this.getSunlightAt(vx, vy, vz) > 0) {
@@ -2157,6 +2168,14 @@ export class World extends Scene implements NetIntercept {
           const { vx, vy, vz, light, voxel } = update;
           const chunk = this.getChunkByPosition(vx, vy, vz);
 
+          const currentValue = chunk.getRawValue(vx, vy, vz);
+          const currentLight = chunk.getRawLight(vx, vy, vz);
+
+          if (currentValue === voxel && currentLight === light) {
+            return;
+          }
+
+          console.log(voxel);
           this.attemptBlockCache(vx, vy, vz, voxel);
 
           if (chunk) {
@@ -2438,6 +2457,22 @@ export class World extends Scene implements NetIntercept {
     }
   }
 
+  private triggerBlockUpdateListeners(
+    vx: number,
+    vy: number,
+    vz: number,
+    oldValue: number,
+    newValue: number
+  ) {
+    this.blockUpdateListeners.forEach((listener) =>
+      listener({
+        voxel: [vx, vy, vz],
+        oldValue,
+        newValue,
+      })
+    );
+  }
+
   private attemptBlockCache(
     vx: number,
     vy: number,
@@ -2454,6 +2489,7 @@ export class World extends Scene implements NetIntercept {
       const arr = this.oldBlocks.get(name) || [];
       arr.push(oldVal);
       this.oldBlocks.set(name, arr);
+      this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal);
     }
   }
 
@@ -2666,11 +2702,15 @@ export class World extends Scene implements NetIntercept {
             const { type, vx, vy, vz, rotation, yRotation } = update;
 
             const chunk = this.getChunkByPosition(vx, vy, vz);
+            const block = this.getBlockById(type);
 
             let raw = 0;
             raw = BlockUtils.insertID(raw, type);
 
-            if (!isNaN(update.rotation) || !isNaN(yRotation)) {
+            if (
+              block.rotatable &&
+              (!isNaN(update.rotation) || !isNaN(yRotation))
+            ) {
               raw = BlockUtils.insertRotation(
                 raw,
                 BlockRotation.encode(rotation, yRotation)

@@ -120,7 +120,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 };
 
                 chunks.set_voxel(vx, vy, vz, updated_id);
-                chunks.set_voxel_stage(vx, vy, vz, stage);
+
+                if stage != 0 {
+                    chunks.set_voxel_stage(vx, vy, vz, stage);
+                }
 
                 if updated_type.is_active {
                     let ticks = (&updated_type.active_ticker.as_ref().unwrap())(

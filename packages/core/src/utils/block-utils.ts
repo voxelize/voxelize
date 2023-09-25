@@ -94,13 +94,9 @@ export class BlockUtils {
     return (voxel & STAGE_MASK) | (stage << 24);
   };
 
-  static insertAll = (
-    voxel: number,
-    rotation?: BlockRotation,
-    stage?: number
-  ) => {
+  static insertAll = (id: number, rotation?: BlockRotation, stage?: number) => {
     let value = 0;
-    value = BlockUtils.insertID(value, BlockUtils.extractID(voxel));
+    value = BlockUtils.insertID(value, id);
     if (rotation) value = BlockUtils.insertRotation(value, rotation);
     if (stage !== undefined) value = BlockUtils.insertStage(value, stage);
     return value;
