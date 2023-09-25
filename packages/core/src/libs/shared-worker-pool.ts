@@ -112,7 +112,9 @@ export class SharedWorkerPool {
         worker.port.removeEventListener("message", workerCallback);
         this.available.push(index);
         resolve(data);
-        requestAnimationFrame(this.process);
+        if (this.queue.length !== 0 && this.available.length > 0) {
+          setTimeout(this.process, 0);
+        }
       };
 
       worker.port.addEventListener("message", workerCallback);

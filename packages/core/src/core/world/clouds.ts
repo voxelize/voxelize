@@ -1,5 +1,4 @@
 import ndarray from "ndarray";
-import CloudWorker from "shared-worker:./workers/clouds-worker.ts";
 import {
   BufferGeometry,
   Clock,
@@ -12,9 +11,10 @@ import {
   ShaderMaterial,
   Vector3,
 } from "three";
+import CloudWorker from "web-worker:./workers/clouds-worker.ts";
 
 import { cull } from "../../libs/cull";
-import { SharedWorkerPool } from "../../libs/shared-worker-pool";
+import { WorkerPool } from "../../libs/worker-pool";
 import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl";
 import { Coords2, Coords3 } from "../../types";
@@ -193,7 +193,7 @@ export class Clouds extends Group {
   /**
    * The worker pool used to generate the clouds.
    */
-  private pool = new SharedWorkerPool(CloudWorker, {
+  private pool = new WorkerPool(CloudWorker, {
     maxWorker: 2,
   });
 

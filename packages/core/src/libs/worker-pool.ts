@@ -91,6 +91,12 @@ export class WorkerPool {
     this.process();
   };
 
+  postMessage = (message: any, buffers?: ArrayBufferLike[]) => {
+    for (const worker of this.workers) {
+      worker.postMessage(message, buffers);
+    }
+  };
+
   /**
    * Process the queue of jobs. This is called when a worker becomes available or
    * when a new job is added to the queue.

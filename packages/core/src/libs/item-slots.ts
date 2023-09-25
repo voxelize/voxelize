@@ -32,6 +32,7 @@ export type ItemSlotsOptions = {
 
   zoom: number;
   perspective: CameraPerspective;
+  scrollable?: boolean;
 };
 
 const defaultOptions: ItemSlotsOptions = {
@@ -53,6 +54,7 @@ const defaultOptions: ItemSlotsOptions = {
 
   zoom: 1,
   perspective: "pxyz",
+  scrollable: true,
 };
 
 export class ItemSlot<T = number> {
@@ -419,7 +421,7 @@ export class ItemSlots<T = number> {
   };
 
   connect = (inputs: Inputs, namespace = "*") => {
-    const { slotHoverClass } = this.options;
+    const { slotHoverClass, scrollable } = this.options;
 
     let mouseHoverPrevRow = null;
     let mouseHoverPrevCol = null;
@@ -487,44 +489,46 @@ export class ItemSlots<T = number> {
       this.setFocused(row, col);
     };
 
-    const unbind = inputs.scroll(
-      // Scrolling up, inventory goes left and up
-      () => {
-        if (!this.activated) return;
-        if (this.focusedRow === -1 || this.focusedCol === -1) return;
+    const unbind = scrollable
+      ? inputs.scroll(
+          // Scrolling up, inventory goes left and up
+          () => {
+            if (!this.activated) return;
+            if (this.focusedRow === -1 || this.focusedCol === -1) return;
 
-        const { horizontalCount, verticalCount } = this.options;
+            const { horizontalCount, verticalCount } = this.options;
 
-        const row = this.focusedRow;
-        const col = this.focusedCol;
+            const row = this.focusedRow;
+            const col = this.focusedCol;
 
-        if (col === 0) {
-          this.setFocused(
-            row === 0 ? verticalCount - 1 : row - 1,
-            horizontalCount - 1
-          );
-        } else {
-          this.setFocused(row, col - 1);
-        }
-      },
-      // Scrolling down, inventory goes right and down
-      () => {
-        if (!this.activated) return;
-        if (this.focusedRow === -1 || this.focusedCol === -1) return;
+            if (col === 0) {
+              this.setFocused(
+                row === 0 ? verticalCount - 1 : row - 1,
+                horizontalCount - 1
+              );
+            } else {
+              this.setFocused(row, col - 1);
+            }
+          },
+          // Scrolling down, inventory goes right and down
+          () => {
+            if (!this.activated) return;
+            if (this.focusedRow === -1 || this.focusedCol === -1) return;
 
-        const { horizontalCount, verticalCount } = this.options;
+            const { horizontalCount, verticalCount } = this.options;
 
-        const row = this.focusedRow;
-        const col = this.focusedCol;
+            const row = this.focusedRow;
+            const col = this.focusedCol;
 
-        if (col === horizontalCount - 1) {
-          this.setFocused(row === verticalCount - 1 ? 0 : row + 1, 0);
-        } else {
-          this.setFocused(row, col + 1);
-        }
-      },
-      namespace
-    );
+            if (col === horizontalCount - 1) {
+              this.setFocused(row === verticalCount - 1 ? 0 : row + 1, 0);
+            } else {
+              this.setFocused(row, col + 1);
+            }
+          },
+          namespace
+        )
+      : noop;
 
     return () => {
       try {

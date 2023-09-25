@@ -82,7 +82,7 @@ const defaultOptions: VoxelInteractOptions = {
   ignoreFluids: true,
   highlightType: "box",
   highlightScale: 1.002,
-  highlightLerp: 0.8,
+  highlightLerp: 1,
   inverseDirection: false,
   highlightColor: new Color("white"),
   highlightOpacity: 0.1,

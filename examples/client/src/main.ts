@@ -275,73 +275,6 @@ inputs.bind(
 );
 
 // let hand = "glass";
-// let radius = 1;
-// let circular = true;
-
-// const bulkDestroy = () => {
-//   if (!voxelInteract.target) return;
-
-//   const [vx, vy, vz] = voxelInteract.target;
-
-//   const updates: VOXELIZE.BlockUpdate[] = [];
-
-//   for (let x = -radius; x <= radius; x++) {
-//     for (let y = -radius; y <= radius; y++) {
-//       for (let z = -radius; z <= radius; z++) {
-//         if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
-//           continue;
-
-//         updates.push({
-//           vx: vx + x,
-//           vy: vy + y,
-//           vz: vz + z,
-//           type: 0,
-//         });
-//       }
-//     }
-//   }
-
-//   if (updates.length) controls.world.updateVoxels(updates);
-// };
-
-// const bulkPlace = () => {
-//   if (!voxelInteract.potential) return;
-
-//   const {
-//     voxel: [vx, vy, vz],
-//     rotation,
-//     yRotation,
-//   } = voxelInteract.potential;
-
-//   const updates: VOXELIZE.BlockUpdate[] = [];
-//   const block = controls.world.getBlockByName(hand);
-
-//   for (let x = -radius; x <= radius; x++) {
-//     for (let y = -radius; y <= radius; y++) {
-//       for (let z = -radius; z <= radius; z++) {
-//         if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1)
-//           continue;
-
-//         updates.push({
-//           vx: vx + x,
-//           vy: vy + y,
-//           vz: vz + z,
-//           type: block.id,
-//           rotation,
-//           yRotation,
-//         });
-//       }
-//     }
-//   }
-
-//   if (updates.length) controls.world.updateVoxels(updates);
-// };
-
-// inputs.scroll(
-//   () => (radius = Math.min(100, radius + 1)),
-//   () => (radius = Math.max(1, radius - 1)),
-//   "in-game"
-// );
 
 // inputs.bind(
 //   "b",
@@ -666,6 +599,7 @@ const start = async () => {
       top: "0",
       left: "0",
     },
+    scrollable: false,
   });
   document.body.appendChild(bar.element);
 
@@ -722,15 +656,75 @@ const start = async () => {
     );
   });
 
-  inputs.click(
-    "left",
-    () => {
-      const { target } = voxelInteract;
-      if (!target) return;
-      world.updateVoxel(...target, 0);
-    },
+  let radius = 1;
+  const maxRadius = 10;
+  const minRadius = 1;
+  const circular = true;
+
+  const bulkDestroy = () => {
+    if (!voxelInteract.target) return;
+
+    const [vx, vy, vz] = voxelInteract.target;
+
+    const updates: VOXELIZE.BlockUpdate[] = [];
+
+    for (let x = -radius; x <= radius; x++) {
+      for (let y = -radius; y <= radius; y++) {
+        for (let z = -radius; z <= radius; z++) {
+          if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
+
+          updates.push({
+            vx: vx + x,
+            vy: vy + y,
+            vz: vz + z,
+            type: 0,
+          });
+        }
+      }
+    }
+
+    if (updates.length) controls.world.updateVoxels(updates);
+  };
+
+  const bulkPlace = () => {
+    if (!voxelInteract.potential) return;
+
+    const {
+      voxel: [vx, vy, vz],
+      rotation,
+      yRotation,
+    } = voxelInteract.potential;
+
+    const updates: VOXELIZE.BlockUpdate[] = [];
+    const block = world.getBlockById(bar.getFocused().content);
+
+    for (let x = -radius; x <= radius; x++) {
+      for (let y = -radius; y <= radius; y++) {
+        for (let z = -radius; z <= radius; z++) {
+          if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
+
+          updates.push({
+            vx: vx + x,
+            vy: vy + y,
+            vz: vz + z,
+            type: block.id,
+            rotation,
+            yRotation,
+          });
+        }
+      }
+    }
+
+    if (updates.length) controls.world.updateVoxels(updates);
+  };
+
+  inputs.scroll(
+    () => (radius = Math.min(maxRadius, radius + 1)),
+    () => (radius = Math.max(minRadius, radius - 1)),
     "in-game"
   );
+
+  inputs.click("left", bulkDestroy, "in-game");
 
   inputs.click(
     "middle",
@@ -750,8 +744,6 @@ const start = async () => {
     () => {
       if (!voxelInteract.potential) return;
       const {
-        rotation,
-        yRotation,
         voxel: [vx, vy, vz],
       } = voxelInteract.potential;
       const slot = bar.getFocused();
@@ -766,7 +758,7 @@ const start = async () => {
       )
         return;
 
-      world.updateVoxel(vx, vy, vz, id, rotation, yRotation);
+      bulkPlace();
     },
     "in-game"
   );

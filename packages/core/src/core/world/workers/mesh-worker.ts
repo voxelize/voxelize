@@ -9,8 +9,17 @@ import { type Chunk, type UV, type WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
 import { Registry } from "../registry";
 
+let registry: Registry;
+
 // @ts-ignore
 onmessage = function (e) {
+  const { type } = e.data;
+
+  if (type && type.toLowerCase() === "init") {
+    registry = Registry.deserialize(e.data.registryData);
+    return;
+  }
+
   function vertexAO(side1: boolean, side2: boolean, corner: boolean) {
     const numS1 = Number(!side1);
     const numS2 = Number(!side2);
@@ -23,10 +32,9 @@ onmessage = function (e) {
     return 3 - (numS1 + numS2 + numC);
   }
 
-  const { registryData, chunksData, min, max } = e.data;
+  const { chunksData, min, max } = e.data;
   const { chunkSize } = e.data.options as WorldOptions;
 
-  const registry = Registry.deserialize(registryData);
   const chunks: (Chunk | null)[] = chunksData.map((chunkData: any) => {
     if (!chunkData) {
       return null;

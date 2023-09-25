@@ -462,18 +462,17 @@ export class World extends Scene implements NetIntercept {
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (const chunk of chunks) {
-      if (!chunk) chunksData.push(null);
+      if (!chunk) {
+        chunksData.push(null);
+      }
 
-      const [chunkData, arrayBuffers] = chunk.serialize();
+      const [chunkData, chunkArrayBuffers] = chunk.serialize();
 
       chunksData.push(chunkData);
-      arrayBuffers.push(...arrayBuffers);
+      arrayBuffers.push(...chunkArrayBuffers);
     }
 
-    const registryData = this.registry.serialize();
-
     const data = {
-      registryData,
       chunksData,
       options: this.options,
       min: subChunkMin,
@@ -1157,7 +1156,7 @@ export class World extends Scene implements NetIntercept {
 
     if (
       (cx - tx) ** 2 + (cz - tz) ** 2 <
-      Math.floor(this.renderRadius / 4) ** 2
+      Math.floor(this.renderRadius / 2) ** 2
     ) {
       return true;
     }
@@ -2081,6 +2080,9 @@ export class World extends Scene implements NetIntercept {
 
     await this.loadMaterials();
 
+    const registryData = this.registry.serialize();
+    this.meshWorkerPool.postMessage({ type: "init", registryData });
+
     this.isInitialized = true;
 
     this.renderRadius = this.options.defaultRenderRadius;
@@ -2365,22 +2367,11 @@ export class World extends Scene implements NetIntercept {
       this.chunks.loaded.set(name, chunk);
 
       if (shouldGenerateChunkMeshes) {
-        let frame: any;
+        for (const mesh of meshes) {
+          this.buildChunkMesh(x, z, mesh);
+        }
 
-        const process = (index: number) => {
-          const data = meshes[index];
-
-          if (!data) {
-            triggerInitListener(chunk);
-            cancelAnimationFrame(frame);
-            return;
-          }
-
-          this.buildChunkMesh(x, z, data);
-          frame = requestAnimationFrame(() => process(index + 1));
-        };
-
-        process(0);
+        triggerInitListener(chunk);
       } else {
         triggerInitListener(chunk);
       }
@@ -2604,6 +2595,7 @@ export class World extends Scene implements NetIntercept {
       mesh.matrixAutoUpdate = false;
       mesh.matrixWorldAutoUpdate = false;
       mesh.userData.isChunk = true;
+      mesh.userData.voxel = voxel;
 
       this.add(mesh);
 

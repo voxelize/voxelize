@@ -43,6 +43,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let current_tick = stats.tick as u64;
         let max_height = config.max_height as i32;
         let max_light_level = config.max_light_level;
+        let max_updates_per_tick = config.max_updates_per_tick;
 
         chunks.clear_cache();
 
@@ -54,6 +55,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut sun_flood = VecDeque::default();
 
         let mut postponed_updates = vec![];
+
+        let mut count = 0;
 
         if !chunks.updates.is_empty() {
             while let Some((voxel, raw)) = chunks.updates.pop_front() {
@@ -76,6 +79,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 if mesher.map.contains(&coords) {
                     postponed_updates.push((voxel.to_owned(), raw));
                     continue;
+                }
+
+                count += 1;
+
+                if count > max_updates_per_tick {
+                    chunks.updates.push_front((voxel, raw));
+                    break;
                 }
 
                 let mut ready = true;

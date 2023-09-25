@@ -1,9 +1,9 @@
 import { NdArray } from "ndarray";
-import CullWorker from "shared-worker:./workers/cull-worker.ts";
+import CullWorker from "web-worker:./workers/cull-worker.ts";
 
 import { Coords3 } from "../types";
 
-import { SharedWorkerPool } from "./shared-worker-pool";
+import { WorkerPool } from "./worker-pool";
 
 export type MeshResultType = {
   positions: Float32Array;
@@ -19,7 +19,7 @@ export type CullOptionsType = {
   dimensions: Coords3;
 };
 
-const cullPool = new SharedWorkerPool(CullWorker, {
+const cullPool = new WorkerPool(CullWorker, {
   maxWorker: 2,
 });
 
