@@ -94,6 +94,18 @@ export class BlockUtils {
     return (voxel & STAGE_MASK) | (stage << 24);
   };
 
+  static insertAll = (
+    voxel: number,
+    rotation?: BlockRotation,
+    stage?: number
+  ) => {
+    let value = 0;
+    value = BlockUtils.insertID(value, BlockUtils.extractID(voxel));
+    if (rotation) value = BlockUtils.insertRotation(value, rotation);
+    if (stage !== undefined) value = BlockUtils.insertStage(value, stage);
+    return value;
+  };
+
   static getBlockTorchLightLevel = (block: Block, color: LightColor) => {
     switch (color) {
       case "RED":

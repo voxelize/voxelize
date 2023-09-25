@@ -1351,6 +1351,7 @@ export class World extends Scene implements NetIntercept {
     this.isTrackingChunks = true;
     for (const voxelUpdate of voxelUpdates) {
       const { type, vx, vy, vz, rotation, yRotation } = voxelUpdate;
+
       const currentBlock = this.getBlockAt(vx, vy, vz);
       const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
       const currentTransparency = BlockUtils.getBlockRotatedTransparency(
@@ -1367,13 +1368,15 @@ export class World extends Scene implements NetIntercept {
       this.setVoxelAt(vx, vy, vz, type);
 
       if (updatedBlock.rotatable) {
-        this.setVoxelRotationAt(
-          vx,
-          vy,
-          vz,
-          BlockRotation.encode(rotation, yRotation)
-        );
+        this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
       }
+
+      const value = BlockUtils.insertAll(
+        type,
+        updatedBlock.rotatable ? updatedRotation : undefined
+      );
+
+      this.attemptBlockCache(vx, vy, vz, value);
 
       if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
         if (this.getSunlightAt(vx, vy, vz) > 0) {
@@ -2675,7 +2678,6 @@ export class World extends Scene implements NetIntercept {
             }
 
             if (chunk) {
-              this.attemptBlockCache(vx, vy, vz, raw);
               chunk.setRawValue(vx, vy, vz, raw);
             }
 
