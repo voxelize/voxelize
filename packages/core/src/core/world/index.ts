@@ -1372,8 +1372,8 @@ export class World extends Scene implements NetIntercept {
       }
 
       const value = BlockUtils.insertAll(
-        type,
-        updatedBlock.rotatable ? updatedRotation : undefined
+        currentBlock.id,
+        currentBlock.rotatable ? currentRotation : undefined
       );
 
       this.attemptBlockCache(vx, vy, vz, value);
