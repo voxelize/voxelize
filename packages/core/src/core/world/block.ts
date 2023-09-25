@@ -237,7 +237,7 @@ export class BlockRotation {
    * @param value The axis this block is pointing towards.
    * @param yRotation The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees.
    */
-  constructor(value = PX_ROTATION, yRotation = 0) {
+  constructor(value = PY_ROTATION, yRotation = 0) {
     this.value = value;
     this.yRotation = yRotation;
   }

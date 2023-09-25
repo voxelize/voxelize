@@ -1375,15 +1375,6 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      if (updatedBlock.rotatable) {
-        this.setVoxelRotationAt(
-          vx,
-          vy,
-          vz,
-          BlockRotation.encode(rotation, yRotation)
-        );
-      }
-
       if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
         if (this.getSunlightAt(vx, vy, vz) > 0) {
           this.removeLight([vx, vy, vz], "SUNLIGHT");

@@ -197,7 +197,7 @@ export class RawChunk {
    * @returns The voxel rotation at the given voxel coordinate.
    */
   getVoxelRotation(vx: number, vy: number, vz: number) {
-    if (!this.contains(vx, vy, vz)) return new BlockRotation(0, 0);
+    if (!this.contains(vx, vy, vz)) return new BlockRotation();
     return BlockUtils.extractRotation(this.getRawValue(vx, vy, vz));
   }
 
