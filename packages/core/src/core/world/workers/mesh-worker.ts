@@ -311,11 +311,10 @@ onmessage = function (e) {
                       );
 
                       if (
-                        localSunlight +
-                          localRedLight +
-                          localGreenLight +
-                          localBlueLight ===
-                        0
+                        localSunlight == 0 &&
+                        localRedLight == 0 &&
+                        localGreenLight == 0 &&
+                        localBlueLight == 0
                       ) {
                         continue;
                       }
@@ -337,9 +336,9 @@ onmessage = function (e) {
                         0
                       ) {
                         const facing = getBlockAt(
-                          vx + offsetX + dir[0],
-                          vy + offsetY + dir[1],
-                          vz + offsetZ + dir[2]
+                          vx + offsetX * dir[0],
+                          vy + offsetY * dir[1],
+                          vz + offsetZ * dir[2]
                         );
 
                         if (facing.isOpaque) {

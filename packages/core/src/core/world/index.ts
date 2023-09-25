@@ -480,6 +480,11 @@ export class World extends Scene implements NetIntercept {
       max: subChunkMax,
     };
 
+    // Make sure it's not already processed by the server
+    if (this.chunks.toProcess.find((c) => c.x === cx && c.z === cz)) {
+      return;
+    }
+
     const { geometries } = await new Promise<{
       geometries: GeometryProtocol[];
     }>((resolve) => {
@@ -489,6 +494,11 @@ export class World extends Scene implements NetIntercept {
         resolve,
       });
     });
+
+    // Make sure it's not already processed by the server
+    if (this.chunks.toProcess.find((c) => c.x === cx && c.z === cz)) {
+      return;
+    }
 
     const mesh: MeshProtocol = {
       level,
@@ -2146,6 +2156,7 @@ export class World extends Scene implements NetIntercept {
       case "UPDATE": {
         const { updates, chunks } = message;
 
+        // TODO: figure out how to do block cache
         updates.forEach((update) => {
           const { vx, vy, vz, light, voxel } = update;
           const chunk = this.getChunkByPosition(vx, vy, vz);
@@ -2815,32 +2826,36 @@ export class World extends Scene implements NetIntercept {
       return;
     }
 
-    const level = Math.floor(vy / (maxHeight / subChunks));
+    const subChunkHeight = maxHeight / subChunks;
+    const level = Math.floor(vy / subChunkHeight);
 
-    this.chunksTracker.push([[cx, cz], level]);
+    const chunkCoordsList: Coords2[] = [];
+    chunkCoordsList.push([cx, cz]);
 
-    if (lcx === 0) {
-      this.chunksTracker.push([[cx - 1, cz], level]);
+    if (lcx === 0) chunkCoordsList.push([cx - 1, cz]);
+    if (lcz === 0) chunkCoordsList.push([cx, cz - 1]);
+    if (lcx === 0 && lcz === 0) chunkCoordsList.push([cx - 1, cz - 1]);
+    if (lcx === chunkSize - 1) chunkCoordsList.push([cx + 1, cz]);
+    if (lcz === chunkSize - 1) chunkCoordsList.push([cx, cz + 1]);
+    if (lcx === chunkSize - 1 && lcz === chunkSize - 1)
+      chunkCoordsList.push([cx + 1, cz + 1]);
+
+    const levels: number[] = [];
+
+    if (vy % subChunkHeight === 0 && level > 0) {
+      levels.push(level - 1);
+    } else if (
+      vy % subChunkHeight === subChunkHeight - 1 &&
+      level < subChunks
+    ) {
+      levels.push(level + 1);
     }
+    levels.push(level);
 
-    if (lcz === 0) {
-      this.chunksTracker.push([[cx, cz - 1], level]);
-    }
-
-    if (lcx === 0 && lcz === 0) {
-      this.chunksTracker.push([[cx - 1, cz - 1], level]);
-    }
-
-    if (lcx === chunkSize - 1) {
-      this.chunksTracker.push([[cx + 1, cz], level]);
-    }
-
-    if (lcz === chunkSize - 1) {
-      this.chunksTracker.push([[cx, cz + 1], level]);
-    }
-
-    if (lcx === chunkSize - 1 && lcz === chunkSize - 1) {
-      this.chunksTracker.push([[cx + 1, cz + 1], level]);
+    for (const [cx, cz] of chunkCoordsList) {
+      for (const level of levels) {
+        this.chunksTracker.push([[cx, cz], level]);
+      }
     }
   }
 

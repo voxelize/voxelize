@@ -520,9 +520,13 @@ impl Mesher {
                     blue_light = neighbors.get_torch_light(&center, &BLUE);
                 } else {
                     // Loop through all 9 neighbors (including self) of this vertex.
-                    for ddx in if dx > 0 { 0..=dx } else { dx..=0 } {
-                        for ddy in if dy > 0 { 0..=dy } else { dy..=0 } {
-                            for ddz in if dz > 0 { 0..=dz } else { dz..=0 } {
+                    for x in 0..=1 {
+                        for y in 0..=1 {
+                            for z in 0..=1 {
+                                let ddx = x * dx;
+                                let ddy = y * dy;
+                                let ddz = z * dz;
+
                                 let offset = Vec3(ddx, ddy, ddz);
 
                                 let local_sunlight = neighbors.get_sunlight(&offset);
@@ -541,9 +545,7 @@ impl Mesher {
                                 let diagonal4 =
                                     get_block_by_voxel(ddx, ddy, ddz, &neighbors, registry);
 
-                                let is_transparent = !diagonal4.is_opaque;
-
-                                if !is_transparent {
+                                if diagonal4.is_opaque {
                                     continue;
                                 }
 
