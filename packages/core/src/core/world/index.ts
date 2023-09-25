@@ -2592,14 +2592,14 @@ export class World extends Scene implements NetIntercept {
     const { level, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
-    if (geometries.length === 0) return;
-
     chunk.meshes.get(level)?.forEach((mesh) => {
       mesh.geometry.dispose();
       this.remove(mesh);
     });
 
     chunk.meshes.delete(level);
+
+    if (geometries.length === 0) return;
 
     const mesh = geometries.map((geo) => {
       const { voxel, faceName, indices, lights, positions, uvs } = geo;
