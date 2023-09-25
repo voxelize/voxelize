@@ -1,6 +1,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
@@ -171,14 +172,24 @@ impl Chunks {
     }
 
     /// Update a chunk, removing the old chunk instance and updating with a new one.
-    pub fn renew(&mut self, mut chunk: Chunk) {
+    pub fn renew(&mut self, chunk: Chunk, renew_mesh_only: bool) {
+        if renew_mesh_only {
+            if let Some(mut old_chunk) = self.map.remove(&chunk.coords) {
+                old_chunk.meshes = chunk.meshes;
+                old_chunk.status = chunk.status;
+                self.map.insert(chunk.coords.to_owned(), old_chunk);
+            }
+
+            return;
+        }
+
         self.map.remove(&chunk.coords);
         self.map.insert(chunk.coords.to_owned(), chunk);
     }
 
     /// Add a new chunk, synonym for `chunks.renew`
     pub fn add(&mut self, chunk: Chunk) {
-        self.renew(chunk);
+        self.renew(chunk, false);
     }
 
     /// Get raw chunk data.

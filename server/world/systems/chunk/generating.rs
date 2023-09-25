@@ -129,7 +129,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
 
                 // Renew the chunk to the world map.
-                chunks.renew(chunk);
+                chunks.renew(chunk, false);
             }
         }
 
@@ -154,7 +154,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if let Some(chunk) = chunks.try_load(&coords) {
                     pipeline.remove_chunk(&coords);
                     mesher.add_chunk(&coords, false);
-                    chunks.renew(chunk);
+                    chunks.renew(chunk, false);
 
                     continue;
                 }
@@ -170,7 +170,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     },
                 );
 
-                chunks.renew(new_chunk);
+                chunks.renew(new_chunk, false);
             }
 
             // Retrieve the chunk again from the world map.
@@ -303,8 +303,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             // Update chunk status.
             chunk.status = ChunkStatus::Ready;
 
-            chunks.add_chunk_to_send(&chunk.coords, &r#type, r#type == MessageType::Update);
-            chunks.renew(chunk);
+            let is_updating = r#type == MessageType::Update;
+
+            chunks.add_chunk_to_send(&chunk.coords, &r#type, is_updating);
+            chunks.renew(chunk, is_updating);
         }
 
         /* -------------------------------------------------------------------------- */

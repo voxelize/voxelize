@@ -54,12 +54,15 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut blue_flood = VecDeque::default();
         let mut sun_flood = VecDeque::default();
 
-        let mut postponed_updates = vec![];
-
-        let mut count = 0;
-
         if !chunks.updates.is_empty() {
-            while let Some((voxel, raw)) = chunks.updates.pop_front() {
+            let mut updates = VecDeque::default();
+            let total_updates = chunks.updates.len();
+
+            for _ in 0..max_updates_per_tick.min(total_updates) {
+                updates.push_back(chunks.updates.pop_front().unwrap());
+            }
+
+            while let Some((voxel, raw)) = updates.pop_front() {
                 let Vec3(vx, vy, vz) = voxel;
 
                 let updated_id = BlockUtils::extract_id(raw);
@@ -75,29 +78,16 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     continue;
                 }
 
-                // If the chunk is currently being meshed, we need to wait until it's done for future updates.
-                if mesher.map.contains(&coords) {
-                    postponed_updates.push((voxel.to_owned(), raw));
-                    continue;
-                }
-
-                count += 1;
-
-                if count > max_updates_per_tick {
-                    chunks.updates.push_front((voxel, raw));
-                    break;
-                }
-
                 let mut ready = true;
 
                 for neighbor in chunks.light_traversed_chunks(&coords) {
                     if ready && !chunks.is_chunk_ready(&neighbor) {
-                        chunks.update_voxel(&voxel, raw);
                         ready = false;
                     }
                 }
 
                 if !ready {
+                    chunks.update_voxel(&voxel, raw);
                     continue;
                 }
 
@@ -521,7 +511,5 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             .collect();
 
         chunks.active_voxels = active_voxels;
-
-        chunks.update_voxels(&postponed_updates);
     }
 }
