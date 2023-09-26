@@ -78,6 +78,11 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     continue;
                 }
 
+                if mesher.map.contains(&coords) {
+                    chunks.update_voxel(&voxel, raw);
+                    continue;
+                }
+
                 let mut ready = true;
 
                 for neighbor in chunks.light_traversed_chunks(&coords) {

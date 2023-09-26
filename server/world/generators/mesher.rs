@@ -246,8 +246,8 @@ impl Mesher {
             return None;
         }
 
-        if let Some(count) = self.skips.get(&result.0.coords) {
-            if *count > 0 {
+        if let Some(count) = self.skips.remove(&result.0.coords) {
+            if count > 0 {
                 self.skips.insert(result.0.coords.to_owned(), count - 1);
 
                 return None;

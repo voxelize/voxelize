@@ -765,6 +765,32 @@ const start = async () => {
 
   bar.connect(inputs);
 
+  inputs.bind(
+    ";",
+    () => {
+      const updates: VOXELIZE.BlockUpdate[] = [];
+
+      const [vx, vy, vz] = controls.voxel;
+
+      const width = 80;
+      const height = 80;
+
+      for (let x = -width / 2; x <= width / 2; x++) {
+        for (let y = 0; y <= height; y++) {
+          updates.push({
+            type: 1,
+            vx: vx,
+            vy: vy + y,
+            vz: vz + x,
+          });
+        }
+      }
+
+      world.updateVoxels(updates);
+    },
+    "in-game"
+  );
+
   // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
   // console.log("block update", voxel, oldValue, newValue);
   // });
