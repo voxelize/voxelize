@@ -218,20 +218,6 @@ export class ItemSlots<T = number> {
 
   public activated = false;
 
-  public slotWidth =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-width"
-      )
-    ) || 40;
-
-  public slotHeight =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-height"
-      )
-    ) || 40;
-
   public slotTotalWidth: number;
   public slotTotalHeight: number;
 
@@ -391,18 +377,18 @@ export class ItemSlots<T = number> {
     const row = y / this.slotTotalHeight;
     const col = x / this.slotTotalWidth;
 
-    const { slotMargin, slotPadding } = this.options;
+    const { slotMargin, slotPadding, slotWidth, slotHeight } = this.options;
     const { verticalCount, horizontalCount } = this.options;
 
     if (row < 0 || row >= verticalCount) return { row: -1, col: -1 };
     if (col < 0 || col >= horizontalCount) return { row: -1, col: -1 };
-    if (row % 1 < (slotMargin + slotPadding) / this.slotHeight)
+    if (row % 1 < (slotMargin + slotPadding) / slotHeight)
       return { row: -1, col: -1 };
-    if (row % 1 > 1 - (slotMargin + slotPadding) / this.slotHeight)
+    if (row % 1 > 1 - (slotMargin + slotPadding) / slotHeight)
       return { row: -1, col: -1 };
-    if (col % 1 < (slotMargin + slotPadding) / this.slotWidth)
+    if (col % 1 < (slotMargin + slotPadding) / slotWidth)
       return { row: -1, col: -1 };
-    if (col % 1 > 1 - (slotMargin + slotPadding) / this.slotWidth)
+    if (col % 1 > 1 - (slotMargin + slotPadding) / slotWidth)
       return { row: -1, col: -1 };
 
     return {
