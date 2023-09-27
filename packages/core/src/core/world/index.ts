@@ -2414,38 +2414,6 @@ export class World extends Scene implements NetIntercept {
       );
 
       if (updates.length) {
-        this.packets.push({
-          type: "UPDATE",
-          updates: updates.map((update) => {
-            const { type, vx, vy, vz, rotation, yRotation } = update;
-
-            const chunk = this.getChunkByPosition(vx, vy, vz);
-            const block = this.getBlockById(type);
-
-            let raw = 0;
-            raw = BlockUtils.insertID(raw, type);
-
-            if (
-              block.rotatable &&
-              (!isNaN(update.rotation) || !isNaN(yRotation))
-            ) {
-              raw = BlockUtils.insertRotation(
-                raw,
-                BlockRotation.encode(rotation, yRotation)
-              );
-            }
-
-            if (chunk) {
-              chunk.setRawValue(vx, vy, vz, raw);
-            }
-
-            return {
-              ...update,
-              voxel: raw,
-            };
-          }),
-        });
-
         const { maxHeight, maxLightLevel } = this.options;
 
         // Placing a light
@@ -2742,6 +2710,38 @@ export class World extends Scene implements NetIntercept {
           chunk.isDirty = true;
 
           this.meshChunkLocally(cx, cz, level);
+        });
+
+        this.packets.push({
+          type: "UPDATE",
+          updates: updates.map((update) => {
+            const { type, vx, vy, vz, rotation, yRotation } = update;
+
+            const chunk = this.getChunkByPosition(vx, vy, vz);
+            const block = this.getBlockById(type);
+
+            let raw = 0;
+            raw = BlockUtils.insertID(raw, type);
+
+            if (
+              block.rotatable &&
+              (!isNaN(update.rotation) || !isNaN(yRotation))
+            ) {
+              raw = BlockUtils.insertRotation(
+                raw,
+                BlockRotation.encode(rotation, yRotation)
+              );
+            }
+
+            if (chunk) {
+              chunk.setRawValue(vx, vy, vz, raw);
+            }
+
+            return {
+              ...update,
+              voxel: raw,
+            };
+          }),
         });
       }
     }

@@ -792,7 +792,7 @@ const start = async () => {
   );
 
   // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
-  // console.log("block update", voxel, oldValue, newValue);
+  //   console.log("block update", voxel, oldValue, newValue);
   // });
 };
 
