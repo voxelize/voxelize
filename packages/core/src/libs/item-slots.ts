@@ -21,6 +21,10 @@ export type ItemSlotsOptions = {
   slotHoverClass: string;
   slotFocusClass: string;
   slotSubscriptClass: string;
+  slotMargin: number;
+  slotPadding: number;
+  slotWidth: number;
+  slotHeight: number;
 
   slotStyles: Partial<CSSStyleDeclaration>;
   slotSubscriptStyles: Partial<CSSStyleDeclaration>;
@@ -43,6 +47,30 @@ const defaultOptions: ItemSlotsOptions = {
   slotHoverClass: "item-slots-slot-hover",
   slotFocusClass: "item-slots-slot-focus",
   slotSubscriptClass: "item-slots-slot-subscript",
+  slotMargin:
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--item-slots-slot-margin"
+      )
+    ) || 0,
+  slotPadding:
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--item-slots-slot-padding"
+      )
+    ) || 0,
+  slotWidth:
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--item-slots-slot-width"
+      )
+    ) || 40,
+  slotHeight:
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--item-slots-slot-height"
+      )
+    ) || 40,
 
   slotStyles: {},
   slotSubscriptStyles: {},
@@ -210,20 +238,6 @@ export class ItemSlots<T = number> {
 
   public activated = false;
 
-  public slotMargin =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-margin"
-      )
-    ) || 0;
-
-  public slotPadding =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-padding"
-      )
-    ) || 0;
-
   public slotWidth =
     parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue(
@@ -238,11 +252,8 @@ export class ItemSlots<T = number> {
       )
     ) || 40;
 
-  public slotTotalWidth =
-    this.slotWidth + this.slotMargin * 2 + this.slotPadding;
-
-  public slotTotalHeight =
-    this.slotHeight + this.slotMargin * 2 + this.slotPadding;
+  public slotTotalWidth: number;
+  public slotTotalHeight: number;
 
   public onSlotClick: (slot: ItemSlot<T>) => void = noop;
   public onSlotUpdate: (slot: ItemSlot<T>) => void = noop;
@@ -254,10 +265,17 @@ export class ItemSlots<T = number> {
   private animationFrame = -1;
 
   constructor(options: Partial<ItemSlotsOptions> = {}) {
-    const { focusFirstByDefault, activatedByDefault } = (this.options = merge(
-      defaultOptions,
-      options
-    ));
+    const {
+      focusFirstByDefault,
+      activatedByDefault,
+      slotHeight,
+      slotMargin,
+      slotWidth,
+      slotPadding,
+    } = (this.options = merge(defaultOptions, options));
+
+    this.slotTotalWidth = slotWidth + slotMargin * 2 + slotPadding;
+    this.slotTotalHeight = slotHeight + slotMargin * 2 + slotPadding;
 
     this.generate();
 
@@ -393,7 +411,7 @@ export class ItemSlots<T = number> {
     const row = y / this.slotTotalHeight;
     const col = x / this.slotTotalWidth;
 
-    const { slotMargin, slotPadding } = this;
+    const { slotMargin, slotPadding } = this.options;
     const { verticalCount, horizontalCount } = this.options;
 
     if (row < 0 || row >= verticalCount) return { row: -1, col: -1 };
@@ -547,7 +565,8 @@ export class ItemSlots<T = number> {
 
     if (!this.activated) return;
 
-    const { horizontalCount, verticalCount } = this.options;
+    const { horizontalCount, verticalCount, slotMargin, slotPadding } =
+      this.options;
 
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
@@ -583,20 +602,18 @@ export class ItemSlots<T = number> {
 
         hasRendered = true;
 
-        const width =
-          rect.right - rect.left - this.slotMargin * 2 - this.slotPadding * 2;
+        const width = rect.right - rect.left - slotMargin * 2 - slotPadding * 2;
         const height =
-          rect.bottom - rect.top - this.slotMargin * 2 - this.slotPadding * 2;
+          rect.bottom - rect.top - slotMargin * 2 - slotPadding * 2;
 
         if (width <= 0 || height <= 0) continue;
 
-        const left =
-          rect.left - canvasRect.left + this.slotMargin + this.slotPadding;
+        const left = rect.left - canvasRect.left + slotMargin + slotPadding;
         const bottom =
           canvasRect.height -
           (rect.bottom - canvasRect.top) +
-          this.slotMargin +
-          this.slotPadding;
+          slotMargin +
+          slotPadding;
 
         this.renderer.setViewport(left, bottom, width, height);
         this.renderer.setScissor(left, bottom, width, height);
@@ -630,7 +647,7 @@ export class ItemSlots<T = number> {
       perspective,
     } = this.options;
 
-    const { slotWidth, slotHeight, slotMargin, slotPadding } = this;
+    const { slotWidth, slotHeight, slotMargin, slotPadding } = this.options;
 
     const width =
       (slotWidth + slotMargin * 2 + slotPadding * 2) * horizontalCount;
