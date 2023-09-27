@@ -88,6 +88,23 @@ impl BlockRotation {
 
     /// Rotate a 3D position with this block rotation.
     pub fn rotate_node(&self, node: &mut [f32; 3], y_rotate: bool, translate: bool) {
+        let rot = match self {
+            BlockRotation::PX(rot) => rot,
+            BlockRotation::NX(rot) => rot,
+            BlockRotation::PY(rot) => rot,
+            BlockRotation::NY(rot) => rot,
+            BlockRotation::PZ(rot) => rot,
+            BlockRotation::NZ(rot) => rot,
+        };
+
+        if y_rotate && (*rot).abs() > f32::EPSILON {
+            node[0] -= 0.5;
+            node[2] -= 0.5;
+            self.rotate_y(node, *rot);
+            node[0] += 0.5;
+            node[2] += 0.5;
+        }
+
         match self {
             BlockRotation::PX(_) => {
                 self.rotate_z(node, -PI_2);
@@ -103,15 +120,7 @@ impl BlockRotation {
                     node[0] += 1.0;
                 }
             }
-            BlockRotation::PY(rot) => {
-                if y_rotate && (*rot).abs() > f32::EPSILON {
-                    node[0] -= 0.5;
-                    node[2] -= 0.5;
-                    self.rotate_y(node, *rot);
-                    node[0] += 0.5;
-                    node[2] += 0.5;
-                }
-            }
+            BlockRotation::PY(rot) => {}
             BlockRotation::NY(rot) => {
                 if y_rotate && (*rot).abs() > f32::EPSILON {
                     node[0] -= 0.5;

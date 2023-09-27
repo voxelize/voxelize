@@ -2320,7 +2320,7 @@ export class World extends Scene implements NetIntercept {
 
     if (geometries.length === 0) return;
 
-    const mesh = geometries.map((geo) => {
+    const meshes = geometries.map((geo) => {
       const { voxel, faceName, indices, lights, positions, uvs } = geo;
       const geometry = new BufferGeometry();
 
@@ -2350,7 +2350,11 @@ export class World extends Scene implements NetIntercept {
       return mesh;
     });
 
-    chunk.meshes.set(level, mesh);
+    if (!chunk.meshes.has(level)) {
+      chunk.meshes.set(level, []);
+    }
+
+    chunk.meshes.get(level)?.push(...meshes);
   }
 
   private setupComponents() {

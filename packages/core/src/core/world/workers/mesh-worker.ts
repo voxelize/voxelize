@@ -1,7 +1,7 @@
 import { AABB } from "@voxelize/aabb";
 import { GeometryProtocol } from "@voxelize/transport/src/types";
-import { Coords2 } from "types";
 
+import { Coords2, Coords3 } from "../../../types";
 import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
 import { BlockRotation } from "../block";
@@ -111,9 +111,10 @@ onmessage = function (e) {
           faces,
           rotatable,
           yRotatable,
+          isDynamic,
         } = block;
 
-        if (isEmpty || faces.length === 0) {
+        if (isDynamic || isEmpty || faces.length === 0) {
           continue;
         }
 
@@ -165,7 +166,8 @@ onmessage = function (e) {
           }
 
           // Process the face
-          const { dir, corners } = face;
+          const { dir: faceDir, corners } = face;
+          const dir = [...faceDir] as Coords3;
 
           if (rotatable) {
             rotation.rotateNode(dir, yRotatable, false);
@@ -224,7 +226,9 @@ onmessage = function (e) {
             const fourGreenLights: number[] = [];
             const fourBlueLights: number[] = [];
 
-            for (const { pos, uv } of corners) {
+            for (const { pos: cornerPos, uv } of corners) {
+              const pos = [...cornerPos] as Coords3;
+
               if (rotatable) {
                 rotation.rotateNode(pos, yRotatable, true);
               }
