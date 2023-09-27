@@ -794,6 +794,17 @@ const start = async () => {
   // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
   //   console.log("block update", voxel, oldValue, newValue);
   // });
+
+  // const inventoryTest = new VOXELIZE.ItemSlots({
+  //   verticalCount: 10,
+  //   horizontalCount: 10,
+  // });
+
+  // document.body.appendChild(inventoryTest.element);
+
+  // const zeroZero = inventoryTest.getSlot(0, 0);
+  // zeroZero.setContent(1);
+  // zeroZero.setObject(world.makeBlockMesh(1, { material: "standard" }));
 };
 
 start();

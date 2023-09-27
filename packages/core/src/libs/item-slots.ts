@@ -135,7 +135,7 @@ export class ItemSlot<T = number> {
     this.subscriptElement.innerText = subscript;
   };
 
-  setzoom = (zoom: number) => {
+  setZoom = (zoom: number) => {
     this.zoom = zoom;
     this.camera.far = zoom * 3 + 1;
     this.updateCamera();
@@ -562,6 +562,8 @@ export class ItemSlots<T = number> {
 
     const canvasRect = this.renderer.domElement.getBoundingClientRect();
 
+    let hasRendered = false;
+
     for (let i = 0; i < verticalCount; i++) {
       for (let j = 0; j < horizontalCount; j++) {
         const { scene, camera, element, object } = this.slots[i][j];
@@ -578,6 +580,8 @@ export class ItemSlots<T = number> {
         ) {
           continue;
         }
+
+        hasRendered = true;
 
         const width =
           rect.right - rect.left - this.slotMargin * 2 - this.slotPadding * 2;
@@ -598,6 +602,13 @@ export class ItemSlots<T = number> {
         this.renderer.setScissor(left, bottom, width, height);
         this.renderer.render(scene, camera);
       }
+    }
+
+    if (!hasRendered) {
+      // Render transparent background
+      this.renderer.setViewport(0, 0, width, height);
+      this.renderer.setScissor(0, 0, width, height);
+      this.renderer.render(this.slots[0][0].scene, this.slots[0][0].camera);
     }
   };
 
@@ -658,7 +669,7 @@ export class ItemSlots<T = number> {
           }px`,
         });
 
-        slot.setzoom(zoom);
+        slot.setZoom(zoom);
         slot.setPerspective(perspective);
 
         this.slots[row][col] = slot;
