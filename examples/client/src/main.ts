@@ -596,8 +596,8 @@ const start = async () => {
     verticalCount: 1,
     horizontalCount: HOTBAR_CONTENT.length,
     wrapperStyles: {
-      top: "0",
-      left: "0",
+      left: "50%",
+      transform: "translateX(-50%)",
     },
     scrollable: false,
   });

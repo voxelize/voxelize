@@ -105,7 +105,7 @@ export class ItemSlot<T = number> {
 
     this.offset = new Vector3();
 
-    this.light = new DirectionalLight(0xffffff, 1);
+    this.light = new DirectionalLight(0xffffff, 3);
     this.scene.add(this.light);
 
     this.updateCamera();

@@ -2,8 +2,8 @@ import {
   DirectionalLight,
   Object3D,
   OrthographicCamera,
-  Scene,
   SRGBColorSpace,
+  Scene,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -96,11 +96,6 @@ export class Portrait {
   public camera: OrthographicCamera;
 
   /**
-   * The light that is applied to this portrait.
-   */
-  public light: DirectionalLight;
-
-  /**
    * The THREE.js scene to use for rendering this portrait.
    */
   public scene: Scene;
@@ -164,7 +159,7 @@ export class Portrait {
     // Rotate light position by y axis 45 degrees.
     lightPosition.applyAxisAngle(new Vector3(0, 1, 0), lightRotationOffset);
 
-    const light = new DirectionalLight(0xffffff, 1);
+    const light = new DirectionalLight(0xffffff, 3);
     light.position.copy(lightPosition);
     this.scene.add(light);
 
