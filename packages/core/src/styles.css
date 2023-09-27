@@ -1,8 +1,4 @@
 :root {
-  --item-slots-slot-width: 50px;
-  --item-slots-slot-height: 50px;
-  --item-slots-slot-margin: 2px;
-  --item-slots-slot-padding: 2px;
   --item-slots-slot-color: #393b44;
   --item-slots-slot-color-hover: #393b44;
   --item-slots-slot-color-focus: #c6cada;

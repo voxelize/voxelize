@@ -47,30 +47,10 @@ const defaultOptions: ItemSlotsOptions = {
   slotHoverClass: "item-slots-slot-hover",
   slotFocusClass: "item-slots-slot-focus",
   slotSubscriptClass: "item-slots-slot-subscript",
-  slotMargin:
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-margin"
-      )
-    ) || 0,
-  slotPadding:
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-padding"
-      )
-    ) || 0,
-  slotWidth:
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-width"
-      )
-    ) || 40,
-  slotHeight:
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--item-slots-slot-height"
-      )
-    ) || 40,
+  slotMargin: 2,
+  slotPadding: 2,
+  slotWidth: 50,
+  slotHeight: 50,
 
   slotStyles: {},
   slotSubscriptStyles: {},
