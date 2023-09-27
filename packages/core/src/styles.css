@@ -24,17 +24,9 @@
   align-items: center;
   justify-content: center;
   z-index: -1;
-  border-radius: calc(var(--item-slots-slot-width) * 0.1);
   background: rgba(168, 168, 168, 0.05);
-  border-width: calc(var(--item-slots-slot-width) * 0.08);
   border-style: solid;
   border-color: var(--item-slots-slot-color);
-  box-shadow: inset 0 0 calc((--item-slots-slot-width) * 0.05)
-    var(--item-slots-slot-color);
-  width: var(--item-slots-slot-width);
-  height: var(--item-slots-slot-height);
-  margin: var(--item-slots-slot-margin);
-  padding: var(--item-slots-slot-padding);
   transition: 100ms ease-in-out;
 }
 

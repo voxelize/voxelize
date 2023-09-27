@@ -638,7 +638,16 @@ export class ItemSlots<T = number> {
         const slot = new ItemSlot<T>(row, col);
 
         slot.applyClass(slotClass);
-        slot.applyStyles(slotStyles);
+        slot.applyStyles({
+          width: `${slotWidth}px`,
+          height: `${slotHeight}px`,
+          borderRadius: `${slotWidth * 0.1}px`,
+          borderWidth: `${slotWidth * 0.08}px`,
+          boxShadow: `inset 0 0 ${
+            slotWidth * 0.05
+          }px var(--item-slots-slot-color)`,
+          ...slotStyles,
+        });
         slot.applySubscriptClass(slotSubscriptClass);
         slot.applySubscriptStyles(slotSubscriptStyles);
 
