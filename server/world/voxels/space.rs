@@ -259,8 +259,10 @@ impl VoxelAccess for Space {
             panic!("Space does not contain light data.");
         }
 
-        if vy as usize >= self.options.max_height {
+        if vy > 0 && vy as usize >= self.options.max_height {
             return LightUtils::insert_sunlight(0, self.options.max_light_level);
+        } else if vy < 0 {
+            return 0;
         }
 
         let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, vz);

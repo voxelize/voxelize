@@ -62,10 +62,6 @@ onmessage = function (e) {
   };
 
   const getSunlightAt = (vx: number, vy: number, vz: number) => {
-    if (vy < 0) {
-      return maxLightLevel;
-    }
-
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
     const chunk = getChunkByCoords(coords);
     return chunk?.getSunlight(vx, vy, vz) ?? 0;
