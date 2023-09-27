@@ -240,8 +240,8 @@ export class ItemSlots<T = number> {
       slotPadding,
     } = (this.options = merge(defaultOptions, options));
 
-    this.slotTotalWidth = slotWidth + slotMargin * 2 + slotPadding;
-    this.slotTotalHeight = slotHeight + slotMargin * 2 + slotPadding;
+    this.slotTotalWidth = slotWidth + slotMargin * 2 + slotPadding * 2;
+    this.slotTotalHeight = slotHeight + slotMargin * 2 + slotPadding * 2;
 
     this.generate();
 
@@ -377,19 +377,15 @@ export class ItemSlots<T = number> {
     const row = y / this.slotTotalHeight;
     const col = x / this.slotTotalWidth;
 
-    const { slotMargin, slotPadding, slotWidth, slotHeight } = this.options;
+    const { slotMargin, slotWidth, slotHeight } = this.options;
     const { verticalCount, horizontalCount } = this.options;
 
     if (row < 0 || row >= verticalCount) return { row: -1, col: -1 };
     if (col < 0 || col >= horizontalCount) return { row: -1, col: -1 };
-    if (row % 1 < (slotMargin + slotPadding) / slotHeight)
-      return { row: -1, col: -1 };
-    if (row % 1 > 1 - (slotMargin + slotPadding) / slotHeight)
-      return { row: -1, col: -1 };
-    if (col % 1 < (slotMargin + slotPadding) / slotWidth)
-      return { row: -1, col: -1 };
-    if (col % 1 > 1 - (slotMargin + slotPadding) / slotWidth)
-      return { row: -1, col: -1 };
+    if (row % 1 < slotMargin / slotHeight) return { row: -1, col: -1 };
+    if (row % 1 > 1 - slotMargin / slotHeight) return { row: -1, col: -1 };
+    if (col % 1 < slotMargin / slotWidth) return { row: -1, col: -1 };
+    if (col % 1 > 1 - slotMargin / slotWidth) return { row: -1, col: -1 };
 
     return {
       row: Math.floor(row),
