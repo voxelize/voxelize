@@ -573,6 +573,19 @@ export class World extends Scene implements NetIntercept {
           mat.uniforms.map = { value: source };
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
+        } else if (data instanceof Color) {
+          const canvas = mat.map.image;
+          canvas.width = 1;
+          canvas.height = 1;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = data.getStyle();
+          ctx.fillRect(0, 0, 1, 1);
+          // Update the texture with the new color
+          mat.map.needsUpdate = true;
+        } else {
+          throw new Error(
+            `Cannot apply texture to face "${faceName}" on block "${block.name}" because the source is not an image or a color.`
+          );
         }
 
         return;

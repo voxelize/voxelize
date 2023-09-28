@@ -38,7 +38,6 @@ import Water1Image from "./assets/pixel-perfection/water1.png";
 import Water2Image from "./assets/pixel-perfection/water2.png";
 import Water3Image from "./assets/pixel-perfection/water3.png";
 import Water4Image from "./assets/pixel-perfection/water4.png";
-import TechnoImage from "./assets/techno.png";
 
 const BIOME_SHADE_WEIGHT = 0.2;
 
@@ -229,27 +228,21 @@ export async function setupWorld(world: VOXELIZE.World) {
     })
   );
 
-  // await world.applyBlockTexture(
-  //   "Biggie",
-  //   "pz",
-  //   await world.loader.loadTexture(TechnoImage)
-  // );
-  // world.setResolutionOfByName("Biggie", "pz", 128);
-
   // world.setResolutionOf("Sand", "nx", 128);
   // await world.applyBlockGif("Sand", "nx", FunnyGif);
+  await world.applyBlockTexture("Biggie", "pz", new THREE.Color("#2C3639"));
+  // world.setResolutionOf("Biggie", "pz", 128);
+  // world.setResolutionOfByName("Biggie", "pz", 128);
 
-  world.setResolutionOf("Biggie", "pz", 128);
-
-  await world.applyBlockFrames(
-    "Biggie",
-    "pz",
-    [
-      [5000, TechnoImage],
-      [5000, LolImage],
-    ],
-    50
-  );
+  // await world.applyBlockFrames(
+  //   "Biggie",
+  //   "pz",
+  //   [
+  //     [5000, TechnoImage],
+  //     [5000, LolImage],
+  //   ],
+  //   50
+  // );
 
   world.customizeBlockDynamic("Water", (pos) => {
     const [vx, vy, vz] = pos;
