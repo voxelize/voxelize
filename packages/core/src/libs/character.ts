@@ -10,7 +10,7 @@ import {
 import { MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
-import { NameTag } from "./nametag";
+import { NameTag, NameTagOptions } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
 
@@ -142,6 +142,8 @@ export type CharacterOptions = {
    * The lerp factor of the character's rotation change. Defaults to `0.2`.
    */
   rotationLerp?: number;
+
+  nameTagOptions?: Partial<NameTagOptions>;
 
   /**
    * Parameters to create the character's head.
@@ -449,6 +451,7 @@ export class Character extends Group {
       this.nametag = new NameTag(username, {
         yOffset: this.head.height / 2 + 0.2,
         fontSize: 0.2,
+        ...(this.options.nameTagOptions ?? {}),
       });
       this.add(this.nametag);
     }
