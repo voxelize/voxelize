@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/transport",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "license": "MIT",
   "main": "dist/index.cjs.js",
   "module": "dist/index.js",

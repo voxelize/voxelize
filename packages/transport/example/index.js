@@ -6,7 +6,7 @@ transport.connect("ws://127.0.0.1:4000/", "test").then(() => {
   const setVoxel = (vx, vy, vz, type) =>
     transport.send({
       type: "UPDATE",
-      text: "world1",
+      text: "flat",
       updates: [
         {
           vx,
@@ -44,7 +44,7 @@ transport.connect("ws://127.0.0.1:4000/", "test").then(() => {
   while (updates.length) {
     transport.send({
       type: "UPDATE",
-      text: "world1",
+      text: "flat",
       updates: updates.splice(0, chunk),
     });
   }
@@ -53,7 +53,7 @@ transport.connect("ws://127.0.0.1:4000/", "test").then(() => {
     type = type == 60 ? 0 : 60;
     transport.send({
       type: "UPDATE",
-      text: "world1",
+      text: "flat",
       updates: [
         {
           vx: 0,
