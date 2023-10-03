@@ -575,6 +575,7 @@ export class World extends Scene implements NetIntercept {
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
           mat.map.needsUpdate = true;
+          mat.needsUpdate = true;
         } else if (data instanceof Color) {
           const canvas = mat.map.image;
           canvas.width = 1;
@@ -584,6 +585,7 @@ export class World extends Scene implements NetIntercept {
           ctx.fillRect(0, 0, 1, 1);
           // Update the texture with the new color
           mat.map.needsUpdate = true;
+          mat.needsUpdate = true;
         } else {
           throw new Error(
             `Cannot apply texture to face "${faceName}" on block "${block.name}" because the source is not an image or a color.`
