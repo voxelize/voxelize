@@ -1042,10 +1042,11 @@ impl World {
                         .unwrap_or_else(|_| {
                             panic!("EType filed does not exist on file: {:?}", path)
                         });
-                    let metadata: MetadataComp =
+                    let metadata_map: HashMap<String, Value> =
                         serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
                             |_| panic!("Metadata filed does not exist on file: {:?}", path),
                         );
+                    let metadata = MetadataComp::from_map(metadata_map);
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata) {
                         loaded_entities.insert(id.to_owned(), ent);

@@ -20,6 +20,13 @@ impl MetadataComp {
         Self::default()
     }
 
+    pub fn from_map(map: HashMap<String, Value>) -> Self {
+        Self {
+            map,
+            cache: String::new(),
+        }
+    }
+
     /// Set a component's metadata
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let component = component.to_owned();
