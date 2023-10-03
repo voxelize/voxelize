@@ -4,7 +4,7 @@ mod systems;
 use log::info;
 use nanoid::nanoid;
 use serde::{Deserialize, Serialize};
-use specs::{Builder, Component, DispatcherBuilder, NullStorage, WorldExt};
+use specs::{Builder, Component, DispatcherBuilder, NullStorage, VecStorage, WorldExt};
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
     ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
@@ -13,11 +13,18 @@ use voxelize::{
     RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
 };
 
-use self::{comps::CountdownComp, systems::CountdownSystem};
+use self::{
+    comps::CountdownComp,
+    systems::{CountdownSystem, NameMetadataSystem},
+};
 
 #[derive(Default, Component)]
 #[storage(NullStorage)]
 struct BoxFlag;
+
+#[derive(Default, Component, Serialize, Deserialize)]
+#[storage(VecStorage)]
+pub struct Name(pub String);
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SpawnMethodPayload {
@@ -53,6 +60,7 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         DispatcherBuilder::new()
             .with(UpdateStatsSystem, "update-stats", &[])
             .with(EntitiesMetaSystem, "entities-meta", &[])
+            .with(NameMetadataSystem, "name-metadata", &["entities-meta"])
             .with(PeersMetaSystem, "peers-meta", &[])
             .with(CurrentChunkSystem, "current-chunk", &[])
             .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
@@ -87,6 +95,7 @@ pub fn setup_flat_world(registry: &Registry) -> World {
     });
 
     world.ecs_mut().register::<BoxFlag>();
+    world.ecs_mut().register::<Name>();
     world.ecs_mut().register::<CountdownComp>();
 
     world.set_entity_loader("box", |world, metadata| {
@@ -102,7 +111,8 @@ pub fn setup_flat_world(registry: &Registry) -> World {
             .with(PositionComp::default())
             .with(RigidBodyComp::new(&body))
             .with(InteractorComp::new(&interactor))
-            .with(CountdownComp::new(300))
+            .with(Name("Box".to_owned()))
+            // .with(CountdownComp::new(300))
             .with(position)
     });
 
