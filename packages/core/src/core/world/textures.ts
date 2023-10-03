@@ -220,6 +220,8 @@ export class AtlasTexture extends CanvasTexture {
     );
 
     context.restore();
+
+    this.needsUpdate = true;
   }
 
   registerAnimation(
