@@ -1044,7 +1044,7 @@ impl World {
                         });
                     let metadata: MetadataComp =
                         serde_json::from_value(data.remove("metadata").unwrap()).unwrap_or_else(
-                            |_| panic!("Metadata filed does not exist on file: {:?}", path),
+                            |_| panic!("Metadata field does not exist on file: {:?}", path),
                         );
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata) {

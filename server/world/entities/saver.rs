@@ -27,7 +27,7 @@ impl EntitiesSaver {
         Self { saving, folder }
     }
 
-    pub fn save(&self, id: &str, etype: &str, metadata: &HashMap<String, Value>) {
+    pub fn save(&self, id: &str, etype: &str, metadata: &MetadataComp) {
         if !self.saving {
             return;
         }

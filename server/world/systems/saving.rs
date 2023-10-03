@@ -35,7 +35,7 @@ impl<'a> System<'a> for DataSavingSystem {
         (&ids, &etypes, &mut metadatas)
             .par_join()
             .for_each(|(id, etype, metadata)| {
-                entities_saver.save(&id.0, &etype.0, &metadata.map);
+                entities_saver.save(&id.0, &etype.0, &metadata);
             });
 
         stats.save();
