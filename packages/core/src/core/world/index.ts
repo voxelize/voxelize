@@ -596,6 +596,9 @@ export class World extends Scene implements NetIntercept {
       // Otherwise, we need to draw the image onto the texture atlas.
       const atlas = mat.map as AtlasTexture;
       atlas.drawImageToRange(face.range, data);
+
+      // Update the texture with the new image
+      mat.map.needsUpdate = true;
     });
   }
 
