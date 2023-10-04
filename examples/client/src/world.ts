@@ -230,8 +230,10 @@ export async function setupWorld(world: VOXELIZE.World) {
 
   // world.setResolutionOf("Sand", "nx", 128);
   // await world.applyBlockGif("Sand", "nx", FunnyGif);
-  await world.applyBlockTexture("Biggie", "pz", new THREE.Color("#2C3639"));
-  // world.setResolutionOf("Biggie", "pz", 128);
+  // await world.applyBlockTexture("Biggie", "pz", new THREE.Color("#2C3639"));
+  const image = await world.loader.loadImage("https://i.imgur.com/2ZQZV2w.png");
+  await world.applyBlockTexture("Biggie", "pz", image);
+  await world.setResolutionOf("Biggie", "pz", 10);
   // world.setResolutionOfByName("Biggie", "pz", 128);
 
   // await world.applyBlockFrames(

@@ -737,10 +737,15 @@ export class World extends Scene implements NetIntercept {
    * @param faceNames The face name or names to apply the resolution to.
    * @param resolution The resolution to apply to the block, in pixels.
    */
-  setResolutionOf(
+  async setResolutionOf(
     idOrName: number | string,
     faceNames: string | string[],
-    resolution: number
+    resolution:
+      | number
+      | {
+          x: number;
+          y: number;
+        }
   ) {
     this.checkIsInitialized("apply resolution", false);
 
@@ -748,7 +753,7 @@ export class World extends Scene implements NetIntercept {
 
     faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
 
-    faceNames.forEach((faceName) => {
+    for (const faceName of faceNames) {
       const face = block.faces.find((f) => f.name === faceName);
 
       if (!face) {
@@ -772,17 +777,62 @@ export class World extends Scene implements NetIntercept {
         );
       }
 
-      const canvas = mat.map.image;
+      const canvas = mat.map.image ?? mat.map.source.data;
+
+      // Wait for the image to load.
+      if (canvas instanceof HTMLImageElement) {
+        await new Promise<void>((resolve) => {
+          if (canvas.complete) {
+            resolve();
+            return;
+          }
+
+          canvas.onload = () => {
+            resolve();
+          };
+        });
+      }
+
+      console.log("Hi");
 
       if (!canvas) {
         throw new Error(
-          `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it does not have a texture.`
+          `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it does not have or has not loaded a texture.`
         );
       }
 
-      canvas.width = resolution;
-      canvas.height = resolution;
-    });
+      const { width, height } = canvas;
+
+      const newCanvas = document.createElement("canvas");
+
+      const newXResolution =
+        typeof resolution === "number" ? resolution : resolution.x;
+      const newYResolution =
+        typeof resolution === "number" ? resolution : resolution.y;
+
+      newCanvas.width = newXResolution;
+      newCanvas.height = newYResolution;
+
+      console.log(canvas);
+
+      const newCtx = newCanvas.getContext("2d");
+      newCtx.drawImage(
+        canvas,
+        0,
+        0,
+        width,
+        height,
+        0,
+        0,
+        newXResolution,
+        newYResolution
+      );
+
+      // Update the texture with the new image
+      mat.map.image = newCanvas;
+      mat.map.needsUpdate = true;
+      mat.needsUpdate = true;
+    }
   }
 
   /**
