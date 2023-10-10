@@ -13,10 +13,12 @@ use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
 use super::{registry::Registry, WorldConfig};
 
 mod aabb;
+mod raycast;
 mod rigidbody;
 mod sweep;
 
 pub use aabb::*;
+pub use raycast::*;
 pub use rigidbody::*;
 pub use sweep::*;
 
