@@ -27,7 +27,7 @@ const number = VoxelUtils.insertID(0, 13);
 
 ### extractID
 
-▸ `Static` **extractID**(`voxel`): `number`
+▸ **extractID**(`voxel`): `number`
 
 Extract the voxel id from a number.
 
@@ -47,7 +47,7 @@ ___
 
 ### extractRotation
 
-▸ `Static` **extractRotation**(`voxel`): [`BlockRotation`](BlockRotation.md)
+▸ **extractRotation**(`voxel`): [`BlockRotation`](BlockRotation.md)
 
 Extract the voxel rotation from a number.
 
@@ -67,7 +67,7 @@ ___
 
 ### extractStage
 
-▸ `Static` **extractStage**(`voxel`): `number`
+▸ **extractStage**(`voxel`): `number`
 
 Extract the voxel stage from a number.
 
@@ -85,9 +85,61 @@ The extracted voxel stage.
 
 ___
 
+### getBlockRotatedTransparency
+
+▸ **getBlockRotatedTransparency**(`block`, `rotation`): `boolean`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../modules.md#block) |
+| `rotation` | [`BlockRotation`](BlockRotation.md) |
+
+#### Returns
+
+`boolean`[]
+
+___
+
+### getBlockTorchLightLevel
+
+▸ **getBlockTorchLightLevel**(`block`, `color`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../modules.md#block) |
+| `color` | [`LightColor`](../modules.md#lightcolor) |
+
+#### Returns
+
+`number`
+
+___
+
+### insertAll
+
+▸ **insertAll**(`id`, `rotation?`, `stage?`): `number`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `number` |
+| `rotation?` | [`BlockRotation`](BlockRotation.md) |
+| `stage?` | `number` |
+
+#### Returns
+
+`number`
+
+___
+
 ### insertID
 
-▸ `Static` **insertID**(`voxel`, `id`): `number`
+▸ **insertID**(`voxel`, `id`): `number`
 
 Insert a voxel id into a number.
 
@@ -108,7 +160,7 @@ ___
 
 ### insertRotation
 
-▸ `Static` **insertRotation**(`voxel`, `rotation`): `number`
+▸ **insertRotation**(`voxel`, `rotation`): `number`
 
 Insert a voxel rotation into a number.
 
@@ -129,7 +181,7 @@ ___
 
 ### insertStage
 
-▸ `Static` **insertStage**(`voxel`, `stage`): `number`
+▸ **insertStage**(`voxel`, `stage`): `number`
 
 Insert a voxel stage into a number.
 

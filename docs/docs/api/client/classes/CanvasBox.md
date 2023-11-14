@@ -30,6 +30,28 @@ box.paint("all", (ctx, canvas) => {
 
   ↳↳ [`Sky`](Sky.md)
 
+## Constructors
+
+### constructor
+
+• **new CanvasBox**(`options?`): [`CanvasBox`](CanvasBox.md)
+
+Create a new canvas box.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `options` | `Partial`\<[`CanvasBoxOptions`](../modules.md#canvasboxoptions)\> | The options for creating a canvas box. |
+
+#### Returns
+
+[`CanvasBox`](CanvasBox.md)
+
+#### Overrides
+
+Group.constructor
+
 ## Properties
 
 ### boxLayers
@@ -58,7 +80,7 @@ ___
 
 ### options
 
-• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions-120)
+• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions)
 
 Parameters for creating a canvas box.
 
@@ -74,31 +96,13 @@ The width of the canvas box.
 
 ### boxMaterials
 
-• `get` **boxMaterials**(): `Map`<`string`, `MeshBasicMaterial`\>
+• `get` **boxMaterials**(): `Map`\<`string`, `MeshBasicMaterial`\>
 
 The first layer of the canvas box.
 
 #### Returns
 
-`Map`<`string`, `MeshBasicMaterial`\>
-
-## Constructors
-
-### constructor
-
-• **new CanvasBox**(`options?`)
-
-Create a new canvas box.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `options` | `Partial`<[`CanvasBoxOptions`](../modules.md#canvasboxoptions-120)\> | The options for creating a canvas box. |
-
-#### Overrides
-
-Group.constructor
+`Map`\<`string`, `MeshBasicMaterial`\>
 
 ## Methods
 
@@ -112,8 +116,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-120) \| [`BoxSides`](../modules.md#boxsides-120)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-120) | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns

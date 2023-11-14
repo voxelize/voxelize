@@ -12,6 +12,25 @@ When a job is queued, the pool will find the first available worker and
 execute the job. If no workers are available, the job will be queued until
 a worker becomes available.
 
+## Constructors
+
+### constructor
+
+• **new SharedWorkerPool**(`Proto`, `options?`): [`SharedWorkerPool`](SharedWorkerPool.md)
+
+Create a new worker pool.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `Proto` | () => `SharedWorker` | `undefined` | The worker class to create. |
+| `options` | [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions) | `defaultOptions` | The options to create the worker pool. |
+
+#### Returns
+
+[`SharedWorkerPool`](SharedWorkerPool.md)
+
 ## Properties
 
 ### Proto
@@ -20,9 +39,13 @@ a worker becomes available.
 
 #### Type declaration
 
-• **new SharedWorkerPool**()
+• **new Proto**(): `SharedWorker`
 
 The worker class to create.
+
+##### Returns
+
+`SharedWorker`
 
 ___
 
@@ -36,7 +59,7 @@ ___
 
 ### options
 
-• **options**: [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions-24) = `defaultOptions`
+• **options**: [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions) = `defaultOptions`
 
 The options to create the worker pool.
 
@@ -44,42 +67,9 @@ ___
 
 ### queue
 
-• **queue**: [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob-24)[] = `[]`
+• **queue**: [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
-
-## Methods
-
-### addJob
-
-▸ **addJob**(`job`): `void`
-
-Append a new job to be executed by a worker.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `job` | [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob-24) | The job to queue. |
-
-#### Returns
-
-`void`
-
-## Constructors
-
-### constructor
-
-• **new SharedWorkerPool**(`Proto`, `options?`)
-
-Create a new worker pool.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `Proto` | () => `SharedWorker` | `undefined` | The worker class to create. |
-| `options` | [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions-24) | `defaultOptions` | The options to create the worker pool. |
 
 ## Accessors
 
@@ -104,3 +94,21 @@ The number of workers that are simultaneously working.
 #### Returns
 
 `number`
+
+## Methods
+
+### addJob
+
+▸ **addJob**(`job`): `void`
+
+Append a new job to be executed by a worker.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `job` | [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob) | The job to queue. |
+
+#### Returns
+
+`void`

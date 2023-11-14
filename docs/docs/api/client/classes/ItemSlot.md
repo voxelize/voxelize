@@ -12,6 +12,107 @@ custom_edit_url: null
 | :------ | :------ |
 | `T` | `number` |
 
+## Constructors
+
+### constructor
+
+• **new ItemSlot**\<`T`\>(`row`, `col`): [`ItemSlot`](ItemSlot.md)\<`T`\>
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | `number` |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `row` | `number` |
+| `col` | `number` |
+
+#### Returns
+
+[`ItemSlot`](ItemSlot.md)\<`T`\>
+
+## Properties
+
+### camera
+
+• **camera**: `OrthographicCamera`
+
+___
+
+### col
+
+• **col**: `number`
+
+___
+
+### content
+
+• **content**: `T`
+
+___
+
+### element
+
+• **element**: `HTMLDivElement`
+
+___
+
+### light
+
+• **light**: `DirectionalLight`
+
+___
+
+### lightRotationOffset
+
+• **lightRotationOffset**: `number`
+
+___
+
+### object
+
+• **object**: `Object3D`\<`Object3DEventMap`\>
+
+___
+
+### offset
+
+• **offset**: `Vector3`
+
+___
+
+### row
+
+• **row**: `number`
+
+___
+
+### scene
+
+• **scene**: `Scene`
+
+___
+
+### subscript
+
+• **subscript**: `string`
+
+___
+
+### subscriptElement
+
+• **subscriptElement**: `HTMLDivElement`
+
+___
+
+### zoom
+
+• **zoom**: `number` = `1`
+
 ## Methods
 
 ### applyClass
@@ -38,7 +139,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `styles` | `Partial`<`CSSStyleDeclaration`\> |
+| `styles` | `Partial`\<`CSSStyleDeclaration`\> |
 
 #### Returns
 
@@ -70,7 +171,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `styles` | `Partial`<`CSSStyleDeclaration`\> |
+| `styles` | `Partial`\<`CSSStyleDeclaration`\> |
 
 #### Returns
 
@@ -90,11 +191,11 @@ ___
 
 ### getObject
 
-▸ **getObject**(): `Object3D`<`Event`\>
+▸ **getObject**(): `Object3D`\<`Object3DEventMap`\>
 
 #### Returns
 
-`Object3D`<`Event`\>
+`Object3D`\<`Object3DEventMap`\>
 
 ___
 
@@ -164,7 +265,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `object` | `Object3D`<`Event`\> |
+| `object` | `Object3D`\<`Object3DEventMap`\> |
 
 #### Returns
 
@@ -180,7 +281,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective-120) |
+| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective) |
 
 #### Returns
 
@@ -204,9 +305,9 @@ ___
 
 ___
 
-### setzoom
+### setZoom
 
-▸ **setzoom**(`zoom`): `void`
+▸ **setZoom**(`zoom`): `void`
 
 #### Parameters
 
@@ -217,100 +318,3 @@ ___
 #### Returns
 
 `void`
-
-## Properties
-
-### camera
-
-• **camera**: `OrthographicCamera`
-
-___
-
-### col
-
-• **col**: `number`
-
-___
-
-### content
-
-• **content**: `T`
-
-___
-
-### element
-
-• **element**: `HTMLDivElement`
-
-___
-
-### light
-
-• **light**: `DirectionalLight`
-
-___
-
-### lightRotationOffset
-
-• **lightRotationOffset**: `number`
-
-___
-
-### object
-
-• **object**: `Object3D`<`Event`\>
-
-___
-
-### offset
-
-• **offset**: `Vector3`
-
-___
-
-### row
-
-• **row**: `number`
-
-___
-
-### scene
-
-• **scene**: `Scene`
-
-___
-
-### subscript
-
-• **subscript**: `string`
-
-___
-
-### subscriptElement
-
-• **subscriptElement**: `HTMLDivElement`
-
-___
-
-### zoom
-
-• **zoom**: `number` = `1`
-
-## Constructors
-
-### constructor
-
-• **new ItemSlot**<`T`\>(`row`, `col`)
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | `number` |
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `row` | `number` |
-| `col` | `number` |

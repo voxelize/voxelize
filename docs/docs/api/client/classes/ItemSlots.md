@@ -12,6 +12,153 @@ custom_edit_url: null
 | :------ | :------ |
 | `T` | `number` |
 
+## Constructors
+
+### constructor
+
+• **new ItemSlots**\<`T`\>(`options?`): [`ItemSlots`](ItemSlots.md)\<`T`\>
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | `number` |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `options` | `Partial`\<[`ItemSlotsOptions`](../modules.md#itemslotsoptions)\> |
+
+#### Returns
+
+[`ItemSlots`](ItemSlots.md)\<`T`\>
+
+## Properties
+
+### activated
+
+• **activated**: `boolean` = `false`
+
+___
+
+### canvas
+
+• **canvas**: `HTMLCanvasElement`
+
+___
+
+### focusedCol
+
+• **focusedCol**: `number` = `-1`
+
+___
+
+### focusedRow
+
+• **focusedRow**: `number` = `-1`
+
+___
+
+### onFocusChange
+
+• **onFocusChange**: (`prevSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>, `nextSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`
+
+#### Type declaration
+
+▸ (`prevSlot`, `nextSlot`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `prevSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+| `nextSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onSlotClick
+
+• **onSlotClick**: (`slot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`
+
+#### Type declaration
+
+▸ (`slot`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `slot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### onSlotUpdate
+
+• **onSlotUpdate**: (`slot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`
+
+#### Type declaration
+
+▸ (`slot`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `slot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+
+##### Returns
+
+`void`
+
+___
+
+### options
+
+• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions)
+
+___
+
+### renderer
+
+• **renderer**: `WebGLRenderer`
+
+___
+
+### slotTotalHeight
+
+• **slotTotalHeight**: `number`
+
+___
+
+### slotTotalWidth
+
+• **slotTotalWidth**: `number`
+
+___
+
+### wrapper
+
+• **wrapper**: `HTMLDivElement`
+
+## Accessors
+
+### element
+
+• `get` **element**(): `HTMLDivElement`
+
+#### Returns
+
+`HTMLDivElement`
+
 ## Methods
 
 ### activate
@@ -32,7 +179,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` |
+| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` |
 | `namespace` | `string` | `"*"` |
 
 #### Returns
@@ -76,17 +223,17 @@ ___
 
 ### getFocused
 
-▸ **getFocused**(): [`ItemSlot`](ItemSlot.md)<`T`\>
+▸ **getFocused**(): [`ItemSlot`](ItemSlot.md)\<`T`\>
 
 #### Returns
 
-[`ItemSlot`](ItemSlot.md)<`T`\>
+[`ItemSlot`](ItemSlot.md)\<`T`\>
 
 ___
 
 ### getObject
 
-▸ **getObject**(`row`, `col`): `Object3D`<`Event`\>
+▸ **getObject**(`row`, `col`): `Object3D`\<`Object3DEventMap`\>
 
 #### Parameters
 
@@ -97,7 +244,7 @@ ___
 
 #### Returns
 
-`Object3D`<`Event`\>
+`Object3D`\<`Object3DEventMap`\>
 
 ___
 
@@ -124,7 +271,7 @@ ___
 
 ### getSlot
 
-▸ **getSlot**(`row`, `col`): [`ItemSlot`](ItemSlot.md)<`T`\>
+▸ **getSlot**(`row`, `col`): [`ItemSlot`](ItemSlot.md)\<`T`\>
 
 #### Parameters
 
@@ -135,7 +282,7 @@ ___
 
 #### Returns
 
-[`ItemSlot`](ItemSlot.md)<`T`\>
+[`ItemSlot`](ItemSlot.md)\<`T`\>
 
 ___
 
@@ -211,7 +358,7 @@ ___
 | :------ | :------ |
 | `row` | `number` |
 | `col` | `number` |
-| `object` | `Object3D`<`Event`\> |
+| `object` | `Object3D`\<`Object3DEventMap`\> |
 
 #### Returns
 
@@ -234,170 +381,3 @@ ___
 #### Returns
 
 `void`
-
-## Properties
-
-### activated
-
-• **activated**: `boolean` = `false`
-
-___
-
-### canvas
-
-• **canvas**: `HTMLCanvasElement`
-
-___
-
-### focusedCol
-
-• **focusedCol**: `number` = `-1`
-
-___
-
-### focusedRow
-
-• **focusedRow**: `number` = `-1`
-
-___
-
-### onFocusChange
-
-• **onFocusChange**: (`prevSlot`: [`ItemSlot`](ItemSlot.md)<`T`\>, `nextSlot`: [`ItemSlot`](ItemSlot.md)<`T`\>) => `void` = `noop`
-
-#### Type declaration
-
-▸ (`prevSlot`, `nextSlot`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `prevSlot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
-| `nextSlot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onSlotClick
-
-• **onSlotClick**: (`slot`: [`ItemSlot`](ItemSlot.md)<`T`\>) => `void` = `noop`
-
-#### Type declaration
-
-▸ (`slot`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `slot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### onSlotUpdate
-
-• **onSlotUpdate**: (`slot`: [`ItemSlot`](ItemSlot.md)<`T`\>) => `void` = `noop`
-
-#### Type declaration
-
-▸ (`slot`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `slot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
-
-##### Returns
-
-`void`
-
-___
-
-### options
-
-• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-120)
-
-___
-
-### renderer
-
-• **renderer**: `WebGLRenderer`
-
-___
-
-### slotHeight
-
-• **slotHeight**: `number`
-
-___
-
-### slotMargin
-
-• **slotMargin**: `number`
-
-___
-
-### slotPadding
-
-• **slotPadding**: `number`
-
-___
-
-### slotTotalHeight
-
-• **slotTotalHeight**: `number`
-
-___
-
-### slotTotalWidth
-
-• **slotTotalWidth**: `number`
-
-___
-
-### slotWidth
-
-• **slotWidth**: `number`
-
-___
-
-### wrapper
-
-• **wrapper**: `HTMLDivElement`
-
-## Constructors
-
-### constructor
-
-• **new ItemSlots**<`T`\>(`options?`)
-
-#### Type parameters
-
-| Name | Type |
-| :------ | :------ |
-| `T` | `number` |
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `options` | `Partial`<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-120)\> |
-
-## Accessors
-
-### element
-
-• `get` **element**(): `HTMLDivElement`
-
-#### Returns
-
-`HTMLDivElement`

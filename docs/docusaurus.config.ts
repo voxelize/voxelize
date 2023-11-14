@@ -1,12 +1,10 @@
-// @ts-check
-// Note: type annotations allow type checking and IDEs autocompletion
-
-const darkCodeTheme = require("prism-react-renderer/themes/dracula");
-const lightCodeTheme = require("prism-react-renderer/themes/github");
+import type { Config } from "@docusaurus/types";
+import { themes } from "prism-react-renderer";
 
 const sharedTypeDocConfig = (name) => ({
   excludePrivate: true,
   excludeProtected: true,
+  excludeExternals: true,
   entryDocument: "none",
   disableSources: true,
   sort: [
@@ -27,8 +25,7 @@ const sharedTypeDocConfig = (name) => ({
   preserveWatchOutput: true,
 });
 
-/** @type {import('@docusaurus/types').Config} */
-const config = {
+const config: Config = {
   title: "Voxelize",
   tagline: "A voxel browser experience",
   url: "https://docs.voxelize.io",
@@ -36,19 +33,24 @@ const config = {
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/circle-min.png",
-  deploymentBranch: "gh-pages",
-  organizationName: "voxelize",
-  projectName: "voxelize",
-  trailingSlash: false,
+
+  // GitHub pages deployment config.
+  // If you aren't using GitHub pages, you don't need these.
+  organizationName: "voxelize", // Usually your GitHub org/user name.
+  projectName: "voxelize", // Usually your repo name.
+
+  // Even if you don't use internationalization, you can use this field to set
+  // useful metadata like html lang. For example, if your site is Chinese, you
+  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
   },
+
   presets: [
     [
       "classic",
-      /** @type {import('@docusaurus/preset-classic').Options} */
-      ({
+      {
         docs: false,
         blog: {
           showReadingTime: true,
@@ -60,99 +62,97 @@ const config = {
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
         },
-      }),
+      },
     ],
   ],
 
-  themeConfig:
-    /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
-    ({
-      navbar: {
-        title: "VOXELIZE",
-        hideOnScroll: true,
-        logo: {
-          alt: "Voxelize Logo",
-          src: "img/logo/circle-min.png",
+  themeConfig: {
+    navbar: {
+      title: "VOXELIZE",
+      hideOnScroll: true,
+      logo: {
+        alt: "Voxelize Logo",
+        src: "img/logo/circle-min.png",
+      },
+      items: [
+        {
+          to: "/tutorials/intro/what-is-voxelize",
+          position: "left",
+          label: "Tutorial",
         },
-        items: [
-          {
-            to: "/tutorials/intro/what-is-voxelize",
-            position: "left",
-            label: "Tutorial",
-          },
-          { to: "/wiki/handling-events", label: "Wiki", position: "left" },
-          {
-            to: "/api/client/modules",
-            position: "left",
-            label: "API",
-          },
-          { to: "/blog", label: "Blog", position: "left" },
-          {
-            href: "https://github.com/voxelize/voxelize",
-            label: "GitHub",
-            position: "right",
-          },
-        ],
-      },
-      footer: {
-        style: "dark",
-        links: [
-          {
-            title: "Docs",
-            items: [
-              {
-                label: "Tutorial",
-                to: "/tutorials/intro/what-is-voxelize",
-              },
-              {
-                label: "Client API",
-                to: "/api/client/modules",
-              },
-              {
-                label: "Server API",
-                to: "https://docs.rs/voxelize/0.4.2/voxelize/",
-              },
-            ],
-          },
-          {
-            title: "Community",
-            items: [
-              {
-                label: "Stack Overflow",
-                href: "https://stackoverflow.com/questions/tagged/voxelize",
-              },
-              {
-                label: "Discord",
-                href: "https://discord.gg/6AfEkpjsTS",
-              },
-              {
-                label: "Twitter",
-                href: "https://twitter.com/voxelizee",
-              },
-            ],
-          },
-          {
-            title: "More",
-            items: [
-              {
-                label: "Blog",
-                to: "/blog",
-              },
-              {
-                label: "GitHub",
-                href: "https://github.com/facebook/docusaurus",
-              },
-            ],
-          },
-        ],
-        copyright: `Copyright © ${new Date().getFullYear()} Voxelize. All rights reserved.`,
-      },
-      prism: {
-        theme: lightCodeTheme,
-        darkTheme: darkCodeTheme,
-        additionalLanguages: ["toml", "rust"],
-      },
-    }),
+        { to: "/wiki/handling-events", label: "Wiki", position: "left" },
+        {
+          to: "/api/client/modules",
+          position: "left",
+          label: "API",
+        },
+        { to: "/blog", label: "Blog", position: "left" },
+        {
+          href: "https://github.com/voxelize/voxelize",
+          label: "GitHub",
+          position: "right",
+        },
+      ],
+    },
+    footer: {
+      style: "dark",
+      links: [
+        {
+          title: "Docs",
+          items: [
+            {
+              label: "Tutorial",
+              to: "/tutorials/intro/what-is-voxelize",
+            },
+            {
+              label: "Client API",
+              to: "/api/client/modules",
+            },
+            {
+              label: "Server API",
+              to: "https://docs.rs/voxelize/0.4.2/voxelize/",
+            },
+          ],
+        },
+        {
+          title: "Community",
+          items: [
+            {
+              label: "Stack Overflow",
+              href: "https://stackoverflow.com/questions/tagged/voxelize",
+            },
+            {
+              label: "Discord",
+              href: "https://discord.gg/6AfEkpjsTS",
+            },
+            {
+              label: "Twitter",
+              href: "https://twitter.com/voxelizee",
+            },
+          ],
+        },
+        {
+          title: "More",
+          items: [
+            {
+              label: "Blog",
+              to: "/blog",
+            },
+            {
+              label: "GitHub",
+              href: "https://github.com/facebook/docusaurus",
+            },
+          ],
+        },
+      ],
+      copyright: `Copyright © ${new Date().getFullYear()} Voxelize. All rights reserved.`,
+    },
+    prism: {
+      theme: themes.github,
+      darkTheme: themes.dracula,
+      additionalLanguages: ["toml", "rust"],
+    },
+  },
   plugins: [
     [
       "@docusaurus/plugin-content-docs",
@@ -210,8 +210,7 @@ const config = {
         ...sharedTypeDocConfig("Client API"),
       },
     ],
-
-    async function myPlugin(context, options) {
+    async function myPlugin() {
       return {
         name: "docusaurus-tailwindcss",
         configurePostCss(postcssOptions) {
@@ -225,4 +224,4 @@ const config = {
   ],
 };
 
-module.exports = config;
+export default config;

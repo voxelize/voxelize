@@ -14,7 +14,7 @@ to the positive and negative x-axis.
 
 ### constructor
 
-• **new BlockRotation**(`value?`, `yRotation?`)
+• **new BlockRotation**(`value?`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
 
 Create a new block rotation.
 
@@ -22,14 +22,35 @@ Create a new block rotation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `value` | `number` | `0` | The axis this block is pointing towards. |
+| `value` | `number` | `PY_ROTATION` | The axis this block is pointing towards. |
 | `yRotation` | `number` | `0` | The rotation around the axis this block is pointing towards, rounded to the nearest (360 / 16) degrees. |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+## Properties
+
+### value
+
+• **value**: `number`
+
+The axis this block is pointing towards.
+
+___
+
+### yRotation
+
+• **yRotation**: `number`
+
+The rotation around the axis this block is pointing towards, rounded to the nearest
+(360 / 16) degrees.
 
 ## Methods
 
 ### decode
 
-▸ `Static` **decode**(`rotation`): `number`[]
+▸ **decode**(`rotation`): `number`[]
 
 Decode a block rotation into two rotations.
 
@@ -50,7 +71,7 @@ ___
 
 ### encode
 
-▸ `Static` **encode**(`value`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
+▸ **encode**(`value`, `yRotation?`): [`BlockRotation`](BlockRotation.md)
 
 Encode two rotations into a new block rotation instance.
 
@@ -102,7 +123,7 @@ Rotate a 3D coordinate by this block rotation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-120) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `node` | [`Coords3`](../modules.md#coords3) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
 | `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
 | `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 
@@ -110,19 +131,18 @@ Rotate a 3D coordinate by this block rotation.
 
 `void`
 
-## Properties
-
-### value
-
-• **value**: `number`
-
-The axis this block is pointing towards.
-
 ___
 
-### yRotation
+### rotateTransparency
 
-• **yRotation**: `number`
+▸ **rotateTransparency**(`«destructured»`): `boolean`[]
 
-The rotation around the axis this block is pointing towards, rounded to the nearest
-(360 / 16) degrees.
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `«destructured»` | [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`] |
+
+#### Returns
+
+`boolean`[]

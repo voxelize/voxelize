@@ -35,6 +35,48 @@ network.register(chat);
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
+## Constructors
+
+### constructor
+
+• **new Chat**(): [`Chat`](Chat.md)
+
+#### Returns
+
+[`Chat`](Chat.md)
+
+## Properties
+
+### onChat
+
+• **onChat**: (`chat`: `ChatProtocol`) => `void`
+
+#### Type declaration
+
+▸ (`chat`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `chat` | `ChatProtocol` |
+
+##### Returns
+
+`void`
+
+## Accessors
+
+### commandSymbol
+
+• `get` **commandSymbol**(): `string`
+
+The symbol that is used to trigger commands.
+
+#### Returns
+
+`string`
+
 ## Methods
 
 ### addCommand
@@ -48,7 +90,7 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor-120) | `undefined` | The process run when this command is triggered. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor) | `undefined` | The process run when this command is triggered. |
 | `aliases` | `string`[] | `[]` | - |
 
 #### Returns
@@ -88,43 +130,5 @@ Send a chat to the server.
 | `chat` | `ChatProtocol` | The chat message to send. |
 
 #### Returns
-
-`void`
-
-## Accessors
-
-### commandSymbol
-
-• `get` **commandSymbol**(): `string`
-
-The symbol that is used to trigger commands.
-
-#### Returns
-
-`string`
-
-## Constructors
-
-### constructor
-
-• **new Chat**()
-
-## Properties
-
-### onChat
-
-• **onChat**: (`chat`: `ChatProtocol`) => `void`
-
-#### Type declaration
-
-▸ (`chat`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `chat` | `ChatProtocol` |
-
-##### Returns
 
 `void`

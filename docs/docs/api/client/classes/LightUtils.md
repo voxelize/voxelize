@@ -25,9 +25,56 @@ const number = LightUtils.insertSunlight(0, 13);
 
 ## Methods
 
+### canEnter
+
+▸ **canEnter**(`source`, `target`, `dx`, `dy`, `dz`): `boolean`
+
+Check to see if light can enter from one block to another.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `source` | `boolean`[] | The source block's transparency. |
+| `target` | `boolean`[] | The target block's transparency. |
+| `dx` | `number` | The change in x direction. |
+| `dy` | `number` | The change in y direction. |
+| `dz` | `number` | The change in z direction. |
+
+#### Returns
+
+`boolean`
+
+Whether light can enter from the source block to the target block.
+
+___
+
+### canEnterInto
+
+▸ **canEnterInto**(`target`, `dx`, `dy`, `dz`): `boolean`
+
+Check to see if light can go "into" one block, disregarding the source.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `target` | `boolean`[] | The target block's transparency. |
+| `dx` | `number` | The change in x direction. |
+| `dy` | `number` | The change in y direction. |
+| `dz` | `number` | The change in z direction. |
+
+#### Returns
+
+`boolean`
+
+Whether light can enter into the target block.
+
+___
+
 ### extractBlueLight
 
-▸ `Static` **extractBlueLight**(`light`): `number`
+▸ **extractBlueLight**(`light`): `number`
 
 Extract the blue light level from a number.
 
@@ -47,7 +94,7 @@ ___
 
 ### extractGreenLight
 
-▸ `Static` **extractGreenLight**(`light`): `number`
+▸ **extractGreenLight**(`light`): `number`
 
 Extract the green light level from a number.
 
@@ -67,7 +114,7 @@ ___
 
 ### extractRedLight
 
-▸ `Static` **extractRedLight**(`light`): `number`
+▸ **extractRedLight**(`light`): `number`
 
 Extract the red light level from a number.
 
@@ -87,7 +134,7 @@ ___
 
 ### extractSunlight
 
-▸ `Static` **extractSunlight**(`light`): `number`
+▸ **extractSunlight**(`light`): `number`
 
 Extract the sunlight level from a number.
 
@@ -107,7 +154,7 @@ ___
 
 ### insertBlueLight
 
-▸ `Static` **insertBlueLight**(`light`, `level`): `number`
+▸ **insertBlueLight**(`light`, `level`): `number`
 
 Insert a blue light level into a number.
 
@@ -128,7 +175,7 @@ ___
 
 ### insertGreenLight
 
-▸ `Static` **insertGreenLight**(`light`, `level`): `number`
+▸ **insertGreenLight**(`light`, `level`): `number`
 
 Insert a green light level into a number.
 
@@ -149,7 +196,7 @@ ___
 
 ### insertRedLight
 
-▸ `Static` **insertRedLight**(`light`, `level`): `number`
+▸ **insertRedLight**(`light`, `level`): `number`
 
 Insert a red light level into a number.
 
@@ -170,7 +217,7 @@ ___
 
 ### insertSunlight
 
-▸ `Static` **insertSunlight**(`light`, `level`): `number`
+▸ **insertSunlight**(`light`, `level`): `number`
 
 Insert a sunlight level into a number.
 

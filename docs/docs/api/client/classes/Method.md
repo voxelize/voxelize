@@ -25,6 +25,19 @@ method.call("my-method", { hello: "world" });
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
+## Properties
+
+### packets
+
+• **packets**: `MessageProtocol`\<`any`, `any`, `any`, `any`, `any`\>[] = `[]`
+
+An array of packets to be sent to the server. These packets will be
+sent to the server after every `network.flush()` call.
+
+#### Implementation of
+
+[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets)
+
 ## Methods
 
 ### call
@@ -43,16 +56,3 @@ Call a defined method on the server.
 #### Returns
 
 `void`
-
-## Properties
-
-### packets
-
-• **packets**: `MessageProtocol`<`any`, `any`, `any`, `any`, `any`\>[] = `[]`
-
-An array of packets to be sent to the server. These packets will be
-sent to the server after every `network.flush()` call.
-
-#### Implementation of
-
-[NetIntercept](../interfaces/NetIntercept.md).[packets](../interfaces/NetIntercept.md#packets-120)

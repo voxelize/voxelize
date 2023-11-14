@@ -12,7 +12,7 @@ A utility class for doing DOM manipulation.
 
 ### applyStyles
 
-▸ `Static` **applyStyles**(`ele`, `style`): `HTMLElement` \| `HTMLElement`[]
+▸ **applyStyles**(`ele`, `style`): `HTMLElement` \| `HTMLElement`[]
 
 Apply styles directly onto DOM element(s).
 
@@ -21,7 +21,7 @@ Apply styles directly onto DOM element(s).
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `ele` | `HTMLElement` \| `HTMLElement`[] | The element(s) to add styles to. |
-| `style` | `Partial`<`CSSStyleDeclaration`\> | The style(s) to add. |
+| `style` | `Partial`\<`CSSStyleDeclaration`\> | The style(s) to add. |
 
 #### Returns
 
@@ -33,7 +33,7 @@ ___
 
 ### rgba
 
-▸ `Static` **rgba**(`r`, `g`, `b`, `a`): `string`
+▸ **rgba**(`r`, `g`, `b`, `a`): `string`
 
 Create a CSS color string from numbers.
 

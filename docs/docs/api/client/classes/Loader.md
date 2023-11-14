@@ -7,13 +7,13 @@ custom_edit_url: null
 ---
 
 An asset loader that can load textures and audio files. This class is used internally by the world
-and can be accessed via [loader](World.md#loader-120).
+and can be accessed via [World.loader](World.md#loader).
 
 ## Properties
 
 ### audioBuffers
 
-• **audioBuffers**: `Map`<`string`, `AudioBuffer`\>
+• **audioBuffers**: `Map`\<`string`, `AudioBuffer`\>
 
 A map of all audios loaded by Voxelize.
 
@@ -21,7 +21,7 @@ ___
 
 ### images
 
-• **images**: `Map`<`string`, `HTMLImageElement` \| `HTMLImageElement`[]\>
+• **images**: `Map`\<`string`, `HTMLImageElement` \| `HTMLImageElement`[]\>
 
 ___
 
@@ -35,7 +35,7 @@ ___
 
 ### textures
 
-• **textures**: `Map`<`string`, `Texture`\>
+• **textures**: `Map`\<`string`, `Texture`\>
 
 A map of all textures loaded by Voxelize.
 
@@ -83,10 +83,16 @@ ___
 
 ### load
 
-▸ **load**(): `Promise`<`void`\>
+▸ **load**(): `Promise`\<`void`\>
 
 Load all assets other than the textures. Called internally by the world.
 This can be used to ensure that a function runs after all assets are loaded.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+A promise that resolves when all assets are loaded.
 
 **`Example`**
 
@@ -94,17 +100,11 @@ This can be used to ensure that a function runs after all assets are loaded.
 world.loader.load().then(() => {});
 ```
 
-#### Returns
-
-`Promise`<`void`\>
-
-A promise that resolves when all assets are loaded.
-
 ___
 
 ### loadAudioBuffer
 
-▸ **loadAudioBuffer**(`source`, `onLoaded?`): `Promise`<`AudioBuffer`\>
+▸ **loadAudioBuffer**(`source`, `onLoaded?`): `Promise`\<`AudioBuffer`\>
 
 Add an audio file to be loaded from.
 
@@ -117,13 +117,13 @@ Add an audio file to be loaded from.
 
 #### Returns
 
-`Promise`<`AudioBuffer`\>
+`Promise`\<`AudioBuffer`\>
 
 ___
 
 ### loadGifImages
 
-▸ **loadGifImages**(`source`, `onLoaded?`): `Promise`<`HTMLImageElement`[]\>
+▸ **loadGifImages**(`source`, `onLoaded?`): `Promise`\<`HTMLImageElement`[]\>
 
 #### Parameters
 
@@ -134,13 +134,13 @@ ___
 
 #### Returns
 
-`Promise`<`HTMLImageElement`[]\>
+`Promise`\<`HTMLImageElement`[]\>
 
 ___
 
 ### loadImage
 
-▸ **loadImage**(`source`, `onLoaded?`): `Promise`<`HTMLImageElement`\>
+▸ **loadImage**(`source`, `onLoaded?`): `Promise`\<`HTMLImageElement`\>
 
 #### Parameters
 
@@ -151,13 +151,13 @@ ___
 
 #### Returns
 
-`Promise`<`HTMLImageElement`\>
+`Promise`\<`HTMLImageElement`\>
 
 ___
 
 ### loadTexture
 
-▸ **loadTexture**(`source`, `onLoaded?`): `Promise`<`Texture`\>
+▸ **loadTexture**(`source`, `onLoaded?`): `Promise`\<`Texture`\>
 
 #### Parameters
 
@@ -168,4 +168,4 @@ ___
 
 #### Returns
 
-`Promise`<`Texture`\>
+`Promise`\<`Texture`\>

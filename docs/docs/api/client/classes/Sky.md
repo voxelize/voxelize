@@ -34,6 +34,28 @@ sky.update(camera.position);
 
   ↳ **`Sky`**
 
+## Constructors
+
+### constructor
+
+• **new Sky**(`options?`): [`Sky`](Sky.md)
+
+Create a new sky instance.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `options` | `Partial`\<[`SkyOptions`](../modules.md#skyoptions)\> |
+
+#### Returns
+
+[`Sky`](Sky.md)
+
+#### Overrides
+
+[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor)
+
 ## Properties
 
 ### boxLayers
@@ -44,7 +66,7 @@ The inner layers of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers-120)
+[CanvasBox](CanvasBox.md).[boxLayers](CanvasBox.md#boxlayers)
 
 ___
 
@@ -56,7 +78,7 @@ The depth of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth-120)
+[CanvasBox](CanvasBox.md).[depth](CanvasBox.md#depth)
 
 ___
 
@@ -68,25 +90,25 @@ The height of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height-120)
+[CanvasBox](CanvasBox.md).[height](CanvasBox.md#height)
 
 ___
 
 ### options
 
-• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions-120) & [`SkyOptions`](../modules.md#skyoptions-120)
+• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions) & [`SkyOptions`](../modules.md#skyoptions)
 
 Parameters for creating a canvas box.
 
 #### Overrides
 
-[CanvasBox](CanvasBox.md).[options](CanvasBox.md#options-120)
+[CanvasBox](CanvasBox.md).[options](CanvasBox.md#options)
 
 ___
 
 ### shadingData
 
-• **shadingData**: [`SkyShadingCycleData`](../modules.md#skyshadingcycledata-120)[] = `[]`
+• **shadingData**: [`SkyShadingCycleData`](../modules.md#skyshadingcycledata)[] = `[]`
 
 ___
 
@@ -164,41 +186,23 @@ The width of the canvas box.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width-120)
+[CanvasBox](CanvasBox.md).[width](CanvasBox.md#width)
 
 ## Accessors
 
 ### boxMaterials
 
-• `get` **boxMaterials**(): `Map`<`string`, `MeshBasicMaterial`\>
+• `get` **boxMaterials**(): `Map`\<`string`, `MeshBasicMaterial`\>
 
 The first layer of the canvas box.
 
 #### Returns
 
-`Map`<`string`, `MeshBasicMaterial`\>
+`Map`\<`string`, `MeshBasicMaterial`\>
 
 #### Inherited from
 
 CanvasBox.boxMaterials
-
-## Constructors
-
-### constructor
-
-• **new Sky**(`options?`)
-
-Create a new sky instance.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `options` | `Partial`<[`SkyOptions`](../modules.md#skyoptions-120)\> |
-
-#### Overrides
-
-[CanvasBox](CanvasBox.md).[constructor](CanvasBox.md#constructor-120)
 
 ## Methods
 
@@ -255,8 +259,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-120) \| [`BoxSides`](../modules.md#boxsides-120)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-120) | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -265,7 +269,7 @@ Add art to the canvas(s) of this box layer.
 
 #### Inherited from
 
-[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint-120)
+[CanvasBox](CanvasBox.md).[paint](CanvasBox.md#paint)
 
 ___
 
@@ -277,7 +281,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`SkyShadingCycleData`](../modules.md#skyshadingcycledata-120)[] |
+| `data` | [`SkyShadingCycleData`](../modules.md#skyshadingcycledata)[] |
 
 #### Returns
 

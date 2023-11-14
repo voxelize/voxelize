@@ -19,7 +19,7 @@
     "prepublishOnly": "yarn run build"
   },
   "peerDependencies": {
-    "postprocessing": "^6.33.1",
+    "postprocessing": "^6.33.3",
     "three": "^0.156.1"
   },
   "devDependencies": {

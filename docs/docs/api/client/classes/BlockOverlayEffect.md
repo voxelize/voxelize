@@ -29,9 +29,48 @@ composer.addPass(
 
 ## Hierarchy
 
-- `Effect`
+- `"postprocessing"`
 
   ↳ **`BlockOverlayEffect`**
+
+## Constructors
+
+### constructor
+
+• **new BlockOverlayEffect**(`world`, `camera`): [`BlockOverlayEffect`](BlockOverlayEffect.md)
+
+Create a new block overlay effect.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `world` | [`World`](World.md) | The world that the effect is in. |
+| `camera` | `PerspectiveCamera` | The camera that the effect is applied to. |
+
+#### Returns
+
+[`BlockOverlayEffect`](BlockOverlayEffect.md)
+
+#### Overrides
+
+Effect.constructor
+
+## Properties
+
+### camera
+
+• **camera**: `PerspectiveCamera`
+
+The camera that the effect is applied to.
+
+___
+
+### world
+
+• **world**: [`World`](World.md)
+
+The world that the effect is in.
 
 ## Methods
 
@@ -52,38 +91,3 @@ Add a new overlay to a certain voxel type.
 #### Returns
 
 `void`
-
-## Properties
-
-### camera
-
-• **camera**: `PerspectiveCamera`
-
-The camera that the effect is applied to.
-
-___
-
-### world
-
-• **world**: [`World`](World.md)
-
-The world that the effect is in.
-
-## Constructors
-
-### constructor
-
-• **new BlockOverlayEffect**(`world`, `camera`)
-
-Create a new block overlay effect.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world that the effect is in. |
-| `camera` | `PerspectiveCamera` | The camera that the effect is applied to. |
-
-#### Overrides
-
-Effect.constructor

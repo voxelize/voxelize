@@ -29,7 +29,7 @@ TODO-DOC
 
 ## Hierarchy
 
-- `Map`<`string`, [`EventHandler`](../modules.md#eventhandler-120)\>
+- `Map`\<`string`, [`EventHandler`](../modules.md#eventhandler)\>
 
   ↳ **`Events`**
 
@@ -37,13 +37,29 @@ TODO-DOC
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
+## Constructors
+
+### constructor
+
+• **new Events**(): [`Events`](Events.md)
+
+Creates a new instance of the Voxelize event manager.
+
+#### Returns
+
+[`Events`](Events.md)
+
+#### Overrides
+
+Map\&lt;string, EventHandler\&gt;.constructor
+
 ## Methods
 
 ### addEventListener
 
 ▸ **addEventListener**(`name`, `handler`): `void`
 
-Synonym for [on](Events.md#on-120), adds a listener to a Voxelize server event.
+Synonym for [on](Events.md#on), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -51,7 +67,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler-120) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
 
 #### Returns
 
@@ -88,7 +104,7 @@ Emit multiple events to the server.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `events` | [`Event`](../modules.md#event-120)[] | A list of events to emit. |
+| `events` | [`Event`](../modules.md#event)[] | A list of events to emit. |
 
 #### Returns
 
@@ -100,7 +116,7 @@ ___
 
 ▸ **on**(`name`, `handler`): `void`
 
-Synonym for [addEventListener](Events.md#addeventlistener-120), adds a listener to a Voxelize server event.
+Synonym for [addEventListener](Events.md#addeventlistener), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -108,20 +124,8 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler-120) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
 
 #### Returns
 
 `void`
-
-## Constructors
-
-### constructor
-
-• **new Events**()
-
-Creates a new instance of the Voxelize event manager.
-
-#### Overrides
-
-Map&lt;string, EventHandler\&gt;.constructor

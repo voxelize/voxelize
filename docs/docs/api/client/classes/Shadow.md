@@ -14,6 +14,29 @@ A shadow that is just a circle underneath an object that scales smaller with dis
 
   ↳ **`Shadow`**
 
+## Constructors
+
+### constructor
+
+• **new Shadow**(`world`, `options?`): [`Shadow`](Shadow.md)
+
+Create a shadow instance.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `world` | [`World`](World.md) | The world to cast shadows in. |
+| `options` | `Partial`\<[`ShadowOptions`](../modules.md#shadowoptions)\> | The options of the shadow. |
+
+#### Returns
+
+[`Shadow`](Shadow.md)
+
+#### Overrides
+
+Mesh.constructor
+
 ## Properties
 
 ### GEOMETRY
@@ -42,7 +65,7 @@ ___
 
 ### options
 
-• **options**: [`ShadowOptions`](../modules.md#shadowoptions-120)
+• **options**: [`ShadowOptions`](../modules.md#shadowoptions)
 
 The options of the shadow.
 
@@ -53,25 +76,6 @@ ___
 • **world**: [`World`](World.md)
 
 The world to cast shadows in.
-
-## Constructors
-
-### constructor
-
-• **new Shadow**(`world`, `options?`)
-
-Create a shadow instance.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world to cast shadows in. |
-| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-120)\> | The options of the shadow. |
-
-#### Overrides
-
-Mesh.constructor
 
 ## Methods
 

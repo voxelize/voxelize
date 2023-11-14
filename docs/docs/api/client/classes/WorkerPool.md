@@ -1,7 +1,7 @@
 ---
-id: "SharedWorkerPool"
-title: "Class: SharedWorkerPool"
-sidebar_label: "SharedWorkerPool"
+id: "WorkerPool"
+title: "Class: WorkerPool"
+sidebar_label: "WorkerPool"
 sidebar_position: 0
 custom_edit_url: null
 ---
@@ -12,6 +12,25 @@ When a job is queued, the pool will find the first available worker and
 execute the job. If no workers are available, the job will be queued until
 a worker becomes available.
 
+## Constructors
+
+### constructor
+
+• **new WorkerPool**(`Proto`, `options?`): [`WorkerPool`](WorkerPool.md)
+
+Create a new worker pool.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `Proto` | () => `Worker` | `undefined` | The worker class to create. |
+| `options` | [`WorkerPoolOptions`](../modules.md#workerpooloptions) | `defaultOptions` | The options to create the worker pool. |
+
+#### Returns
+
+[`WorkerPool`](WorkerPool.md)
+
 ## Properties
 
 ### Proto
@@ -20,9 +39,13 @@ a worker becomes available.
 
 #### Type declaration
 
-• **new SharedWorkerPool**()
+• **new Proto**(): `Worker`
 
 The worker class to create.
+
+##### Returns
+
+`Worker`
 
 ___
 
@@ -36,7 +59,7 @@ ___
 
 ### options
 
-• **options**: [`SharedWorkerPoolOptions`](../modules.md#workerpooloptions-94) = `defaultOptions`
+• **options**: [`WorkerPoolOptions`](../modules.md#workerpooloptions) = `defaultOptions`
 
 The options to create the worker pool.
 
@@ -44,42 +67,9 @@ ___
 
 ### queue
 
-• **queue**: [`SharedWorkerPoolJob`](../modules.md#workerpooljob-94)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
-
-## Methods
-
-### addJob
-
-▸ **addJob**(`job`): `void`
-
-Append a new job to be executed by a worker.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `job` | [`SharedWorkerPoolJob`](../modules.md#workerpooljob-94) | The job to queue. |
-
-#### Returns
-
-`void`
-
-## Constructors
-
-### constructor
-
-• **new SharedWorkerPool**(`Proto`, `options?`)
-
-Create a new worker pool.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `Proto` | () => `Worker` | `undefined` | The worker class to create. |
-| `options` | [`SharedWorkerPoolOptions`](../modules.md#workerpooloptions-94) | `defaultOptions` | The options to create the worker pool. |
 
 ## Accessors
 
@@ -104,3 +94,38 @@ The number of workers that are simultaneously working.
 #### Returns
 
 `number`
+
+## Methods
+
+### addJob
+
+▸ **addJob**(`job`): `void`
+
+Append a new job to be executed by a worker.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob) | The job to queue. |
+
+#### Returns
+
+`void`
+
+___
+
+### postMessage
+
+▸ **postMessage**(`message`, `buffers?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `message` | `any` |
+| `buffers?` | `ArrayBufferLike`[] |
+
+#### Returns
+
+`void`

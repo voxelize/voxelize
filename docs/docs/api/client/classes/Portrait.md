@@ -22,6 +22,25 @@ const portrait = new Portrait(world.makeBlockMesh(5));
 document.body.appendChild(portrait.canvas);
 ```
 
+## Constructors
+
+### constructor
+
+• **new Portrait**(`object`, `options?`): [`Portrait`](Portrait.md)
+
+Create a new portrait. This automatically starts a render loop.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `object` | `Object3D`\<`Object3DEventMap`\> | The object to render to the canvas. |
+| `options` | `Partial`\<[`PortraitOptions`](../modules.md#portraitoptions)\> | The options to create this portrait with. |
+
+#### Returns
+
+[`Portrait`](Portrait.md)
+
 ## Properties
 
 ### camera
@@ -40,17 +59,9 @@ The canvas element to render this portrait to.
 
 ___
 
-### light
-
-• **light**: `DirectionalLight`
-
-The light that is applied to this portrait.
-
-___
-
 ### object
 
-• **object**: `Object3D`<`Event`\>
+• **object**: `Object3D`\<`Object3DEventMap`\>
 
 The target of this portrait.
 
@@ -58,7 +69,7 @@ ___
 
 ### options
 
-• **options**: [`PortraitOptions`](../modules.md#portraitoptions-120)
+• **options**: [`PortraitOptions`](../modules.md#portraitoptions)
 
 Parameters to create this portrait with.
 
@@ -78,21 +89,6 @@ ___
 • **scene**: `Scene`
 
 The THREE.js scene to use for rendering this portrait.
-
-## Constructors
-
-### constructor
-
-• **new Portrait**(`object`, `options?`)
-
-Create a new portrait. This automatically starts a render loop.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `object` | `Object3D`<`Event`\> | The object to render to the canvas. |
-| `options` | `Partial`<[`PortraitOptions`](../modules.md#portraitoptions-120)\> | The options to create this portrait with. |
 
 ## Methods
 
@@ -119,7 +115,7 @@ Set the object to render to the canvas.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `object` | `Object3D`<`Event`\> | The object to render to the canvas. |
+| `object` | `Object3D`\<`Object3DEventMap`\> | The object to render to the canvas. |
 
 #### Returns
 

@@ -30,6 +30,36 @@ controls.update();
 
   ↳ **`RigidControls`**
 
+## Implements
+
+- [`NetIntercept`](../interfaces/NetIntercept.md)
+
+## Constructors
+
+### constructor
+
+• **new RigidControls**(`camera`, `domElement`, `world`, `options?`): [`RigidControls`](RigidControls.md)
+
+Construct a Voxelize rigid body based first person controls. This adds a rigid body
+to the world's physics engine, and applies movement to the camera.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
+| `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
+| `world` | [`World`](World.md) | The world to apply the controls to. |
+| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)\> | The options to initialize the controls with. |
+
+#### Returns
+
+[`RigidControls`](RigidControls.md)
+
+#### Overrides
+
+EventEmitter.constructor
+
 ## Properties
 
 ### INPUT\_IDENTIFIER
@@ -37,7 +67,7 @@ controls.update();
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [connect](RigidControls.md#connect-120) is called.
+when [RigidControls.connect](RigidControls.md#connect) is called.
 
 ___
 
@@ -49,9 +79,6 @@ The physical rigid body of the client, dimensions described by:
 - `options.bodyWidth`
 - `options.bodyHeight`
 - `options.bodyDepth`
-
-Keep in mind that by calling [attachCharacter](RigidControls.md#attachcharacter-120), the body is
-resized to match the character's bounding box.
 
 ___
 
@@ -68,7 +95,7 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [attachCharacter](RigidControls.md#attachcharacter-120) to add a mesh for 2nd and 3rd person
+calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter) to add a mesh for 2nd and 3rd person
 view.
 
 ___
@@ -83,10 +110,10 @@ ___
 
 ### inputs
 
-• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
+• `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[connect](RigidControls.md#connect-120), which registers the keyboard inputs for the controls.
+[RigidControls.connect](RigidControls.md#connect), which registers the keyboard inputs for the controls.
 
 ___
 
@@ -121,7 +148,7 @@ ___
 
 ### object
 
-• **object**: `Group`
+• **object**: `Group`\<`Object3DEventMap`\>
 
 A THREE.JS object, parent to the camera for pointerlock controls.
 
@@ -129,7 +156,7 @@ ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-120)
+• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)
 
 Parameters to initialize the Voxelize controls.
 
@@ -137,7 +164,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-120)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -148,6 +175,67 @@ ___
 • **world**: [`World`](World.md)
 
 Reference linking to the Voxelize world instance.
+
+## Accessors
+
+### chunk
+
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
+
+The chunk that the client is situated in.
+
+#### Returns
+
+[`Coords2`](../modules.md#coords2)
+
+___
+
+### flyMode
+
+• `get` **flyMode**(): `boolean`
+
+Whether if the client is in fly mode. Fly mode means client can fly but not through blocks.
+
+#### Returns
+
+`boolean`
+
+___
+
+### ghostMode
+
+• `get` **ghostMode**(): `boolean`
+
+Whether if the client is in ghost mode. Ghost mode means client can fly through blocks.
+
+#### Returns
+
+`boolean`
+
+___
+
+### position
+
+• `get` **position**(): `Vector3`
+
+The 3D world coordinates that the client is at. This is where the bottom of the client's body is located.
+
+#### Returns
+
+`Vector3`
+
+___
+
+### voxel
+
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
+
+The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
+floored to the voxel coordinate.
+
+#### Returns
+
+[`Coords3`](../modules.md#coords3)
 
 ## Methods
 
@@ -182,22 +270,14 @@ Sets up all event listeners for controls, including:
 - Control lock/unlock events
 
 This function returns a function that can be called to disconnect the controls.
-Keep in mind that if [remap](Inputs.md#remap-120) is used to remap any controls, they will
+Keep in mind that if [Inputs.remap](Inputs.md#remap) is used to remap any controls, they will
 not be unbound when the returned function is called.
-
-**`Options`**
-
-inputs [Inputs](Inputs.md) instance to bind the controls to.
-
-**`Options`**
-
-namespace The namespace to bind the controls to.
 
 #### Parameters
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` |
+| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` |
 | `namespace` | `string` | `"*"` |
 
 #### Returns
@@ -209,6 +289,14 @@ namespace The namespace to bind the controls to.
 ##### Returns
 
 `void`
+
+**`Options`**
+
+inputs [Inputs](Inputs.md) instance to bind the controls to.
+
+**`Options`**
+
+namespace The namespace to bind the controls to.
 
 ___
 
@@ -324,6 +412,28 @@ The controls instance for chaining.
 #### Overrides
 
 EventEmitter.on
+
+___
+
+### onMessage
+
+▸ **onMessage**(`message`): `void`
+
+A listener to be implemented to handle incoming packets.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `message` | `MessageProtocol`\<`any`, `any`, `any`, [`number`, `number`, `number`], `any`\> | The message received from the server. |
+
+#### Returns
+
+`void`
+
+#### Implementation of
+
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
 
 ___
 
@@ -444,86 +554,3 @@ to the new position and rotation. If a character is attached, then the character
 #### Returns
 
 `void`
-
-## Accessors
-
-### chunk
-
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-120)
-
-The chunk that the client is situated in.
-
-#### Returns
-
-[`Coords2`](../modules.md#coords2-120)
-
-___
-
-### flyMode
-
-• `get` **flyMode**(): `boolean`
-
-Whether if the client is in fly mode. Fly mode means client can fly but not through blocks.
-
-#### Returns
-
-`boolean`
-
-___
-
-### ghostMode
-
-• `get` **ghostMode**(): `boolean`
-
-Whether if the client is in ghost mode. Ghost mode means client can fly through blocks.
-
-#### Returns
-
-`boolean`
-
-___
-
-### position
-
-• `get` **position**(): `Vector3`
-
-The 3D world coordinates that the client is at. This is where the bottom of the client's body is located.
-
-#### Returns
-
-`Vector3`
-
-___
-
-### voxel
-
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-120)
-
-The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
-floored to the voxel coordinate.
-
-#### Returns
-
-[`Coords3`](../modules.md#coords3-120)
-
-## Constructors
-
-### constructor
-
-• **new RigidControls**(`camera`, `domElement`, `world`, `options?`)
-
-Construct a Voxelize rigid body based first person controls. This adds a rigid body
-to the world's physics engine, and applies movement to the camera.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
-| `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
-| `world` | [`World`](World.md) | The world to apply the controls to. |
-| `options` | `Partial`<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-120)\> | The options to initialize the controls with. |
-
-#### Overrides
-
-EventEmitter.constructor

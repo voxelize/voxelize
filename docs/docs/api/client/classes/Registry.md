@@ -10,22 +10,48 @@ custom_edit_url: null
 
 ### blocksById
 
-• **blocksById**: `Map`<`number`, [`Block`](../modules.md#block-120)\>
+• **blocksById**: `Map`\<`number`, [`Block`](../modules.md#block)\>
 
 ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`<`string`, [`Block`](../modules.md#block-120)\>
+• **blocksByName**: `Map`\<`string`, [`Block`](../modules.md#block)\>
 
 ___
 
 ### idMap
 
-• **idMap**: `Map`<`number`, `string`\>
+• **idMap**: `Map`\<`number`, `string`\>
 
 ___
 
 ### nameMap
 
-• **nameMap**: `Map`<`string`, `number`\>
+• **nameMap**: `Map`\<`string`, `number`\>
+
+## Methods
+
+### deserialize
+
+▸ **deserialize**(`data`): [`Registry`](Registry.md)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `data` | `any` |
+
+#### Returns
+
+[`Registry`](Registry.md)
+
+___
+
+### serialize
+
+▸ **serialize**(): `object`
+
+#### Returns
+
+`object`

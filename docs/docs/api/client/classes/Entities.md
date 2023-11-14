@@ -43,13 +43,13 @@ network.register(entities);
 
 ### map
 
-• **map**: `Map`<`string`, [`Entity`](Entity.md)<`any`\>\>
+• **map**: `Map`\<`string`, [`Entity`](Entity.md)\<`any`\>\>
 
 ___
 
 ### types
 
-• **types**: `Map`<`string`, \>
+• **types**: `Map`\<`string`, (`id`: `string`) => [`Entity`](Entity.md)\<`any`\>\>
 
 ## Methods
 
@@ -64,7 +64,7 @@ Set a new entity type to the entities manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `string` | The type of entity to register. |
-| `entity` | (`id`: `string`) => [`Entity`](Entity.md)<`any`\> | The entity class to register. |
+| `entity` | (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> | The entity class to register. |
 
 #### Returns
 

@@ -21,11 +21,37 @@ texture bleeding.
 
   ↳ **`AtlasTexture`**
 
+## Constructors
+
+### constructor
+
+• **new AtlasTexture**(`countPerSide`, `dimension`, `canvas?`): [`AtlasTexture`](AtlasTexture.md)
+
+Create a new texture this.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `countPerSide` | `number` |
+| `dimension` | `number` |
+| `canvas` | `HTMLCanvasElement` |
+
+#### Returns
+
+[`AtlasTexture`](AtlasTexture.md)
+
+The texture atlas generated.
+
+#### Overrides
+
+CanvasTexture.constructor
+
 ## Properties
 
 ### animations
 
-• **animations**: { `animation`: [`FaceAnimation`](FaceAnimation.md) ; `timer`: `any`  }[] = `[]`
+• **animations**: \{ `animation`: [`FaceAnimation`](FaceAnimation.md) ; `timer`: `any`  }[] = `[]`
 
 The list of block animations that are being used by this texture atlas.
 
@@ -77,26 +103,6 @@ ___
 
 Since the texture atlas is a square, the dimension is the length of one side.
 
-## Constructors
-
-### constructor
-
-• **new AtlasTexture**(`countPerSide`, `dimension`, `canvas?`)
-
-Create a new texture this.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `countPerSide` | `number` |
-| `dimension` | `number` |
-| `canvas` | `HTMLCanvasElement` |
-
-#### Overrides
-
-CanvasTexture.constructor
-
 ## Methods
 
 ### drawImageToRange
@@ -109,8 +115,8 @@ Draw a texture to a range on the texture atlas.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `range` | [`TextureRange`](../modules.md#texturerange-120) | `undefined` | The range on the texture atlas to draw the texture to. |
-| `image` | `Color` \| `Texture` \| `HTMLImageElement` \| (`width?`: `number`, `height?`: `number`) => `HTMLImageElement` \| `HTMLCanvasElement` | `undefined` | The texture to draw to the range. |
+| `range` | [`UV`](../modules.md#uv) | `undefined` | The range on the texture atlas to draw the texture to. |
+| `image` | `Color` \| `HTMLCanvasElement` \| `Texture` \| `HTMLImageElement` \| (`width?`: `number`, `height?`: `number`) => `HTMLImageElement` | `undefined` | The texture to draw to the range. |
 | `clearRect` | `boolean` | `true` | - |
 | `opacity` | `number` | `1.0` | - |
 
@@ -122,7 +128,7 @@ ___
 
 ### makeUnknownImage
 
-▸ `Static` **makeUnknownImage**(`dimension`, `color1?`, `color2?`): `HTMLCanvasElement`
+▸ **makeUnknownImage**(`dimension`, `color1?`, `color2?`): `HTMLCanvasElement`
 
 #### Parameters
 
@@ -140,7 +146,7 @@ ___
 
 ### makeUnknownTexture
 
-▸ `Static` **makeUnknownTexture**(`dimension`): `CanvasTexture`
+▸ **makeUnknownTexture**(`dimension`): `CanvasTexture`
 
 #### Parameters
 
@@ -162,7 +168,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `range` | [`TextureRange`](../modules.md#texturerange-120) | `undefined` |
+| `range` | [`UV`](../modules.md#uv) | `undefined` |
 | `keyframes` | [`number`, `Color` \| `HTMLImageElement`][] | `undefined` |
 | `fadeFrames` | `number` | `0` |
 

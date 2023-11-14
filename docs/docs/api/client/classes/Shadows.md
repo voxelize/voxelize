@@ -22,9 +22,39 @@ shadows.update();
 
 ## Hierarchy
 
-- `Array`<[`Shadow`](Shadow.md)\>
+- `Array`\<[`Shadow`](Shadow.md)\>
 
   ↳ **`Shadows`**
+
+## Constructors
+
+### constructor
+
+• **new Shadows**(`world`): [`Shadows`](Shadows.md)
+
+Create a shadow manager.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `world` | [`World`](World.md) | The world to cast shadows in. |
+
+#### Returns
+
+[`Shadows`](Shadows.md)
+
+#### Overrides
+
+Array\&lt;Shadow\&gt;.constructor
+
+## Properties
+
+### world
+
+• **world**: [`World`](World.md)
+
+The world to cast shadows in.
 
 ## Methods
 
@@ -38,8 +68,8 @@ Add a shadow to an object under the shadow manager.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `object` | `Object3D`<`Event`\> | The object to add a shadow to. |
-| `options` | `Partial`<[`ShadowOptions`](../modules.md#shadowoptions-120)\> | The options of the shadow. |
+| `object` | `Object3D`\<`Object3DEventMap`\> | The object to add a shadow to. |
+| `options` | `Partial`\<[`ShadowOptions`](../modules.md#shadowoptions)\> | The options of the shadow. |
 
 #### Returns
 
@@ -57,29 +87,3 @@ This also removes any shadows that are no longer attached to an object.
 #### Returns
 
 `void`
-
-## Constructors
-
-### constructor
-
-• **new Shadows**(`world`)
-
-Create a shadow manager.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world to cast shadows in. |
-
-#### Overrides
-
-Array&lt;Shadow\&gt;.constructor
-
-## Properties
-
-### world
-
-• **world**: [`World`](World.md)
-
-The world to cast shadows in.

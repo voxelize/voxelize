@@ -36,7 +36,7 @@ debug.update();
 
 ### constructor
 
-• **new Debug**(`domElement?`, `options?`)
+• **new Debug**(`domElement?`, `options?`): [`Debug`](Debug.md)
 
 Create a new [Debug](Debug.md) instance.
 
@@ -45,7 +45,11 @@ Create a new [Debug](Debug.md) instance.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `domElement` | `HTMLElement` | `document.body` | The DOM element to append the debug panel to. |
-| `options` | `Partial`<[`DebugOptions`](../modules.md#debugoptions-120)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
+| `options` | `Partial`\<[`DebugOptions`](../modules.md#debugoptions)\> | `{}` | Parameters to create a [Debug](Debug.md) instance. |
+
+#### Returns
+
+[`Debug`](Debug.md)
 
 #### Overrides
 
@@ -80,7 +84,7 @@ ___
 
 ### options
 
-• **options**: [`DebugOptions`](../modules.md#debugoptions-120)
+• **options**: [`DebugOptions`](../modules.md#debugoptions)
 
 Parameters to create a [Debug](Debug.md) instance.
 
@@ -130,9 +134,9 @@ ___
 
 ### registerDisplay
 
-▸ **registerDisplay**<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
+▸ **registerDisplay**\<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
 
-Register a new object attribute to track. Needs to call [update](Debug.md#update-120) in the game loop
+Register a new object attribute to track. Needs to call [Debug.update](Debug.md#update) in the game loop
 to update the value.
 
 #### Type parameters

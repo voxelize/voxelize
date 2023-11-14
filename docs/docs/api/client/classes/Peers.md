@@ -11,7 +11,7 @@ a [NetIntercept](../interfaces/NetIntercept.md) that intercepts all peer-related
 the behavior of multiplayer functionality. This class also extends a `THREE.Group` that allows
 you to dynamically turn on/off multiplayer visibility.
 
-Override [packInfo](Peers.md#packinfo-120) to customize the information that is sent to other peers.
+Override [Peers.packInfo](Peers.md#packinfo) to customize the information that is sent to other peers.
 
 TODO-DOC
 
@@ -46,7 +46,7 @@ peers.update();
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `C` | extends `Object3D` = `Object3D` | The type of the character. Defaults to `Object3D`. |
-| `T` | { `direction`: `number`[] ; `position`: `number`[]  } | The type of peer metadata. Defaults to `{ direction: number[], position: number[] }`. |
+| `T` | \{ `direction`: `number`[] ; `position`: `number`[]  } | The type of peer metadata. Defaults to `{ direction: number[], position: number[] }`. |
 
 ## Hierarchy
 
@@ -62,7 +62,7 @@ peers.update();
 
 ### constructor
 
-• **new Peers**<`C`, `T`\>(`object?`, `options?`)
+• **new Peers**\<`C`, `T`\>(`object?`, `options?`): [`Peers`](Peers.md)\<`C`, `T`\>
 
 Create a peers manager to add multiplayer functionality to your Voxelize game.
 
@@ -70,15 +70,19 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 
 | Name | Type |
 | :------ | :------ |
-| `C` | extends `Object3D`<`Event`, `C`\> = `Object3D`<`Event`\> |
-| `T` | { `direction`: `number`[] ; `position`: `number`[]  } |
+| `C` | extends `Object3D`\<`Object3DEventMap`, `C`\> = `Object3D`\<`Object3DEventMap`\> |
+| `T` | \{ `direction`: `number`[] ; `position`: `number`[]  } |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `object?` | `Object3D`<`Event`\> | The object that is used to send client's own data back to the server. |
-| `options` | `Partial`<[`PeersOptions`](../modules.md#peersoptions-120)\> | Parameters to customize the effect. |
+| `object?` | `Object3D`\<`Object3DEventMap`\> | The object that is used to send client's own data back to the server. |
+| `options` | `Partial`\<[`PeersOptions`](../modules.md#peersoptions)\> | Parameters to customize the effect. |
+
+#### Returns
+
+[`Peers`](Peers.md)\<`C`, `T`\>
 
 #### Overrides
 
@@ -111,7 +115,7 @@ ___
 
 ### object
 
-• `Optional` **object**: `Object3D`<`Event`\>
+• `Optional` **object**: `Object3D`\<`Object3DEventMap`\>
 
 The object that is used to send client's own data back to the server.
 
@@ -125,7 +129,7 @@ ___
 
 ▸ (`id`): `void`
 
-A function called when a player joins the game. By default, the function calls the [createPeer](Peers.md#createpeer-120)
+A function called when a player joins the game. By default, the function calls the [Peers.createPeer](Peers.md#createpeer)
 function to create a new peer object and adds it to the peers group. Customize this function to add additional
 behavior.
 
@@ -166,7 +170,7 @@ ___
 
 ### onPeerUpdate
 
-• **onPeerUpdate**: (`object`: `C`, `data`: `T`, `info`: { `id`: `string` ; `username`: `string`  }) => `void`
+• **onPeerUpdate**: (`object`: `C`, `data`: `T`, `info`: \{ `id`: `string` ; `username`: `string`  }) => `void`
 
 #### Type declaration
 
@@ -193,7 +197,7 @@ ___
 
 ### options
 
-• **options**: [`PeersOptions`](../modules.md#peersoptions-120)
+• **options**: [`PeersOptions`](../modules.md#peersoptions)
 
 Parameters to customize the peers manager.
 
@@ -210,8 +214,6 @@ ___
 ### ownPeer
 
 • `Optional` **ownPeer**: `C`
-
-The peer object that represents the client themselves. This is set when you call [setOwnPeer](Peers.md#setownpeer-120).
 
 ___
 
@@ -245,7 +247,7 @@ ___
 
 ### packInfo
 
-▸ **packInfo**(): `void` \| `PeerProtocol`<`T`\>
+▸ **packInfo**(): `void` \| `PeerProtocol`\<`T`\>
 
 Create a packet to send to the server. By default, this function sends the position and direction
 as metadata to the server. Override this function to customize the information sent.
@@ -254,7 +256,7 @@ If customized and nothing is returned, no packets will be sent.
 
 #### Returns
 
-`void` \| `PeerProtocol`<`T`\>
+`void` \| `PeerProtocol`\<`T`\>
 
 A peer protocol message
 

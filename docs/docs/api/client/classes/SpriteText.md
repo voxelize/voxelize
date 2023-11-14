@@ -22,6 +22,29 @@ multiple colors in the same text.
 
   ↳↳ [`NameTag`](NameTag.md)
 
+## Constructors
+
+### constructor
+
+• **new SpriteText**(`text?`, `textHeight?`): [`SpriteText`](SpriteText.md)
+
+Create a new sprite text.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `text` | `string` | `""` | The text to display. |
+| `textHeight` | `number` | `10` | The height of the text in pixels. |
+
+#### Returns
+
+[`SpriteText`](SpriteText.md)
+
+#### Overrides
+
+Sprite.constructor
+
 ## Accessors
 
 ### backgroundColor
@@ -337,22 +360,3 @@ Set the text height to display. This will regenerate the sprite.
 #### Returns
 
 `void`
-
-## Constructors
-
-### constructor
-
-• **new SpriteText**(`text?`, `textHeight?`)
-
-Create a new sprite text.
-
-#### Parameters
-
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `text` | `string` | `""` | The text to display. |
-| `textHeight` | `number` | `10` | The height of the text in pixels. |
-
-#### Overrides
-
-Sprite.constructor

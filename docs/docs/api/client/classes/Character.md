@@ -37,6 +37,28 @@ controls.attachCharacter(character);
 
   ↳ **`Character`**
 
+## Constructors
+
+### constructor
+
+• **new Character**(`options?`): [`Character`](Character.md)
+
+Create a new Voxelize character.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `options` | `Partial`\<[`CharacterOptions`](../modules.md#characteroptions)\> | Parameters to create a Voxelize character. |
+
+#### Returns
+
+[`Character`](Character.md)
+
+#### Overrides
+
+Group.constructor
+
 ## Properties
 
 ### body
@@ -49,7 +71,7 @@ ___
 
 ### bodyGroup
 
-• **bodyGroup**: `Group`
+• **bodyGroup**: `Group`\<`Object3DEventMap`\>
 
 The sub-mesh holding the character's body.
 
@@ -65,7 +87,7 @@ ___
 
 ### headGroup
 
-• **headGroup**: `Group`
+• **headGroup**: `Group`\<`Object3DEventMap`\>
 
 The sub-mesh holding the character's head.
 
@@ -81,7 +103,7 @@ ___
 
 ### leftArmGroup
 
-• **leftArmGroup**: `Group`
+• **leftArmGroup**: `Group`\<`Object3DEventMap`\>
 
 The sub-mesh holding the character's left arm.
 
@@ -97,7 +119,7 @@ ___
 
 ### leftLegGroup
 
-• **leftLegGroup**: `Group`
+• **leftLegGroup**: `Group`\<`Object3DEventMap`\>
 
 The sub-mesh holding the character's left leg.
 
@@ -169,7 +191,7 @@ ___
 
 ### options
 
-• **options**: [`CharacterOptions`](../modules.md#characteroptions-120)
+• **options**: [`CharacterOptions`](../modules.md#characteroptions)
 
 Parameters to create a Voxelize character.
 
@@ -185,7 +207,7 @@ ___
 
 ### rightArmGroup
 
-• **rightArmGroup**: `Group`
+• **rightArmGroup**: `Group`\<`Object3DEventMap`\>
 
 The sub-mesh holding the character's right arm.
 
@@ -201,7 +223,7 @@ ___
 
 ### rightLegGroup
 
-• **rightLegGroup**: `Group`
+• **rightLegGroup**: `Group`\<`Object3DEventMap`\>
 
 The sub-mesh holding the character's right leg.
 
@@ -214,24 +236,6 @@ ___
 The speed where the character has detected movements at. When speed is 0, the
 arms swing slowly in idle mode, and when speed is greater than 0, the arms swing
 faster depending on the passed-in options.
-
-## Constructors
-
-### constructor
-
-• **new Character**(`options?`)
-
-Create a new Voxelize character.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `options` | `Partial`<[`CharacterOptions`](../modules.md#characteroptions-120)\> | Parameters to create a Voxelize character. |
-
-#### Overrides
-
-Group.constructor
 
 ## Accessors
 

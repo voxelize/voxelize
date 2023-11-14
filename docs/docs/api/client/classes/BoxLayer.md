@@ -18,7 +18,7 @@ A layer of a canvas box. This is a group of six canvases that are rendered as a 
 
 ### constructor
 
-• **new BoxLayer**(`width`, `height`, `depth`, `widthSegments`, `heightSegments`, `depthSegments`, `side`, `transparent`)
+• **new BoxLayer**(`width`, `height`, `depth`, `widthSegments`, `heightSegments`, `depthSegments`, `side`, `transparent`): [`BoxLayer`](BoxLayer.md)
 
 Create a six-sided canvas box layer.
 
@@ -34,6 +34,10 @@ Create a six-sided canvas box layer.
 | `depthSegments` | `number` | The depth segments of the box layer. |
 | `side` | `Side` | The side of the box layer to render. |
 | `transparent` | `boolean` | Whether or not should this canvas box be rendered as transparent. |
+
+#### Returns
+
+[`BoxLayer`](BoxLayer.md)
 
 #### Overrides
 
@@ -75,7 +79,7 @@ ___
 
 ### materials
 
-• **materials**: `Map`<`string`, `MeshBasicMaterial`\>
+• **materials**: `Map`\<`string`, `MeshBasicMaterial`\>
 
 The materials of the six faces of this box layer.
 
@@ -107,8 +111,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-120) \| [`BoxSides`](../modules.md#boxsides-120)[] | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-120) | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | The art or art function to draw on the box layer's side. |
 
 #### Returns
 

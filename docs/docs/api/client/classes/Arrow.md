@@ -32,7 +32,7 @@ world.add(arrow);
 
 ### constructor
 
-• **new Arrow**(`options?`)
+• **new Arrow**(`options?`): [`Arrow`](Arrow.md)
 
 Create a new arrow.
 
@@ -40,7 +40,11 @@ Create a new arrow.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`<[`ArrowOptions`](../modules.md#arrowoptions-120)\> | Parameters to create the arrow. |
+| `options` | `Partial`\<[`ArrowOptions`](../modules.md#arrowoptions)\> | Parameters to create the arrow. |
+
+#### Returns
+
+[`Arrow`](Arrow.md)
 
 #### Overrides
 
@@ -50,6 +54,6 @@ ArrowHelper.constructor
 
 ### options
 
-• **options**: [`ArrowOptions`](../modules.md#arrowoptions-120)
+• **options**: [`ArrowOptions`](../modules.md#arrowoptions)
 
 Parameters used to create the arrow.

@@ -33,6 +33,16 @@ const splitted = ColorText.split(text);
 
 ![ColorText](/img/docs/colortext.png)
 
+## Constructors
+
+### constructor
+
+• **new ColorText**(): [`ColorText`](ColorText.md)
+
+#### Returns
+
+[`ColorText`](ColorText.md)
+
 ## Properties
 
 ### SPLITTER
@@ -41,19 +51,13 @@ const splitted = ColorText.split(text);
 
 The symbol used to separate a text into a colored text object array.
 
-## Constructors
-
-### constructor
-
-• **new ColorText**()
-
 ## Methods
 
 ### split
 
-▸ `Static` **split**(`text`, `defaultColor?`): { `color`: `string` ; `text`: `string`  }[]
+▸ **split**(`text`, `defaultColor?`): \{ `color`: `string` ; `text`: `string`  }[]
 
-Split a text into a colored text object array by [SPLITTER](ColorText.md#splitter-120).
+Split a text into a colored text object array by [ColorText.SPLITTER](ColorText.md#splitter).
 
 #### Parameters
 
@@ -64,6 +68,6 @@ Split a text into a colored text object array by [SPLITTER](ColorText.md#splitte
 
 #### Returns
 
-{ `color`: `string` ; `text`: `string`  }[]
+\{ `color`: `string` ; `text`: `string`  }[]
 
 An array of colored text objects.

@@ -12,7 +12,7 @@ A utility class for doing math operations.
 
 ### directionToQuaternion
 
-▸ `Static` **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
+▸ **directionToQuaternion**(`dx`, `dy`, `dz`): `Quaternion`
 
 Convert a direction vector to a quaternion.
 
@@ -34,7 +34,7 @@ ___
 
 ### normalizeAngle
 
-▸ `Static` **normalizeAngle**(`angle`): `number`
+▸ **normalizeAngle**(`angle`): `number`
 
 Normalizes an angle to be between -2PI and 2PI.
 
@@ -54,7 +54,7 @@ ___
 
 ### round
 
-▸ `Static` **round**(`n`, `digits`): `number`
+▸ **round**(`n`, `digits`): `number`
 
 Round a number to a given precision.
 

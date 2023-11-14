@@ -24,6 +24,27 @@ perspective.state = "third";
 perspective.update();
 ```
 
+## Constructors
+
+### constructor
+
+• **new Perspective**(`controls`, `world`, `options?`): [`Perspective`](Perspective.md)
+
+Create a new perspective instance that is attached to the given rigid controls. The default
+perspective is the first person perspective.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `controls` | [`RigidControls`](RigidControls.md) | The rigid controls that this perspective instance is attached to. |
+| `world` | [`World`](World.md) | The world that this perspective instance is working with. |
+| `options` | `Partial`\<[`PerspectiveOptions`](../modules.md#perspectiveoptions)\> | Parameters to configure the perspective. |
+
+#### Returns
+
+[`Perspective`](Perspective.md)
+
 ## Properties
 
 ### INPUT\_IDENTIFIER
@@ -31,7 +52,7 @@ perspective.update();
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-perspective"``
 
 This is the identifier that is used to bind the perspective's keyboard inputs
-when [connect](Perspective.md#connect-120) is called.
+when [Perspective.connect](Perspective.md#connect) is called.
 
 ___
 
@@ -45,7 +66,7 @@ ___
 
 ### inputs
 
-• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
+• `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
 
 The input manager that binds the perspective's keyboard inputs.
 
@@ -75,7 +96,7 @@ ___
 
 ### options
 
-• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions-120)
+• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions)
 
 Parameters to configure the perspective.
 
@@ -86,6 +107,32 @@ ___
 • **world**: [`World`](World.md)
 
 The world that this perspective instance is working with.
+
+## Accessors
+
+### state
+
+• `get` **state**(): ``"first"`` \| ``"second"`` \| ``"third"``
+
+Getter for the perspective's state.
+
+#### Returns
+
+``"first"`` \| ``"second"`` \| ``"third"``
+
+• `set` **state**(`state`): `void`
+
+Setter for the perspective's state. This will call [Perspective.onChangeState](Perspective.md#onchangestate) if it is implemented.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `state` | ``"first"`` \| ``"second"`` \| ``"third"`` |
+
+#### Returns
+
+`void`
 
 ## Methods
 
@@ -102,7 +149,7 @@ function useless.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` | The [Inputs](Inputs.md) instance to bind the perspective's keyboard inputs to. |
+| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` | The [Inputs](Inputs.md) instance to bind the perspective's keyboard inputs to. |
 | `namespace` | `string` | `"*"` | The namespace to bind the perspective's keyboard inputs to. |
 
 #### Returns
@@ -136,49 +183,6 @@ ___
 
 This updates the perspective. Internally, if the perspective isn't in first person, it raycasts to find the closest
 block and then ensures that the camera is not clipping into any blocks.
-
-#### Returns
-
-`void`
-
-## Constructors
-
-### constructor
-
-• **new Perspective**(`controls`, `world`, `options?`)
-
-Create a new perspective instance that is attached to the given rigid controls. The default
-perspective is the first person perspective.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `controls` | [`RigidControls`](RigidControls.md) | The rigid controls that this perspective instance is attached to. |
-| `world` | [`World`](World.md) | The world that this perspective instance is working with. |
-| `options` | `Partial`<[`PerspectiveOptions`](../modules.md#perspectiveoptions-120)\> | Parameters to configure the perspective. |
-
-## Accessors
-
-### state
-
-• `get` **state**(): ``"first"`` \| ``"second"`` \| ``"third"``
-
-Getter for the perspective's state.
-
-#### Returns
-
-``"first"`` \| ``"second"`` \| ``"third"``
-
-• `set` **state**(`state`): `void`
-
-Setter for the perspective's state. This will call [onChangeState](Perspective.md#onchangestate-120) if it is implemented.
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `state` | ``"first"`` \| ``"second"`` \| ``"third"`` |
 
 #### Returns
 
