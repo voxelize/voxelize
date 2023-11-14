@@ -472,6 +472,7 @@ export class World extends Scene implements NetIntercept {
     for (const chunk of chunks) {
       if (!chunk) {
         chunksData.push(null);
+        continue;
       }
 
       const [chunkData, chunkArrayBuffers] = chunk.serialize();

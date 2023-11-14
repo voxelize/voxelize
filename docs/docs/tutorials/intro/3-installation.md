@@ -14,20 +14,20 @@ The Voxelize server runs mainly on the [voxelize](https://crates.io/crates/voxel
 
 ```toml title="server/Cargo.toml"
 [dependencies]
-actix-web = "4"
-specs = {version = "0.17.0", features = ["specs-derive", "serde"]}
-voxelize = "0.8.11"
+voxelize = "*"
+actix-web = "*"
+specs = {version = "*", features = ["specs-derive", "serde"]}
 ```
 
 ## Client Setup
 
-The client-side npm package of Voxelize is called [`@voxelize/core`](https://www.npmjs.com/package/@voxelize/core). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. As you can see in the template, they have been added to our project.
+The client-side npm package of Voxelize is called [`@voxelize/core`](https://www.npmjs.com/package/@voxelize/core). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. As you can see in the template, they have been added to our project in the `package.json` file.
 
 ```json title="package.json"
 "dependencies": {
-  "@voxelize/core": "^1.3.38",
-  "three": "^0.141.0"
+  "@voxelize/core": "**",
+  "three": "*"
 }
 ```
 
-Now you're ready to start developing! Remember, the finished version of this tutorial can be find [here](https://github.com/voxelize/voxelize-example/tree/final) if you are stuck.
+Now you're ready to start developing! Remember, the finished version of this tutorial can be find [here](https://github.com/voxelize/voxelize-tutorial/tree/final) if you are stuck.

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import * as VOXELIZE from "@voxelize/core";
 import * as THREE from "three";
@@ -33,7 +33,6 @@ export const CharacterView = () => {
     camera.lookAt(0, -CAMERA_OFFSET_Y, 0);
 
     const character = new VOXELIZE.Character();
-    // character.position.y += character.eyeHeight;
     scene.add(character);
 
     const target = new THREE.Vector3();
