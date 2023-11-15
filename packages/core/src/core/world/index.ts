@@ -1840,7 +1840,7 @@ export class World extends Scene implements NetIntercept {
 
     const { blocks, options, stats } = this.initialData;
 
-    this.time = stats.time;
+    this._time = stats.time;
 
     // Loading the registry
     Object.keys(blocks).forEach((name) => {

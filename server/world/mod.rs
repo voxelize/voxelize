@@ -279,8 +279,8 @@ impl World {
         });
 
         world.set_method_handle("vox-builtin:set-time", |world, _, payload| {
-            let payload: BuiltInSetTimeMethodPayload =
-                serde_json::from_str(payload).expect("Could not parse builtin:set-time payload.");
+            let payload: BuiltInSetTimeMethodPayload = serde_json::from_str(payload)
+                .expect("Could not parse vox-builtin:set-time payload.");
             let time_per_day = world.config().time_per_day as f32;
             world.stats_mut().set_time(payload.time % time_per_day);
         });
