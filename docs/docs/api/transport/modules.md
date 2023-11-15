@@ -8,17 +8,11 @@ custom_edit_url: null
 
 ## Namespaces
 
-### protocol
-
-• **protocol**: Namespace protocol
+- [protocol](namespaces/protocol.md)
 
 ## Classes
 
-### Transport
-
-• **Transport**: Class Transport
-
-**`No Inherit Doc`**
+- [Transport](classes/Transport.md)
 
 ## Type Aliases
 
@@ -30,9 +24,9 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `body` | string |
-| `sender?` | string |
-| `type` | string |
+| `body` | `string` |
+| `sender?` | `string` |
+| `type` | `string` |
 
 ___
 
@@ -44,18 +38,18 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `id` | string |
-| `lights` | Uint32Array |
-| `meshes` | MeshProtocol[] |
-| `voxels` | Uint32Array |
-| `x` | number |
-| `z` | number |
+| `id` | `string` |
+| `lights` | `Uint32Array` |
+| `meshes` | [`MeshProtocol`](modules.md#meshprotocol)[] |
+| `voxels` | `Uint32Array` |
+| `x` | `number` |
+| `z` | `number` |
 
 ___
 
 ### EntityProtocol
 
-Ƭ **EntityProtocol**: `Object`
+Ƭ **EntityProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -67,16 +61,16 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `id` | string |
-| `metadata` | T |
-| `operation` | "CREATE" \| "UPDATE" \| "DELETE" |
-| `type` | string |
+| `id` | `string` |
+| `metadata` | `T` |
+| `operation` | ``"CREATE"`` \| ``"UPDATE"`` \| ``"DELETE"`` |
+| `type` | `string` |
 
 ___
 
 ### EventProtocol
 
-Ƭ **EventProtocol**: `Object`
+Ƭ **EventProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -88,8 +82,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `name` | string |
-| `payload` | T |
+| `name` | `string` |
+| `payload` | `T` |
 
 ___
 
@@ -101,12 +95,12 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `faceName?` | string |
-| `indices` | number[] |
-| `lights` | number[] |
-| `positions` | number[] |
-| `uvs` | number[] |
-| `voxel` | number |
+| `faceName?` | `string` |
+| `indices` | `number`[] |
+| `lights` | `number`[] |
+| `positions` | `number`[] |
+| `uvs` | `number`[] |
+| `voxel` | `number` |
 
 ___
 
@@ -118,45 +112,45 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `geometries` | GeometryProtocol[] |
-| `level` | number |
+| `geometries` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
+| `level` | `number` |
 
 ___
 
 ### MessageProtocol
 
-Ƭ **MessageProtocol**: `Object`
+Ƭ **MessageProtocol**\<`T`, `Peer`, `Entity`, `Event`, `Method`\>: `Object`
 
 #### Type parameters
 
 | Name | Type |
 | :------ | :------ |
-| `T` | any |
-| `Peer` | any |
-| `Entity` | any |
-| `Event` | any |
-| `Method` | any |
+| `T` | `any` |
+| `Peer` | `any` |
+| `Entity` | `any` |
+| `Event` | `any` |
+| `Method` | `any` |
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `chat?` | ChatProtocol |
-| `chunks?` | ChunkProtocol[] |
-| `entities?` | EntityProtocol\<Entity\>[] |
-| `events?` | EventProtocol\<Event\>[] |
-| `json?` | T |
-| `method?` | MethodProtocol\<Method\> |
-| `peers?` | PeerProtocol\<Peer\>[] |
-| `text?` | string |
-| `type` | "INIT" \| "JOIN" \| "LEAVE" \| "ERROR" \| "PEER" \| "ENTITY" \| "LOAD" \| "UNLOAD" \| "UPDATE" \| "METHOD" \| "CHAT" \| "TRANSPORT" \| "EVENT" \| "ACTION" \| "STATS" |
-| `updates?` | UpdateProtocol[] |
+| `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
+| `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
+| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)\<`Entity`\>[] |
+| `events?` | [`EventProtocol`](modules.md#eventprotocol)\<`Event`\>[] |
+| `json?` | `T` |
+| `method?` | [`MethodProtocol`](modules.md#methodprotocol)\<`Method`\> |
+| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)\<`Peer`\>[] |
+| `text?` | `string` |
+| `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` \| ``"STATS"`` |
+| `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
 
 ___
 
 ### MethodProtocol
 
-Ƭ **MethodProtocol**: `Object`
+Ƭ **MethodProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -168,14 +162,14 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `name` | string |
-| `payload` | T |
+| `name` | `string` |
+| `payload` | `T` |
 
 ___
 
 ### PeerProtocol
 
-Ƭ **PeerProtocol**: `Object`
+Ƭ **PeerProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -187,9 +181,9 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `id` | string |
-| `metadata` | T |
-| `username` | string |
+| `id` | `string` |
+| `metadata` | `T` |
+| `username` | `string` |
 
 ___
 
@@ -201,41 +195,41 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `light?` | number |
-| `voxel?` | number |
-| `vx` | number |
-| `vy` | number |
-| `vz` | number |
+| `light?` | `number` |
+| `voxel?` | `number` |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
 
 ## Functions
 
 ### decodeStructToObject
 
-▸ **decodeStructToObject**(`struct`): any
+▸ **decodeStructToObject**(`struct`): `any`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `struct` | any |
+| `struct` | `any` |
 
 #### Returns
 
-any
+`any`
 
 ___
 
 ### encodeObjectToStruct
 
-▸ **encodeObjectToStruct**(`obj`, `seenObjects?`): any
+▸ **encodeObjectToStruct**(`obj`, `seenObjects?`): `any`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `obj` | any |
-| `seenObjects` | Set\<any\> |
+| `obj` | `any` |
+| `seenObjects` | `Set`\<`any`\> |
 
 #### Returns
 
-any
+`any`

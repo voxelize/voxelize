@@ -326,8 +326,7 @@ export class Network {
   };
 
   /**
-   * Send an `ACTION` type message to the server. For more information about the protocol
-   * buffer message system, see [here](/tutorials/basics/protocol-networking).
+   * Send an `ACTION` type message to the server.
    *
    * @param type The type of action to perform.
    * @param data The specific data attached to this action.
@@ -432,7 +431,7 @@ export class Network {
 
   /**
    * Send a raw network packet to the server. Must be a valid network packet, or else
-   * the server may crash. For more details on network protocol messaging, see [here](/tutorials/basics/protocol-networking).
+   * the server may crash.
    *
    * @param event The event packet to send to the server.
    */

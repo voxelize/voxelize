@@ -14,7 +14,7 @@ network.register(world);
 
 ## A Word on Network Intecepts
 
-Such as the Voxelize world, network interceptors allow developers to peep into what network packets are received, and can also send packets out to the server. In order to fully utilize network intercepts, it is best to understand fully how the Voxelize protocol works [here](todo).
+Such as the Voxelize world, network interceptors allow developers to peep into what network packets are received, and can also send packets out to the server. 
 
 ### `onMessage`
 

@@ -34,7 +34,7 @@ Create a new network instance.
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`NetworkOptions`](../modules.md#networkoptions)\> |
+| `options` | `Partial`\<[`NetworkOptions`](../modules.md#networkoptions-4)\> |
 
 #### Returns
 
@@ -164,7 +164,7 @@ ___
 
 ### options
 
-• **options**: [`NetworkOptions`](../modules.md#networkoptions)
+• **options**: [`NetworkOptions`](../modules.md#networkoptions-4)
 
 ___
 
@@ -197,7 +197,7 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws)
+• **ws**: [`ProtocolWS`](../modules.md#protocolws-4)
 
 The inner WebSocket client for Voxelize, with support for protocol buffers.
 
@@ -231,8 +231,7 @@ The number of network packets waiting to be decoded.
 
 ▸ **action**(`type`, `data?`): `Promise`\<`void`\>
 
-Send an `ACTION` type message to the server. For more information about the protocol
-buffer message system, see [here](/tutorials/basics/protocol-networking).
+Send an `ACTION` type message to the server.
 
 #### Parameters
 
@@ -260,7 +259,7 @@ would be "Guest XXXXX" where `XXXXX` is a random 5-digit number.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `serverURL` | `string` | The URL to the Voxelize server. |
-| `options` | [`NetworkConnectionOptions`](../modules.md#networkconnectionoptions) | Parameters to customize the connection to a Voxelize server. |
+| `options` | [`NetworkConnectionOptions`](../modules.md#networkconnectionoptions-4) | Parameters to customize the connection to a Voxelize server. |
 
 #### Returns
 
@@ -356,7 +355,7 @@ ___
 ▸ **send**(`event`): `void`
 
 Send a raw network packet to the server. Must be a valid network packet, or else
-the server may crash. For more details on network protocol messaging, see [here](/tutorials/basics/protocol-networking).
+the server may crash.
 
 #### Parameters
 
