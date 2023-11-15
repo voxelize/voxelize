@@ -3,6 +3,7 @@ sidebar_position: 5
 ---
 
 # Chunk Generation
+![](../assets/beautiful-mountains.png)
 
 In this chapter, we learn about how to populate blocks into empty chunks, in parallel.
 
@@ -12,7 +13,7 @@ To populate chunks, developers define a list of chunk stages that each chunk has
 
 In this tutorial, we are going to define a `FlatlandStage`, which simply populates the world with a flat land. (_Hint: This stage actually comes built-in in Voxelize!_)
 
-Let's set up the flat land stage first:
+Let's set up the flatland stage first:
 
 ```rust title="server/main.rs"
 // ...
@@ -53,7 +54,7 @@ use voxelize::{
 
 :::note
 -   The `VoxelAccess` trait allows developers to use chunk data access methods such as `set_voxel` on data structures like `Chunk` or `Chunks`.
--   `Vec3` is a 3-number data structure used across Voxelize.
+-   `Vec3` is a 3-number list data structure used across Voxelize.
 :::
 
 Implement what the flat land stage does:
@@ -105,27 +106,33 @@ We can access the world pipeline and add the stage to it:
 // ... Creating the world
 
 {
-    let registry = world.registry();
-
-    // Access the block ID's registered.
-    let dirt = registry.get_block_by_name("Dirt").id;
-    let stone = registry.get_block_by_name("Stone").id;
-
     drop(registry);
 
     let mut pipeline = world.pipeline_mut();
 
     // Add a chunk stage with top block stone, middle dirt, and bottom stone.
-    pipeline.add_stage(FlatlandStage::new(10, stone, dirt, stone));
+    pipeline.add_stage(FlatlandStage::new(10, stone.id, dirt.id, stone.id));
 }
 
 // ... Running the server
 ```
 
-The world should now be generating a flat land. In fact, you can simply import `FlatlandStage` from `voxelize::pipeline::FlatlandStage`!
+The world should now be generating a flat land. In fact, you can simply import `FlatlandStage` from `voxelize::pipeline::FlatlandStage`. The usage is a bit different, as Voxelize's built-in flatland stage uses `add_soiling` instead of `top`, `middle`, and `bottom` blocks. An example usage would be as such:
 
-:::TIP
-We wrap the pipeline access with curly braces so that the pipeline lifetime is dropped after mutating.
+```rust title="server/main.rs"
+{
+    let mut pipeline = world.pipeline_mut();
+    pipeline.add_stage(
+        FlatlandStage::new()
+            .add_soiling(stone.id, 10) // From bottom-up, add 10 layers of stone
+            .add_soiling(dirt.id, 2) // 2 layers of dirt
+            .add_soiling(grass_block.id, 1), // Final 1 layer of grass block
+    )
+}
+```
+
+:::tip
+We wrap the pipeline access with curly braces so that the pipeline lifetime is automatically dropped after mutating.
 :::
 
 ## A Word on Chunk Stages
@@ -134,32 +141,22 @@ When working with chunk stages, developers may want to access more information a
 
 ### Resources of the World
 
-By implementing the `stage.needs_resources` function, the stage would be presented with the configured data, including the registry, world config, seeded noise instance, and seeded terrain instance. You can then use these resources as such:
+Each chunk stage is presented with a set of resources from the world, namely the registry and the world config. You can access these resources within the second parameter for process, `resources`.
 
 ```rust
 // highlight-next-line
-use voxelize::{ResourceRequirements, ResourceResults};
+use voxelize::Resources;
 
 impl ChunkStage for MyStage {
-	// Define what resources you need, in this case the registry.
-	fn needs_resources(&self) -> ResourceRequirements {
-		// highlight-start
-        ResourceRequirements {
-            needs_registry: true,
-            ..Default::default()
-        }
-		// highlight-end
+    fn process(&self, chunk: Chunk, resources: Resources, space: Option<Space>) -> Chunk {
+        // Use the resource in this chunk stage.
+        // highlight-next-line
+        let registry = resources.registry;
     }
-
-	fn process(&self, chunk: Chunk, resources: ResourceResults, space: Option<Space>) -> Chunk {
-		// Use the resource in the process.
-		// highlight-next-line
-		let registry = resources.registry.unwrap();
-	}
 }
 ```
 
-### [`Space`](https://github.com/shaoruu/voxelize/blob/master/server/world/voxels/space.rs) Data Structure
+### [`Space`](https://github.com/shaoruu/voxelize/blob/main/server/world/voxels/space.rs) Data Structure
 
 Voxelize achieves parallel chunk generation by utilizing a data structure called `Space`. Essentially, spaces contain the data of a chunk along with the data of the surrounding chunks. Data includes voxels, lights, and height maps, all configurable.
 
@@ -171,64 +168,75 @@ Voxelize achieves parallel chunk generation by utilizing a data structure called
 use voxelize::{Space, SpaceData};
 
 impl ChunkStage for MyStage {
-	// Tell the pipeline that you need a space containing a margin of 2 blocks of light data.
-	fn needs_space() -> Option<SpaceData> {
-		// highlight-next-line
-		Some(SpaceData { needs_lights: true, ..Default::default() })	
-	}
+    /// The radius neighbor from the center chunk that are required before
+    /// being processed in this chunk. Defaults to 0 blocks.
+    fn neighbors(&self, _: &WorldConfig) -> usize {
+        3 // For any reason, you need 3 blocks wider than the chunk size.
+    }
 
-	fn process(&self, chunk: Chunk, resources: ResourceResults, space: Option<Space>) -> Chunk {
-		// You can then access neighboring chunk data.
-		// highlight-start
-		let space = space.unwrap();
-		space.get_sunlight(...)
-		// highlight-end
-	}
+    // Tell the pipeline that you need a space containing a margin of 2 blocks of light data.
+    fn needs_space() -> Option<SpaceData> {
+        // highlight-next-line
+        Some(SpaceData { needs_lights: true, ..Default::default() })    
+    }
+
+    fn process(&self, chunk: Chunk, resources: ResourceResults, space: Option<Space>) -> Chunk {
+        // You can then access neighboring chunk data.
+        // highlight-start
+        let space = space.unwrap();
+        space.get_sunlight(...)
+        // highlight-end
+    }
 }
 ```
+
+As can be seen above, the space generated with be expanded by 1 chunk, each chunk requires "3 blocks into the neighboring chunks."
+
+:::info
+Do note that since using spaces requires extra chunk information other than the center chunk, this would slow generation down as this stage would require neighboring chunks to be processed as well to continue.
+:::
 
 ## Progress Check
 
 The code so far should look like this:
 
 ```rust title="server/main.rs"
-// highlight-next-line
 use voxelize::{Block, FlatlandStage, Registry, Server, Voxelize, World, WorldConfig};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let mut registry = Registry::new();
-
     let dirt = Block::new("Dirt").id(1).build();
     let stone = Block::new("Stone").id(2).build();
-
-    registry.register_blocks(&[dirt, stone]);
-
-    let mut server = Server::new().port(4000).registry(&registry).build();
+    let grass_block = Block::new("Grass Block").id(3).build();
 
     let config = WorldConfig::new()
         .min_chunk([-1, -1])
         .max_chunk([1, 1])
         .build();
 
-    let mut world = World::new("example", &config);
+    let mut world = World::new("tutorial", &config);
 
-	// highlight-start
     {
-        let registry = world.registry();
-
-        let dirt = registry.get_block_by_name("Dirt").id;
-        let stone = registry.get_block_by_name("Stone").id;
-
-        drop(registry);
-
         let mut pipeline = world.pipeline_mut();
-        pipeline.add_stage(FlatlandStage::new(10, dirt, stone, stone));
+        pipeline.add_stage(
+            FlatlandStage::new()
+                .add_soiling(stone.id, 10)
+                .add_soiling(dirt.id, 2)
+                .add_soiling(grass_block.id, 1),
+        )
     }
-	// highlight-end
 
-    server.add_world(world).expect("Could not add world!");
+    let mut registry = Registry::new();
+    registry.register_blocks(&[dirt, stone, grass_block]);
+
+    let mut server = Server::new().port(4000).registry(&registry).build();
+
+    server
+        .add_world(world)
+        .expect("Failed to add world to server");
 
     Voxelize::run(server).await
 }
 ```
+
+Now that we have a server, a world, and all the blocks we needed, let's build the client.

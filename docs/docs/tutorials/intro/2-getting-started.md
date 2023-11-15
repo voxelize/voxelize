@@ -10,9 +10,9 @@ This series of tutorials will be based on [this tutorial repository](https://git
 
 In order to develop in Voxelize, some prior knowledge is recommended:
 - [Rust](https://www.rust-lang.org/tools/install) version `1.7` or above
-	- We use Rust to write our Voxelize server.
+    - We use Rust to write our Voxelize server.
 - [ThreeJS](https://threejs.org/) version `v0.158.0` or above.
-	- The frontend-side is essentially a ThreeJS app.
+    - The frontend-side is essentially a ThreeJS app.
 
 ## Start developing
 

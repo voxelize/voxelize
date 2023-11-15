@@ -2001,6 +2001,16 @@ export class World extends Scene implements NetIntercept {
 
   set time(time: number) {
     this._time = time;
+
+    this.packets.push({
+      type: "METHOD",
+      method: {
+        name: "vox-builtin:set-time",
+        payload: {
+          time,
+        },
+      },
+    });
   }
 
   get renderRadius() {

@@ -16,7 +16,7 @@ exclude = [
 ]
 license = "MIT"
 name = "voxelize"
-version = "0.8.52"
+version = "0.8.53"
 
 [lib]
 name = "voxelize"
@@ -36,7 +36,7 @@ base64 = "0.21.4"
 byteorder = "1.4.3"
 crossbeam-channel = "0.5.4"
 fastrand = "2.0.0"
-hashbrown = {version = "0.14.0", features = ["serde"]}
+hashbrown = { version = "0.14.0", features = ["serde"] }
 indicatif = "0.17.0"
 kdtree = "0.7.0"
 libflate = "2.0.0"
@@ -45,15 +45,15 @@ nanoid = "0.4.0"
 noise = "0.8.2"
 num = "0.4.0"
 prost = "0.12.1"
-rapier3d = {version = "0.17.2", features = ["simd-stable"]}
+rapier3d = { version = "0.17.2", features = ["simd-stable"] }
 rayon = "1.5.2"
-serde = {version = "1.0.136", features = ["derive"]}
+serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
-specs = {version = "0.20.0", features = ["specs-derive", "serde"]}
-splines = {version = "4.1.0", features = ["serde"]}
+specs = { version = "0.20.0", features = ["specs-derive", "serde"] }
+splines = { version = "4.1.0", features = ["serde"] }
 
 chrono = "0.4.19"
-fern = {version = "0.6.0", features = ["colored"]}
+fern = { version = "0.6.0", features = ["colored"] }
 log = "0.4.16"
 
 [build-dependencies]

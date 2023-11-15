@@ -13,7 +13,6 @@ struct MyMethodPayload {
   test: String,
 }
 
-
 let world = server.create_world("my_world", &config).expect("Failed to create world");
 
 world.set_method_handle("my_method", |world, client_id, payload| {

@@ -13,7 +13,6 @@ The Voxelize server runs mainly on the [voxelize](https://crates.io/crates/voxel
 - [specs](https://crates.io/crates/specs) for the central Entity Component System.
 
 ```toml title="server/Cargo.toml"
-[dependencies]
 voxelize = "*"
 actix-web = "*"
 specs = {version = "*", features = ["specs-derive", "serde"]}

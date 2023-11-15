@@ -66,8 +66,8 @@ use specs::{Component, VecStorage};
 #[derive(Component, Debug)]
 #[storage(VecStorage)]
 struct CustomComp {
-	a: f32,
-	b: f32,
+    a: f32,
+    b: f32,
 }
 
 world.ecs().register::<CustomComp>();
@@ -77,9 +77,9 @@ We can then create entities with this `CustomComp`:
 
 ```rust
 let custom_entity = world
-	.create_entity("Custom Entity")
-	.with(CustomComp { a: 1.0, b: 3.0 })
-	.build();
+    .create_entity("Custom Entity")
+    .with(CustomComp { a: 1.0, b: 3.0 })
+    .build();
 ```
 
 :::info
@@ -144,7 +144,7 @@ You can add your own resources to the ECS world in order to be used in an ECS sy
 
 ```rust
 struct CustomResource {
-	a: f32,
+    a: f32,
 }
 
 world.ecs().insert(CustomResource { a: 1.0 }});

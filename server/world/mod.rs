@@ -193,6 +193,11 @@ struct OnEventRequest {
     payload: Value,
 }
 
+#[derive(Serialize, Deserialize)]
+struct BuiltInSetTimeMethodPayload {
+    time: f32,
+}
+
 impl World {
     /// Create a new voxelize world.
     pub fn new(name: &str, config: &WorldConfig) -> Self {
@@ -263,7 +268,7 @@ impl World {
             command_handle: None,
         };
 
-        world.set_method_handle("builtin:get-stats", |world, client_id, _| {
+        world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
             let stats_json = world.stats().get_stats();
             world.write_resource::<MessageQueue>().push((
                 Message::new(&MessageType::Stats)
@@ -271,6 +276,13 @@ impl World {
                     .build(),
                 ClientFilter::Direct(client_id.to_owned()),
             ));
+        });
+
+        world.set_method_handle("vox-builtin:set-time", |world, _, payload| {
+            let payload: BuiltInSetTimeMethodPayload =
+                serde_json::from_str(payload).expect("Could not parse builtin:set-time payload.");
+            let time_per_day = world.config().time_per_day as f32;
+            world.stats_mut().set_time(payload.time % time_per_day);
         });
 
         world
