@@ -434,7 +434,7 @@ export class World extends Scene implements NetIntercept {
       this.packets.push({
         type: "METHOD",
         method: {
-          name: "builtin:get-stats",
+          name: "vox-builtin:get-stats",
           payload: {},
         },
       });
@@ -2007,9 +2007,9 @@ export class World extends Scene implements NetIntercept {
         type: "METHOD",
         method: {
           name: "vox-builtin:set-time",
-          payload: {
+          payload: JSON.stringify({
             time,
-          },
+          }),
         },
       });
     }

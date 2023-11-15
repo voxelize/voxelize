@@ -121,12 +121,6 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         world.spawn_entity_at("box", &data.position);
     });
 
-    world.set_method_handle("time", |world, _, payload| {
-        let time_per_day = world.config().time_per_day as f32;
-        let new_time: TimeMethodPayload = serde_json::from_str(&payload).unwrap();
-        world.stats_mut().set_time(new_time.time % time_per_day);
-    });
-
     world.set_event_handle("test", |world, _, payload| {
         world
             .events_mut()

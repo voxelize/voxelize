@@ -589,7 +589,7 @@ const start = async () => {
   gui
     .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
     .onFinishChange((time: number) => {
-      method.call("time", { time });
+      world.time = time;
     });
 
   const bar = new VOXELIZE.ItemSlots({
