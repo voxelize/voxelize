@@ -4,7 +4,9 @@ sidebar_position: 1
 
 # What is Voxelize?
 
-Voxelize is an **easy-to-use** fullstack library to build **fast, interactive, and creative** voxel experiences.
+Voxelize is an **easy-to-use** fullstack library to build **fast, interactive, multiplayer, and creative** voxel experiences **in the browser.**
+
+![](../assets/cool-voxelize.png)
 
 ## What is a voxel?
 
