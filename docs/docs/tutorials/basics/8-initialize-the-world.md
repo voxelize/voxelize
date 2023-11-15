@@ -33,8 +33,6 @@ The world initialization retrieves the server-side chunking options (such as chu
 
 ![](../assets/empty-sky.png)
 
-Now that we have chunk materials loaded and the world initialized, we are ready to **implement the player controller**.
-
 :::info
 Note that `network.sync` and `network.flush` are being called immediately within the animate function. This ensures that the `world` can receive the `INIT` packet to run `world.initialize()`.
 :::
@@ -65,3 +63,71 @@ The second argument is for the direction of where the player is looking at. The 
 ![](../assets/frustum-cull.png)
 
 As can be seen in the screenshot above, purple cells in the bottom right represents the chunks loaded, and red represents chunks within radius. The Voxelize world only loads in the chunks that the player is facing.
+
+# Draw the Sky
+
+Currently, the sky is plain black. Let's add some arts and colors to the sky.
+
+```javascript title="main.js"
+world.sky.setShadingPhases([
+    // start of sunrise
+    {
+        name: "sunrise",
+        color: {
+            top: new THREE.Color("#7694CF"),
+            middle: new THREE.Color("#B0483A"),
+            bottom: new THREE.Color("#222"),
+        },
+        skyOffset: 0.05,
+        voidOffset: 0.6,
+        start: 0.2,
+    },
+    // end of sunrise
+    {
+        name: "daylight",
+        color: {
+            top: new THREE.Color("#73A3FB"),
+            middle: new THREE.Color("#B1CCFD"),
+            bottom: new THREE.Color("#222"),
+        },
+        skyOffset: 0,
+        voidOffset: 0.6,
+        start: 0.25,
+    },
+    // start of sunset
+    {
+        name: "sunset",
+        color: {
+            top: new THREE.Color("#A57A59"),
+            middle: new THREE.Color("#FC5935"),
+            bottom: new THREE.Color("#222"),
+        },
+        skyOffset: 0.05,
+        voidOffset: 0.6,
+        start: 0.7,
+    },
+    // end of sunset
+    {
+        name: "night",
+        color: {
+            top: new THREE.Color("#000"),
+            middle: new THREE.Color("#000"),
+            bottom: new THREE.Color("#000"),
+        },
+        skyOffset: 0.1,
+        voidOffset: 0.6,
+        start: 0.75,
+    },
+]);
+
+world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
+world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
+world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
+world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
+```
+
+`setShadingPhases` defines the different phases that the sky interpolates to throughout the day. The Voxelize world's sky interpolates naturally between these phases as time progresses. 
+
+`world.sky.paint` works as the sky is actually a inwards [`CanvasBox`](/api/client/classes/CanvasBox), and the preset art functions draws simple shapes onto the sky box.
+
+In an upcoming tutorial, I will teach how to change the time of the day, so you can experience different shades of the sky.

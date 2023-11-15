@@ -1,5 +1,5 @@
 ---
-sidebar_position: 10
+sidebar_position: 11
 ---
 
 # Debug Voxelize
@@ -45,8 +45,20 @@ import { GUI } from 'lil-gui';
 
 const gui = new GUI();
 gui.domElement.style.top = "10px";
+
+async function start() {
+    // ...
+
+    await world.initialize();
+
+    gui
+        .add({ time: world.time }, 'time', 0, world.options.timePerDay, 0.01)
+        .onFinishChange((time) => {
+            world.time = time; // Calls the 'vox-builtin:set-time' method internally
+        });
+}
 ```
 
-You should see these two panels once everything is working.
+You should see these two panels once everything is working. For the `world.time` setter, the world calls an internal method to the server `vox-builtin:set-time`. To learn more about methods, check out [the method tutorial](/wiki/calling-methods).
 
-![](../assets/debug-ui.png)
+![](../assets/time-setter.png)
