@@ -28,7 +28,7 @@ using the [ColorText](ColorText.md) syntax. Name tags can be treated like any ot
 | Name | Type |
 | :------ | :------ |
 | `text` | `string` |
-| `options` | `Partial`\<[`NameTagOptions`](../modules.md#nametagoptions-4)\> |
+| `options` | `Partial`\<[`NameTagOptions`](../modules.md#nametagoptions)\> |
 
 #### Returns
 
@@ -36,4 +36,4 @@ using the [ColorText](ColorText.md) syntax. Name tags can be treated like any ot
 
 #### Overrides
 
-[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor-4)
+[SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor)
