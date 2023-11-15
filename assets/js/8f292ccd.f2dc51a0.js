@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[1171],{3791:e=>{e.exports=JSON.parse('{"label":"hello","permalink":"/voxelize/blog/tags/hello","allTagsPath":"/voxelize/blog/tags","count":2,"unlisted":false}')}}]);
