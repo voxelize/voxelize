@@ -1944,7 +1944,7 @@ export class World extends Scene implements NetIntercept {
         const { json } = message;
 
         if (Math.abs(json.time - this.time) > this.options.timeForceThreshold) {
-          this.time = json.time;
+          this._time = json.time;
         }
 
         break;
