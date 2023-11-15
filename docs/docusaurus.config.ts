@@ -29,15 +29,14 @@ const config: Config = {
   title: "Voxelize",
   tagline: "A voxel browser experience",
   url: "https://docs.voxelize.io",
-  baseUrl: "/voxelize/",
-  trailingSlash: false,
+  baseUrl: "/",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/circle-min.png",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "shaoruu", // Usually your GitHub org/user name.
+  organizationName: "voxelize", // Usually your GitHub org/user name.
   projectName: "voxelize", // Usually your repo name.
 
   // Even if you don't use internationalization, you can use this field to set
