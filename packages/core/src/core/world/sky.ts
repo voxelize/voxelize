@@ -15,9 +15,9 @@ export type SkyShadingCycleData = {
   start: number;
   name: string;
   color: {
-    top: Color;
-    middle: Color;
-    bottom: Color;
+    top: Color | string;
+    middle: Color | string;
+    bottom: Color | string;
   };
   skyOffset: number;
   voidOffset: number;
@@ -139,9 +139,14 @@ export class Sky extends CanvasBox {
     }
 
     if (data.length === 1) {
-      this.uTopColor.value.copy(data[0].color.top);
-      this.uMiddleColor.value.copy(data[0].color.middle);
-      this.uBottomColor.value.copy(data[0].color.bottom);
+      const { top, middle, bottom } = data[0].color;
+      const topColor = new Color(top).convertLinearToSRGB();
+      const middleColor = new Color(middle).convertLinearToSRGB();
+      const bottomColor = new Color(bottom).convertLinearToSRGB();
+
+      this.uTopColor.value.copy(topColor);
+      this.uMiddleColor.value.copy(middleColor);
+      this.uBottomColor.value.copy(bottomColor);
       this.uSkyOffset.value = data[0].skyOffset;
       this.uVoidOffset.value = data[0].voidOffset;
     }
@@ -267,17 +272,21 @@ export class Sky extends CanvasBox {
         color: { top, middle, bottom },
       } = data;
 
-      top.getRGB(emptyRGB);
+      const topColor = new Color(top).convertLinearToSRGB();
+      const middleColor = new Color(middle).convertLinearToSRGB();
+      const bottomColor = new Color(bottom).convertLinearToSRGB();
+
+      topColor.getRGB(emptyRGB);
       weightedTopRGB[0] += emptyRGB.r * weight;
       weightedTopRGB[1] += emptyRGB.g * weight;
       weightedTopRGB[2] += emptyRGB.b * weight;
 
-      middle.getRGB(emptyRGB);
+      middleColor.getRGB(emptyRGB);
       weightedMiddleRGB[0] += emptyRGB.r * weight;
       weightedMiddleRGB[1] += emptyRGB.g * weight;
       weightedMiddleRGB[2] += emptyRGB.b * weight;
 
-      bottom.getRGB(emptyRGB);
+      bottomColor.getRGB(emptyRGB);
       weightedBottomRGB[0] += emptyRGB.r * weight;
       weightedBottomRGB[1] += emptyRGB.g * weight;
       weightedBottomRGB[2] += emptyRGB.b * weight;
@@ -318,9 +327,9 @@ export class Sky extends CanvasBox {
       voidOffset,
     } = {
       color: {
-        top: new Color("#222"),
-        middle: new Color("#222"),
-        bottom: new Color("#222"),
+        top: "#222",
+        middle: "#222",
+        bottom: "#222",
       },
       skyOffset: 0,
       voidOffset: 1200,

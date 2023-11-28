@@ -82,9 +82,9 @@ world.sky.setShadingPhases([
   {
     name: "sunrise",
     color: {
-      top: new THREE.Color("#7694CF"),
-      middle: new THREE.Color("#B0483A"),
-      bottom: new THREE.Color("#222"),
+      top: "#7694CF",
+      middle: "#B0483A",
+      bottom: "#222",
     },
     skyOffset: 0.05,
     voidOffset: 0.6,
@@ -94,9 +94,9 @@ world.sky.setShadingPhases([
   {
     name: "daylight",
     color: {
-      top: new THREE.Color("#73A3FB"),
-      middle: new THREE.Color("#B1CCFD"),
-      bottom: new THREE.Color("#222"),
+      top: "#73A3FB",
+      middle: "#B1CCFD",
+      bottom: "#222",
     },
     skyOffset: 0,
     voidOffset: 0.6,
@@ -106,9 +106,9 @@ world.sky.setShadingPhases([
   {
     name: "sunset",
     color: {
-      top: new THREE.Color("#A57A59"),
-      middle: new THREE.Color("#FC5935"),
-      bottom: new THREE.Color("#222"),
+      top: "#A57A59",
+      middle: "#FC5935",
+      bottom: "#222",
     },
     skyOffset: 0.05,
     voidOffset: 0.6,
@@ -118,9 +118,9 @@ world.sky.setShadingPhases([
   {
     name: "night",
     color: {
-      top: new THREE.Color("#000"),
-      middle: new THREE.Color("#000"),
-      bottom: new THREE.Color("#000"),
+      top: "#000",
+      middle: "#000",
+      bottom: "#000",
     },
     skyOffset: 0.1,
     voidOffset: 0.6,
