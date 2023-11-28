@@ -34,10 +34,6 @@ import OakPlanksImage from "./assets/pixel-perfection/planks_oak.png";
 import SandImage from "./assets/pixel-perfection/sand.png";
 import StoneImage from "./assets/pixel-perfection/stone.png";
 import WaterImage from "./assets/pixel-perfection/water.png";
-import Water1Image from "./assets/pixel-perfection/water1.png";
-import Water2Image from "./assets/pixel-perfection/water2.png";
-import Water3Image from "./assets/pixel-perfection/water3.png";
-import Water4Image from "./assets/pixel-perfection/water4.png";
 
 const BIOME_SHADE_WEIGHT = 0.2;
 
@@ -200,17 +196,17 @@ export async function setupWorld(world: VOXELIZE.World) {
     },
   ]);
 
-  await world.applyBlockFrames(
-    "Water",
-    "py",
-    [
-      [500, Water1Image],
-      [500, Water2Image],
-      [500, Water3Image],
-      [500, Water4Image],
-    ],
-    300
-  );
+  // await world.applyBlockFrames(
+  //   "Water",
+  //   "py",
+  //   [
+  //     [500, Water1Image],
+  //     [500, Water2Image],
+  //     [500, Water3Image],
+  //     [500, Water4Image],
+  //   ],
+  //   300
+  // );
 
   world.customizeMaterialShaders(
     "Grass",

@@ -5,13 +5,6 @@ import "@voxelize/core/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
-import {
-  EffectComposer,
-  EffectPass,
-  // PixelationEffect,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
 import * as THREE from "three";
 
 import LolImage from "./assets/lol.png";
@@ -170,20 +163,20 @@ renderer.setPixelRatio(1);
 
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
+// const composer = new EffectComposer(renderer);
+// composer.addPass(new RenderPass(world, camera));
 
-const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.01);
+// const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+// overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.01);
 
-composer.addPass(
-  new EffectPass(
-    camera,
-    new SMAAEffect({}),
-    overlayEffect
-    // new PixelationEffect(6)
-  )
-);
+// composer.addPass(
+//   new EffectPass(
+//     camera
+// new SMAAEffect({})
+// overlayEffect
+// new PixelationEffect(6)
+//   )
+// );
 
 const lightShined = new VOXELIZE.LightShined(world);
 const shadows = new VOXELIZE.Shadows(world);
@@ -564,7 +557,7 @@ const start = async () => {
       voxelInteract.update();
     }
 
-    composer.render();
+    renderer.render(world, camera);
   };
 
   animate();
