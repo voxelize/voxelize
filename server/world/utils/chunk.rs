@@ -1,6 +1,12 @@
 use crate::{Vec2, Vec3};
 
-const CONCAT: &str = "|";
+fn get_concat() -> &'static str {
+    if (cfg!(target_os = "windows")) {
+        "_"
+    } else {
+        "|"
+    }
+}
 
 /// A set of utility functions for chunk operations.
 pub struct ChunkUtils;
@@ -16,23 +22,25 @@ fn floor_scale_coords(x: f32, y: f32, z: f32, factor: f32) -> Vec3<f32> {
 impl ChunkUtils {
     /// Generate a chunk representation from a chunk coordinate.
     pub fn get_chunk_name(cx: i32, cz: i32) -> String {
-        format!("{}{}{}", cx, CONCAT, cz)
+        format!("{}{}{}", cx, get_concat(), cz)
     }
 
     /// Parse a chunk coordinate from a chunk representation.
     pub fn parse_chunk_name(name: &str) -> Vec2<i32> {
-        let vec = name.split(CONCAT).collect::<Vec<&str>>();
+        let vec = name.split(get_concat()).collect::<Vec<&str>>();
         Vec2(vec[0].parse().unwrap(), vec[1].parse().unwrap())
     }
 
     /// Generate a voxel representation from a voxel coordinate.
     pub fn get_voxel_name(vx: i32, vy: i32, vz: i32) -> String {
-        format!("{}{}{}{}{}", vx, CONCAT, vy, CONCAT, vz)
+        let concat = get_concat();
+        format!("{}{}{}{}{}", vx, concat, vy, concat, vz)
     }
 
     /// Parse a voxel coordinate from a voxel representation.
     pub fn parse_voxel_name(name: &str) -> Vec3<i32> {
-        let vec = name.split(CONCAT).collect::<Vec<&str>>();
+        let concat = get_concat();
+        let vec = name.split(concat).collect::<Vec<&str>>();
         Vec3(
             vec[0].parse().unwrap(),
             vec[1].parse().unwrap(),
