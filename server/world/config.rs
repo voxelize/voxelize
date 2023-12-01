@@ -315,7 +315,11 @@ impl WorldConfigBuilder {
 
     /// Configure the directory to save the world.
     pub fn save_dir(mut self, save_dir: &str) -> Self {
-        self.save_dir = save_dir.to_owned();
+        if cfg!(target_os = "windows") {
+            self.save_dir = save_dir.replace("/", "\\");
+        } else {
+            self.save_dir = save_dir.to_owned();
+        }
         self
     }
 
