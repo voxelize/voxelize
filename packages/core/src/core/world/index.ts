@@ -430,15 +430,17 @@ export class World extends Scene implements NetIntercept {
     this.setupComponents();
     this.setupUniforms();
 
-    setInterval(() => {
-      this.packets.push({
-        type: "METHOD",
-        method: {
-          name: "vox-builtin:get-stats",
-          payload: {},
-        },
-      });
-    }, statsSyncInterval);
+    if (document.hasFocus()) {
+      setInterval(() => {
+        this.packets.push({
+          type: "METHOD",
+          method: {
+            name: "vox-builtin:get-stats",
+            payload: {},
+          },
+        });
+      }, statsSyncInterval);
+    }
   }
 
   async meshChunkLocally(cx: number, cz: number, level: number) {
@@ -2855,7 +2857,7 @@ export class World extends Scene implements NetIntercept {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         uSunlightIntensity: chunksUniforms.sunlightIntensity,
         uAOTable: chunksUniforms.ao,
-        uminLightLevel: chunksUniforms.minLightLevel,
+        uMinLightLevel: chunksUniforms.minLightLevel,
         uFogNear: chunksUniforms.fogNear,
         uFogFar: chunksUniforms.fogFar,
         uFogColor: chunksUniforms.fogColor,

@@ -187,8 +187,6 @@ export class Network {
       ...defaultOptions,
       ...options,
     };
-
-    setInterval(this.sync, 1000 / 60);
   }
 
   /**
