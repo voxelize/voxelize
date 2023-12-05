@@ -406,7 +406,7 @@ export class World extends Scene implements NetIntercept {
   private _deleteRadius = 0;
 
   private meshWorkerPool = new WorkerPool(MeshWorker, {
-    maxWorker: 4,
+    maxWorker: navigator.hardwareConcurrency ?? 4,
   });
 
   private chunksTracker: [Coords2, number][] = [];
