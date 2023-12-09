@@ -189,8 +189,8 @@ export type WorldClientOptions = {
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 12,
-  maxProcessesPerUpdate: 8,
-  maxUpdatesPerUpdate: 50,
+  maxProcessesPerUpdate: 4,
+  maxUpdatesPerUpdate: 1000,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
   chunkRerequestInterval: 300,
@@ -796,8 +796,6 @@ export class World extends Scene implements NetIntercept {
         });
       }
 
-      console.log("Hi");
-
       if (!canvas) {
         throw new Error(
           `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it does not have or has not loaded a texture.`
@@ -815,8 +813,6 @@ export class World extends Scene implements NetIntercept {
 
       newCanvas.width = newXResolution;
       newCanvas.height = newYResolution;
-
-      console.log(canvas);
 
       const newCtx = newCanvas.getContext("2d");
       newCtx.drawImage(
@@ -2502,6 +2498,8 @@ export class World extends Scene implements NetIntercept {
         this.options.maxUpdatesPerUpdate
       );
 
+      updates.sort((a, b) => b.vy - a.vy);
+
       if (updates.length) {
         const { maxHeight, maxLightLevel } = this.options;
 
@@ -2804,9 +2802,8 @@ export class World extends Scene implements NetIntercept {
         this.packets.push({
           type: "UPDATE",
           updates: updates.map((update) => {
-            const { type, vx, vy, vz, rotation, yRotation } = update;
+            const { type, rotation, yRotation } = update;
 
-            const chunk = this.getChunkByPosition(vx, vy, vz);
             const block = this.getBlockById(type);
 
             let raw = 0;
@@ -2820,10 +2817,6 @@ export class World extends Scene implements NetIntercept {
                 raw,
                 BlockRotation.encode(rotation, yRotation)
               );
-            }
-
-            if (chunk) {
-              chunk.setRawValue(vx, vy, vz, raw);
             }
 
             return {

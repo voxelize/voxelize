@@ -117,7 +117,6 @@ impl Mesher {
         processes.iter().for_each(|(chunk, _)| {
             if self.map.contains(&chunk.coords) {
                 let curr_count = self.skips.remove(&chunk.coords).unwrap_or(0);
-
                 self.skips.insert(chunk.coords.to_owned(), curr_count + 1);
             }
 

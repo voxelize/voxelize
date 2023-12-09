@@ -620,6 +620,10 @@ const start = async () => {
     return block ? block.name : "<Empty>";
   });
 
+  debug.registerDisplay("Build radius", () => {
+    return radius;
+  });
+
   debug.registerDisplay("Concurrent WebWorkers", () => {
     return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
   });

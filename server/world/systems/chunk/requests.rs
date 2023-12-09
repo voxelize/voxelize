@@ -28,13 +28,23 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests) =
             data;
 
+        let max_response_per_tick = config.max_response_per_tick;
+
         let mut to_send: HashMap<String, HashSet<Vec2<i32>>> = HashMap::new();
 
         for (id, requests) in (&ids, &mut requests).join() {
+            let mut to_add_back_to_requested = HashSet::new();
+
             for coords in requests.requests.drain(..) {
                 // If the chunk is actually ready, send to client.
                 if chunks.is_chunk_ready(&coords) {
                     let mut clients_to_send = to_send.remove(&id.0).unwrap_or_default();
+
+                    if clients_to_send.len() >= max_response_per_tick {
+                        to_send.insert(id.0.clone(), clients_to_send);
+                        to_add_back_to_requested.insert(coords);
+                        continue;
+                    }
 
                     // Add the chunk to the list of chunks to send to the client.
                     clients_to_send.insert(coords.clone());
@@ -71,6 +81,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
 
                 interests.add(&id.0, &coords);
             }
+
+            // Add the chunks back to the requested set.
+            requests.requests.extend(to_add_back_to_requested);
         }
 
         // Send the chunks to the client.
