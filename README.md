@@ -52,7 +52,7 @@ If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or
 Checkout the Voxelize documentations here:
 
 - [Backend](https://docs.rs/voxelize/0.8.11/voxelize/index.html)
-- [Frontend](https://docs.voxelize.io/docs/intro/what-is-voxelize)
+- [Frontend](https://docs.voxelize.io/tutorials/intro/what-is-voxelize)
 
 ## Development
 
