@@ -189,8 +189,6 @@ export class Network {
       ...options,
     };
 
-    console.log("hi");
-
     setWorkerInterval(() => {
       this.sync();
     }, 1000 / 60);
