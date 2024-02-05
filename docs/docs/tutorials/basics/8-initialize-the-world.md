@@ -15,8 +15,6 @@ function animate() {
     }
 
     // ...
-
-    network.flush();
 }
 
 async function start() {

@@ -36,7 +36,7 @@ Or, like what `VOXELIZE.World` does [here](https://github.com/shaoruu/voxelize/b
 
 ### `packets`
 
-The other thing that developers can implement is a property, `packets`, which is simply an array of network packets that will be emptied out and sent on `network.flush()`.
+The other thing that developers can implement is a property, `packets`, which is simply an array of network packets that will be emptied out and sent on `network.flush()`, which is called for you internally just like `network.sync()`.
 
 ## Connect to the Server
 
@@ -47,8 +47,6 @@ function animate() {
     requestAnimationFrame(animate);
 
     renderer.render(world, camera);
-
-    network.flush(); // Send out the packets
 }
 
 async function start() {
