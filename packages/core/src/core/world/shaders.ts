@@ -76,6 +76,7 @@ varying vec4 vWorldPosition;
 
 // Intensity of light is wavelength ** 2 
 float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinLightLevel) + uMinLightLevel, 1.0);
+s = s * (1.0 - exp(-s) * 0.02); // Smooth the intensity without clamping to a hard upper limit
 float scale = 2.0;
 
 outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
