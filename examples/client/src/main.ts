@@ -546,8 +546,6 @@ const start = async () => {
         camera.getWorldDirection(new THREE.Vector3())
       );
 
-      network.flush();
-
       perspective.update();
       shadows.update();
       debug.update();
