@@ -29,6 +29,7 @@ import {
 import MeshWorker from "web-worker:./workers/mesh-worker.ts";
 
 import { WorkerPool } from "../../libs";
+import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { Coords2, Coords3 } from "../../types";
 import {
   BLUE_LIGHT,
@@ -430,17 +431,15 @@ export class World extends Scene implements NetIntercept {
     this.setupComponents();
     this.setupUniforms();
 
-    if (document.hasFocus()) {
-      setInterval(() => {
-        this.packets.push({
-          type: "METHOD",
-          method: {
-            name: "vox-builtin:get-stats",
-            payload: {},
-          },
-        });
-      }, statsSyncInterval);
-    }
+    setWorkerInterval(() => {
+      this.packets.push({
+        type: "METHOD",
+        method: {
+          name: "vox-builtin:get-stats",
+          payload: {},
+        },
+      });
+    }, statsSyncInterval);
   }
 
   async meshChunkLocally(cx: number, cz: number, level: number) {
