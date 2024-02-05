@@ -2781,7 +2781,11 @@ export class World extends Scene implements NetIntercept {
     };
 
     runAll().then(() => {
-      this.chunks.toEmit.push(...updates.map(({ update }) => update));
+      this.chunks.toEmit.push(
+        ...updates
+          .filter(({ source }) => source === "client")
+          .map(({ update }) => update)
+      );
     });
   };
 

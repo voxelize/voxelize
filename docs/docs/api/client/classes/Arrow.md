@@ -40,7 +40,7 @@ Create a new arrow.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`ArrowOptions`](../modules.md#arrowoptions-404)\> | Parameters to create the arrow. |
+| `options` | `Partial`\<[`ArrowOptions`](../modules.md#arrowoptions-406)\> | Parameters to create the arrow. |
 
 #### Returns
 
@@ -54,6 +54,6 @@ ArrowHelper.constructor
 
 ### options
 
-• **options**: [`ArrowOptions`](../modules.md#arrowoptions-404)
+• **options**: [`ArrowOptions`](../modules.md#arrowoptions-406)
 
 Parameters used to create the arrow.
