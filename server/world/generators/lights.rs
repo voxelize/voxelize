@@ -91,13 +91,17 @@ impl Lights {
                     || ncz < start_cz
                     || ncx > end_cx
                     || ncz > end_cz
-                    || min.map_or(false, |&Vec3(start_x, _, start_z)| {
+                    || if let Some(&Vec3(start_x, _, start_z)) = min {
                         nvx < start_x
                             || nvz < start_z
-                            || shape.map_or(false, |&Vec3(shape0, _, shape2)| {
+                            || if let Some(&Vec3(shape0, _, shape2)) = shape {
                                 nvx >= start_x + shape0 as i32 || nvz >= start_z + shape2 as i32
-                            })
-                    })
+                            } else {
+                                false
+                            }
+                    } else {
+                        false
+                    }
                 {
                     continue;
                 }
@@ -136,8 +140,7 @@ impl Lights {
                     space.set_torch_light(nvx, nvy, nvz, next_level, color);
                 }
 
-                // Instead of pushing to the back of the queue, push to the front to achieve depth-first search
-                queue.push_front(LightNode {
+                queue.push_back(LightNode {
                     voxel: next_voxel,
                     level: next_level,
                 });

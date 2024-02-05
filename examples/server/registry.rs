@@ -94,7 +94,7 @@ pub fn setup_registry() -> Registry {
             .faces(&BlockFaces::six_faces().build().independent_at(SIX_FACES_NX))
             .build(),
         Block::new("Grass Block").id(4).build(),
-        Block::new("Snow").id(5).build(),
+        Block::new("Snow").id(5).torch_light_level(15).build(),
         Block::new("Obsidian").id(20).build(),
         Block::new("Granite").id(21).build(),
         Block::new("Graphite").id(22).build(),

@@ -1485,7 +1485,7 @@ export class World extends Scene implements NetIntercept {
           ncz < startCZ ||
           ncz > endCZ ||
           (min && (nvx < min[0] || nvz < min[2])) ||
-          (max && (nvx > max[0] || nvz > max[2]))
+          (max && (nvx >= max[0] || nvz >= max[2]))
         ) {
           continue;
         }
@@ -1520,7 +1520,7 @@ export class World extends Scene implements NetIntercept {
           this.setTorchLightAt(nvx, nvy, nvz, nextLevel, color);
         }
 
-        queue.unshift({ voxel: nextVoxel, level: nextLevel });
+        queue.push({ voxel: nextVoxel, level: nextLevel });
       }
     }
   }
