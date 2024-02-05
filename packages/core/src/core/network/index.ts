@@ -3,6 +3,7 @@ import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
 import DecodeWorker from "shared-worker:./workers/decode-worker.ts";
 
+import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { SharedWorkerPool } from "../../libs/shared-worker-pool";
 
 import { NetIntercept } from "./intercept";
@@ -187,6 +188,12 @@ export class Network {
       ...defaultOptions,
       ...options,
     };
+
+    console.log("hi");
+
+    setWorkerInterval(() => {
+      this.sync();
+    }, 1000 / 60);
   }
 
   /**

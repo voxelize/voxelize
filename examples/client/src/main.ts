@@ -503,8 +503,6 @@ const start = async () => {
     //   }
     // }
 
-    network.sync();
-
     if (world.isInitialized) {
       peers.update();
       controls.update();
