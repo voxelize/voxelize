@@ -18,7 +18,7 @@ Such as the Voxelize world, network interceptors allow developers to peep into w
 
 ### `onMessage`
 
-The first thing you can implement for anything you `register` onto the network is `onMessage`. What `onMessage` does is that when `network.sync()`  is called, the network "unpacks" all the network packets received in that frame, and passes those messages through each registered network interceptors. 
+The first thing you can implement for anything you `register` onto the network is `onMessage`. What `onMessage` does is that when `network.sync()`  is called, the network "unpacks" all the network packets received in that frame, and passes those messages through each registered network interceptors. (`network.sync()` is called internally for you.)
 
 For example, say I want to print out all the message types whenever I receive any, I could simply do:
 
@@ -44,9 +44,7 @@ Now we have a better understanding of the server, let's connect to the server an
 
 ```javascript title="main.js"
 function animate() {
-	  requestAnimationFrame(animate);
-
-    network.sync(); // Process in the packets
+    requestAnimationFrame(animate);
 
     renderer.render(world, camera);
 

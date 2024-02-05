@@ -868,10 +868,10 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `color` | \{ `bottom`: `Color` ; `middle`: `Color` ; `top`: `Color`  } |
-| `color.bottom` | `Color` |
-| `color.middle` | `Color` |
-| `color.top` | `Color` |
+| `color` | \{ `bottom`: `Color` \| `string` ; `middle`: `Color` \| `string` ; `top`: `Color` \| `string`  } |
+| `color.bottom` | `Color` \| `string` |
+| `color.middle` | `Color` \| `string` |
+| `color.top` | `Color` \| `string` |
 | `name` | `string` |
 | `skyOffset` | `number` |
 | `start` | `number` |

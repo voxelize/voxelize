@@ -10,8 +10,6 @@ Upon connecting to the server, the voxelize world receives a `INIT` packet since
 function animate() {
     // ...
 
-    network.sync();
-
     if (world.isInitialized) {
         // Do in-game updates here
     }
@@ -32,10 +30,6 @@ async function start() {
 The world initialization retrieves the server-side chunking options (such as chunk size, registry blocks, etc), loads in the chunk materials, sets up the render radius, and starts the client-side meshing workers. If everything goes correctly, you should see something like below, where only the clouds are rendered:
 
 ![](../assets/empty-sky.png)
-
-:::info
-Note that `network.sync` and `network.flush` are being called immediately within the animate function. This ensures that the `world` can receive the `INIT` packet to run `world.initialize()`.
-:::
 
 ## Update the World
 
