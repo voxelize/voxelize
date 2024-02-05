@@ -108,6 +108,18 @@ export type Block = {
    */
   isDynamic: boolean;
 
+  dynamicPatterns: {
+    faces: Block["faces"];
+    aabbs: Block["aabbs"];
+    isTransparent: Block["isTransparent"];
+    rules: {
+      offset: Coords3;
+      id?: number;
+      rotation?: BlockRotation;
+      stage?: number;
+    }[];
+  }[];
+
   /**
    * If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this
    * just returns the faces and AABB's that are defined in the block data.

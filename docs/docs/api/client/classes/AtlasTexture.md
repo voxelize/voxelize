@@ -115,7 +115,7 @@ Draw a texture to a range on the texture atlas.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `range` | [`UV`](../modules.md#uv-8) | `undefined` | The range on the texture atlas to draw the texture to. |
+| `range` | [`UV`](../modules.md#uv-404) | `undefined` | The range on the texture atlas to draw the texture to. |
 | `image` | `Color` \| `HTMLCanvasElement` \| `Texture` \| `HTMLImageElement` \| (`width?`: `number`, `height?`: `number`) => `HTMLImageElement` | `undefined` | The texture to draw to the range. |
 | `clearRect` | `boolean` | `true` | - |
 | `opacity` | `number` | `1.0` | - |
@@ -168,7 +168,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `range` | [`UV`](../modules.md#uv-8) | `undefined` |
+| `range` | [`UV`](../modules.md#uv-404) | `undefined` |
 | `keyframes` | [`number`, `Color` \| `HTMLImageElement`][] | `undefined` |
 | `fadeFrames` | `number` | `0` |
 

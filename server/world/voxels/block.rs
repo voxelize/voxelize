@@ -9,7 +9,7 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BlockUtils, LightColor, LightUtils, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB, UV,
+    BlockUtils, LightColor, LightUtils, Registry, Vec2, Vec3, VoxelAccess, VoxelUpdate, AABB, UV,
 };
 
 /// Base class to extract voxel data from a single u32
@@ -34,7 +34,7 @@ pub const Y_ROTATION_MASK: u32 = 0xFF0FFFFF;
 pub const STAGE_MASK: u32 = 0xF0FFFFFF;
 
 /// Block rotation enumeration. There are 6 possible rotations: `(px, nx, py, ny, pz, nz)`. Default rotation is PY.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum BlockRotation {
     PX(f32),
     NX(f32),
@@ -316,7 +316,7 @@ pub struct CornerData {
     pub uv: [f32; 2],
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockFace {
     pub name: String,
@@ -992,6 +992,24 @@ impl Neighbors {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockDynamicPatternRule {
+    pub offset: Vec3<i32>,
+    pub id: Option<u32>,
+    pub rotation: Option<BlockRotation>,
+    pub stage: Option<u32>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockDynamicPattern {
+    pub rules: Vec<BlockDynamicPatternRule>,
+    pub faces: Vec<BlockFace>,
+    pub aabbs: Vec<AABB>,
+    pub is_transparent: [bool; 6],
+}
+
 /// Serializable struct representing block data.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1056,6 +1074,8 @@ pub struct Block {
     /// should also have a corresponding dynamic function.
     pub is_dynamic: bool,
 
+    pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
+
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
     pub dynamic_fn: Option<
@@ -1090,6 +1110,16 @@ impl Block {
         registry: &Registry,
     ) -> Vec<AABB> {
         if self.is_dynamic {
+            if let Some(dynamic_patterns) = &self.dynamic_patterns {
+                for pattern in dynamic_patterns {
+                    if let Some(dynamic_pattern) = Block::match_dynamic_pattern(pattern, pos, space)
+                    {
+                        return dynamic_pattern.aabbs.to_owned();
+                    }
+                }
+                return self.aabbs.clone();
+            }
+
             (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).1
         } else {
             self.aabbs.clone()
@@ -1103,6 +1133,16 @@ impl Block {
         registry: &Registry,
     ) -> Vec<BlockFace> {
         if self.is_dynamic {
+            if let Some(dynamic_patterns) = &self.dynamic_patterns {
+                for pattern in dynamic_patterns {
+                    if let Some(dynamic_pattern) = Block::match_dynamic_pattern(pattern, pos, space)
+                    {
+                        return dynamic_pattern.faces.to_owned();
+                    }
+                }
+                return self.faces.clone();
+            }
+
             (self.dynamic_fn.as_ref().unwrap())(pos.to_owned(), space, registry).0
         } else {
             self.faces.clone()
@@ -1120,6 +1160,50 @@ impl Block {
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
         rotation.rotate_transparency(self.is_transparent)
+    }
+
+    fn match_dynamic_pattern(
+        pattern: &BlockDynamicPattern,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+    ) -> Option<BlockDynamicPattern> {
+        for rule in &pattern.rules {
+            let vx = rule.offset.0 + pos.0;
+            let vy = rule.offset.1 + pos.1;
+            let vz = rule.offset.2 + pos.2;
+
+            let mut has_rule_passed = false;
+
+            if let Some(rule_id) = rule.id {
+                let id = space.get_voxel(vx, vy, vz);
+                if id != rule_id {
+                    continue;
+                }
+                has_rule_passed = true;
+            }
+
+            if let Some(rule_rotation) = &rule.rotation {
+                let rotation = space.get_voxel_rotation(vx, vy, vz);
+                if rotation != *rule_rotation {
+                    continue;
+                }
+                has_rule_passed = true;
+            }
+
+            if let Some(rule_stage) = rule.stage {
+                let stage = space.get_voxel_stage(vx, vy, vz);
+                if stage != rule_stage {
+                    continue;
+                }
+                has_rule_passed = true;
+            }
+
+            if has_rule_passed {
+                return Some(pattern.clone());
+            }
+        }
+
+        None
     }
 }
 
@@ -1146,6 +1230,7 @@ pub struct BlockBuilder {
     is_ny_transparent: bool,
     is_nz_transparent: bool,
     light_reduce: bool,
+    dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -1334,6 +1419,11 @@ impl BlockBuilder {
         self
     }
 
+    pub fn dynamic_patterns(mut self, patterns: &[BlockDynamicPattern]) -> Self {
+        self.dynamic_patterns = Some(patterns.to_vec());
+        self
+    }
+
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
         F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -1396,7 +1486,8 @@ impl BlockBuilder {
                 self.is_nz_transparent,
             ],
             light_reduce: self.light_reduce,
-            is_dynamic: self.dynamic_fn.is_some(),
+            is_dynamic: self.dynamic_fn.is_some() || self.dynamic_patterns.is_some(),
+            dynamic_patterns: self.dynamic_patterns,
             dynamic_fn: self.dynamic_fn,
             is_active: self.active_updater.is_some() && self.active_ticker.is_some(),
             active_ticker: self.active_ticker,

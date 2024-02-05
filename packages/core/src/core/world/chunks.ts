@@ -113,9 +113,11 @@ export class Chunks {
 
   public loaded: Map<string, Chunk> = new Map();
 
-  public toProcess: ChunkProtocol[] = [];
+  public toProcess: { source: "update" | "load"; data: ChunkProtocol }[] = [];
 
-  public toUpdate: BlockUpdate[] = [];
+  public toUpdate: { source: "client" | "server"; update: BlockUpdate }[] = [];
+
+  public toEmit: BlockUpdate[] = [];
 
   /**
    * @hidden

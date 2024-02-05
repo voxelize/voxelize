@@ -50,7 +50,7 @@ to the world's physics engine, and applies movement to the camera.
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
 | `world` | [`World`](World.md) | The world to apply the controls to. |
-| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-8)\> | The options to initialize the controls with. |
+| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-404)\> | The options to initialize the controls with. |
 
 #### Returns
 
@@ -67,7 +67,7 @@ EventEmitter.constructor
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [RigidControls.connect](RigidControls.md#connect-8) is called.
+when [RigidControls.connect](RigidControls.md#connect-404) is called.
 
 ___
 
@@ -95,7 +95,7 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-8) to add a mesh for 2nd and 3rd person
+calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-404) to add a mesh for 2nd and 3rd person
 view.
 
 ___
@@ -113,7 +113,7 @@ ___
 • `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[RigidControls.connect](RigidControls.md#connect-8), which registers the keyboard inputs for the controls.
+[RigidControls.connect](RigidControls.md#connect-404), which registers the keyboard inputs for the controls.
 
 ___
 
@@ -156,7 +156,7 @@ ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-8)
+• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-404)
 
 Parameters to initialize the Voxelize controls.
 
@@ -164,7 +164,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-8)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-404)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -180,13 +180,13 @@ Reference linking to the Voxelize world instance.
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-8)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-404)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-8)
+[`Coords2`](../modules.md#coords2-404)
 
 ___
 
@@ -228,14 +228,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-8)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-404)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-8)
+[`Coords3`](../modules.md#coords3-404)
 
 ## Methods
 
@@ -270,7 +270,7 @@ Sets up all event listeners for controls, including:
 - Control lock/unlock events
 
 This function returns a function that can be called to disconnect the controls.
-Keep in mind that if [Inputs.remap](Inputs.md#remap-8) is used to remap any controls, they will
+Keep in mind that if [Inputs.remap](Inputs.md#remap-404) is used to remap any controls, they will
 not be unbound when the returned function is called.
 
 #### Parameters
@@ -433,7 +433,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-8)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-404)
 
 ___
 

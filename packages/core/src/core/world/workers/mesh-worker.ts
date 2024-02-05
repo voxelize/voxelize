@@ -84,6 +84,12 @@ onmessage = function (e) {
     return chunk?.getVoxelRotation(vx, vy, vz) ?? new BlockRotation();
   };
 
+  const getVoxelStageAt = (vx: number, vy: number, vz: number) => {
+    const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
+    const chunk = getChunkByCoords(coords);
+    return chunk?.getVoxelStage(vx, vy, vz) ?? 0;
+  };
+
   const getBlockAt = (vx: number, vy: number, vz: number) => {
     const voxelId = getVoxelAt(vx, vy, vz);
     return registry.blocksById.get(voxelId);
@@ -108,14 +114,72 @@ onmessage = function (e) {
           isEmpty,
           isOpaque,
           name,
-          faces,
           rotatable,
           yRotatable,
           isDynamic,
+          dynamicPatterns,
         } = block;
 
-        if (isDynamic || isEmpty || faces.length === 0) {
+        let aabbs = block.aabbs;
+        let faces = block.faces;
+
+        if ((isDynamic && !dynamicPatterns) || isEmpty || faces.length === 0) {
           continue;
+        }
+
+        if (dynamicPatterns) {
+          for (const pattern of dynamicPatterns) {
+            let patternMatched = false;
+
+            for (const rule of pattern.rules) {
+              const ox = rule.offset[0] + vx;
+              const oy = rule.offset[1] + vy;
+              const oz = rule.offset[2] + vz;
+
+              let hasRulePassed = false;
+
+              if (rule.id !== null) {
+                const id = getVoxelAt(ox, oy, oz);
+                if (id !== rule.id) {
+                  patternMatched = false;
+                  break;
+                }
+                hasRulePassed = true;
+              }
+
+              if (rule.rotation !== null) {
+                const rotation = getVoxelRotationAt(ox, oy, oz);
+                if (
+                  rotation.value !== rule.rotation.value ||
+                  rotation.yRotation !== rule.rotation.yRotation
+                ) {
+                  patternMatched = false;
+                  break;
+                }
+                hasRulePassed = true;
+              }
+
+              if (rule.stage !== null) {
+                const stage = getVoxelStageAt(vx, vy, vz);
+                if (stage !== rule.stage) {
+                  patternMatched = false;
+                  break;
+                }
+                hasRulePassed = true;
+              }
+
+              if (hasRulePassed) {
+                patternMatched = true;
+                break;
+              }
+            }
+
+            if (patternMatched) {
+              faces = pattern.faces;
+              aabbs = pattern.aabbs;
+              break;
+            }
+          }
         }
 
         // Skip blocks that are completely surrounded by other blocks
@@ -192,7 +256,7 @@ onmessage = function (e) {
           let seeThroughCheck = false;
 
           if (isSeeThrough && !isOpaque && nBlock.isOpaque) {
-            const selfBounding = AABB.union(block.aabbs);
+            const selfBounding = AABB.union(aabbs);
             const nBounding = AABB.union(nBlock.aabbs);
             nBounding.translate(dir);
             if (
@@ -213,7 +277,7 @@ onmessage = function (e) {
               ((isSeeThrough &&
                 neighborId == id &&
                 nBlock.transparentStandalone) ||
-                (neighborId == id && (isSeeThrough || nBlock.isSeeThrough)) ||
+                (neighborId != id && (isSeeThrough || nBlock.isSeeThrough)) ||
                 seeThroughCheck)) ||
             (!isSeeThrough && (!isOpaque || !nBlock.isOpaque))
           ) {

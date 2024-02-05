@@ -356,7 +356,9 @@ export class Network {
           Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
         )
         .map((buffer) => new Uint8Array(buffer))
-    ).then((messages) => {
+    ).then(async (messages) => {
+      // to simulate network latency
+      // await new Promise<void>((resolve) => setTimeout(resolve, 3000));
       messages.forEach((message) => {
         this.onMessage(message);
       });

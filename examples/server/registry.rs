@@ -1,5 +1,6 @@
 use voxelize::{
-    Block, BlockFaces, Registry, Vec3, VoxelPacker, AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ,
+    Block, BlockDynamicPattern, BlockDynamicPatternRule, BlockFaces, Registry, Vec3, VoxelPacker,
+    AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ,
 };
 
 const PLANT_SCALE: f32 = 0.6;
@@ -183,38 +184,23 @@ pub fn setup_registry() -> Registry {
             .is_see_through(true)
             .light_reduce(true)
             .is_fluid(true)
-            .faces(
-                &BlockFaces::six_faces()
+            .faces(&BlockFaces::six_faces().build().independent_at(SIX_FACES_PY))
+            .dynamic_patterns(&[BlockDynamicPattern {
+                rules: vec![BlockDynamicPatternRule {
+                    offset: Vec3(0, 1, 0),
+                    id: Some(150),
+                    rotation: None,
+                    stage: None,
+                }],
+                aabbs: vec![AABB::new().scale_y(0.8).build()],
+                faces: BlockFaces::six_faces()
                     .scale_y(0.8)
                     .build()
-                    .independent_at(SIX_FACES_PY),
-            )
-            .dynamic_fn(|center, space, _| {
-                let Vec3(vx, vy, vz) = center;
-
-                let mut top_is_water = false;
-
-                for ox in -1..=1 {
-                    for oz in -1..=1 {
-                        if space.get_voxel(vx + ox, vy + 1, vz + oz) == 150 {
-                            top_is_water = true;
-                        }
-                    }
-                }
-
-                (
-                    BlockFaces::six_faces()
-                        .scale_y(if top_is_water { 1.0 } else { 0.8 })
-                        .build()
-                        .independent_at(SIX_FACES_PY)
-                        .to_vec(),
-                    vec![AABB::new()
-                        .scale_y(if top_is_water { 1.0 } else { 0.8 })
-                        .build()],
-                    [true, true, true, true, true, true],
-                )
-            })
-            .aabbs(&[AABB::new().scale_y(0.8).build()])
+                    .independent_at(SIX_FACES_PY)
+                    .to_vec(),
+                is_transparent: [true, true, true, true, true, true],
+            }])
+            .aabbs(&[AABB::new().build()])
             .active_fn(
                 |_, _, _| 100,
                 |voxel, space, _| {

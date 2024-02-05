@@ -116,11 +116,7 @@ impl Registry {
             let mut row = 0;
             let mut col = 0;
 
-            for face in block.faces.iter_mut() {
-                if face.independent {
-                    continue;
-                }
-
+            let mut run_face = |face: &mut BlockFace| {
                 if col >= count_per_side {
                     col = 0;
                     row += 1;
@@ -150,14 +146,35 @@ impl Registry {
                 };
 
                 col += 1;
+            };
+
+            for face in block.faces.iter_mut() {
+                if face.independent {
+                    continue;
+                }
+
+                run_face(face);
+            }
+
+            if let Some(dynamic_patterns) = block.dynamic_patterns.as_mut() {
+                for pattern in dynamic_patterns {
+                    for face in &mut pattern.faces {
+                        let existing = block.faces.iter_mut().find(|f| f.name == face.name);
+                        if let Some(e) = existing {
+                            face.range = e.range.clone();
+                        }
+                    }
+                }
             }
         }
 
         self.blocks_by_id.values().for_each(|block| {
-            self.blocks_by_name
+            let block_by_name = self
+                .blocks_by_name
                 .get_mut(&block.name.to_lowercase())
-                .unwrap()
-                .faces = block.faces.clone();
+                .unwrap();
+            block_by_name.faces = block.faces.clone();
+            block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
         });
     }
 

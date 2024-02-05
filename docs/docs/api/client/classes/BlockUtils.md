@@ -93,7 +93,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-8) |
+| `block` | [`Block`](../modules.md#block-404) |
 | `rotation` | [`BlockRotation`](BlockRotation.md) |
 
 #### Returns
@@ -110,8 +110,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-8) |
-| `color` | [`LightColor`](../modules.md#lightcolor-8) |
+| `block` | [`Block`](../modules.md#block-404) |
+| `color` | [`LightColor`](../modules.md#lightcolor-404) |
 
 #### Returns
 
