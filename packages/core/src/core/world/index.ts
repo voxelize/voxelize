@@ -2735,7 +2735,7 @@ export class World extends Scene implements NetIntercept {
           const redLevel =
             this.getTorchLightAt(nvx, nvy, nvz, "RED") -
             (updatedBlock.lightReduce ? 1 : 0);
-          if (redLevel !== 0 && nBlock.isLight) {
+          if (redLevel !== 0) {
             redFlood.push({
               voxel: nVoxel,
               level: redLevel,
@@ -2745,7 +2745,7 @@ export class World extends Scene implements NetIntercept {
           const greenLevel =
             this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
             (updatedBlock.lightReduce ? 1 : 0);
-          if (greenLevel !== 0 && nBlock.isLight) {
+          if (greenLevel !== 0) {
             greenFlood.push({
               voxel: nVoxel,
               level: greenLevel,
@@ -2755,7 +2755,7 @@ export class World extends Scene implements NetIntercept {
           const blueLevel =
             this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
             (updatedBlock.lightReduce ? 1 : 0);
-          if (blueLevel !== 0 && nBlock.isLight) {
+          if (blueLevel !== 0) {
             blueFlood.push({
               voxel: nVoxel,
               level: blueLevel,

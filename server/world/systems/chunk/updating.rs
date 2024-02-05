@@ -341,7 +341,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                         let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
                             - if updated_type.light_reduce { 1 } else { 0 };
-                        if red_level != 0 && n_block.is_light {
+                        if red_level != 0 {
                             red_flood.push_back(LightNode {
                                 voxel: n_voxel,
                                 level: red_level,
@@ -350,7 +350,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                         let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
                             - if updated_type.light_reduce { 1 } else { 0 };
-                        if green_level != 0 && n_block.is_light {
+                        if green_level != 0 {
                             green_flood.push_back(LightNode {
                                 voxel: n_voxel,
                                 level: green_level,
@@ -359,7 +359,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                         let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
                             - if updated_type.light_reduce { 1 } else { 0 };
-                        if blue_level != 0 && n_block.is_light {
+                        if blue_level != 0 {
                             blue_flood.push_back(LightNode {
                                 voxel: n_voxel,
                                 level: blue_level,
