@@ -1,4 +1,4 @@
-<a href="https://realms.voxelize.io">
+<a href="https://shaoruu.io">
   <p align="center">
     <img src="examples/client/src/assets/logo-circle.png" width="100px" height="100px" />
   </p>
