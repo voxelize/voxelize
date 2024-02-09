@@ -114,6 +114,8 @@ export type WorldClientOptions = {
    */
   maxUpdatesPerUpdate: number;
 
+  maxMeshesPerUpdate: number;
+
   /**
    * Whether or not should the world generate ThreeJS meshes. Defaults to `true`.
    */
@@ -189,12 +191,13 @@ export type WorldClientOptions = {
 };
 
 const defaultOptions: WorldClientOptions = {
-  maxChunkRequestsPerUpdate: 12,
-  maxProcessesPerUpdate: 4,
+  maxChunkRequestsPerUpdate: 4,
+  maxProcessesPerUpdate: 2,
   maxUpdatesPerUpdate: 1000,
+  maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
-  chunkRerequestInterval: 300,
+  chunkRerequestInterval: 10000,
   defaultRenderRadius: 8,
   textureUnitDimension: 8,
   chunkLoadExponent: 8,
@@ -1904,19 +1907,58 @@ export class World extends Scene implements NetIntercept {
       position.toArray() as Coords3,
       this.options.chunkSize
     );
-
     this._time = (this.time + delta) % this.options.timePerDay;
 
+    const startOverall = performance.now();
+
+    const startMaintainChunks = performance.now();
     this.maintainChunks(center, direction);
+    const maintainChunksDuration = performance.now() - startMaintainChunks;
+
+    const startRequestChunks = performance.now();
     this.requestChunks(center, direction);
+    const requestChunksDuration = performance.now() - startRequestChunks;
+
+    const startProcessChunks = performance.now();
     this.processChunks(center);
+    const processChunksDuration = performance.now() - startProcessChunks;
 
+    const startUpdatePhysics = performance.now();
     this.updatePhysics(delta);
-    this.updateUniforms();
-    this.updateSkyAndClouds(position);
+    const updatePhysicsDuration = performance.now() - startUpdatePhysics;
 
+    const startUpdateUniforms = performance.now();
+    this.updateUniforms();
+    const updateUniformsDuration = performance.now() - startUpdateUniforms;
+
+    const startUpdateSkyAndClouds = performance.now();
+    this.updateSkyAndClouds(position);
+    const updateSkyAndCloudsDuration =
+      performance.now() - startUpdateSkyAndClouds;
+
+    const startProcessClientUpdates = performance.now();
     this.processClientUpdates();
+    const processClientUpdatesDuration =
+      performance.now() - startProcessClientUpdates;
+
+    const startEmitServerUpdates = performance.now();
     this.emitServerUpdates();
+    const emitServerUpdatesDuration =
+      performance.now() - startEmitServerUpdates;
+
+    const overallDuration = performance.now() - startOverall;
+    if (overallDuration > 30) {
+      const isDebug = false;
+      const log = isDebug ? console.log : () => {};
+      log("maintainChunks took", maintainChunksDuration, "ms");
+      log("requestChunks took", requestChunksDuration, "ms");
+      log("processChunks took", processChunksDuration, "ms");
+      log("updatePhysics took", updatePhysicsDuration, "ms");
+      log("updateUniforms took", updateUniformsDuration, "ms");
+      log("updateSkyAndClouds took", updateSkyAndCloudsDuration, "ms");
+      log("processClientUpdates took", processClientUpdatesDuration, "ms");
+      log("emitServerUpdates took", emitServerUpdatesDuration, "ms");
+    }
   }
 
   /**
@@ -2036,7 +2078,11 @@ export class World extends Scene implements NetIntercept {
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
-      options: { chunkRerequestInterval, chunkLoadExponent },
+      options: {
+        chunkRerequestInterval,
+        chunkLoadExponent,
+        maxChunkRequestsPerUpdate,
+      },
     } = this;
 
     const total =
@@ -2054,11 +2100,16 @@ export class World extends Scene implements NetIntercept {
         : Math.max(ratio ** chunkLoadExponent, 0.1);
 
     const [centerX, centerZ] = center;
+    const toRequestSet = new Set<string>();
+
+    // Pre-calculate squared renderRadius to use in distance checks
+    const renderRadiusSquared = renderRadius * renderRadius;
 
     // Surrounding the center, request all chunks that are not loaded.
     for (let ox = -renderRadius; ox <= renderRadius; ox++) {
       for (let oz = -renderRadius; oz <= renderRadius; oz++) {
-        if (ox * ox + oz * oz > renderRadius * renderRadius) continue;
+        // Use squared distance to avoid unnecessary Math.sqrt() call
+        if (ox * ox + oz * oz > renderRadiusSquared) continue;
 
         const cx = centerX + ox;
         const cz = centerZ + oz;
@@ -2077,12 +2128,10 @@ export class World extends Scene implements NetIntercept {
         const status = this.getChunkStatus(cx, cz);
 
         if (!status) {
-          if (
-            !this.chunks.toRequest.find(
-              ([tcx, tcz]) => tcx === cx && tcz === cz
-            )
-          )
-            this.chunks.toRequest.push([cx, cz]);
+          const chunkCoords = `${cx},${cz}`;
+          if (!this.chunks.requested.has(ChunkUtils.getChunkName([cx, cz]))) {
+            toRequestSet.add(chunkCoords);
+          }
           continue;
         }
 
@@ -2090,11 +2139,11 @@ export class World extends Scene implements NetIntercept {
 
         if (status === "requested") {
           const name = ChunkUtils.getChunkName([cx, cz]);
-          const count = this.chunks.requested.get(name);
+          const count = this.chunks.requested.get(name) || 0;
 
           if (count + 1 > chunkRerequestInterval) {
             this.chunks.requested.delete(name);
-            this.chunks.toRequest.push([cx, cz]);
+            toRequestSet.add(`${cx},${cz}`);
           } else {
             this.chunks.requested.set(name, count + 1);
           }
@@ -2104,25 +2153,20 @@ export class World extends Scene implements NetIntercept {
       }
     }
 
-    if (this.chunks.toRequest.length === 0) return;
+    if (toRequestSet.size === 0) return;
+
+    const toRequestArray = Array.from(toRequestSet).map((coords) =>
+      coords.split(",").map(Number)
+    );
 
     // Sort the chunks by distance from the center, closest first.
-    this.chunks.toRequest.sort((a, b) => {
-      const [ax, az] = a;
-      const [bx, bz] = b;
-
-      const ad = (ax - center[0]) ** 2 + (az - center[1]) ** 2;
-      const bd = (bx - center[0]) ** 2 + (bz - center[1]) ** 2;
-
+    toRequestArray.sort((a, b) => {
+      const ad = (a[0] - center[0]) ** 2 + (a[1] - center[1]) ** 2;
+      const bd = (b[0] - center[0]) ** 2 + (b[1] - center[1]) ** 2;
       return ad - bd;
     });
 
-    const { maxChunkRequestsPerUpdate } = this.options;
-
-    const toRequest = this.chunks.toRequest.splice(
-      0,
-      maxChunkRequestsPerUpdate
-    );
+    const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
 
     this.packets.push({
       type: "LOAD",
@@ -2133,7 +2177,7 @@ export class World extends Scene implements NetIntercept {
     });
 
     toRequest.forEach((coords) => {
-      const name = ChunkUtils.getChunkName(coords);
+      const name = ChunkUtils.getChunkName(coords as Coords2);
       this.chunks.requested.set(name, 0);
     });
   }

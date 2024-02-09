@@ -49,7 +49,7 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`CharacterOptions`](../modules.md#characteroptions)\> | Parameters to create a Voxelize character. |
+| `options` | `Partial`\<[`CharacterOptions`](../modules.md#characteroptions-166)\> | Parameters to create a Voxelize character. |
 
 #### Returns
 
@@ -191,7 +191,7 @@ ___
 
 ### options
 
-• **options**: [`CharacterOptions`](../modules.md#characteroptions)
+• **options**: [`CharacterOptions`](../modules.md#characteroptions-166)
 
 Parameters to create a Voxelize character.
 

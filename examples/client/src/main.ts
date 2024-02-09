@@ -491,22 +491,25 @@ const start = async () => {
   const animate = () => {
     requestAnimationFrame(animate);
 
-    // if (isLoading) {
-    //   const supposedCount = world.renderRadius * world.renderRadius * 3;
-    //   const loadProgress = (world.chunks.loaded.size / supposedCount) * 100;
-    //   loadingBar.style.width = `${loadProgress}%`;
+    const isDebug = false;
+    const log = isDebug ? console.log : () => {};
 
-    //   if (loadProgress >= 100) {
-    //     loading.style.opacity = "0";
-    //     isLoading = false;
-    //     setTimeout(() => (loading.style.display = "none"), loadingFade);
-    //   }
-    // }
+    const startOverall = performance.now();
 
     if (world.isInitialized) {
+      const startPeersUpdate = performance.now();
       peers.update();
-      controls.update();
+      log("Peers update took", performance.now() - startPeersUpdate, "ms");
 
+      const startControlsUpdate = performance.now();
+      controls.update();
+      log(
+        "Controls update took",
+        performance.now() - startControlsUpdate,
+        "ms"
+      );
+
+      const startWorldUpdate = performance.now();
       const inWater =
         world.getBlockAt(
           ...camera.getWorldPosition(new THREE.Vector3()).toArray()
@@ -535,25 +538,47 @@ const start = async () => {
 
       world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
-      // clouds.update(controls.object.position);
-      // sky.update(controls.object.position);
       world.update(
         controls.object.position,
         camera.getWorldDirection(new THREE.Vector3())
       );
-      map.update(
-        controls.object.position,
-        camera.getWorldDirection(new THREE.Vector3())
+      log("World update took", performance.now() - startWorldUpdate, "ms");
+
+      const startPerspectiveUpdate = performance.now();
+      perspective.update();
+      log(
+        "Perspective update took",
+        performance.now() - startPerspectiveUpdate,
+        "ms"
       );
 
-      perspective.update();
+      const startShadowsUpdate = performance.now();
       shadows.update();
+      log("Shadows update took", performance.now() - startShadowsUpdate, "ms");
+
+      const startDebugUpdate = performance.now();
       debug.update();
+      log("Debug update took", performance.now() - startDebugUpdate, "ms");
+
+      const startLightShinedUpdate = performance.now();
       lightShined.update();
+      log(
+        "LightShined update took",
+        performance.now() - startLightShinedUpdate,
+        "ms"
+      );
+
+      const startVoxelInteractUpdate = performance.now();
       voxelInteract.update();
+      log(
+        "VoxelInteract update took",
+        performance.now() - startVoxelInteractUpdate,
+        "ms"
+      );
     }
 
     renderer.render(world, camera);
+    log("Overall frame took", performance.now() - startOverall, "ms");
   };
 
   animate();

@@ -10,7 +10,7 @@ use voxelize::{
 
 use log::info;
 
-pub const MOUNTAIN_HEIGHT: f64 = 0.8;
+pub const MOUNTAIN_HEIGHT: f64 = 1.0;
 pub const RIVER_HEIGHT: f64 = 0.15;
 pub const PLAINS_HEIGHT: f64 = 0.247;
 pub const RIVER_WIDTH: f64 = 0.36;
