@@ -35,6 +35,8 @@ jobs:
           yarn build
           cd ../physics-engine
           yarn build
+          cd ../transport
+          yarn build
           cd ../core
           yarn build
       - name: Build Docs
