@@ -2987,10 +2987,6 @@ export class World extends Scene implements NetIntercept {
     const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxel, chunkSize);
     const [lcx, , lcz] = ChunkUtils.mapVoxelToChunkLocal(voxel, chunkSize);
 
-    if (this.chunksTracker.find(([[cxt, czt]]) => cxt === cx && czt === cz)) {
-      return;
-    }
-
     const subChunkHeight = maxHeight / subChunks;
     const level = Math.floor(vy / subChunkHeight);
 
@@ -3017,8 +3013,16 @@ export class World extends Scene implements NetIntercept {
     }
     levels.push(level);
 
+    const existingChunksTrackerSet: string[] = [];
+    this.chunksTracker.forEach((tracker) => {
+      existingChunksTrackerSet.push(tracker.join(","));
+    });
+
     for (const [cx, cz] of chunkCoordsList) {
       for (const level of levels) {
+        if (existingChunksTrackerSet.includes([cx, cz, level].join(","))) {
+          continue;
+        }
         this.chunksTracker.push([[cx, cz], level]);
       }
     }
