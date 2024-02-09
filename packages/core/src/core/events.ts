@@ -1,10 +1,7 @@
-import protocol from "@voxelize/transport/src/protocol";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import { encodeObjectToStruct } from "@voxelize/transport/src/utils/encode-object-to-struct";
 
 import { NetIntercept } from "./network";
-
-const { google } = protocol;
 
 /**
  * A Voxelize event from the server.
@@ -124,21 +121,6 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
           payload: encodeObjectToStruct(payload),
         },
       ],
-    });
-  };
-
-  /**
-   * Emit multiple events to the server.
-   *
-   * @param events A list of events to emit.
-   */
-  emitMany = (events: Event[]) => {
-    this.packets.push({
-      type: "EVENT",
-      events: events.map((e) => ({
-        name: e.name,
-        payload: google.protobuf.Struct.fromObject(e.payload || {}),
-      })),
     });
   };
 

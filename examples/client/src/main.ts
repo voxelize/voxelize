@@ -406,17 +406,6 @@ inputs.bind("n", () => {
   });
 });
 
-inputs.bind("b", () => {
-  events.emitMany([
-    {
-      name: "test",
-      payload: {
-        test: "Hello World",
-      },
-    },
-  ]);
-});
-
 // Create a test for atlas
 // setTimeout(() => {
 //   let i = -Math.floor(world.chunkmaterials.size / 2);

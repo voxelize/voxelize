@@ -42,21 +42,6 @@ network.register(events);
 events.emit("my_event_1", {
   test: "Hello World"
 });
-
-events.emitMany([
-  {
-    name: "my_event_1",
-    payload: {
-      test: "Hello World"
-    }
-  },
-  {
-    name: "my_event_2",
-    payload: {
-      test: "Hello World"
-    }
-  }
-]);
 ```
 
 In this situation, since only the `my_event_1` event has a handle, only the `my_event_1` event will be handled by the server. Also, by the default behavior, `my_event_2` will be broadcasted to all clients.
