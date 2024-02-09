@@ -29,7 +29,13 @@ jobs:
         run: |
           yarn
           yarn proto
-          cd packages/core
+          cd packages/physics-engine
+          yarn build
+          cd ../aabb
+          yarn build
+          cd ../raycast
+          yarn build
+          cd ../core
           yarn build
       - name: Build Docs
         run: |
