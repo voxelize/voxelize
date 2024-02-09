@@ -29,7 +29,7 @@ TODO-DOC
 
 ## Hierarchy
 
-- `Map`\<`string`, [`EventHandler`](../modules.md#eventhandler-168)\>
+- `Map`\<`string`, [`EventHandler`](../modules.md#eventhandler)\>
 
   ↳ **`Events`**
 
@@ -59,7 +59,7 @@ Map\&lt;string, EventHandler\&gt;.constructor
 
 ▸ **addEventListener**(`name`, `handler`): `void`
 
-Synonym for [on](Events.md#on-168), adds a listener to a Voxelize server event.
+Synonym for [on](Events.md#on), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -67,7 +67,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler-168) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
 
 #### Returns
 
@@ -104,7 +104,7 @@ Emit multiple events to the server.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `events` | [`Event`](../modules.md#event-168)[] | A list of events to emit. |
+| `events` | [`Event`](../modules.md#event)[] | A list of events to emit. |
 
 #### Returns
 
@@ -116,7 +116,7 @@ ___
 
 ▸ **on**(`name`, `handler`): `void`
 
-Synonym for [addEventListener](Events.md#addeventlistener-168), adds a listener to a Voxelize server event.
+Synonym for [addEventListener](Events.md#addeventlistener), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
 
 #### Parameters
@@ -124,7 +124,7 @@ If the payload cannot be parsed by JSON, `null` is set.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler-168) | What to do when this event is received? |
+| `handler` | [`EventHandler`](../modules.md#eventhandler) | What to do when this event is received? |
 
 #### Returns
 
