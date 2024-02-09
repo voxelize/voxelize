@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v2
         with:
-          node-version: '14'
+          node-version: "14"
       - name: Build Docs
         run: |
           cd docs
@@ -46,3 +46,4 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           path: docs/build
+          cname: docs.voxelize.io
