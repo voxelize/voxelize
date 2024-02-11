@@ -344,6 +344,11 @@ export class Character extends Group {
   public newDirection = new Quaternion();
 
   /**
+   * Somewhere to store whatever you want.
+   */
+  public extraData: any = null;
+
+  /**
    * A listener called when a character starts moving.
    */
   onMove: () => void;
@@ -494,6 +499,28 @@ export class Character extends Group {
       this.options.head.neckGap +
       this.options.head.height
     );
+  }
+
+  set bodyColor(color: string) {
+    this.body.paint("all", new Color(color));
+  }
+
+  set armColor(color: string) {
+    this.leftArm.paint("all", new Color(color));
+    this.rightArm.paint("all", new Color(color));
+  }
+
+  set legColor(color: string) {
+    this.leftLeg.paint("all", new Color(color));
+    this.rightLeg.paint("all", new Color(color));
+  }
+
+  set headColor(color: string) {
+    this.head.paint("all", new Color(color));
+  }
+
+  set faceColor(color: string) {
+    this.head.paint("front", new Color(color));
   }
 
   /**
