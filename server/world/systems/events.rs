@@ -31,15 +31,15 @@ impl<'a> System<'a> for EventsSystem {
                 return interests.is_interested(&id.0, coords);
             }
 
-            return false;
+            false
         };
 
-        let serialize_payload = |name: String, payload: Option<Value>| EventProtocol {
+        let serialize_payload = |name: String, payload: Option<String>| EventProtocol {
             name,
             payload: if payload.is_none() {
                 String::from("{}")
             } else {
-                payload.unwrap().to_string()
+                payload.unwrap()
             },
         };
 

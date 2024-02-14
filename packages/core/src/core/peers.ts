@@ -1,7 +1,7 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
 import { Group, Object3D, Quaternion, Vector3 } from "three";
 
-import { Character } from "../libs";
+import { Character, setWorkerInterval } from "../libs";
 
 import { NetIntercept } from "./network";
 

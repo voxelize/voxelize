@@ -188,7 +188,7 @@ pub fn setup_registry() -> Registry {
             .dynamic_patterns(&[BlockDynamicPattern {
                 rules: vec![BlockDynamicPatternRule {
                     offset: Vec3(0, 1, 0),
-                    id: Some(150),
+                    id: Some(0),
                     rotation: None,
                     stage: None,
                 }],

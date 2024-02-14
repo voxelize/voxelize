@@ -22,22 +22,13 @@ impl<'a> System<'a> for PeersMetaSystem {
 
         let (flag, positions, directions, names, mut metadatas) = data;
 
-        (&positions, &mut metadatas, &flag)
+        // Combine all updates into a single parallel iteration to optimize performance
+        (&positions, &directions, &names, &mut metadatas, &flag)
             .par_join()
-            .for_each(|(position, metadata, _)| {
+            .for_each(|(position, direction, name, metadata, _)| {
                 metadata.set("position", position);
-            });
-
-        (&names, &mut metadatas, &flag)
-            .par_join()
-            .for_each(|(name, metadata, _)| {
-                metadata.set("username", name);
-            });
-
-        (&directions, &mut metadatas, &flag)
-            .par_join()
-            .for_each(|(direction, metadata, _)| {
                 metadata.set("direction", direction);
+                metadata.set("username", name);
             });
     }
 }

@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use hashbrown::HashMap;
+use log::info;
 use rapier3d::prelude::CollisionEvent;
 use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
@@ -13,7 +14,8 @@ use crate::{
         voxels::Chunks,
         WorldConfig,
     },
-    ClientFilter, ClientFlag, CollisionsComp, Event, Events, IDComp, InteractorComp, Vec3,
+    ClientFilter, ClientFlag, CollisionsComp, Event, EventBuilder, Events, IDComp, InteractorComp,
+    Vec3,
 };
 
 #[derive(Default)]
@@ -27,6 +29,8 @@ impl<'a> System<'a> for PhysicsSystem {
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Chunks>,
         WriteExpect<'a, Physics>,
+        WriteExpect<'a, Events>,
+        ReadStorage<'a, IDComp>,
         ReadStorage<'a, CurrentChunkComp>,
         ReadStorage<'a, InteractorComp>,
         ReadStorage<'a, ClientFlag>,
@@ -46,6 +50,8 @@ impl<'a> System<'a> for PhysicsSystem {
             config,
             chunks,
             mut physics,
+            mut events,
+            ids,
             curr_chunks,
             interactors,
             client_flag,
@@ -128,7 +134,9 @@ impl<'a> System<'a> for PhysicsSystem {
 
         // Collision detection, push bodies away from one another.
         let mut collision_data = Vec::new();
-        for (curr_chunk, body, interactor) in (&curr_chunks, &mut bodies, &interactors).join() {
+        for (curr_chunk, body, interactor, entity) in
+            (&curr_chunks, &mut bodies, &interactors, &entities).join()
+        {
             if !chunks.is_chunk_ready(&curr_chunk.coords) {
                 continue;
             }
@@ -149,11 +157,11 @@ impl<'a> System<'a> for PhysicsSystem {
             let len = (dx * dx + dy * dy + dz * dz).sqrt();
 
             if len > 0.0001 {
-                collision_data.push((body, dx, dy, dz, len));
+                collision_data.push((body, dx, dy, dz, len, entity));
             }
         }
 
-        for (body, dx, dy, dz, len) in collision_data {
+        for (body, dx, dy, dz, len, entity) in collision_data {
             let mut dx = dx / len;
             let dy = dy / len;
             let mut dz = dz / len;
@@ -164,6 +172,23 @@ impl<'a> System<'a> for PhysicsSystem {
                 dz = fastrand::i32(-10..10) as f32 / 1000.0;
             }
 
+            // Check if the entity is a client, and if so, apply the impulse to the client's body.
+            if client_flag.get(entity).is_some() {
+                if let Some(id) = ids.get(entity) {
+                    let event = EventBuilder::new("vox-builtin:impulse")
+                        .payload(vec![
+                            dx * config.collision_repulsion,
+                            dy * config.collision_repulsion,
+                            dz * config.collision_repulsion,
+                        ])
+                        .filter(ClientFilter::Direct(id.0.to_owned()))
+                        .build();
+                    events.dispatch(event);
+                    continue;
+                }
+            }
+
+            // Apply the impulse to the body.
             body.0.apply_impulse(
                 (dx * config.collision_repulsion).min(3.0),
                 (dy * config.collision_repulsion).min(3.0),

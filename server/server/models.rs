@@ -238,8 +238,7 @@ impl MessageBuilder {
                 .map(|event| protocols::Event {
                     name: event.name,
                     // Convert payload from json to struct
-                    payload: serde_json::from_str(&event.payload)
-                        .expect("Failed to parse event payload json"),
+                    payload: event.payload,
                 })
                 .collect()
         }

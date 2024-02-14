@@ -1923,10 +1923,6 @@ export class World extends Scene implements NetIntercept {
     this.processChunks(center);
     const processChunksDuration = performance.now() - startProcessChunks;
 
-    const startUpdatePhysics = performance.now();
-    this.updatePhysics(delta);
-    const updatePhysicsDuration = performance.now() - startUpdatePhysics;
-
     const startUpdateUniforms = performance.now();
     this.updateUniforms();
     const updateUniformsDuration = performance.now() - startUpdateUniforms;
@@ -1953,7 +1949,6 @@ export class World extends Scene implements NetIntercept {
       log("maintainChunks took", maintainChunksDuration, "ms");
       log("requestChunks took", requestChunksDuration, "ms");
       log("processChunks took", processChunksDuration, "ms");
-      log("updatePhysics took", updatePhysicsDuration, "ms");
       log("updateUniforms took", updateUniformsDuration, "ms");
       log("updateSkyAndClouds took", updateSkyAndCloudsDuration, "ms");
       log("processClientUpdates took", processClientUpdatesDuration, "ms");

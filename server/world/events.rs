@@ -1,12 +1,12 @@
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::{ClientFilter, Vec2};
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Event {
     pub name: String,
-    pub payload: Option<Value>,
+    pub payload: Option<String>,
     pub filter: Option<ClientFilter>,
     pub location: Option<Vec2<i32>>,
 }
@@ -20,7 +20,7 @@ impl Event {
 #[derive(Default)]
 pub struct EventBuilder {
     name: String,
-    payload: Option<Value>,
+    payload: Option<String>,
     filter: Option<ClientFilter>,
     location: Option<Vec2<i32>>,
 }
@@ -29,13 +29,13 @@ impl EventBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_owned(),
-            payload: Some(json!("{}")),
+            payload: Some(json!("{}").to_string()),
             ..Default::default()
         }
     }
 
     pub fn payload<T: Serialize>(mut self, payload: T) -> Self {
-        self.payload = Some(json!(payload));
+        self.payload = Some(json!(payload).to_string());
         self
     }
 

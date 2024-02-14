@@ -12,7 +12,7 @@ import {
   Vector3,
 } from "three";
 
-import { Character } from "../libs";
+import { Character, setWorkerInterval } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -503,8 +503,20 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         for (const event of events) {
           switch (event.name.toLowerCase()) {
-            case "position": {
+            case "vox-builtin:position": {
               this.body.setPosition(event.payload);
+              break;
+            }
+
+            case "vox-builtin:force": {
+              const [x, y, z] = event.payload;
+              this.body.applyForce([x, y, z]);
+              break;
+            }
+
+            case "vox-builtin:impulse": {
+              const [x, y, z] = event.payload;
+              this.body.applyImpulse([x, y, z]);
               break;
             }
           }
