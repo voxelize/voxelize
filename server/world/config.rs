@@ -70,6 +70,9 @@ pub struct WorldConfig {
     /// The repulsion factor when a collision is detected between entities.
     pub collision_repulsion: f32,
 
+    /// The repulsion factor when a collision is detected between clients and clients.
+    pub client_collision_repulsion: f32,
+
     /// Seed of the world. Default is "Voxelize".
     pub seed: u32,
 
@@ -124,6 +127,7 @@ const DEFAULT_AIR_DRAG: f32 = 0.1;
 const DEFAULT_FLUID_DRAG: f32 = 1.4;
 const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 const DEFAULT_COLLISION_REPULSION: f32 = 2.3;
+const DEFAULT_CLIENT_COLLISION_REPULSION: f32 = 0.12;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
@@ -153,6 +157,7 @@ pub struct WorldConfigBuilder {
     fluid_drag: f32,
     fluid_density: f32,
     collision_repulsion: f32,
+    client_collision_repulsion: f32,
     terrain: NoiseOptions,
     saving: bool,
     save_dir: String,
@@ -186,6 +191,7 @@ impl WorldConfigBuilder {
             gravity: DEFAULT_GRAVITY,
             min_bounce_impulse: DEFAULT_MIN_BOUNCE_IMPULSE,
             collision_repulsion: DEFAULT_COLLISION_REPULSION,
+            client_collision_repulsion: DEFAULT_CLIENT_COLLISION_REPULSION,
             saving: DEFAULT_SAVING,
             save_dir: DEFAULT_SAVE_DIR.to_owned(),
             save_interval: DEFAULT_SAVE_INTERVAL,
@@ -307,6 +313,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the repulsion factor when a collision is detected between clients and entities.
+    pub fn client_collision_repulsion(mut self, client_collision_repulsion: f32) -> Self {
+        self.client_collision_repulsion = client_collision_repulsion;
+        self
+    }
+
     /// Configure whether or not this world should have the chunk data saved.
     pub fn saving(mut self, saving: bool) -> Self {
         self.saving = saving;
@@ -373,6 +385,7 @@ impl WorldConfigBuilder {
             gravity: self.gravity,
             min_bounce_impulse: self.min_bounce_impulse,
             collision_repulsion: self.collision_repulsion,
+            client_collision_repulsion: self.client_collision_repulsion,
             terrain: self.terrain,
             saving: self.saving,
             save_dir: self.save_dir,

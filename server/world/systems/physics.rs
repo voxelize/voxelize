@@ -177,9 +177,9 @@ impl<'a> System<'a> for PhysicsSystem {
                 if let Some(id) = ids.get(entity) {
                     let event = EventBuilder::new("vox-builtin:impulse")
                         .payload(vec![
-                            dx * config.collision_repulsion,
-                            dy * config.collision_repulsion,
-                            dz * config.collision_repulsion,
+                            dx * config.client_collision_repulsion,
+                            dy * config.client_collision_repulsion,
+                            dz * config.client_collision_repulsion,
                         ])
                         .filter(ClientFilter::Direct(id.0.to_owned()))
                         .build();
