@@ -106,7 +106,7 @@ impl Terrain {
     ) -> f64 {
         let max_height = self.config.max_height as f64;
 
-        let noise_value = self.noise.get3d(vx, vy, vz);
+        let noise_value = self.noise.get2d(vx, vz);
         let density =
             noise_value + bias * -(vy as f64 - offset * max_height) / (offset * max_height);
 
@@ -125,14 +125,22 @@ impl Terrain {
         let mut total_weight = 0.0;
 
         self.layers.iter().for_each(|(layer, weight)| {
-            let value = layer.noise.get3d(vx, vy, vz);
+            let value = if layer.options.dimension == 2 {
+                layer.noise.get2d(vx, vz)
+            } else {
+                layer.noise.get3d(vx, vy, vz)
+            };
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
         });
 
         self.noise_layers.iter().for_each(|(layer, weight)| {
-            let value = layer.noise.get3d(vx, vy, vz);
+            let value = if layer.options.dimension == 2 {
+                layer.noise.get2d(vx, vz)
+            } else {
+                layer.noise.get3d(vx, vy, vz)
+            };
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
@@ -145,7 +153,13 @@ impl Terrain {
         let values = self
             .layers
             .iter()
-            .map(|(layer, weight)| layer.noise.get3d(vx, vy, vz) * weight)
+            .map(|(layer, weight)| {
+                (if layer.options.dimension == 2 {
+                    layer.noise.get2d(vx, vz)
+                } else {
+                    layer.noise.get3d(vx, vy, vz)
+                }) * weight
+            })
             .collect::<Vec<f64>>();
 
         let result = self

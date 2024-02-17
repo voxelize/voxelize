@@ -10,8 +10,8 @@ use voxelize::{
 
 use log::info;
 
-pub const MOUNTAIN_HEIGHT: f64 = 1.0;
-pub const RIVER_HEIGHT: f64 = 0.15;
+pub const MOUNTAIN_HEIGHT: f64 = 0.48;
+pub const RIVER_HEIGHT: f64 = 0.17;
 pub const PLAINS_HEIGHT: f64 = 0.247;
 pub const RIVER_WIDTH: f64 = 0.36;
 
@@ -171,16 +171,16 @@ pub fn setup_terrain_world() -> World {
     let continentalness = TerrainLayer::new(
         "continentalness",
         &NoiseOptions::new()
-            .frequency(0.002)
-            .octaves(16)
+            .frequency(0.001)
+            .octaves(7)
             .persistence(0.5)
-            .lacunarity(1.0)
+            .lacunarity(2.0)
             .seed(1231252)
             .build(),
     )
-    .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 4.0], [1.0, 8.5]])
+    .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 4.5], [1.0, 8.5]])
     .add_offset_points(&[
-        [-2.9, MOUNTAIN_HEIGHT],
+        [-4.9, PLAINS_HEIGHT + 0.1],
         [-1.0, PLAINS_HEIGHT + 0.01],
         [0.0, PLAINS_HEIGHT],
         // [RIVER_WIDTH, PLAINS_HEIGHT],

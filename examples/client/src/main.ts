@@ -476,8 +476,11 @@ inputs.bind("]", () => {
   );
 });
 
+let frame: any;
+
 const start = async () => {
   const animate = () => {
+    frame = requestAnimationFrame(animate);
     const isDebug = false;
     const log = isDebug ? console.log : () => {};
 
@@ -568,9 +571,7 @@ const start = async () => {
     log("Overall frame took", performance.now() - startOverall, "ms");
   };
 
-  VOXELIZE.setWorkerInterval(() => {
-    animate();
-  }, 1000 / 60);
+  animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);

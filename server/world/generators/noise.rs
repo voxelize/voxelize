@@ -67,6 +67,8 @@ impl SeededNoise {
 pub struct NoiseOptions {
     pub seed: u32,
 
+    pub dimension: usize,
+
     /// How frequently should noise be sampled. The bigger the value, the more condensed noise
     /// seems. Defaults to PI * 2.0 / 3.0.
     pub frequency: f64,
@@ -89,6 +91,7 @@ pub struct NoiseOptions {
 }
 
 const DEFAULT_SEED: u32 = 0;
+const DEFAULT_DIMENSION: usize = 2;
 const DEFAULT_FREQUENCY: f64 = f64::consts::PI * 2.0 / 3.0;
 const DEFAULT_LACUNARITY: f64 = 1.0;
 const DEFAULT_ATTENUATION: f64 = 2.0;
@@ -100,6 +103,7 @@ impl NoiseOptions {
     pub fn new() -> NoiseOptionsBuilder {
         NoiseOptionsBuilder {
             seed: DEFAULT_SEED,
+            dimension: DEFAULT_DIMENSION,
             frequency: DEFAULT_FREQUENCY,
             lacunarity: DEFAULT_LACUNARITY,
             attenuation: DEFAULT_ATTENUATION,
@@ -114,6 +118,7 @@ impl NoiseOptions {
 #[derive(Default)]
 pub struct NoiseOptionsBuilder {
     seed: u32,
+    dimension: usize,
     frequency: f64,
     octaves: usize,
     persistence: f64,
@@ -165,10 +170,16 @@ impl NoiseOptionsBuilder {
         self
     }
 
+    pub fn dimension(mut self, dimension: usize) -> Self {
+        self.dimension = dimension;
+        self
+    }
+
     /// Build a noise parameter instance.
     pub fn build(self) -> NoiseOptions {
         NoiseOptions {
             seed: self.seed,
+            dimension: self.dimension,
             frequency: self.frequency,
             octaves: self.octaves,
             persistence: self.persistence,

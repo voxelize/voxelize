@@ -3,8 +3,6 @@ import IntervalWorker from "web-worker:./workers/interval-worker";
 export function setWorkerInterval(func: () => void, interval: number) {
   const worker = new IntervalWorker();
 
-  console.log(worker);
-
   worker.postMessage({ signal: "start", interval });
 
   worker.onmessage = (e) => {
