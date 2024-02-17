@@ -58,31 +58,34 @@ onconnect = (e) => {
         message.chunks.forEach((chunk) => {
           ["lights", "voxels"].forEach((key) => {
             if (chunk[key]) {
-              chunk[key] = new Uint32Array(chunk[key]).buffer;
-              transferables.push(chunk[key]);
+              chunk[key] = new Uint32Array(chunk[key]);
+              transferables.push(chunk[key].buffer);
             }
           });
 
-          if (chunk.mesh) {
-            ["indices", "lights"].forEach((key) => {
-              const { opaque, transparent } = chunk.mesh;
+          if (chunk.meshes) {
+            chunk.meshes.forEach((mesh) => {
+              mesh.geometries.forEach((geometry) => {
+                ["indices"].forEach((key) => {
+                  if (geometry && geometry[key]) {
+                    geometry[key] = new Uint16Array(geometry[key]);
+                    transferables.push(geometry[key].buffer);
+                  }
+                });
 
-              [opaque, transparent].forEach((mesh) => {
-                if (mesh && mesh[key]) {
-                  mesh[key] = new Int32Array(mesh[key]).buffer;
-                  transferables.push(mesh[key]);
-                }
-              });
-            });
+                ["lights"].forEach((key) => {
+                  if (geometry && geometry[key]) {
+                    geometry[key] = new Int32Array(geometry[key]);
+                    transferables.push(geometry[key].buffer);
+                  }
+                });
 
-            ["positions", "uvs"].forEach((key) => {
-              const { opaque, transparent } = chunk.mesh;
-
-              [opaque, transparent].forEach((mesh) => {
-                if (mesh && mesh[key]) {
-                  mesh[key] = new Float32Array(mesh[key]).buffer;
-                  transferables.push(mesh[key]);
-                }
+                ["positions", "uvs"].forEach((key) => {
+                  if (geometry && geometry[key]) {
+                    geometry[key] = new Float32Array(geometry[key]);
+                    transferables.push(geometry[key].buffer);
+                  }
+                });
               });
             });
           }

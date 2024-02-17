@@ -28,8 +28,8 @@ export class Chunk extends RawChunk {
 
     const { voxels, lights } = data;
 
-    if (lights && lights.byteLength) this.lights.data = new Uint32Array(lights);
-    if (voxels && voxels.byteLength) this.voxels.data = new Uint32Array(voxels);
+    if (lights && lights.byteLength) this.lights.data = lights;
+    if (voxels && voxels.byteLength) this.voxels.data = voxels;
   }
 
   dispose() {

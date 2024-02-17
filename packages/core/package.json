@@ -27,7 +27,6 @@
     "@types/ndarray": "^1.0.11",
     "@types/omggif": "^1.0.3",
     "@types/three": "^0.158.3",
-    "@types/typedarray-pool": "^1.1.3",
     "@types/uuid": "^8.3.4",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-copy-watch": "^0.0.1"
@@ -48,7 +47,6 @@
     "omggif": "^1.0.10",
     "regenerator-runtime": "^0.13.9",
     "socket.io-client": "^4.4.1",
-    "typedarray-pool": "^1.2.0",
     "uuid": "^8.3.2"
   }
 }

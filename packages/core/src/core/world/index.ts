@@ -5,6 +5,7 @@ import { GeometryProtocol } from "@voxelize/transport";
 import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
+  BufferAttribute,
   BufferGeometry,
   Clock,
   Color,
@@ -515,10 +516,10 @@ export class World extends Scene implements NetIntercept {
     const mesh: MeshProtocol = {
       level,
       geometries: geometries.map((geometry) => ({
-        indices: Array.from(geometry.indices),
-        positions: Array.from(geometry.positions),
-        uvs: Array.from(geometry.uvs),
-        lights: Array.from(geometry.lights),
+        indices: geometry.indices,
+        positions: geometry.positions,
+        uvs: geometry.uvs,
+        lights: geometry.lights,
         voxel: geometry.voxel,
         faceName: geometry.faceName,
       })),
@@ -2076,6 +2077,8 @@ export class World extends Scene implements NetIntercept {
   }
 
   private requestChunks(center: Coords2, direction: Vector3) {
+    const startOverall = performance.now(); // Start timing
+
     const {
       renderRadius,
       options: {
@@ -2085,11 +2088,13 @@ export class World extends Scene implements NetIntercept {
       },
     } = this;
 
+    const startCalculations = performance.now(); // Start timing calculations
     const total =
       this.chunks.loaded.size +
       this.chunks.requested.size +
       this.chunks.toRequest.length +
       this.chunks.toProcess.length;
+    const calculationsDuration = performance.now() - startCalculations; // End timing calculations
 
     const ratio = this.chunks.loaded.size / total;
     const hasDirection = direction.length() > 0;
@@ -2105,6 +2110,7 @@ export class World extends Scene implements NetIntercept {
     // Pre-calculate squared renderRadius to use in distance checks
     const renderRadiusSquared = renderRadius * renderRadius;
 
+    const startLoop = performance.now(); // Start timing loop
     // Surrounding the center, request all chunks that are not loaded.
     for (let ox = -renderRadius; ox <= renderRadius; ox++) {
       for (let oz = -renderRadius; oz <= renderRadius; oz++) {
@@ -2118,12 +2124,12 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
-        if (
-          hasDirection &&
-          !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
-        ) {
-          continue;
-        }
+        // if (
+        //   hasDirection &&
+        //   !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
+        // ) {
+        //   continue;
+        // }
 
         const status = this.getChunkStatus(cx, cz);
 
@@ -2152,9 +2158,19 @@ export class World extends Scene implements NetIntercept {
         }
       }
     }
+    const loopDuration = performance.now() - startLoop; // End timing loop
 
-    if (toRequestSet.size === 0) return;
+    if (toRequestSet.size === 0) {
+      const overallDuration = performance.now() - startOverall; // End timing overall
+      if (overallDuration > 10) {
+        console.log(
+          `requestChunks overall: ${overallDuration}ms, calculations: ${calculationsDuration}ms, loop: ${loopDuration}ms`
+        );
+      }
+      return;
+    }
 
+    const startPostLoop = performance.now(); // Start timing post-loop processing
     const toRequestArray = Array.from(toRequestSet).map((coords) =>
       coords.split(",").map(Number)
     );
@@ -2180,6 +2196,14 @@ export class World extends Scene implements NetIntercept {
       const name = ChunkUtils.getChunkName(coords as Coords2);
       this.chunks.requested.set(name, 0);
     });
+    const postLoopDuration = performance.now() - startPostLoop; // End timing post-loop processing
+
+    const overallDuration = performance.now() - startOverall; // End timing overall
+    if (overallDuration > 10) {
+      console.log(
+        `requestChunks overall: ${overallDuration}ms, calculations: ${calculationsDuration}ms, loop: ${loopDuration}ms, post-loop: ${postLoopDuration}ms`
+      );
+    }
   }
 
   private processChunks(center: Coords2) {
@@ -2447,13 +2471,10 @@ export class World extends Scene implements NetIntercept {
       const { voxel, faceName, indices, lights, positions, uvs } = geo;
       const geometry = new BufferGeometry();
 
-      geometry.setAttribute(
-        "position",
-        new Float32BufferAttribute(positions, 3)
-      );
-      geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-      geometry.setAttribute("light", new Int32BufferAttribute(lights, 1));
-      geometry.setIndex(indices);
+      geometry.setAttribute("position", new BufferAttribute(positions, 3));
+      geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+      geometry.setAttribute("light", new BufferAttribute(lights, 1));
+      geometry.setIndex(new BufferAttribute(indices, 1));
 
       const material = this.getBlockFaceMaterial(voxel, faceName);
       if (!material) return;

@@ -1,10 +1,10 @@
 export type GeometryProtocol = {
   voxel: number;
   faceName?: string;
-  positions: number[];
-  uvs: number[];
-  indices: number[];
-  lights: number[];
+  positions: Float32Array;
+  uvs: Float32Array;
+  indices: Uint32Array;
+  lights: Uint32Array;
 };
 
 export type MeshProtocol = {

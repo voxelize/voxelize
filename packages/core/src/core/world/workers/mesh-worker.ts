@@ -11,6 +11,15 @@ import { Registry } from "../registry";
 
 let registry: Registry;
 
+type InProgressGeometryProtocol = {
+  voxel: number;
+  faceName?: string;
+  positions: number[];
+  uvs: number[];
+  indices: number[];
+  lights: number[];
+};
+
 // @ts-ignore
 onmessage = function (e) {
   const { type } = e.data;
@@ -99,7 +108,7 @@ onmessage = function (e) {
   const [minX, minY, minZ] = min;
   const [maxX, maxY, maxZ] = max;
 
-  const geometries: Record<string, GeometryProtocol> = {};
+  const geometries: Record<string, InProgressGeometryProtocol> = {};
 
   for (let vx = minX; vx < maxX; vx++) {
     for (let vz = minZ; vz < maxZ; vz++) {
@@ -223,7 +232,7 @@ onmessage = function (e) {
               positions: [],
               uvs: [],
               indices: [],
-            } as GeometryProtocol);
+            } as InProgressGeometryProtocol);
 
           if (face.independent) {
             geometry.faceName = face.name;
@@ -612,7 +621,7 @@ onmessage = function (e) {
     .map((geometry) => {
       const packedGeometry = {
         indices: new Uint16Array(geometry.indices),
-        lights: new Uint32Array(geometry.lights),
+        lights: new Int32Array(geometry.lights),
         positions: new Float32Array(geometry.positions),
         uvs: new Float32Array(geometry.uvs),
         voxel: geometry.voxel,
