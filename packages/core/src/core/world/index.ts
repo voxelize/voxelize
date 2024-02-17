@@ -2124,12 +2124,12 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
-        // if (
-        //   hasDirection &&
-        //   !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
-        // ) {
-        //   continue;
-        // }
+        if (
+          hasDirection &&
+          !this.isChunkInView(center, [cx, cz], direction, angleThreshold)
+        ) {
+          continue;
+        }
 
         const status = this.getChunkStatus(cx, cz);
 
