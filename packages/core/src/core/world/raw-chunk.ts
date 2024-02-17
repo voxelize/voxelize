@@ -68,6 +68,7 @@ export class RawChunk {
 
     const chunk = new RawChunk(id, [x, z], options);
 
+    // creating typed array here ain't bad since deserialize is only used worker-side
     if (lights && lights.byteLength)
       chunk.lights.data = new Uint32Array(lights);
     if (voxels && voxels.byteLength)

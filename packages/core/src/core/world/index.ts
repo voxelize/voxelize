@@ -12,7 +12,6 @@ import {
   Float32BufferAttribute,
   FrontSide,
   Group,
-  Int32BufferAttribute,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -1947,7 +1946,7 @@ export class World extends Scene implements NetIntercept {
 
     const overallDuration = performance.now() - startOverall;
     if (overallDuration > 1000 / 60) {
-      const isDebug = true;
+      const isDebug = false;
       const log = isDebug ? console.log : () => {};
       log("maintainChunks took", maintainChunksDuration, "ms");
       log("requestChunks took", requestChunksDuration, "ms");
@@ -2091,7 +2090,7 @@ export class World extends Scene implements NetIntercept {
       this.chunks.toRequest.length +
       this.chunks.toProcess.length;
 
-    const ratio = this.chunks.loaded.size / total;
+    const ratio = total === 0 ? 1 : this.chunks.loaded.size / total;
     const hasDirection = direction.length() > 0;
 
     const angleThreshold =
@@ -2103,11 +2102,14 @@ export class World extends Scene implements NetIntercept {
     const toRequestSet = new Set<string>();
 
     // Pre-calculate squared renderRadius to use in distance checks
-    const renderRadiusSquared = renderRadius * renderRadius;
+    const renderRadiusBounded = Math.floor(
+      Math.max(Math.min(ratio * renderRadius, renderRadius), 1)
+    );
+    const renderRadiusSquared = renderRadiusBounded * renderRadiusBounded;
 
     // Surrounding the center, request all chunks that are not loaded.
-    for (let ox = -renderRadius; ox <= renderRadius; ox++) {
-      for (let oz = -renderRadius; oz <= renderRadius; oz++) {
+    for (let ox = -renderRadiusBounded; ox <= renderRadiusBounded; ox++) {
+      for (let oz = -renderRadiusBounded; oz <= renderRadiusBounded; oz++) {
         // Use squared distance to avoid unnecessary Math.sqrt() call
         if (ox * ox + oz * oz > renderRadiusSquared) continue;
 

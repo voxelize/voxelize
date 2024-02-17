@@ -44,9 +44,5 @@ export class Chunk extends RawChunk {
         }
       });
     });
-
-    // Free the array buffers
-    this.lights.data = new Uint32Array();
-    this.voxels.data = new Uint32Array();
   }
 }

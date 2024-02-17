@@ -481,25 +481,37 @@ let frame: any;
 const start = async () => {
   const animate = () => {
     frame = requestAnimationFrame(animate);
-    const isDebug = false;
+    const isDebug = true;
     const log = isDebug ? console.log : () => {};
 
     const startOverall = performance.now();
+    let startPeersUpdate = performance.now();
+    let endPeersUpdate = performance.now();
+    let startControlsUpdate = performance.now();
+    let endControlsUpdate = performance.now();
+    let startWorldUpdate = performance.now();
+    let endWorldUpdate = performance.now();
+    let startPerspectiveUpdate = performance.now();
+    let endPerspectiveUpdate = performance.now();
+    let startShadowsUpdate = performance.now();
+    let endShadowsUpdate = performance.now();
+    let startDebugUpdate = performance.now();
+    let endDebugUpdate = performance.now();
+    let startLightShinedUpdate = performance.now();
+    let endLightShinedUpdate = performance.now();
+    let startVoxelInteractUpdate = performance.now();
+    let endVoxelInteractUpdate = performance.now();
 
     if (world.isInitialized) {
-      const startPeersUpdate = performance.now();
+      startPeersUpdate = performance.now();
       peers.update();
-      log("Peers update took", performance.now() - startPeersUpdate, "ms");
+      endPeersUpdate = performance.now();
 
-      const startControlsUpdate = performance.now();
+      startControlsUpdate = performance.now();
       controls.update();
-      log(
-        "Controls update took",
-        performance.now() - startControlsUpdate,
-        "ms"
-      );
+      endControlsUpdate = performance.now();
 
-      const startWorldUpdate = performance.now();
+      startWorldUpdate = performance.now();
       const inWater =
         world.getBlockAt(
           ...camera.getWorldPosition(new THREE.Vector3()).toArray()
@@ -532,43 +544,47 @@ const start = async () => {
         controls.object.position,
         camera.getWorldDirection(new THREE.Vector3())
       );
-      log("World update took", performance.now() - startWorldUpdate, "ms");
+      endWorldUpdate = performance.now();
 
-      const startPerspectiveUpdate = performance.now();
+      startPerspectiveUpdate = performance.now();
       perspective.update();
-      log(
-        "Perspective update took",
-        performance.now() - startPerspectiveUpdate,
-        "ms"
-      );
+      endPerspectiveUpdate = performance.now();
 
-      const startShadowsUpdate = performance.now();
+      startShadowsUpdate = performance.now();
       shadows.update();
-      log("Shadows update took", performance.now() - startShadowsUpdate, "ms");
+      endShadowsUpdate = performance.now();
 
-      const startDebugUpdate = performance.now();
+      startDebugUpdate = performance.now();
       debug.update();
-      log("Debug update took", performance.now() - startDebugUpdate, "ms");
+      endDebugUpdate = performance.now();
 
-      const startLightShinedUpdate = performance.now();
+      startLightShinedUpdate = performance.now();
       lightShined.update();
-      log(
-        "LightShined update took",
-        performance.now() - startLightShinedUpdate,
-        "ms"
-      );
+      endLightShinedUpdate = performance.now();
 
-      const startVoxelInteractUpdate = performance.now();
+      startVoxelInteractUpdate = performance.now();
       voxelInteract.update();
-      log(
-        "VoxelInteract update took",
-        performance.now() - startVoxelInteractUpdate,
-        "ms"
-      );
+      endVoxelInteractUpdate = performance.now();
     }
 
+    const startRender = performance.now();
     renderer.render(world, camera);
-    log("Overall frame took", performance.now() - startOverall, "ms");
+    const endRender = performance.now();
+    const overallDuration = performance.now() - startOverall;
+    if (overallDuration > 1000 / 60) {
+      log(`Frame Summary:
+      Overall: ${overallDuration}ms,
+      World Update: ${endWorldUpdate - startWorldUpdate}ms,
+      Perspective Update: ${endPerspectiveUpdate - startPerspectiveUpdate}ms,
+      Shadows Update: ${endShadowsUpdate - startShadowsUpdate}ms,
+      Debug Update: ${endDebugUpdate - startDebugUpdate}ms,
+      Light Shined Update: ${endLightShinedUpdate - startLightShinedUpdate}ms,
+      Voxel Interact Update: ${
+        endVoxelInteractUpdate - startVoxelInteractUpdate
+      }ms,
+      Render: ${endRender - startRender}ms
+      `);
+    }
   };
 
   animate();
