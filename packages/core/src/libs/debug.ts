@@ -263,23 +263,20 @@ export class Debug extends Group {
    */
   update = () => {
     // loop through all data entries, and get their latest updated values
-    for (const { element, title, attribute, object, formatter } of this
-      .dataEntries) {
-      if (object.constructor.name === "AsyncFunction") {
-        continue;
-      }
+    this.dataEntries.forEach(
+      ({ element, title, attribute, object, formatter }) => {
+        if (object?.constructor?.name === "AsyncFunction") return;
 
-      const newValue = object
-        ? typeof object === "function"
-          ? object()
-          : attribute
-          ? object[attribute]
-          : ""
-        : "";
-      element.textContent = `${title ? `${title}: ` : ""}${formatter(
-        newValue
-      )}`;
-    }
+        let newValue = "";
+        if (object) {
+          newValue =
+            typeof object === "function" ? object() : object[attribute] ?? "";
+        }
+        element.textContent = `${title ? `${title}: ` : ""}${formatter(
+          newValue
+        )}`;
+      }
+    );
 
     // fps update
     this.stats?.update();

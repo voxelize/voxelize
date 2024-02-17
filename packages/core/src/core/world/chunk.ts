@@ -1,5 +1,5 @@
 import { ChunkProtocol } from "@voxelize/transport/src/types";
-import { Mesh } from "three";
+import { Group, Mesh } from "three";
 
 import { Coords2 } from "../../types";
 
@@ -10,6 +10,8 @@ export class Chunk extends RawChunk {
 
   public added = false;
   public isDirty = false;
+
+  public group = new Group();
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     super(id, coords, options);

@@ -171,7 +171,7 @@ pub fn setup_terrain_world() -> World {
     let continentalness = TerrainLayer::new(
         "continentalness",
         &NoiseOptions::new()
-            .frequency(0.001)
+            .frequency(0.021)
             .octaves(7)
             .persistence(0.5)
             .lacunarity(2.0)

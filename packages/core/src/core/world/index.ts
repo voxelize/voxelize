@@ -192,8 +192,8 @@ export type WorldClientOptions = {
 };
 
 const defaultOptions: WorldClientOptions = {
-  maxChunkRequestsPerUpdate: 4,
-  maxProcessesPerUpdate: 2,
+  maxChunkRequestsPerUpdate: 16,
+  maxProcessesPerUpdate: 8,
   maxUpdatesPerUpdate: 1000,
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
@@ -1238,18 +1238,16 @@ export class World extends Scene implements NetIntercept {
   ) {
     const [cx, cz] = center;
     const [tx, tz] = target;
+    const dx = cx - tx;
+    const dz = cz - tz;
 
-    if (
-      (cx - tx) ** 2 + (cz - tz) ** 2 <
-      Math.floor(this.renderRadius / 2) ** 2
-    ) {
+    if (dx * dx + dz * dz < (this.renderRadius >> 1) ** 2) {
       return true;
     }
 
-    const vec1 = new Vector2(tz - cz, tx - cx);
-    const vec2 = new Vector2(direction.z, direction.x);
-
-    const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
+    const dot = (tz - cz) * direction.z + (tx - cx) * direction.x;
+    const det = (tz - cz) * direction.x - (tx - cx) * direction.z;
+    const angle = Math.atan2(det, dot);
 
     return Math.abs(angle) < threshold;
   }
@@ -1950,7 +1948,7 @@ export class World extends Scene implements NetIntercept {
 
     const overallDuration = performance.now() - startOverall;
     if (overallDuration > 1000 / 60) {
-      const isDebug = false;
+      const isDebug = true;
       const log = isDebug ? console.log : () => {};
       log("maintainChunks took", maintainChunksDuration, "ms");
       log("requestChunks took", requestChunksDuration, "ms");
@@ -2458,7 +2456,7 @@ export class World extends Scene implements NetIntercept {
 
     chunk.meshes.get(level)?.forEach((mesh) => {
       mesh.geometry.dispose();
-      this.remove(mesh);
+      chunk.group.remove(mesh);
     });
 
     chunk.meshes.delete(level);
@@ -2488,9 +2486,13 @@ export class World extends Scene implements NetIntercept {
       mesh.matrixWorldAutoUpdate = false;
       mesh.userData = { isChunk: true, voxel };
 
-      this.add(mesh);
+      chunk.group.add(mesh);
       return mesh;
     });
+
+    if (!this.children.includes(chunk.group)) {
+      this.add(chunk.group);
+    }
 
     if (!chunk.meshes.has(level)) {
       chunk.meshes.set(level, []);
