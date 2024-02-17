@@ -38,7 +38,7 @@ struct TimeMethodPayload {
 
 pub fn setup_flat_world(registry: &Registry) -> World {
     let config = WorldConfig::new()
-        .preload(true)
+        .preload(false)
         .min_chunk([-50, -50])
         .max_chunk([50, 50])
         .saving(true)
