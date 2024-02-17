@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://api.star-history.com/svg?repos=shaoruu/voxelize&type=Date" />
+  <img src="https://api.star-history.com/svg?repos=voxelize/voxelize&type=Date" />
 </p>
 
 ## Supporting
