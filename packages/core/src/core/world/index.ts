@@ -464,6 +464,10 @@ export class World extends Scene implements NetIntercept {
     );
 
     const centerChunk = chunks[4];
+    if (!centerChunk) {
+      return;
+    }
+
     const { min, max } = centerChunk;
     const heightPerSubChunk = Math.floor(
       this.options.maxHeight / this.options.subChunks
