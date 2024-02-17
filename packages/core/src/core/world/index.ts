@@ -25,6 +25,7 @@ import {
   TwoPassDoubleSide,
   Uniform,
   UniformsUtils,
+  Vector2,
   Vector3,
 } from "three";
 import MeshWorker from "web-worker:./workers/mesh-worker.ts";
@@ -494,7 +495,8 @@ export class World extends Scene implements NetIntercept {
     };
 
     // Make sure it's not already processed by the server
-    if (this.chunks.toProcess.find((c) => c.data.x === cx && c.data.z === cz)) {
+    const name = ChunkUtils.getChunkName([cx, cz]);
+    if (this.chunks.toProcessSet.has(name)) {
       return;
     }
 
@@ -509,7 +511,7 @@ export class World extends Scene implements NetIntercept {
     });
 
     // Make sure it's not already processed by the server
-    if (this.chunks.toProcess.find((c) => c.data.x === cx && c.data.z === cz)) {
+    if (this.chunks.toProcessSet.has(name)) {
       return;
     }
 
@@ -1143,12 +1145,8 @@ export class World extends Scene implements NetIntercept {
 
     const isRequested = this.chunks.requested.has(name);
     const isLoaded = this.chunks.loaded.has(name);
-    const isProcessing = !!this.chunks.toProcess.find(
-      ({ data }) => data.x === cx && data.z === cz
-    );
-    const isToRequest = !!this.chunks.toRequest.find(
-      ([x, z]) => x === cx && z === cz
-    );
+    const isProcessing = this.chunks.toProcessSet.has(name);
+    const isToRequest = this.chunks.toRequestSet.has(name);
 
     // Check if more than one is true. If that is the case, throw an error.
     if (
@@ -1245,8 +1243,8 @@ export class World extends Scene implements NetIntercept {
       return true;
     }
 
-    const vec1 = new Vector3(tz - cz, tx - cx, 0);
-    const vec2 = new Vector3(direction.z, direction.x, 0);
+    const vec1 = new Vector2(tz - cz, tx - cx);
+    const vec2 = new Vector2(direction.z, direction.x);
 
     const angle = MathUtils.normalizeAngle(vec1.angleTo(vec2));
 
@@ -1997,6 +1995,7 @@ export class World extends Scene implements NetIntercept {
           // Only process if we're interested.
           this.chunks.requested.delete(name);
           this.chunks.toProcess.push({ source: "load", data: chunk });
+          this.chunks.toProcessSet.add(name);
         });
 
         break;
@@ -2077,8 +2076,6 @@ export class World extends Scene implements NetIntercept {
   }
 
   private requestChunks(center: Coords2, direction: Vector3) {
-    const startOverall = performance.now(); // Start timing
-
     const {
       renderRadius,
       options: {
@@ -2088,13 +2085,11 @@ export class World extends Scene implements NetIntercept {
       },
     } = this;
 
-    const startCalculations = performance.now(); // Start timing calculations
     const total =
       this.chunks.loaded.size +
       this.chunks.requested.size +
       this.chunks.toRequest.length +
       this.chunks.toProcess.length;
-    const calculationsDuration = performance.now() - startCalculations; // End timing calculations
 
     const ratio = this.chunks.loaded.size / total;
     const hasDirection = direction.length() > 0;
@@ -2110,7 +2105,6 @@ export class World extends Scene implements NetIntercept {
     // Pre-calculate squared renderRadius to use in distance checks
     const renderRadiusSquared = renderRadius * renderRadius;
 
-    const startLoop = performance.now(); // Start timing loop
     // Surrounding the center, request all chunks that are not loaded.
     for (let ox = -renderRadius; ox <= renderRadius; ox++) {
       for (let oz = -renderRadius; oz <= renderRadius; oz++) {
@@ -2131,19 +2125,13 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
-        const status = this.getChunkStatus(cx, cz);
+        const chunkName = ChunkUtils.getChunkName([cx, cz]);
 
-        if (!status) {
-          const chunkCoords = `${cx},${cz}`;
-          if (!this.chunks.requested.has(ChunkUtils.getChunkName([cx, cz]))) {
-            toRequestSet.add(chunkCoords);
-          }
+        if (this.chunks.loaded.has(chunkName)) {
           continue;
         }
 
-        if (status === "loaded") continue;
-
-        if (status === "requested") {
+        if (this.chunks.requested.has(chunkName)) {
           const name = ChunkUtils.getChunkName([cx, cz]);
           const count = this.chunks.requested.get(name) || 0;
 
@@ -2156,21 +2144,26 @@ export class World extends Scene implements NetIntercept {
 
           continue;
         }
+
+        if (
+          this.chunks.toProcessSet.has(chunkName) ||
+          this.chunks.toRequestSet.has(chunkName)
+        ) {
+          continue;
+        }
+
+        const chunkCoords = `${cx},${cz}`;
+        if (!this.chunks.requested.has(ChunkUtils.getChunkName([cx, cz]))) {
+          toRequestSet.add(chunkCoords);
+        }
+        continue;
       }
     }
-    const loopDuration = performance.now() - startLoop; // End timing loop
 
     if (toRequestSet.size === 0) {
-      const overallDuration = performance.now() - startOverall; // End timing overall
-      if (overallDuration > 10) {
-        console.log(
-          `requestChunks overall: ${overallDuration}ms, calculations: ${calculationsDuration}ms, loop: ${loopDuration}ms`
-        );
-      }
       return;
     }
 
-    const startPostLoop = performance.now(); // Start timing post-loop processing
     const toRequestArray = Array.from(toRequestSet).map((coords) =>
       coords.split(",").map(Number)
     );
@@ -2196,14 +2189,6 @@ export class World extends Scene implements NetIntercept {
       const name = ChunkUtils.getChunkName(coords as Coords2);
       this.chunks.requested.set(name, 0);
     });
-    const postLoopDuration = performance.now() - startPostLoop; // End timing post-loop processing
-
-    const overallDuration = performance.now() - startOverall; // End timing overall
-    if (overallDuration > 10) {
-      console.log(
-        `requestChunks overall: ${overallDuration}ms, calculations: ${calculationsDuration}ms, loop: ${loopDuration}ms, post-loop: ${postLoopDuration}ms`
-      );
-    }
   }
 
   private processChunks(center: Coords2) {
@@ -2242,6 +2227,7 @@ export class World extends Scene implements NetIntercept {
     toProcess.forEach((data) => {
       const { x, z, id, meshes } = data.data;
       const name = ChunkUtils.getChunkName([x, z]);
+      this.chunks.toProcessSet.delete(name);
 
       let chunk = this.getChunkByCoords(x, z);
 
@@ -2305,20 +2291,26 @@ export class World extends Scene implements NetIntercept {
 
     const tempToRequest = [...this.chunks.toRequest];
     this.chunks.toRequest.length = 0;
-    this.chunks.toRequest.push(
-      ...tempToRequest.filter(([x, z]) => {
-        return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
-      })
-    );
+    const filteredTempToRequest = tempToRequest.filter((name) => {
+      const [x, z] = ChunkUtils.parseChunkName(name);
+      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
+    });
+    this.chunks.toRequest.push(...filteredTempToRequest);
+    this.chunks.toRequestSet.clear();
+    filteredTempToRequest.forEach((name) => this.chunks.toRequestSet.add(name));
 
     const tempToProcess = [...this.chunks.toProcess];
     this.chunks.toProcess.length = 0;
-    this.chunks.toProcess.push(
-      ...tempToProcess.filter((chunk) => {
-        const { x, z } = chunk.data;
-        return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
-      })
-    );
+    const filteredToProcess = tempToProcess.filter((chunk) => {
+      const { x, z } = chunk.data;
+      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
+    });
+    this.chunks.toProcess.push(...filteredToProcess);
+    this.chunks.toProcessSet.clear();
+    filteredToProcess.forEach((chunk) => {
+      const name = ChunkUtils.getChunkName([chunk.data.x, chunk.data.z]);
+      this.chunks.toProcessSet.add(name);
+    });
 
     // Remove any listeners for deleted chunks.
     deleted.forEach((coords) => {
