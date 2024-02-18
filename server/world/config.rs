@@ -60,6 +60,10 @@ pub struct WorldConfig {
     /// Drag of the air in the voxelize world.
     pub air_drag: f32,
 
+    pub does_tick_time: bool,
+
+    pub default_time: f32,
+
     /// Drag of the fluid in the voxelize world.
     pub fluid_drag: f32,
 
@@ -128,6 +132,8 @@ const DEFAULT_FLUID_DRAG: f32 = 1.4;
 const DEFAULT_FLUID_DENSITY: f32 = 0.8;
 const DEFAULT_COLLISION_REPULSION: f32 = 2.3;
 const DEFAULT_CLIENT_COLLISION_REPULSION: f32 = 0.12;
+const DEFAULT_DOES_TICK_TIME: bool = true;
+const DEFAULT_TIME: f32 = 0.0;
 const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
@@ -153,6 +159,8 @@ pub struct WorldConfigBuilder {
     seed: u32,
     gravity: [f32; 3],
     min_bounce_impulse: f32,
+    does_tick_time: bool,
+    default_time: f32,
     air_drag: f32,
     fluid_drag: f32,
     fluid_density: f32,
@@ -174,6 +182,8 @@ impl WorldConfigBuilder {
             sub_chunks: DEFAULT_SUB_CHUNKS,
             min_chunk: DEFAULT_MIN_CHUNK,
             max_chunk: DEFAULT_MAX_CHUNK,
+            does_tick_time: DEFAULT_DOES_TICK_TIME,
+            default_time: DEFAULT_TIME,
             preload: DEFAULT_PRELOAD,
             preload_radius: DEFAULT_PRELOAD_RADIUS,
             max_height: DEFAULT_MAX_HEIGHT,
@@ -268,6 +278,16 @@ impl WorldConfigBuilder {
     /// Configure the maximum amount of voxel updates to be processed per tick. Default is 1000 voxel updates.
     pub fn max_updates_per_tick(mut self, max_updates_per_tick: usize) -> Self {
         self.max_updates_per_tick = max_updates_per_tick;
+        self
+    }
+
+    pub fn does_tick_time(mut self, does_tick_time: bool) -> Self {
+        self.does_tick_time = does_tick_time;
+        self
+    }
+
+    pub fn default_time(mut self, default_time: f32) -> Self {
+        self.default_time = default_time;
         self
     }
 
@@ -377,6 +397,7 @@ impl WorldConfigBuilder {
             seed: self.seed,
             min_chunk: self.min_chunk,
             max_chunk: self.max_chunk,
+            default_time: self.default_time.max(0.0).min(self.time_per_day as f32),
             preload: self.preload,
             preload_radius: self.preload_radius,
             air_drag: self.air_drag,
@@ -385,6 +406,7 @@ impl WorldConfigBuilder {
             gravity: self.gravity,
             min_bounce_impulse: self.min_bounce_impulse,
             collision_repulsion: self.collision_repulsion,
+            does_tick_time: self.does_tick_time,
             client_collision_repulsion: self.client_collision_repulsion,
             terrain: self.terrain,
             saving: self.saving,

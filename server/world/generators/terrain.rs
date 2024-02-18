@@ -105,10 +105,11 @@ impl Terrain {
         vz: i32,
     ) -> f64 {
         let max_height = self.config.max_height as f64;
-
         let noise_value = self.noise.get2d(vx, vz);
-        let density =
-            noise_value + bias * -(vy as f64 - offset * max_height) / (offset * max_height);
+        let adjusted_height = (vy as f64 / max_height) - offset; // Normalize vy to [0, 1] and apply offset
+        let density_modifier = -bias * adjusted_height; // Negative to decrease density as vy increases
+        let peak_factor = 1.0 + (vy as f64 / max_height).powf(10.0); // Increase impact of noise at higher elevations
+        let density = (noise_value * peak_factor) + density_modifier;
 
         if density > 0.0 {
             1.0

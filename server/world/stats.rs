@@ -38,7 +38,7 @@ pub struct Stats {
 
 impl Stats {
     /// Create a new statistics instance.
-    pub fn new(saving: bool, directory: &str) -> Self {
+    pub fn new(saving: bool, directory: &str, default_time: f32) -> Self {
         let mut path = PathBuf::from(&directory);
         path.push("stats.json");
 
@@ -47,7 +47,7 @@ impl Stats {
             tick: 0,
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
-            time: 0.0,
+            time: default_time,
             path,
             saving,
         }

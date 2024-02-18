@@ -236,7 +236,11 @@ impl World {
 
         ecs.insert(Chunks::new(config));
         ecs.insert(EntitiesSaver::new(config.saving, &config.save_dir));
-        ecs.insert(Stats::new(config.saving, &config.save_dir));
+        ecs.insert(Stats::new(
+            config.saving,
+            &config.save_dir,
+            config.default_time,
+        ));
         ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());

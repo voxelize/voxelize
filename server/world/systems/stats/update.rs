@@ -19,12 +19,15 @@ impl<'a> System<'a> for UpdateStatsSystem {
             .unwrap_or_default()
             .as_nanos() as f32
             / 1000000000.0;
-        stats.prev_time = now;
 
-        stats.tick += 1;
+        if config.does_tick_time {
+            stats.prev_time = now;
 
-        if config.time_per_day > 0 {
-            stats.time = (stats.time + stats.delta) % (config.time_per_day as f32);
+            stats.tick += 1;
+
+            if config.time_per_day > 0 {
+                stats.time = (stats.time + stats.delta) % (config.time_per_day as f32);
+            }
         }
     }
 }

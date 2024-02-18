@@ -153,7 +153,6 @@ const camera = new THREE.PerspectiveCamera(
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: true,
 });
 renderer.setSize(
   renderer.domElement.offsetWidth,
@@ -649,6 +648,14 @@ const start = async () => {
 
   debug.registerDisplay("Build radius", () => {
     return radius;
+  });
+
+  debug.registerDisplay("# of triangles", () => {
+    return renderer.info.render.triangles;
+  });
+
+  debug.registerDisplay("# of points", () => {
+    return renderer.info.render.points;
   });
 
   debug.registerDisplay("Concurrent WebWorkers", () => {

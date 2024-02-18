@@ -24,7 +24,6 @@ import {
   TwoPassDoubleSide,
   Uniform,
   UniformsUtils,
-  Vector2,
   Vector3,
 } from "three";
 import MeshWorker from "web-worker:./workers/mesh-worker.ts";
@@ -39,7 +38,6 @@ import {
   GREEN_LIGHT,
   LightColor,
   LightUtils,
-  MathUtils,
   RED_LIGHT,
   SUNLIGHT,
 } from "../../utils";
@@ -255,6 +253,8 @@ export type WorldServerOptions = {
    * The minimum bouncing impulse of everything physical in this world.
    */
   minBounceImpulse: number;
+
+  doesTickTime: boolean;
 
   /**
    * The air drag of everything physical.
@@ -1907,7 +1907,10 @@ export class World extends Scene implements NetIntercept {
       position.toArray() as Coords3,
       this.options.chunkSize
     );
-    this._time = (this.time + delta) % this.options.timePerDay;
+
+    if (this.options.doesTickTime) {
+      this._time = (this.time + delta) % this.options.timePerDay;
+    }
 
     const startOverall = performance.now();
 
