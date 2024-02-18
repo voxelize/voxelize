@@ -11,6 +11,7 @@ import { BlockRotation } from "./block";
 export type RawChunkOptions = {
   size: number;
   maxHeight: number;
+  maxLightLevel: number;
   subChunks: number;
 };
 
@@ -429,7 +430,10 @@ export class RawChunk {
    */
   getSunlight(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) {
-      return 0;
+      if (vy < 0) {
+        return 0;
+      }
+      return this.options.maxLightLevel;
     }
 
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);

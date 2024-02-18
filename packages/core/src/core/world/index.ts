@@ -2217,6 +2217,7 @@ export class World extends Scene implements NetIntercept {
       chunkSize,
       maxHeight,
       subChunks,
+      maxLightLevel,
       shouldGenerateChunkMeshes,
     } = this.options;
 
@@ -2243,6 +2244,7 @@ export class World extends Scene implements NetIntercept {
           maxHeight,
           subChunks,
           size: chunkSize,
+          maxLightLevel,
         });
       }
 

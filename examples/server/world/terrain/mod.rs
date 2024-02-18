@@ -179,16 +179,20 @@ pub fn setup_terrain_world() -> World {
             .seed(1231252)
             .build(),
     )
-    .add_bias_points(&[[-1.0, 12.5], [0.0, 12.0], [0.4, 13.5], [1.0, 26.5]])
+    .add_bias_points(&[
+        // [-1.0, 12.5], [0.0, 12.0], [0.4, 13.5], [1.0, 26.5]
+        [0.0, 3.0],
+    ])
     .add_offset_points(&[
-        [-4.9, PLAINS_HEIGHT + 0.1],
-        [-1.0, PLAINS_HEIGHT + 0.01],
-        [0.0, PLAINS_HEIGHT],
-        // [RIVER_WIDTH, PLAINS_HEIGHT],
+        // [-4.9, PLAINS_HEIGHT + 0.1],
+        // [-1.0, PLAINS_HEIGHT + 0.01],
         // [0.0, PLAINS_HEIGHT],
-        [1.1, RIVER_HEIGHT],
-        [1.8, 0.0],
-        [5.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
+        // // [RIVER_WIDTH, PLAINS_HEIGHT],
+        // // [0.0, PLAINS_HEIGHT],
+        // [1.1, RIVER_HEIGHT],
+        // [1.8, 0.0],
+        // [5.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
+        [0.0, PLAINS_HEIGHT],
     ]);
 
     // // how high gravity has an effect on terrain. the higher the more
