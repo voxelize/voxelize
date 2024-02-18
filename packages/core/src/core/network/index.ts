@@ -190,6 +190,7 @@ export class Network {
     };
 
     setWorkerInterval(() => {
+      if (!this.connected) return;
       this.flush();
       this.sync();
     }, 1000 / 60);
