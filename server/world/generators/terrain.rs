@@ -96,52 +96,33 @@ impl Terrain {
     /// 1. Calculate the height bias and height offset of each terrain layer.
     /// 2. Obtain the average height bias and height offset at this specific voxel column.
     /// 3. Get the noise value at this specific voxel coordinate, and add the average bias and height to it.
-    pub fn get_density_from_bias_offset(
-        &self,
-        bias: f64,
-        offset: f64,
-        vx: i32,
-        vy: i32,
-        vz: i32,
-    ) -> f64 {
+    pub fn get_density_from_bias_offset(&self, bias: f64, offset: f64, vy: i32) -> f64 {
         let max_height = self.config.max_height as f64;
-        let noise_value = self.noise.get2d(vx, vz);
-        let adjusted_height = (vy as f64 / max_height) - offset; // Normalize vy to [0, 1] and apply offset
-        let density_modifier = -bias * adjusted_height; // Negative to decrease density as vy increases
-        let peak_factor = 1.0 + (vy as f64 / max_height).powf(10.0); // Increase impact of noise at higher elevations
-        let density = (noise_value * peak_factor) + density_modifier;
 
-        if density > 0.0 {
-            1.0
-        } else {
+        // self.noise.get3d(vx, vy, vz).powi(2)
+        -if self.layers.is_empty() {
             0.0
-        } // Convert to solidity
+        } else {
+            bias * (vy as f64 - offset * max_height) / (offset * max_height)
+        }
     }
 
     /// Get the height bias and height offset values at a voxel column. What it does is that it samples the bias and offset
     /// of all noise layers and take the average of them all.
-    pub fn get_bias_offset(&self, vx: i32, vy: i32, vz: i32) -> (f64, f64) {
+    pub fn get_bias_offset(&self, vx: i32, vz: i32) -> (f64, f64) {
         let mut bias = 0.0;
         let mut offset = 0.0;
         let mut total_weight = 0.0;
 
         self.layers.iter().for_each(|(layer, weight)| {
-            let value = if layer.options.dimension == 2 {
-                layer.noise.get2d(vx, vz)
-            } else {
-                layer.noise.get3d(vx, vy, vz)
-            };
+            let value = layer.noise.get2d(vx, vz);
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
         });
 
         self.noise_layers.iter().for_each(|(layer, weight)| {
-            let value = if layer.options.dimension == 2 {
-                layer.noise.get2d(vx, vz)
-            } else {
-                layer.noise.get3d(vx, vy, vz)
-            };
+            let value = layer.noise.get2d(vx, vz);
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
@@ -150,17 +131,11 @@ impl Terrain {
         (bias / total_weight, offset / total_weight)
     }
 
-    pub fn get_biome_at(&self, vx: i32, vy: i32, vz: i32) -> &Biome {
+    pub fn get_biome_at(&self, vx: i32, vz: i32) -> &Biome {
         let values = self
             .layers
             .iter()
-            .map(|(layer, weight)| {
-                (if layer.options.dimension == 2 {
-                    layer.noise.get2d(vx, vz)
-                } else {
-                    layer.noise.get3d(vx, vy, vz)
-                }) * weight
-            })
+            .map(|(layer, weight)| layer.noise.get2d(vx, vz) * weight)
             .collect::<Vec<f64>>();
 
         let result = self
