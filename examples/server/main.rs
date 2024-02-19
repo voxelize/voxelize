@@ -4,13 +4,10 @@ use specs::{Component, NullStorage};
 use voxelize::{
     ChunkStage, FlatlandStage, LSystem, Server, Vec3, VoxelAccess, Voxelize, WorldConfig,
 };
-use world::{
-    flat::setup_flat_world, main::setup_main_world, terrain::setup_terrain_world,
-    test::setup_test_world,
-};
+use worlds::{flat::setup_flat_world, terrain::setup_terrain_world, test::setup_test_world};
 
 mod registry;
-mod world;
+mod worlds;
 
 const ISLAND_LIMIT: i32 = 1;
 const ISLAND_HEIGHT: i32 = 10;
@@ -63,10 +60,6 @@ async fn main() -> std::io::Result<()> {
         .serve("./examples/client/dist")
         .registry(&registry)
         .build();
-
-    server
-        .add_world(setup_main_world())
-        .expect("Could not create world1.");
 
     server
         .add_world(setup_test_world())

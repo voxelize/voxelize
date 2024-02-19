@@ -26,6 +26,7 @@ struct TreeState {
     pub rot_angle: f64,
 }
 
+#[derive(Clone)]
 pub struct Trees {
     threshold: f64,
     noise: SeededNoise,
@@ -36,7 +37,7 @@ impl Trees {
     pub fn new(seed: u32, options: &NoiseOptions) -> Trees {
         Trees {
             threshold: 0.5,
-            noise: SeededNoise::new(seed, options),
+            noise: SeededNoise::new(seed + options.seed, options),
             trees: HashMap::new(),
         }
     }
@@ -144,7 +145,7 @@ impl Trees {
                     y_angle,
                     rot_angle,
                 });
-            } else if symbol == ']' {
+            } else if symbol == ']' && stack.len() > 0 {
                 let state = stack.pop().unwrap();
                 base = state.base;
                 length = state.length;

@@ -1,14 +1,18 @@
 pub mod biomes;
 
-use kdtree::{distance::squared_euclidean, KdTree};
 use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
 use serde::{Deserialize, Serialize};
+use std::f64;
 use voxelize::{
-    Biome, Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Terrain, TerrainLayer,
-    Vec3, VoxelAccess, World, WorldConfig,
+    Biome, Chunk, ChunkStage, LSystem, NoiseOptions, Resources, SeededNoise, Space, Terrain,
+    TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
 };
 
-use log::info;
+use crate::worlds::shared::KdTree;
+
+use super::shared::{
+    setup_client, setup_components, setup_dispatcher, setup_entities, setup_methods, SoilingStage,
+};
 
 pub const MOUNTAIN_HEIGHT: f64 = 1.0;
 pub const RIVER_HEIGHT: f64 = 0.25;
@@ -19,35 +23,49 @@ pub const VARIANCE: f64 = 5.0;
 pub const SNOW_HEIGHT: f64 = 0.6;
 pub const STONE_HEIGHT: f64 = 0.5;
 
-pub struct SoilingStage {
-    noise: SeededNoise,
+struct TreeStage {
+    // trees + tree type
+    all_trees: Vec<(Trees, String)>,
 }
 
-impl SoilingStage {
-    pub fn new(seed: u32, options: &NoiseOptions) -> Self {
-        Self {
-            noise: SeededNoise::new(seed, options),
-        }
+impl TreeStage {
+    pub fn new() -> Self {
+        Self { all_trees: vec![] }
+    }
+
+    pub fn with(mut self, trees: Trees, tree_type: &str) -> Self {
+        self.all_trees.push((trees, tree_type.to_string()));
+        self
     }
 }
 
-impl ChunkStage for SoilingStage {
+impl ChunkStage for TreeStage {
     fn name(&self) -> String {
-        "Water".to_owned()
+        "Trees".to_owned()
     }
 
     fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
-        let config = resources.config;
-        let registry = resources.registry;
-
-        let water_level = config.water_level as i32;
-
-        let water = registry.get_block_by_name("Water");
+        let dirt = resources.registry.get_block_by_name("Dirt");
+        let grass_block = resources.registry.get_block_by_name("Grass Block");
 
         for vx in chunk.min.0..chunk.max.0 {
             for vz in chunk.min.2..chunk.max.2 {
-                for vy in 0..(water_level as i32) {
-                    chunk.set_voxel(vx, vy, vz, water.id);
+                let height = chunk.get_max_height(vx, vz) as i32;
+                let id = chunk.get_voxel(vx, height, vz);
+
+                if id != dirt.id && id != grass_block.id {
+                    continue;
+                }
+
+                for (trees, tree_type) in self.all_trees.iter() {
+                    if trees.should_plant(&Vec3(vx, height, vz)) {
+                        trees
+                            .generate(&tree_type, &Vec3(vx, height, vz))
+                            .into_iter()
+                            .for_each(|(Vec3(ux, uy, uz), id)| {
+                                chunk.set_voxel(ux, uy, uz, id);
+                            });
+                    }
                 }
             }
         }
@@ -184,7 +202,7 @@ pub fn setup_terrain_world() -> World {
         // [0.0, PLAINS_HEIGHT],
         [1.1, RIVER_HEIGHT],
         [2.8, 0.0],
-        [5.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
+        [4.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
     ]);
 
     // // The peaks and valleys of the terrain:
@@ -271,17 +289,106 @@ pub fn setup_terrain_world() -> World {
     {
         let mut pipeline = world.pipeline_mut();
 
-        // pipeline.add_stage(SoilingStage::new(
-        //     config.seed,
-        //     &NoiseOptions::new().frequency(0.04).lacunarity(3.0).build(),
-        // ));
-
         let mut terrain_stage = BaseTerrainStage::new(terrain);
         terrain_stage.set_base(2);
         terrain_stage.set_threshold(0.0);
 
         pipeline.add_stage(terrain_stage);
+
+        pipeline.add_stage(SoilingStage::new(
+            config.seed,
+            &NoiseOptions::new().frequency(0.04).lacunarity(1.6).build(),
+        ));
+
+        let mut tiny_trees = Trees::new(
+            config.seed,
+            &NoiseOptions::new()
+                .frequency(0.4)
+                .lacunarity(2.9)
+                .seed(123123)
+                .build(),
+        );
+        tiny_trees.set_threshold(3.5);
+
+        let palm = Tree::new(44, 43)
+            .leaf_height(2)
+            .leaf_radius(1)
+            .branch_initial_radius(1)
+            .branch_initial_length(6)
+            .branch_dy_angle(f64::consts::PI / 4.0)
+            .branch_drot_angle(f64::consts::PI / 4.0)
+            .system(LSystem::new().axiom("F%[F%]").iterations(1).build())
+            .build();
+
+        tiny_trees.register("Tiny", palm);
+
+        let mut oak_trees = Trees::new(
+            config.seed,
+            &NoiseOptions::new()
+                .frequency(0.36)
+                .lacunarity(2.9)
+                .seed(532874)
+                .build(),
+        );
+        oak_trees.set_threshold(4.5);
+        let oak = Tree::new(44, 43)
+            .leaf_height(3)
+            .leaf_radius(3)
+            .branch_initial_radius(3)
+            .branch_initial_length(7)
+            .branch_radius_factor(0.8)
+            .branch_length_factor(0.5)
+            .branch_dy_angle(f64::consts::PI / 4.0)
+            .branch_drot_angle(f64::consts::PI * 2.0 / 7.0)
+            .system(
+                LSystem::new()
+                    .axiom("A")
+                    .rule('A', "FF[[#B]++[#B]++[#B]++[#B]]+%!A")
+                    .rule('B', "%F#@%B")
+                    .iterations(4)
+                    .build(),
+            )
+            .build();
+
+        oak_trees.register("Oak", oak);
+
+        let mut boulder_trees = Trees::new(
+            config.seed,
+            &NoiseOptions::new()
+                .frequency(0.15)
+                .lacunarity(2.9)
+                .seed(4716384)
+                .build(),
+        );
+        boulder_trees.set_threshold(4.5);
+        let boulder = Tree::new(2, 0)
+            .leaf_height(3)
+            .leaf_radius(3)
+            .branch_initial_radius(2)
+            .branch_initial_length(7)
+            .branch_radius_factor(0.8)
+            .branch_length_factor(0.5)
+            .branch_dy_angle(f64::consts::PI / 4.0)
+            .branch_drot_angle(f64::consts::PI * 2.0 / 7.0)
+            .system(LSystem::new().axiom("%").iterations(0).build())
+            .build();
+
+        boulder_trees.register("Boulder", boulder);
+
+        let tree_stage = TreeStage::new()
+            .with(oak_trees, "Oak")
+            .with(tiny_trees, "Tiny")
+            .with(boulder_trees, "Boulder");
+
+        pipeline.add_stage(tree_stage);
     }
+
+    world.ecs_mut().insert(KdTree::new());
+
+    setup_components(&mut world);
+    setup_entities(&mut world);
+    setup_dispatcher(&mut world);
+    setup_methods(&mut world);
 
     world.set_method_handle("time", |world, _, payload| {
         let time_per_day = world.config().time_per_day as f32;

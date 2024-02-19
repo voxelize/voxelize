@@ -191,13 +191,13 @@ export type WorldClientOptions = {
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
-  maxProcessesPerUpdate: 8,
+  maxProcessesPerUpdate: 1,
   maxUpdatesPerUpdate: 1000,
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
-  defaultRenderRadius: 8,
+  defaultRenderRadius: 6,
   textureUnitDimension: 8,
   chunkLoadExponent: 8,
   skyOptions: {},

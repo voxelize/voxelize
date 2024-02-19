@@ -8,7 +8,7 @@ import { GUI } from "lil-gui";
 import * as THREE from "three";
 
 import LolImage from "./assets/lol.png";
-import { Map } from "./map";
+// import { Map } from "./map";
 import { setupWorld } from "./world";
 
 const createCharacter = () => {
@@ -62,7 +62,7 @@ class Box extends VOXELIZE.Entity<{
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
 const world = new VOXELIZE.World({
-  textureUnitDimension: 16,
+  textureUnitDimension: 8,
 });
 
 const chat = new VOXELIZE.Chat();
@@ -355,6 +355,114 @@ inputs.bind("p", () => {
 
 const entities = new VOXELIZE.Entities();
 
+type BotData = {
+  position: VOXELIZE.Coords3;
+  rotation: [number, number, number, number];
+  target: VOXELIZE.Coords3;
+  path: {
+    maxNodes: number;
+    path: VOXELIZE.Coords3[];
+  };
+};
+
+const botPaths = new THREE.Group();
+const botCharacters = new Map<string, VOXELIZE.Character>();
+
+world.add(botPaths);
+
+class Bot extends VOXELIZE.Entity<BotData> {
+  entityId: string;
+  character: VOXELIZE.Character;
+  path = new THREE.Group();
+
+  constructor(id: string) {
+    super(id);
+
+    this.entityId = id;
+
+    this.character = new VOXELIZE.Character({
+      nameTagOptions: {
+        fontFace: "ConnectionSerif-d20X",
+      },
+    });
+    this.character.username = "$#B4D4FF$Ian's Bot";
+
+    // shadows.add(this.character);
+    // lightShined.add(this.character);
+
+    this.character.head.paint("all", new THREE.Color("#F99417"));
+    this.character.head.paint("front", new THREE.Color("#F4CE14"));
+
+    this.character.scale.set(0.5, 0.5, 0.5);
+    this.character.position.y += this.character.totalHeight / 4;
+    this.add(this.character);
+
+    botPaths.add(this.path);
+
+    botCharacters.set(id, this.character);
+  }
+
+  adjustPosition = (position: VOXELIZE.Coords3) => {
+    position[1] += this.character.totalHeight / 4;
+    return position;
+  };
+
+  onCreate = (data: BotData) => {
+    const adjustedPosition = this.adjustPosition(data.position);
+    console.log(adjustedPosition);
+    this.character.set(adjustedPosition, [0, 0, 0]);
+  };
+
+  onDelete = () => {
+    this.path.children.forEach((node) => {
+      this.path.remove(node);
+    });
+
+    botPaths.remove(this.path);
+    botCharacters.delete(this.entityId);
+  };
+
+  onUpdate = (data: BotData) => {
+    const { position, target } = data;
+
+    const adjustedPosition = this.adjustPosition(position);
+
+    const origin = this.character.position;
+
+    const [tx, ty, tz] = target || [0, 0, 0];
+    const delta = new THREE.Vector3(tx, ty, tz).sub(origin);
+    const direction = delta.clone().normalize();
+
+    this.character.set(adjustedPosition, direction.toArray());
+
+    this.path.children.forEach((node) => {
+      this.path.remove(node);
+    });
+
+    const { path } = data;
+
+    if (path.path) {
+      const { path: nodes } = path;
+
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        const color = new THREE.Color("#fff");
+        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        const material = new THREE.MeshBasicMaterial({
+          color,
+          opacity: 0.3,
+          transparent: true,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(...node);
+        mesh.position.addScalar(0.5);
+        this.path.add(mesh);
+      }
+    }
+  };
+}
+
+entities.setClass("bot", Bot);
 entities.setClass("box", Box);
 
 world.add(entities);
@@ -368,7 +476,7 @@ inputs.bind("v", () => {
 });
 
 inputs.bind("z", () => {
-  method.call("spawn", {
+  method.call("spawn-bot", {
     position: controls.object.position.toArray(),
   });
 });
@@ -439,13 +547,13 @@ inputs.bind("n", () => {
 //   document.body.appendChild(canvas);
 // }
 
-const map = new Map(world, document.getElementById("biomes") || document.body);
+// const map = new Map(world, document.getElementById("biomes") || document.body);
 
-inputs.bind("m", map.toggle);
+// inputs.bind("m", map.toggle);
 
-inputs.bind("escape", () => {
-  map.setVisible(false);
-});
+// inputs.bind("escape", () => {
+//   map.setVisible(false);
+// });
 
 network
   .register(chat)
@@ -564,6 +672,8 @@ const start = async () => {
       startVoxelInteractUpdate = performance.now();
       voxelInteract.update();
       endVoxelInteractUpdate = performance.now();
+
+      botCharacters.forEach((bot) => bot.update());
     }
 
     const startRender = performance.now();
@@ -593,17 +703,17 @@ const start = async () => {
   await world.initialize();
   await setupWorld(world);
 
-  world.renderRadius = 8;
+  // world.renderRadius = 8;
 
   gui
-    .add({ world: currentWorldName }, "world", ["terrain", "main", "flat"])
+    .add({ world: currentWorldName }, "world", ["terrain", "flat"])
     .onChange((worldName: string) => {
       localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
       window.location.reload();
     });
 
   gui.add(world, "renderRadius", 3, 20, 1);
-  gui.add(map, "dimension", 1, 10, 0.1);
+  // gui.add(map, "dimension", 1, 10, 0.1);
   gui.add(voxelInteract.options, "ignoreFluids");
   gui
     .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)

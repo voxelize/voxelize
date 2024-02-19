@@ -61,6 +61,7 @@ impl Registry {
     pub fn new() -> Self {
         let air = Block::new("Air")
             .is_empty(true)
+            .is_passable(true)
             .is_x_transparent(true)
             .is_y_transparent(true)
             .is_z_transparent(true)

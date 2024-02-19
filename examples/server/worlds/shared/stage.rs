@@ -1,12 +1,47 @@
-use log::info;
-use voxelize::{Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, VoxelAccess};
+use voxelize::{Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Vec3, VoxelAccess};
+
+const ISLAND_LIMIT: i32 = 1;
+const ISLAND_HEIGHT: i32 = 10;
+
+pub struct LimitedStage;
+
+impl ChunkStage for LimitedStage {
+    fn name(&self) -> String {
+        "Limited Stage".to_owned()
+    }
+
+    fn process(&self, mut chunk: Chunk, resources: Resources, _: Option<Space>) -> Chunk {
+        if chunk.coords.0 > ISLAND_LIMIT
+            || chunk.coords.1 > ISLAND_LIMIT
+            || chunk.coords.0 < -ISLAND_LIMIT
+            || chunk.coords.1 < -ISLAND_LIMIT
+        {
+            return chunk;
+        }
+
+        let id = resources.registry.get_block_by_name("Stone").id;
+
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let Vec3(max_x, _, max_z) = chunk.max;
+
+        for vx in min_x..max_x {
+            for vz in min_z..max_z {
+                for vy in 0..ISLAND_HEIGHT {
+                    chunk.set_voxel(vx, vy, vz, id);
+                }
+            }
+        }
+
+        chunk
+    }
+}
 
 pub const MOUNTAIN_HEIGHT: f64 = 0.6;
 pub const RIVER_HEIGHT: f64 = 0.16;
 pub const PLAINS_HEIGHT: f64 = 0.24;
 pub const RIVER_TO_PLAINS: f64 = 0.2;
 
-pub const VARIANCE: f64 = 5.0;
+pub const VARIANCE: f64 = 3.0;
 pub const SNOW_HEIGHT: f64 = 0.6;
 pub const STONE_HEIGHT: f64 = 0.5;
 
@@ -77,7 +112,7 @@ impl ChunkStage for SoilingStage {
                         }
 
                         if vy == height {
-                            if self.noise.get3d(vx, vy, vz) > 1.0
+                            if self.noise.get3d(vx, vy, vz) > 2.5
                                 && chunk.get_voxel(vx, vy, vz) == grass_block.id
                             {
                                 chunk.set_voxel(vx, vy + 1, vz, grass.id);
@@ -87,11 +122,11 @@ impl ChunkStage for SoilingStage {
                         && vy <= height
                         && vy >= height - depth
                     {
-                        // if self.noise.get3d(vx, vy, vz) > 1.0 {
-                        //     chunk.set_voxel(vx, vy, vz, stone.id);
-                        // } else {
-                        // }
-                        chunk.set_voxel(vx, vy, vz, sand.id);
+                        if self.noise.get3d(vx, vy, vz) > 2.0 {
+                            chunk.set_voxel(vx, vy, vz, stone.id);
+                        } else {
+                            chunk.set_voxel(vx, vy, vz, sand.id);
+                        }
                     }
                 }
             }

@@ -1,7 +1,7 @@
 use specs::{ReadStorage, System, WriteStorage};
 use voxelize::MetadataComp;
 
-use crate::world::flat::Name;
+use crate::worlds::flat::Name;
 
 pub struct NameMetadataSystem;
 

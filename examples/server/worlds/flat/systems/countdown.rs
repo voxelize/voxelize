@@ -1,6 +1,6 @@
 use specs::{Entities, Join, System, WriteStorage};
 
-use crate::world::flat::comps::CountdownComp;
+use crate::worlds::flat::comps::CountdownComp;
 
 pub struct CountdownSystem;
 
