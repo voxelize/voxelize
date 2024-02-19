@@ -584,6 +584,7 @@ inputs.bind("]", () => {
 });
 
 let frame: any;
+let isInWater = false;
 
 const start = async () => {
   const animate = () => {
@@ -623,29 +624,34 @@ const start = async () => {
         world.getBlockAt(
           ...camera.getWorldPosition(new THREE.Vector3()).toArray()
         )?.name === "Water";
-      const fogNear = inWater
-        ? 0.1 * world.options.chunkSize * world.renderRadius
-        : 0.7 * world.options.chunkSize * world.renderRadius;
-      const fogFar = inWater
-        ? 0.8 * world.options.chunkSize * world.renderRadius
-        : world.options.chunkSize * world.renderRadius;
-      const fogColor = inWater
-        ? new THREE.Color("#5F9DF7")
-        : new THREE.Color("#B1CCFD");
 
-      world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-        world.chunks.uniforms.fogNear.value,
-        fogNear,
-        0.08
-      );
+      if (inWater !== isInWater) {
+        const fogNear = inWater
+          ? 0.1 * world.options.chunkSize * world.renderRadius
+          : 0.7 * world.options.chunkSize * world.renderRadius;
+        const fogFar = inWater
+          ? 0.8 * world.options.chunkSize * world.renderRadius
+          : world.options.chunkSize * world.renderRadius;
+        const fogColor = inWater
+          ? new THREE.Color("#5F9DF7")
+          : new THREE.Color("#B1CCFD");
 
-      world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-        world.chunks.uniforms.fogFar.value,
-        fogFar,
-        0.08
-      );
+        world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+          world.chunks.uniforms.fogNear.value,
+          fogNear,
+          0.08
+        );
 
-      world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+        world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+          world.chunks.uniforms.fogFar.value,
+          fogFar,
+          0.08
+        );
+
+        world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+
+        isInWater = inWater;
+      }
 
       world.update(
         controls.object.position,
@@ -760,13 +766,13 @@ const start = async () => {
     return radius;
   });
 
-  debug.registerDisplay("# of triangles", () => {
-    return renderer.info.render.triangles;
-  });
+  // debug.registerDisplay("# of triangles", () => {
+  //   return renderer.info.render.triangles;
+  // });
 
-  debug.registerDisplay("# of points", () => {
-    return renderer.info.render.points;
-  });
+  // debug.registerDisplay("# of points", () => {
+  //   return renderer.info.render.points;
+  // });
 
   debug.registerDisplay("Concurrent WebWorkers", () => {
     return VOXELIZE.SharedWorkerPool.WORKING_COUNT;

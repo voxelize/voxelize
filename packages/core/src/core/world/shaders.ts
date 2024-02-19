@@ -17,11 +17,13 @@ uniform vec4 uAOTable;
 uniform float uTime;
 
 vec4 unpackLight(int l) {
-  float r = float((l >> 8) & 0xF) / 15.0;
-  float g = float((l >> 4) & 0xF) / 15.0;
-  float b = float(l & 0xF) / 15.0;
-  float s = float((l >> 12) & 0xF) / 15.0;
-  return vec4(r, g, b, s);
+  vec4 lightValues = vec4(
+    (l >> 8) & 0xF,
+    (l >> 4) & 0xF,
+    l & 0xF,
+    (l >> 12) & 0xF
+  );
+  return lightValues / 15.0;
 }
 
 #include <common>
@@ -34,11 +36,9 @@ vec4 unpackLight(int l) {
 
 int ao = light >> 16;
 
-vAO = ((ao == 0) ? uAOTable.x :
-    (ao == 1) ? uAOTable.y :
-    (ao == 2) ? uAOTable.z : uAOTable.w) / 255.0; 
+vAO = uAOTable[ao] / 255.0;
 
-vLight = unpackLight(light & ((1 << 16) - 1));
+vLight = unpackLight(light & 0xFFFF);
 `
     )
     .replace(
@@ -75,11 +75,11 @@ varying vec4 vWorldPosition;
 #include <envmap_fragment>
 
 // Intensity of light is wavelength ** 2 
-float s = min(vLight.a * vLight.a * uSunlightIntensity * (1.0 - uMinLightLevel) + uMinLightLevel, 1.0);
-s = s * (1.0 - exp(-s) * 0.02); // Smooth the intensity without clamping to a hard upper limit
 float scale = 2.0;
+float s = clamp(vLight.a * vLight.a * uSunlightIntensity, uMinLightLevel, 1.0);
+s -= s * exp(-s) * 0.02; // Optimized smoothing
 
-outgoingLight.rgb *= vec3(s + pow(vLight.r, scale), s + pow(vLight.g, scale), s + pow(vLight.b, scale));
+outgoingLight.rgb *= s + pow(vLight.rgb, vec3(scale));
 outgoingLight *= vAO;
 `
     )

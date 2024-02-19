@@ -2182,6 +2182,11 @@ export class World extends Scene implements NetIntercept {
       return ad - bd;
     });
 
+    // LOD:
+    // < 4 chunks: 0
+    // > 4 < 6 chunks: 1
+    // > 6 chunks: 2
+
     const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
 
     this.packets.push({

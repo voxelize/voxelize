@@ -260,28 +260,30 @@ export class Debug extends Group {
 
   /**
    * Update the debug entries with the latest values. This should be called in the game loop.
+   * Utilizes requestAnimationFrame to reduce lag spikes by not overloading the main thread.
    */
   update = () => {
-    // loop through all data entries, and get their latest updated values
-    this.dataEntries.forEach(
-      ({ element, title, attribute, object, formatter }) => {
-        if (object?.constructor?.name === "AsyncFunction") return;
+    requestAnimationFrame(() => {
+      // loop through all data entries, and get their latest updated values
+      this.dataEntries.forEach(
+        ({ element, title, attribute, object, formatter }) => {
+          if (object?.constructor?.name === "AsyncFunction") return;
 
-        let newValue = "";
-        if (object) {
-          newValue =
-            typeof object === "function" ? object() : object[attribute] ?? "";
+          let newValue = "";
+          if (object) {
+            newValue =
+              typeof object === "function" ? object() : object[attribute] ?? "";
+          }
+          element.textContent = `${title ? `${title}: ` : ""}${formatter(
+            newValue
+          )}`;
         }
-        element.textContent = `${title ? `${title}: ` : ""}${formatter(
-          newValue
-        )}`;
-      }
-    );
+      );
+    });
 
     // fps update
     this.stats?.update();
   };
-
   /**
    * Make a new data entry element.
    */
