@@ -189,9 +189,8 @@ impl ChunkStage for BaseTerrainStage {
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                let (bias, offset) = self.terrain.get_bias_offset(vx, vz);
-
                 for vy in min_y..max_y {
+                    let (bias, offset) = self.terrain.get_bias_offset(vx, vy, vz);
                     let density = self.terrain.get_density_from_bias_offset(bias, offset, vy);
 
                     if density > self.threshold {

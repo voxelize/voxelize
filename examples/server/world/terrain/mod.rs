@@ -1,7 +1,7 @@
 pub mod biomes;
 
 use kdtree::{distance::squared_euclidean, KdTree};
-use noise::{Curve, Fbm, HybridMulti, MultiFractal, Perlin, ScaleBias};
+use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
 use serde::{Deserialize, Serialize};
 use voxelize::{
     Biome, Chunk, ChunkStage, NoiseOptions, Resources, SeededNoise, Space, Terrain, TerrainLayer,
@@ -11,8 +11,8 @@ use voxelize::{
 use log::info;
 
 pub const MOUNTAIN_HEIGHT: f64 = 1.0;
-pub const RIVER_HEIGHT: f64 = 0.15;
-pub const PLAINS_HEIGHT: f64 = 0.247;
+pub const RIVER_HEIGHT: f64 = 0.25;
+pub const PLAINS_HEIGHT: f64 = 0.347;
 pub const RIVER_WIDTH: f64 = 0.36;
 
 pub const VARIANCE: f64 = 5.0;
@@ -93,11 +93,10 @@ impl ChunkStage for BaseTerrainStage {
 
         for vx in min_x..max_x {
             for vz in min_z..max_z {
-                let (bias, offset) = self.terrain.get_bias_offset(vx, vz);
-
                 for vy in min_y..max_y {
+                    let (bias, offset) = self.terrain.get_bias_offset(vx, vy, vz);
                     let density = self.terrain.get_density_from_bias_offset(bias, offset, vy);
-                    let biome = self.terrain.get_biome_at(vx, vz);
+                    let biome = self.terrain.get_biome_at(vx, vy, vz);
                     let block = registry.get_block_by_name(&biome.test_block);
 
                     if density > self.threshold {
@@ -127,6 +126,9 @@ pub fn setup_terrain_world() -> World {
                 .build(),
         )
         .preload(true)
+        .preload_radius(2)
+        .default_time(1200.0)
+        .time_per_day(2400)
         .seed(42313)
         .build();
 
@@ -166,17 +168,17 @@ pub fn setup_terrain_world() -> World {
     let continentalness = TerrainLayer::new(
         "continentalness",
         &NoiseOptions::new()
-            .frequency(0.001)
+            .frequency(0.0005)
             .octaves(7)
-            .persistence(0.5)
-            .lacunarity(2.0)
+            .persistence(0.52)
+            .lacunarity(2.3)
             .seed(1231252)
             .build(),
     )
     .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 5.0], [1.0, 8.5]])
     .add_offset_points(&[
         [-2.9, MOUNTAIN_HEIGHT],
-        [-1.0, PLAINS_HEIGHT + 0.01],
+        [-0.5, PLAINS_HEIGHT + 0.01],
         [0.0, PLAINS_HEIGHT],
         // [RIVER_WIDTH, PLAINS_HEIGHT],
         // [0.0, PLAINS_HEIGHT],
@@ -185,16 +187,16 @@ pub fn setup_terrain_world() -> World {
         [5.6, MOUNTAIN_HEIGHT], // [5.7, MOUNTAIN_HEIGHT],
     ]);
 
-    // The peaks and valleys of the terrain:
-    // The higher the value, the more mountainous the terrain will be.
-    // The lower the value, the more plains-like the terrain will be.
+    // // The peaks and valleys of the terrain:
+    // // The higher the value, the more mountainous the terrain will be.
+    // // The lower the value, the more plains-like the terrain will be.
     let peaks_and_valleys = TerrainLayer::new(
         "peaks_and_valleys",
         &NoiseOptions::new()
-            .frequency(0.003)
+            .frequency(0.002)
             .octaves(7)
-            .persistence(0.56)
-            .lacunarity(1.8)
+            .persistence(0.53)
+            .lacunarity(2.0)
             .seed(51287)
             .build(),
     )
@@ -204,7 +206,7 @@ pub fn setup_terrain_world() -> World {
         [-2.0, PLAINS_HEIGHT],
         [-0.4, PLAINS_HEIGHT * 0.9],
         [0.0, RIVER_HEIGHT],
-        [RIVER_WIDTH, RIVER_HEIGHT * 1.05],
+        [RIVER_WIDTH / 2.0, RIVER_HEIGHT * 1.05],
         [2.0, PLAINS_HEIGHT + RIVER_HEIGHT],
         [5.0, MOUNTAIN_HEIGHT * 2.0],
     ]);
@@ -224,7 +226,6 @@ pub fn setup_terrain_world() -> World {
 
     terrain.add_layer(&continentalness, 1.0);
     terrain.add_layer(&peaks_and_valleys, 0.5);
-
     terrain.add_noise_layer(&erosion, 0.015);
 
     // ●	Continentalness (weight: 1.7)
@@ -270,10 +271,10 @@ pub fn setup_terrain_world() -> World {
     {
         let mut pipeline = world.pipeline_mut();
 
-        pipeline.add_stage(SoilingStage::new(
-            config.seed,
-            &NoiseOptions::new().frequency(0.04).lacunarity(3.0).build(),
-        ));
+        // pipeline.add_stage(SoilingStage::new(
+        //     config.seed,
+        //     &NoiseOptions::new().frequency(0.04).lacunarity(3.0).build(),
+        // ));
 
         let mut terrain_stage = BaseTerrainStage::new(terrain);
         terrain_stage.set_base(2);

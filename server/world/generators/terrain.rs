@@ -109,20 +109,28 @@ impl Terrain {
 
     /// Get the height bias and height offset values at a voxel column. What it does is that it samples the bias and offset
     /// of all noise layers and take the average of them all.
-    pub fn get_bias_offset(&self, vx: i32, vz: i32) -> (f64, f64) {
+    pub fn get_bias_offset(&self, vx: i32, vy: i32, vz: i32) -> (f64, f64) {
         let mut bias = 0.0;
         let mut offset = 0.0;
         let mut total_weight = 0.0;
 
         self.layers.iter().for_each(|(layer, weight)| {
-            let value = layer.noise.get2d(vx, vz);
+            let value = if layer.options.dimension == 2 {
+                layer.noise.get2d(vx, vz)
+            } else {
+                layer.noise.get3d(vx, vy, vz)
+            };
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
         });
 
         self.noise_layers.iter().for_each(|(layer, weight)| {
-            let value = layer.noise.get2d(vx, vz);
+            let value = if layer.options.dimension == 2 {
+                layer.noise.get2d(vx, vz)
+            } else {
+                layer.noise.get3d(vx, vy, vz)
+            };
             bias += layer.sample_bias(value) * weight;
             offset += layer.sample_offset(value) * weight;
             total_weight += weight;
@@ -131,11 +139,17 @@ impl Terrain {
         (bias / total_weight, offset / total_weight)
     }
 
-    pub fn get_biome_at(&self, vx: i32, vz: i32) -> &Biome {
+    pub fn get_biome_at(&self, vx: i32, vy: i32, vz: i32) -> &Biome {
         let values = self
             .layers
             .iter()
-            .map(|(layer, weight)| layer.noise.get2d(vx, vz) * weight)
+            .map(|(layer, weight)| {
+                (if layer.options.dimension == 2 {
+                    layer.noise.get2d(vx, vz)
+                } else {
+                    layer.noise.get3d(vx, vy, vz)
+                }) * weight
+            })
             .collect::<Vec<f64>>();
 
         let result = self
