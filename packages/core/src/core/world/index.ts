@@ -2187,7 +2187,12 @@ export class World extends Scene implements NetIntercept {
     // > 4 < 6 chunks: 1
     // > 6 chunks: 2
 
-    const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
+    const toRequest = toRequestArray
+      .slice(0, maxChunkRequestsPerUpdate)
+      .map(([cx, cz]) => {
+        const dist = Math.sqrt((cx - center[0]) ** 2 + (cz - center[1]) ** 2);
+        return [[cx, cz], dist < 4 ? 0 : dist < 6 ? 1 : 2];
+      });
 
     this.packets.push({
       type: "LOAD",
