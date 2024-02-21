@@ -41,7 +41,7 @@ pub struct Chunk {
     pub lights: Ndarray<u32>,
     pub height_map: Ndarray<u32>,
 
-    pub meshes: Option<HashMap<u32, MeshProtocol>>,
+    pub meshes: Option<HashMap<(usize, i32), MeshProtocol>>,
 
     pub min: Vec3<i32>,
     pub max: Vec3<i32>,
@@ -117,17 +117,15 @@ impl Chunk {
         mesh: bool,
         data: bool,
         lod: usize,
-        levels: Range<u32>,
+        levels: Range<i32>,
     ) -> ChunkProtocol {
         let mut meshes = vec![];
 
         if mesh {
             if self.meshes.is_some() {
                 levels.for_each(|level| {
-                    if let Some(mesh) = self.meshes.as_ref().unwrap().get(&level) {
-                        if mesh.lod == lod {
-                            meshes.push(mesh.to_owned());
-                        }
+                    if let Some(mesh) = self.meshes.as_ref().unwrap().get(&(lod, level)) {
+                        meshes.push(mesh.to_owned());
                     }
                 });
             }

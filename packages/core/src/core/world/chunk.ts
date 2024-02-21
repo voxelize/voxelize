@@ -1,20 +1,36 @@
 import { ChunkProtocol } from "@voxelize/transport/src/types";
 import { Group, Mesh } from "three";
 
+import { LOD } from "../../libs";
 import { Coords2 } from "../../types";
 
 import { RawChunk, RawChunkOptions } from "./raw-chunk";
 
 export class Chunk extends RawChunk {
-  public meshes = new Map<number, Mesh[]>();
+  // LOD -> level -> Mesh
+  public meshes = new Map<number, Map<number, Mesh[]>>();
 
   public added = false;
   public isDirty = false;
 
-  public group = new Group();
+  public lod = new LOD();
+  public lodGroups: Map<number, Group> = new Map();
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     super(id, coords, options);
+    for (let i = 0; i < this.options.lodDistances.length; i++) {
+      const newGroup = new Group();
+      this.lodGroups.set(i, newGroup);
+      this.lod.addLevel(
+        newGroup,
+        this.options.lodDistances[i] * this.options.size
+      );
+    }
+    this.lod.position.set(
+      this.coords[0] * this.options.size,
+      0,
+      this.coords[1] * this.options.size
+    );
   }
 
   setData(data: ChunkProtocol) {
@@ -36,14 +52,16 @@ export class Chunk extends RawChunk {
 
   dispose() {
     this.meshes.forEach((mesh) => {
-      mesh.forEach((subMesh) => {
-        if (!subMesh) return;
+      mesh.forEach((subMeshMap) => {
+        subMeshMap.forEach((subMesh) => {
+          if (!subMesh) return;
 
-        subMesh.geometry?.dispose();
+          subMesh.geometry?.dispose();
 
-        if (subMesh.parent) {
-          subMesh.parent.remove(subMesh);
-        }
+          if (subMesh.parent) {
+            subMesh.parent.remove(subMesh);
+          }
+        });
       });
     });
   }

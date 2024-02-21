@@ -9,6 +9,7 @@ export type GeometryProtocol = {
 
 export type MeshProtocol = {
   level: number;
+  lod: number;
   geometries: GeometryProtocol[];
 };
 

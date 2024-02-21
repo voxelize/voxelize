@@ -47,6 +47,7 @@ import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Clouds, CloudsOptions } from "./clouds";
 import { Loader } from "./loader";
+import { ChunkLODDistances } from "./raw-chunk";
 import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
@@ -142,11 +143,6 @@ export type WorldClientOptions = {
   sunlightChangeSpan: number;
 
   /**
-   * The interval between each time a chunk is re-requested to the server. Defaults to `300` updates.
-   */
-  chunkRerequestInterval: number;
-
-  /**
    * The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks.
    */
   defaultRenderRadius: number;
@@ -187,6 +183,8 @@ export type WorldClientOptions = {
    * The interval between each time the world requests the server for its stats. Defaults to 500ms.
    */
   statsSyncInterval: number;
+
+  chunkLODDistances: ChunkLODDistances;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -196,10 +194,9 @@ const defaultOptions: WorldClientOptions = {
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
-  chunkRerequestInterval: 10000,
   defaultRenderRadius: 6,
   textureUnitDimension: 8,
-  chunkLoadExponent: 8,
+  chunkLoadExponent: 1,
   skyOptions: {},
   cloudsOptions: {},
   chunkUniformsOverwrite: {},
@@ -208,6 +205,7 @@ const defaultOptions: WorldClientOptions = {
   sunlightChangeSpan: 0.15,
   timeForceThreshold: 0.1,
   statsSyncInterval: 500,
+  chunkLODDistances: [0, 20, 30],
 };
 
 /**
@@ -427,10 +425,14 @@ export class World extends Scene implements NetIntercept {
     super();
 
     // @ts-ignore
-    const { statsSyncInterval } = (this.options = {
+    const { statsSyncInterval, chunkLODDistances } = (this.options = {
       ...defaultOptions,
       ...options,
     });
+
+    if (chunkLODDistances[0] !== 0) {
+      throw new Error("The first LOD distance must be 0.");
+    }
 
     this.setupComponents();
     this.setupUniforms();
@@ -446,7 +448,7 @@ export class World extends Scene implements NetIntercept {
     }, statsSyncInterval);
   }
 
-  async meshChunkLocally(cx: number, cz: number, level: number) {
+  async meshChunkLocally(cx: number, cz: number, lod: number, level: number) {
     const neighbors = [
       [-1, -1],
       [0, -1],
@@ -519,6 +521,7 @@ export class World extends Scene implements NetIntercept {
     }
 
     const mesh: MeshProtocol = {
+      lod,
       level,
       geometries: geometries.map((geometry) => ({
         indices: geometry.indices,
@@ -1991,7 +1994,6 @@ export class World extends Scene implements NetIntercept {
       }
       case "LOAD": {
         const { chunks } = message;
-        console.log(chunks);
 
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
@@ -2080,14 +2082,21 @@ export class World extends Scene implements NetIntercept {
     return this._deleteRadius;
   }
 
+  private getLODFromCoords(cx: number, cz: number, center: Coords2) {
+    const { chunkLODDistances } = this.options;
+    const dist = Math.sqrt((cx - center[0]) ** 2 + (cz - center[1]) ** 2);
+    for (let i = 1; i < chunkLODDistances.length; i++) {
+      if (dist < chunkLODDistances[i]) {
+        return i - 1;
+      }
+    }
+    return chunkLODDistances.length - 1;
+  }
+
   private requestChunks(center: Coords2, direction: Vector3) {
     const {
       renderRadius,
-      options: {
-        chunkRerequestInterval,
-        chunkLoadExponent,
-        maxChunkRequestsPerUpdate,
-      },
+      options: { chunkLoadExponent, maxChunkRequestsPerUpdate },
     } = this;
 
     const total =
@@ -2108,9 +2117,10 @@ export class World extends Scene implements NetIntercept {
     const toRequestSet = new Set<string>();
 
     // Pre-calculate squared renderRadius to use in distance checks
-    const renderRadiusBounded = Math.floor(
-      Math.max(Math.min(ratio * renderRadius, renderRadius), 1)
-    );
+    const renderRadiusBounded = renderRadius;
+    //  Math.floor(
+    //   Math.max(Math.min(ratio * renderRadius, renderRadius), 1)
+    // );
     const renderRadiusSquared = renderRadiusBounded * renderRadiusBounded;
 
     // Surrounding the center, request all chunks that are not loaded.
@@ -2121,6 +2131,7 @@ export class World extends Scene implements NetIntercept {
 
         const cx = centerX + ox;
         const cz = centerZ + oz;
+        const lod = this.getLODFromCoords(cx, cz, center);
 
         if (!this.isWithinWorld(cx, cz)) {
           continue;
@@ -2133,37 +2144,27 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
+        const chunkNameWithLOD = ChunkUtils.getChunkNameWithLOD(cx, cz, lod);
         const chunkName = ChunkUtils.getChunkName([cx, cz]);
 
-        if (this.chunks.loaded.has(chunkName)) {
+        const loadedChunk = this.chunks.loaded.get(chunkName);
+
+        if (loadedChunk && loadedChunk.meshes.has(lod)) {
           continue;
         }
 
-        if (this.chunks.requested.has(chunkName)) {
-          const name = ChunkUtils.getChunkName([cx, cz]);
-          const count = this.chunks.requested.get(name) || 0;
-
-          if (count + 1 > chunkRerequestInterval) {
-            this.chunks.requested.delete(name);
-            toRequestSet.add(`${cx},${cz}`);
-          } else {
-            this.chunks.requested.set(name, count + 1);
-          }
-
+        if (this.chunks.requested.has(chunkNameWithLOD)) {
           continue;
         }
 
         if (
-          this.chunks.toProcessSet.has(chunkName) ||
-          this.chunks.toRequestSet.has(chunkName)
+          this.chunks.toProcessSet.has(chunkNameWithLOD) ||
+          this.chunks.toRequestSet.has(chunkNameWithLOD)
         ) {
           continue;
         }
 
-        const chunkCoords = `${cx},${cz}`;
-        if (!this.chunks.requested.has(ChunkUtils.getChunkName([cx, cz]))) {
-          toRequestSet.add(chunkCoords);
-        }
+        toRequestSet.add(chunkNameWithLOD);
         continue;
       }
     }
@@ -2172,28 +2173,23 @@ export class World extends Scene implements NetIntercept {
       return;
     }
 
-    const toRequestArray = Array.from(toRequestSet).map((coords) =>
-      coords.split(",").map(Number)
+    const toRequestArray = Array.from(toRequestSet).map((nameWithLOD) =>
+      ChunkUtils.parseChunkNameWithLOD(nameWithLOD)
     );
 
     // Sort the chunks by distance from the center, closest first.
     toRequestArray.sort((a, b) => {
-      const ad = (a[0] - center[0]) ** 2 + (a[1] - center[1]) ** 2;
-      const bd = (b[0] - center[0]) ** 2 + (b[1] - center[1]) ** 2;
+      const ad = (a[0][0] - center[0]) ** 2 + (a[0][1] - center[1]) ** 2;
+      const bd = (b[0][0] - center[0]) ** 2 + (b[0][1] - center[1]) ** 2;
       return ad - bd;
     });
+
+    const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
 
     // LOD:
     // < 4 chunks: 0
     // > 4 < 6 chunks: 1
     // > 6 chunks: 2
-
-    const toRequest = toRequestArray
-      .slice(0, maxChunkRequestsPerUpdate)
-      .map(([cx, cz]) => {
-        const dist = Math.sqrt((cx - center[0]) ** 2 + (cz - center[1]) ** 2);
-        return [[cx, cz], dist < 8 ? 0 : dist < 12 ? 1 : 2];
-      });
 
     this.packets.push({
       type: "LOAD",
@@ -2203,9 +2199,9 @@ export class World extends Scene implements NetIntercept {
       },
     });
 
-    toRequest.forEach((coords) => {
-      const name = ChunkUtils.getChunkName(coords as Coords2);
-      this.chunks.requested.set(name, 0);
+    toRequest.forEach(([[cx, cz], lod]) => {
+      const chunkNameWithLOD = ChunkUtils.getChunkNameWithLOD(cx, cz, lod);
+      this.chunks.requested.add(chunkNameWithLOD);
     });
   }
 
@@ -2230,6 +2226,7 @@ export class World extends Scene implements NetIntercept {
       subChunks,
       maxLightLevel,
       shouldGenerateChunkMeshes,
+      chunkLODDistances,
     } = this.options;
 
     const triggerInitListener = (chunk: Chunk) => {
@@ -2256,6 +2253,7 @@ export class World extends Scene implements NetIntercept {
           subChunks,
           size: chunkSize,
           maxLightLevel,
+          lodDistances: chunkLODDistances,
         });
       }
 
@@ -2466,19 +2464,23 @@ export class World extends Scene implements NetIntercept {
     const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) return; // May be already maintained and deleted.
 
-    const { maxHeight, subChunks, chunkSize } = this.options;
-    const { level, geometries } = data;
+    const { maxHeight, subChunks } = this.options;
+    const { level, lod, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
-    chunk.meshes.get(level)?.forEach((mesh) => {
-      mesh.geometry.dispose();
-      chunk.group.remove(mesh);
-    });
+    chunk.meshes
+      .get(lod)
+      ?.get(level)
+      ?.forEach((mesh) => {
+        mesh.geometry.dispose();
+        chunk.lodGroups.get(lod)?.remove(mesh);
+      });
 
-    chunk.meshes.delete(level);
+    chunk.meshes.get(lod)?.delete(level);
 
     if (geometries.length === 0) return;
 
+    const meshGroup = chunk.lodGroups.get(lod);
     const meshes = geometries.map((geo) => {
       const { voxel, faceName, indices, lights, positions, uvs } = geo;
       const geometry = new BufferGeometry();
@@ -2492,29 +2494,31 @@ export class World extends Scene implements NetIntercept {
       if (!material) return;
 
       const mesh = new Mesh(geometry, material);
-      mesh.position.set(
-        cx * chunkSize,
-        level * heightPerSubChunk,
-        cz * chunkSize
-      );
+      mesh.position.set(0, level * heightPerSubChunk, 0);
       mesh.updateMatrix();
       mesh.matrixAutoUpdate = false;
       mesh.matrixWorldAutoUpdate = false;
       mesh.userData = { isChunk: true, voxel };
 
-      chunk.group.add(mesh);
+      meshGroup.add(mesh);
       return mesh;
     });
 
-    if (!this.children.includes(chunk.group)) {
-      this.add(chunk.group);
+    if (!this.children.includes(chunk.lod)) {
+      this.add(chunk.lod);
     }
 
-    if (!chunk.meshes.has(level)) {
-      chunk.meshes.set(level, []);
+    if (!chunk.meshes.has(lod)) {
+      chunk.meshes.set(lod, new Map());
     }
 
-    chunk.meshes.get(level)?.push(...meshes);
+    if (!chunk.meshes.get(lod)?.has(level)) {
+      chunk.meshes.get(lod)?.set(level, []);
+    }
+
+    chunk.meshes
+      .get(lod)
+      ?.set(level, [...(chunk.meshes.get(lod)?.get(level) || []), ...meshes]);
   }
 
   private setupComponents() {
@@ -2857,7 +2861,8 @@ export class World extends Scene implements NetIntercept {
     const runAll = async () => {
       for (const [coords, level] of dirtyChunks) {
         const [cx, cz] = coords;
-        await this.meshChunkLocally(cx, cz, level);
+        // FOR NOW, REMESH CHUNK WITH LOD 0
+        await this.meshChunkLocally(cx, cz, 0, level);
       }
     };
 

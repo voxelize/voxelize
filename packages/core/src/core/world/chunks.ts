@@ -1,6 +1,5 @@
 import { ChunkProtocol } from "@voxelize/transport/src/types";
 import { Color, Vector4 } from "three";
-import { Coords2 } from "types";
 
 import { Chunk } from "./chunk";
 
@@ -106,11 +105,11 @@ export class Chunks {
     },
   };
 
-  public requested: Map<string, number> = new Map();
-
-  public toAdd: Coords2[] = [];
+  // name w/ LOD
+  public requested: Set<string> = new Set();
 
   public toRequest: string[] = [];
+  // name w/ LOD
   public toRequestSet: Set<string> = new Set();
 
   public loaded: Map<string, Chunk> = new Map();
@@ -119,6 +118,7 @@ export class Chunks {
     source: "update" | "load";
     data: ChunkProtocol;
   }[] = [];
+  // name w/ LOD
   public toProcessSet: Set<string> = new Set();
 
   public toUpdate: { source: "client" | "server"; update: BlockUpdate }[] = [];

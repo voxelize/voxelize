@@ -224,7 +224,7 @@ impl Mesher {
                         .into_iter()
                         .for_each(|(geometries, level)| {
                             chunk.meshes.get_or_insert_with(HashMap::new).insert(
-                                level as u32,
+                                (lod, level as i32),
                                 MeshProtocol {
                                     level,
                                     lod,

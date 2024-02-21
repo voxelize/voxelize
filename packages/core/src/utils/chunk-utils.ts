@@ -118,6 +118,19 @@ export class ChunkUtils {
     return ChunkUtils.scaleCoordsF(worldPos, 1);
   };
 
+  static getChunkNameWithLOD = (
+    cx: number,
+    cz: number,
+    lod: number
+  ): string => {
+    return `${ChunkUtils.getChunkName([cx, cz])}::${lod}`;
+  };
+
+  static parseChunkNameWithLOD(chunkNameWithLOD: string): [Coords2, number] {
+    const [chunkName, lod] = chunkNameWithLOD.split("::");
+    return [ChunkUtils.parseChunkName(chunkName) as Coords2, parseInt(lod, 10)];
+  }
+
   private constructor() {
     // NOTHING
   }

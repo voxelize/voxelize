@@ -131,7 +131,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 .map(|(coords, lod)| {
                     let chunk = chunks.get(&coords, lod).unwrap();
 
-                    chunk.to_model(true, true, lod, 0..config.sub_chunks as u32)
+                    chunk.to_model(true, true, lod, 0..config.sub_chunks as i32)
                 })
                 .collect();
 

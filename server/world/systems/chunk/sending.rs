@@ -41,7 +41,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
                                 true,
                                 true,
                                 lod,
-                                0..(config.sub_chunks as u32),
+                                0..(config.sub_chunks as i32),
                             )])
                             .build()]
                     } else {
@@ -59,7 +59,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
                                                     true,
                                                     false,
                                                     lod,
-                                                    level as u32..(level as u32 + 1),
+                                                    level as i32..(level as i32 + 1),
                                                 )])
                                                 .build(),
                                         );
@@ -72,7 +72,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
                                             false,
                                             true,
                                             lod,
-                                            0..(config.sub_chunks as u32),
+                                            0..(config.sub_chunks as i32),
                                         )])
                                         .build(),
                                 );

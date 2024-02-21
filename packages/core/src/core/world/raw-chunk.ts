@@ -8,11 +8,14 @@ import { LightColor, LightUtils } from "../../utils/light-utils";
 
 import { BlockRotation } from "./block";
 
+export type ChunkLODDistances = number[];
+
 export type RawChunkOptions = {
   size: number;
   maxHeight: number;
   maxLightLevel: number;
   subChunks: number;
+  lodDistances: ChunkLODDistances;
 };
 
 export class RawChunk {

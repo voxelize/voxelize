@@ -77,6 +77,11 @@ inputs.on("namespace", (namespace) => {
 });
 inputs.setNamespace("menu");
 
+inputs.bind("u", () => {
+  const chunk = world.getChunkByPosition(...controls.voxel);
+  console.log(chunk);
+});
+
 world.sky.setShadingPhases([
   // start of sunrise
   {
