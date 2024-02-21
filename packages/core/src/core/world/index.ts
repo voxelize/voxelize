@@ -74,6 +74,10 @@ export type BlockUpdateListener = (args: {
   voxel: Coords3;
 }) => void;
 
+const tempRed = new MeshBasicMaterial({ color: "red" });
+const tempGreen = new MeshBasicMaterial({ color: "green" });
+const tempBlue = new MeshBasicMaterial({ color: "blue" });
+
 const VOXEL_NEIGHBORS = [
   [1, 0, 0],
   [-1, 0, 0],
@@ -205,7 +209,7 @@ const defaultOptions: WorldClientOptions = {
   sunlightChangeSpan: 0.15,
   timeForceThreshold: 0.1,
   statsSyncInterval: 500,
-  chunkLODDistances: [0, 20, 30],
+  chunkLODDistances: [0, 4, 8],
 };
 
 /**
@@ -1152,23 +1156,21 @@ export class World extends Scene implements NetIntercept {
     const isRequested = this.chunks.requested.has(name);
     const isLoaded = this.chunks.loaded.has(name);
     const isProcessing = this.chunks.toProcessSet.has(name);
-    const isToRequest = this.chunks.toRequestSet.has(name);
 
     // Check if more than one is true. If that is the case, throw an error.
     if (
       (isRequested && isProcessing) ||
-      (isRequested && isToRequest) ||
-      (isProcessing && isToRequest)
+      (isRequested && isLoaded) ||
+      (isProcessing && isLoaded)
     ) {
       throw new Error(
-        `Chunk ${name} is in more than one state other than the loaded state. This should not happen. These are the states: requested: ${isRequested}, loaded: ${isLoaded}, processing: ${isProcessing}, to request: ${isToRequest}`
+        `Chunk ${name} is in more than one state other than the loaded state. This should not happen. These are the states: requested: ${isRequested}, loaded: ${isLoaded}, processing: ${isProcessing}`
       );
     }
 
     if (isLoaded) return "loaded";
     if (isProcessing) return "processing";
     if (isRequested) return "requested";
-    if (isToRequest) return "to request";
 
     return null;
   }
@@ -1995,6 +1997,12 @@ export class World extends Scene implements NetIntercept {
       case "LOAD": {
         const { chunks } = message;
 
+        for (const chunk of chunks) {
+          if (chunk.x === -3 && chunk.z === 3) {
+            console.log("SPECIFIC", chunk);
+          }
+        }
+
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
           const name = ChunkUtils.getChunkName([x, z]);
@@ -2102,7 +2110,6 @@ export class World extends Scene implements NetIntercept {
     const total =
       this.chunks.loaded.size +
       this.chunks.requested.size +
-      this.chunks.toRequest.length +
       this.chunks.toProcess.length;
 
     const ratio = total === 0 ? 1 : this.chunks.loaded.size / total;
@@ -2157,13 +2164,11 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
-        if (
-          this.chunks.toProcessSet.has(chunkNameWithLOD) ||
-          this.chunks.toRequestSet.has(chunkNameWithLOD)
-        ) {
+        if (this.chunks.toProcessSet.has(chunkNameWithLOD)) {
           continue;
         }
 
+        console.log(`LOD: ${lod}, cx: ${cx}, cz: ${cz}`);
         toRequestSet.add(chunkNameWithLOD);
         continue;
       }
@@ -2298,24 +2303,14 @@ export class World extends Scene implements NetIntercept {
       }
     });
 
-    this.chunks.requested.forEach((_, name) => {
-      const [x, z] = ChunkUtils.parseChunkName(name);
+    this.chunks.requested.forEach((_, nameWithLOD) => {
+      const [[x, z]] = ChunkUtils.parseChunkNameWithLOD(nameWithLOD);
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
-        this.chunks.requested.delete(name);
+        this.chunks.requested.delete(nameWithLOD);
         deleted.push([x, z]);
       }
     });
-
-    const tempToRequest = [...this.chunks.toRequest];
-    this.chunks.toRequest.length = 0;
-    const filteredTempToRequest = tempToRequest.filter((name) => {
-      const [x, z] = ChunkUtils.parseChunkName(name);
-      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
-    });
-    this.chunks.toRequest.push(...filteredTempToRequest);
-    this.chunks.toRequestSet.clear();
-    filteredTempToRequest.forEach((name) => this.chunks.toRequestSet.add(name));
 
     const tempToProcess = [...this.chunks.toProcess];
     this.chunks.toProcess.length = 0;
@@ -2490,7 +2485,12 @@ export class World extends Scene implements NetIntercept {
       geometry.setAttribute("light", new BufferAttribute(lights, 1));
       geometry.setIndex(new BufferAttribute(indices, 1));
 
-      const material = this.getBlockFaceMaterial(voxel, faceName);
+      const material =
+        lod === 0
+          ? this.getBlockFaceMaterial(voxel, faceName)
+          : lod === 1
+          ? tempGreen
+          : tempRed;
       if (!material) return;
 
       const mesh = new Mesh(geometry, material);

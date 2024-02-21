@@ -108,10 +108,6 @@ export class Chunks {
   // name w/ LOD
   public requested: Set<string> = new Set();
 
-  public toRequest: string[] = [];
-  // name w/ LOD
-  public toRequestSet: Set<string> = new Set();
-
   public loaded: Map<string, Chunk> = new Map();
 
   public toProcess: {

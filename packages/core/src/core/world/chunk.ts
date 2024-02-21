@@ -1,7 +1,7 @@
 import { ChunkProtocol } from "@voxelize/transport/src/types";
 import { Group, Mesh } from "three";
 
-import { LOD } from "../../libs";
+import { ChunkLOD } from "../../libs";
 import { Coords2 } from "../../types";
 
 import { RawChunk, RawChunkOptions } from "./raw-chunk";
@@ -13,18 +13,18 @@ export class Chunk extends RawChunk {
   public added = false;
   public isDirty = false;
 
-  public lod = new LOD();
+  public lod: ChunkLOD;
   public lodGroups: Map<number, Group> = new Map();
 
   constructor(id: string, coords: Coords2, options: RawChunkOptions) {
     super(id, coords, options);
+
+    this.lod = new ChunkLOD(this.options.size);
+
     for (let i = 0; i < this.options.lodDistances.length; i++) {
       const newGroup = new Group();
       this.lodGroups.set(i, newGroup);
-      this.lod.addLevel(
-        newGroup,
-        this.options.lodDistances[i] * this.options.size
-      );
+      this.lod.addLevel(newGroup, this.options.lodDistances[i] * 0.99);
     }
     this.lod.position.set(
       this.coords[0] * this.options.size,

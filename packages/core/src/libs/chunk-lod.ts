@@ -1,9 +1,10 @@
 import { Camera, Object3D, Vector3 } from "three";
+import { ChunkUtils } from "utils";
 
 const v1 = new Vector3();
 const v2 = new Vector3();
 
-export class LOD extends Object3D {
+export class ChunkLOD extends Object3D {
   public currentLevel = 0;
   public autoUpdate = true;
 
@@ -13,7 +14,7 @@ export class LOD extends Object3D {
   public levels: { distance: number; hysteresis: number; object: Object3D }[] =
     [];
 
-  constructor() {
+  constructor(public chunkSize: number) {
     super();
   }
 
@@ -48,9 +49,14 @@ export class LOD extends Object3D {
       v1.setFromMatrixPosition(camera.matrixWorld);
       v2.setFromMatrixPosition(this.matrixWorld);
 
+      const v1Chunk = ChunkUtils.mapVoxelToChunk(v1.toArray(), this.chunkSize);
+      const v2Chunk = ChunkUtils.mapVoxelToChunk(v2.toArray(), this.chunkSize);
+
       const distance =
-        Math.sqrt(Math.pow(v1.x - v2.x, 2) + Math.pow(v1.z - v2.z, 2)) /
-        ((camera as any).zoom ?? 1);
+        Math.sqrt(
+          Math.pow(v1Chunk[0] - v2Chunk[0], 2) +
+            Math.pow(v1Chunk[1] - v2Chunk[1], 2)
+        ) / ((camera as any).zoom ?? 1);
 
       levels[0].object.visible = true;
 

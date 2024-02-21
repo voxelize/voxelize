@@ -343,7 +343,6 @@ debug.registerDisplay("Voxel Stage", () => {
   return world.getVoxelStageAt(...controls.voxel);
 });
 
-debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
 debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
 debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
 debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
