@@ -2168,7 +2168,6 @@ export class World extends Scene implements NetIntercept {
           continue;
         }
 
-        console.log(`LOD: ${lod}, cx: ${cx}, cz: ${cz}`);
         toRequestSet.add(chunkNameWithLOD);
         continue;
       }
