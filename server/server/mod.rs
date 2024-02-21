@@ -100,7 +100,7 @@ fn default_info_handle(server: &Server) -> Value {
                 match chunk.status {
                     ChunkStatus::Generating(_) => generating += 1,
                     ChunkStatus::Meshing => meshing += 1,
-                    ChunkStatus::Ready => ready += 1,
+                    ChunkStatus::Ready(_) => ready += 1,
                 }
             }
 

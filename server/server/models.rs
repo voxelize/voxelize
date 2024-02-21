@@ -66,6 +66,7 @@ pub struct GeometryProtocol {
 #[derive(Debug, Clone, Default)]
 pub struct MeshProtocol {
     pub level: i32,
+    pub lod: usize,
     pub geometries: Vec<GeometryProtocol>,
 }
 
@@ -253,6 +254,7 @@ impl MessageBuilder {
                         .into_iter()
                         .map(|mesh| protocols::Mesh {
                             level: mesh.level,
+                            lod: mesh.lod as u32,
                             geometries: mesh
                                 .geometries
                                 .into_iter()

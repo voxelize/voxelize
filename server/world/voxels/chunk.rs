@@ -12,7 +12,8 @@ pub enum ChunkStatus {
 
     Meshing,
 
-    Ready,
+    /// Ready (with a list of ready LOD's)
+    Ready(HashSet<usize>),
 }
 
 impl Default for ChunkStatus {

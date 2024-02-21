@@ -143,8 +143,8 @@ pub fn setup_terrain_world() -> World {
                 .lacunarity(1.8623123)
                 .build(),
         )
-        .preload(true)
-        .preload_radius(2)
+        // .preload(true)
+        // .preload_radius(2)
         .default_time(1200.0)
         .time_per_day(2400)
         .seed(42313)

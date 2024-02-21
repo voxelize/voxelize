@@ -33,8 +33,8 @@ impl<'a> System<'a> for ChunkSendingSystem {
         }
 
         while !chunks.to_send.is_empty() {
-            if let Some((coords, r#type)) = chunks.to_send.pop_front() {
-                if let Some(chunk) = chunks.get_mut(&coords) {
+            if let Some((coords, lod, r#type)) = chunks.to_send.pop_front() {
+                if let Some(chunk) = chunks.get_mut(&coords, lod) {
                     [[true, false], [false, true]]
                         .into_iter()
                         .for_each(|[mesh, data]| {

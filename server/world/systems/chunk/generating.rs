@@ -77,7 +77,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             extra_changes.into_iter().for_each(|(voxel, id)| {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
 
-                if chunks.is_chunk_ready(&coords) {
+                // for voxel updates, it's not a mesh-level thing, but a data-level
+                if chunks.is_chunk_ready(&coords, 0) {
                     chunks.update_voxel(&voxel, id);
                     return;
                 }
@@ -96,7 +97,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if next_stage >= pipeline.stages.len() {
                     // At this point, this chunk has nothing to do with the pipeline.
                     chunk.status = ChunkStatus::Meshing;
-                    mesher.add_chunk(&chunk.coords, false);
+                    let post_gen_lods = chunks
+                        .postgen_target_lods
+                        .remove(&chunk.coords)
+                        .unwrap_or_default();
+                    for lod in post_gen_lods {
+                        mesher.add_chunk(&chunk.coords, lod, false);
+                    }
                     pipeline.remove_chunk(&chunk.coords);
                 } else {
                     // Otherwise, advance the chunk to the next stage.
@@ -109,7 +116,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 if chunks.listeners.contains_key(&chunk.coords) {
                     let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
 
-                    listeners.into_iter().for_each(|n_coords| {
+                    let mut went_to_generate = vec![];
+                    let mut went_to_mesh = vec![];
+                    let mut failed = vec![];
+
+                    listeners.into_iter().for_each(|(n_coords, lod)| {
                         // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
                         if !chunks.map.contains_key(&n_coords)
                             || matches!(
@@ -118,14 +129,18 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                             )
                         {
                             pipeline.add_chunk(&n_coords, true);
+                            went_to_generate.push((n_coords, lod));
                         }
                         // If this chunk is in the meshing stage, we re-add it to the mesher.
                         else if let Some(chunk) = chunks.raw(&n_coords) {
                             if matches!(chunk.status, ChunkStatus::Meshing) {
-                                mesher.add_chunk(&n_coords, true);
+                                mesher.add_chunk(&n_coords, lod, true);
+                                went_to_mesh.push((n_coords, lod));
                             }
+                        } else {
+                            failed.push((n_coords, lod));
                         }
-                    })
+                    });
                 }
 
                 // Renew the chunk to the world map.
@@ -153,7 +168,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 // Try loading the chunk from disk.
                 if let Some(chunk) = chunks.try_load(&coords) {
                     pipeline.remove_chunk(&coords);
-                    mesher.add_chunk(&coords, false);
+                    let post_gen_lods = chunks
+                        .postgen_target_lods
+                        .remove(&chunk.coords)
+                        .unwrap_or_default();
+                    for lod in post_gen_lods {
+                        mesher.add_chunk(&chunk.coords, lod, false);
+                    }
                     chunks.renew(chunk, false);
 
                     continue;
@@ -213,7 +234,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         let n_coords = Vec2(coords.0 + x, coords.1 + z);
 
                         // If the chunk isn't within the world borders or its ready, then we skip.
-                        if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords) {
+                        if !chunks.is_within_world(&n_coords) || chunks.is_chunk_ready(&n_coords, 0)
+                        {
                             continue;
                         }
 
@@ -227,7 +249,18 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         }
 
                         // Till this point, the neighbor is not ready. We can add a listener to it.
-                        chunks.add_listener(&n_coords, &coords);
+                        let mut lowest_lod = 0;
+                        for i in chunks
+                            .postgen_target_lods
+                            .get(&coords)
+                            .cloned()
+                            .unwrap_or_default()
+                        {
+                            if i < lowest_lod {
+                                lowest_lod = i;
+                            }
+                        }
+                        chunks.add_listener(&n_coords, &(coords.to_owned(), lowest_lod));
 
                         ready = false;
 
@@ -276,12 +309,12 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING MESHING RESULTS                          */
         /* -------------------------------------------------------------------------- */
-        if let Some((mut chunk, r#type)) = mesher.results() {
+        if let Some((mut chunk, lod, r#type)) = mesher.results() {
             // Notify neighbors that this chunk is ready.
             if r#type == MessageType::Load && chunks.listeners.contains_key(&chunk.coords) {
                 let listeners = chunks.listeners.remove(&chunk.coords).unwrap();
 
-                listeners.into_iter().for_each(|n_coords| {
+                listeners.into_iter().for_each(|(n_coords, lod)| {
                     // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
                     if !chunks.map.contains_key(&n_coords)
                         || matches!(
@@ -294,19 +327,23 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     // If this chunk is in the meshing stage, we re-add it to the mesher.
                     else if let Some(chunk) = chunks.raw(&n_coords) {
                         if matches!(chunk.status, ChunkStatus::Meshing) {
-                            mesher.add_chunk(&n_coords, true);
+                            mesher.add_chunk(&n_coords, lod, true);
                         }
                     }
                 })
             }
 
             // Update chunk status.
-            chunk.status = ChunkStatus::Ready;
+            if let ChunkStatus::Ready(lods) = &mut chunk.status {
+                lods.insert(lod);
+            } else {
+                chunk.status = ChunkStatus::Ready(HashSet::from_iter(vec![lod]));
+            }
 
             let is_updating = r#type == MessageType::Update;
 
             if !is_updating {
-                chunks.add_chunk_to_send(&chunk.coords, &r#type, is_updating);
+                chunks.add_chunk_to_send(&chunk.coords, lod, &r#type, is_updating);
             }
 
             chunks.renew(chunk, is_updating);
@@ -318,13 +355,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut processes = vec![];
 
         if !mesher.queue.is_empty() {
-            let mut queue: Vec<Vec2<i32>> = mesher.queue.to_owned().into();
-            queue.sort_by(|a, b| interests.compare(a, b));
+            let mut queue: Vec<(Vec2<i32>, usize)> = mesher.queue.to_owned().into();
+            queue.sort_by(|a, b| interests.compare(&a.0, &b.0));
             mesher.queue = VecDeque::from(queue);
         }
 
         while !mesher.queue.is_empty() {
-            let coords = mesher.get().unwrap();
+            let (coords, lod) = mesher.pop_front().unwrap();
 
             // Traverse through the neighboring coordinates. If any of them are not ready, then this chunk is not ready.
             let mut ready = true;
@@ -342,7 +379,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         ready = false;
 
                         // Add a listener to this neighbor.
-                        chunks.add_listener(&n_coords, &coords);
+                        chunks.add_listener(&n_coords, &(coords.to_owned(), lod));
                         break;
                     }
                 }
@@ -400,7 +437,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             let space = space.strict().build();
 
-            processes.push((chunk, space));
+            processes.push((chunk, lod, space));
         }
 
         if !processes.is_empty() {

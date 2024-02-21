@@ -40,7 +40,9 @@ pub struct Chunks {
     pub(crate) updates: VecDeque<VoxelUpdate>,
 
     /// A list of chunks that are done meshing and ready to be sent.
-    pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
+    pub(crate) to_send: VecDeque<(Vec2<i32>, usize, MessageType)>,
+
+    pub(crate) postgen_target_lods: HashMap<Vec2<i32>, HashSet<usize>>,
 
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
@@ -48,7 +50,7 @@ pub struct Chunks {
     pub(crate) active_voxels: Vec<(u64, Vec3<i32>)>,
 
     /// A listener for when a chunk is done generating or meshing.
-    pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
+    pub(crate) listeners: HashMap<Vec2<i32>, Vec<(Vec2<i32>, usize)>>,
 
     /// A cache of what chunks has been borrowed mutable.
     pub(crate) cache: HashSet<Vec2<i32>>,
@@ -138,7 +140,8 @@ impl Chunks {
             panic!("Calling `chunks.save` when saving mode is not on.");
         }
 
-        let chunk = if let Some(chunk) = self.get(coords) {
+        // when saving, we only care about the voxel data
+        let chunk = if let Some(chunk) = self.get(coords, 0) {
             chunk
         } else {
             return false;
@@ -213,8 +216,8 @@ impl Chunks {
 
     /// Get a chunk at a chunk coordinate. Keep in mind that this function only returns a chunk if the chunk
     /// has been fully instantiated and meshed. None is returned if not.
-    pub fn get(&self, coords: &Vec2<i32>) -> Option<&Chunk> {
-        if !self.is_within_world(coords) || !self.is_chunk_ready(coords) {
+    pub fn get(&self, coords: &Vec2<i32>, lod: usize) -> Option<&Chunk> {
+        if !self.is_within_world(coords) || !self.is_chunk_ready(coords, lod) {
             return None;
         }
 
@@ -223,8 +226,8 @@ impl Chunks {
 
     /// Get a mutable chunk reference at a chunk coordinate. Keep in mind that this function only returns a chunk
     /// if the chunk has been fully instantiated and meshed. None is returned if not.
-    pub fn get_mut(&mut self, coords: &Vec2<i32>) -> Option<&mut Chunk> {
-        if !self.is_within_world(coords) || !self.is_chunk_ready(coords) {
+    pub fn get_mut(&mut self, coords: &Vec2<i32>, lod: usize) -> Option<&mut Chunk> {
+        if !self.is_within_world(coords) || !self.is_chunk_ready(coords, lod) {
             return None;
         }
 
@@ -338,9 +341,12 @@ impl Chunks {
     }
 
     /// Guard to getting a chunk, only allowing chunks to be accessed when they're ready.
-    pub fn is_chunk_ready(&self, coords: &Vec2<i32>) -> bool {
+    /// Definition of ready: data is loaded, and LOD-specific mesh is generated too.
+    pub fn is_chunk_ready(&self, coords: &Vec2<i32>, lod: usize) -> bool {
         if let Some(chunk) = self.raw(coords) {
-            return chunk.status == ChunkStatus::Ready;
+            if let ChunkStatus::Ready(lods) = &chunk.status {
+                return lods.contains(&lod);
+            }
         }
 
         false
@@ -391,18 +397,21 @@ impl Chunks {
     pub fn add_chunk_to_send(
         &mut self,
         coords: &Vec2<i32>,
+        lod: usize,
         r#type: &MessageType,
         prioritized: bool,
     ) {
         if prioritized {
-            self.to_send.push_front((coords.to_owned(), r#type.clone()));
+            self.to_send
+                .push_front((coords.to_owned(), lod, r#type.clone()));
         } else {
-            self.to_send.push_back((coords.to_owned(), r#type.clone()));
+            self.to_send
+                .push_back((coords.to_owned(), lod, r#type.clone()));
         }
     }
 
     /// Add a listener to a chunk.
-    pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &Vec2<i32>) {
+    pub fn add_listener(&mut self, coords: &Vec2<i32>, listener: &(Vec2<i32>, usize)) {
         let mut listeners = self.listeners.remove(coords).unwrap_or_default();
         listeners.push(listener.to_owned());
         self.listeners.insert(coords.to_owned(), listeners);

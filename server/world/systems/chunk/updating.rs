@@ -74,11 +74,11 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     continue;
                 }
 
-                if !chunks.is_chunk_ready(&coords) {
+                if !chunks.is_chunk_ready(&coords, 0) {
                     continue;
                 }
 
-                if mesher.map.contains(&coords) {
+                if mesher.map.contains(&(coords.clone(), 0)) {
                     chunks.update_voxel(&voxel, raw);
                     continue;
                 }
@@ -86,7 +86,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 let mut ready = true;
 
                 for neighbor in chunks.light_traversed_chunks(&coords) {
-                    if ready && !chunks.is_chunk_ready(&neighbor) {
+                    if ready && !chunks.is_chunk_ready(&neighbor, 0) {
                         ready = false;
                     }
                 }
@@ -441,7 +441,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                 let processes = cache
                     .into_iter()
-                    .filter(|coords| chunks.is_chunk_ready(coords))
+                    .filter(|coords| chunks.is_chunk_ready(coords, 0))
                     .map(|coords| {
                         let space = chunks
                             .make_space(&coords, config.max_light_level as usize)
@@ -451,7 +451,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             .build();
                         let chunk = chunks.raw(&coords).unwrap().to_owned();
 
-                        return (chunk, space);
+                        return (chunk, 0, space);
                     })
                     .collect::<Vec<_>>();
 

@@ -1991,6 +1991,7 @@ export class World extends Scene implements NetIntercept {
       }
       case "LOAD": {
         const { chunks } = message;
+        console.log(chunks);
 
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
@@ -2191,7 +2192,7 @@ export class World extends Scene implements NetIntercept {
       .slice(0, maxChunkRequestsPerUpdate)
       .map(([cx, cz]) => {
         const dist = Math.sqrt((cx - center[0]) ** 2 + (cz - center[1]) ** 2);
-        return [[cx, cz], dist < 4 ? 0 : dist < 6 ? 1 : 2];
+        return [[cx, cz], dist < 8 ? 0 : dist < 12 ? 1 : 2];
       });
 
     this.packets.push({

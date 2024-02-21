@@ -42,19 +42,19 @@ const BLUE: LightColor = LightColor::Blue;
 /// A meshing helper to mesh chunks.
 pub struct Mesher {
     /// A queue of chunks to be meshed.
-    pub(crate) queue: VecDeque<Vec2<i32>>,
+    pub(crate) queue: VecDeque<(Vec2<i32>, usize)>,
 
     /// A map to keep track of all the chunks that are being meshed.
-    pub(crate) map: HashSet<Vec2<i32>>,
+    pub(crate) map: HashSet<(Vec2<i32>, usize)>,
 
     /// A map to keep track of the processes that should be skipped.
-    pub(crate) skips: HashMap<Vec2<i32>, usize>,
+    pub(crate) skips: HashMap<(Vec2<i32>, usize), usize>,
 
     /// Sender of processed chunks from other threads to the main thread.
-    sender: Arc<Sender<(Chunk, MessageType)>>,
+    sender: Arc<Sender<(Chunk, usize, MessageType)>>,
 
     /// Receiver of processed chunks from other threads to the main thread.
-    receiver: Arc<Receiver<(Chunk, MessageType)>>,
+    receiver: Arc<Receiver<(Chunk, usize, MessageType)>>,
 
     /// The thread pool for meshing.
     pool: ThreadPool,
@@ -80,52 +80,55 @@ impl Mesher {
     }
 
     /// Add a chunk to be meshed.
-    pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
-        if self.map.contains(coords) {
+    pub fn add_chunk(&mut self, coords: &Vec2<i32>, lod: usize, prioritized: bool) {
+        if self.map.contains(&(coords.to_owned(), lod)) {
             return;
         }
 
-        self.remove_chunk(coords);
+        self.remove_chunk(coords, lod);
+
+        let owned_coords = coords.to_owned();
 
         if prioritized {
-            self.queue.push_front(coords.to_owned());
+            self.queue.push_front((owned_coords, lod));
         } else {
-            self.queue.push_back(coords.to_owned());
+            self.queue.push_back((owned_coords, lod));
         }
     }
 
     /// Remove a chunk coordinate from the pipeline.
-    pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
-        self.map.remove(coords);
-        self.skips.remove(coords);
-        self.queue.retain(|c| c != coords);
+    pub fn remove_chunk(&mut self, coords: &Vec2<i32>, lod: usize) {
+        self.map.remove(&(coords.to_owned(), lod));
+        self.skips.remove(&(coords.to_owned(), lod));
+        self.queue.retain(|(c, l)| c != coords || *l != lod);
     }
 
     /// Pop the first chunk coordinate in the queue.
-    pub fn get(&mut self) -> Option<Vec2<i32>> {
+    pub fn pop_front(&mut self) -> Option<(Vec2<i32>, usize)> {
         self.queue.pop_front()
     }
 
     /// Mesh a set of chunks.
     pub fn process(
         &mut self,
-        processes: Vec<(Chunk, Space)>,
+        processes: Vec<(Chunk, usize, Space)>,
         r#type: &MessageType,
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        processes.iter().for_each(|(chunk, _)| {
-            if self.map.contains(&chunk.coords) {
-                let curr_count = self.skips.remove(&chunk.coords).unwrap_or(0);
-                self.skips.insert(chunk.coords.to_owned(), curr_count + 1);
+        processes.iter().for_each(|(chunk, lod, _)| {
+            let owned = (chunk.coords.to_owned(), *lod);
+            if self.map.contains(&owned) {
+                let curr_count = self.skips.remove(&owned).unwrap_or(0);
+                self.skips.insert(owned, curr_count + 1);
             }
 
-            self.map.insert(chunk.coords.to_owned());
+            self.map.insert((chunk.coords.to_owned(), *lod));
         });
 
         processes
             .into_par_iter()
-            .for_each(|(mut chunk, mut space)| {
+            .for_each(|(mut chunk, lod, mut space)| {
                 let sender = Arc::clone(&self.sender);
                 let r#type = r#type.to_owned();
 
@@ -220,19 +223,23 @@ impl Mesher {
                         .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
                         .into_iter()
                         .for_each(|(geometries, level)| {
-                            chunk
-                                .meshes
-                                .get_or_insert_with(HashMap::new)
-                                .insert(level as u32, MeshProtocol { level, geometries });
+                            chunk.meshes.get_or_insert_with(HashMap::new).insert(
+                                level as u32,
+                                MeshProtocol {
+                                    level,
+                                    lod,
+                                    geometries,
+                                },
+                            );
                         });
 
-                    sender.send((chunk, r#type)).unwrap();
+                    sender.send((chunk, lod, r#type)).unwrap();
                 });
             });
     }
 
     /// Attempt to retrieve the results from `mesher.process`
-    pub fn results(&mut self) -> Option<(Chunk, MessageType)> {
+    pub fn results(&mut self) -> Option<(Chunk, usize, MessageType)> {
         let result = self.receiver.try_recv();
 
         if result.is_err() {
@@ -241,19 +248,20 @@ impl Mesher {
 
         let result = result.unwrap();
 
-        if !self.map.contains(&result.0.coords) {
+        if !self.map.contains(&(result.0.coords.to_owned(), result.1)) {
             return None;
         }
 
-        if let Some(count) = self.skips.remove(&result.0.coords) {
+        let cloned = (result.0.coords.to_owned(), result.1);
+        if let Some(count) = self.skips.remove(&cloned) {
             if count > 0 {
-                self.skips.insert(result.0.coords.to_owned(), count - 1);
+                self.skips.insert(cloned, count - 1);
 
                 return None;
             }
         }
 
-        self.remove_chunk(&result.0.coords);
+        self.remove_chunk(&result.0.coords, result.1);
 
         Some(result)
     }

@@ -66,7 +66,7 @@ impl<'a> System<'a> for PhysicsSystem {
         (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
             .par_join()
             .for_each(|(curr_chunk, body, position, _)| {
-                if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                if !chunks.is_chunk_ready(&curr_chunk.coords, 0) {
                     return;
                 }
 
@@ -137,7 +137,7 @@ impl<'a> System<'a> for PhysicsSystem {
         for (curr_chunk, body, interactor, entity) in
             (&curr_chunks, &mut bodies, &interactors, &entities).join()
         {
-            if !chunks.is_chunk_ready(&curr_chunk.coords) {
+            if !chunks.is_chunk_ready(&curr_chunk.coords, 0) {
                 continue;
             }
 

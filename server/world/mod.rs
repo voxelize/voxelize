@@ -179,7 +179,8 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
 #[derive(Serialize, Deserialize)]
 struct OnLoadRequest {
     center: Vec2<i32>,
-    chunks: Vec<Vec2<i32>>,
+    // coords + lod
+    chunks: Vec<(Vec2<i32>, usize)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -772,9 +773,25 @@ impl World {
                             chunks.is_within_world(&coords)
                         };
 
-                        let mut pipeline = self.pipeline_mut();
-                        if is_within {
-                            pipeline.add_chunk(&coords, false);
+                        {
+                            let mut pipeline = self.pipeline_mut();
+                            if is_within {
+                                pipeline.add_chunk(&coords, false);
+                            }
+                        }
+
+                        {
+                            let mut chunks = self.chunks_mut();
+                            if is_within {
+                                let mut current_post_gen_lods = chunks
+                                    .postgen_target_lods
+                                    .remove(&coords)
+                                    .unwrap_or_default();
+                                current_post_gen_lods.insert(0);
+                                chunks
+                                    .postgen_target_lods
+                                    .insert(coords, current_post_gen_lods);
+                            }
                         }
                     });
                 }
@@ -801,31 +818,34 @@ impl World {
 
             for x in -check_radius..=check_radius {
                 for z in -check_radius..=check_radius {
-                    let chunks = self.chunks();
-                    let coords = Vec2(x, z);
+                    // TODO: messy code, move 3 to constant
+                    for lod in 0..3 {
+                        let chunks = self.chunks();
+                        let coords = Vec2(x, z);
 
-                    if chunks.is_chunk_ready(&coords) {
-                        total += 1;
-                    } else {
-                        if let Some(chunk) = chunks.raw(&coords) {
-                            if chunk.status == ChunkStatus::Meshing
-                                && !self.mesher().map.contains(&coords)
-                            {
-                                // Add the chunk back to meshing queue.
-                                drop(chunks);
-                                self.mesher_mut().add_chunk(&coords, false);
+                        if chunks.is_chunk_ready(&coords, lod) {
+                            total += 1;
+                        } else {
+                            if let Some(chunk) = chunks.raw(&coords) {
+                                if chunk.status == ChunkStatus::Meshing
+                                    && !self.mesher().map.contains(&(coords.clone(), lod))
+                                {
+                                    // Add the chunk back to meshing queue.
+                                    drop(chunks);
+                                    self.mesher_mut().add_chunk(&coords, lod, false);
+                                }
                             }
+
+                            // drop(chunks);
+
+                            // let is_in_pipeline = self.pipeline().has_chunk(&coords);
+                            // let is_in_mesher = self.mesher().map.contains(&coords);
+
+                            // info!(
+                            //     "Chunk {:?} is not ready. In pipeline: {}, in mesher: {}, status: {:?}",
+                            //     coords, is_in_pipeline, is_in_mesher, status
+                            // );
                         }
-
-                        // drop(chunks);
-
-                        // let is_in_pipeline = self.pipeline().has_chunk(&coords);
-                        // let is_in_mesher = self.mesher().map.contains(&coords);
-
-                        // info!(
-                        //     "Chunk {:?} is not ready. In pipeline: {}, in mesher: {}, status: {:?}",
-                        //     coords, is_in_pipeline, is_in_mesher, status
-                        // );
                     }
                 }
             }
@@ -895,8 +915,8 @@ impl World {
             let mut storage = self.write_component::<ChunkRequestsComp>();
             let requests = storage.get_mut(client_ent).unwrap();
 
-            chunks.iter().for_each(|coords| {
-                requests.add(coords);
+            chunks.iter().for_each(|(coords, lod)| {
+                requests.add(coords, *lod);
             });
 
             requests.set_center(&json.center);
@@ -947,7 +967,9 @@ impl World {
 
             to_remove.into_iter().for_each(|coords| {
                 self.pipeline_mut().remove_chunk(coords);
-                self.mesher_mut().remove_chunk(coords);
+                for lod in 0..3 {
+                    self.mesher_mut().remove_chunk(coords, lod);
+                }
             })
         }
     }
