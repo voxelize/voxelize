@@ -1,5 +1,6 @@
 import { Camera, Object3D, Vector3 } from "three";
-import { ChunkUtils } from "utils";
+
+import { ChunkUtils } from "../utils";
 
 const v1 = new Vector3();
 const v2 = new Vector3();

@@ -111,6 +111,7 @@ export class Chunks {
   public loaded: Map<string, Chunk> = new Map();
 
   public toProcess: {
+    lod: number;
     source: "update" | "load";
     data: ChunkProtocol;
   }[] = [];

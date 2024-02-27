@@ -113,11 +113,11 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         });
                 }
 
-                for (coords, lod) in user_max_lod_mesher_requests.iter() {
-                    mesher.add_chunk(coords, *lod, false);
-                }
-
                 interests.add(&id.0, &coords);
+            }
+
+            for (coords, lod) in user_max_lod_mesher_requests.iter() {
+                mesher.add_chunk(coords, *lod, false);
             }
 
             // Add the chunks back to the requested set.

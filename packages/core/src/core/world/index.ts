@@ -1150,29 +1150,40 @@ export class World extends Scene implements NetIntercept {
   getChunkStatus(
     cx: number,
     cz: number
-  ): "to request" | "requested" | "processing" | "loaded" {
-    const name = ChunkUtils.getChunkName([cx, cz]);
+  ):
+    | {
+        status: "to request" | "processing" | "loaded";
+      }
+    | {
+        status: "requested";
+        lod: number;
+      }
+    | null {
+    for (const lod of Array(this.options.chunkLODDistances.length).keys()) {
+      const nameWithLOD = ChunkUtils.getChunkNameWithLOD(cx, cz, lod);
+      const name = ChunkUtils.getChunkName([cx, cz]);
 
-    const isRequested = this.chunks.requested.has(name);
-    const isLoaded = this.chunks.loaded.has(name);
-    const isProcessing = this.chunks.toProcessSet.has(name);
+      const isRequested = this.chunks.requested.has(nameWithLOD);
+      const isLoaded = this.chunks.loaded.has(name);
+      const isProcessing = this.chunks.toProcessSet.has(nameWithLOD);
 
-    // Check if more than one is true. If that is the case, throw an error.
-    if (
-      (isRequested && isProcessing) ||
-      (isRequested && isLoaded) ||
-      (isProcessing && isLoaded)
-    ) {
-      throw new Error(
-        `Chunk ${name} is in more than one state other than the loaded state. This should not happen. These are the states: requested: ${isRequested}, loaded: ${isLoaded}, processing: ${isProcessing}`
-      );
+      // Check if more than one is true. If that is the case, throw an error.
+      // if (
+      //   (isRequested && isProcessing) ||
+      //   (isRequested && isLoaded) ||
+      //   (isProcessing && isLoaded)
+      // ) {
+      //   throw new Error(
+      //     `Chunk ${name} is in more than one state other than the loaded state. This should not happen. These are the states: requested: ${isRequested}, loaded: ${isLoaded}, processing: ${isProcessing}`
+      //   );
+      // }
+
+      if (isLoaded) return { status: "loaded" };
+      if (isProcessing) return { status: "processing" };
+      if (isRequested) return { status: "requested", lod };
+
+      return null;
     }
-
-    if (isLoaded) return "loaded";
-    if (isProcessing) return "processing";
-    if (isRequested) return "requested";
-
-    return null;
   }
 
   getBlockFaceMaterial(idOrName: number | string, faceName?: string) {
@@ -2005,12 +2016,16 @@ export class World extends Scene implements NetIntercept {
 
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
-          const name = ChunkUtils.getChunkName([x, z]);
-
-          // Only process if we're interested.
-          this.chunks.requested.delete(name);
-          this.chunks.toProcess.push({ source: "load", data: chunk });
-          this.chunks.toProcessSet.add(name);
+          const lods = new Set(chunk.meshes.map((mesh) => mesh.lod));
+          for (const lod of lods) {
+            const nameWithLOD = ChunkUtils.getChunkNameWithLOD(x, z, lod);
+            // Only process if we're interested.
+            const requested = this.chunks.requested.delete(nameWithLOD);
+            if (requested) {
+              this.chunks.toProcess.push({ source: "load", data: chunk, lod });
+              this.chunks.toProcessSet.add(nameWithLOD);
+            }
+          }
         });
 
         break;
@@ -2302,7 +2317,7 @@ export class World extends Scene implements NetIntercept {
       }
     });
 
-    this.chunks.requested.forEach((_, nameWithLOD) => {
+    this.chunks.requested.forEach((nameWithLOD) => {
       const [[x, z]] = ChunkUtils.parseChunkNameWithLOD(nameWithLOD);
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
@@ -2320,8 +2335,12 @@ export class World extends Scene implements NetIntercept {
     this.chunks.toProcess.push(...filteredToProcess);
     this.chunks.toProcessSet.clear();
     filteredToProcess.forEach((chunk) => {
-      const name = ChunkUtils.getChunkName([chunk.data.x, chunk.data.z]);
-      this.chunks.toProcessSet.add(name);
+      const nameWithLOD = ChunkUtils.getChunkNameWithLOD(
+        chunk.data.x,
+        chunk.data.z,
+        chunk.lod
+      );
+      this.chunks.toProcessSet.add(nameWithLOD);
     });
 
     // Remove any listeners for deleted chunks.

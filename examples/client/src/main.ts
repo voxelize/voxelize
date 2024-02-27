@@ -8,7 +8,7 @@ import { GUI } from "lil-gui";
 import * as THREE from "three";
 
 import LolImage from "./assets/lol.png";
-// import { Map } from "./map";
+import { Map as ChunkMap } from "./map";
 import { setupWorld } from "./world";
 
 const createCharacter = () => {
@@ -551,13 +551,18 @@ inputs.bind("n", () => {
 //   document.body.appendChild(canvas);
 // }
 
-// const map = new Map(world, document.getElementById("biomes") || document.body);
+const map = new ChunkMap(
+  world,
+  document.getElementById("biomes") || document.body,
+  15,
+  true
+);
 
-// inputs.bind("m", map.toggle);
+inputs.bind("m", map.toggle);
 
-// inputs.bind("escape", () => {
-//   map.setVisible(false);
-// });
+inputs.bind("escape", () => {
+  map.setVisible(false);
+});
 
 network
   .register(chat)
@@ -684,6 +689,11 @@ const start = async () => {
       endVoxelInteractUpdate = performance.now();
 
       botCharacters.forEach((bot) => bot.update());
+
+      map.update(
+        controls.object.position,
+        camera.getWorldDirection(new THREE.Vector3())
+      );
     }
 
     const startRender = performance.now();

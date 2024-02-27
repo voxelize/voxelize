@@ -2,20 +2,18 @@ import { ChunkUtils, Coords3, DOMUtils, World } from "@voxelize/core";
 import p5 from "p5";
 import { Vector3 } from "three";
 
-// const COLOR_HINT = [
-//   [1, 1, "to request, within delete radius"],
-//   [1, 2, "to request, within render radius"],
-//   [2, 1, "requested, within delete radius"],
-//   [2, 2, "requested, within render radius"],
-//   [3, 1, "processing, within delete radius"],
-//   [3, 2, "processing, within render radius"],
-//   [4, 1, "loaded, within delete radius"],
-//   [4, 2, "loaded, within render radius"],
-//   [0, 0, "out of reach"],
-// ];
+const COLOR_HINT = [
+  [1, 1, "requested, within delete radius"],
+  [1, 2, "requested, within render radius"],
+  [2, 1, "processing, within delete radius"],
+  [2, 2, "processing, within render radius"],
+  [3, 1, "loaded, within delete radius"],
+  [3, 2, "loaded, within render radius"],
+  [0, 0, "out of reach"],
+];
 
-const MAP_DIMENSION = 220;
-const MAP_GRADIENT_SCALE = 50;
+const MAP_DIMENSION = 360;
+const MAP_GRADIENT_SCALE = 75;
 
 export class Map {
   public wrapper: HTMLDivElement = document.createElement("div");
@@ -27,62 +25,63 @@ export class Map {
   constructor(
     public world: World,
     public parent = document.body,
-    public dimension = 5
+    public dimension = 5,
+    showByDefault = false
   ) {
     DOMUtils.applyStyles(this.wrapper, {
-      display: "none",
+      display: showByDefault ? "block" : "none",
       width: `${MAP_DIMENSION}px`,
       height: `${MAP_DIMENSION}px`,
       position: "absolute",
-      bottom: "0",
+      bottom: "30vh",
       right: "100%",
       zIndex: "10000000",
     });
 
-    // const colorHints = document.createElement("div");
-    // DOMUtils.applyStyles(colorHints, {
-    //   display: "flex",
-    //   flexDirection: "column",
-    //   width: "300px",
-    //   fontSize: "0.8rem",
-    //   gap: "5px",
-    // });
+    const colorHints = document.createElement("div");
+    DOMUtils.applyStyles(colorHints, {
+      display: "flex",
+      flexDirection: "column",
+      width: "300px",
+      fontSize: "0.8rem",
+      gap: "5px",
+    });
 
-    // const colorHintItem = document.createElement("div");
-    // DOMUtils.applyStyles(colorHintItem, {
-    //   display: "flex",
-    //   alignItems: "center",
-    //   justifyContent: "flex-start",
-    // });
+    const colorHintItem = document.createElement("div");
+    DOMUtils.applyStyles(colorHintItem, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "flex-start",
+    });
 
-    // const colorHintColor = document.createElement("div");
-    // DOMUtils.applyStyles(colorHintColor, {
-    //   width: "20px",
-    //   height: "20px",
-    //   marginRight: "10px",
-    //   border: "1px solid white",
-    // });
+    const colorHintColor = document.createElement("div");
+    DOMUtils.applyStyles(colorHintColor, {
+      width: "20px",
+      height: "20px",
+      marginRight: "10px",
+      border: "1px solid white",
+    });
 
-    // COLOR_HINT.forEach(([shade1, shade2, hint]) => {
-    //   const item = colorHintItem.cloneNode(true) as HTMLDivElement;
-    //   const color = colorHintColor.cloneNode(true) as HTMLDivElement;
+    COLOR_HINT.forEach(([shade1, shade2, hint]) => {
+      const item = colorHintItem.cloneNode(true) as HTMLDivElement;
+      const color = colorHintColor.cloneNode(true) as HTMLDivElement;
 
-    //   DOMUtils.applyStyles(color, {
-    //     background: `rgb(${(shade2 as number) * 50}, 0, ${
-    //       (shade1 as number) * 50
-    //     })`,
-    //   });
+      DOMUtils.applyStyles(color, {
+        background: `rgb(${(shade2 as number) * MAP_GRADIENT_SCALE}, 0, ${
+          (shade1 as number) * MAP_GRADIENT_SCALE
+        })`,
+      });
 
-    //   item.appendChild(color);
-    //   const text = document.createElement("p");
-    //   text.innerHTML = `${hint}`;
-    //   text.style.color = "white";
-    //   item.appendChild(text);
+      item.appendChild(color);
+      const text = document.createElement("p");
+      text.innerHTML = `${hint}`;
+      text.style.color = "white";
+      item.appendChild(text);
 
-    //   colorHints.appendChild(item);
-    // });
+      colorHints.appendChild(item);
+    });
 
-    // this.wrapper.appendChild(colorHints);
+    this.wrapper.appendChild(colorHints);
 
     this.p5 = new p5((p) => {
       p.setup = () => {
@@ -141,17 +140,16 @@ export class Map {
         z < Math.floor(verticalCount / 2);
         z++
       ) {
-        const status = this.world.getChunkStatus(x + cx, z + cz);
-        const shade =
-          status === "to request"
+        const statusData = this.world.getChunkStatus(x + cx, z + cz);
+        const shade = statusData
+          ? statusData.status === "requested"
             ? 1
-            : status === "requested"
+            : statusData.status === "processing"
             ? 2
-            : status === "processing"
+            : statusData.status === "loaded"
             ? 3
-            : status === "loaded"
-            ? 4
-            : 0;
+            : 0
+          : 0;
 
         const shade2 =
           x ** 2 + z ** 2 <= renderRadius ** 2
@@ -199,7 +197,7 @@ export class Map {
     this.p5.rotate(vec.heading());
     this.p5.stroke("#E5E0FF");
     const arrowSize = this.dimension;
-    this.p5.triangle(0, arrowSize / 2, 0, -arrowSize / 2, arrowSize, 0);
+    this.p5.triangle(0, arrowSize / 2, 0, -arrowSize / 2, arrowSize * 2, 0);
     this.p5.pop();
   }
 }
