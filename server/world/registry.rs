@@ -93,7 +93,8 @@ impl Registry {
 
     /// Generate the UV coordinates of the blocks. Call this before the server starts!
     pub fn generate(&mut self) {
-        for block in self.blocks_by_id.values_mut() {
+        let all_blocks = self.blocks_by_id.values_mut().collect::<Vec<_>>();
+        for block in all_blocks {
             let mut total_faces = block.faces.len();
 
             block.faces.iter().for_each(|face| {
