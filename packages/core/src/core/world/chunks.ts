@@ -4,7 +4,7 @@ import { Coords2 } from "types";
 
 import { Chunk } from "./chunk";
 
-import { BlockUpdate, CustomChunkShaderMaterial } from ".";
+import { BlockUpdate, BlockUpdateBatch, CustomChunkShaderMaterial } from ".";
 
 export class Chunks {
   /**
@@ -121,7 +121,10 @@ export class Chunks {
   }[] = [];
   public toProcessSet: Set<string> = new Set();
 
-  public toUpdate: { source: "client" | "server"; update: BlockUpdate }[] = [];
+  public toUpdateBatches: {
+    source: "client" | "server";
+    updates: BlockUpdateBatch;
+  }[] = [];
 
   public toEmit: BlockUpdate[] = [];
 

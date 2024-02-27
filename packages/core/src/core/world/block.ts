@@ -175,6 +175,12 @@ export type BlockUpdate = {
   yRotation?: number;
 };
 
+export type BlockUpdateBatch = {
+  // These are the voxels that should be re-lit.
+  toRelight: BlockUpdate[];
+  lit: BlockUpdate[];
+};
+
 /**
  * The numerical representation of the positive Y rotation.
  */

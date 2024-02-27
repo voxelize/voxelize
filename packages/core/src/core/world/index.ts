@@ -115,6 +115,8 @@ export type WorldClientOptions = {
 
   maxMeshesPerUpdate: number;
 
+  maxRelightPerUpdate: number;
+
   /**
    * Whether or not should the world generate ThreeJS meshes. Defaults to `true`.
    */
@@ -194,6 +196,7 @@ const defaultOptions: WorldClientOptions = {
   maxProcessesPerUpdate: 1,
   maxUpdatesPerUpdate: 1000,
   maxMeshesPerUpdate: 4,
+  maxRelightPerUpdate: 30,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
@@ -1425,9 +1428,13 @@ export class World extends Scene implements NetIntercept {
         return update;
       });
 
-    this.chunks.toUpdate.push(
-      ...voxelUpdates.map((update) => ({ source, update }))
-    );
+    this.chunks.toUpdateBatches.push({
+      source,
+      updates: {
+        toRelight: voxelUpdates,
+        lit: [],
+      },
+    });
   };
 
   floodLight(
@@ -2562,16 +2569,36 @@ export class World extends Scene implements NetIntercept {
 
   private processClientUpdates = () => {
     // Update server voxels
-    if (this.chunks.toUpdate.length === 0) {
+    if (this.chunks.toUpdateBatches.length === 0) {
       return;
     }
 
-    const updates = this.chunks.toUpdate.splice(
-      0,
-      this.options.maxUpdatesPerUpdate
-    );
+    const batchUpdates: {
+      source: "client" | "server";
+      updates: BlockUpdate[];
+      ready: boolean;
+    }[] = [];
+    const notReadyUpdates: Chunks["toUpdateBatches"][number][] = [];
 
-    updates.sort((a, b) => b.update.vy - a.update.vy);
+    this.chunks.toUpdateBatches
+      .splice(0, this.options.maxUpdatesPerUpdate)
+      .forEach((batch) => {
+        const updates = batch.updates.toRelight.splice(
+          0,
+          this.options.maxRelightPerUpdate
+        );
+        batchUpdates.push({
+          updates,
+          source: batch.source,
+          ready: batch.updates.toRelight.length <= 0,
+        });
+        if (batch.updates.toRelight.length !== 0) {
+          notReadyUpdates.push(batch);
+        }
+      });
+
+    // Unshift the not ready updates back into the queue.
+    this.chunks.toUpdateBatches.unshift(...notReadyUpdates);
 
     const { maxHeight, maxLightLevel } = this.options;
 
@@ -2582,266 +2609,274 @@ export class World extends Scene implements NetIntercept {
     const sunFlood: LightNode[] = [];
 
     this.isTrackingChunks = true;
-    for (const update of updates) {
-      const {
-        update: { type, vx, vy, vz, rotation, yRotation },
-      } = update;
+    for (const batchUpdate of batchUpdates) {
+      for (const update of batchUpdate.updates) {
+        const { type, vx, vy, vz, rotation, yRotation } = update;
 
-      const currentBlock = this.getBlockAt(vx, vy, vz);
-      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
-      const currentTransparency = BlockUtils.getBlockRotatedTransparency(
-        currentBlock,
-        currentRotation
-      );
-      const updatedBlock = this.getBlockById(type);
-      const updatedRotation = BlockRotation.encode(rotation, yRotation);
-      const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
-        updatedBlock,
-        updatedRotation
-      );
+        const currentBlock = this.getBlockAt(vx, vy, vz);
+        const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
+        const currentTransparency = BlockUtils.getBlockRotatedTransparency(
+          currentBlock,
+          currentRotation
+        );
+        const updatedBlock = this.getBlockById(type);
+        const updatedRotation = BlockRotation.encode(rotation, yRotation);
+        const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
+          updatedBlock,
+          updatedRotation
+        );
 
-      const newValue = BlockUtils.insertAll(
-        updatedBlock.id,
-        updatedBlock.rotatable ? updatedRotation : undefined
-      );
-      this.attemptBlockCache(vx, vy, vz, newValue);
+        const newValue = BlockUtils.insertAll(
+          updatedBlock.id,
+          updatedBlock.rotatable ? updatedRotation : undefined
+        );
+        this.attemptBlockCache(vx, vy, vz, newValue);
 
-      this.setVoxelAt(vx, vy, vz, type);
+        this.setVoxelAt(vx, vy, vz, type);
 
-      if (updatedBlock.rotatable) {
-        this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
-      }
-
-      if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
-        if (this.getSunlightAt(vx, vy, vz) > 0) {
-          this.removeLight([vx, vy, vz], "SUNLIGHT");
+        if (updatedBlock.rotatable) {
+          this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
         }
 
-        ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map((color) => {
-          if (this.getTorchLightAt(vx, vy, vz, color) > 0) {
-            this.removeLight([vx, vy, vz], color);
-          }
-        });
-      } else {
-        let removeCount = 0;
-
-        const lightData = [
-          [SUNLIGHT, this.getSunlightAt(vx, vy, vz)],
-          [RED_LIGHT, this.getTorchLightAt(vx, vy, vz, "RED")],
-          [GREEN_LIGHT, this.getTorchLightAt(vx, vy, vz, "GREEN")],
-          [BLUE_LIGHT, this.getTorchLightAt(vx, vy, vz, "BLUE")],
-        ] as const;
-
-        VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
-          const nvy = vy + oy;
-          if (nvy < 0 || nvy >= maxHeight) {
-            return;
-          }
-
-          const nvx = vx + ox;
-          const nvz = vz + oz;
-
-          const nBlock = this.getBlockAt(nvx, nvy, nvz);
-          const nTransparency = BlockUtils.getBlockRotatedTransparency(
-            nBlock,
-            // Maybe use the new rotation?
-            currentRotation
-          );
-
-          if (
-            !(
-              LightUtils.canEnter(
-                currentTransparency,
-                nTransparency,
-                ox,
-                oy,
-                oz
-              ) &&
-              !LightUtils.canEnter(
-                updatedTransparency,
-                nTransparency,
-                ox,
-                oy,
-                oz
-              )
-            )
-          ) {
-            return;
-          }
-
-          lightData.forEach(([color, sourceLevel]) => {
-            const isSunlight = color === SUNLIGHT;
-
-            const nLevel = isSunlight
-              ? this.getSunlightAt(nvx, nvy, nvz)
-              : this.getTorchLightAt(nvx, nvy, nvz, color);
-
-            if (
-              nLevel < sourceLevel ||
-              (oy === -1 &&
-                isSunlight &&
-                nLevel === maxLightLevel &&
-                sourceLevel === maxLightLevel)
-            ) {
-              removeCount += 1;
-              this.removeLight([nvx, nvy, nvz], color);
-            }
-          });
-        });
-
-        if (removeCount === 0) {
-          if (this.getSunlightAt(vx, vy, vz) !== 0) {
+        if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
+          if (this.getSunlightAt(vx, vy, vz) > 0) {
             this.removeLight([vx, vy, vz], "SUNLIGHT");
           }
 
           ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map(
             (color) => {
-              if (this.getTorchLightAt(vx, vy, vz, color) !== 0) {
+              if (this.getTorchLightAt(vx, vy, vz, color) > 0) {
                 this.removeLight([vx, vy, vz], color);
               }
             }
           );
-        }
-      }
+        } else {
+          let removeCount = 0;
 
-      if (updatedBlock.isLight) {
-        if (updatedBlock.redLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, updatedBlock.redLightLevel, "RED");
-          redFlood.push({
-            voxel: [vx, vy, vz],
-            level: updatedBlock.redLightLevel,
-          });
-        }
+          const lightData = [
+            [SUNLIGHT, this.getSunlightAt(vx, vy, vz)],
+            [RED_LIGHT, this.getTorchLightAt(vx, vy, vz, "RED")],
+            [GREEN_LIGHT, this.getTorchLightAt(vx, vy, vz, "GREEN")],
+            [BLUE_LIGHT, this.getTorchLightAt(vx, vy, vz, "BLUE")],
+          ] as const;
 
-        if (updatedBlock.greenLightLevel > 0) {
-          this.setTorchLightAt(
-            vx,
-            vy,
-            vz,
-            updatedBlock.greenLightLevel,
-            "GREEN"
-          );
-          greenFlood.push({
-            voxel: [vx, vy, vz],
-            level: updatedBlock.greenLightLevel,
-          });
-        }
+          VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
+            const nvy = vy + oy;
+            if (nvy < 0 || nvy >= maxHeight) {
+              return;
+            }
 
-        if (updatedBlock.blueLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, updatedBlock.blueLightLevel, "BLUE");
-          blueFlood.push({
-            voxel: [vx, vy, vz],
-            level: updatedBlock.blueLightLevel,
-          });
-        }
-      } else {
-        // Check the six neighbors.
-        VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
-          const nvy = vy + oy;
+            const nvx = vx + ox;
+            const nvz = vz + oz;
 
-          if (nvy < 0) {
-            return;
-          }
+            const nBlock = this.getBlockAt(nvx, nvy, nvz);
+            const nTransparency = BlockUtils.getBlockRotatedTransparency(
+              nBlock,
+              // Maybe use the new rotation?
+              currentRotation
+            );
 
-          // Sunlight should propagate downwards here.
-          if (nvy >= maxHeight) {
-            // Light can go downwards into this block.
             if (
-              LightUtils.canEnter(
-                [true, true, true, true, true, true],
-                updatedTransparency,
-                ox,
-                -1,
-                oz
+              !(
+                LightUtils.canEnter(
+                  currentTransparency,
+                  nTransparency,
+                  ox,
+                  oy,
+                  oz
+                ) &&
+                !LightUtils.canEnter(
+                  updatedTransparency,
+                  nTransparency,
+                  ox,
+                  oy,
+                  oz
+                )
               )
             ) {
+              return;
+            }
+
+            lightData.forEach(([color, sourceLevel]) => {
+              const isSunlight = color === SUNLIGHT;
+
+              const nLevel = isSunlight
+                ? this.getSunlightAt(nvx, nvy, nvz)
+                : this.getTorchLightAt(nvx, nvy, nvz, color);
+
+              if (
+                nLevel < sourceLevel ||
+                (oy === -1 &&
+                  isSunlight &&
+                  nLevel === maxLightLevel &&
+                  sourceLevel === maxLightLevel)
+              ) {
+                removeCount += 1;
+                this.removeLight([nvx, nvy, nvz], color);
+              }
+            });
+          });
+
+          if (removeCount === 0) {
+            if (this.getSunlightAt(vx, vy, vz) !== 0) {
+              this.removeLight([vx, vy, vz], "SUNLIGHT");
+            }
+
+            ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map(
+              (color) => {
+                if (this.getTorchLightAt(vx, vy, vz, color) !== 0) {
+                  this.removeLight([vx, vy, vz], color);
+                }
+              }
+            );
+          }
+        }
+
+        if (updatedBlock.isLight) {
+          if (updatedBlock.redLightLevel > 0) {
+            this.setTorchLightAt(vx, vy, vz, updatedBlock.redLightLevel, "RED");
+            redFlood.push({
+              voxel: [vx, vy, vz],
+              level: updatedBlock.redLightLevel,
+            });
+          }
+
+          if (updatedBlock.greenLightLevel > 0) {
+            this.setTorchLightAt(
+              vx,
+              vy,
+              vz,
+              updatedBlock.greenLightLevel,
+              "GREEN"
+            );
+            greenFlood.push({
+              voxel: [vx, vy, vz],
+              level: updatedBlock.greenLightLevel,
+            });
+          }
+
+          if (updatedBlock.blueLightLevel > 0) {
+            this.setTorchLightAt(
+              vx,
+              vy,
+              vz,
+              updatedBlock.blueLightLevel,
+              "BLUE"
+            );
+            blueFlood.push({
+              voxel: [vx, vy, vz],
+              level: updatedBlock.blueLightLevel,
+            });
+          }
+        } else {
+          // Check the six neighbors.
+          VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
+            const nvy = vy + oy;
+
+            if (nvy < 0) {
+              return;
+            }
+
+            // Sunlight should propagate downwards here.
+            if (nvy >= maxHeight) {
+              // Light can go downwards into this block.
+              if (
+                LightUtils.canEnter(
+                  [true, true, true, true, true, true],
+                  updatedTransparency,
+                  ox,
+                  -1,
+                  oz
+                )
+              ) {
+                sunFlood.push({
+                  voxel: [vx + ox, vy, vz + oz],
+                  level: maxLightLevel,
+                });
+              }
+
+              return;
+            }
+
+            const nvx = vx + ox;
+            const nvz = vz + oz;
+
+            const nBlock = this.getBlockAt(nvx, nvy, nvz);
+            const nTransparency = BlockUtils.getBlockRotatedTransparency(
+              nBlock,
+              this.getVoxelRotationAt(nvx, nvy, nvz)
+            );
+
+            const nVoxel = [nvx, nvy, nvz] as Coords3;
+
+            // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
+            if (
+              !(
+                nBlock.redLightLevel > 0 ||
+                nBlock.greenLightLevel > 0 ||
+                nBlock.blueLightLevel > 0
+              ) &&
+              !(
+                !LightUtils.canEnter(
+                  currentTransparency,
+                  nTransparency,
+                  ox,
+                  oy,
+                  oz
+                ) &&
+                LightUtils.canEnter(
+                  updatedTransparency,
+                  nTransparency,
+                  ox,
+                  oy,
+                  oz
+                )
+              )
+            ) {
+              return;
+            }
+
+            const level =
+              this.getSunlightAt(nvx, nvy, nvz) -
+              (updatedBlock.lightReduce ? 1 : 0);
+            if (level !== 0) {
               sunFlood.push({
-                voxel: [vx + ox, vy, vz + oz],
-                level: maxLightLevel,
+                voxel: nVoxel,
+                level,
               });
             }
 
-            return;
-          }
+            const redLevel =
+              this.getTorchLightAt(nvx, nvy, nvz, "RED") -
+              (updatedBlock.lightReduce ? 1 : 0);
+            if (redLevel !== 0) {
+              redFlood.push({
+                voxel: nVoxel,
+                level: redLevel,
+              });
+            }
 
-          const nvx = vx + ox;
-          const nvz = vz + oz;
+            const greenLevel =
+              this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
+              (updatedBlock.lightReduce ? 1 : 0);
+            if (greenLevel !== 0) {
+              greenFlood.push({
+                voxel: nVoxel,
+                level: greenLevel,
+              });
+            }
 
-          const nBlock = this.getBlockAt(nvx, nvy, nvz);
-          const nTransparency = BlockUtils.getBlockRotatedTransparency(
-            nBlock,
-            this.getVoxelRotationAt(nvx, nvy, nvz)
-          );
-
-          const nVoxel = [nvx, nvy, nvz] as Coords3;
-
-          // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
-          if (
-            !(
-              nBlock.redLightLevel > 0 ||
-              nBlock.greenLightLevel > 0 ||
-              nBlock.blueLightLevel > 0
-            ) &&
-            !(
-              !LightUtils.canEnter(
-                currentTransparency,
-                nTransparency,
-                ox,
-                oy,
-                oz
-              ) &&
-              LightUtils.canEnter(
-                updatedTransparency,
-                nTransparency,
-                ox,
-                oy,
-                oz
-              )
-            )
-          ) {
-            return;
-          }
-
-          const level =
-            this.getSunlightAt(nvx, nvy, nvz) -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (level !== 0) {
-            sunFlood.push({
-              voxel: nVoxel,
-              level,
-            });
-          }
-
-          const redLevel =
-            this.getTorchLightAt(nvx, nvy, nvz, "RED") -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (redLevel !== 0) {
-            redFlood.push({
-              voxel: nVoxel,
-              level: redLevel,
-            });
-          }
-
-          const greenLevel =
-            this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (greenLevel !== 0) {
-            greenFlood.push({
-              voxel: nVoxel,
-              level: greenLevel,
-            });
-          }
-
-          const blueLevel =
-            this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (blueLevel !== 0) {
-            blueFlood.push({
-              voxel: nVoxel,
-              level: blueLevel,
-            });
-          }
-        });
+            const blueLevel =
+              this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
+              (updatedBlock.lightReduce ? 1 : 0);
+            if (blueLevel !== 0) {
+              blueFlood.push({
+                voxel: nVoxel,
+                level: blueLevel,
+              });
+            }
+          });
+        }
       }
     }
 
@@ -2862,9 +2897,10 @@ export class World extends Scene implements NetIntercept {
 
     runAll().then(() => {
       this.chunks.toEmit.push(
-        ...updates
-          .filter(({ source }) => source === "client")
-          .map(({ update }) => update)
+        ...batchUpdates
+          .filter(({ source, ready }) => ready && source === "client")
+          .map(({ updates }) => updates)
+          .flat()
       );
     });
   };
