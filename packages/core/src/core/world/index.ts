@@ -2973,37 +2973,34 @@ export class World extends Scene implements NetIntercept {
       return mat;
     };
 
-    for (const block of this.registry.blocksById.values()) {
-      let totalFaces = block.faces.length;
+    const blocks = Array.from(this.registry.blocksById.values());
 
-      block.faces.forEach((f) => {
-        if (f.independent) totalFaces--;
-      });
+    const totalFaces = blocks.reduce((acc, block) => {
+      const independentFacesCount = block.faces.filter(
+        (f) => f.independent
+      ).length;
+      return acc + (block.faces.length - independentFacesCount);
+    }, 0);
 
-      const countPerSide = perSide(totalFaces);
+    const countPerSide = perSide(totalFaces);
+    const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
 
-      const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
-
+    blocks.forEach((block) => {
       const mat = make(block.isSeeThrough, atlas);
       const key = this.makeChunkMaterialKey(block.id);
-
       this.chunks.materials.set(key, mat);
 
-      // Process independent faces
-      for (const face of block.faces) {
-        if (!face.independent) continue;
+      block.faces.forEach((face) => {
+        if (!face.independent) return;
 
-        // For independent faces, we need to create a new material for it with a non-atlas texture.
-        const mat = make(
+        const independentMat = make(
           block.isSeeThrough,
           AtlasTexture.makeUnknownTexture(textureUnitDimension)
         );
-
-        const key = this.makeChunkMaterialKey(block.id, face.name);
-
-        this.chunks.materials.set(key, mat);
-      }
-    }
+        const independentKey = this.makeChunkMaterialKey(block.id, face.name);
+        this.chunks.materials.set(independentKey, independentMat);
+      });
+    });
   }
 
   private makeChunkMaterialKey(id: number, faceName?: string) {
