@@ -1103,6 +1103,10 @@ impl Block {
         BlockBuilder::new(name)
     }
 
+    pub fn has_torch_light(&self) -> bool {
+        self.red_light_level > 0 || self.green_light_level > 0 || self.blue_light_level > 0
+    }
+
     pub fn get_aabbs(
         &self,
         pos: &Vec3<i32>,

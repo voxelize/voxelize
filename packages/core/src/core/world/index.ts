@@ -2778,6 +2778,11 @@ export class World extends Scene implements NetIntercept {
           // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
           if (
             !(
+              nBlock.redLightLevel > 0 ||
+              nBlock.greenLightLevel > 0 ||
+              nBlock.blueLightLevel > 0
+            ) &&
+            !(
               !LightUtils.canEnter(
                 currentTransparency,
                 nTransparency,

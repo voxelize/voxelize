@@ -318,8 +318,14 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         let n_voxel = [nvx, nvy, nvz];
 
                         // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
-                        if !(!Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
-                            && Lights::can_enter(
+                        if !(n_block.has_torch_light())
+                            && !(!Lights::can_enter(
+                                &current_transparency,
+                                &n_transparency,
+                                ox,
+                                oy,
+                                oz,
+                            ) && Lights::can_enter(
                                 &updated_transparency,
                                 &n_transparency,
                                 ox,
