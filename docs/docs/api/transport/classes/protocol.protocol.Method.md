@@ -41,7 +41,7 @@ Method name.
 
 #### Implementation of
 
-[IMethod](../interfaces/protocol.protocol.IMethod.md).[name](../interfaces/protocol.protocol.IMethod.md#name)
+[IMethod](../interfaces/protocol.protocol.IMethod.md).[name](../interfaces/protocol.protocol.IMethod.md#name-4)
 
 ___
 
@@ -53,7 +53,7 @@ Method payload.
 
 #### Implementation of
 
-[IMethod](../interfaces/protocol.protocol.IMethod.md).[payload](../interfaces/protocol.protocol.IMethod.md#payload)
+[IMethod](../interfaces/protocol.protocol.IMethod.md).[payload](../interfaces/protocol.protocol.IMethod.md#payload-4)
 
 ## Methods
 
@@ -138,7 +138,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Method message. Does not implicitly [verify](protocol.protocol.Method.md#verify) messages.
+Encodes the specified Method message. Does not implicitly [verify](protocol.protocol.Method.md#verify-4) messages.
 
 #### Parameters
 
@@ -159,7 +159,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Method message, length delimited. Does not implicitly [verify](protocol.protocol.Method.md#verify) messages.
+Encodes the specified Method message, length delimited. Does not implicitly [verify](protocol.protocol.Method.md#verify-4) messages.
 
 #### Parameters
 

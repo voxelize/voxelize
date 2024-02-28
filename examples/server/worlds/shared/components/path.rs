@@ -8,6 +8,7 @@ use voxelize::Vec3;
 pub struct PathComp {
     pub path: Option<Vec<Vec3<i32>>>,
     pub max_nodes: usize,
+    pub target: Option<Vec3<i32>>,
 }
 
 impl PathComp {
@@ -15,6 +16,7 @@ impl PathComp {
         Self {
             path: None,
             max_nodes,
+            target: None
         }
     }
 }

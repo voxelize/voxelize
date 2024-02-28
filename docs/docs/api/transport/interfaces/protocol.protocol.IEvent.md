@@ -25,6 +25,6 @@ ___
 
 ### payload
 
-• `Optional` **payload**: [`IStruct`](protocol.google.protobuf.IStruct.md)
+• `Optional` **payload**: `string`
 
 Event payload

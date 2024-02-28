@@ -41,19 +41,19 @@ Event name.
 
 #### Implementation of
 
-[IEvent](../interfaces/protocol.protocol.IEvent.md).[name](../interfaces/protocol.protocol.IEvent.md#name)
+[IEvent](../interfaces/protocol.protocol.IEvent.md).[name](../interfaces/protocol.protocol.IEvent.md#name-4)
 
 ___
 
 ### payload
 
-• `Optional` **payload**: [`IStruct`](../interfaces/protocol.google.protobuf.IStruct.md)
+• **payload**: `string`
 
 Event payload.
 
 #### Implementation of
 
-[IEvent](../interfaces/protocol.protocol.IEvent.md).[payload](../interfaces/protocol.protocol.IEvent.md#payload)
+[IEvent](../interfaces/protocol.protocol.IEvent.md).[payload](../interfaces/protocol.protocol.IEvent.md#payload-4)
 
 ## Methods
 
@@ -138,7 +138,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Event message. Does not implicitly [verify](protocol.protocol.Event.md#verify) messages.
+Encodes the specified Event message. Does not implicitly [verify](protocol.protocol.Event.md#verify-4) messages.
 
 #### Parameters
 
@@ -159,7 +159,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Event message, length delimited. Does not implicitly [verify](protocol.protocol.Event.md#verify) messages.
+Encodes the specified Event message, length delimited. Does not implicitly [verify](protocol.protocol.Event.md#verify-4) messages.
 
 #### Parameters
 
