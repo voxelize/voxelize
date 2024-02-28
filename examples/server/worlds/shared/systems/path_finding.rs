@@ -76,8 +76,9 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     let height = body.0.aabb.height();
 
-                    let body_vpos = Vec3(body_pos.0 as i32, body_pos.1 as i32, body_pos.2 as i32);
-                    let target_vpos = Vec3(target.0 as i32, target.1 as i32, target.2 as i32);
+                    // Position has to be rounded down because it's offset by +0.5
+                    let body_vpos = Vec3(body_pos.0.floor() as i32, body_pos.1.floor() as i32, body_pos.2.floor() as i32);
+                    let target_vpos = Vec3(target.0.floor() as i32, target.1.floor() as i32, target.2.floor() as i32);
 
                     let start = get_standable_voxel(&body_vpos);
                     let goal = get_standable_voxel(&target_vpos);
