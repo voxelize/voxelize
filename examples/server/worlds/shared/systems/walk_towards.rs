@@ -40,12 +40,11 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                     loop {
                         if i >= nodes.len() - 1 {
-                            brain.stop();
-                            return;
+                            break;
                         }
 
                         // means currently is in the attended node
-                        if target == voxel {
+                        if target.0 == voxel.0 && target.2 == voxel.2 {
                             i = i + 1;
                             target = nodes[i].clone();
                         } else {
@@ -54,16 +53,10 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     }
 
                     // jumping
-                    if nodes.len() > 1 && nodes[i].1 < nodes[i + 1].1 {
+                    if voxel.1 < nodes[i].1 {
                         brain.jump();
-                        target = nodes[i + 1].clone();
                     } else {
                         brain.stop_jumping();
-                    }
-
-                    // diagonal
-                    if nodes.len() > 1 && nodes[i].0 != nodes[i + 1].0 && nodes[i].1 != nodes[i + 1].1 {
-                        target = nodes[i + 1].clone();
                     }
 
                     path.target = Some(target.clone());
