@@ -447,6 +447,9 @@ class Bot extends VOXELIZE.Entity<BotData> {
 
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
+
+        if (node == path.target) continue;
+
         const color = new THREE.Color("#fff");
         const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
         const material = new THREE.MeshBasicMaterial({
@@ -491,6 +494,7 @@ inputs.bind("v", () => {
 });
 
 inputs.bind("z", () => {
+  console.log("Spawning bot");
   method.call("spawn-bot", {
     position: controls.object.position.toArray(),
   });

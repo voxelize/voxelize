@@ -32,7 +32,8 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     }
 
                     let position = body.0.get_position();
-                    let voxel = Vec3(position.0 as i32, position.1 as i32, position.2 as i32);
+                    // Position has to be rounded down because it's offset by +0.5
+                    let voxel = Vec3(position.0.floor() as i32, position.1.floor() as i32, position.2.floor() as i32);
 
                     let mut i = 0;
                     let mut target = nodes[i].clone();
