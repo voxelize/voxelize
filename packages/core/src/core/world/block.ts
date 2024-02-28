@@ -175,6 +175,11 @@ export type BlockUpdate = {
   yRotation?: number;
 };
 
+export type BlockUpdateWithSource = {
+  update: BlockUpdate;
+  source: "client" | "server";
+};
+
 /**
  * The numerical representation of the positive Y rotation.
  */

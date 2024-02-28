@@ -42,7 +42,13 @@ import {
   SUNLIGHT,
 } from "../../utils";
 
-import { Block, BlockRotation, BlockUpdate, PY_ROTATION } from "./block";
+import {
+  Block,
+  BlockRotation,
+  BlockUpdate,
+  BlockUpdateWithSource,
+  PY_ROTATION,
+} from "./block";
 import { Chunk } from "./chunk";
 import { Chunks } from "./chunks";
 import { Clouds, CloudsOptions } from "./clouds";
@@ -192,7 +198,7 @@ export type WorldClientOptions = {
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
   maxProcessesPerUpdate: 1,
-  maxUpdatesPerUpdate: 1000,
+  maxUpdatesPerUpdate: 24,
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
@@ -1428,6 +1434,8 @@ export class World extends Scene implements NetIntercept {
     this.chunks.toUpdate.push(
       ...voxelUpdates.map((update) => ({ source, update }))
     );
+
+    this.processClientUpdates();
   };
 
   floodLight(
@@ -1939,11 +1947,6 @@ export class World extends Scene implements NetIntercept {
     const updateSkyAndCloudsDuration =
       performance.now() - startUpdateSkyAndClouds;
 
-    const startProcessClientUpdates = performance.now();
-    this.processClientUpdates();
-    const processClientUpdatesDuration =
-      performance.now() - startProcessClientUpdates;
-
     const startEmitServerUpdates = performance.now();
     this.emitServerUpdates();
     const emitServerUpdatesDuration =
@@ -1959,7 +1962,6 @@ export class World extends Scene implements NetIntercept {
       log("updatePhysics took", updatePhysicsDuration, "ms");
       log("updateUniforms took", updateUniformsDuration, "ms");
       log("updateSkyAndClouds took", updateSkyAndCloudsDuration, "ms");
-      log("processClientUpdates took", processClientUpdatesDuration, "ms");
       log("emitServerUpdates took", emitServerUpdatesDuration, "ms");
     }
   }
@@ -2560,19 +2562,7 @@ export class World extends Scene implements NetIntercept {
     this.chunks.uniforms.minLightLevel.value = minLightLevel;
   }
 
-  private processClientUpdates = () => {
-    // Update server voxels
-    if (this.chunks.toUpdate.length === 0) {
-      return;
-    }
-
-    const updates = this.chunks.toUpdate.splice(
-      0,
-      this.options.maxUpdatesPerUpdate
-    );
-
-    updates.sort((a, b) => b.update.vy - a.update.vy);
-
+  private processLightUpdates = async (updates: BlockUpdateWithSource[]) => {
     const { maxHeight, maxLightLevel } = this.options;
 
     // Placing a light
@@ -2581,7 +2571,6 @@ export class World extends Scene implements NetIntercept {
     const blueFlood: LightNode[] = [];
     const sunFlood: LightNode[] = [];
 
-    this.isTrackingChunks = true;
     for (const update of updates) {
       const {
         update: { type, vx, vy, vz, rotation, yRotation },
@@ -2849,24 +2838,47 @@ export class World extends Scene implements NetIntercept {
     this.floodLight(redFlood, "RED");
     this.floodLight(greenFlood, "GREEN");
     this.floodLight(blueFlood, "BLUE");
+  };
 
-    this.isTrackingChunks = false;
-    const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
+  private processClientUpdates = () => {
+    // Update server voxels
+    if (this.chunks.toUpdate.length === 0 || this.isTrackingChunks) {
+      return;
+    }
 
-    const runAll = async () => {
-      for (const [coords, level] of dirtyChunks) {
-        const [cx, cz] = coords;
-        await this.meshChunkLocally(cx, cz, level);
+    this.isTrackingChunks = true;
+
+    const processUpdatesInIdleTime = () => {
+      if (this.chunks.toUpdate.length > 0) {
+        const updates = this.chunks.toUpdate.splice(
+          0,
+          this.options.maxUpdatesPerUpdate
+        );
+        this.processLightUpdates(updates).then(() => {
+          this.chunks.toEmit.push(
+            ...updates
+              .filter(({ source }) => source === "client")
+              .map(({ update }) => update)
+          );
+
+          requestAnimationFrame(processUpdatesInIdleTime);
+        });
+      } else {
+        this.isTrackingChunks = false;
+        this.processDirtyChunks();
       }
     };
 
-    runAll().then(() => {
-      this.chunks.toEmit.push(
-        ...updates
-          .filter(({ source }) => source === "client")
-          .map(({ update }) => update)
-      );
-    });
+    requestAnimationFrame(processUpdatesInIdleTime);
+  };
+
+  private processDirtyChunks = async () => {
+    const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
+
+    for (const [coords, level] of dirtyChunks) {
+      const [cx, cz] = coords;
+      await this.meshChunkLocally(cx, cz, level);
+    }
   };
 
   /**
