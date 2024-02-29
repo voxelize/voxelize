@@ -68,6 +68,8 @@ const world = new VOXELIZE.World({
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
+const options = { pathVisible: false };
+
 world.loader.loadTexture(LolImage, (texture) => {
   character.head.paint("front", texture);
 });
@@ -441,12 +443,11 @@ class Bot extends VOXELIZE.Entity<BotData> {
 
     const { path } = data;
 
-    if (path.path) {
+    if (path.path && options.pathVisible) {
       const { path: nodes } = path;
 
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
-
         const color = new THREE.Color("#fff");
         const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
         const material = new THREE.MeshBasicMaterial({
@@ -727,6 +728,9 @@ const start = async () => {
     .onFinishChange((time: number) => {
       world.time = time;
     });
+  gui.add(options, "pathVisible").onChange((value: boolean) => {
+    options.pathVisible = value;
+  });
 
   const bar = new VOXELIZE.ItemSlots({
     verticalCount: 1,
