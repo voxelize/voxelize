@@ -362,7 +362,6 @@ type BotData = {
   path: {
     maxNodes: number;
     path: VOXELIZE.Coords3[];
-    target: VOXELIZE.Coords3;
   };
 };
 
@@ -448,8 +447,6 @@ class Bot extends VOXELIZE.Entity<BotData> {
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
 
-        if (node == path.target) continue;
-
         const color = new THREE.Color("#fff");
         const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
         const material = new THREE.MeshBasicMaterial({
@@ -462,20 +459,6 @@ class Bot extends VOXELIZE.Entity<BotData> {
         mesh.position.addScalar(0.5);
         this.path.add(mesh);
       }
-    }
-
-    if (path.target) {
-      const color = new THREE.Color("#FFD700");
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({
-        color,
-        opacity: 0.3,
-        transparent: true,
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(...path.target);
-      mesh.position.addScalar(0.5);
-      this.path.add(mesh);
     }
   };
 }
@@ -494,7 +477,6 @@ inputs.bind("v", () => {
 });
 
 inputs.bind("z", () => {
-  console.log("Spawning bot");
   method.call("spawn-bot", {
     position: controls.object.position.toArray(),
   });

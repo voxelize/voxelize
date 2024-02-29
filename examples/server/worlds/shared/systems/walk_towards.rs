@@ -9,7 +9,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
     #[allow(clippy::type_complexity)]
     type SystemData = (
         ReadExpect<'a, Stats>,
-        WriteStorage<'a, PathComp>,
+        ReadStorage<'a, PathComp>,
         WriteStorage<'a, RigidBodyComp>,
         WriteStorage<'a, BrainComp>,
     );
@@ -18,11 +18,11 @@ impl<'a> System<'a> for WalkTowardsSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, mut paths, mut bodies, mut brains) = data;
+        let (stats, paths, mut bodies, mut brains) = data;
 
         let delta = stats.delta;
 
-        (&mut paths, &mut bodies, &mut brains)
+        (&paths, &mut bodies, &mut brains)
             .par_join()
             .for_each(|(path, body, brain)| {
                 if let Some(nodes) = &path.path {
@@ -58,8 +58,6 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     } else {
                         brain.stop_jumping();
                     }
-
-                    path.target = Some(target.clone());
 
                     let offset = 0.5;
                     let target = Vec3(
