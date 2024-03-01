@@ -1022,11 +1022,17 @@ pub enum BlockRuleLogic {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BlockDynamicPattern {
-    pub rule: BlockRule, // Now a single rule that can represent complex logic
+pub struct BlockConditionalPart {
+    pub rule: BlockRule,
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub is_transparent: [bool; 6],
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockDynamicPattern {
+    pub parts: Vec<BlockConditionalPart>,
 }
 
 /// Serializable struct representing block data.
@@ -1135,9 +1141,9 @@ impl Block {
         if self.is_dynamic {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
-                    if let Some(dynamic_pattern) = Block::match_dynamic_pattern(pattern, pos, space)
-                    {
-                        return dynamic_pattern.aabbs.to_owned();
+                    let (_, aabbs, __) = Block::match_dynamic_pattern(pattern, pos, space);
+                    if aabbs.len() > 0 {
+                        return aabbs.to_owned();
                     }
                 }
                 return self.aabbs.clone();
@@ -1158,9 +1164,9 @@ impl Block {
         if self.is_dynamic {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
                 for pattern in dynamic_patterns {
-                    if let Some(dynamic_pattern) = Block::match_dynamic_pattern(pattern, pos, space)
-                    {
-                        return dynamic_pattern.faces.to_owned();
+                    let (faces, _, __) = Block::match_dynamic_pattern(pattern, pos, space);
+                    if faces.len() > 0 {
+                        return faces.to_owned();
                     }
                 }
                 return self.faces.clone();
@@ -1183,6 +1189,29 @@ impl Block {
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
         rotation.rotate_transparency(self.is_transparent)
+    }
+
+    /// Evaluate the dynamic pattern and return the combined faces and AABBs based on the rules.
+    fn evaluate_dynamic_pattern(
+        pattern: &BlockDynamicPattern,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+    ) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6]) {
+        let mut combined_faces = Vec::new();
+        let mut combined_aabbs = Vec::new();
+        let mut combined_transparency = [false; 6];
+
+        for part in &pattern.parts {
+            if Self::evaluate_rule(&part.rule, pos, space) {
+                combined_faces.extend(part.faces.clone());
+                combined_aabbs.extend(part.aabbs.clone());
+                for (i, &is_transparent) in part.is_transparent.iter().enumerate() {
+                    combined_transparency[i] = combined_transparency[i] || is_transparent;
+                }
+            }
+        }
+
+        (combined_faces, combined_aabbs, combined_transparency)
     }
 
     fn evaluate_rule(rule: &BlockRule, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
@@ -1230,12 +1259,8 @@ impl Block {
         pattern: &BlockDynamicPattern,
         pos: &Vec3<i32>,
         space: &dyn VoxelAccess,
-    ) -> Option<BlockDynamicPattern> {
-        if Self::evaluate_rule(&pattern.rule, pos, space) {
-            Some(pattern.clone())
-        } else {
-            None
-        }
+    ) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6]) {
+        Self::evaluate_dynamic_pattern(&pattern, pos, space)
     }
 }
 

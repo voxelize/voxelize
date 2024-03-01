@@ -166,10 +166,12 @@ impl Registry {
 
             if let Some(dynamic_patterns) = block.dynamic_patterns.as_mut() {
                 for pattern in dynamic_patterns {
-                    for face in &mut pattern.faces {
-                        let existing = block.faces.iter_mut().find(|f| f.name == face.name);
-                        if let Some(e) = existing {
-                            face.range = e.range.clone();
+                    for part in &mut pattern.parts {
+                        for face in &mut part.faces {
+                            let existing = block.faces.iter_mut().find(|f| f.name == face.name);
+                            if let Some(e) = existing {
+                                face.range = e.range.clone();
+                            }
                         }
                     }
                 }

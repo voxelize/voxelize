@@ -22,11 +22,15 @@ export type BlockRule =
   | ({ type: "simple" } & BlockSimpleRule)
   | { type: "combination"; logic: BlockRuleLogic; rules: BlockRule[] };
 
-interface BlockDynamicPattern {
+export interface BlockConditionalPart {
+  rule: BlockRule;
   faces: Block["faces"];
   aabbs: Block["aabbs"];
   isTransparent: Block["isTransparent"];
-  rule: BlockRule;
+}
+
+export interface BlockDynamicPattern {
+  parts: BlockConditionalPart[];
 }
 
 /**

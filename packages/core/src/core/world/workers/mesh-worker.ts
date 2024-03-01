@@ -187,15 +187,19 @@ onmessage = function (e) {
         }
 
         if (dynamicPatterns) {
-          for (const pattern of dynamicPatterns) {
-            const patternMatched = evaluateRule(pattern.rule, vx, vy, vz);
+          faces = [];
+          aabbs = [];
 
-            if (patternMatched) {
-              faces = pattern.faces;
-              aabbs = pattern.aabbs;
-              break; // Exit the loop if a matching pattern is found
-            }
-          }
+          dynamicPatterns.forEach((dynamicPattern) => {
+            dynamicPattern.parts.forEach((part) => {
+              const partMatched = evaluateRule(part.rule, vx, vy, vz);
+
+              if (partMatched) {
+                faces = [...faces, ...part.faces];
+                aabbs = [...aabbs, ...part.aabbs];
+              }
+            });
+          });
         }
 
         // Skip blocks that are completely surrounded by other blocks
