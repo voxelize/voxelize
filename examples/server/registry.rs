@@ -234,6 +234,7 @@ pub fn setup_registry() -> Registry {
     let green_stone_block = Block::new("Green Stone")
         .id(green_stone_id)
         .dynamic_patterns(&[green_stone_dynamic_pattern])
+        .is_passable(true)
         .is_transparent(true)
         .transparent_standalone(true)
         .build();
