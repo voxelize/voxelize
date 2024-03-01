@@ -127,6 +127,7 @@ onmessage = function (e) {
           yRotatable,
           isDynamic,
           dynamicPatterns,
+          isTransparent,
         } = block;
 
         let aabbs = block.aabbs;
@@ -189,6 +190,14 @@ onmessage = function (e) {
         if (isSurrounded) {
           continue;
         }
+
+        const isAllTransparent =
+          isTransparent[0] &&
+          isTransparent[1] &&
+          isTransparent[2] &&
+          isTransparent[3] &&
+          isTransparent[4] &&
+          isTransparent[5];
 
         const uvMap: Record<string, UV> = {};
         for (const face of faces) {
@@ -320,20 +329,21 @@ onmessage = function (e) {
               const b111 = !getBlockAt(vx + unitDx, vy + unitDy, vz + unitDz)
                 .isOpaque;
 
-              const ao = isSeeThrough
-                ? 3
-                : Math.abs(dir[0]) === 1
-                ? vertexAO(b110, b101, b111)
-                : Math.abs(dir[1]) === 1
-                ? vertexAO(b110, b011, b111)
-                : vertexAO(b011, b101, b111);
+              const ao =
+                isSeeThrough || isAllTransparent
+                  ? 3
+                  : Math.abs(dir[0]) === 1
+                  ? vertexAO(b110, b101, b111)
+                  : Math.abs(dir[1]) === 1
+                  ? vertexAO(b110, b011, b111)
+                  : vertexAO(b011, b101, b111);
 
               let sunlight: number;
               let redLight: number;
               let greenLight: number;
               let blueLight: number;
 
-              if (isSeeThrough) {
+              if (isSeeThrough || isAllTransparent) {
                 sunlight = getSunlightAt(vx, vy, vz);
                 redLight = getTorchlightAt(vx, vy, vz, "RED");
                 greenLight = getTorchlightAt(vx, vy, vz, "GREEN");

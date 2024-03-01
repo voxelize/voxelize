@@ -41,6 +41,8 @@ export async function setupWorld(world: VOXELIZE.World) {
   const all = ["px", "nx", "py", "ny", "pz", "nz"];
   const side = ["px", "nx", "pz", "nz"];
 
+  world.applyBlockTexture(50000, all, new THREE.Color("#A5DD9B"));
+
   // world.applyBlockGifByName("Sand", "nx", FunnyGif);
   // world.setResolutionOfByName("Sand", "nx", 120);
 

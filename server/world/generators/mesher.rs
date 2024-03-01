@@ -393,11 +393,18 @@ impl Mesher {
             is_see_through,
             rotatable,
             y_rotatable,
+            is_transparent,
             ..
         } = block;
         let BlockFace { dir, corners, .. } = face;
 
         let mut dir = [dir[0] as f32, dir[1] as f32, dir[2] as f32];
+        let is_all_transparent = is_transparent[0]
+            && is_transparent[1]
+            && is_transparent[2]
+            && is_transparent[3]
+            && is_transparent[4]
+            && is_transparent[5];
 
         if rotatable {
             rotation.rotate_node(&mut dir, y_rotatable, false);
@@ -504,7 +511,7 @@ impl Mesher {
                 let b110 = !get_block_by_voxel(dx, dy, 0, &neighbors, registry).is_opaque;
                 let b111 = !get_block_by_voxel(dx, dy, dz, &neighbors, registry).is_opaque;
 
-                let ao = if is_see_through {
+                let ao = if is_see_through || is_all_transparent {
                     3
                 } else if dir[0].abs() == 1 {
                     vertex_ao(b110, b101, b111)
@@ -519,7 +526,7 @@ impl Mesher {
                 let green_light;
                 let blue_light;
 
-                if is_see_through {
+                if is_see_through || is_all_transparent {
                     let center = Vec3(0, 0, 0);
                     sunlight = neighbors.get_sunlight(&center);
                     red_light = neighbors.get_torch_light(&center, &RED);
