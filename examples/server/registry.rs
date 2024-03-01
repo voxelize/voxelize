@@ -68,6 +68,180 @@ pub fn setup_registry() -> Registry {
         },
     );
 
+    let green_stone_id = 50000;
+    let green_stone_base_xz_dimension = 0.2;
+    let green_stone_base_height = 0.1;
+    let green_stone_base_faces = BlockFaces::six_faces()
+        .scale_y(green_stone_base_height)
+        .scale_x(green_stone_base_xz_dimension)
+        .scale_z(green_stone_base_xz_dimension)
+        .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .build();
+    let green_stone_pos_100_faces = BlockFaces::six_faces()
+        .scale_y(green_stone_base_height / 2.0)
+        .scale_x((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .scale_z(green_stone_base_xz_dimension / 2.0)
+        .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension)
+        .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .build();
+    let green_stone_pos_001_faces = BlockFaces::six_faces()
+        .scale_y(green_stone_base_height / 2.0)
+        .scale_z((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .scale_x(green_stone_base_xz_dimension / 2.0)
+        .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension)
+        .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .build();
+    let green_stone_neg_100_faces = BlockFaces::six_faces()
+        .scale_y(green_stone_base_height / 2.0)
+        .scale_x((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .scale_z(green_stone_base_xz_dimension / 2.0)
+        .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .build();
+    let green_stone_neg_001_faces = BlockFaces::six_faces()
+        .scale_y(green_stone_base_height / 2.0)
+        .scale_z((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .scale_x(green_stone_base_xz_dimension / 2.0)
+        .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .build();
+    let green_stone_base_aabb = AABB::from_faces(&green_stone_base_faces);
+    let green_stone_pos_100_aabb = AABB::from_faces(&green_stone_pos_100_faces);
+    let green_stone_neg_100_aabb = AABB::from_faces(&green_stone_neg_100_faces);
+    let green_stone_pos_001_aabb = AABB::from_faces(&green_stone_pos_001_faces);
+    let green_stone_neg_001_aabb = AABB::from_faces(&green_stone_neg_001_faces);
+    let green_stone_dynamic_pattern = BlockDynamicPattern {
+        parts: vec![
+            BlockConditionalPart {
+                rule: BlockRule::None,
+                aabbs: vec![green_stone_base_aabb],
+                faces: green_stone_base_faces.to_vec(),
+                is_transparent: [true, true, true, true, true, true],
+            },
+            BlockConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Or,
+                    rules: vec![
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(1, 1, 0),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(1, 0, 0),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(1, -1, 0),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                    ],
+                },
+                aabbs: vec![green_stone_pos_100_aabb],
+                faces: green_stone_pos_100_faces.to_vec(),
+                is_transparent: [true, true, true, true, true, true],
+            },
+            BlockConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Or,
+                    rules: vec![
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(-1, 1, 0),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(-1, 0, 0),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(-1, -1, 0),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                    ],
+                },
+                aabbs: vec![green_stone_neg_100_aabb],
+                faces: green_stone_neg_100_faces.to_vec(),
+                is_transparent: [true, true, true, true, true, true],
+            },
+            BlockConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Or,
+                    rules: vec![
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, 1, 1),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, 0, 1),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, -1, 1),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                    ],
+                },
+                aabbs: vec![green_stone_pos_001_aabb],
+                faces: green_stone_pos_001_faces.to_vec(),
+                is_transparent: [true, true, true, true, true, true],
+            },
+            BlockConditionalPart {
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::Or,
+                    rules: vec![
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, 1, -1),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, 0, -1),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, -1, -1),
+                            id: Some(green_stone_id),
+                            rotation: None,
+                            stage: None,
+                        }),
+                    ],
+                },
+                aabbs: vec![green_stone_neg_001_aabb],
+                faces: green_stone_neg_001_faces.to_vec(),
+                is_transparent: [true, true, true, true, true, true],
+            },
+        ],
+    };
+    let green_stone_block = Block::new("Green Stone")
+        .id(green_stone_id)
+        .is_passable(true)
+        .dynamic_patterns(&[green_stone_dynamic_pattern])
+        .is_transparent(true)
+        .is_see_through(true)
+        .transparent_standalone(true)
+        .build();
+
+    registry.register_block(&green_stone_block);
+
     registry.register_blocks(&[
         Block::new("Dirt")
             .id(1)

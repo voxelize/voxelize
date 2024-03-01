@@ -566,7 +566,7 @@ network
   .register(peers)
   .register(controls);
 
-const HOTBAR_CONTENT = [1, 5, 20, 40, 43, 45, 300, 400, 500, 150];
+const HOTBAR_CONTENT = [1, 5, 20, 50000, 43, 45, 300, 400, 500, 150];
 
 // let isLoading = true;
 // const loadingFade = 500;

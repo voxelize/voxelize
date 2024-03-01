@@ -115,6 +115,10 @@ onmessage = function (e) {
     vy: number,
     vz: number
   ): boolean {
+    if (rule.type === "none") {
+      return true;
+    }
+
     if (rule.type === "simple") {
       const { offset, id, rotation, stage } = rule;
       const ox = offset[0] + vx;
@@ -142,7 +146,9 @@ onmessage = function (e) {
 
       // If all conditions pass, return true
       return true;
-    } else if (rule.type === "combination") {
+    }
+
+    if (rule.type === "combination") {
       const { logic, rules } = rule;
 
       switch (logic) {

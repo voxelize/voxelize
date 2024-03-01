@@ -19,6 +19,7 @@ export enum BlockRuleLogic {
 }
 
 export type BlockRule =
+  | { type: "none" }
   | ({ type: "simple" } & BlockSimpleRule)
   | { type: "combination"; logic: BlockRuleLogic; rules: BlockRule[] };
 

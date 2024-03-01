@@ -1004,6 +1004,7 @@ pub struct BlockSimpleRule {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BlockRule {
+    None,
     Simple(BlockSimpleRule),
     Combination {
         logic: BlockRuleLogic,
@@ -1216,6 +1217,7 @@ impl Block {
 
     fn evaluate_rule(rule: &BlockRule, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
         match rule {
+            BlockRule::None => true,
             BlockRule::Simple(simple_rule) => {
                 let vx = simple_rule.offset.0 + pos.0;
                 let vy = simple_rule.offset.1 + pos.1;
