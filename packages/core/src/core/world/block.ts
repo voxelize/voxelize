@@ -4,6 +4,31 @@ import { Coords3 } from "../../types";
 
 import { UV } from "./uv";
 
+export type BlockSimpleRule = {
+  offset: Coords3;
+  id?: number;
+  rotation?: BlockRotation;
+  stage?: number;
+};
+
+export enum BlockRuleLogic {
+  And = "and",
+  Or = "or",
+  Not = "not",
+  // Add more logic types as needed
+}
+
+export type BlockRule =
+  | ({ type: "simple" } & BlockSimpleRule)
+  | { type: "combination"; logic: BlockRuleLogic; rules: BlockRule[] };
+
+interface BlockDynamicPattern {
+  faces: Block["faces"];
+  aabbs: Block["aabbs"];
+  isTransparent: Block["isTransparent"];
+  rule: BlockRule;
+}
+
 /**
  * A block type in the world. This is defined by the server.
  */
@@ -108,17 +133,7 @@ export type Block = {
    */
   isDynamic: boolean;
 
-  dynamicPatterns: {
-    faces: Block["faces"];
-    aabbs: Block["aabbs"];
-    isTransparent: Block["isTransparent"];
-    rules: {
-      offset: Coords3;
-      id?: number;
-      rotation?: BlockRotation;
-      stage?: number;
-    }[];
-  }[];
+  dynamicPatterns: BlockDynamicPattern[];
 
   /**
    * If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this

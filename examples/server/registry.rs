@@ -1,6 +1,6 @@
 use voxelize::{
-    Block, BlockDynamicPattern, BlockDynamicPatternRule, BlockFaces, Registry, Vec3, VoxelPacker,
-    AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ,
+    Block, BlockDynamicPattern, BlockFaces, BlockRule, BlockRuleLogic, BlockSimpleRule, Registry,
+    Vec3, VoxelPacker, AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ,
 };
 
 const PLANT_SCALE: f32 = 0.6;
@@ -187,12 +187,18 @@ pub fn setup_registry() -> Registry {
             .is_passable(true)
             .faces(&BlockFaces::six_faces().build().independent_at(SIX_FACES_PY))
             .dynamic_patterns(&[BlockDynamicPattern {
-                rules: vec![BlockDynamicPatternRule {
-                    offset: Vec3(0, 1, 0),
-                    id: Some(0),
-                    rotation: None,
-                    stage: None,
-                }],
+                rule: BlockRule::Combination {
+                    logic: BlockRuleLogic::And, // Assuming you want an AND logic for demonstration
+                    rules: vec![
+                        BlockRule::Simple(BlockSimpleRule {
+                            offset: Vec3(0, 1, 0),
+                            id: Some(0),
+                            rotation: None,
+                            stage: None,
+                        }),
+                        // Add more Rule::Simple or Rule::Combination here as needed
+                    ],
+                },
                 aabbs: vec![AABB::new().scale_y(0.8).build()],
                 faces: BlockFaces::six_faces()
                     .scale_y(0.8)

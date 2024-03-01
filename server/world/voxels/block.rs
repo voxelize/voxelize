@@ -994,7 +994,7 @@ impl Neighbors {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BlockDynamicPatternRule {
+pub struct BlockSimpleRule {
     pub offset: Vec3<i32>,
     pub id: Option<u32>,
     pub rotation: Option<BlockRotation>,
@@ -1002,9 +1002,28 @@ pub struct BlockDynamicPatternRule {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum BlockRule {
+    Simple(BlockSimpleRule),
+    Combination {
+        logic: BlockRuleLogic,
+        rules: Vec<BlockRule>,
+    },
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BlockRuleLogic {
+    And,
+    Or,
+    Not,
+    // Extend with other logic types as needed
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockDynamicPattern {
-    pub rules: Vec<BlockDynamicPatternRule>,
+    pub rule: BlockRule, // Now a single rule that can represent complex logic
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub is_transparent: [bool; 6],
@@ -1166,48 +1185,57 @@ impl Block {
         rotation.rotate_transparency(self.is_transparent)
     }
 
+    fn evaluate_rule(rule: &BlockRule, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
+        match rule {
+            BlockRule::Simple(simple_rule) => {
+                let vx = simple_rule.offset.0 + pos.0;
+                let vy = simple_rule.offset.1 + pos.1;
+                let vz = simple_rule.offset.2 + pos.2;
+
+                let id_match = simple_rule.id.map_or(true, |rule_id| {
+                    let id = space.get_voxel(vx, vy, vz);
+                    id == rule_id
+                });
+
+                let rotation_match = simple_rule.rotation.as_ref().map_or(true, |rule_rotation| {
+                    let rotation = space.get_voxel_rotation(vx, vy, vz);
+                    rotation == *rule_rotation
+                });
+
+                let stage_match = simple_rule.stage.map_or(true, |rule_stage| {
+                    let stage = space.get_voxel_stage(vx, vy, vz);
+                    stage == rule_stage
+                });
+
+                id_match && rotation_match && stage_match
+            }
+            BlockRule::Combination { logic, rules } => {
+                match logic {
+                    BlockRuleLogic::And => rules
+                        .iter()
+                        .all(|rule| Self::evaluate_rule(rule, pos, space)),
+                    BlockRuleLogic::Or => rules
+                        .iter()
+                        .any(|rule| Self::evaluate_rule(rule, pos, space)),
+                    BlockRuleLogic::Not => !rules
+                        .iter()
+                        .any(|rule| Self::evaluate_rule(rule, pos, space)),
+                    // Extend with other logic types as needed
+                }
+            }
+        }
+    }
+
     fn match_dynamic_pattern(
         pattern: &BlockDynamicPattern,
         pos: &Vec3<i32>,
         space: &dyn VoxelAccess,
     ) -> Option<BlockDynamicPattern> {
-        for rule in &pattern.rules {
-            let vx = rule.offset.0 + pos.0;
-            let vy = rule.offset.1 + pos.1;
-            let vz = rule.offset.2 + pos.2;
-
-            let mut has_rule_passed = false;
-
-            if let Some(rule_id) = rule.id {
-                let id = space.get_voxel(vx, vy, vz);
-                if id != rule_id {
-                    continue;
-                }
-                has_rule_passed = true;
-            }
-
-            if let Some(rule_rotation) = &rule.rotation {
-                let rotation = space.get_voxel_rotation(vx, vy, vz);
-                if rotation != *rule_rotation {
-                    continue;
-                }
-                has_rule_passed = true;
-            }
-
-            if let Some(rule_stage) = rule.stage {
-                let stage = space.get_voxel_stage(vx, vy, vz);
-                if stage != rule_stage {
-                    continue;
-                }
-                has_rule_passed = true;
-            }
-
-            if has_rule_passed {
-                return Some(pattern.clone());
-            }
+        if Self::evaluate_rule(&pattern.rule, pos, space) {
+            Some(pattern.clone())
+        } else {
+            None
         }
-
-        None
     }
 }
 

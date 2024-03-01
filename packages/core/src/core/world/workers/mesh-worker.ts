@@ -1,10 +1,9 @@
 import { AABB } from "@voxelize/aabb";
-import { GeometryProtocol } from "@voxelize/transport/src/types";
 
 import { Coords2, Coords3 } from "../../../types";
 import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
-import { BlockRotation } from "../block";
+import { BlockRotation, BlockRule, BlockRuleLogic } from "../block";
 import { type Chunk, type UV, type WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
 import { Registry } from "../registry";
@@ -110,6 +109,57 @@ onmessage = function (e) {
 
   const geometries: Record<string, InProgressGeometryProtocol> = {};
 
+  function evaluateRule(
+    rule: BlockRule,
+    vx: number,
+    vy: number,
+    vz: number
+  ): boolean {
+    if (rule.type === "simple") {
+      const { offset, id, rotation, stage } = rule;
+      const ox = offset[0] + vx;
+      const oy = offset[1] + vy;
+      const oz = offset[2] + vz;
+
+      if (id !== null) {
+        const voxelId = getVoxelAt(ox, oy, oz);
+        if (voxelId !== id) return false;
+      }
+
+      if (rotation !== null) {
+        const voxelRotation = getVoxelRotationAt(ox, oy, oz);
+        if (
+          voxelRotation.value !== rotation.value ||
+          voxelRotation.yRotation !== rotation.yRotation
+        )
+          return false;
+      }
+
+      if (stage !== null) {
+        const voxelStage = getVoxelStageAt(ox, oy, oz);
+        if (voxelStage !== stage) return false;
+      }
+
+      // If all conditions pass, return true
+      return true;
+    } else if (rule.type === "combination") {
+      const { logic, rules } = rule;
+
+      switch (logic) {
+        case BlockRuleLogic.And:
+          return rules.every((subRule) => evaluateRule(subRule, vx, vy, vz));
+        case BlockRuleLogic.Or:
+          return rules.some((subRule) => evaluateRule(subRule, vx, vy, vz));
+        case BlockRuleLogic.Not:
+          return !rules.some((subRule) => evaluateRule(subRule, vx, vy, vz));
+        default:
+          return false; // Unsupported logic
+      }
+    }
+
+    return false; // Default case for safety
+  }
+
   for (let vx = minX; vx < maxX; vx++) {
     for (let vz = minZ; vz < maxZ; vz++) {
       for (let vy = minY; vy < maxY; vy++) {
@@ -138,55 +188,12 @@ onmessage = function (e) {
 
         if (dynamicPatterns) {
           for (const pattern of dynamicPatterns) {
-            let patternMatched = false;
-
-            for (const rule of pattern.rules) {
-              const ox = rule.offset[0] + vx;
-              const oy = rule.offset[1] + vy;
-              const oz = rule.offset[2] + vz;
-
-              let hasRulePassed = false;
-
-              if (rule.id !== null) {
-                const id = getVoxelAt(ox, oy, oz);
-                if (id !== rule.id) {
-                  patternMatched = false;
-                  break;
-                }
-                hasRulePassed = true;
-              }
-
-              if (rule.rotation !== null) {
-                const rotation = getVoxelRotationAt(ox, oy, oz);
-                if (
-                  rotation.value !== rule.rotation.value ||
-                  rotation.yRotation !== rule.rotation.yRotation
-                ) {
-                  patternMatched = false;
-                  break;
-                }
-                hasRulePassed = true;
-              }
-
-              if (rule.stage !== null) {
-                const stage = getVoxelStageAt(vx, vy, vz);
-                if (stage !== rule.stage) {
-                  patternMatched = false;
-                  break;
-                }
-                hasRulePassed = true;
-              }
-
-              if (hasRulePassed) {
-                patternMatched = true;
-                break;
-              }
-            }
+            const patternMatched = evaluateRule(pattern.rule, vx, vy, vz);
 
             if (patternMatched) {
               faces = pattern.faces;
               aabbs = pattern.aabbs;
-              break;
+              break; // Exit the loop if a matching pattern is found
             }
           }
         }
