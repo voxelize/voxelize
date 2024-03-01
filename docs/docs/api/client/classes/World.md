@@ -373,6 +373,62 @@ ___
 
 ___
 
+### getBlockAABBsAt
+
+▸ **getBlockAABBsAt**(`vx`, `vy`, `vz`): `AABB`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`AABB`[]
+
+___
+
+### getBlockAABBsByIdAt
+
+▸ **getBlockAABBsByIdAt**(`id`, `vx`, `vy`, `vz`): `AABB`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `number` |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`AABB`[]
+
+___
+
+### getBlockAABBsForDynamicPatterns
+
+▸ **getBlockAABBsForDynamicPatterns**(`vx`, `vy`, `vz`, `dynamicPatterns`): `AABB`[]
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+| `dynamicPatterns` | [`BlockDynamicPattern`](../interfaces/BlockDynamicPattern.md)[] |
+
+#### Returns
+
+`AABB`[]
+
+___
+
 ### getBlockAt
 
 ▸ **getBlockAt**(`px`, `py`, `pz`): [`Block`](../modules.md#block)

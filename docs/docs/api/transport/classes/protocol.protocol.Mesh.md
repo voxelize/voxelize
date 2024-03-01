@@ -41,7 +41,7 @@ Mesh geometries.
 
 #### Implementation of
 
-[IMesh](../interfaces/protocol.protocol.IMesh.md).[geometries](../interfaces/protocol.protocol.IMesh.md#geometries-4)
+[IMesh](../interfaces/protocol.protocol.IMesh.md).[geometries](../interfaces/protocol.protocol.IMesh.md#geometries)
 
 ___
 
@@ -53,7 +53,7 @@ Mesh level.
 
 #### Implementation of
 
-[IMesh](../interfaces/protocol.protocol.IMesh.md).[level](../interfaces/protocol.protocol.IMesh.md#level-4)
+[IMesh](../interfaces/protocol.protocol.IMesh.md).[level](../interfaces/protocol.protocol.IMesh.md#level)
 
 ## Methods
 
@@ -138,7 +138,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Mesh message. Does not implicitly [verify](protocol.protocol.Mesh.md#verify-4) messages.
+Encodes the specified Mesh message. Does not implicitly [verify](protocol.protocol.Mesh.md#verify) messages.
 
 #### Parameters
 
@@ -159,7 +159,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Mesh message, length delimited. Does not implicitly [verify](protocol.protocol.Mesh.md#verify-4) messages.
+Encodes the specified Mesh message, length delimited. Does not implicitly [verify](protocol.protocol.Mesh.md#verify) messages.
 
 #### Parameters
 

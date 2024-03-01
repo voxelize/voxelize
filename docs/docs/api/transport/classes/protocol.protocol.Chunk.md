@@ -41,7 +41,7 @@ Chunk id.
 
 #### Implementation of
 
-[IChunk](../interfaces/protocol.protocol.IChunk.md).[id](../interfaces/protocol.protocol.IChunk.md#id-4)
+[IChunk](../interfaces/protocol.protocol.IChunk.md).[id](../interfaces/protocol.protocol.IChunk.md#id)
 
 ___
 
@@ -53,7 +53,7 @@ Chunk lights.
 
 #### Implementation of
 
-[IChunk](../interfaces/protocol.protocol.IChunk.md).[lights](../interfaces/protocol.protocol.IChunk.md#lights-4)
+[IChunk](../interfaces/protocol.protocol.IChunk.md).[lights](../interfaces/protocol.protocol.IChunk.md#lights)
 
 ___
 
@@ -65,7 +65,7 @@ Chunk meshes.
 
 #### Implementation of
 
-[IChunk](../interfaces/protocol.protocol.IChunk.md).[meshes](../interfaces/protocol.protocol.IChunk.md#meshes-4)
+[IChunk](../interfaces/protocol.protocol.IChunk.md).[meshes](../interfaces/protocol.protocol.IChunk.md#meshes)
 
 ___
 
@@ -77,7 +77,7 @@ Chunk voxels.
 
 #### Implementation of
 
-[IChunk](../interfaces/protocol.protocol.IChunk.md).[voxels](../interfaces/protocol.protocol.IChunk.md#voxels-4)
+[IChunk](../interfaces/protocol.protocol.IChunk.md).[voxels](../interfaces/protocol.protocol.IChunk.md#voxels)
 
 ___
 
@@ -89,7 +89,7 @@ Chunk x.
 
 #### Implementation of
 
-[IChunk](../interfaces/protocol.protocol.IChunk.md).[x](../interfaces/protocol.protocol.IChunk.md#x-4)
+[IChunk](../interfaces/protocol.protocol.IChunk.md).[x](../interfaces/protocol.protocol.IChunk.md#x)
 
 ___
 
@@ -101,7 +101,7 @@ Chunk z.
 
 #### Implementation of
 
-[IChunk](../interfaces/protocol.protocol.IChunk.md).[z](../interfaces/protocol.protocol.IChunk.md#z-4)
+[IChunk](../interfaces/protocol.protocol.IChunk.md).[z](../interfaces/protocol.protocol.IChunk.md#z)
 
 ## Methods
 
@@ -186,7 +186,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Chunk message. Does not implicitly [verify](protocol.protocol.Chunk.md#verify-4) messages.
+Encodes the specified Chunk message. Does not implicitly [verify](protocol.protocol.Chunk.md#verify) messages.
 
 #### Parameters
 
@@ -207,7 +207,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Chunk message, length delimited. Does not implicitly [verify](protocol.protocol.Chunk.md#verify-4) messages.
+Encodes the specified Chunk message, length delimited. Does not implicitly [verify](protocol.protocol.Chunk.md#verify) messages.
 
 #### Parameters
 

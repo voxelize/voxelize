@@ -25,6 +25,27 @@ const number = VoxelUtils.insertID(0, 13);
 
 ## Methods
 
+### evaluateBlockRule
+
+▸ **evaluateBlockRule**(`rule`, `voxel`, `functions`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `rule` | [`BlockRule`](../modules.md#blockrule) |
+| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `functions` | `Object` |
+| `functions.getVoxelAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
+| `functions.getVoxelRotationAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => [`BlockRotation`](BlockRotation.md) |
+| `functions.getVoxelStageAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
+
+#### Returns
+
+`boolean`
+
+___
+
 ### extractID
 
 ▸ **extractID**(`voxel`): `number`

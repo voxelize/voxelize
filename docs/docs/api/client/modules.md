@@ -6,6 +6,10 @@ sidebar_position: 0.5
 custom_edit_url: null
 ---
 
+## Enumerations
+
+- [BlockRuleLogic](enums/BlockRuleLogic.md)
+
 ## Core Classes
 
 - [Chat](classes/Chat.md)
@@ -62,6 +66,8 @@ custom_edit_url: null
 
 ## Interfaces
 
+- [BlockConditionalPart](interfaces/BlockConditionalPart.md)
+- [BlockDynamicPattern](interfaces/BlockDynamicPattern.md)
 - [NetIntercept](interfaces/NetIntercept.md)
 
 ## Type Aliases
@@ -144,7 +150,7 @@ A block type in the world. This is defined by the server.
 | `aabbs` | `AABB`[] | A list of axis-aligned bounding boxes that this block has. |
 | `blueLightLevel` | `number` | The blue light level of the block. |
 | `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3)) => \{ `aabbs`: [`Block`](modules.md#block)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block)[``"isTransparent"``]  } | If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this just returns the faces and AABB's that are defined in the block data. |
-| `dynamicPatterns` | \{ `aabbs`: [`Block`](modules.md#block)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block)[``"isTransparent"``] ; `rules`: \{ `id?`: `number` ; `offset`: [`Coords3`](modules.md#coords3) ; `rotation?`: [`BlockRotation`](classes/BlockRotation.md) ; `stage?`: `number`  }[]  }[] | - |
+| `dynamicPatterns` | [`BlockDynamicPattern`](interfaces/BlockDynamicPattern.md)[] | - |
 | `faces` | \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `name`: `string` ; `range`: [`UV`](modules.md#uv)  }[] | A list of block face data that this block has. |
 | `greenLightLevel` | `number` | The green light level of the block. |
 | `id` | `number` | The block id. |
@@ -163,6 +169,27 @@ A block type in the world. This is defined by the server.
 | `rotatable` | `boolean` | Whether or not is the block rotatable. |
 | `transparentStandalone` | `boolean` | - |
 | `yRotatable` | `boolean` | Whether or not the block is rotatable around the y-axis (has to face either PX or NX). |
+
+___
+
+### BlockRule
+
+Ƭ **BlockRule**: \{ `type`: ``"none"``  } \| \{ `type`: ``"simple"``  } & [`BlockSimpleRule`](modules.md#blocksimplerule) \| \{ `logic`: [`BlockRuleLogic`](enums/BlockRuleLogic.md) ; `rules`: [`BlockRule`](modules.md#blockrule)[] ; `type`: ``"combination"``  }
+
+___
+
+### BlockSimpleRule
+
+Ƭ **BlockSimpleRule**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `id?` | `number` |
+| `offset` | [`Coords3`](modules.md#coords3) |
+| `rotation?` | [`BlockRotation`](classes/BlockRotation.md) |
+| `stage?` | `number` |
 
 ___
 
@@ -205,6 +232,19 @@ ___
 ##### Returns
 
 `void`
+
+___
+
+### BlockUpdateWithSource
+
+Ƭ **BlockUpdateWithSource**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `source` | ``"client"`` \| ``"server"`` |
+| `update` | [`BlockUpdate`](modules.md#blockupdate) |
 
 ___
 
@@ -1000,6 +1040,7 @@ The options defined on the server-side, passed to the client on network joining.
 | :------ | :------ | :------ |
 | `airDrag` | `number` | The air drag of everything physical. |
 | `chunkSize` | `number` | The width and depth of a chunk, in blocks. |
+| `doesTickTime` | `boolean` | - |
 | `fluidDensity` | `number` | The density of the fluid in this world. |
 | `fluidDrag` | `number` | The fluid drag of everything physical. |
 | `gravity` | `number`[] | The gravity of everything physical in this world. |
@@ -1219,3 +1260,26 @@ ___
 #### Returns
 
 `Promise`\<[`MeshResultType`](modules.md#meshresulttype)\>
+
+___
+
+### setWorkerInterval
+
+▸ **setWorkerInterval**(`func`, `interval`): () => `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `func` | () => `void` |
+| `interval` | `number` |
+
+#### Returns
+
+`fn`
+
+▸ (): `void`
+
+##### Returns
+
+`void`

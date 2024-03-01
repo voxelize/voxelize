@@ -41,7 +41,7 @@ Peer id.
 
 #### Implementation of
 
-[IPeer](../interfaces/protocol.protocol.IPeer.md).[id](../interfaces/protocol.protocol.IPeer.md#id-4)
+[IPeer](../interfaces/protocol.protocol.IPeer.md).[id](../interfaces/protocol.protocol.IPeer.md#id)
 
 ___
 
@@ -53,7 +53,7 @@ Peer metadata.
 
 #### Implementation of
 
-[IPeer](../interfaces/protocol.protocol.IPeer.md).[metadata](../interfaces/protocol.protocol.IPeer.md#metadata-4)
+[IPeer](../interfaces/protocol.protocol.IPeer.md).[metadata](../interfaces/protocol.protocol.IPeer.md#metadata)
 
 ___
 
@@ -65,7 +65,7 @@ Peer username.
 
 #### Implementation of
 
-[IPeer](../interfaces/protocol.protocol.IPeer.md).[username](../interfaces/protocol.protocol.IPeer.md#username-4)
+[IPeer](../interfaces/protocol.protocol.IPeer.md).[username](../interfaces/protocol.protocol.IPeer.md#username)
 
 ## Methods
 
@@ -150,7 +150,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Peer message. Does not implicitly [verify](protocol.protocol.Peer.md#verify-4) messages.
+Encodes the specified Peer message. Does not implicitly [verify](protocol.protocol.Peer.md#verify) messages.
 
 #### Parameters
 
@@ -171,7 +171,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Peer message, length delimited. Does not implicitly [verify](protocol.protocol.Peer.md#verify-4) messages.
+Encodes the specified Peer message, length delimited. Does not implicitly [verify](protocol.protocol.Peer.md#verify) messages.
 
 #### Parameters
 

@@ -41,7 +41,7 @@ Update light.
 
 #### Implementation of
 
-[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[light](../interfaces/protocol.protocol.IUpdate.md#light-4)
+[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[light](../interfaces/protocol.protocol.IUpdate.md#light)
 
 ___
 
@@ -53,7 +53,7 @@ Update voxel.
 
 #### Implementation of
 
-[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[voxel](../interfaces/protocol.protocol.IUpdate.md#voxel-4)
+[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[voxel](../interfaces/protocol.protocol.IUpdate.md#voxel)
 
 ___
 
@@ -65,7 +65,7 @@ Update vx.
 
 #### Implementation of
 
-[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[vx](../interfaces/protocol.protocol.IUpdate.md#vx-4)
+[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[vx](../interfaces/protocol.protocol.IUpdate.md#vx)
 
 ___
 
@@ -77,7 +77,7 @@ Update vy.
 
 #### Implementation of
 
-[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[vy](../interfaces/protocol.protocol.IUpdate.md#vy-4)
+[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[vy](../interfaces/protocol.protocol.IUpdate.md#vy)
 
 ___
 
@@ -89,7 +89,7 @@ Update vz.
 
 #### Implementation of
 
-[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[vz](../interfaces/protocol.protocol.IUpdate.md#vz-4)
+[IUpdate](../interfaces/protocol.protocol.IUpdate.md).[vz](../interfaces/protocol.protocol.IUpdate.md#vz)
 
 ## Methods
 
@@ -174,7 +174,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Update message. Does not implicitly [verify](protocol.protocol.Update.md#verify-4) messages.
+Encodes the specified Update message. Does not implicitly [verify](protocol.protocol.Update.md#verify) messages.
 
 #### Parameters
 
@@ -195,7 +195,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Update message, length delimited. Does not implicitly [verify](protocol.protocol.Update.md#verify-4) messages.
+Encodes the specified Update message, length delimited. Does not implicitly [verify](protocol.protocol.Update.md#verify) messages.
 
 #### Parameters
 

@@ -41,7 +41,7 @@ Event name.
 
 #### Implementation of
 
-[IEvent](../interfaces/protocol.protocol.IEvent.md).[name](../interfaces/protocol.protocol.IEvent.md#name-4)
+[IEvent](../interfaces/protocol.protocol.IEvent.md).[name](../interfaces/protocol.protocol.IEvent.md#name)
 
 ___
 
@@ -53,7 +53,7 @@ Event payload.
 
 #### Implementation of
 
-[IEvent](../interfaces/protocol.protocol.IEvent.md).[payload](../interfaces/protocol.protocol.IEvent.md#payload-4)
+[IEvent](../interfaces/protocol.protocol.IEvent.md).[payload](../interfaces/protocol.protocol.IEvent.md#payload)
 
 ## Methods
 
@@ -138,7 +138,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Event message. Does not implicitly [verify](protocol.protocol.Event.md#verify-4) messages.
+Encodes the specified Event message. Does not implicitly [verify](protocol.protocol.Event.md#verify) messages.
 
 #### Parameters
 
@@ -159,7 +159,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Event message, length delimited. Does not implicitly [verify](protocol.protocol.Event.md#verify-4) messages.
+Encodes the specified Event message, length delimited. Does not implicitly [verify](protocol.protocol.Event.md#verify) messages.
 
 #### Parameters
 

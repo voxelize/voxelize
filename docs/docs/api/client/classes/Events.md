@@ -94,24 +94,6 @@ Emit an event to the server.
 
 ___
 
-### emitMany
-
-▸ **emitMany**(`events`): `void`
-
-Emit multiple events to the server.
-
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `events` | [`Event`](../modules.md#event)[] | A list of events to emit. |
-
-#### Returns
-
-`void`
-
-___
-
 ### on
 
 ▸ **on**(`name`, `handler`): `void`

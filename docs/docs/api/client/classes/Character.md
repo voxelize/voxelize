@@ -77,6 +77,14 @@ The sub-mesh holding the character's body.
 
 ___
 
+### extraData
+
+• **extraData**: `any` = `null`
+
+Somewhere to store whatever you want.
+
+___
+
 ### head
 
 • **head**: [`CanvasBox`](CanvasBox.md)
@@ -239,6 +247,38 @@ faster depending on the passed-in options.
 
 ## Accessors
 
+### armColor
+
+• `set` **armColor**(`color`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `color` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### bodyColor
+
+• `set` **bodyColor**(`color`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `color` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
 ### eyeHeight
 
 • `get` **eyeHeight**(): `number`
@@ -248,6 +288,54 @@ Get the height at which the eye of the character is situated at.
 #### Returns
 
 `number`
+
+___
+
+### faceColor
+
+• `set` **faceColor**(`color`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `color` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### headColor
+
+• `set` **headColor**(`color`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `color` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### legColor
+
+• `set` **legColor**(`color`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `color` | `string` |
+
+#### Returns
+
+`void`
 
 ___
 

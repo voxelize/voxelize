@@ -41,7 +41,7 @@ ChatMessage body.
 
 #### Implementation of
 
-[IChatMessage](../interfaces/protocol.protocol.IChatMessage.md).[body](../interfaces/protocol.protocol.IChatMessage.md#body-4)
+[IChatMessage](../interfaces/protocol.protocol.IChatMessage.md).[body](../interfaces/protocol.protocol.IChatMessage.md#body)
 
 ___
 
@@ -53,7 +53,7 @@ ChatMessage sender.
 
 #### Implementation of
 
-[IChatMessage](../interfaces/protocol.protocol.IChatMessage.md).[sender](../interfaces/protocol.protocol.IChatMessage.md#sender-4)
+[IChatMessage](../interfaces/protocol.protocol.IChatMessage.md).[sender](../interfaces/protocol.protocol.IChatMessage.md#sender)
 
 ___
 
@@ -65,7 +65,7 @@ ChatMessage type.
 
 #### Implementation of
 
-[IChatMessage](../interfaces/protocol.protocol.IChatMessage.md).[type](../interfaces/protocol.protocol.IChatMessage.md#type-4)
+[IChatMessage](../interfaces/protocol.protocol.IChatMessage.md).[type](../interfaces/protocol.protocol.IChatMessage.md#type)
 
 ## Methods
 
@@ -150,7 +150,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified ChatMessage message. Does not implicitly [verify](protocol.protocol.ChatMessage.md#verify-4) messages.
+Encodes the specified ChatMessage message. Does not implicitly [verify](protocol.protocol.ChatMessage.md#verify) messages.
 
 #### Parameters
 
@@ -171,7 +171,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified ChatMessage message, length delimited. Does not implicitly [verify](protocol.protocol.ChatMessage.md#verify-4) messages.
+Encodes the specified ChatMessage message, length delimited. Does not implicitly [verify](protocol.protocol.ChatMessage.md#verify) messages.
 
 #### Parameters
 

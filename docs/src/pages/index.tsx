@@ -1,5 +1,3 @@
-import React from "react";
-
 import BrowserOnly from "@docusaurus/BrowserOnly";
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
@@ -38,14 +36,24 @@ const HomepageHeader = () => {
           />
         </div>
 
-        <Link to="/tutorials/intro/what-is-voxelize">
-          <button
-            className="button button--secondary button--lg"
-            style={{ verticalAlign: "middle" }}
-          >
-            Get Started &rarr;
-          </button>
-        </Link>
+        <div className="flex gap-2">
+          <a href="https://shaoruu.io" target="_blank">
+            <button
+              className="button button--primary button--lg"
+              style={{ verticalAlign: "middle" }}
+            >
+              ⭐ Live Demo
+            </button>
+          </a>
+          <Link to="/tutorials/intro/what-is-voxelize">
+            <button
+              className="button button--secondary button--lg"
+              style={{ verticalAlign: "middle" }}
+            >
+              Get Started &rarr;
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="w-[400px] h-[400px] lg:h-[600px]">

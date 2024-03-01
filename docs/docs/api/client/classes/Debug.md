@@ -203,6 +203,7 @@ ___
 ▸ **update**(): `void`
 
 Update the debug entries with the latest values. This should be called in the game loop.
+Utilizes requestAnimationFrame to reduce lag spikes by not overloading the main thread.
 
 #### Returns
 

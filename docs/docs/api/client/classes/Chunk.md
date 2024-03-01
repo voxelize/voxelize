@@ -52,6 +52,12 @@ RawChunk.coords
 
 ___
 
+### group
+
+• **group**: `Group`\<`Object3DEventMap`\>
+
+___
+
 ### id
 
 • **id**: `string`
