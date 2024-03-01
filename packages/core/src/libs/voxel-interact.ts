@@ -302,9 +302,16 @@ export class VoxelInteract extends Group {
     const { lookingAt } = this;
 
     if (lookingAt && this.target) {
-      const { isDynamic, dynamicFn } = lookingAt;
+      const { isDynamic, dynamicFn, dynamicPatterns } = lookingAt;
 
-      const aabbs = isDynamic
+      const aabbs = dynamicPatterns
+        ? this.world.getBlockAABBsForDynamicPatterns(
+            voxel[0],
+            voxel[1],
+            voxel[2],
+            dynamicPatterns
+          )
+        : isDynamic
         ? dynamicFn(voxel as Coords3).aabbs
         : lookingAt.aabbs;
 

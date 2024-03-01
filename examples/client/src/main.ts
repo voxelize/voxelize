@@ -902,7 +902,7 @@ const start = async () => {
       const id = slot.content;
       if (!id) return;
 
-      const { aabbs } = world.getBlockById(id);
+      const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
       if (
         aabbs.find((aabb) =>
           aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)

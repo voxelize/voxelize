@@ -1,9 +1,10 @@
 import { AABB } from "@voxelize/aabb";
 
 import { Coords2, Coords3 } from "../../../types";
+import { BlockUtils } from "../../../utils/block-utils";
 import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
-import { BlockRotation, BlockRule, BlockRuleLogic } from "../block";
+import { BlockRotation } from "../block";
 import { type Chunk, type UV, type WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
 import { Registry } from "../registry";
@@ -109,63 +110,6 @@ onmessage = function (e) {
 
   const geometries: Record<string, InProgressGeometryProtocol> = {};
 
-  function evaluateRule(
-    rule: BlockRule,
-    vx: number,
-    vy: number,
-    vz: number
-  ): boolean {
-    if (rule.type === "none") {
-      return true;
-    }
-
-    if (rule.type === "simple") {
-      const { offset, id, rotation, stage } = rule;
-      const ox = offset[0] + vx;
-      const oy = offset[1] + vy;
-      const oz = offset[2] + vz;
-
-      if (id !== null) {
-        const voxelId = getVoxelAt(ox, oy, oz);
-        if (voxelId !== id) return false;
-      }
-
-      if (rotation !== null) {
-        const voxelRotation = getVoxelRotationAt(ox, oy, oz);
-        if (
-          voxelRotation.value !== rotation.value ||
-          voxelRotation.yRotation !== rotation.yRotation
-        )
-          return false;
-      }
-
-      if (stage !== null) {
-        const voxelStage = getVoxelStageAt(ox, oy, oz);
-        if (voxelStage !== stage) return false;
-      }
-
-      // If all conditions pass, return true
-      return true;
-    }
-
-    if (rule.type === "combination") {
-      const { logic, rules } = rule;
-
-      switch (logic) {
-        case BlockRuleLogic.And:
-          return rules.every((subRule) => evaluateRule(subRule, vx, vy, vz));
-        case BlockRuleLogic.Or:
-          return rules.some((subRule) => evaluateRule(subRule, vx, vy, vz));
-        case BlockRuleLogic.Not:
-          return !rules.some((subRule) => evaluateRule(subRule, vx, vy, vz));
-        default:
-          return false; // Unsupported logic
-      }
-    }
-
-    return false; // Default case for safety
-  }
-
   for (let vx = minX; vx < maxX; vx++) {
     for (let vz = minZ; vz < maxZ; vz++) {
       for (let vy = minY; vy < maxY; vy++) {
@@ -196,16 +140,31 @@ onmessage = function (e) {
           faces = [];
           aabbs = [];
 
-          dynamicPatterns.forEach((dynamicPattern) => {
-            dynamicPattern.parts.forEach((part) => {
-              const partMatched = evaluateRule(part.rule, vx, vy, vz);
+          let patternsMatched = false;
+
+          for (const dynamicPattern of dynamicPatterns) {
+            for (const part of dynamicPattern.parts) {
+              const partMatched = BlockUtils.evaluateBlockRule(
+                part.rule,
+                [vx, vy, vz],
+                {
+                  getVoxelAt,
+                  getVoxelRotationAt,
+                  getVoxelStageAt,
+                }
+              );
 
               if (partMatched) {
+                patternsMatched = true;
                 faces = [...faces, ...part.faces];
                 aabbs = [...aabbs, ...part.aabbs];
               }
-            });
-          });
+            }
+
+            if (patternsMatched) {
+              break;
+            }
+          }
         }
 
         // Skip blocks that are completely surrounded by other blocks

@@ -1,4 +1,11 @@
-import { Block, BlockRotation } from "../core/world/block";
+import { Coords3 } from "types";
+
+import {
+  Block,
+  BlockRotation,
+  BlockRule,
+  BlockRuleLogic,
+} from "../core/world/block";
 
 import { LightColor } from "./light-utils";
 
@@ -118,6 +125,73 @@ export class BlockUtils {
   static getBlockRotatedTransparency(block: Block, rotation: BlockRotation) {
     return rotation.rotateTransparency(block.isTransparent);
   }
+
+  static evaluateBlockRule = (
+    rule: BlockRule,
+    voxel: Coords3,
+    functions: {
+      getVoxelAt: (x: number, y: number, z: number) => number;
+      getVoxelRotationAt: (x: number, y: number, z: number) => BlockRotation;
+      getVoxelStageAt: (x: number, y: number, z: number) => number;
+    }
+  ): boolean => {
+    if (rule.type === "none") {
+      return true;
+    }
+
+    if (rule.type === "simple") {
+      const { offset, id, rotation, stage } = rule;
+      const [vx, vy, vz] = voxel;
+      const ox = offset[0] + vx;
+      const oy = offset[1] + vy;
+      const oz = offset[2] + vz;
+
+      if (id !== null) {
+        const voxelId = functions.getVoxelAt(ox, oy, oz);
+        if (voxelId !== id) return false;
+      }
+
+      if (rotation !== null) {
+        const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
+        if (
+          voxelRotation.value !== rotation.value ||
+          voxelRotation.yRotation !== rotation.yRotation
+        )
+          return false;
+      }
+
+      if (stage !== null) {
+        const voxelStage = functions.getVoxelStageAt(ox, oy, oz);
+        if (voxelStage !== stage) return false;
+      }
+
+      // If all conditions pass, return true
+      return true;
+    }
+
+    if (rule.type === "combination") {
+      const { logic, rules } = rule;
+
+      switch (logic) {
+        case BlockRuleLogic.And:
+          return rules.every((subRule) =>
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+          );
+        case BlockRuleLogic.Or:
+          return rules.some((subRule) =>
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+          );
+        case BlockRuleLogic.Not:
+          return !rules.some((subRule) =>
+            BlockUtils.evaluateBlockRule(subRule, voxel, functions)
+          );
+        default:
+          return false; // Unsupported logic
+      }
+    }
+
+    return false; // Default case for safety
+  };
 
   private constructor() {
     // NOTHING

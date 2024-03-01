@@ -44,6 +44,7 @@ import {
 
 import {
   Block,
+  BlockDynamicPattern,
   BlockRotation,
   BlockUpdate,
   BlockUpdateWithSource,
@@ -1309,6 +1310,7 @@ export class World extends Scene implements NetIntercept {
           aabbs,
           dynamicFn,
           isDynamic,
+          dynamicPatterns,
         } = block;
 
         if (ignoreList.has(id)) {
@@ -1331,6 +1333,16 @@ export class World extends Scene implements NetIntercept {
 
         const rotation = this.getVoxelRotationAt(wx, wy, wz);
 
+        if (dynamicPatterns && dynamicPatterns.length > 0) {
+          const aabbs = this.getBlockAABBsForDynamicPatterns(
+            wx,
+            wy,
+            wz,
+            dynamicPatterns
+          ).map((aabb) => rotation.rotateAABB(aabb));
+          return aabbs;
+        }
+
         return (
           isDynamic
             ? dynamicFn
@@ -1343,6 +1355,76 @@ export class World extends Scene implements NetIntercept {
       direction,
       maxDistance
     );
+  };
+
+  getBlockAABBsByIdAt = (id: number, vx: number, vy: number, vz: number) => {
+    const block = this.getBlockById(id);
+
+    if (!block) {
+      return [];
+    }
+    if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
+      return this.getBlockAABBsForDynamicPatterns(
+        vx,
+        vy,
+        vz,
+        block.dynamicPatterns
+      );
+    }
+
+    return block.aabbs;
+  };
+
+  getBlockAABBsAt = (vx: number, vy: number, vz: number) => {
+    const id = this.getVoxelAt(vx, vy, vz);
+    return this.getBlockAABBsByIdAt(id, vx, vy, vz);
+  };
+
+  getBlockAABBsForDynamicPatterns = (
+    vx: number,
+    vy: number,
+    vz: number,
+    dynamicPatterns: BlockDynamicPattern[]
+  ) => {
+    for (const dynamicPattern of dynamicPatterns) {
+      const aabbs: AABB[] = [];
+
+      for (const part of dynamicPattern.parts) {
+        const patternsMatched = BlockUtils.evaluateBlockRule(
+          part.rule,
+          [vx, vy, vz],
+          {
+            getVoxelAt: (vx: number, vy: number, vz: number) =>
+              this.getVoxelAt(vx, vy, vz),
+            getVoxelRotationAt: (vx: number, vy: number, vz: number) =>
+              this.getVoxelRotationAt(vx, vy, vz),
+            getVoxelStageAt: (vx: number, vy: number, vz: number) =>
+              this.getVoxelStageAt(vx, vy, vz),
+          }
+        );
+
+        if (patternsMatched) {
+          aabbs.push(...part.aabbs);
+        }
+      }
+
+      if (aabbs.length > 0) {
+        return aabbs.map((aabb) =>
+          aabb instanceof AABB
+            ? aabb
+            : new AABB(
+                (aabb as AABB).minX,
+                (aabb as AABB).minY,
+                (aabb as AABB).minZ,
+                (aabb as AABB).maxX,
+                (aabb as AABB).maxY,
+                (aabb as AABB).maxZ
+              )
+        );
+      }
+    }
+
+    return [];
   };
 
   /**
@@ -2536,9 +2618,19 @@ export class World extends Scene implements NetIntercept {
 
         const id = this.getVoxelAt(vx, vy, vz);
         const rotation = this.getVoxelRotationAt(vx, vy, vz);
-        const { aabbs, isPassable, isFluid } = this.getBlockById(id);
+        const { aabbs, isPassable, isFluid, dynamicPatterns } =
+          this.getBlockById(id);
 
         if (isPassable || isFluid) return [];
+
+        if (dynamicPatterns && dynamicPatterns.length > 0) {
+          return this.getBlockAABBsForDynamicPatterns(
+            vx,
+            vy,
+            vz,
+            dynamicPatterns
+          ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
+        }
 
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
