@@ -41,7 +41,7 @@ Entity id.
 
 #### Implementation of
 
-[IEntity](../interfaces/protocol.protocol.IEntity.md).[id](../interfaces/protocol.protocol.IEntity.md#id)
+[IEntity](../interfaces/protocol.protocol.IEntity.md).[id](../interfaces/protocol.protocol.IEntity.md#id-4)
 
 ___
 
@@ -53,7 +53,7 @@ Entity metadata.
 
 #### Implementation of
 
-[IEntity](../interfaces/protocol.protocol.IEntity.md).[metadata](../interfaces/protocol.protocol.IEntity.md#metadata)
+[IEntity](../interfaces/protocol.protocol.IEntity.md).[metadata](../interfaces/protocol.protocol.IEntity.md#metadata-4)
 
 ___
 
@@ -65,7 +65,7 @@ Entity operation.
 
 #### Implementation of
 
-[IEntity](../interfaces/protocol.protocol.IEntity.md).[operation](../interfaces/protocol.protocol.IEntity.md#operation)
+[IEntity](../interfaces/protocol.protocol.IEntity.md).[operation](../interfaces/protocol.protocol.IEntity.md#operation-4)
 
 ___
 
@@ -77,7 +77,7 @@ Entity type.
 
 #### Implementation of
 
-[IEntity](../interfaces/protocol.protocol.IEntity.md).[type](../interfaces/protocol.protocol.IEntity.md#type)
+[IEntity](../interfaces/protocol.protocol.IEntity.md).[type](../interfaces/protocol.protocol.IEntity.md#type-4)
 
 ## Methods
 
@@ -162,7 +162,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Entity message. Does not implicitly [verify](protocol.protocol.Entity.md#verify) messages.
+Encodes the specified Entity message. Does not implicitly [verify](protocol.protocol.Entity.md#verify-4) messages.
 
 #### Parameters
 
@@ -183,7 +183,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Entity message, length delimited. Does not implicitly [verify](protocol.protocol.Entity.md#verify) messages.
+Encodes the specified Entity message, length delimited. Does not implicitly [verify](protocol.protocol.Entity.md#verify-4) messages.
 
 #### Parameters
 

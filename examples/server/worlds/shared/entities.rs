@@ -4,6 +4,8 @@ use voxelize::{InteractorComp, PositionComp, RigidBody, RigidBodyComp, World, AA
 
 use super::components::{BotFlag, BrainComp, PathComp, RotationComp, TargetComp, TextComp};
 
+const MAX_NODES: usize = 24;
+
 pub fn setup_entities(world: &mut World) {
     world.set_entity_loader("floating-text", |world, metadata| {
         world
@@ -25,7 +27,7 @@ pub fn setup_entities(world: &mut World) {
             .with(
                 metadata
                     .get::<PathComp>("path")
-                    .unwrap_or_else(|| PathComp::new(24)),
+                    .unwrap_or_else(|| PathComp::new(MAX_NODES)),
             )
             .with(metadata.get::<RotationComp>("rotation").unwrap_or_default())
             .with(RigidBodyComp::new(&body))

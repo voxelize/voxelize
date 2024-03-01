@@ -41,7 +41,7 @@ Message chat.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[chat](../interfaces/protocol.protocol.IMessage.md#chat)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[chat](../interfaces/protocol.protocol.IMessage.md#chat-4)
 
 ___
 
@@ -53,7 +53,7 @@ Message chunks.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[chunks](../interfaces/protocol.protocol.IMessage.md#chunks)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[chunks](../interfaces/protocol.protocol.IMessage.md#chunks-4)
 
 ___
 
@@ -65,7 +65,7 @@ Message entities.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[entities](../interfaces/protocol.protocol.IMessage.md#entities)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[entities](../interfaces/protocol.protocol.IMessage.md#entities-4)
 
 ___
 
@@ -77,7 +77,7 @@ Message events.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[events](../interfaces/protocol.protocol.IMessage.md#events)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[events](../interfaces/protocol.protocol.IMessage.md#events-4)
 
 ___
 
@@ -89,7 +89,7 @@ Message json.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[json](../interfaces/protocol.protocol.IMessage.md#json)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[json](../interfaces/protocol.protocol.IMessage.md#json-4)
 
 ___
 
@@ -101,7 +101,7 @@ Message method.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[method](../interfaces/protocol.protocol.IMessage.md#method)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[method](../interfaces/protocol.protocol.IMessage.md#method-4)
 
 ___
 
@@ -113,7 +113,7 @@ Message peers.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[peers](../interfaces/protocol.protocol.IMessage.md#peers)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[peers](../interfaces/protocol.protocol.IMessage.md#peers-4)
 
 ___
 
@@ -125,7 +125,7 @@ Message text.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[text](../interfaces/protocol.protocol.IMessage.md#text)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[text](../interfaces/protocol.protocol.IMessage.md#text-4)
 
 ___
 
@@ -137,7 +137,7 @@ Message type.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[type](../interfaces/protocol.protocol.IMessage.md#type)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[type](../interfaces/protocol.protocol.IMessage.md#type-4)
 
 ___
 
@@ -149,7 +149,7 @@ Message updates.
 
 #### Implementation of
 
-[IMessage](../interfaces/protocol.protocol.IMessage.md).[updates](../interfaces/protocol.protocol.IMessage.md#updates)
+[IMessage](../interfaces/protocol.protocol.IMessage.md).[updates](../interfaces/protocol.protocol.IMessage.md#updates-4)
 
 ## Methods
 
@@ -234,7 +234,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Message message. Does not implicitly [verify](protocol.protocol.Message.md#verify) messages.
+Encodes the specified Message message. Does not implicitly [verify](protocol.protocol.Message.md#verify-4) messages.
 
 #### Parameters
 
@@ -255,7 +255,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Message message, length delimited. Does not implicitly [verify](protocol.protocol.Message.md#verify) messages.
+Encodes the specified Message message, length delimited. Does not implicitly [verify](protocol.protocol.Message.md#verify-4) messages.
 
 #### Parameters
 

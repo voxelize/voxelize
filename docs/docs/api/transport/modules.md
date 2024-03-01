@@ -40,7 +40,7 @@ ___
 | :------ | :------ |
 | `id` | `string` |
 | `lights` | `Uint32Array` |
-| `meshes` | [`MeshProtocol`](modules.md#meshprotocol)[] |
+| `meshes` | [`MeshProtocol`](modules.md#meshprotocol-4)[] |
 | `voxels` | `Uint32Array` |
 | `x` | `number` |
 | `z` | `number` |
@@ -96,10 +96,10 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `faceName?` | `string` |
-| `indices` | `number`[] |
-| `lights` | `number`[] |
-| `positions` | `number`[] |
-| `uvs` | `number`[] |
+| `indices` | `Uint32Array` |
+| `lights` | `Uint32Array` |
+| `positions` | `Float32Array` |
+| `uvs` | `Float32Array` |
 | `voxel` | `number` |
 
 ___
@@ -112,7 +112,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `geometries` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
+| `geometries` | [`GeometryProtocol`](modules.md#geometryprotocol-4)[] |
 | `level` | `number` |
 
 ___
@@ -135,16 +135,16 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
-| `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
-| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)\<`Entity`\>[] |
-| `events?` | [`EventProtocol`](modules.md#eventprotocol)\<`Event`\>[] |
+| `chat?` | [`ChatProtocol`](modules.md#chatprotocol-4) |
+| `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol-4)[] |
+| `entities?` | [`EntityProtocol`](modules.md#entityprotocol-4)\<`Entity`\>[] |
+| `events?` | [`EventProtocol`](modules.md#eventprotocol-4)\<`Event`\>[] |
 | `json?` | `T` |
-| `method?` | [`MethodProtocol`](modules.md#methodprotocol)\<`Method`\> |
-| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)\<`Peer`\>[] |
+| `method?` | [`MethodProtocol`](modules.md#methodprotocol-4)\<`Method`\> |
+| `peers?` | [`PeerProtocol`](modules.md#peerprotocol-4)\<`Peer`\>[] |
 | `text?` | `string` |
 | `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` \| ``"STATS"`` |
-| `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
+| `updates?` | [`UpdateProtocol`](modules.md#updateprotocol-4)[] |
 
 ___
 

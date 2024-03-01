@@ -49,7 +49,7 @@ Geometry faceName.
 
 #### Implementation of
 
-[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[faceName](../interfaces/protocol.protocol.IGeometry.md#facename)
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[faceName](../interfaces/protocol.protocol.IGeometry.md#facename-4)
 
 ___
 
@@ -61,7 +61,7 @@ Geometry indices.
 
 #### Implementation of
 
-[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[indices](../interfaces/protocol.protocol.IGeometry.md#indices)
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[indices](../interfaces/protocol.protocol.IGeometry.md#indices-4)
 
 ___
 
@@ -73,7 +73,7 @@ Geometry lights.
 
 #### Implementation of
 
-[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[lights](../interfaces/protocol.protocol.IGeometry.md#lights)
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[lights](../interfaces/protocol.protocol.IGeometry.md#lights-4)
 
 ___
 
@@ -85,7 +85,7 @@ Geometry positions.
 
 #### Implementation of
 
-[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[positions](../interfaces/protocol.protocol.IGeometry.md#positions)
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[positions](../interfaces/protocol.protocol.IGeometry.md#positions-4)
 
 ___
 
@@ -97,7 +97,7 @@ Geometry uvs.
 
 #### Implementation of
 
-[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[uvs](../interfaces/protocol.protocol.IGeometry.md#uvs)
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[uvs](../interfaces/protocol.protocol.IGeometry.md#uvs-4)
 
 ___
 
@@ -109,7 +109,7 @@ Geometry voxel.
 
 #### Implementation of
 
-[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[voxel](../interfaces/protocol.protocol.IGeometry.md#voxel)
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[voxel](../interfaces/protocol.protocol.IGeometry.md#voxel-4)
 
 ## Methods
 
@@ -194,7 +194,7 @@ ___
 
 ▸ **encode**(`message`, `writer?`): `Writer`
 
-Encodes the specified Geometry message. Does not implicitly [verify](protocol.protocol.Geometry.md#verify) messages.
+Encodes the specified Geometry message. Does not implicitly [verify](protocol.protocol.Geometry.md#verify-4) messages.
 
 #### Parameters
 
@@ -215,7 +215,7 @@ ___
 
 ▸ **encodeDelimited**(`message`, `writer?`): `Writer`
 
-Encodes the specified Geometry message, length delimited. Does not implicitly [verify](protocol.protocol.Geometry.md#verify) messages.
+Encodes the specified Geometry message, length delimited. Does not implicitly [verify](protocol.protocol.Geometry.md#verify-4) messages.
 
 #### Parameters
 

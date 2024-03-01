@@ -31,49 +31,44 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         return;
                     }
 
-                    // let position = body.0.get_position();
-                    // let voxel = Vec3(position.0 as i32, position.1 as i32, position.2 as i32);
+                    let position = body.0.get_position();
+                    // Position has to be rounded down because it's offset by +0.5
+                    let voxel = Vec3(position.0.floor() as i32, position.1.floor() as i32, position.2.floor() as i32);
 
-                    // let mut i = 0;
-                    // let mut target = nodes[i].clone();
+                    let mut i = 0;
+                    let mut target = nodes[i].clone();
 
-                    // loop {
-                    //     if i >= nodes.len() - 1 {
-                    //         brain.stop();
-                    //         return;
-                    //     }
+                    loop {
+                        if i >= nodes.len() - 1 {
+                            break;
+                        }
 
-                    //     // means currently is in the attended node
-                    //     if target == voxel {
-                    //         i = i + 1;
-                    //         target = nodes[i].clone();
-                    //     } else {
-                    //         break;
-                    //     }
-                    // }
+                        // means currently is in the attended node
+                        if target.0 == voxel.0 && target.2 == voxel.2 {
+                            i = i + 1;
+                            target = nodes[i].clone();
+                        } else {
+                            break;
+                        }
+                    }
 
-                    // // jumping
-                    // if nodes.len() > 1 && nodes[0].1 < nodes[1].1 {
-                    //     brain.jump();
-                    //     target = nodes[1].clone();
-                    // } else {
-                    //     brain.stop_jumping();
-                    // }
+                    // jumping
+                    if voxel.1 < nodes[i].1 {
+                        brain.jump();
+                    } else {
+                        brain.stop_jumping();
+                    }
 
-                    // // diagonal
-                    // if nodes.len() > 1 && nodes[0].0 != nodes[1].0 && nodes[0].1 != nodes[1].1 {
-                    //     target = nodes[1].clone();
-                    // }
+                    let offset = 0.5;
+                    let target = Vec3(
+                        target.0 as f32 + offset,
+                        target.1 as f32,
+                        target.2 as f32 + offset,
+                    );
 
-                    // let offset = 0.5;
-                    // let target = Vec3(
-                    //     target.0 as f32 + offset,
-                    //     target.1 as f32,
-                    //     target.2 as f32 + offset,
-                    // );
+                    brain.walk();
+                    brain.operate(&target, &mut body.0, delta);
 
-                    // brain.walk();
-                    // brain.operate(&target, &mut body.0, delta);
                 } else {
                     brain.stop();
                 }
