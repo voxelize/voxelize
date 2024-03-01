@@ -71,12 +71,14 @@ pub fn setup_registry() -> Registry {
     let green_stone_id = 50000;
     let green_stone_base_xz_dimension = 0.2;
     let green_stone_base_height = 0.1;
+    let green_stone_levels = 5;
     let green_stone_base_faces = BlockFaces::six_faces()
         .scale_y(green_stone_base_height)
         .scale_x(green_stone_base_xz_dimension)
         .scale_z(green_stone_base_xz_dimension)
         .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0)
         .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0)
+        .levels(green_stone_levels)
         .build();
     let green_stone_pos_100_faces = BlockFaces::six_faces()
         .scale_y(green_stone_base_height / 2.0)
@@ -84,6 +86,7 @@ pub fn setup_registry() -> Registry {
         .scale_z(green_stone_base_xz_dimension / 2.0)
         .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension)
         .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .levels(green_stone_levels)
         .build();
     let green_stone_pos_001_faces = BlockFaces::six_faces()
         .scale_y(green_stone_base_height / 2.0)
@@ -91,18 +94,21 @@ pub fn setup_registry() -> Registry {
         .scale_x(green_stone_base_xz_dimension / 2.0)
         .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension)
         .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .levels(green_stone_levels)
         .build();
     let green_stone_neg_100_faces = BlockFaces::six_faces()
         .scale_y(green_stone_base_height / 2.0)
         .scale_x((1.0 - green_stone_base_xz_dimension) / 2.0)
         .scale_z(green_stone_base_xz_dimension / 2.0)
         .offset_z((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .levels(green_stone_levels)
         .build();
     let green_stone_neg_001_faces = BlockFaces::six_faces()
         .scale_y(green_stone_base_height / 2.0)
         .scale_z((1.0 - green_stone_base_xz_dimension) / 2.0)
         .scale_x(green_stone_base_xz_dimension / 2.0)
         .offset_x((1.0 - green_stone_base_xz_dimension) / 2.0 + green_stone_base_xz_dimension / 4.0)
+        .levels(green_stone_levels)
         .build();
     let green_stone_base_aabb = AABB::from_faces(&green_stone_base_faces);
     let green_stone_pos_100_aabb = AABB::from_faces(&green_stone_pos_100_faces);

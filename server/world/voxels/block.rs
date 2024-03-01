@@ -605,6 +605,7 @@ pub struct SixFacesBuilder {
     prefix: String,
     suffix: String,
     concat: String,
+    levels: usize,
 }
 
 impl SixFacesBuilder {
@@ -626,6 +627,7 @@ impl SixFacesBuilder {
             prefix: "".to_owned(),
             suffix: "".to_owned(),
             concat: "".to_owned(),
+            levels: 0,
         }
     }
 
@@ -719,6 +721,11 @@ impl SixFacesBuilder {
         self
     }
 
+    pub fn levels(mut self, levels: usize) -> Self {
+        self.levels = levels;
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -737,9 +744,10 @@ impl SixFacesBuilder {
             prefix,
             suffix,
             concat,
+            levels,
         } = self;
 
-        let make_name = |side: &str| {
+        let make_name = |side: &str, level: Option<usize>| {
             let mut name = "".to_owned();
             if !prefix.is_empty() {
                 name += &prefix;
@@ -754,12 +762,18 @@ impl SixFacesBuilder {
             if !suffix.is_empty() {
                 name += &suffix;
             }
+            if let Some(level) = level {
+                name += &format!("_{}", level);
+            }
             name
         };
 
-        BlockFaces::from_faces(vec![
-            BlockFace {
-                name: make_name("px"),
+        let mut faces = vec![];
+
+        for level in 0..(if levels == 0 { 1 } else { levels }) {
+            let l = if levels == 0 { None } else { Some(level) };
+            faces.push(BlockFace {
+                name: make_name("px", l),
                 dir: [1, 0, 0],
                 independent: false,
                 range: UV::default(),
@@ -788,9 +802,9 @@ impl SixFacesBuilder {
                         uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
                     },
                 ],
-            },
-            BlockFace {
-                name: make_name("py"),
+            });
+            faces.push(BlockFace {
+                name: make_name("py", l),
                 dir: [0, 1, 0],
                 independent: false,
                 range: UV::default(),
@@ -819,9 +833,9 @@ impl SixFacesBuilder {
                         uv: [uv_offset_x, uv_offset_z],
                     },
                 ],
-            },
-            BlockFace {
-                name: make_name("pz"),
+            });
+            faces.push(BlockFace {
+                name: make_name("pz", l),
                 dir: [0, 0, 1],
                 independent: false,
                 range: UV::default(),
@@ -850,9 +864,9 @@ impl SixFacesBuilder {
                         ],
                     },
                 ],
-            },
-            BlockFace {
-                name: make_name("nx"),
+            });
+            faces.push(BlockFace {
+                name: make_name("nx", l),
                 dir: [-1, 0, 0],
                 independent: false,
                 range: UV::default(),
@@ -877,9 +891,9 @@ impl SixFacesBuilder {
                         uv: [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y],
                     },
                 ],
-            },
-            BlockFace {
-                name: make_name("ny"),
+            });
+            faces.push(BlockFace {
+                name: make_name("ny", l),
                 dir: [0, -1, 0],
                 independent: false,
                 range: UV::default(),
@@ -904,9 +918,9 @@ impl SixFacesBuilder {
                         uv: [uv_offset_x, uv_offset_z + 1.0 * uv_scale_z],
                     },
                 ],
-            },
-            BlockFace {
-                name: make_name("nz"),
+            });
+            faces.push(BlockFace {
+                name: make_name("nz", l),
                 dir: [0, 0, -1],
                 independent: false,
                 range: UV::default(),
@@ -931,8 +945,10 @@ impl SixFacesBuilder {
                         ],
                     },
                 ],
-            },
-        ])
+            })
+        }
+
+        BlockFaces::from_faces(faces)
     }
 }
 
