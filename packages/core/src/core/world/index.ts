@@ -198,7 +198,7 @@ export type WorldClientOptions = {
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
   maxProcessesPerUpdate: 1,
-  maxUpdatesPerUpdate: 24,
+  maxUpdatesPerUpdate: 12,
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
@@ -2653,7 +2653,7 @@ export class World extends Scene implements NetIntercept {
     this.chunks.uniforms.minLightLevel.value = minLightLevel;
   }
 
-  private processLightUpdates = async (updates: BlockUpdateWithSource[]) => {
+  private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
     const { maxHeight, maxLightLevel } = this.options;
 
     // Placing a light
@@ -2945,22 +2945,27 @@ export class World extends Scene implements NetIntercept {
           0,
           this.options.maxUpdatesPerUpdate
         );
-        this.processLightUpdates(updates).then(() => {
-          this.chunks.toEmit.push(
-            ...updates
-              .filter(({ source }) => source === "client")
-              .map(({ update }) => update)
-          );
+        this.processLightUpdates(updates);
 
-          requestAnimationFrame(processUpdatesInIdleTime);
-        });
-      } else {
-        this.isTrackingChunks = false;
-        this.processDirtyChunks();
+        this.chunks.toEmit.push(
+          ...updates
+            .filter(({ source }) => source === "client")
+            .map(({ update }) => update)
+        );
+
+        // Use setTimeout to give the browser a chance to handle other tasks.
+        if (this.chunks.toUpdate.length > 0) {
+          setTimeout(processUpdatesInIdleTime, 0); // 0 ms delay to schedule after any pending tasks
+          return;
+        }
       }
+
+      this.isTrackingChunks = false;
+      this.processDirtyChunks();
     };
 
-    requestAnimationFrame(processUpdatesInIdleTime);
+    // Execute the first frame immediately, subsequent frames in timeout
+    processUpdatesInIdleTime();
   };
 
   private processDirtyChunks = async () => {
