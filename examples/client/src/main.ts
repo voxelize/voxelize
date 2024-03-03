@@ -902,13 +902,16 @@ const start = async () => {
       const id = slot.content;
       if (!id) return;
 
-      const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
-      if (
-        aabbs.find((aabb) =>
-          aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
+      const block = world.getBlockById(id);
+      if (!block.isPassable) {
+        const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
+        if (
+          aabbs.find((aabb) =>
+            aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
+          )
         )
-      )
-        return;
+          return;
+      }
 
       bulkPlace();
     },
