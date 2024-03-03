@@ -9,6 +9,7 @@ import {
   BufferGeometry,
   Clock,
   Color,
+  DoubleSide,
   Float32BufferAttribute,
   FrontSide,
   Group,
@@ -20,8 +21,6 @@ import {
   ShaderMaterial,
   Texture,
   MathUtils as ThreeMathUtils,
-  // @ts-ignore
-  TwoPassDoubleSide,
   Uniform,
   UniformsUtils,
   Vector3,
@@ -1782,7 +1781,7 @@ export class World extends Scene implements NetIntercept {
         const matOptions = {
           transparent: isSeeThrough,
           map: chunkMat.map,
-          side: isSeeThrough ? TwoPassDoubleSide : FrontSide,
+          side: isSeeThrough ? DoubleSide : FrontSide,
         };
 
         const mat =
@@ -3074,7 +3073,7 @@ export class World extends Scene implements NetIntercept {
     const make = (transparent: boolean, map: Texture) => {
       const mat = this.makeShaderMaterial();
 
-      mat.side = transparent ? TwoPassDoubleSide : FrontSide;
+      mat.side = transparent ? DoubleSide : FrontSide;
       mat.transparent = transparent;
       mat.map = map;
       mat.uniforms.map.value = map;

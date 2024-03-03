@@ -5,6 +5,12 @@ import "@voxelize/core/src/styles.css";
 
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
 import * as THREE from "three";
 
 import LolImage from "./assets/lol.png";
@@ -164,20 +170,12 @@ renderer.setPixelRatio(1);
 
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-// const composer = new EffectComposer(renderer);
-// composer.addPass(new RenderPass(world, camera));
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
 
-// const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-// overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.01);
-
-// composer.addPass(
-//   new EffectPass(
-//     camera
-// new SMAAEffect({})
-// overlayEffect
-// new PixelationEffect(6)
-//   )
-// );
+const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.01);
+composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 const lightShined = new VOXELIZE.LightShined(world);
 const shadows = new VOXELIZE.Shadows(world);
@@ -586,7 +584,7 @@ inputs.bind("]", () => {
 });
 
 let frame: any;
-let isInWater = false;
+const isInWater = false;
 
 const start = async () => {
   const animate = () => {
@@ -627,33 +625,29 @@ const start = async () => {
           ...camera.getWorldPosition(new THREE.Vector3()).toArray()
         )?.name === "Water";
 
-      if (inWater !== isInWater) {
-        const fogNear = inWater
-          ? 0.1 * world.options.chunkSize * world.renderRadius
-          : 0.7 * world.options.chunkSize * world.renderRadius;
-        const fogFar = inWater
-          ? 0.8 * world.options.chunkSize * world.renderRadius
-          : world.options.chunkSize * world.renderRadius;
-        const fogColor = inWater
-          ? new THREE.Color("#5F9DF7")
-          : new THREE.Color("#B1CCFD");
+      const fogNear = inWater
+        ? 0.1 * world.options.chunkSize * world.renderRadius
+        : 0.7 * world.options.chunkSize * world.renderRadius;
+      const fogFar = inWater
+        ? 0.8 * world.options.chunkSize * world.renderRadius
+        : world.options.chunkSize * world.renderRadius;
+      const fogColor = inWater
+        ? new THREE.Color("#5F9DF7")
+        : world.chunks.uniforms.fogColor.value;
 
-        world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-          world.chunks.uniforms.fogNear.value,
-          fogNear,
-          0.08
-        );
+      world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+        world.chunks.uniforms.fogNear.value,
+        fogNear,
+        0.08
+      );
 
-        world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-          world.chunks.uniforms.fogFar.value,
-          fogFar,
-          0.08
-        );
+      world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+        world.chunks.uniforms.fogFar.value,
+        fogFar,
+        0.08
+      );
 
-        world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
-
-        isInWater = inWater;
-      }
+      world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
 
       world.update(
         controls.object.position,
@@ -685,7 +679,7 @@ const start = async () => {
     }
 
     const startRender = performance.now();
-    renderer.render(world, camera);
+    composer.render();
     const endRender = performance.now();
     const overallDuration = performance.now() - startOverall;
     if (overallDuration > 1000 / 60) {
@@ -946,9 +940,9 @@ const start = async () => {
     "in-game"
   );
 
-  // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
-  //   console.log("block update", voxel, oldValue, newValue);
-  // });
+  world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
+    console.log("block update", voxel, oldValue, newValue);
+  });
 
   // const inventoryTest = new VOXELIZE.ItemSlots({
   //   verticalCount: 10,
