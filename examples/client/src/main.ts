@@ -174,7 +174,7 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(world, camera));
 
 const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.01);
+overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
 composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 const lightShined = new VOXELIZE.LightShined(world);
@@ -584,42 +584,15 @@ inputs.bind("]", () => {
 });
 
 let frame: any;
-const isInWater = false;
 
 const start = async () => {
   const animate = () => {
     frame = requestAnimationFrame(animate);
-    const isDebug = true;
-    const log = isDebug ? console.log : () => {};
-
-    const startOverall = performance.now();
-    let startPeersUpdate = performance.now();
-    let endPeersUpdate = performance.now();
-    let startControlsUpdate = performance.now();
-    let endControlsUpdate = performance.now();
-    let startWorldUpdate = performance.now();
-    let endWorldUpdate = performance.now();
-    let startPerspectiveUpdate = performance.now();
-    let endPerspectiveUpdate = performance.now();
-    let startShadowsUpdate = performance.now();
-    let endShadowsUpdate = performance.now();
-    let startDebugUpdate = performance.now();
-    let endDebugUpdate = performance.now();
-    let startLightShinedUpdate = performance.now();
-    let endLightShinedUpdate = performance.now();
-    let startVoxelInteractUpdate = performance.now();
-    let endVoxelInteractUpdate = performance.now();
 
     if (world.isInitialized) {
-      startPeersUpdate = performance.now();
       peers.update();
-      endPeersUpdate = performance.now();
-
-      startControlsUpdate = performance.now();
       controls.update();
-      endControlsUpdate = performance.now();
 
-      startWorldUpdate = performance.now();
       const inWater =
         world.getBlockAt(
           ...camera.getWorldPosition(new THREE.Vector3()).toArray()
@@ -653,49 +626,16 @@ const start = async () => {
         controls.object.position,
         camera.getWorldDirection(new THREE.Vector3())
       );
-      endWorldUpdate = performance.now();
 
-      startPerspectiveUpdate = performance.now();
       perspective.update();
-      endPerspectiveUpdate = performance.now();
-
-      startShadowsUpdate = performance.now();
       shadows.update();
-      endShadowsUpdate = performance.now();
-
-      startDebugUpdate = performance.now();
       debug.update();
-      endDebugUpdate = performance.now();
-
-      startLightShinedUpdate = performance.now();
       lightShined.update();
-      endLightShinedUpdate = performance.now();
-
-      startVoxelInteractUpdate = performance.now();
       voxelInteract.update();
-      endVoxelInteractUpdate = performance.now();
-
       botCharacters.forEach((bot) => bot.update());
     }
 
-    const startRender = performance.now();
     composer.render();
-    const endRender = performance.now();
-    const overallDuration = performance.now() - startOverall;
-    if (overallDuration > 1000 / 60) {
-      log(`Frame Summary:
-      Overall: ${overallDuration}ms,
-      World Update: ${endWorldUpdate - startWorldUpdate}ms,
-      Perspective Update: ${endPerspectiveUpdate - startPerspectiveUpdate}ms,
-      Shadows Update: ${endShadowsUpdate - startShadowsUpdate}ms,
-      Debug Update: ${endDebugUpdate - startDebugUpdate}ms,
-      Light Shined Update: ${endLightShinedUpdate - startLightShinedUpdate}ms,
-      Voxel Interact Update: ${
-        endVoxelInteractUpdate - startVoxelInteractUpdate
-      }ms,
-      Render: ${endRender - startRender}ms
-      `);
-    }
   };
 
   animate();

@@ -13,5 +13,6 @@ export function setWorkerInterval(func: () => void, interval: number) {
 
   return () => {
     worker.postMessage({ signal: "stop" });
+    worker.terminate();
   };
 }

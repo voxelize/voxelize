@@ -375,10 +375,70 @@ pub fn setup_terrain_world() -> World {
 
         boulder_trees.register("Boulder", boulder);
 
+        let mut mystical_trees = Trees::new(
+            config.seed,
+            &NoiseOptions::new()
+                .frequency(0.25)
+                .lacunarity(3.0)
+                .seed(8675309)
+                .build(),
+        );
+        mystical_trees.set_threshold(5.0);
+        let mystical = Tree::new(44, 43)
+            .leaf_height(3)
+            .leaf_radius(3)
+            .branch_initial_radius(3)
+            .branch_initial_length(9)
+            .branch_radius_factor(0.85)
+            .branch_length_factor(0.6)
+            .branch_dy_angle(f64::consts::PI / 6.0)
+            .branch_drot_angle(f64::consts::PI / 3.0)
+            .system(
+                LSystem::new()
+                    .axiom("F")
+                    .rule('F', "")
+                    .iterations(5)
+                    .build(),
+            )
+            .build();
+
+        mystical_trees.register("Mystical", mystical);
+
+        // let mut ancient_trees = Trees::new(
+        //     config.seed,
+        //     &NoiseOptions::new()
+        //         .frequency(0.12)
+        //         .lacunarity(2.8)
+        //         .seed(424242)
+        //         .build(),
+        // );
+        // ancient_trees.set_threshold(4.7);
+        // let ancient = Tree::new(44, 43)
+        //     .leaf_height(4)
+        //     .leaf_radius(4)
+        //     .branch_initial_radius(4)
+        //     .branch_initial_length(11)
+        //     .branch_radius_factor(0.9)
+        //     .branch_length_factor(0.7)
+        //     .branch_dy_angle(f64::consts::PI / 5.0)
+        //     .branch_drot_angle(f64::consts::PI / 4.0)
+        //     .system(
+        //         LSystem::new()
+        //             .axiom("F")
+        //             .rule('F', "FF-[-F+F+F]+[+F-F-F]")
+        //             .iterations(4)
+        //             .build(),
+        //     )
+        //     .build();
+
+        // ancient_trees.register("Ancient", ancient);
+
         let tree_stage = TreeStage::new()
             .with(oak_trees, "Oak")
             .with(tiny_trees, "Tiny")
-            .with(boulder_trees, "Boulder");
+            .with(boulder_trees, "Boulder")
+            .with(mystical_trees, "Mystical");
+        // .with(ancient_trees, "Ancient");
 
         pipeline.add_stage(tree_stage);
     }
