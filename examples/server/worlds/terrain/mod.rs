@@ -392,12 +392,12 @@ pub fn setup_terrain_world() -> World {
             .branch_radius_factor(0.85)
             .branch_length_factor(0.6)
             .branch_dy_angle(f64::consts::PI / 6.0)
-            .branch_drot_angle(f64::consts::PI / 3.0)
+            .branch_drot_angle(f64::consts::PI / 4.0)
             .system(
                 LSystem::new()
                     .axiom("F")
-                    .rule('F', "")
-                    .iterations(5)
+                    .rule('F', "FF")
+                    .iterations(4)
                     .build(),
             )
             .build();

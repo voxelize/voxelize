@@ -645,7 +645,7 @@ const start = async () => {
   await world.initialize();
   await setupWorld(world);
 
-  // world.renderRadius = 8;
+  world.renderRadius = 8;
 
   gui
     .add({ world: currentWorldName }, "world", ["terrain", "flat"])
