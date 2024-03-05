@@ -74,12 +74,14 @@ varying vec4 vWorldPosition;
       `
 #include <envmap_fragment>
 
-// Intensity of light is wavelength ** 2 
+// Adjusting light intensity for lighter voxel textures
+float lightIntensityAdjustment = 0.9; // Lowering base intensity
 float scale = 2.0;
-float s = clamp(vLight.a * vLight.a * uSunlightIntensity, uMinLightLevel, 1.0);
-s -= s * exp(-s) * 0.02; // Optimized smoothing
+float s = clamp(vLight.a * vLight.a * uSunlightIntensity * lightIntensityAdjustment, uMinLightLevel, 1.0);
+s -= s * exp(-s) * 0.02; // Optimized smoothing with adjusted intensity
 
-outgoingLight.rgb *= s + pow(vLight.rgb, vec3(scale));
+// Applying adjusted light intensity
+outgoingLight.rgb *= s + pow(vLight.rgb * lightIntensityAdjustment, vec3(scale));
 outgoingLight *= vAO;
 `
     )

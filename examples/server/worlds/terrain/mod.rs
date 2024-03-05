@@ -14,7 +14,7 @@ use super::shared::{
     setup_client, setup_components, setup_dispatcher, setup_entities, setup_methods, SoilingStage,
 };
 
-pub const MOUNTAIN_HEIGHT: f64 = 1.0;
+pub const MOUNTAIN_HEIGHT: f64 = 1.1;
 pub const RIVER_HEIGHT: f64 = 0.25;
 pub const PLAINS_HEIGHT: f64 = 0.347;
 pub const RIVER_WIDTH: f64 = 0.36;
@@ -147,7 +147,7 @@ pub fn setup_terrain_world() -> World {
         .preload_radius(2)
         .default_time(1200.0)
         .time_per_day(2400)
-        .seed(42313)
+        .seed(999)
         .build();
 
     let mut world = World::new("terrain", &config);
@@ -190,15 +190,15 @@ pub fn setup_terrain_world() -> World {
             .octaves(7)
             .persistence(0.52)
             .lacunarity(2.3)
-            .seed(1231252)
+            .seed(9999)
             .build(),
     )
     .add_bias_points(&[[-1.0, 3.5], [0.0, 3.0], [0.4, 5.0], [1.0, 8.5]])
     .add_offset_points(&[
         [-2.9, MOUNTAIN_HEIGHT],
-        [-0.5, PLAINS_HEIGHT + 0.01],
+        [-0.7, PLAINS_HEIGHT + 0.01],
         [0.0, PLAINS_HEIGHT],
-        // [RIVER_WIDTH, PLAINS_HEIGHT],
+        [RIVER_WIDTH / 2.0, PLAINS_HEIGHT],
         // [0.0, PLAINS_HEIGHT],
         [1.1, RIVER_HEIGHT],
         [2.8, 0.0],
@@ -215,7 +215,7 @@ pub fn setup_terrain_world() -> World {
             .octaves(7)
             .persistence(0.53)
             .lacunarity(2.0)
-            .seed(51287)
+            .seed(4544)
             .build(),
     )
     .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
@@ -232,19 +232,20 @@ pub fn setup_terrain_world() -> World {
     let erosion = TerrainLayer::new(
         "erosion",
         &NoiseOptions::new()
+            .dimension(3)
             .frequency(0.01)
             .octaves(7)
             .persistence(0.5)
             .lacunarity(1.9)
-            .seed(1233)
+            .seed(904)
             .build(),
     )
-    .add_bias_points(&[[-1.0, 3.5], [1.0, 3.5]])
+    .add_bias_points(&[[-1.0, 8.5], [1.0, 8.5]])
     .add_offset_points(&[[-1.0, MOUNTAIN_HEIGHT], [1.0, RIVER_HEIGHT / 2.0]]);
 
     terrain.add_layer(&continentalness, 1.0);
-    terrain.add_layer(&peaks_and_valleys, 0.5);
-    terrain.add_noise_layer(&erosion, 0.015);
+    terrain.add_layer(&peaks_and_valleys, 0.6);
+    terrain.add_noise_layer(&erosion, 0.045);
 
     // ●	Continentalness (weight: 1.7)
     //  ●	1.0: Low terrain, most likely water
