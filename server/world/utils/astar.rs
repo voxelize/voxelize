@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use pathfinding::prelude::astar;
-use voxelize::Vec3;
+use crate::Vec3;
 
 fn absdiff(a: i32, b: i32) -> u32 {
     if a > b {

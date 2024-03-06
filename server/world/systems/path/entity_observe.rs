@@ -1,7 +1,5 @@
-use specs::{Entity, ReadExpect, ReadStorage, System, WriteStorage};
-use voxelize::{trace, Chunks, RigidBodyComp, Vec3, VoxelAccess, WorldConfig};
-
-use crate::worlds::shared::{components::TargetComp, kdtree::KdTree};
+use specs::{ReadExpect, ReadStorage, System, WriteStorage};
+use crate::{RigidBodyComp, TargetComp, KdTree};
 
 pub struct EntityObserveSystem;
 

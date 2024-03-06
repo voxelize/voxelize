@@ -1,28 +1,20 @@
-mod entity_observe;
-mod entity_tree;
-mod path_finding;
-mod path_metadata;
 mod role_metadata;
 mod rotation_metadata;
-mod target_metadata;
 mod text_metadata;
 mod void_kill;
-mod walk_towards;
 
 use specs::DispatcherBuilder;
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
     ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
-    EntitiesMetaSystem, EntitiesSendingSystem, EventsSystem, PeersMetaSystem, PeersSendingSystem,
-    PhysicsSystem, UpdateStatsSystem, World,
+    EntitiesMetaSystem, EntitiesSendingSystem, EntityObserveSystem, EntityTreeSystem, EventsSystem,
+    PathFindingSystem, PathMetadataSystem, PeersMetaSystem, PeersSendingSystem, PhysicsSystem,
+    TargetMetadataSystem, UpdateStatsSystem, WalkTowardsSystem, World,
 };
 
 use self::{
-    entity_observe::EntityObserveSystem, entity_tree::EntityTreeSystem,
-    path_finding::PathFindingSystem, path_metadata::PathMetadataSystem,
     role_metadata::ExtraPeerMetaSystem, rotation_metadata::RotationMetadataSystem,
-    target_metadata::TargetMetadataSystem, text_metadata::TextMetadataSystem,
-    void_kill::VoidKillSystem, walk_towards::WalkTowardsSystem,
+    text_metadata::TextMetadataSystem, void_kill::VoidKillSystem,
 };
 
 pub fn setup_dispatcher(world: &mut World) {

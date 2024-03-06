@@ -1,7 +1,5 @@
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-use voxelize::{ChunkUtils, RigidBodyComp, Stats, Vec3, WorldConfig};
-
-use crate::worlds::shared::components::{BrainComp, PathComp};
+use crate::{RigidBodyComp, Stats, Vec3, BrainComp, PathComp};
 
 pub struct WalkTowardsSystem;
 

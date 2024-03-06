@@ -4,11 +4,9 @@ use noise::{Curve, Fbm, HybridMulti, MultiFractal, NoiseFn, Perlin, ScaleBias};
 use serde::{Deserialize, Serialize};
 use std::f64;
 use voxelize::{
-    Biome, Chunk, ChunkStage, LSystem, NoiseOptions, Resources, SeededNoise, Space, Terrain,
-    TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
+    Biome, Chunk, ChunkStage, KdTree, LSystem, NoiseOptions, Resources, SeededNoise, Space,
+    Terrain, TerrainLayer, Tree, Trees, Vec3, VoxelAccess, World, WorldConfig,
 };
-
-use crate::worlds::shared::KdTree;
 
 use super::shared::{
     setup_client, setup_components, setup_dispatcher, setup_entities, setup_methods, SoilingStage,

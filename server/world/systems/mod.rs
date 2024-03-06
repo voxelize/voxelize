@@ -8,6 +8,7 @@ mod physics;
 mod saving;
 mod search;
 mod stats;
+mod path;
 
 pub use broadcast::*;
 pub use chunk::*;
@@ -19,3 +20,4 @@ pub use physics::PhysicsSystem;
 pub use saving::*;
 pub use search::SearchSystem;
 pub use stats::*;
+pub use path::*;

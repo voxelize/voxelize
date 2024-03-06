@@ -174,6 +174,12 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
             &["entities-sending", "peers-sending"],
         )
         .with(EventsSystem, "events", &["broadcast"])
+        .with(EntityObserveSystem, "entity-observe", &[])
+        .with(PathFindingSystem, "path-finding", &["entity-observe"])
+        .with(TargetMetadataSystem, "target-meta", &[])
+        .with(PathMetadataSystem, "path-meta", &[])
+        .with(EntityTreeSystem, "entity-tree", &[])
+        .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
 }
 
 #[derive(Serialize, Deserialize)]
@@ -231,6 +237,9 @@ impl World {
         ecs.register::<AddrComp>();
         ecs.register::<InteractorComp>();
         ecs.register::<CollisionsComp>();
+        ecs.register::<BrainComp>();
+        ecs.register::<PathComp>();
+        ecs.register::<TargetComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());

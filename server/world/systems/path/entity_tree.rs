@@ -1,7 +1,5 @@
+use crate::{ClientFlag, EntityFlag, KdTree, RigidBodyComp};
 use specs::{Entities, ReadStorage, System, WriteExpect};
-use voxelize::{ClientFlag, EntityFlag, RigidBodyComp};
-
-use crate::worlds::shared::kdtree::KdTree;
 
 pub struct EntityTreeSystem;
 

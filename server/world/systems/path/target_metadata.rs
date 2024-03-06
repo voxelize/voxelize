@@ -1,7 +1,5 @@
 use specs::{ReadStorage, System, WriteStorage};
-use voxelize::MetadataComp;
-
-use crate::worlds::shared::components::TargetComp;
+use crate::{MetadataComp, TargetComp};
 
 pub struct TargetMetadataSystem;
 

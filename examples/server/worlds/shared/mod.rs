@@ -1,18 +1,18 @@
-pub mod astar;
+// pub mod astar;
 pub mod client;
 pub mod components;
 pub mod entities;
-pub mod kdtree;
+// pub mod kdtree;
 pub mod methods;
 pub mod quaternion;
 pub mod stage;
 pub mod systems;
 
-pub use astar::*;
+// pub use astar::*;
 pub use client::*;
 pub use components::*;
 pub use entities::*;
-pub use kdtree::*;
+// pub use kdtree::*;
 pub use methods::*;
 pub use quaternion::*;
 pub use stage::*;

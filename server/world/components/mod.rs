@@ -11,6 +11,9 @@ mod metadata;
 mod name;
 mod position;
 mod rigidbody;
+mod brain;
+mod path;
+mod target;
 
 pub use addr::AddrComp;
 pub use chunk_requests::ChunkRequestsComp;
@@ -25,3 +28,6 @@ pub use metadata::MetadataComp;
 pub use name::NameComp;
 pub use position::PositionComp;
 pub use rigidbody::RigidBodyComp;
+pub use path::PathComp;
+pub use brain::BrainComp;
+pub use target::TargetComp;

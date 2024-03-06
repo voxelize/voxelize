@@ -1,16 +1,7 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex};
 
-use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-use voxelize::{Chunks, Registry, RigidBodyComp, Vec3, VoxelAccess, WorldConfig};
-
-use crate::worlds::shared::{
-    astar::{AStar, PathNode},
-    components::{PathComp, TargetComp},
-};
+use crate::{Chunks, Registry, RigidBodyComp, Vec3, VoxelAccess, WorldConfig, PathComp, TargetComp, AStar, PathNode};
 
 const MAX_DEPTH_SEARCH: i32 = 2048;
 

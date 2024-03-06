@@ -1,7 +1,7 @@
 use specs::{Component, VecStorage};
 
 use serde::{Deserialize, Serialize};
-use voxelize::{RigidBody, Vec3};
+use crate::{RigidBody, Vec3};
 
 pub struct BrainState {
     pub heading: f32,

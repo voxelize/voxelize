@@ -1,8 +1,11 @@
 use nanoid::nanoid;
 use specs::Builder;
-use voxelize::{InteractorComp, PositionComp, RigidBody, RigidBodyComp, World, AABB};
+use voxelize::{
+    BrainComp, InteractorComp, PathComp, PositionComp, RigidBody, RigidBodyComp, TargetComp, World,
+    AABB,
+};
 
-use super::components::{BotFlag, BrainComp, PathComp, RotationComp, TargetComp, TextComp};
+use super::components::{BotFlag, RotationComp, TextComp};
 
 const MAX_NODES: usize = 24;
 

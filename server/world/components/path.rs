@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use specs::{Component, VecStorage};
-use voxelize::Vec3;
+use crate::Vec3;
 
 #[derive(Component, Debug, Serialize, Deserialize, Default)]
 #[storage(VecStorage)]

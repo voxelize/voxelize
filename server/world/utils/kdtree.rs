@@ -2,7 +2,7 @@ use kdtree::distance::squared_euclidean;
 use kdtree::KdTree as KdTreeCore;
 
 use specs::Entity;
-use voxelize::Vec3;
+use crate::Vec3;
 
 /// World-wide K-dimensional tree for fast positional querying
 ///
