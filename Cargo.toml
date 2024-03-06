@@ -13,11 +13,11 @@ exclude = [
   "*.js",
   "*.ts",
   "transport",
-  "assets"
+  "assets",
 ]
 license = "MIT"
 name = "voxelize"
-version = "0.8.61"
+version = "0.8.62"
 
 [lib]
 name = "voxelize"
