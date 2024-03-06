@@ -1,34 +1,34 @@
-use specs::{Entities, ReadStorage, System, WriteExpect};
-use voxelize::{ClientFlag, EntityFlag, RigidBodyComp};
+// use specs::{Entities, ReadStorage, System, WriteExpect};
+// use voxelize::{ClientFlag, EntityFlag, RigidBodyComp};
 
-use crate::worlds::shared::kdtree::KdTree;
+// use crate::worlds::shared::kdtree::KdTree;
 
-pub struct EntityTreeSystem;
+// pub struct EntityTreeSystem;
 
-impl<'a> System<'a> for EntityTreeSystem {
-    type SystemData = (
-        Entities<'a>,
-        WriteExpect<'a, KdTree>,
-        ReadStorage<'a, EntityFlag>,
-        ReadStorage<'a, ClientFlag>,
-        ReadStorage<'a, RigidBodyComp>,
-    );
+// impl<'a> System<'a> for EntityTreeSystem {
+//     type SystemData = (
+//         Entities<'a>,
+//         WriteExpect<'a, KdTree>,
+//         ReadStorage<'a, EntityFlag>,
+//         ReadStorage<'a, ClientFlag>,
+//         ReadStorage<'a, RigidBodyComp>,
+//     );
 
-    fn run(&mut self, data: Self::SystemData) {
-        use specs::Join;
+//     fn run(&mut self, data: Self::SystemData) {
+//         use specs::Join;
 
-        let (entities, mut tree, entity_flags, client_flags, bodies) = data;
+//         let (entities, mut tree, entity_flags, client_flags, bodies) = data;
 
-        tree.reset();
+//         tree.reset();
 
-        for (ent, body, _) in (&*entities, &bodies, &entity_flags).join() {
-            let pos = body.0.get_position();
-            tree.add_entity(ent, pos);
-        }
+//         for (ent, body, _) in (&*entities, &bodies, &entity_flags).join() {
+//             let pos = body.0.get_position();
+//             tree.add_entity(ent, pos);
+//         }
 
-        for (ent, body, _) in (&*entities, &bodies, &client_flags).join() {
-            let pos = body.0.get_position();
-            tree.add_player(ent, pos);
-        }
-    }
-}
+//         for (ent, body, _) in (&*entities, &bodies, &client_flags).join() {
+//             let pos = body.0.get_position();
+//             tree.add_player(ent, pos);
+//         }
+//     }
+// }
