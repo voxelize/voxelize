@@ -1,13 +1,7 @@
-mod entity_observe;
-mod entity_tree;
-mod path_finding;
-mod path_metadata;
 mod role_metadata;
 mod rotation_metadata;
-mod target_metadata;
 mod text_metadata;
 mod void_kill;
-mod walk_towards;
 
 use specs::DispatcherBuilder;
 use voxelize::{
