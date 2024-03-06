@@ -605,6 +605,7 @@ pub struct SixFacesBuilder {
     prefix: String,
     suffix: String,
     concat: String,
+    auto_uv_offset: bool,
 }
 
 impl SixFacesBuilder {
@@ -626,6 +627,7 @@ impl SixFacesBuilder {
             prefix: "".to_owned(),
             suffix: "".to_owned(),
             concat: "".to_owned(),
+            auto_uv_offset: false,
         }
     }
 
@@ -719,6 +721,11 @@ impl SixFacesBuilder {
         self
     }
 
+    pub fn auto_uv_offset(mut self, auto_uv_offset: bool) -> Self {
+        self.auto_uv_offset = auto_uv_offset;
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -737,6 +744,7 @@ impl SixFacesBuilder {
             prefix,
             suffix,
             concat,
+            auto_uv_offset,
         } = self;
 
         let make_name = |side: &str| {
@@ -756,6 +764,25 @@ impl SixFacesBuilder {
             }
             name
         };
+
+        let uv_offset_x = if auto_uv_offset {
+            offset_x
+        } else {
+            uv_offset_x
+        };
+        let uv_offset_y = if auto_uv_offset {
+            offset_y
+        } else {
+            uv_offset_y
+        };
+        let uv_offset_z = if auto_uv_offset {
+            offset_z
+        } else {
+            uv_offset_z
+        };
+        let uv_scale_x = if auto_uv_offset { scale_x } else { uv_scale_x };
+        let uv_scale_y = if auto_uv_offset { scale_y } else { uv_scale_y };
+        let uv_scale_z = if auto_uv_offset { scale_z } else { uv_scale_z };
 
         BlockFaces::from_faces(vec![
             BlockFace {
