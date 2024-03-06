@@ -557,22 +557,19 @@ export class World extends Scene implements NetIntercept {
 
     const block = this.getBlockOf(idOrName);
 
-    faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
+    const blockFaces = this.getBlockFacesByFaceNames(block.id, faceNames);
+    if (!blockFaces) {
+      throw new Error(
+        `Face(s) "${faceNames}" does not exist on block "${block.name}"`
+      );
+    }
 
     // If it is a string, load the image.
     const data =
       typeof source === "string" ? await this.loader.loadImage(source) : source;
 
-    faceNames.forEach((faceName) => {
-      const face = block.faces.find((f) => f.name === faceName);
-
-      if (!face) {
-        throw new Error(
-          `Face "${faceName}" does not exist on block "${block.name}"`
-        );
-      }
-
-      const mat = this.getBlockFaceMaterial(block.id, faceName);
+    blockFaces.forEach((face) => {
+      const mat = this.getBlockFaceMaterial(block.id, face.name);
 
       // If the face is independent, that means this face does not share a texture atlas with other faces.
       // In this case, we can just set the map to the texture.
@@ -597,7 +594,7 @@ export class World extends Scene implements NetIntercept {
           mat.needsUpdate = true;
         } else {
           throw new Error(
-            `Cannot apply texture to face "${faceName}" on block "${block.name}" because the source is not an image or a color.`
+            `Cannot apply texture to face "${face.name}" on block "${block.name}" because the source is not an image or a color.`
           );
         }
 
@@ -664,18 +661,15 @@ export class World extends Scene implements NetIntercept {
       realKeyframes.push([duration, source]);
     }
 
-    faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
+    const blockFaces = this.getBlockFacesByFaceNames(block.id, faceNames);
+    if (!blockFaces) {
+      throw new Error(
+        `Face(s) "${faceNames}" does not exist on block "${block.name}"`
+      );
+    }
 
-    faceNames.forEach((faceName) => {
-      const face = block.faces.find((f) => f.name === faceName);
-
-      if (!face) {
-        throw new Error(
-          `Face "${faceName}" does not exist on block "${block.name}"`
-        );
-      }
-
-      const mat = this.getBlockFaceMaterial(block.id, faceName);
+    blockFaces.forEach((face) => {
+      const mat = this.getBlockFaceMaterial(block.id, face.name);
 
       // If the block's material is not set up to an atlas texture, we need to set it up.
       if (!(mat.map instanceof AtlasTexture)) {
@@ -691,7 +685,7 @@ export class World extends Scene implements NetIntercept {
           mat.needsUpdate = true;
         } else {
           throw new Error(
-            `Cannot animate face "${faceName}" on block "${block.name}" because it does not have a texture.`
+            `Cannot animate face "${face.name}" on block "${block.name}" because it does not have a texture.`
           );
         }
       }
@@ -762,22 +756,23 @@ export class World extends Scene implements NetIntercept {
 
     faceNames = Array.isArray(faceNames) ? faceNames : [faceNames];
 
-    for (const faceName of faceNames) {
-      const face = block.faces.find((f) => f.name === faceName);
+    const blockFaces = this.getBlockFacesByFaceNames(block.id, faceNames);
+    if (!blockFaces) {
+      throw new Error(
+        `Face(s) "${faceNames.join(", ")}" does not exist on block "${
+          block.name
+        }"`
+      );
+    }
 
-      if (!face) {
-        throw new Error(
-          `Face "${faceName}" does not exist on block "${block.name}"`
-        );
-      }
-
+    for (const face of blockFaces) {
       if (!face.independent) {
         throw new Error(
-          `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it is not independent.`
+          `Cannot apply resolution to face "${face.name}" on block "${block.name}" because it is not independent.`
         );
       }
 
-      const mat = this.getBlockFaceMaterial(block.id, faceName);
+      const mat = this.getBlockFaceMaterial(block.id, face.name);
 
       // We know that this atlas texture will only be used for one single face.
       if (mat.map instanceof AtlasTexture) {
@@ -804,7 +799,7 @@ export class World extends Scene implements NetIntercept {
 
       if (!canvas) {
         throw new Error(
-          `Cannot apply resolution to face "${faceName}" on block "${block.name}" because it does not have or has not loaded a texture.`
+          `Cannot apply resolution to face "${face.name}" on block "${block.name}" because it does not have or has not loaded a texture.`
         );
       }
 
@@ -838,6 +833,18 @@ export class World extends Scene implements NetIntercept {
       mat.map.needsUpdate = true;
       mat.needsUpdate = true;
     }
+  }
+
+  getBlockFacesByFaceNames(id: number, faceNames: string | string[] | RegExp) {
+    const block = this.getBlockOf(id);
+    return block.faces.filter((face) => {
+      if (typeof faceNames === "string" || faceNames instanceof RegExp) {
+        return new RegExp(faceNames).test(face.name);
+      } else if (Array.isArray(faceNames)) {
+        return faceNames.some((fn) => new RegExp(fn).test(face.name));
+      }
+      return false;
+    });
   }
 
   /**
