@@ -23,6 +23,7 @@ import {
   MathUtils as ThreeMathUtils,
   Uniform,
   UniformsUtils,
+  Vector2,
   Vector3,
 } from "three";
 import MeshWorker from "web-worker:./workers/mesh-worker.ts";
@@ -2250,9 +2251,10 @@ export class World extends Scene implements NetIntercept {
       }
     }
 
-    if (toRequestSet.size === 0) {
-      return;
-    }
+    // i guess we still want to update the direction/center?
+    // if (toRequestSet.size === 0) {
+    //   return;
+    // }
 
     const toRequestArray = Array.from(toRequestSet).map((coords) =>
       coords.split(",").map(Number)
@@ -2276,6 +2278,7 @@ export class World extends Scene implements NetIntercept {
       type: "LOAD",
       json: {
         center,
+        direction: new Vector2(direction.x, direction.z).normalize().toArray(),
         chunks: toRequest,
       },
     });

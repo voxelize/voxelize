@@ -179,6 +179,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
 #[derive(Serialize, Deserialize)]
 struct OnLoadRequest {
     center: Vec2<i32>,
+    direction: Vec2<f32>,
     chunks: Vec<Vec2<i32>>,
 }
 
@@ -900,6 +901,7 @@ impl World {
             });
 
             requests.set_center(&json.center);
+            requests.set_direction(&json.direction);
             requests.sort();
         }
     }

@@ -57,18 +57,38 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             ids.iter().for_each(|id| {
                 if let Some(client) = clients.get(id) {
                     if let Some(request) = requests.get(client.entity) {
+                        // Calculate the distance squared as before
                         let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                        weight += dist;
+
+                        // Calculate the direction vector from the client's center to the chunk
+                        let direction_to_chunk =
+                            Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
+
+                        // Normalize the direction_to_chunk vector
+                        let mag = (direction_to_chunk.0.pow(2) as f32
+                            + direction_to_chunk.1.pow(2) as f32)
+                            .sqrt();
+                        let normalized_direction_to_chunk = Vec2(
+                            direction_to_chunk.0 as f32 / mag,
+                            direction_to_chunk.1 as f32 / mag,
+                        );
+
+                        // Calculate the dot product between the client's direction and the direction to the chunk
+                        let dot_product = request.direction.0 * normalized_direction_to_chunk.0
+                            + request.direction.1 * normalized_direction_to_chunk.1;
+
+                        // Adjust the weight based on the dot product
+                        // This example simply multiplies the distance by the dot product
+                        // You might want to adjust this formula based on your needs
+                        weight += dist * dot_product.max(0.0); // Use max to ignore chunks behind the client
                     }
                 }
             });
 
-            let original_weight = interests.weights.get(coords).cloned().unwrap_or_default();
-            weights.insert(coords.clone(), original_weight + weight);
+            weights.insert(coords.clone(), weight);
         }
 
         interests.weights = weights;
-
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING PIPELINE RESULTS                         */
         /* -------------------------------------------------------------------------- */

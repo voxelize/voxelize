@@ -7,6 +7,8 @@ use crate::Vec2;
 #[storage(VecStorage)]
 pub struct ChunkRequestsComp {
     pub center: Vec2<i32>,
+    // a 2d unit vector
+    pub direction: Vec2<f32>,
     pub requests: Vec<Vec2<i32>>,
 }
 
@@ -19,6 +21,11 @@ impl ChunkRequestsComp {
     /// Set the center of the list of chunk requests.
     pub fn set_center(&mut self, center: &Vec2<i32>) {
         self.center = center.to_owned();
+    }
+
+    /// Set the direction of the list of chunk requests.
+    pub fn set_direction(&mut self, direction: &Vec2<f32>) {
+        self.direction = direction.to_owned();
     }
 
     /// Add a chunk to the list of chunks requested.
