@@ -837,6 +837,10 @@ export class World extends Scene implements NetIntercept {
 
   getBlockFacesByFaceNames(id: number, faceNames: string | string[] | RegExp) {
     const block = this.getBlockOf(id);
+    // Check for '*' wildcard to return all faces
+    if (faceNames === "*") {
+      return block.faces;
+    }
     return block.faces.filter((face) => {
       if (typeof faceNames === "string" || faceNames instanceof RegExp) {
         return new RegExp(faceNames).test(face.name);
