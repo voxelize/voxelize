@@ -102,3 +102,7 @@ If you like our work, please consider supporting us on Patreon, BuyMeACoffee, or
 <p align="center">
   <img src="https://api.star-history.com/svg?repos=voxelize/voxelize&type=Date" />
 </p>
+
+## Assets Used
+
+- [Connection Serif Font (SIL Open Font)](https://fonts2u.com/connection-serif.font)
