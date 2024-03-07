@@ -14,6 +14,8 @@ import { NameTag, NameTagOptions } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
 
+export const ARM_COLOR = "#548ca8";
+
 /**
  * Parameters to create a character's head.
  * Defaults to:
@@ -616,8 +618,8 @@ export class Character extends Group {
     head.paint("all", new Color("#96baff"));
     head.paint("front", new Color("#f99999"));
     body.paint("all", new Color("#2b2e42"));
-    leftArm.paint("all", new Color("#548ca8"));
-    rightArm.paint("all", new Color("#548ca8"));
+    leftArm.paint("all", new Color(ARM_COLOR));
+    rightArm.paint("all", new Color(ARM_COLOR));
     leftLeg.paint("all", new Color("#96baff"));
     rightLeg.paint("all", new Color("#96baff"));
 

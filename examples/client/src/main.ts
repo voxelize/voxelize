@@ -677,6 +677,10 @@ const start = async () => {
   });
   document.body.appendChild(bar.element);
 
+  const hud = new VOXELIZE.Hud({ visible: true });
+
+  hud.connect(inputs, controls, bar, "in-game");
+
   // debug.registerDisplay("Active Voxels", async () => {
   //   const data = await fetch(`${BACKEND_SERVER}info`);
   //   const json = await data.json();

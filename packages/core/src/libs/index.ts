@@ -18,3 +18,4 @@ export * from "./shared-worker-pool";
 export * from "./sprite-text";
 export * from "./voxel-interact";
 export * from "./worker-pool";
+export * from "./hud";
