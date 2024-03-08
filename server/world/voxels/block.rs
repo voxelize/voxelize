@@ -981,6 +981,42 @@ impl SixFacesBuilder {
     }
 }
 
+impl std::ops::Add for BlockFaces {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        let mut combined_faces = self.faces;
+        combined_faces.extend(other.faces);
+        Self {
+            faces: combined_faces,
+        }
+    }
+}
+
+impl std::ops::Add<&Self> for BlockFaces {
+    type Output = Self;
+
+    fn add(self, other: &Self) -> Self::Output {
+        let mut combined_faces = self.faces.clone();
+        combined_faces.extend(other.faces.clone());
+        Self {
+            faces: combined_faces,
+        }
+    }
+}
+
+impl std::ops::AddAssign for BlockFaces {
+    fn add_assign(&mut self, other: Self) {
+        self.faces.extend(other.faces);
+    }
+}
+
+impl std::ops::AddAssign<&Self> for BlockFaces {
+    fn add_assign(&mut self, other: &Self) {
+        self.faces.extend(other.faces.clone());
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Neighbors {
     pub center: Vec3<i32>,
