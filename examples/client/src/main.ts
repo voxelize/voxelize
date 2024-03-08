@@ -583,6 +583,13 @@ inputs.bind("]", () => {
   );
 });
 
+world.addBlockEntityUpdateListener((data) => {
+  if (data.operation === "UPDATE" || data.operation === "CREATE") {
+    const color = data.newValue.color ?? [0, 0, 0];
+    world.applyBlockTexture("mushroom", "top-py-", new THREE.Color(...color));
+  }
+});
+
 let frame: any;
 
 const start = async () => {
@@ -825,10 +832,6 @@ const start = async () => {
     "in-game"
   );
 
-  world.addBlockEntityUpdateListener((data) => {
-    console.log(data);
-  });
-
   inputs.click(
     "right",
     () => {
@@ -855,7 +858,10 @@ const start = async () => {
 
       if (currentBlock.name.toLowerCase() === "mushroom") {
         const [tx, ty, tz] = voxelInteract.target;
-        world.setBlockEntityDataAt(tx, ty, tz, { test: Math.random() });
+        console.log([tx, ty, tz]);
+        world.setBlockEntityDataAt(tx, ty, tz, {
+          color: [Math.random(), Math.random(), Math.random()],
+        });
         return;
       }
 

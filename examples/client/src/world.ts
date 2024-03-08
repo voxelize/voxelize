@@ -177,7 +177,7 @@ export async function setupWorld(world: VOXELIZE.World) {
     },
     {
       idOrName: "Mushroom",
-      faceNames: all.map((name) => `top-${name}-`),
+      faceNames: all.filter((f) => f !== "py").map((name) => `top-${name}-`),
       source: new THREE.Color("#E4DCCF"),
     },
     { idOrName: "Biggie", faceNames: all, source: new THREE.Color("#2C3639") },

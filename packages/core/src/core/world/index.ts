@@ -422,6 +422,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The JSON data received from the world. Call `initialize` to initialize.
    */
   private initialData: any = null;
+  private initialEntities: any = null;
 
   /**
    * The internal time in seconds.
@@ -2060,6 +2061,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.isInitialized = true;
 
     this.renderRadius = this.options.defaultRenderRadius;
+
+    if (this.initialEntities) {
+      this.handleEntities(this.initialEntities);
+      this.initialEntities = null;
+    }
   }
 
   update(
@@ -2144,52 +2150,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     const { type } = message;
 
-    const handleEntities = (entities: EntityProtocol<any>[]) => {
-      entities.forEach((entity) => {
-        const { id, type, metadata, operation } = entity;
-
-        if (!type.startsWith("block::")) {
-          return;
-        }
-
-        const [px, py, pz] = metadata.voxel;
-        const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
-        const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
-
-        let data: T | null;
-        try {
-          data = JSON.parse(metadata.json);
-        } catch (error) {
-          console.error("Error parsing block entity JSON:", error);
-          data = null;
-        }
-
-        const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
-        this.blockEntityUpdateListeners.forEach((listener) => {
-          listener({
-            id,
-            voxel: [vx, vy, vz],
-            oldValue: originalData as T | null,
-            newValue: data as T | null,
-            operation,
-          });
-        });
-
-        switch (operation) {
-          case "DELETE": {
-            this.blockEntitiesMap.delete(voxelId);
-            break;
-          }
-
-          case "CREATE":
-          case "UPDATE": {
-            this.blockEntitiesMap.set(voxelId, { id, data });
-            break;
-          }
-        }
-      });
-    };
-
     switch (type) {
       case "INIT": {
         const { json, entities } = message;
@@ -2197,7 +2157,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.initialData = json;
 
         if (entities) {
-          handleEntities(entities);
+          this.initialEntities = entities;
         }
 
         break;
@@ -2206,7 +2166,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { entities } = message;
 
         if (entities && entities.length) {
-          handleEntities(entities);
+          this.handleEntities(entities);
         }
 
         break;
@@ -2267,6 +2227,53 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
   }
+
+  private handleEntities = (entities: EntityProtocol<any>[]) => {
+    console.log(entities);
+    entities.forEach((entity) => {
+      const { id, type, metadata, operation } = entity;
+
+      if (!type.startsWith("block::")) {
+        return;
+      }
+
+      const [px, py, pz] = metadata.voxel;
+      const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
+      const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+      let data: T | null;
+      try {
+        data = JSON.parse(metadata.json);
+      } catch (error) {
+        console.error("Error parsing block entity JSON:", error);
+        data = null;
+      }
+
+      const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
+      this.blockEntityUpdateListeners.forEach((listener) => {
+        listener({
+          id,
+          voxel: [vx, vy, vz],
+          oldValue: (originalData as any)?.data ?? null,
+          newValue: data as T | null,
+          operation,
+        });
+      });
+
+      switch (operation) {
+        case "DELETE": {
+          this.blockEntitiesMap.delete(voxelId);
+          break;
+        }
+
+        case "CREATE":
+        case "UPDATE": {
+          this.blockEntitiesMap.set(voxelId, { id, data });
+          break;
+        }
+      }
+    });
+  };
 
   get time() {
     return this._time;

@@ -319,7 +319,7 @@ impl World {
             for (entity, id_comp) in (&entities, &ids).join() {
                 if id_comp.0 == payload.id {
                     to_update.push(entity);
-                    return;
+                    break;
                 }
             }
 
