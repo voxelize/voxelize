@@ -223,22 +223,23 @@ impl World {
 
         let mut ecs = ECSWorld::new();
 
+        ecs.register::<AddrComp>();
+        ecs.register::<BrainComp>();
         ecs.register::<ChunkRequestsComp>();
-        ecs.register::<CurrentChunkComp>();
-        ecs.register::<IDComp>();
-        ecs.register::<NameComp>();
-        ecs.register::<PositionComp>();
-        ecs.register::<DirectionComp>();
         ecs.register::<ClientFlag>();
+        ecs.register::<CollisionsComp>();
+        ecs.register::<CurrentChunkComp>();
+        ecs.register::<DirectionComp>();
         ecs.register::<EntityFlag>();
         ecs.register::<ETypeComp>();
-        ecs.register::<MetadataComp>();
-        ecs.register::<RigidBodyComp>();
-        ecs.register::<AddrComp>();
+        ecs.register::<IDComp>();
         ecs.register::<InteractorComp>();
-        ecs.register::<CollisionsComp>();
-        ecs.register::<BrainComp>();
+        ecs.register::<JsonComp>();
+        ecs.register::<MetadataComp>();
+        ecs.register::<NameComp>();
         ecs.register::<PathComp>();
+        ecs.register::<PositionComp>();
+        ecs.register::<RigidBodyComp>();
         ecs.register::<TargetComp>();
         ecs.register::<VoxelComp>();
 
@@ -510,17 +511,10 @@ impl World {
     pub fn set_entity_loader<F: Fn(&mut World, MetadataComp) -> EntityBuilder + 'static>(
         &mut self,
         etype: &str,
-        is_block: bool,
         loader: F,
     ) {
-        self.entity_loaders.insert(
-            if is_block {
-                format!("block::{}", etype.to_lowercase())
-            } else {
-                etype.to_lowercase()
-            },
-            Arc::new(loader),
-        );
+        self.entity_loaders
+            .insert(etype.to_lowercase(), Arc::new(loader));
     }
 
     /// Handler for protobuf requests from clients.

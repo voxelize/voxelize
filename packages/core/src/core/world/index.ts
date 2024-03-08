@@ -1,7 +1,7 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
-import { GeometryProtocol } from "@voxelize/transport";
+import { EntityOperation, GeometryProtocol } from "@voxelize/transport";
 import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
@@ -78,6 +78,14 @@ export type BlockUpdateListener = (args: {
   oldValue: number;
   newValue: number;
   voxel: Coords3;
+}) => void;
+
+export type BlockEntityUpdateListener<T> = (args: {
+  id: string;
+  voxel: Coords3;
+  operation: EntityOperation;
+  oldValue: T | null;
+  newValue: T | null;
 }) => void;
 
 const VOXEL_NEIGHBORS = [
@@ -394,6 +402,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     string,
     ((chunk: Chunk) => void)[]
   >();
+
+  private blockEntitiesMap: Map<
+    string,
+    {
+      id: string;
+      data: T | null;
+    }
+  > = new Map();
+  private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
@@ -1151,6 +1168,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     return block;
   }
 
+  getBlockEntityDataAt(px: number, py: number, pz: number): T | null {
+    this.checkIsInitialized("get block entity data", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    return this.blockEntitiesMap.get(voxelName).data || null;
+  }
+
   /**
    * Get the status of a chunk.
    *
@@ -1227,6 +1255,18 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   addBlockUpdateListener = (listener: BlockUpdateListener) => {
     this.blockUpdateListeners.add(listener);
+
+    return () => {
+      this.blockUpdateListeners.delete(listener);
+    };
+  };
+
+  addBlockEntityUpdateListener = (listener: BlockEntityUpdateListener<T>) => {
+    this.blockEntityUpdateListeners.add(listener);
+
+    return () => {
+      this.blockEntityUpdateListeners.delete(listener);
+    };
   };
 
   /**
@@ -2070,6 +2110,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       unknown,
       {
         voxel: Coords3;
+        json: string;
       }
     >
   ) {
@@ -2094,7 +2135,49 @@ export class World<T = any> extends Scene implements NetIntercept {
               return;
             }
 
-            console.log(type, operation, metadata);
+            const [px, py, pz] = metadata.voxel;
+            const [vx, vy, vz] = [
+              Math.floor(px),
+              Math.floor(py),
+              Math.floor(pz),
+            ];
+            const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+            let data: T | null;
+            try {
+              data = JSON.parse(metadata.json);
+            } catch (error) {
+              console.error("Error parsing block entity JSON:", error);
+              data = null;
+            }
+
+            const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
+            this.blockEntityUpdateListeners.forEach((listener) => {
+              listener({
+                id,
+                voxel: [vx, vy, vz],
+                oldValue: originalData as T | null,
+                newValue: data as T | null,
+                operation,
+              });
+            });
+
+            switch (operation) {
+              case "DELETE": {
+                this.blockEntitiesMap.delete(voxelId);
+                break;
+              }
+
+              case "CREATE": {
+                this.blockEntitiesMap.set(voxelId, { id, data });
+                break;
+              }
+
+              case "UPDATE": {
+                this.blockEntitiesMap.set(voxelId, { id, data });
+                break;
+              }
+            }
           });
         }
 

@@ -7,9 +7,9 @@ use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, CollisionsComp, CurrentChunkComp, ETypeComp,
-    EntityFlag, IDComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueue, MessageType,
-    MetadataComp, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelUpdate,
-    WorldConfig,
+    EntityFlag, IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueue,
+    MessageType, MetadataComp, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp,
+    VoxelUpdate, WorldConfig,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -139,12 +139,15 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     lazy.insert(entity, EntityFlag::default());
                     lazy.insert(
                         entity,
-                        ETypeComp::new(&format!("block::{}", &updated_type.name.to_lowercase()), true),
+                        ETypeComp::new(
+                            &format!("block::{}", &updated_type.name.to_lowercase()),
+                            true,
+                        ),
                     );
                     lazy.insert(entity, MetadataComp::new());
                     lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
                     lazy.insert(entity, CurrentChunkComp::default());
-                    lazy.insert(entity, CollisionsComp::new());
+                    lazy.insert(entity, JsonComp::new());
                 }
 
                 let current_transparency = current_type.get_rotated_transparency(&rotation);
