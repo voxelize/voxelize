@@ -1,9 +1,10 @@
 use hashbrown::{HashMap, HashSet};
-use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{Entities, Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     Bookkeeping, ClientFilter, ETypeComp, EntitiesSaver, EntityFlag, EntityOperation,
-    EntityProtocol, IDComp, Message, MessageQueue, MessageType, MetadataComp, Stats,
+    EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType, MetadataComp,
+    Physics, Stats,
 };
 
 pub struct EntitiesSendingSystem;
@@ -14,29 +15,43 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadExpect<'a, EntitiesSaver>,
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, Bookkeeping>,
+        WriteExpect<'a, Physics>,
         ReadStorage<'a, EntityFlag>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
+        ReadStorage<'a, InteractorComp>,
         WriteStorage<'a, MetadataComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use specs::Join;
-
         let (
             entities,
             entities_saver,
             mut queue,
             mut bookkeeping,
+            mut physics,
             flags,
             ids,
             etypes,
+            interactors,
             mut metadatas,
         ) = data;
 
+        let mut new_entity_handlers = HashMap::new();
+
+        for (ent, interactor) in (&entities, &interactors).join() {
+            new_entity_handlers.insert(
+                ent,
+                (
+                    interactor.collider_handle().clone(),
+                    interactor.body_handle().clone(),
+                ),
+            );
+        }
+
         let mut updated_entities = vec![];
 
-        for (id, ent, metadata, _) in (&ids, &entities, &metadatas, &flags).join() {
+        for (id, ent, _) in (&ids, &entities, &flags).join() {
             updated_entities.push((id.0.to_owned(), ent));
         }
 
@@ -51,29 +66,39 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut entity_updates = vec![];
         let mut new_entity_ids = HashSet::new();
 
-        old_entities.iter().for_each(|(id, (r#type, _, metadata))| {
-            let mut found = false;
+        let old_entity_handlers = physics.entity_to_handlers.clone();
 
-            for (new_id, _) in &updated_entities {
-                if new_id == id {
-                    found = true;
-                    break;
+        old_entities
+            .iter()
+            .for_each(|(id, (r#type, ent, metadata))| {
+                let mut found = false;
+
+                for (new_id, _) in &updated_entities {
+                    if new_id == id {
+                        found = true;
+                        break;
+                    }
                 }
-            }
 
-            if found {
-                return;
-            }
+                if found {
+                    return;
+                }
 
-            entities_saver.remove(id);
+                entities_saver.remove(id);
 
-            entity_updates.push(EntityProtocol {
-                operation: EntityOperation::Delete,
-                id: id.to_owned(),
-                r#type: r#type.to_owned(),
-                metadata: Some(metadata.to_string()),
+                if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
+                    physics.unregister(body_handle, collider_handle);
+                }
+
+                entity_updates.push(EntityProtocol {
+                    operation: EntityOperation::Delete,
+                    id: id.to_owned(),
+                    r#type: r#type.to_owned(),
+                    metadata: Some(metadata.to_string()),
+                });
             });
-        });
+
+        physics.entity_to_handlers = new_entity_handlers;
 
         updated_entities
             .iter()
