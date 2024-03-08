@@ -147,7 +147,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     lazy.insert(entity, MetadataComp::new());
                     lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
                     lazy.insert(entity, CurrentChunkComp::default());
-                    lazy.insert(entity, JsonComp::new());
+                    lazy.insert(entity, JsonComp::new("{}"));
                 }
 
                 let current_transparency = current_type.get_rotated_transparency(&rotation);

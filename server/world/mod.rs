@@ -205,6 +205,12 @@ struct BuiltInSetTimeMethodPayload {
     time: f32,
 }
 
+#[derive(Serialize, Deserialize)]
+struct BuiltInUpdateBlockEntityMethodPayload {
+    id: String,
+    json: String,
+}
+
 impl World {
     /// Create a new voxelize world.
     pub fn new(name: &str, config: &WorldConfig) -> Self {
@@ -299,6 +305,33 @@ impl World {
                 .expect("Could not parse vox-builtin:set-time payload.");
             let time_per_day = world.config().time_per_day as f32;
             world.stats_mut().set_time(payload.time % time_per_day);
+        });
+
+        world.set_method_handle("vox-builtin:update-block-entity", |world, _, payload| {
+            let payload: BuiltInUpdateBlockEntityMethodPayload = serde_json::from_str(payload)
+                .expect("Could not parse vox-builtin:update-block-entity payload.");
+
+            let entities = world.ecs().entities();
+            let ids = world.ecs().read_storage::<IDComp>();
+
+            let mut to_update = vec![];
+
+            for (entity, id_comp) in (&entities, &ids).join() {
+                if id_comp.0 == payload.id {
+                    to_update.push(entity);
+                    return;
+                }
+            }
+
+            drop((entities, ids));
+
+            for entity in to_update {
+                world
+                    .ecs_mut()
+                    .write_storage::<JsonComp>()
+                    .insert(entity, JsonComp::new(&payload.json))
+                    .expect("Failed to write JsonComp");
+            }
         });
 
         world

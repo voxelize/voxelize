@@ -6,7 +6,7 @@ use specs::{Component, VecStorage};
 pub struct JsonComp(pub String);
 
 impl JsonComp {
-    pub fn new() -> Self {
-        Self(String::new())
+    pub fn new(json: &str) -> Self {
+        Self(json.to_string())
     }
 }

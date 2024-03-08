@@ -825,6 +825,10 @@ const start = async () => {
     "in-game"
   );
 
+  world.addBlockEntityUpdateListener((data) => {
+    console.log(data);
+  });
+
   inputs.click(
     "right",
     () => {
@@ -832,6 +836,8 @@ const start = async () => {
       const {
         voxel: [vx, vy, vz],
       } = voxelInteract.potential;
+      if (!voxelInteract.target) return;
+      const currentBlock = world.getBlockAt(...voxelInteract.target);
       const slot = bar.getFocused();
       const id = slot.content;
       if (!id) return;
@@ -845,6 +851,12 @@ const start = async () => {
           )
         )
           return;
+      }
+
+      if (currentBlock.name.toLowerCase() === "mushroom") {
+        const [tx, ty, tz] = voxelInteract.target;
+        world.setBlockEntityDataAt(tx, ty, tz, { test: Math.random() });
+        return;
       }
 
       bulkPlace();

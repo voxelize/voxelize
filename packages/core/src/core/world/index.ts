@@ -2,7 +2,11 @@ import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
 import { EntityOperation, GeometryProtocol } from "@voxelize/transport";
-import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import {
+  EntityProtocol,
+  MeshProtocol,
+  MessageProtocol,
+} from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
@@ -1179,6 +1183,30 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.blockEntitiesMap.get(voxelName).data || null;
   }
 
+  setBlockEntityDataAt(px: number, py: number, pz: number, data: T) {
+    this.checkIsInitialized("set block entity data", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    const old = this.blockEntitiesMap.get(voxelName);
+    if (old) {
+      this.blockEntitiesMap.get(voxelName).data = data;
+    }
+    this.packets.push({
+      type: "METHOD",
+      method: {
+        name: "vox-builtin:update-block-entity",
+        payload: JSON.stringify({
+          id: old.id,
+          json: JSON.stringify(data),
+        }),
+      },
+    });
+  }
+
   /**
    * Get the status of a chunk.
    *
@@ -2116,11 +2144,61 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     const { type } = message;
 
+    const handleEntities = (entities: EntityProtocol<any>[]) => {
+      entities.forEach((entity) => {
+        const { id, type, metadata, operation } = entity;
+
+        if (!type.startsWith("block::")) {
+          return;
+        }
+
+        const [px, py, pz] = metadata.voxel;
+        const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
+        const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+        let data: T | null;
+        try {
+          data = JSON.parse(metadata.json);
+        } catch (error) {
+          console.error("Error parsing block entity JSON:", error);
+          data = null;
+        }
+
+        const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
+        this.blockEntityUpdateListeners.forEach((listener) => {
+          listener({
+            id,
+            voxel: [vx, vy, vz],
+            oldValue: originalData as T | null,
+            newValue: data as T | null,
+            operation,
+          });
+        });
+
+        switch (operation) {
+          case "DELETE": {
+            this.blockEntitiesMap.delete(voxelId);
+            break;
+          }
+
+          case "CREATE":
+          case "UPDATE": {
+            this.blockEntitiesMap.set(voxelId, { id, data });
+            break;
+          }
+        }
+      });
+    };
+
     switch (type) {
       case "INIT": {
-        const { json } = message;
+        const { json, entities } = message;
 
         this.initialData = json;
+
+        if (entities) {
+          handleEntities(entities);
+        }
 
         break;
       }
@@ -2128,57 +2206,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { entities } = message;
 
         if (entities && entities.length) {
-          entities.forEach((entity) => {
-            const { id, type, metadata, operation } = entity;
-
-            if (!type.startsWith("block::")) {
-              return;
-            }
-
-            const [px, py, pz] = metadata.voxel;
-            const [vx, vy, vz] = [
-              Math.floor(px),
-              Math.floor(py),
-              Math.floor(pz),
-            ];
-            const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
-
-            let data: T | null;
-            try {
-              data = JSON.parse(metadata.json);
-            } catch (error) {
-              console.error("Error parsing block entity JSON:", error);
-              data = null;
-            }
-
-            const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
-            this.blockEntityUpdateListeners.forEach((listener) => {
-              listener({
-                id,
-                voxel: [vx, vy, vz],
-                oldValue: originalData as T | null,
-                newValue: data as T | null,
-                operation,
-              });
-            });
-
-            switch (operation) {
-              case "DELETE": {
-                this.blockEntitiesMap.delete(voxelId);
-                break;
-              }
-
-              case "CREATE": {
-                this.blockEntitiesMap.set(voxelId, { id, data });
-                break;
-              }
-
-              case "UPDATE": {
-                this.blockEntitiesMap.set(voxelId, { id, data });
-                break;
-              }
-            }
-          });
+          handleEntities(entities);
         }
 
         break;
