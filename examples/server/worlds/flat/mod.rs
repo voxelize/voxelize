@@ -98,7 +98,7 @@ pub fn setup_flat_world(registry: &Registry) -> World {
     world.ecs_mut().register::<Name>();
     world.ecs_mut().register::<CountdownComp>();
 
-    world.set_entity_loader("box", |world, metadata| {
+    world.set_entity_loader("box", false, |world, metadata| {
         let position = metadata.get::<PositionComp>("position").unwrap_or_default();
 
         let body =

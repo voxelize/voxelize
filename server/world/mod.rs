@@ -510,10 +510,17 @@ impl World {
     pub fn set_entity_loader<F: Fn(&mut World, MetadataComp) -> EntityBuilder + 'static>(
         &mut self,
         etype: &str,
+        is_block: bool,
         loader: F,
     ) {
-        self.entity_loaders
-            .insert(etype.to_lowercase(), Arc::new(loader));
+        self.entity_loaders.insert(
+            if is_block {
+                format!("block::{}", etype.to_lowercase())
+            } else {
+                etype.to_lowercase()
+            },
+            Arc::new(loader),
+        );
     }
 
     /// Handler for protobuf requests from clients.

@@ -10,14 +10,14 @@ use super::components::{BotFlag, RotationComp, TextComp};
 const MAX_NODES: usize = 24;
 
 pub fn setup_entities(world: &mut World) {
-    world.set_entity_loader("floating-text", |world, metadata| {
+    world.set_entity_loader("floating-text", false, |world, metadata| {
         world
             .create_entity(&nanoid!(), "floating-text")
             .with(metadata.get::<PositionComp>("position").unwrap_or_default())
             .with(metadata.get::<TextComp>("text").unwrap_or_default())
     });
 
-    world.set_entity_loader("bot", |world, metadata| {
+    world.set_entity_loader("bot", false, |world, metadata| {
         let body =
             RigidBody::new(&AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build()).build();
         let interactor = world.physics_mut().register(&body);
