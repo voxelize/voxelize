@@ -606,6 +606,7 @@ pub struct SixFacesBuilder {
     suffix: String,
     concat: String,
     auto_uv_offset: bool,
+    rotation: Option<BlockRotation>,
 }
 
 impl SixFacesBuilder {
@@ -628,6 +629,7 @@ impl SixFacesBuilder {
             suffix: "".to_owned(),
             concat: "".to_owned(),
             auto_uv_offset: false,
+            rotation: None,
         }
     }
 
@@ -726,6 +728,11 @@ impl SixFacesBuilder {
         self
     }
 
+    pub fn with_rotation(mut self, rotation: &BlockRotation) -> Self {
+        self.rotation = Some(rotation.to_owned());
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -745,6 +752,7 @@ impl SixFacesBuilder {
             suffix,
             concat,
             auto_uv_offset,
+            rotation,
         } = self;
 
         let make_name = |side: &str| {
@@ -784,7 +792,7 @@ impl SixFacesBuilder {
         let uv_scale_y = if auto_uv_offset { scale_y } else { uv_scale_y };
         let uv_scale_z = if auto_uv_offset { scale_z } else { uv_scale_z };
 
-        BlockFaces::from_faces(vec![
+        let mut results = BlockFaces::from_faces(vec![
             BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
@@ -959,7 +967,17 @@ impl SixFacesBuilder {
                     },
                 ],
             },
-        ])
+        ]);
+
+        if let Some(rotation) = rotation {
+            for face in results.iter_mut() {
+                for corner in face.corners.iter_mut() {
+                    rotation.rotate_node(&mut corner.pos, true, true);
+                }
+            }
+        }
+
+        results
     }
 }
 
