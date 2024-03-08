@@ -27,13 +27,18 @@ impl EntitiesSaver {
         Self { saving, folder }
     }
 
-    pub fn save(&self, id: &str, etype: &str, metadata: &MetadataComp) {
+    pub fn save(&self, id: &str, etype: &str, is_block: bool, metadata: &MetadataComp) {
         if !self.saving {
             return;
         }
 
         let mut map = HashMap::new();
-        map.insert("etype".to_owned(), json!(etype.to_lowercase()));
+        let etype_value = if is_block {
+            format!("block::{}", etype.to_lowercase())
+        } else {
+            etype.to_lowercase()
+        };
+        map.insert("etype".to_owned(), json!(etype_value));
         map.insert("metadata".to_owned(), json!(metadata));
         let mut path = self.folder.clone();
         path.push(format!("{}.json", id));

@@ -193,6 +193,11 @@ export class BlockUtils {
     return false; // Default case for safety
   };
 
+  static getBlockEntityId(id: string, voxel: Coords3) {
+    const [vx, vy, vz] = voxel;
+    return `block::${id}::${vx}::${vy}::${vz}`;
+  }
+
   private constructor() {
     // NOTHING
   }

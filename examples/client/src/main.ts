@@ -880,9 +880,9 @@ const start = async () => {
     "in-game"
   );
 
-  world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
-    console.log("block update", voxel, oldValue, newValue);
-  });
+  // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
+  //   console.log("block update", voxel, oldValue, newValue);
+  // });
 
   // const inventoryTest = new VOXELIZE.ItemSlots({
   //   verticalCount: 10,

@@ -240,6 +240,7 @@ impl World {
         ecs.register::<BrainComp>();
         ecs.register::<PathComp>();
         ecs.register::<TargetComp>();
+        ecs.register::<VoxelComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -662,7 +663,7 @@ impl World {
             .create_entity()
             .with(IDComp::new(id))
             .with(EntityFlag::default())
-            .with(ETypeComp::new(etype))
+            .with(ETypeComp::new(etype, false))
             .with(MetadataComp::new())
             .with(CurrentChunkComp::default())
             .with(CollisionsComp::new())
@@ -718,9 +719,15 @@ impl World {
             .insert(ent, IDComp::new(id))
             .expect("Failed to insert ID component");
 
+        let (entity_type, is_block) = if etype.starts_with("block::") {
+            (etype.trim_start_matches("block::"), true)
+        } else {
+            (etype, false)
+        };
+
         self.ecs_mut()
             .write_storage::<ETypeComp>()
-            .insert(ent, ETypeComp::new(etype))
+            .insert(ent, ETypeComp::new(entity_type, is_block))
             .expect("Failed to insert entity type component");
 
         self.ecs_mut()
@@ -1074,8 +1081,8 @@ impl World {
                             |_| panic!("Metadata field does not exist on file: {:?}", path),
                         );
 
-                    if let Some(ent) = self.revive_entity(&id, &etype, metadata) {
-                        loaded_entities.insert(id.to_owned(), ent);
+                    if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
+                        loaded_entities.insert(id.to_owned(), (etype, ent, metadata));
                     }
                 }
             }

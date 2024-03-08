@@ -78,6 +78,11 @@ export class Entities extends Group implements NetIntercept {
       entities.forEach((entity) => {
         const { id, type, metadata, operation } = entity;
 
+        // ignore all block entities as they are handled by world
+        if (type.startsWith("block::")) {
+          return;
+        }
+
         let object = this.map.get(id);
 
         switch (operation) {

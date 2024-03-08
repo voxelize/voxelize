@@ -289,6 +289,10 @@ export type WorldServerOptions = {
  */
 export type WorldOptions = WorldClientOptions & WorldServerOptions;
 
+export type DefaultBlockEntity = {
+  voxel: Coords3;
+};
+
 /**
  * A Voxelize world handles the chunk loading and rendering, as well as any 3D objects.
  * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
@@ -330,7 +334,10 @@ export type WorldOptions = WorldClientOptions & WorldServerOptions;
  * @category Core
  * @noInheritDoc
  */
-export class World extends Scene implements NetIntercept {
+export class World<T extends DefaultBlockEntity = DefaultBlockEntity>
+  extends Scene
+  implements NetIntercept
+{
   /**
    * The options to create the world.
    */
@@ -394,6 +401,8 @@ export class World extends Scene implements NetIntercept {
     string,
     ((chunk: Chunk) => void)[]
   >();
+
+  private blockEntitiesMap: Map<string, T> = new Map();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
@@ -2064,7 +2073,7 @@ export class World extends Scene implements NetIntercept {
    *
    * @hidden
    */
-  onMessage(message: MessageProtocol) {
+  onMessage(message: MessageProtocol<any, unknown, T>) {
     const { type } = message;
 
     switch (type) {
@@ -2072,6 +2081,43 @@ export class World extends Scene implements NetIntercept {
         const { json } = message;
 
         this.initialData = json;
+
+        break;
+      }
+      case "ENTITY": {
+        const { entities } = message;
+
+        if (entities && entities.length) {
+          entities.forEach((entity) => {
+            const { id, type, metadata, operation } = entity;
+
+            if (!type.startsWith("block::")) {
+              return;
+            }
+
+            const blockEntityId = BlockUtils.getBlockEntityId(
+              id,
+              metadata.voxel
+            );
+
+            switch (operation) {
+              case "DELETE": {
+                this.blockEntitiesMap.delete(blockEntityId);
+                break;
+              }
+
+              case "CREATE": {
+                this.blockEntitiesMap.set(blockEntityId, metadata as T);
+                break;
+              }
+
+              case "UPDATE": {
+                this.blockEntitiesMap.set(blockEntityId, metadata as T);
+                break;
+              }
+            }
+          });
+        }
 
         break;
       }

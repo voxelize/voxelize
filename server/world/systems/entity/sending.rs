@@ -36,7 +36,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut updated_entities = vec![];
 
-        for (id, ent, _) in (&ids, &entities, &flags).join() {
+        for (id, ent, metadata, _) in (&ids, &entities, &metadatas, &flags).join() {
             updated_entities.push((id.0.to_owned(), ent));
         }
 
@@ -51,7 +51,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut entity_updates = vec![];
         let mut new_entity_ids = HashSet::new();
 
-        old_entities.iter().for_each(|(id, _)| {
+        old_entities.iter().for_each(|(id, (r#type, _, metadata))| {
             let mut found = false;
 
             for (new_id, _) in &updated_entities {
@@ -70,8 +70,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             entity_updates.push(EntityProtocol {
                 operation: EntityOperation::Delete,
                 id: id.to_owned(),
-                r#type: String::new(),
-                metadata: None,
+                r#type: r#type.to_owned(),
+                metadata: Some(metadata.to_string()),
             });
         });
 
@@ -103,7 +103,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
 
             // Make sure metadata is not empty before recording it.
-            new_bookkeeping_records.insert(id.0.to_owned(), ent);
+            new_bookkeeping_records.insert(
+                id.0.to_owned(),
+                (etype.0.to_owned(), ent, metadata.to_owned()),
+            );
 
             if new_entity_ids.contains(&id.0) {
                 entity_updates.push(EntityProtocol {
