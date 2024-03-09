@@ -527,14 +527,7 @@ export class World extends Scene implements NetIntercept {
 
     const mesh: MeshProtocol = {
       level,
-      geometries: geometries.map((geometry) => ({
-        indices: geometry.indices,
-        positions: geometry.positions,
-        uvs: geometry.uvs,
-        lights: geometry.lights,
-        voxel: geometry.voxel,
-        faceName: geometry.faceName,
-      })),
+      geometries,
     };
 
     this.buildChunkMesh(cx, cz, mesh);
@@ -619,19 +612,25 @@ export class World extends Scene implements NetIntercept {
     });
   }
 
-  async getBlockTextureAt(voxel: Coords3, faceName: string) {
-    const idOrName = this.getBlockAt(...voxel).id;
-    return (
-      await this.applyBlockTextureAt(
-        idOrName,
-        faceName,
-        AtlasTexture.makeUnknownTexture(this.options.textureUnitDimension),
-        voxel
-      )
-    ).map;
+  getIsolatedBlockMaterialAt(
+    voxel: Coords3,
+    faceName: string,
+    defaultDimension?: number
+  ) {
+    const block = this.getBlockAt(...voxel);
+    const idOrName = block.id;
+    return this.applyBlockTextureAt(
+      idOrName,
+      faceName,
+      new AtlasTexture(
+        1,
+        defaultDimension ?? this.options.textureUnitDimension
+      ),
+      voxel
+    );
   }
 
-  async applyBlockTextureAt(
+  applyBlockTextureAt(
     idOrName: number | string,
     faceName: string,
     source: Texture,
@@ -2651,7 +2650,7 @@ export class World extends Scene implements NetIntercept {
 
     const meshes = geometries
       .map((geo) => {
-        const { voxel, faceName, indices, lights, positions, uvs } = geo;
+        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
 
         geometry.setAttribute("position", new BufferAttribute(positions, 3));
@@ -2659,8 +2658,35 @@ export class World extends Scene implements NetIntercept {
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
 
-        const material = this.getBlockFaceMaterial(voxel, faceName);
-        if (!material) return;
+        let material = this.getBlockFaceMaterial(voxel, faceName);
+        if (!material) {
+          const block = this.getBlockById(voxel);
+          const face = block.faces.find((face) => face.name === faceName);
+
+          // if not even isolated, we don't want to care about it
+          if (!face.isolated || !at) {
+            console.warn("Unlikely situation happened..."); // todo: better console log
+            return;
+          }
+
+          const isolatedMaterial = this.getIsolatedBlockMaterialAt(
+            at,
+            faceName
+          );
+          // test draw some random color
+          if (isolatedMaterial.map instanceof AtlasTexture) {
+            isolatedMaterial.map.drawImageToRange(
+              {
+                startU: 0,
+                endU: 1,
+                startV: 0,
+                endV: 1,
+              },
+              new Color(Math.random(), Math.random(), Math.random())
+            );
+          }
+          material = isolatedMaterial;
+        }
 
         const mesh = new Mesh(geometry, material);
         mesh.position.set(

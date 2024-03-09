@@ -13,6 +13,7 @@ let registry: Registry;
 
 type InProgressGeometryProtocol = {
   voxel: number;
+  at?: Coords3;
   faceName?: string;
   positions: number[];
   uvs: number[];
@@ -223,6 +224,10 @@ onmessage = function (e) {
 
           if (face.independent || face.isolated) {
             geometry.faceName = face.name;
+          }
+
+          if (face.isolated) {
+            geometry.at = [vx, vy, vz];
           }
 
           // Process the face
@@ -614,6 +619,7 @@ onmessage = function (e) {
         uvs: new Float32Array(geometry.uvs),
         voxel: geometry.voxel,
         faceName: geometry.faceName,
+        at: geometry.at,
       };
 
       arrayBuffers.push(packedGeometry.indices.buffer);

@@ -1,5 +1,6 @@
 export type GeometryProtocol = {
   voxel: number;
+  at?: [number, number, number];
   faceName?: string;
   positions: Float32Array;
   uvs: Float32Array;

@@ -345,6 +345,10 @@ impl Mesher {
                             geometry.face_name = Some(face.name.to_owned());
                         }
 
+                        if face.isolated {
+                            geometry.at = vec![vx, vy, vz];
+                        }
+
                         Mesher::process_face(
                             vx,
                             vy,
