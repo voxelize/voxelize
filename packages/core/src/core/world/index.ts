@@ -569,6 +569,15 @@ export class World extends Scene implements NetIntercept {
       typeof source === "string" ? await this.loader.loadImage(source) : source;
 
     blockFaces.forEach((face) => {
+      if (face.isolated) {
+        console.warn(
+          "Attempting to apply texture onto an isolated face: ",
+          block.name,
+          face.name
+        );
+        return;
+      }
+
       const mat = this.getBlockFaceMaterial(block.id, face.name);
 
       // If the face is independent, that means this face does not share a texture atlas with other faces.

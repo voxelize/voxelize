@@ -136,11 +136,12 @@ class Loader {
     source: string,
     onLoaded?: (image: HTMLImageElement) => void
   ) => {
-    const promise = new Promise<HTMLImageElement>((resolve) => {
+    const promise = new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.crossOrigin = "anonymous"; // Fix cross origin
       image.src = source;
 
+      image.onerror = reject;
       image.onload = () => {
         this.assetPromises.delete(source);
 
