@@ -1,4 +1,5 @@
 use crossbeam_channel::Receiver;
+use hashbrown::HashMap;
 use nalgebra::Vector3;
 use rapier3d::prelude::{
     vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
@@ -7,6 +8,7 @@ use rapier3d::prelude::{
     RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
     RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
 };
+use specs::Entity;
 
 use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
 
@@ -36,6 +38,7 @@ pub struct Physics {
     collision_recv: Receiver<CollisionEvent>,
     event_handler: ChannelEventCollector,
     gravity: Vector3<f32>,
+    pub entity_to_handlers: HashMap<Entity, (ColliderHandle, RapierBodyHandle)>,
 }
 
 impl Physics {
@@ -58,6 +61,7 @@ impl Physics {
             pipeline: PhysicsPipeline::default(),
             event_handler,
             gravity: vector![0.0, 0.0, 0.0],
+            entity_to_handlers: HashMap::new(),
         }
     }
 

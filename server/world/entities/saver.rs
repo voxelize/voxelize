@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use log::{info, warn};
 use serde_json::{json, Value};
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
@@ -27,13 +28,21 @@ impl EntitiesSaver {
         Self { saving, folder }
     }
 
-    pub fn save(&self, id: &str, etype: &str, metadata: &MetadataComp) {
+    pub fn save(&self, id: &str, etype: &str, is_block: bool, metadata: &MetadataComp) {
         if !self.saving {
             return;
         }
 
         let mut map = HashMap::new();
-        map.insert("etype".to_owned(), json!(etype.to_lowercase()));
+        let etype_value = if is_block {
+            format!(
+                "block::{}",
+                etype.to_lowercase().trim_start_matches("block::")
+            )
+        } else {
+            etype.to_lowercase()
+        };
+        map.insert("etype".to_owned(), json!(etype_value));
         map.insert("metadata".to_owned(), json!(metadata));
         let mut path = self.folder.clone();
         path.push(format!("{}.json", id));
@@ -50,7 +59,12 @@ impl EntitiesSaver {
 
         let mut path = self.folder.clone();
         path.push(format!("{}.json", id));
-        fs::remove_file(&path).expect("Unable to remove entity file.");
+        if let Err(e) = fs::remove_file(&path) {
+            warn!(
+                "Failed to remove entity file: {}. Entity could still be saving?",
+                e
+            );
+        }
     }
 }
 
