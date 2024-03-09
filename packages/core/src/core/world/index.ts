@@ -2640,6 +2640,7 @@ export class World extends Scene implements NetIntercept {
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
     chunk.meshes.get(level)?.forEach((mesh) => {
+      if (!mesh) return;
       mesh.geometry.dispose();
       chunk.group.remove(mesh);
     });
@@ -2648,32 +2649,34 @@ export class World extends Scene implements NetIntercept {
 
     if (geometries.length === 0) return;
 
-    const meshes = geometries.map((geo) => {
-      const { voxel, faceName, indices, lights, positions, uvs } = geo;
-      const geometry = new BufferGeometry();
+    const meshes = geometries
+      .map((geo) => {
+        const { voxel, faceName, indices, lights, positions, uvs } = geo;
+        const geometry = new BufferGeometry();
 
-      geometry.setAttribute("position", new BufferAttribute(positions, 3));
-      geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-      geometry.setAttribute("light", new BufferAttribute(lights, 1));
-      geometry.setIndex(new BufferAttribute(indices, 1));
+        geometry.setAttribute("position", new BufferAttribute(positions, 3));
+        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        geometry.setIndex(new BufferAttribute(indices, 1));
 
-      const material = this.getBlockFaceMaterial(voxel, faceName);
-      if (!material) return;
+        const material = this.getBlockFaceMaterial(voxel, faceName);
+        if (!material) return;
 
-      const mesh = new Mesh(geometry, material);
-      mesh.position.set(
-        cx * chunkSize,
-        level * heightPerSubChunk,
-        cz * chunkSize
-      );
-      mesh.updateMatrix();
-      mesh.matrixAutoUpdate = false;
-      mesh.matrixWorldAutoUpdate = false;
-      mesh.userData = { isChunk: true, voxel };
+        const mesh = new Mesh(geometry, material);
+        mesh.position.set(
+          cx * chunkSize,
+          level * heightPerSubChunk,
+          cz * chunkSize
+        );
+        mesh.updateMatrix();
+        mesh.matrixAutoUpdate = false;
+        mesh.matrixWorldAutoUpdate = false;
+        mesh.userData = { isChunk: true, voxel };
 
-      chunk.group.add(mesh);
-      return mesh;
-    });
+        chunk.group.add(mesh);
+        return mesh;
+      })
+      .filter((m) => !!m);
 
     if (!this.children.includes(chunk.group)) {
       this.add(chunk.group);
