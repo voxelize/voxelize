@@ -465,12 +465,8 @@ pub fn setup_registry() -> Registry {
                             .offset_y(0.2)
                             .prefix("top")
                             .concat("-")
-<<<<<<< Updated upstream
-                            .build(),
-=======
                             .build()
                             .isolated_at(SIX_FACES_PY),
->>>>>>> Stashed changes
                     ),
             )
             .aabbs(&[
