@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use log::{info, warn};
 use serde_json::{json, Value};
 use specs::{Entity, World as ECSWorld, WorldExt};
 use std::fs::{self, File};
@@ -58,7 +59,12 @@ impl EntitiesSaver {
 
         let mut path = self.folder.clone();
         path.push(format!("{}.json", id));
-        fs::remove_file(&path).expect("Unable to remove entity file.");
+        if let Err(e) = fs::remove_file(&path) {
+            warn!(
+                "Failed to remove entity file: {}. Entity could still be saving?",
+                e
+            );
+        }
     }
 }
 

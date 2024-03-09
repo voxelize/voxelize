@@ -1,5 +1,5 @@
 use hashbrown::{HashMap, HashSet};
-use log::trace;
+use log::{info, trace};
 use specs::{Entities, Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -71,7 +71,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         old_entities
             .iter()
-            .for_each(|(id, (r#type, ent, metadata))| {
+            .for_each(|(id, (etype, ent, metadata))| {
                 let mut found = false;
 
                 for (new_id, _) in &updated_entities {
@@ -87,13 +87,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
                 entities_saver.remove(id);
 
-                trace!(
-                    "Entity with ID: {} of type: '{:?}' and metadata: '{:?}' is removed.",
-                    id,
-                    r#type,
-                    metadata
-                );
-
                 if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
                     physics.unregister(body_handle, collider_handle);
                 }
@@ -101,7 +94,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 entity_updates.push(EntityProtocol {
                     operation: EntityOperation::Delete,
                     id: id.to_owned(),
-                    r#type: r#type.to_owned(),
+                    r#type: etype.to_owned(),
                     metadata: Some(metadata.to_string()),
                 });
             });

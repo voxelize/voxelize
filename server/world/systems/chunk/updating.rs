@@ -124,11 +124,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 if current_type.is_entity {
                     let entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
                     if let Some(entity) = entity {
-                        lazy.exec_mut(move |world| {
-                            world
-                                .delete_entity(entity)
-                                .expect("Failed to delete entity");
-                        })
+                        entities.delete(entity).expect("Failed to delete entity");
                     }
                 }
                 // need to add an entity
