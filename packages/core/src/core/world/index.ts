@@ -610,6 +610,62 @@ export class World extends Scene implements NetIntercept {
     });
   }
 
+  async getBlockTextureAt(voxel: Coords3, faceName: string) {
+    const idOrName = this.getBlockAt(...voxel).id;
+    return (
+      await this.applyBlockTextureAt(
+        idOrName,
+        faceName,
+        AtlasTexture.makeUnknownTexture(this.options.textureUnitDimension),
+        voxel
+      )
+    ).map;
+  }
+
+  async applyBlockTextureAt(
+    idOrName: number | string,
+    faceName: string,
+    source: Texture,
+    voxel: Coords3
+  ) {
+    const block = this.getBlockOf(idOrName);
+    const faces = this.getBlockFacesByFaceNames(block.id, faceName);
+
+    if (!faces || faces.length !== 1) {
+      throw new Error(
+        `Face(s) "${faceName}" does not exist on block "${block.name}" or there are multiple faces with the same name.`
+      );
+    }
+
+    const [face] = faces;
+    if (!face.isolated) {
+      throw new Error(
+        `Cannot apply isolated texture to face "${face.name}" on block "${block.name}" because it is not isolated.`
+      );
+    }
+
+    let mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
+    if (!mat) {
+      const isolatedMat = this.makeShaderMaterial();
+
+      const map = source;
+      isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
+      isolatedMat.transparent = block.isSeeThrough;
+      isolatedMat.map = map;
+      isolatedMat.uniforms.map.value = map;
+
+      const key = this.makeChunkMaterialKey(block.id, face.name, voxel);
+      this.chunks.materials.set(key, isolatedMat);
+
+      mat = isolatedMat;
+
+      mat.map.needsUpdate = true;
+      mat.needsUpdate = true;
+    }
+
+    return mat;
+  }
+
   /**
    * Apply multiple block textures at once. See {@link applyBlockTexture} for more information.
    *
@@ -1188,10 +1244,20 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getBlockFaceMaterial(idOrName: number | string, faceName?: string) {
+  getBlockFaceMaterial(
+    idOrName: number | string,
+    faceName?: string,
+    voxel?: Coords3
+  ) {
     this.checkIsInitialized("get material", false);
 
     const block = this.getBlockOf(idOrName);
+
+    if (faceName && block.isolatedFaces.has(faceName)) {
+      return this.chunks.materials.get(
+        this.makeChunkMaterialKey(block.id, faceName, voxel)
+      );
+    }
 
     if (faceName && block.independentFaces.has(faceName)) {
       return this.chunks.materials.get(
@@ -1792,7 +1858,7 @@ export class World extends Scene implements NetIntercept {
 
         const matOptions = {
           transparent: isSeeThrough,
-          map: chunkMat.map,
+          map: chunkMat?.map,
           side: isSeeThrough ? DoubleSide : FrontSide,
         };
 
@@ -1948,10 +2014,13 @@ export class World extends Scene implements NetIntercept {
       const lowerName = name.toLowerCase();
 
       block.independentFaces = new Set();
+      block.isolatedFaces = new Set();
 
       block.faces.forEach((face) => {
         if (face.independent) {
           block.independentFaces.add(face.name);
+        } else if (face.isolated) {
+          block.isolatedFaces.add(face.name);
         }
       });
 
@@ -3106,7 +3175,8 @@ export class World extends Scene implements NetIntercept {
       const independentFacesCount = block.faces.filter(
         (f) => f.independent
       ).length;
-      return acc + (block.faces.length - independentFacesCount);
+      const isolatedFaces = block.faces.filter((f) => f.isolated).length;
+      return acc + (block.faces.length - independentFacesCount - isolatedFaces);
     }, 0);
 
     const countPerSide = perSide(totalFaces);
@@ -3130,8 +3200,12 @@ export class World extends Scene implements NetIntercept {
     });
   }
 
-  private makeChunkMaterialKey(id: number, faceName?: string) {
-    return faceName ? `${id}-${faceName}` : `${id}`;
+  private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {
+    return voxel
+      ? `${id}-${faceName}-${voxel.join("-")}`
+      : faceName
+      ? `${id}-${faceName}`
+      : `${id}`;
   }
 
   private trackChunkAt(vx: number, vy: number, vz: number) {

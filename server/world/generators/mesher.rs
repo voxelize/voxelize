@@ -322,7 +322,16 @@ impl Mesher {
                     let uv_map = registry.get_uv_map(block);
 
                     faces.iter().enumerate().for_each(|(idx, face)| {
-                        let key = if face.independent {
+                        let key = if face.isolated {
+                            format!(
+                                "{}::{}::{}-{}-{}",
+                                name.to_lowercase(),
+                                face.name.to_lowercase(),
+                                vx,
+                                vy,
+                                vz
+                            )
+                        } else if face.independent {
                             format!("{}::{}", name.to_lowercase(), face.name.to_lowercase())
                         } else {
                             name.to_lowercase()
@@ -332,7 +341,7 @@ impl Mesher {
 
                         geometry.voxel = id;
 
-                        if face.independent {
+                        if face.independent || face.isolated {
                             geometry.face_name = Some(face.name.to_owned());
                         }
 

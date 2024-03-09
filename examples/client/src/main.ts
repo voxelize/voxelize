@@ -583,6 +583,28 @@ inputs.bind("]", () => {
   );
 });
 
+<<<<<<< Updated upstream
+=======
+world.addBlockEntityUpdateListener((data) => {
+  if (data.operation === "UPDATE" || data.operation === "CREATE") {
+    const color = data.newValue.color ?? [0, 0, 0];
+    const texture = world.getBlockTextureAt(data.voxel, "top-py-");
+    if (texture instanceof VOXELIZE.AtlasTexture) {
+      texture.drawImageToRange(
+        {
+          startU: 0,
+          endU: 1,
+          startV: 0,
+          endV: 1,
+        },
+        new THREE.Color(...color)
+      );
+      console.log(texture);
+    }
+  }
+});
+
+>>>>>>> Stashed changes
 let frame: any;
 
 const start = async () => {
@@ -701,9 +723,9 @@ const start = async () => {
     return block ? block.name : "<Empty>";
   });
 
-  debug.registerDisplay("Build radius", () => {
-    return radius;
-  });
+  // debug.registerDisplay("Build radius", () => {
+  //   return radius;
+  // });
 
   // debug.registerDisplay("# of triangles", () => {
   //   return renderer.info.render.triangles;
@@ -847,6 +869,17 @@ const start = async () => {
           return;
       }
 
+<<<<<<< Updated upstream
+=======
+      if (currentBlock.name.toLowerCase() === "mushroom") {
+        const [tx, ty, tz] = voxelInteract.target;
+        world.setBlockEntityDataAt(tx, ty, tz, {
+          color: [Math.random(), Math.random(), Math.random()],
+        });
+        return;
+      }
+
+>>>>>>> Stashed changes
       bulkPlace();
     },
     "in-game"

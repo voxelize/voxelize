@@ -42,7 +42,7 @@ onmessage = function (e) {
   }
 
   const { chunksData, min, max } = e.data;
-  const { chunkSize, maxLightLevel } = e.data.options as WorldOptions;
+  const { chunkSize } = e.data.options as WorldOptions;
 
   const chunks: (Chunk | null)[] = chunksData.map((chunkData: any) => {
     if (!chunkData) {
@@ -205,7 +205,9 @@ onmessage = function (e) {
         }
 
         for (const face of faces) {
-          const key = face.independent
+          const key = face.isolated
+            ? `${name.toLowerCase()}::${face.name.toLowerCase()}::${vx}-${vy}-${vz}`
+            : face.independent
             ? `${name.toLowerCase()}::${face.name.toLowerCase()}`
             : name.toLowerCase();
 
@@ -219,7 +221,7 @@ onmessage = function (e) {
               indices: [],
             } as InProgressGeometryProtocol);
 
-          if (face.independent) {
+          if (face.independent || face.isolated) {
             geometry.faceName = face.name;
           }
 
