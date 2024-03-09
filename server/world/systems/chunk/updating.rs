@@ -140,7 +140,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     lazy.insert(
                         entity,
                         ETypeComp::new(
-                            &format!("block::{}", &updated_type.name.to_lowercase()),
+                            &format!(
+                                "block::{}",
+                                &updated_type
+                                    .name
+                                    .to_lowercase()
+                                    .trim_start_matches("block::")
+                            ),
                             true,
                         ),
                     );

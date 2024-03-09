@@ -730,6 +730,12 @@ impl World {
         etype: &str,
         metadata: MetadataComp,
     ) -> Option<Entity> {
+        if etype.starts_with("block::") {
+            let entity = self.create_entity(id, etype).build();
+            self.populate_entity(entity, id, etype, metadata);
+            return Some(entity);
+        }
+
         if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
             warn!("Tried to revive unknown entity type: {}", etype);
             return None;
@@ -754,7 +760,7 @@ impl World {
             .expect("Failed to insert ID component");
 
         let (entity_type, is_block) = if etype.starts_with("block::") {
-            (etype.trim_start_matches("block::"), true)
+            (etype, true)
         } else {
             (etype, false)
         };

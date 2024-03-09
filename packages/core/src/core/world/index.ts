@@ -2229,7 +2229,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private handleEntities = (entities: EntityProtocol<any>[]) => {
-    console.log(entities);
     entities.forEach((entity) => {
       const { id, type, metadata, operation } = entity;
 

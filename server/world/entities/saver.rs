@@ -34,7 +34,10 @@ impl EntitiesSaver {
 
         let mut map = HashMap::new();
         let etype_value = if is_block {
-            format!("block::{}", etype.to_lowercase())
+            format!(
+                "block::{}",
+                etype.to_lowercase().trim_start_matches("block::")
+            )
         } else {
             etype.to_lowercase()
         };

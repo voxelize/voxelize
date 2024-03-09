@@ -1,4 +1,5 @@
 use hashbrown::{HashMap, HashSet};
+use log::trace;
 use specs::{Entities, Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
@@ -85,6 +86,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 }
 
                 entities_saver.remove(id);
+
+                trace!(
+                    "Entity with ID: {} of type: '{:?}' and metadata: '{:?}' is removed.",
+                    id,
+                    r#type,
+                    metadata
+                );
 
                 if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
                     physics.unregister(body_handle, collider_handle);
