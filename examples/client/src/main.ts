@@ -682,15 +682,6 @@ const start = async () => {
   hud.connect(inputs, "in-game");
   controls.attachHud(hud);
 
-  gui.add(hud.mesh.quaternion, "x", -Math.PI, Math.PI, 0.01);
-  gui.add(hud.mesh.quaternion, "y", -Math.PI, Math.PI, 0.01);
-  gui.add(hud.mesh.quaternion, "z", -Math.PI, Math.PI, 0.01);
-  gui.add(hud.mesh.quaternion, "w", -Math.PI, Math.PI, 0.01);
-
-  gui.add(hud.mesh.position, "x", -10, 10, 0.01);
-  gui.add(hud.mesh.position, "y", -10, 10, 0.01);
-  gui.add(hud.mesh.position, "z", -10, 10, 0.01);
-
   // debug.registerDisplay("Active Voxels", async () => {
   //   const data = await fetch(`${BACKEND_SERVER}info`);
   //   const json = await data.json();

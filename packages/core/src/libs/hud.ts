@@ -49,8 +49,8 @@ export class Hud {
     pMid2.y = -0.82;
     const pMid3 = pMid2.clone();
     pMid3.y = -1.5;
-    const pFinal = pInitial.clone();
-    pFinal.y = -1.8;
+    const pMid4 = pInitial.clone();
+    pMid4.y = -1.8;
     const positionKF = new THREE.VectorKeyframeTrack(
       ".position",
       [0, 0.1, 0.2, 0.3, 0.4, 0.5],
@@ -67,9 +67,9 @@ export class Hud {
         pMid3.x,
         pMid3.y,
         pMid3.z,
-        pFinal.x,
-        pFinal.y,
-        pFinal.z,
+        pMid4.x,
+        pMid4.y,
+        pMid4.z,
         pInitial.x,
         pInitial.y,
         pInitial.z,
@@ -83,7 +83,7 @@ export class Hud {
     qMid2.z = 0.52;
     const qMid3 = qMid2.clone();
     qMid3.z = 0.75;
-    const qFinal = qInitial.clone();
+    const qMid4 = qInitial.clone();
 
     const quaternionKF = new THREE.QuaternionKeyframeTrack(
       ".quaternion",
@@ -105,10 +105,10 @@ export class Hud {
         qMid3.y,
         qMid3.z,
         qMid3.w,
-        qFinal.x,
-        qFinal.y,
-        qFinal.z,
-        qFinal.w,
+        qMid4.x,
+        qMid4.y,
+        qMid4.z,
+        qMid4.w,
         qInitial.x,
         qInitial.y,
         qInitial.z,
