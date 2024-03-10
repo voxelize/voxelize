@@ -12,7 +12,7 @@ import {
   Vector3,
 } from "three";
 
-import { Character, setWorkerInterval } from "../libs";
+import { Character, Hud } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -345,6 +345,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   public character?: Character;
 
   /**
+   * A potential link to a {@link Hud} instance. This can be added by
+   * calling {@link RigidControls.attachHud} to add a mesh for the first person
+   * view.
+   */
+  public hud?: Hud;
+
+  /**
    * The DOM element that pointerlock controls are applied to.
    */
   public domElement: HTMLElement;
@@ -545,6 +552,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * Update for the camera of the game. This should be called in the game update loop.
    * What this does is that it updates the rigid body, and then interpolates the camera's position and rotation
    * to the new position and rotation. If a character is attached, then the character is also updated.
+   * If the hud is attached, then the hud is also updated.
    */
   update = () => {
     // Normalize the delta
@@ -566,6 +574,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       this.character.set(cameraPosition, [dx, dy, dz]);
       this.character.update();
+
+      this.hud.update(delta);
     }
 
     this.moveRigidBody();
@@ -883,6 +893,17 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.body.aabb.maxZ = this.body.aabb.minZ + this.options.bodyDepth;
 
     this.character = character;
+  };
+
+  /**
+   * Attach a {@link Hud} to this controls instance. This can be seen in 1st person mode.
+   *
+   * @param hud The {@link Hud} to attach to this controls instance.
+   */
+  attachHud = (hud: Hud) => {
+    this.camera.add(hud.mesh);
+
+    this.hud = hud;
   };
 
   /**
