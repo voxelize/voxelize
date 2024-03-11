@@ -467,6 +467,7 @@ pub fn setup_registry() -> Registry {
                             .prefix("top")
                             .concat("-")
                             .build()
+                            .isolated_at(SIX_FACES_PY)
                             .independent_at(SIX_FACES_PY),
                     ),
             )

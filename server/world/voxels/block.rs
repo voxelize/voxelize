@@ -321,16 +321,24 @@ pub struct CornerData {
 pub struct BlockFace {
     pub name: String,
     pub independent: bool,
+    pub isolated: bool,
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
     pub range: UV,
 }
 
 impl BlockFace {
-    pub fn new(name: String, independent: bool, dir: [i32; 3], corners: [CornerData; 4]) -> Self {
+    pub fn new(
+        name: String,
+        independent: bool,
+        isolated: bool,
+        dir: [i32; 3],
+        corners: [CornerData; 4],
+    ) -> Self {
         Self {
             name,
             independent,
+            isolated,
             dir,
             corners,
             range: UV::default(),
@@ -339,6 +347,10 @@ impl BlockFace {
 
     pub fn into_independent(&mut self) {
         self.independent = true;
+    }
+
+    pub fn into_isolated(&mut self) {
+        self.isolated = true;
     }
 }
 
@@ -371,6 +383,24 @@ impl BlockFaces {
     pub fn independent_at_all(mut self, indices: Vec<usize>) -> Self {
         for index in indices {
             self = self.independent_at(index);
+        }
+
+        self
+    }
+
+    pub fn isolated_at(mut self, index: usize) -> Self {
+        if index >= self.faces.len() {
+            return self;
+        }
+
+        self.faces[index].into_isolated();
+
+        self
+    }
+
+    pub fn isolated_at_all(mut self, indices: Vec<usize>) -> Self {
+        for index in indices {
+            self = self.isolated_at(index);
         }
 
         self
@@ -525,6 +555,7 @@ impl DiagonalFacesBuilder {
                 name: make_name("one"),
                 dir: [0, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -557,6 +588,7 @@ impl DiagonalFacesBuilder {
                 name: make_name("two"),
                 dir: [0, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -797,6 +829,7 @@ impl SixFacesBuilder {
                 name: make_name("px"),
                 dir: [1, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -828,6 +861,7 @@ impl SixFacesBuilder {
                 name: make_name("py"),
                 dir: [0, 1, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -859,6 +893,7 @@ impl SixFacesBuilder {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -890,6 +925,7 @@ impl SixFacesBuilder {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -917,6 +953,7 @@ impl SixFacesBuilder {
                 name: make_name("ny"),
                 dir: [0, -1, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -944,6 +981,7 @@ impl SixFacesBuilder {
                 name: make_name("nz"),
                 dir: [0, 0, -1],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {

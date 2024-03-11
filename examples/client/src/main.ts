@@ -708,9 +708,9 @@ const start = async () => {
     return block ? block.name : "<Empty>";
   });
 
-  debug.registerDisplay("Build radius", () => {
-    return radius;
-  });
+  // debug.registerDisplay("Build radius", () => {
+  //   return radius;
+  // });
 
   // debug.registerDisplay("# of triangles", () => {
   //   return renderer.info.render.triangles;
