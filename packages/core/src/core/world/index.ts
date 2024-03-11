@@ -1,8 +1,12 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
-import { GeometryProtocol } from "@voxelize/transport";
-import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import { EntityOperation, GeometryProtocol } from "@voxelize/transport";
+import {
+  EntityProtocol,
+  MeshProtocol,
+  MessageProtocol,
+} from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
@@ -78,6 +82,14 @@ export type BlockUpdateListener = (args: {
   oldValue: number;
   newValue: number;
   voxel: Coords3;
+}) => void;
+
+export type BlockEntityUpdateListener<T> = (args: {
+  id: string;
+  voxel: Coords3;
+  operation: EntityOperation;
+  oldValue: T | null;
+  newValue: T | null;
 }) => void;
 
 const VOXEL_NEIGHBORS = [
@@ -330,7 +342,7 @@ export type WorldOptions = WorldClientOptions & WorldServerOptions;
  * @category Core
  * @noInheritDoc
  */
-export class World extends Scene implements NetIntercept {
+export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The options to create the world.
    */
@@ -395,12 +407,22 @@ export class World extends Scene implements NetIntercept {
     ((chunk: Chunk) => void)[]
   >();
 
+  private blockEntitiesMap: Map<
+    string,
+    {
+      id: string;
+      data: T | null;
+    }
+  > = new Map();
+  private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
+
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
   /**
    * The JSON data received from the world. Call `initialize` to initialize.
    */
   private initialData: any = null;
+  private initialEntities: any = null;
 
   /**
    * The internal time in seconds.
@@ -1215,6 +1237,41 @@ export class World extends Scene implements NetIntercept {
     return block;
   }
 
+  getBlockEntityDataAt(px: number, py: number, pz: number): T | null {
+    this.checkIsInitialized("get block entity data", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    return this.blockEntitiesMap.get(voxelName).data || null;
+  }
+
+  setBlockEntityDataAt(px: number, py: number, pz: number, data: T) {
+    this.checkIsInitialized("set block entity data", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    const old = this.blockEntitiesMap.get(voxelName);
+    if (old) {
+      this.blockEntitiesMap.get(voxelName).data = data;
+    }
+    this.packets.push({
+      type: "METHOD",
+      method: {
+        name: "vox-builtin:update-block-entity",
+        payload: JSON.stringify({
+          id: old.id,
+          json: JSON.stringify(data),
+        }),
+      },
+    });
+  }
+
   /**
    * Get the status of a chunk.
    *
@@ -1301,6 +1358,18 @@ export class World extends Scene implements NetIntercept {
 
   addBlockUpdateListener = (listener: BlockUpdateListener) => {
     this.blockUpdateListeners.add(listener);
+
+    return () => {
+      this.blockUpdateListeners.delete(listener);
+    };
+  };
+
+  addBlockEntityUpdateListener = (listener: BlockEntityUpdateListener<T>) => {
+    this.blockEntityUpdateListeners.add(listener);
+
+    return () => {
+      this.blockEntityUpdateListeners.delete(listener);
+    };
   };
 
   /**
@@ -2069,6 +2138,11 @@ export class World extends Scene implements NetIntercept {
     this.isInitialized = true;
 
     this.renderRadius = this.options.defaultRenderRadius;
+
+    if (this.initialEntities) {
+      this.handleEntities(this.initialEntities);
+      this.initialEntities = null;
+    }
   }
 
   update(
@@ -2141,14 +2215,36 @@ export class World extends Scene implements NetIntercept {
    *
    * @hidden
    */
-  onMessage(message: MessageProtocol) {
+  onMessage(
+    message: MessageProtocol<
+      any,
+      unknown,
+      {
+        voxel: Coords3;
+        json: string;
+      }
+    >
+  ) {
     const { type } = message;
 
     switch (type) {
       case "INIT": {
-        const { json } = message;
+        const { json, entities } = message;
 
         this.initialData = json;
+
+        if (entities) {
+          this.initialEntities = entities;
+        }
+
+        break;
+      }
+      case "ENTITY": {
+        const { entities } = message;
+
+        if (entities && entities.length) {
+          this.handleEntities(entities);
+        }
 
         break;
       }
@@ -2208,6 +2304,52 @@ export class World extends Scene implements NetIntercept {
       }
     }
   }
+
+  private handleEntities = (entities: EntityProtocol<any>[]) => {
+    entities.forEach((entity) => {
+      const { id, type, metadata, operation } = entity;
+
+      if (!type.startsWith("block::")) {
+        return;
+      }
+
+      const [px, py, pz] = metadata.voxel;
+      const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
+      const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+      let data: T | null;
+      try {
+        data = JSON.parse(metadata.json);
+      } catch (error) {
+        console.error("Error parsing block entity JSON:", error);
+        data = null;
+      }
+
+      const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
+      this.blockEntityUpdateListeners.forEach((listener) => {
+        listener({
+          id,
+          voxel: [vx, vy, vz],
+          oldValue: (originalData as any)?.data ?? null,
+          newValue: data as T | null,
+          operation,
+        });
+      });
+
+      switch (operation) {
+        case "DELETE": {
+          this.blockEntitiesMap.delete(voxelId);
+          break;
+        }
+
+        case "CREATE":
+        case "UPDATE": {
+          this.blockEntitiesMap.set(voxelId, { id, data });
+          break;
+        }
+      }
+    });
+  };
 
   get time() {
     return this._time;

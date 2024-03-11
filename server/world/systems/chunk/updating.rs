@@ -1,12 +1,14 @@
 use std::collections::VecDeque;
 
 use log::info;
+use nanoid::nanoid;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use specs::{ReadExpect, System, WriteExpect};
+use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
 use crate::{
-    BlockUtils, ChunkUtils, Chunks, ClientFilter, LightColor, LightNode, Lights, Mesher, Message,
-    MessageQueue, MessageType, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess,
+    BlockUtils, ChunkUtils, Chunks, ClientFilter, CollisionsComp, CurrentChunkComp, ETypeComp,
+    EntityFlag, IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueue,
+    MessageType, MetadataComp, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp,
     VoxelUpdate, WorldConfig,
 };
 
@@ -35,10 +37,21 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, Mesher>,
+        ReadExpect<'a, LazyUpdate>,
+        Entities<'a>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, stats, mut message_queue, mut chunks, mut mesher) = data;
+        let (
+            config,
+            registry,
+            stats,
+            mut message_queue,
+            mut chunks,
+            mut mesher,
+            mut lazy,
+            mut entities,
+        ) = data;
 
         let current_tick = stats.tick as u64;
         let max_height = config.max_height as i32;
@@ -106,6 +119,38 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                 let current_type = registry.get_block_by_id(current_id);
                 let updated_type = registry.get_block_by_id(updated_id);
+
+                // need to remove an entity
+                if current_type.is_entity {
+                    let entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
+                    if let Some(entity) = entity {
+                        entities.delete(entity).expect("Failed to delete entity");
+                    }
+                }
+                // need to add an entity
+                if updated_type.is_entity {
+                    let entity = entities.create();
+                    chunks.block_entities.insert(voxel.clone(), entity);
+                    lazy.insert(entity, IDComp::new(&nanoid!()));
+                    lazy.insert(entity, EntityFlag::default());
+                    lazy.insert(
+                        entity,
+                        ETypeComp::new(
+                            &format!(
+                                "block::{}",
+                                &updated_type
+                                    .name
+                                    .to_lowercase()
+                                    .trim_start_matches("block::")
+                            ),
+                            true,
+                        ),
+                    );
+                    lazy.insert(entity, MetadataComp::new());
+                    lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
+                    lazy.insert(entity, CurrentChunkComp::default());
+                    lazy.insert(entity, JsonComp::new("{}"));
+                }
 
                 let current_transparency = current_type.get_rotated_transparency(&rotation);
                 let updated_transparency = if updated_type.rotatable {

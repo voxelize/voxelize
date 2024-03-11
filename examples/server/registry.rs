@@ -445,6 +445,7 @@ pub fn setup_registry() -> Registry {
             .build(),
         Block::new("Mushroom")
             .id(400)
+            .is_entity(true)
             .faces(
                 &BlockFaces::six_faces()
                     .scale_x(0.3)
@@ -466,7 +467,8 @@ pub fn setup_registry() -> Registry {
                             .prefix("top")
                             .concat("-")
                             .build()
-                            .isolated_at(SIX_FACES_PY),
+                            .isolated_at(SIX_FACES_PY)
+                            .independent_at(SIX_FACES_PY),
                     ),
             )
             .aabbs(&[

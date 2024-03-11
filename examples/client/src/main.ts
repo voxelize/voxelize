@@ -583,6 +583,13 @@ inputs.bind("]", () => {
   );
 });
 
+world.addBlockEntityUpdateListener((data) => {
+  if (data.operation === "UPDATE" || data.operation === "CREATE") {
+    const color = data.newValue.color ?? [0, 0, 0];
+    world.applyBlockTexture("mushroom", "top-py-", new THREE.Color(...color));
+  }
+});
+
 let frame: any;
 
 const start = async () => {
@@ -832,6 +839,8 @@ const start = async () => {
       const {
         voxel: [vx, vy, vz],
       } = voxelInteract.potential;
+      if (!voxelInteract.target) return;
+      const currentBlock = world.getBlockAt(...voxelInteract.target);
       const slot = bar.getFocused();
       const id = slot.content;
       if (!id) return;
@@ -845,6 +854,15 @@ const start = async () => {
           )
         )
           return;
+      }
+
+      if (currentBlock.name.toLowerCase() === "mushroom") {
+        const [tx, ty, tz] = voxelInteract.target;
+        console.log([tx, ty, tz]);
+        world.setBlockEntityDataAt(tx, ty, tz, {
+          color: [Math.random(), Math.random(), Math.random()],
+        });
+        return;
       }
 
       bulkPlace();
@@ -880,9 +898,9 @@ const start = async () => {
     "in-game"
   );
 
-  world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
-    console.log("block update", voxel, oldValue, newValue);
-  });
+  // world.addBlockUpdateListener(({ voxel, oldValue, newValue }) => {
+  //   console.log("block update", voxel, oldValue, newValue);
+  // });
 
   // const inventoryTest = new VOXELIZE.ItemSlots({
   //   verticalCount: 10,
