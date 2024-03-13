@@ -675,6 +675,10 @@ const start = async () => {
     },
     scrollable: false,
   });
+
+  bar.onFocusChange((prev, current) => {
+    console.log(prev, current);
+  });
   document.body.appendChild(bar.element);
 
   const hud = new VOXELIZE.Hud({ visible: true });

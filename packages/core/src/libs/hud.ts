@@ -140,9 +140,7 @@ export class Hud {
   }
 
   animate = () => {
-    if (!this.armSwingAnimation.isRunning()) {
-      this.armSwingAnimation.reset();
-      this.armSwingAnimation.play();
-    }
+    this.armSwingAnimation.reset();
+    this.armSwingAnimation.play();
   };
 }
