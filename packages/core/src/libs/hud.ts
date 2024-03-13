@@ -14,11 +14,11 @@ const defaultOptions: HudOptions = {
   visible: true,
 };
 
-const ARM_POSITION = new THREE.Vector3(1, -0.8, -1);
+const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-Math.PI / 4, 0, -Math.PI / 8)
 );
-const BLOCK_POSITION = new THREE.Vector3(1, -1.7, -2);
+const BLOCK_POSITION = new THREE.Vector3(1, -1.8, -2);
 const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
   -Math.PI / 4
@@ -116,6 +116,8 @@ export class Hud {
     qInitial: THREE.Quaternion,
     name: string
   ) => {
+    const timestamps = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
+
     const pMid = pInitial.clone();
     pMid.x -= 0.34;
     pMid.y += 0.23;
@@ -125,30 +127,26 @@ export class Hud {
     pMid3.y -= 0.68;
     const pMid4 = pInitial.clone();
     pMid4.y -= 0.3;
-    const positionKF = new THREE.VectorKeyframeTrack(
-      ".position",
-      [0, 0.1, 0.2, 0.3, 0.4, 0.5],
-      [
-        pInitial.x,
-        pInitial.y,
-        pInitial.z,
-        pMid.x,
-        pMid.y,
-        pMid.z,
-        pMid2.x,
-        pMid2.y,
-        pMid2.z,
-        pMid3.x,
-        pMid3.y,
-        pMid3.z,
-        pMid4.x,
-        pMid4.y,
-        pMid4.z,
-        pInitial.x,
-        pInitial.y,
-        pInitial.z,
-      ]
-    );
+    const positionKF = new THREE.VectorKeyframeTrack(".position", timestamps, [
+      pInitial.x,
+      pInitial.y,
+      pInitial.z,
+      pMid.x,
+      pMid.y,
+      pMid.z,
+      pMid2.x,
+      pMid2.y,
+      pMid2.z,
+      pMid3.x,
+      pMid3.y,
+      pMid3.z,
+      pMid4.x,
+      pMid4.y,
+      pMid4.z,
+      pInitial.x,
+      pInitial.y,
+      pInitial.z,
+    ]);
     const qMid = qInitial.clone();
     qMid.x -= qInitial.x + 0.41;
     qMid.z += 0.21 - qInitial.z;
@@ -160,7 +158,7 @@ export class Hud {
 
     const quaternionKF = new THREE.QuaternionKeyframeTrack(
       ".quaternion",
-      [0, 0.1, 0.2, 0.3, 0.4, 0.5],
+      timestamps,
       [
         qInitial.x,
         qInitial.y,
@@ -189,7 +187,7 @@ export class Hud {
       ]
     );
 
-    return new THREE.AnimationClip(name, 0.5, [positionKF, quaternionKF]);
+    return new THREE.AnimationClip(name, 0.3, [positionKF, quaternionKF]);
   };
 
   /**
