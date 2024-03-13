@@ -37,6 +37,8 @@ export class Hud {
 
   private blockSwingClip: THREE.AnimationClip;
 
+  private blockPlaceClip: THREE.AnimationClip;
+
   private swingAnimation: THREE.AnimationAction;
 
   private placeAnimation: THREE.AnimationAction;
@@ -53,6 +55,11 @@ export class Hud {
       BLOCK_POSITION,
       BLOCK_QUATERNION,
       "blockSwing"
+    );
+    this.blockPlaceClip = this.generatePlaceClip(
+      BLOCK_POSITION,
+      BLOCK_QUATERNION,
+      "blockPlace"
     );
 
     this.setArmMesh();
@@ -120,6 +127,8 @@ export class Hud {
     this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
+
+    this.placeAnimation = undefined;
   };
 
   private setBlockMesh = (mesh: THREE.Object3D) => {
@@ -135,17 +144,109 @@ export class Hud {
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
+
+    this.placeAnimation = this.mixer.clipAction(this.blockPlaceClip);
+    this.placeAnimation.setLoop(THREE.LoopOnce, 1);
+    this.placeAnimation.clampWhenFinished = true;
   };
 
   /**
-   * Generates a "swinging" animation clip.
+   * Generates a "swing" animation clip.
    *
    * @param pInitial Initial position
    * @param qInitial Initial quaternion
    * @param name Name of the clip
-   * @returns Animation clip of the mesh "swinging"
+   * @returns Animation clip
    */
   private generateSwingClip = (
+    pInitial: THREE.Vector3,
+    qInitial: THREE.Quaternion,
+    name: string
+  ) => {
+    const timestamps = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
+
+    const pMid = pInitial.clone();
+    pMid.x -= 0.34;
+    pMid.y += 0.23;
+    const pMid2 = pMid.clone();
+    pMid2.y -= 0.25;
+    const pMid3 = pMid2.clone();
+    pMid3.y -= 0.68;
+    const pMid4 = pInitial.clone();
+    pMid4.y -= 0.3;
+    const positionKF = new THREE.VectorKeyframeTrack(".position", timestamps, [
+      pInitial.x,
+      pInitial.y,
+      pInitial.z,
+      pMid.x,
+      pMid.y,
+      pMid.z,
+      pMid2.x,
+      pMid2.y,
+      pMid2.z,
+      pMid3.x,
+      pMid3.y,
+      pMid3.z,
+      pMid4.x,
+      pMid4.y,
+      pMid4.z,
+      pInitial.x,
+      pInitial.y,
+      pInitial.z,
+    ]);
+    const qMid = qInitial.clone();
+    qMid.x -= qInitial.x + 0.41;
+    qMid.z += 0.21 - qInitial.z;
+    const qMid2 = qMid.clone();
+    qMid2.z += 0.31;
+    const qMid3 = qMid2.clone();
+    qMid3.z += 0.23;
+    const qMid4 = qInitial.clone();
+
+    const quaternionKF = new THREE.QuaternionKeyframeTrack(
+      ".quaternion",
+      timestamps,
+      [
+        qInitial.x,
+        qInitial.y,
+        qInitial.z,
+        qInitial.w,
+        qMid.x,
+        qMid.y,
+        qMid.z,
+        qMid.w,
+        qMid2.x,
+        qMid2.y,
+        qMid2.z,
+        qMid2.w,
+        qMid3.x,
+        qMid3.y,
+        qMid3.z,
+        qMid3.w,
+        qMid4.x,
+        qMid4.y,
+        qMid4.z,
+        qMid4.w,
+        qInitial.x,
+        qInitial.y,
+        qInitial.z,
+        qInitial.w,
+      ]
+    );
+
+    return new THREE.AnimationClip(name, 0.3, [positionKF, quaternionKF]);
+  };
+
+  /**
+   *
+   * Generates a "place" animation clip.
+   *
+   * @param pInitial Initial position
+   * @param qInitial Initial quaternion
+   * @param name Name of the clip
+   * @returns Animation clip
+   */
+  private generatePlaceClip = (
     pInitial: THREE.Vector3,
     qInitial: THREE.Quaternion,
     name: string
@@ -237,15 +338,19 @@ export class Hud {
    * Play the "swing" animation.
    */
   private playSwing = () => {
-    this.swingAnimation.reset();
-    this.swingAnimation.play();
+    if (this.swingAnimation) {
+      this.swingAnimation.reset();
+      this.swingAnimation.play();
+    }
   };
 
   /**
    * Play the "place" animation.
    */
   private playPlace = () => {
-    this.placeAnimation.reset();
-    this.placeAnimation.play();
+    if (this.placeAnimation) {
+      this.placeAnimation.reset();
+      this.placeAnimation.play();
+    }
   };
 }
