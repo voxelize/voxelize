@@ -18,25 +18,18 @@ const defaultOptions: HudOptions = {
 export class Hud {
   public options: HudOptions;
 
-  public mesh: THREE.Mesh;
+  public mesh: THREE.Object3D;
+
+  public controls: RigidControls;
 
   private mixer: THREE.AnimationMixer;
 
   private armSwingAnimation: THREE.AnimationAction;
 
   constructor(options: Partial<HudOptions> = {}) {
-    const { visible } = (this.options = merge(defaultOptions, options));
+    this.options = merge(defaultOptions, options);
 
-    const color = new THREE.Color(ARM_COLOR);
-    const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
-    const material = new THREE.MeshBasicMaterial({
-      color,
-    });
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.position.set(1, -0.8, -1);
-    this.mesh.rotateX(-Math.PI / 4);
-    this.mesh.rotateZ(-Math.PI / 8);
-    this.mesh.visible = visible;
+    this.setArmMesh();
 
     this.mixer = new THREE.AnimationMixer(this.mesh);
 
@@ -126,8 +119,46 @@ export class Hud {
     this.armSwingAnimation.clampWhenFinished = true;
   }
 
-  connect = (inputs: Inputs, namespace = "*") => {
+  public connect = (inputs: Inputs, namespace = "*") => {
     inputs.click("left", this.animate, namespace);
+  };
+
+  public setMesh = (mesh: THREE.Object3D | undefined, animate: boolean) => {
+    if (!animate) {
+      if (this.controls && this.mesh) {
+        this.controls.camera.remove(this.mesh);
+      }
+
+      if (!mesh) {
+        this.setArmMesh();
+      } else {
+        this.setBlockMesh(mesh);
+      }
+
+      if (this.controls && this.mesh instanceof THREE.Object3D) {
+        this.controls.camera.add(this.mesh);
+      }
+    } else {
+      // TODO: Create animation of arm coming down and coming back up
+    }
+  };
+
+  private setArmMesh = () => {
+    const color = new THREE.Color(ARM_COLOR);
+    const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
+    const material = new THREE.MeshBasicMaterial({
+      color,
+    });
+    this.mesh = new THREE.Mesh(geometry, material);
+    this.mesh.position.set(1, -0.8, -1);
+    this.mesh.rotateX(-Math.PI / 4);
+    this.mesh.rotateZ(-Math.PI / 8);
+  };
+
+  private setBlockMesh = (mesh: THREE.Object3D) => {
+    this.mesh = mesh;
+    mesh.position.set(1, -1.5, -2);
+    mesh.rotateY(-Math.PI / 4);
   };
 
   /**
@@ -135,11 +166,11 @@ export class Hud {
    * Update the arm's animation. Note that when a hud is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
-  update(delta: number) {
+  public update(delta: number) {
     this.mixer.update(delta);
   }
 
-  animate = () => {
+  private animate = () => {
     this.armSwingAnimation.reset();
     this.armSwingAnimation.play();
   };

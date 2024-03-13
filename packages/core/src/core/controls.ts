@@ -574,9 +574,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       this.character.set(cameraPosition, [dx, dy, dz]);
       this.character.update();
-
-      this.hud.update(delta);
     }
+
+    if (this.hud) this.hud.update(delta);
 
     this.moveRigidBody();
     this.updateRigidBody(delta);
@@ -904,6 +904,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.camera.add(hud.mesh);
 
     this.hud = hud;
+    hud.controls = this;
   };
 
   /**
