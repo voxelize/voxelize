@@ -37,7 +37,9 @@ export class Hud {
 
   private blockSwingClip: THREE.AnimationClip;
 
-  private animation: THREE.AnimationAction;
+  private swingAnimation: THREE.AnimationAction;
+
+  private placeAnimation: THREE.AnimationAction;
 
   constructor(options: Partial<HudOptions> = {}) {
     this.options = merge(defaultOptions, options);
@@ -56,10 +58,34 @@ export class Hud {
     this.setArmMesh();
   }
 
+  /**
+   * Connect the HUD to the given input manager. This will allow the HUD to listen to left
+   * and right clicks to play HUD animations. This function returns a function that when called
+   * unbinds the HUD's keyboard inputs.
+   *
+   * @param inputs The {@link Inputs} instance to bind the HUD's keyboard inputs to.
+   * @param namespace The namespace to bind the HUD's keyboard inputs to.
+   */
   public connect = (inputs: Inputs, namespace = "*") => {
-    inputs.click("left", this.animate, namespace);
+    const unbindLeftClick = inputs.click("left", this.playSwing, namespace);
+    const unbindRightClick = inputs.click("right", this.playPlace, namespace);
+
+    return () => {
+      try {
+        unbindLeftClick();
+        unbindRightClick();
+      } catch (e) {
+        // Ignore.
+      }
+    };
   };
 
+  /**
+   * Set a new mesh for the HUD. If `animate` is true, the transition will be animated.
+   *
+   * @param mesh New mesh for the HUD
+   * @param animate Whether to animate the transition
+   */
   public setMesh = (mesh: THREE.Object3D | undefined, animate: boolean) => {
     if (!animate) {
       if (this.controls && this.mesh) {
@@ -91,9 +117,9 @@ export class Hud {
     this.mesh.quaternion.multiply(ARM_QUATERION);
 
     this.mixer = new THREE.AnimationMixer(this.mesh);
-    this.animation = this.mixer.clipAction(this.armSwingClip);
-    this.animation.setLoop(THREE.LoopOnce, 1);
-    this.animation.clampWhenFinished = true;
+    this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
+    this.swingAnimation.setLoop(THREE.LoopOnce, 1);
+    this.swingAnimation.clampWhenFinished = true;
   };
 
   private setBlockMesh = (mesh: THREE.Object3D) => {
@@ -106,11 +132,19 @@ export class Hud {
     mesh.quaternion.multiply(BLOCK_QUATERNION);
 
     this.mixer = new THREE.AnimationMixer(this.mesh);
-    this.animation = this.mixer.clipAction(this.blockSwingClip);
-    this.animation.setLoop(THREE.LoopOnce, 1);
-    this.animation.clampWhenFinished = true;
+    this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
+    this.swingAnimation.setLoop(THREE.LoopOnce, 1);
+    this.swingAnimation.clampWhenFinished = true;
   };
 
+  /**
+   * Generates a "swinging" animation clip.
+   *
+   * @param pInitial Initial position
+   * @param qInitial Initial quaternion
+   * @param name Name of the clip
+   * @returns Animation clip of the mesh "swinging"
+   */
   private generateSwingClip = (
     pInitial: THREE.Vector3,
     qInitial: THREE.Quaternion,
@@ -199,8 +233,19 @@ export class Hud {
     this.mixer.update(delta);
   }
 
-  private animate = () => {
-    this.animation.reset();
-    this.animation.play();
+  /**
+   * Play the "swing" animation.
+   */
+  private playSwing = () => {
+    this.swingAnimation.reset();
+    this.swingAnimation.play();
+  };
+
+  /**
+   * Play the "place" animation.
+   */
+  private playPlace = () => {
+    this.placeAnimation.reset();
+    this.placeAnimation.play();
   };
 }
