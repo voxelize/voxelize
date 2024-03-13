@@ -28,12 +28,15 @@ export type InputSpecifics = {
   occasion?: InputOccasion;
 };
 
-type ClickCallbacks = Map<string, { callback: () => void; namespace: string }>;
+type ClickCallbacks = Map<
+  string,
+  { callback: (event: MouseEvent) => void; namespace: string }
+>;
 type ScrollCallbacks = Map<
   string,
   {
-    up: (delta?: number) => void;
-    down: (delta?: number) => void;
+    up: (delta?: number, event?: WheelEvent) => void;
+    down: (delta?: number, event?: WheelEvent) => void;
     namespace: string;
   }
 >;
@@ -60,8 +63,8 @@ type ScrollCallbacks = Map<
  * const inputs = new VOXELIZE.Inputs();
  *
  * // Bind the space bar to a function.
- * inputs.bind(" ", () => {
- *   console.log("Space bar pressed!");
+ * inputs.bind(" ", (event) => {
+ *   console.log("Space bar pressed!", event);
  * });
  *
  * // Bind rigid controls to the inputs manager.
@@ -92,17 +95,20 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * A map for keydown callbacks.
    */
-  private keyDownCallbacks: Map<string, (() => void)[]> = new Map();
+  private keyDownCallbacks: Map<string, ((event: KeyboardEvent) => void)[]> =
+    new Map();
 
   /**
    * A map for keyup callbacks.
    */
-  private keyUpCallbacks: Map<string, (() => void)[]> = new Map();
+  private keyUpCallbacks: Map<string, ((event: KeyboardEvent) => void)[]> =
+    new Map();
 
   /**
    * A map for key press callbacks.
    */
-  private keyPressCallbacks: Map<string, (() => void)[]> = new Map();
+  private keyPressCallbacks: Map<string, ((event: KeyboardEvent) => void)[]> =
+    new Map();
 
   /**
    * A map for key binds.
@@ -112,7 +118,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
     {
       [key: string]: {
         unbind: () => void;
-        callback: () => void;
+        callback: (event: KeyboardEvent) => void;
         namespace: T | "*";
       };
     }
@@ -151,11 +157,15 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Add a mouse click event listener.
    *
    * @param type The type of click to listen for. Either "left", "middle" or "right".
-   * @param callback The callback to call when the click is fired.
+   * @param callback The callback to call when the click is fired, passing the MouseEvent.
    * @param namespace The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace.
    * @returns A function to unbind the click.
    */
-  click = (type: ClickType, callback: () => void, namespace: T | "*" = "*") => {
+  click = (
+    type: ClickType,
+    callback: (event: MouseEvent) => void,
+    namespace: T | "*" = "*"
+  ) => {
     const id = uuidv4();
     this.clickCallbacks.get(type)?.set(id, { namespace, callback });
     return () => this.clickCallbacks.get(type).delete(id);
@@ -190,7 +200,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   bind = (
     key: string,
-    callback: () => void,
+    callback: (event: KeyboardEvent) => void,
     namespace: T | "*" = "*",
     specifics: InputSpecifics = {}
   ) => {
@@ -238,7 +248,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
           ["keydown", this.keyDownCallbacks],
           ["keyup", this.keyUpCallbacks],
           ["keypress", this.keyPressCallbacks],
-        ] as [string, Map<string, (() => void)[]>][]
+        ] as [string, Map<string, ((event: KeyboardEvent) => void)[]>][]
       ).forEach(([o, map]) => {
         if (o !== occasion) return;
 
@@ -396,7 +406,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the keyboard input listeners.
    */
   private initializeKeyListeners = () => {
-    // Handle all three types of key events while checking namespace.
+    // Handle all three types of key events while checking namespace and passing the KeyboardEvent.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
       const keyName = (key || code).toLowerCase();
@@ -409,7 +419,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
           const { callback, namespace } = bound;
 
           if (namespace === "*" || namespace === this.namespace) {
-            callback();
+            callback(e);
           }
         });
       }
@@ -428,17 +438,18 @@ export class Inputs<T extends string = any> extends EventEmitter {
       this.clickCallbacks.set(type, new Map())
     );
 
-    const listener = ({ button }: MouseEvent) => {
+    const listener = (event: MouseEvent) => {
       let callbacks: ClickCallbacks;
 
-      if (button === 0) callbacks = this.clickCallbacks.get("left") as any;
-      else if (button === 1)
+      if (event.button === 0)
+        callbacks = this.clickCallbacks.get("left") as any;
+      else if (event.button === 1)
         callbacks = this.clickCallbacks.get("middle") as any;
-      else if (button === 2)
+      else if (event.button === 2)
         callbacks = this.clickCallbacks.get("right") as any;
 
       callbacks.forEach(({ namespace, callback }) => {
-        if (this.namespace === namespace || namespace === "*") callback();
+        if (this.namespace === namespace || namespace === "*") callback(event);
       });
     };
 
@@ -452,11 +463,11 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the mouse scroll listeners.
    */
   private initializeScrollListeners = () => {
-    const listener = ({ deltaY }: any) => {
+    const listener = (event: WheelEvent) => {
       this.scrollCallbacks.forEach(({ up, down, namespace }) => {
         if (this.namespace === namespace || namespace === "*") {
-          if (deltaY > 0) up(deltaY);
-          else if (deltaY < 0) down(deltaY);
+          if (event.deltaY > 0) up(event.deltaY, event);
+          else if (event.deltaY < 0) down(event.deltaY, event);
         }
       });
     };

@@ -101,7 +101,7 @@ pub fn setup_flat_world(registry: &Registry) -> World {
     world.set_entity_loader("box", |world, metadata| {
         let position = metadata.get::<PositionComp>("position").unwrap_or_default();
 
-        let body =
+        let body: RigidBody =
             RigidBody::new(&AABB::new().scale_x(0.5).scale_y(0.5).scale_z(0.5).build()).build();
         let interactor = world.physics_mut().register(&body);
 

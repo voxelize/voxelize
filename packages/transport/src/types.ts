@@ -1,5 +1,6 @@
 export type GeometryProtocol = {
   voxel: number;
+  at?: [number, number, number];
   faceName?: string;
   positions: Float32Array;
   uvs: Float32Array;
@@ -27,8 +28,10 @@ export type PeerProtocol<T> = {
   metadata: T;
 };
 
+export type EntityOperation = "CREATE" | "UPDATE" | "DELETE";
+
 export type EntityProtocol<T> = {
-  operation: "CREATE" | "UPDATE" | "DELETE";
+  operation: EntityOperation;
   id: string;
   type: string;
   metadata: T;

@@ -321,16 +321,24 @@ pub struct CornerData {
 pub struct BlockFace {
     pub name: String,
     pub independent: bool,
+    pub isolated: bool,
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
     pub range: UV,
 }
 
 impl BlockFace {
-    pub fn new(name: String, independent: bool, dir: [i32; 3], corners: [CornerData; 4]) -> Self {
+    pub fn new(
+        name: String,
+        independent: bool,
+        isolated: bool,
+        dir: [i32; 3],
+        corners: [CornerData; 4],
+    ) -> Self {
         Self {
             name,
             independent,
+            isolated,
             dir,
             corners,
             range: UV::default(),
@@ -339,6 +347,10 @@ impl BlockFace {
 
     pub fn into_independent(&mut self) {
         self.independent = true;
+    }
+
+    pub fn into_isolated(&mut self) {
+        self.isolated = true;
     }
 }
 
@@ -371,6 +383,24 @@ impl BlockFaces {
     pub fn independent_at_all(mut self, indices: Vec<usize>) -> Self {
         for index in indices {
             self = self.independent_at(index);
+        }
+
+        self
+    }
+
+    pub fn isolated_at(mut self, index: usize) -> Self {
+        if index >= self.faces.len() {
+            return self;
+        }
+
+        self.faces[index].into_isolated();
+
+        self
+    }
+
+    pub fn isolated_at_all(mut self, indices: Vec<usize>) -> Self {
+        for index in indices {
+            self = self.isolated_at(index);
         }
 
         self
@@ -525,6 +555,7 @@ impl DiagonalFacesBuilder {
                 name: make_name("one"),
                 dir: [0, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -557,6 +588,7 @@ impl DiagonalFacesBuilder {
                 name: make_name("two"),
                 dir: [0, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -606,6 +638,7 @@ pub struct SixFacesBuilder {
     suffix: String,
     concat: String,
     auto_uv_offset: bool,
+    rotation: Option<BlockRotation>,
 }
 
 impl SixFacesBuilder {
@@ -628,6 +661,7 @@ impl SixFacesBuilder {
             suffix: "".to_owned(),
             concat: "".to_owned(),
             auto_uv_offset: false,
+            rotation: None,
         }
     }
 
@@ -726,6 +760,11 @@ impl SixFacesBuilder {
         self
     }
 
+    pub fn with_rotation(mut self, rotation: &BlockRotation) -> Self {
+        self.rotation = Some(rotation.to_owned());
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -745,6 +784,7 @@ impl SixFacesBuilder {
             suffix,
             concat,
             auto_uv_offset,
+            rotation,
         } = self;
 
         let make_name = |side: &str| {
@@ -784,11 +824,12 @@ impl SixFacesBuilder {
         let uv_scale_y = if auto_uv_offset { scale_y } else { uv_scale_y };
         let uv_scale_z = if auto_uv_offset { scale_z } else { uv_scale_z };
 
-        BlockFaces::from_faces(vec![
+        let mut results = BlockFaces::from_faces(vec![
             BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -820,6 +861,7 @@ impl SixFacesBuilder {
                 name: make_name("py"),
                 dir: [0, 1, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -851,6 +893,7 @@ impl SixFacesBuilder {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -882,6 +925,7 @@ impl SixFacesBuilder {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -909,6 +953,7 @@ impl SixFacesBuilder {
                 name: make_name("ny"),
                 dir: [0, -1, 0],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -936,6 +981,7 @@ impl SixFacesBuilder {
                 name: make_name("nz"),
                 dir: [0, 0, -1],
                 independent: false,
+                isolated: false,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -959,7 +1005,53 @@ impl SixFacesBuilder {
                     },
                 ],
             },
-        ])
+        ]);
+
+        if let Some(rotation) = rotation {
+            for face in results.iter_mut() {
+                for corner in face.corners.iter_mut() {
+                    rotation.rotate_node(&mut corner.pos, true, true);
+                }
+            }
+        }
+
+        results
+    }
+}
+
+impl std::ops::Add for BlockFaces {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self::Output {
+        let mut combined_faces = self.faces;
+        combined_faces.extend(other.faces);
+        Self {
+            faces: combined_faces,
+        }
+    }
+}
+
+impl std::ops::Add<&Self> for BlockFaces {
+    type Output = Self;
+
+    fn add(self, other: &Self) -> Self::Output {
+        let mut combined_faces = self.faces.clone();
+        combined_faces.extend(other.faces.clone());
+        Self {
+            faces: combined_faces,
+        }
+    }
+}
+
+impl std::ops::AddAssign for BlockFaces {
+    fn add_assign(&mut self, other: Self) {
+        self.faces.extend(other.faces);
+    }
+}
+
+impl std::ops::AddAssign<&Self> for BlockFaces {
+    fn add_assign(&mut self, other: &Self) {
+        self.faces.extend(other.faces.clone());
     }
 }
 
@@ -1121,6 +1213,8 @@ pub struct Block {
 
     /// Does light reduce when passing through this block?
     pub light_reduce: bool,
+
+    pub is_entity: bool,
 
     /// Whether or not this block has dynamic aabb and face generation. This is
     /// automatically generated by the engine, and if `true`, client-side code
@@ -1315,6 +1409,7 @@ pub struct BlockBuilder {
     is_nx_transparent: bool,
     is_ny_transparent: bool,
     is_nz_transparent: bool,
+    is_entity: bool,
     light_reduce: bool,
     dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
     dynamic_fn: Option<
@@ -1537,6 +1632,11 @@ impl BlockBuilder {
         self
     }
 
+    pub fn is_entity(mut self, is_entity: bool) -> Self {
+        self.is_entity = is_entity;
+        self
+    }
+
     /// Construct a block instance, ready to be added into the registry.
     pub fn build(self) -> Block {
         Block {
@@ -1578,6 +1678,7 @@ impl BlockBuilder {
             is_active: self.active_updater.is_some() && self.active_ticker.is_some(),
             active_ticker: self.active_ticker,
             active_updater: self.active_updater,
+            is_entity: self.is_entity,
         }
     }
 }

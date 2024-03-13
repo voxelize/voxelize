@@ -1,8 +1,13 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { raycast } from "@voxelize/raycast";
-import { GeometryProtocol } from "@voxelize/transport";
-import { MeshProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import {
+  EntityOperation,
+  EntityProtocol,
+  GeometryProtocol,
+  MeshProtocol,
+  MessageProtocol,
+} from "@voxelize/transport/src/types";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
@@ -78,6 +83,14 @@ export type BlockUpdateListener = (args: {
   oldValue: number;
   newValue: number;
   voxel: Coords3;
+}) => void;
+
+export type BlockEntityUpdateListener<T> = (args: {
+  id: string;
+  voxel: Coords3;
+  operation: EntityOperation;
+  oldValue: T | null;
+  newValue: T | null;
 }) => void;
 
 const VOXEL_NEIGHBORS = [
@@ -330,7 +343,7 @@ export type WorldOptions = WorldClientOptions & WorldServerOptions;
  * @category Core
  * @noInheritDoc
  */
-export class World extends Scene implements NetIntercept {
+export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The options to create the world.
    */
@@ -395,12 +408,22 @@ export class World extends Scene implements NetIntercept {
     ((chunk: Chunk) => void)[]
   >();
 
+  private blockEntitiesMap: Map<
+    string,
+    {
+      id: string;
+      data: T | null;
+    }
+  > = new Map();
+  private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
+
   private blockUpdateListeners = new Set<BlockUpdateListener>();
 
   /**
    * The JSON data received from the world. Call `initialize` to initialize.
    */
   private initialData: any = null;
+  private initialEntities: any = null;
 
   /**
    * The internal time in seconds.
@@ -527,14 +550,7 @@ export class World extends Scene implements NetIntercept {
 
     const mesh: MeshProtocol = {
       level,
-      geometries: geometries.map((geometry) => ({
-        indices: geometry.indices,
-        positions: geometry.positions,
-        uvs: geometry.uvs,
-        lights: geometry.lights,
-        voxel: geometry.voxel,
-        faceName: geometry.faceName,
-      })),
+      geometries,
     };
 
     this.buildChunkMesh(cx, cz, mesh);
@@ -569,6 +585,15 @@ export class World extends Scene implements NetIntercept {
       typeof source === "string" ? await this.loader.loadImage(source) : source;
 
     blockFaces.forEach((face) => {
+      if (face.isolated) {
+        console.warn(
+          "Attempting to apply texture onto an isolated face: ",
+          block.name,
+          face.name
+        );
+        return;
+      }
+
       const mat = this.getBlockFaceMaterial(block.id, face.name);
 
       // If the face is independent, that means this face does not share a texture atlas with other faces.
@@ -608,6 +633,68 @@ export class World extends Scene implements NetIntercept {
       // Update the texture with the new image
       mat.map.needsUpdate = true;
     });
+  }
+
+  getIsolatedBlockMaterialAt(
+    voxel: Coords3,
+    faceName: string,
+    defaultDimension?: number
+  ) {
+    const block = this.getBlockAt(...voxel);
+    const idOrName = block.id;
+    return this.applyBlockTextureAt(
+      idOrName,
+      faceName,
+      new AtlasTexture(
+        1,
+        defaultDimension ?? this.options.textureUnitDimension
+      ),
+      voxel
+    );
+  }
+
+  applyBlockTextureAt(
+    idOrName: number | string,
+    faceName: string,
+    source: Texture,
+    voxel: Coords3
+  ) {
+    const block = this.getBlockOf(idOrName);
+    const faces = this.getBlockFacesByFaceNames(block.id, faceName);
+
+    if (!faces || faces.length !== 1) {
+      throw new Error(
+        `Face(s) "${faceName}" does not exist on block "${block.name}" or there are multiple faces with the same name.`
+      );
+    }
+
+    const [face] = faces;
+    if (!face.isolated) {
+      throw new Error(
+        `Cannot apply isolated texture to face "${face.name}" on block "${block.name}" because it is not isolated.`
+      );
+    }
+
+    let mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
+    if (!mat) {
+      const isolatedMat = this.makeShaderMaterial();
+
+      const map = source;
+      isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
+      isolatedMat.transparent = block.isSeeThrough;
+      isolatedMat.map = map;
+      isolatedMat.uniforms.map.value = map;
+
+      const key = this.makeChunkMaterialKey(block.id, face.name, voxel);
+      this.chunks.materials.set(key, isolatedMat);
+
+      mat = isolatedMat;
+
+      mat.map.needsUpdate = true;
+      mat.needsUpdate = true;
+    }
+
+    return mat;
   }
 
   /**
@@ -1151,6 +1238,41 @@ export class World extends Scene implements NetIntercept {
     return block;
   }
 
+  getBlockEntityDataAt(px: number, py: number, pz: number): T | null {
+    this.checkIsInitialized("get block entity data", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    return this.blockEntitiesMap.get(voxelName).data || null;
+  }
+
+  setBlockEntityDataAt(px: number, py: number, pz: number, data: T) {
+    this.checkIsInitialized("set block entity data", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    const old = this.blockEntitiesMap.get(voxelName);
+    if (old) {
+      this.blockEntitiesMap.get(voxelName).data = data;
+    }
+    this.packets.push({
+      type: "METHOD",
+      method: {
+        name: "vox-builtin:update-block-entity",
+        payload: JSON.stringify({
+          id: old.id,
+          json: JSON.stringify(data),
+        }),
+      },
+    });
+  }
+
   /**
    * Get the status of a chunk.
    *
@@ -1188,10 +1310,20 @@ export class World extends Scene implements NetIntercept {
     return null;
   }
 
-  getBlockFaceMaterial(idOrName: number | string, faceName?: string) {
+  getBlockFaceMaterial(
+    idOrName: number | string,
+    faceName?: string,
+    voxel?: Coords3
+  ) {
     this.checkIsInitialized("get material", false);
 
     const block = this.getBlockOf(idOrName);
+
+    if (faceName && block.isolatedFaces.has(faceName)) {
+      return this.chunks.materials.get(
+        this.makeChunkMaterialKey(block.id, faceName, voxel)
+      );
+    }
 
     if (faceName && block.independentFaces.has(faceName)) {
       return this.chunks.materials.get(
@@ -1227,6 +1359,18 @@ export class World extends Scene implements NetIntercept {
 
   addBlockUpdateListener = (listener: BlockUpdateListener) => {
     this.blockUpdateListeners.add(listener);
+
+    return () => {
+      this.blockUpdateListeners.delete(listener);
+    };
+  };
+
+  addBlockEntityUpdateListener = (listener: BlockEntityUpdateListener<T>) => {
+    this.blockEntityUpdateListeners.add(listener);
+
+    return () => {
+      this.blockEntityUpdateListeners.delete(listener);
+    };
   };
 
   /**
@@ -1792,7 +1936,7 @@ export class World extends Scene implements NetIntercept {
 
         const matOptions = {
           transparent: isSeeThrough,
-          map: chunkMat.map,
+          map: chunkMat?.map,
           side: isSeeThrough ? DoubleSide : FrontSide,
         };
 
@@ -1948,10 +2092,13 @@ export class World extends Scene implements NetIntercept {
       const lowerName = name.toLowerCase();
 
       block.independentFaces = new Set();
+      block.isolatedFaces = new Set();
 
       block.faces.forEach((face) => {
         if (face.independent) {
           block.independentFaces.add(face.name);
+        } else if (face.isolated) {
+          block.isolatedFaces.add(face.name);
         }
       });
 
@@ -1992,6 +2139,11 @@ export class World extends Scene implements NetIntercept {
     this.isInitialized = true;
 
     this.renderRadius = this.options.defaultRenderRadius;
+
+    if (this.initialEntities) {
+      this.handleEntities(this.initialEntities);
+      this.initialEntities = null;
+    }
   }
 
   update(
@@ -2064,14 +2216,36 @@ export class World extends Scene implements NetIntercept {
    *
    * @hidden
    */
-  onMessage(message: MessageProtocol) {
+  onMessage(
+    message: MessageProtocol<
+      any,
+      unknown,
+      {
+        voxel: Coords3;
+        json: string;
+      }
+    >
+  ) {
     const { type } = message;
 
     switch (type) {
       case "INIT": {
-        const { json } = message;
+        const { json, entities } = message;
 
         this.initialData = json;
+
+        if (entities) {
+          this.initialEntities = entities;
+        }
+
+        break;
+      }
+      case "ENTITY": {
+        const { entities } = message;
+
+        if (entities && entities.length) {
+          this.handleEntities(entities);
+        }
 
         break;
       }
@@ -2131,6 +2305,52 @@ export class World extends Scene implements NetIntercept {
       }
     }
   }
+
+  private handleEntities = (entities: EntityProtocol<any>[]) => {
+    entities.forEach((entity) => {
+      const { id, type, metadata, operation } = entity;
+
+      if (!type.startsWith("block::")) {
+        return;
+      }
+
+      const [px, py, pz] = metadata.voxel;
+      const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
+      const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+      let data: T | null;
+      try {
+        data = JSON.parse(metadata.json);
+      } catch (error) {
+        console.error("Error parsing block entity JSON:", error);
+        data = null;
+      }
+
+      const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
+      this.blockEntityUpdateListeners.forEach((listener) => {
+        listener({
+          id,
+          voxel: [vx, vy, vz],
+          oldValue: (originalData as any)?.data ?? null,
+          newValue: data as T | null,
+          operation,
+        });
+      });
+
+      switch (operation) {
+        case "DELETE": {
+          this.blockEntitiesMap.delete(voxelId);
+          break;
+        }
+
+        case "CREATE":
+        case "UPDATE": {
+          this.blockEntitiesMap.set(voxelId, { id, data });
+          break;
+        }
+      }
+    });
+  };
 
   get time() {
     return this._time;
@@ -2562,6 +2782,7 @@ export class World extends Scene implements NetIntercept {
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
     chunk.meshes.get(level)?.forEach((mesh) => {
+      if (!mesh) return;
       mesh.geometry.dispose();
       chunk.group.remove(mesh);
     });
@@ -2570,32 +2791,61 @@ export class World extends Scene implements NetIntercept {
 
     if (geometries.length === 0) return;
 
-    const meshes = geometries.map((geo) => {
-      const { voxel, faceName, indices, lights, positions, uvs } = geo;
-      const geometry = new BufferGeometry();
+    const meshes = geometries
+      .map((geo) => {
+        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+        const geometry = new BufferGeometry();
 
-      geometry.setAttribute("position", new BufferAttribute(positions, 3));
-      geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-      geometry.setAttribute("light", new BufferAttribute(lights, 1));
-      geometry.setIndex(new BufferAttribute(indices, 1));
+        geometry.setAttribute("position", new BufferAttribute(positions, 3));
+        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        geometry.setIndex(new BufferAttribute(indices, 1));
 
-      const material = this.getBlockFaceMaterial(voxel, faceName);
-      if (!material) return;
+        let material = this.getBlockFaceMaterial(voxel, faceName);
+        if (!material) {
+          const block = this.getBlockById(voxel);
+          const face = block.faces.find((face) => face.name === faceName);
 
-      const mesh = new Mesh(geometry, material);
-      mesh.position.set(
-        cx * chunkSize,
-        level * heightPerSubChunk,
-        cz * chunkSize
-      );
-      mesh.updateMatrix();
-      mesh.matrixAutoUpdate = false;
-      mesh.matrixWorldAutoUpdate = false;
-      mesh.userData = { isChunk: true, voxel };
+          // if not even isolated, we don't want to care about it
+          if (!face.isolated || !at) {
+            console.warn("Unlikely situation happened..."); // todo: better console log
+            return;
+          }
 
-      chunk.group.add(mesh);
-      return mesh;
-    });
+          const isolatedMaterial = this.getIsolatedBlockMaterialAt(
+            at,
+            faceName
+          );
+          // test draw some random color
+          if (isolatedMaterial.map instanceof AtlasTexture) {
+            isolatedMaterial.map.drawImageToRange(
+              {
+                startU: 0,
+                endU: 1,
+                startV: 0,
+                endV: 1,
+              },
+              new Color(Math.random(), Math.random(), Math.random())
+            );
+          }
+          material = isolatedMaterial;
+        }
+
+        const mesh = new Mesh(geometry, material);
+        mesh.position.set(
+          cx * chunkSize,
+          level * heightPerSubChunk,
+          cz * chunkSize
+        );
+        mesh.updateMatrix();
+        mesh.matrixAutoUpdate = false;
+        mesh.matrixWorldAutoUpdate = false;
+        mesh.userData = { isChunk: true, voxel };
+
+        chunk.group.add(mesh);
+        return mesh;
+      })
+      .filter((m) => !!m);
 
     if (!this.children.includes(chunk.group)) {
       this.add(chunk.group);
@@ -3106,7 +3356,8 @@ export class World extends Scene implements NetIntercept {
       const independentFacesCount = block.faces.filter(
         (f) => f.independent
       ).length;
-      return acc + (block.faces.length - independentFacesCount);
+      const isolatedFaces = block.faces.filter((f) => f.isolated).length;
+      return acc + (block.faces.length - independentFacesCount - isolatedFaces);
     }, 0);
 
     const countPerSide = perSide(totalFaces);
@@ -3130,8 +3381,12 @@ export class World extends Scene implements NetIntercept {
     });
   }
 
-  private makeChunkMaterialKey(id: number, faceName?: string) {
-    return faceName ? `${id}-${faceName}` : `${id}`;
+  private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {
+    return voxel
+      ? `${id}-${faceName}-${voxel.join("-")}`
+      : faceName
+      ? `${id}-${faceName}`
+      : `${id}`;
   }
 
   private trackChunkAt(vx: number, vy: number, vz: number) {

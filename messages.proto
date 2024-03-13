@@ -4,10 +4,11 @@ package protocol;
 message Geometry {
   uint32 voxel = 1;
   optional string faceName = 2;
-  repeated float positions = 3 [ packed = true ];
-  repeated float uvs = 4 [ packed = true ];
-  repeated int32 indices = 5 [ packed = true ];
-  repeated int32 lights = 6 [ packed = true ];
+  repeated int32 at = 3;
+  repeated float positions = 4 [packed = true];
+  repeated float uvs = 5 [packed = true];
+  repeated int32 indices = 6 [packed = true];
+  repeated int32 lights = 7 [packed = true];
 }
 
 message Mesh {
@@ -20,8 +21,8 @@ message Chunk {
   int32 z = 2;
   string id = 3;
   repeated Mesh meshes = 4;
-  repeated uint32 voxels = 5 [ packed = true ];
-  repeated uint32 lights = 6 [ packed = true ];
+  repeated uint32 voxels = 5 [packed = true];
+  repeated uint32 lights = 6 [packed = true];
 }
 
 message Peer {

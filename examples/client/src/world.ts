@@ -177,7 +177,9 @@ export async function setupWorld(world: VOXELIZE.World) {
     },
     {
       idOrName: "Mushroom",
-      faceNames: all.map((name) => `top-${name}-`),
+      faceNames: all
+        .filter((name) => name !== "py")
+        .map((name) => `top-${name}-`),
       source: new THREE.Color("#E4DCCF"),
     },
     { idOrName: "Biggie", faceNames: all, source: new THREE.Color("#2C3639") },
@@ -229,9 +231,15 @@ export async function setupWorld(world: VOXELIZE.World) {
   // world.setResolutionOf("Sand", "nx", 128);
   // await world.applyBlockGif("Sand", "nx", FunnyGif);
   // await world.applyBlockTexture("Biggie", "pz", new THREE.Color("#2C3639"));
-  const image = await world.loader.loadImage("https://i.imgur.com/2ZQZV2w.png");
-  await world.applyBlockTexture("Biggie", "pz", image);
-  await world.setResolutionOf("Biggie", "pz", 10);
+  try {
+    const image = await world.loader.loadImage(
+      "https://i.imgur.com/2ZQZV2w.png"
+    );
+    await world.applyBlockTexture("Biggie", "pz", image);
+    await world.setResolutionOf("Biggie", "pz", 10);
+  } catch (e) {
+    console.warn("oh well,", e);
+  }
   // world.setResolutionOfByName("Biggie", "pz", 128);
 
   // await world.applyBlockFrames(

@@ -118,6 +118,7 @@ export type Block = {
     corners: { pos: [number, number, number]; uv: number[] }[];
     dir: [number, number, number];
     independent: boolean;
+    isolated: boolean;
     range: UV;
     name: string;
   }[];
@@ -158,6 +159,8 @@ export type Block = {
    * A set of block face names that are independent (high resolution or animated). This is generated on the client side.
    */
   independentFaces: Set<string>;
+
+  isolatedFaces: Set<string>;
 };
 
 /**

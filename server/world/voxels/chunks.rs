@@ -3,6 +3,7 @@ use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
 use log::info;
 use serde::{Deserialize, Serialize};
+use specs::Entity;
 use std::{
     collections::VecDeque,
     fs::{self, File},
@@ -52,6 +53,8 @@ pub struct Chunks {
 
     /// A cache of what chunks has been borrowed mutable.
     pub(crate) cache: HashSet<Vec2<i32>>,
+
+    pub(crate) block_entities: HashMap<Vec3<i32>, Entity>,
 
     /// A copy of the world's config.
     config: WorldConfig,

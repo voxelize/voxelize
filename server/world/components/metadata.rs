@@ -29,14 +29,13 @@ impl MetadataComp {
 
     /// Set a component's metadata
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
-        let component = component.to_owned();
         let value = json!(data);
 
-        if self.map.contains_key(&component) {
-            self.map.remove(&component);
+        if let Some(entry) = self.map.get_mut(component) {
+            *entry = value;
+        } else {
+            self.map.insert(component.to_owned(), value);
         }
-
-        self.map.insert(component, value);
     }
 
     /// Get a component's metadata

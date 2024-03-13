@@ -205,6 +205,12 @@ struct BuiltInSetTimeMethodPayload {
     time: f32,
 }
 
+#[derive(Serialize, Deserialize)]
+struct BuiltInUpdateBlockEntityMethodPayload {
+    id: String,
+    json: String,
+}
+
 impl World {
     /// Create a new voxelize world.
     pub fn new(name: &str, config: &WorldConfig) -> Self {
@@ -223,23 +229,25 @@ impl World {
 
         let mut ecs = ECSWorld::new();
 
+        ecs.register::<AddrComp>();
+        ecs.register::<BrainComp>();
         ecs.register::<ChunkRequestsComp>();
-        ecs.register::<CurrentChunkComp>();
-        ecs.register::<IDComp>();
-        ecs.register::<NameComp>();
-        ecs.register::<PositionComp>();
-        ecs.register::<DirectionComp>();
         ecs.register::<ClientFlag>();
+        ecs.register::<CollisionsComp>();
+        ecs.register::<CurrentChunkComp>();
+        ecs.register::<DirectionComp>();
         ecs.register::<EntityFlag>();
         ecs.register::<ETypeComp>();
-        ecs.register::<MetadataComp>();
-        ecs.register::<RigidBodyComp>();
-        ecs.register::<AddrComp>();
+        ecs.register::<IDComp>();
         ecs.register::<InteractorComp>();
-        ecs.register::<CollisionsComp>();
-        ecs.register::<BrainComp>();
+        ecs.register::<JsonComp>();
+        ecs.register::<MetadataComp>();
+        ecs.register::<NameComp>();
         ecs.register::<PathComp>();
+        ecs.register::<PositionComp>();
+        ecs.register::<RigidBodyComp>();
         ecs.register::<TargetComp>();
+        ecs.register::<VoxelComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
@@ -297,6 +305,33 @@ impl World {
                 .expect("Could not parse vox-builtin:set-time payload.");
             let time_per_day = world.config().time_per_day as f32;
             world.stats_mut().set_time(payload.time % time_per_day);
+        });
+
+        world.set_method_handle("vox-builtin:update-block-entity", |world, _, payload| {
+            let payload: BuiltInUpdateBlockEntityMethodPayload = serde_json::from_str(payload)
+                .expect("Could not parse vox-builtin:update-block-entity payload.");
+
+            let entities = world.ecs().entities();
+            let ids = world.ecs().read_storage::<IDComp>();
+
+            let mut to_update = vec![];
+
+            for (entity, id_comp) in (&entities, &ids).join() {
+                if id_comp.0 == payload.id {
+                    to_update.push(entity);
+                    break;
+                }
+            }
+
+            drop((entities, ids));
+
+            for entity in to_update {
+                world
+                    .ecs_mut()
+                    .write_storage::<JsonComp>()
+                    .insert(entity, JsonComp::new(&payload.json))
+                    .expect("Failed to write JsonComp");
+            }
         });
 
         world
@@ -662,7 +697,7 @@ impl World {
             .create_entity()
             .with(IDComp::new(id))
             .with(EntityFlag::default())
-            .with(ETypeComp::new(etype))
+            .with(ETypeComp::new(etype, false))
             .with(MetadataComp::new())
             .with(CurrentChunkComp::default())
             .with(CollisionsComp::new())
@@ -695,6 +730,12 @@ impl World {
         etype: &str,
         metadata: MetadataComp,
     ) -> Option<Entity> {
+        if etype.starts_with("block::") {
+            let entity = self.create_entity(id, etype).build();
+            self.populate_entity(entity, id, etype, metadata);
+            return Some(entity);
+        }
+
         if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
             warn!("Tried to revive unknown entity type: {}", etype);
             return None;
@@ -718,9 +759,15 @@ impl World {
             .insert(ent, IDComp::new(id))
             .expect("Failed to insert ID component");
 
+        let (entity_type, is_block) = if etype.starts_with("block::") {
+            (etype, true)
+        } else {
+            (etype, false)
+        };
+
         self.ecs_mut()
             .write_storage::<ETypeComp>()
-            .insert(ent, ETypeComp::new(etype))
+            .insert(ent, ETypeComp::new(entity_type, is_block))
             .expect("Failed to insert entity type component");
 
         self.ecs_mut()
@@ -1074,8 +1121,8 @@ impl World {
                             |_| panic!("Metadata field does not exist on file: {:?}", path),
                         );
 
-                    if let Some(ent) = self.revive_entity(&id, &etype, metadata) {
-                        loaded_entities.insert(id.to_owned(), ent);
+                    if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
+                        loaded_entities.insert(id.to_owned(), (etype, ent, metadata));
                     }
                 }
             }

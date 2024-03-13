@@ -100,7 +100,7 @@ impl Registry {
             let mut block_total_faces = block.faces.len();
 
             block.faces.iter().for_each(|face| {
-                if face.independent {
+                if face.independent || face.isolated {
                     block_total_faces -= 1;
                 }
             });
@@ -157,7 +157,7 @@ impl Registry {
 
         for block in all_blocks {
             for face in block.faces.iter_mut() {
-                if face.independent {
+                if face.independent || face.isolated {
                     continue;
                 }
 

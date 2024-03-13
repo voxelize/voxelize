@@ -13,6 +13,7 @@ let registry: Registry;
 
 type InProgressGeometryProtocol = {
   voxel: number;
+  at?: Coords3;
   faceName?: string;
   positions: number[];
   uvs: number[];
@@ -42,7 +43,7 @@ onmessage = function (e) {
   }
 
   const { chunksData, min, max } = e.data;
-  const { chunkSize, maxLightLevel } = e.data.options as WorldOptions;
+  const { chunkSize } = e.data.options as WorldOptions;
 
   const chunks: (Chunk | null)[] = chunksData.map((chunkData: any) => {
     if (!chunkData) {
@@ -205,7 +206,9 @@ onmessage = function (e) {
         }
 
         for (const face of faces) {
-          const key = face.independent
+          const key = face.isolated
+            ? `${name.toLowerCase()}::${face.name.toLowerCase()}::${vx}-${vy}-${vz}`
+            : face.independent
             ? `${name.toLowerCase()}::${face.name.toLowerCase()}`
             : name.toLowerCase();
 
@@ -219,8 +222,12 @@ onmessage = function (e) {
               indices: [],
             } as InProgressGeometryProtocol);
 
-          if (face.independent) {
+          if (face.independent || face.isolated) {
             geometry.faceName = face.name;
+          }
+
+          if (face.isolated) {
+            geometry.at = [vx, vy, vz];
           }
 
           // Process the face
@@ -612,6 +619,7 @@ onmessage = function (e) {
         uvs: new Float32Array(geometry.uvs),
         voxel: geometry.voxel,
         faceName: geometry.faceName,
+        at: geometry.at,
       };
 
       arrayBuffers.push(packedGeometry.indices.buffer);

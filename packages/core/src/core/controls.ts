@@ -599,37 +599,37 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   connect = (inputs: Inputs, namespace = "*") => {
     const unbinds = [];
-
-    this.domElement.addEventListener("mousemove", (event: MouseEvent) => {
-      this.onMouseMove(event);
-    });
-    this.domElement.ownerDocument.addEventListener("pointerlockchange", () => {
+    const mouseMoveHandler = (event: MouseEvent) => this.onMouseMove(event);
+    const pointerLockChangeHandler = (e: Event) => {
+      e.preventDefault();
       this.onPointerlockChange();
-    });
+    };
+    const pointerLockErrorHandler = this.onPointerlockError;
+    const documentClickHandler = this.onDocumentClick;
+
+    this.domElement.addEventListener("mousemove", mouseMoveHandler);
+    this.domElement.ownerDocument.addEventListener(
+      "pointerlockchange",
+      pointerLockChangeHandler
+    );
     this.domElement.ownerDocument.addEventListener(
       "pointerlockerror",
-      this.onPointerlockError
+      pointerLockErrorHandler
     );
-    this.domElement.addEventListener("click", this.onDocumentClick);
+    this.domElement.addEventListener("click", documentClickHandler);
 
     unbinds.push(() => {
-      this.domElement.removeEventListener("mousemove", (event: MouseEvent) => {
-        this.onMouseMove(event);
-      });
+      this.domElement.removeEventListener("mousemove", mouseMoveHandler);
       this.domElement.ownerDocument.removeEventListener(
         "pointerlockchange",
-        () => {
-          this.onPointerlockChange();
-        }
+        pointerLockChangeHandler
       );
       this.domElement.ownerDocument.removeEventListener(
         "pointerlockerror",
-        this.onPointerlockError
+        pointerLockErrorHandler
       );
-
-      this.domElement.removeEventListener("click", this.onDocumentClick);
+      this.domElement.removeEventListener("click", documentClickHandler);
     });
-
     [
       ["r", "sprint"],
       ["w", "front"],

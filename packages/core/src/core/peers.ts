@@ -1,7 +1,7 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
 import { Group, Object3D, Quaternion, Vector3 } from "three";
 
-import { Character, setWorkerInterval } from "../libs";
+import { Character } from "../libs";
 
 import { NetIntercept } from "./network";
 
@@ -130,7 +130,7 @@ export class Peers<
    *
    * @param id The new peer's ID.
    */
-  onPeerJoin: (id: string) => void;
+  onPeerJoin: (id: string, peer: C) => void;
 
   /**
    * A function called to update a peer object with new data. This function should be implemented to
@@ -154,7 +154,7 @@ export class Peers<
    *
    * @param id The ID of the peer that left the game.
    */
-  onPeerLeave: (id: string) => void;
+  onPeerLeave: (id: string, peer: C) => void;
 
   /**
    * The network intercept implementation for peers.
@@ -199,8 +199,8 @@ export class Peers<
           break;
         }
 
-        internalOnJoin(id);
-        this.onPeerJoin?.(id);
+        const newPeer = internalOnJoin(id);
+        this.onPeerJoin?.(id, newPeer);
         break;
       }
       case "LEAVE": {
@@ -209,7 +209,7 @@ export class Peers<
 
         if (peer) this.remove(peer);
 
-        this.onPeerLeave?.(id);
+        this.onPeerLeave?.(id, peer as C);
         break;
       }
       default: {
@@ -223,7 +223,7 @@ export class Peers<
       peers.forEach((peer: any) => {
         if (!this.options.countSelf && (!this.ownID || peer.id === this.ownID))
           return;
-        if (message.type === "INIT") this.onPeerJoin?.(peer.id);
+        if (message.type === "INIT") this.onPeerJoin?.(peer.id, peer);
 
         let object = this.getObjectByName(peer.id) as C;
         if (!object) {
