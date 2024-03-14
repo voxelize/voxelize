@@ -901,10 +901,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @param hud The {@link Hud} to attach to this controls instance.
    */
   attachHud = (hud: Hud) => {
-    this.camera.add(hud.mesh);
+    this.camera.add(hud);
 
     this.hud = hud;
-    hud.controls = this;
   };
 
   /**

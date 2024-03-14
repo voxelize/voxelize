@@ -685,7 +685,7 @@ const start = async () => {
 
   document.body.appendChild(bar.element);
 
-  const hud = new VOXELIZE.Hud({ visible: true });
+  const hud = new VOXELIZE.Hud();
 
   hud.connect(inputs, "in-game");
   controls.attachHud(hud);

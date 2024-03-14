@@ -1,18 +1,8 @@
-import merge from "deepmerge";
 import * as THREE from "three";
 
-import { RigidControls } from "../core/controls";
 import { Inputs } from "../core/inputs";
 
 import { ARM_COLOR } from "./character";
-
-export type HudOptions = {
-  visible: boolean;
-};
-
-const defaultOptions: HudOptions = {
-  visible: true,
-};
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
@@ -24,12 +14,26 @@ const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   -Math.PI / 4
 );
 
-export class Hud {
+export type HudOptions = {
+  armMesh?: THREE.Object3D;
+  armPosition?: THREE.Vector3;
+  armQuaternion?: THREE.Quaternion;
+  blockPosition?: THREE.Vector3;
+  blockQuaternion?: THREE.Quaternion;
+  armColor?: string;
+};
+
+const defaultOptions: HudOptions = {
+  armMesh: undefined,
+  armPosition: ARM_POSITION,
+  armQuaternion: ARM_QUATERION,
+  blockPosition: BLOCK_POSITION,
+  blockQuaternion: BLOCK_QUATERNION,
+  armColor: ARM_COLOR,
+};
+
+export class Hud extends THREE.Group {
   public options: HudOptions;
-
-  public mesh: THREE.Object3D;
-
-  public controls: RigidControls;
 
   private mixer: THREE.AnimationMixer;
 
@@ -44,21 +48,26 @@ export class Hud {
   private placeAnimation: THREE.AnimationAction;
 
   constructor(options: Partial<HudOptions> = {}) {
-    this.options = merge(defaultOptions, options);
+    super();
+
+    this.options = {
+      ...defaultOptions,
+      ...options,
+    };
 
     this.armSwingClip = this.generateSwingClip(
-      ARM_POSITION,
-      ARM_QUATERION,
+      this.options.armPosition,
+      this.options.armQuaternion,
       "armSwing"
     );
     this.blockSwingClip = this.generateSwingClip(
-      BLOCK_POSITION,
-      BLOCK_QUATERNION,
+      this.options.blockPosition,
+      this.options.blockQuaternion,
       "blockSwing"
     );
     this.blockPlaceClip = this.generatePlaceClip(
-      BLOCK_POSITION,
-      BLOCK_QUATERNION,
+      this.options.blockPosition,
+      this.options.blockQuaternion,
       "blockPlace"
     );
 
@@ -95,18 +104,12 @@ export class Hud {
    */
   public setMesh = (mesh: THREE.Object3D | undefined, animate: boolean) => {
     if (!animate) {
-      if (this.controls && this.mesh) {
-        this.controls.camera.remove(this.mesh);
-      }
+      this.clear();
 
       if (!mesh) {
         this.setArmMesh();
       } else {
         this.setBlockMesh(mesh);
-      }
-
-      if (this.controls && this.mesh instanceof THREE.Object3D) {
-        this.controls.camera.add(this.mesh);
       }
     } else {
       // TODO: Create animation of arm coming down and coming back up
@@ -116,31 +119,42 @@ export class Hud {
   private setArmMesh = () => {
     const color = new THREE.Color(ARM_COLOR);
     const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
+    // TODO: Make mesh appear in front of everything
     const material = new THREE.MeshBasicMaterial({
       color,
+      // depthTest: false,
     });
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
-    this.mesh.quaternion.multiply(ARM_QUATERION);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
+    mesh.quaternion.multiply(ARM_QUATERION);
+    // this.mesh.renderOrder = 9999999;
 
-    this.mixer = new THREE.AnimationMixer(this.mesh);
+    this.mixer = new THREE.AnimationMixer(mesh);
     this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
 
     this.placeAnimation = undefined;
+
+    this.add(mesh);
   };
 
   private setBlockMesh = (mesh: THREE.Object3D) => {
-    this.mesh = mesh;
-    this.mesh.position.set(
-      BLOCK_POSITION.x,
-      BLOCK_POSITION.y,
-      BLOCK_POSITION.z
-    );
+    mesh.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
     mesh.quaternion.multiply(BLOCK_QUATERNION);
 
-    this.mixer = new THREE.AnimationMixer(this.mesh);
+    // TODO: Make mesh appear in front of everything
+    // mesh.traverse((child) => {
+    //   if (
+    //     child instanceof THREE.Mesh &&
+    //     child.material instanceof THREE.Material
+    //   ) {
+    //     child.material.depthTest = false; // Disable depth testing
+    //     child.renderOrder = 99999999; // Set a high render order
+    //   }
+    // });
+
+    this.mixer = new THREE.AnimationMixer(mesh);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
@@ -148,6 +162,8 @@ export class Hud {
     this.placeAnimation = this.mixer.clipAction(this.blockPlaceClip);
     this.placeAnimation.setLoop(THREE.LoopOnce, 1);
     this.placeAnimation.clampWhenFinished = true;
+
+    this.add(mesh);
   };
 
   /**
