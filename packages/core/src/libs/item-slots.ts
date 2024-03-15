@@ -66,6 +66,8 @@ const defaultOptions: ItemSlotsOptions = {
 };
 
 export class ItemSlot<T = number> {
+  public itemSlots: ItemSlots<T>;
+
   public row: number;
 
   public col: number;
@@ -99,7 +101,8 @@ export class ItemSlot<T = number> {
 
   public offset: Vector3 = new Vector3();
 
-  constructor(row: number, col: number) {
+  constructor(itemSlots: ItemSlots<T>, row: number, col: number) {
+    this.itemSlots = itemSlots;
     this.row = row;
     this.col = col;
 
@@ -128,12 +131,14 @@ export class ItemSlot<T = number> {
 
     this.object = object;
     this.scene.add(object);
+    this.triggerChange();
   };
 
   getContent = () => this.content;
 
   setContent = (content: T) => {
     this.content = content;
+    this.triggerChange();
   };
 
   getSubscript = () => this.subscript;
@@ -141,6 +146,15 @@ export class ItemSlot<T = number> {
   setSubscript = (subscript: string) => {
     this.subscript = subscript;
     this.subscriptElement.innerText = subscript;
+    this.triggerChange();
+  };
+
+  triggerChange = () => {
+    if (
+      this.row == this.itemSlots.focusedRow &&
+      this.col == this.itemSlots.focusedCol
+    )
+      this.itemSlots.triggerFocusChange(null, this);
   };
 
   setZoom = (zoom: number) => {
@@ -223,10 +237,26 @@ export class ItemSlots<T = number> {
 
   public onSlotClick: (slot: ItemSlot<T>) => void = noop;
   public onSlotUpdate: (slot: ItemSlot<T>) => void = noop;
-  public onFocusChange: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void =
-    noop;
+  public onFocusChange = (
+    callbackFunc: (prevSlot: ItemSlot<T>, nextSlot: ItemSlot<T>) => void
+  ) => {
+    this.focusChangeCallbacks.push(callbackFunc);
+  };
+  public triggerFocusChange = (
+    prevSlot: ItemSlot<T>,
+    nextSlot: ItemSlot<T>
+  ) => {
+    for (const callback of this.focusChangeCallbacks) {
+      callback(prevSlot, nextSlot);
+    }
+  };
 
   private slots: ItemSlot<T>[][];
+
+  private focusChangeCallbacks: ((
+    prevSlot: ItemSlot<T>,
+    nextSlot: ItemSlot<T>
+  ) => void)[] = [];
 
   private animationFrame = -1;
 
@@ -318,9 +348,10 @@ export class ItemSlots<T = number> {
       this.focusedCol !== -1 &&
       (this.focusedRow !== row || this.focusedCol !== col);
 
+    let prevSlot = null;
     if (hadPrevious) {
-      const slot = this.slots[this.focusedRow][this.focusedCol];
-      slot.element.classList.remove(this.options.slotFocusClass);
+      prevSlot = this.slots[this.focusedRow][this.focusedCol];
+      prevSlot.element.classList.remove(this.options.slotFocusClass);
     }
 
     this.focusedRow = row;
@@ -328,10 +359,7 @@ export class ItemSlots<T = number> {
 
     const slot = this.slots[this.focusedRow][this.focusedCol];
 
-    this.onFocusChange(
-      hadPrevious ? this.slots[this.focusedRow][this.focusedCol] : null,
-      slot
-    );
+    this.triggerFocusChange(prevSlot, slot);
 
     slot.element.classList.add(this.options.slotFocusClass);
     this.onSlotClick(slot);
@@ -631,7 +659,7 @@ export class ItemSlots<T = number> {
       this.slots[row] = [];
 
       for (let col = 0; col < horizontalCount; col++) {
-        const slot = new ItemSlot<T>(row, col);
+        const slot = new ItemSlot<T>(this, row, col);
 
         slot.applyClass(slotClass);
         slot.applyStyles({

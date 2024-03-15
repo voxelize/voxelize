@@ -197,6 +197,14 @@ export class Perspective {
       }
     }
 
+    if (this.controls.hud) {
+      if (this.state === "first" && !this.controls.hud.visible) {
+        this.controls.hud.visible = true;
+      } else if (this.state !== "first" && this.controls.hud.visible) {
+        this.controls.hud.visible = false;
+      }
+    }
+
     const getDistance = () => {
       const dir = new Vector3();
       (this.state === "second" ? object : camera).getWorldDirection(dir);

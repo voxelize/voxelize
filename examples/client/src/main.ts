@@ -564,7 +564,7 @@ network
   .register(peers)
   .register(controls);
 
-const HOTBAR_CONTENT = [1, 5, 20, 50000, 43, 45, 300, 400, 500, 150];
+const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 43, 45, 300, 400, 500];
 
 // let isLoading = true;
 // const loadingFade = 500;
@@ -682,7 +682,17 @@ const start = async () => {
     },
     scrollable: false,
   });
+
   document.body.appendChild(bar.element);
+
+  const hud = new VOXELIZE.Hud();
+
+  hud.connect(inputs, "in-game");
+  controls.attachHud(hud);
+  bar.onFocusChange((_, current) => {
+    const mesh = world.makeBlockMesh(current.content, { material: "basic" });
+    hud.setMesh(mesh, false);
+  });
 
   // debug.registerDisplay("Active Voxels", async () => {
   //   const data = await fetch(`${BACKEND_SERVER}info`);
@@ -727,9 +737,9 @@ const start = async () => {
   debug.registerDisplay("Packet queue length", network, "packetQueueLength");
 
   HOTBAR_CONTENT.forEach((id, index) => {
-    const mesh = world.makeBlockMesh(id, { material: "standard" });
     const slot = bar.getSlot(0, index);
-    slot.setObject(mesh);
+    const mesh = world.makeBlockMesh(id, { material: "standard" });
+    if (mesh) slot.setObject(mesh);
 
     if (id === 500) {
       slot.setPerspective("pz");
@@ -738,11 +748,11 @@ const start = async () => {
     slot.setContent(id);
   });
 
-  ["1", "2", "3", "4", "5", "6", "7", "8", "9"].forEach((key) => {
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].forEach((key) => {
     inputs.bind(
       key,
       () => {
-        const index = parseInt(key);
+        const index = key !== "0" ? parseInt(key) : 10;
         bar.setFocused(0, index - 1);
       },
       "in-game"
