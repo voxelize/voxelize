@@ -47,6 +47,12 @@ ___
 
 ___
 
+### EntityOperation
+
+Ƭ **EntityOperation**: ``"CREATE"`` \| ``"UPDATE"`` \| ``"DELETE"``
+
+___
+
 ### EntityProtocol
 
 Ƭ **EntityProtocol**\<`T`\>: `Object`
@@ -63,7 +69,7 @@ ___
 | :------ | :------ |
 | `id` | `string` |
 | `metadata` | `T` |
-| `operation` | ``"CREATE"`` \| ``"UPDATE"`` \| ``"DELETE"`` |
+| `operation` | [`EntityOperation`](modules.md#entityoperation) |
 | `type` | `string` |
 
 ___
@@ -95,6 +101,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
+| `at?` | [`number`, `number`, `number`] |
 | `faceName?` | `string` |
 | `indices` | `Uint32Array` |
 | `lights` | `Uint32Array` |

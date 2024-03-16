@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### constructor
 
-• **new ItemSlot**\<`T`\>(`row`, `col`): [`ItemSlot`](ItemSlot.md)\<`T`\>
+• **new ItemSlot**\<`T`\>(`itemSlots`, `row`, `col`): [`ItemSlot`](ItemSlot.md)\<`T`\>
 
 #### Type parameters
 
@@ -28,6 +28,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
+| `itemSlots` | [`ItemSlots`](ItemSlots.md)\<`T`\> |
 | `row` | `number` |
 | `col` | `number` |
 
@@ -58,6 +59,12 @@ ___
 ### element
 
 • **element**: `HTMLDivElement`
+
+___
+
+### itemSlots
+
+• **itemSlots**: [`ItemSlots`](ItemSlots.md)\<`T`\>
 
 ___
 
@@ -281,7 +288,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective) |
+| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective-24) |
 
 #### Returns
 
@@ -314,6 +321,16 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `zoom` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### triggerChange
+
+▸ **triggerChange**(): `void`
 
 #### Returns
 

@@ -25,7 +25,7 @@ packets to the server.
 
 ### onMessage
 
-• `Optional` **onMessage**: (`message`: `MessageProtocol`\<`any`, `any`, `any`, `any`, `any`\>, `clientInfo`: \{ `id`: `string` ; `username`: `string`  }) => `void`
+• `Optional` **onMessage**: (`message`: `MessageProtocol`, `clientInfo`: \{ `id`: `string` ; `username`: `string`  }) => `void`
 
 #### Type declaration
 
@@ -37,7 +37,7 @@ A listener to be implemented to handle incoming packets.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `message` | `MessageProtocol`\<`any`, `any`, `any`, `any`, `any`\> | The message received from the server. |
+| `message` | `MessageProtocol` | The message received from the server. |
 | `clientInfo` | `Object` | The client information. |
 | `clientInfo.id` | `string` | The client's ID. |
 | `clientInfo.username` | `string` | The client's username. |
@@ -50,7 +50,7 @@ ___
 
 ### packets
 
-• `Optional` **packets**: `MessageProtocol`\<`any`, `any`, `any`, `any`, `any`\>[]
+• `Optional` **packets**: `MessageProtocol`[]
 
 An array of packets to be sent to the server. These packets will be
 sent to the server after every `network.flush()` call.

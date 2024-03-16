@@ -33,8 +33,8 @@ const number = VoxelUtils.insertID(0, 13);
 
 | Name | Type |
 | :------ | :------ |
-| `rule` | [`BlockRule`](../modules.md#blockrule) |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `rule` | [`BlockRule`](../modules.md#blockrule-24) |
+| `voxel` | [`Coords3`](../modules.md#coords3-24) |
 | `functions` | `Object` |
 | `functions.getVoxelAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
 | `functions.getVoxelRotationAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => [`BlockRotation`](BlockRotation.md) |
@@ -106,6 +106,23 @@ The extracted voxel stage.
 
 ___
 
+### getBlockEntityId
+
+▸ **getBlockEntityId**(`id`, `voxel`): `string`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+| `voxel` | [`Coords3`](../modules.md#coords3-24) |
+
+#### Returns
+
+`string`
+
+___
+
 ### getBlockRotatedTransparency
 
 ▸ **getBlockRotatedTransparency**(`block`, `rotation`): `boolean`[]
@@ -114,7 +131,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block) |
+| `block` | [`Block`](../modules.md#block-24) |
 | `rotation` | [`BlockRotation`](BlockRotation.md) |
 
 #### Returns
@@ -131,8 +148,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block) |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `block` | [`Block`](../modules.md#block-24) |
+| `color` | [`LightColor`](../modules.md#lightcolor-24) |
 
 #### Returns
 

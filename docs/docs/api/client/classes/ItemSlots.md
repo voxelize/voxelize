@@ -28,7 +28,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`ItemSlotsOptions`](../modules.md#itemslotsoptions)\> |
+| `options` | `Partial`\<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-24)\> |
 
 #### Returns
 
@@ -57,27 +57,6 @@ ___
 ### focusedRow
 
 • **focusedRow**: `number` = `-1`
-
-___
-
-### onFocusChange
-
-• **onFocusChange**: (`prevSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>, `nextSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`
-
-#### Type declaration
-
-▸ (`prevSlot`, `nextSlot`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `prevSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
-| `nextSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
-
-##### Returns
-
-`void`
 
 ___
 
@@ -123,7 +102,7 @@ ___
 
 ### options
 
-• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions)
+• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-24)
 
 ___
 
@@ -303,6 +282,22 @@ ___
 
 ___
 
+### onFocusChange
+
+▸ **onFocusChange**(`callbackFunc`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `callbackFunc` | (`prevSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>, `nextSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` |
+
+#### Returns
+
+`void`
+
+___
+
 ### render
 
 ▸ **render**(): `void`
@@ -377,6 +372,23 @@ ___
 | `row` | `number` |
 | `col` | `number` |
 | `subscript` | `string` |
+
+#### Returns
+
+`void`
+
+___
+
+### triggerFocusChange
+
+▸ **triggerFocusChange**(`prevSlot`, `nextSlot`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `prevSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+| `nextSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
 
 #### Returns
 

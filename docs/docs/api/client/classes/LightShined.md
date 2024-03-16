@@ -36,8 +36,8 @@ Construct a light shined effect manager.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world that the effect is applied to. |
-| `options` | `Partial`\<[`LightShinedOptions`](../modules.md#lightshinedoptions)\> | Parameters to customize the effect. |
+| `world` | [`World`](World.md)\<`any`\> | The world that the effect is applied to. |
+| `options` | `Partial`\<[`LightShinedOptions`](../modules.md#lightshinedoptions-24)\> | Parameters to customize the effect. |
 
 #### Returns
 
@@ -63,7 +63,7 @@ ___
 
 ### options
 
-• **options**: [`LightShinedOptions`](../modules.md#lightshinedoptions)
+• **options**: [`LightShinedOptions`](../modules.md#lightshinedoptions-24)
 
 Parameters to customize the effect.
 
@@ -71,7 +71,7 @@ ___
 
 ### world
 
-• **world**: [`World`](World.md)
+• **world**: [`World`](World.md)\<`any`\>
 
 The world that the effect is applied to.
 

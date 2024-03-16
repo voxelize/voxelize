@@ -45,7 +45,7 @@ Create a new block overlay effect.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world that the effect is in. |
+| `world` | [`World`](World.md)\<`any`\> | The world that the effect is in. |
 | `camera` | `PerspectiveCamera` | The camera that the effect is applied to. |
 
 #### Returns
@@ -68,7 +68,7 @@ ___
 
 ### world
 
-• **world**: [`World`](World.md)
+• **world**: [`World`](World.md)\<`any`\>
 
 The world that the effect is in.
 

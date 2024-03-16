@@ -161,6 +161,8 @@ export type Block = {
   independentFaces: Set<string>;
 
   isolatedFaces: Set<string>;
+
+  isEntity: boolean;
 };
 
 /**

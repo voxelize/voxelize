@@ -11,7 +11,7 @@ a [NetIntercept](../interfaces/NetIntercept.md) that intercepts all peer-related
 the behavior of multiplayer functionality. This class also extends a `THREE.Group` that allows
 you to dynamically turn on/off multiplayer visibility.
 
-Override [Peers.packInfo](Peers.md#packinfo) to customize the information that is sent to other peers.
+Override [Peers.packInfo](Peers.md#packinfo-24) to customize the information that is sent to other peers.
 
 TODO-DOC
 
@@ -70,7 +70,7 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 
 | Name | Type |
 | :------ | :------ |
-| `C` | extends `Object3D`\<`Object3DEventMap`, `C`\> = `Object3D`\<`Object3DEventMap`\> |
+| `C` | extends `Object3D`\<`Object3DEventMap`\> = `Object3D`\<`Object3DEventMap`\> |
 | `T` | \{ `direction`: `number`[] ; `position`: `number`[]  } |
 
 #### Parameters
@@ -78,7 +78,7 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object?` | `Object3D`\<`Object3DEventMap`\> | The object that is used to send client's own data back to the server. |
-| `options` | `Partial`\<[`PeersOptions`](../modules.md#peersoptions)\> | Parameters to customize the effect. |
+| `options` | `Partial`\<[`PeersOptions`](../modules.md#peersoptions-24)\> | Parameters to customize the effect. |
 
 #### Returns
 
@@ -123,13 +123,13 @@ ___
 
 ### onPeerJoin
 
-• **onPeerJoin**: (`id`: `string`) => `void`
+• **onPeerJoin**: (`id`: `string`, `peer`: `C`) => `void`
 
 #### Type declaration
 
-▸ (`id`): `void`
+▸ (`id`, `peer`): `void`
 
-A function called when a player joins the game. By default, the function calls the [Peers.createPeer](Peers.md#createpeer)
+A function called when a player joins the game. By default, the function calls the [Peers.createPeer](Peers.md#createpeer-24)
 function to create a new peer object and adds it to the peers group. Customize this function to add additional
 behavior.
 
@@ -138,6 +138,7 @@ behavior.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `id` | `string` | The new peer's ID. |
+| `peer` | `C` | - |
 
 ##### Returns
 
@@ -147,11 +148,11 @@ ___
 
 ### onPeerLeave
 
-• **onPeerLeave**: (`id`: `string`) => `void`
+• **onPeerLeave**: (`id`: `string`, `peer`: `C`) => `void`
 
 #### Type declaration
 
-▸ (`id`): `void`
+▸ (`id`, `peer`): `void`
 
 A function called when a player leaves the game. Internally, when a player leaves, its object is removed
 from the peers group. Customize this function to add additional behavior.
@@ -161,6 +162,7 @@ from the peers group. Customize this function to add additional behavior.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `id` | `string` | The ID of the peer that left the game. |
+| `peer` | `C` | - |
 
 ##### Returns
 
@@ -197,7 +199,7 @@ ___
 
 ### options
 
-• **options**: [`PeersOptions`](../modules.md#peersoptions)
+• **options**: [`PeersOptions`](../modules.md#peersoptions-24)
 
 Parameters to customize the peers manager.
 

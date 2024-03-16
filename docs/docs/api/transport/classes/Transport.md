@@ -48,7 +48,7 @@ ___
 
 ### onAction
 
-• `Optional` **onAction**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onAction**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -58,7 +58,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -68,7 +68,7 @@ ___
 
 ### onChat
 
-• `Optional` **onChat**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onChat**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -78,7 +78,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -88,7 +88,7 @@ ___
 
 ### onEntity
 
-• `Optional` **onEntity**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onEntity**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -98,7 +98,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -108,7 +108,7 @@ ___
 
 ### onError
 
-• `Optional` **onError**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onError**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -118,7 +118,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -128,7 +128,7 @@ ___
 
 ### onEvent
 
-• `Optional` **onEvent**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onEvent**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -138,7 +138,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -148,7 +148,7 @@ ___
 
 ### onInit
 
-• `Optional` **onInit**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onInit**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -158,7 +158,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -168,7 +168,7 @@ ___
 
 ### onJoin
 
-• `Optional` **onJoin**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onJoin**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -178,7 +178,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -188,7 +188,7 @@ ___
 
 ### onLeave
 
-• `Optional` **onLeave**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onLeave**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -198,7 +198,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -208,7 +208,7 @@ ___
 
 ### onLoad
 
-• `Optional` **onLoad**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onLoad**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -218,7 +218,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -228,7 +228,7 @@ ___
 
 ### onMethod
 
-• `Optional` **onMethod**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onMethod**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -238,7 +238,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -248,7 +248,7 @@ ___
 
 ### onPeer
 
-• `Optional` **onPeer**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onPeer**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -258,7 +258,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -268,7 +268,7 @@ ___
 
 ### onTransport
 
-• `Optional` **onTransport**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onTransport**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -278,7 +278,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -288,7 +288,7 @@ ___
 
 ### onUnload
 
-• `Optional` **onUnload**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onUnload**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -298,7 +298,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -308,7 +308,7 @@ ___
 
 ### onUpdate
 
-• `Optional` **onUpdate**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>) => `void`
+• `Optional` **onUpdate**: (`event`: [`MessageProtocol`](../modules.md#messageprotocol)) => `void`
 
 #### Type declaration
 
@@ -318,7 +318,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 ##### Returns
 
@@ -355,7 +355,7 @@ ___
 
 ### decodeSync
 
-▸ **decodeSync**(`buffer`): [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>
+▸ **decodeSync**(`buffer`): [`MessageProtocol`](../modules.md#messageprotocol)
 
 #### Parameters
 
@@ -365,7 +365,7 @@ ___
 
 #### Returns
 
-[`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\>
+[`MessageProtocol`](../modules.md#messageprotocol)
 
 ___
 
@@ -393,7 +393,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `event` | [`MessageProtocol`](../modules.md#messageprotocol)\<`any`, `any`, `any`, `any`, `any`\> |
+| `event` | [`MessageProtocol`](../modules.md#messageprotocol) |
 
 #### Returns
 

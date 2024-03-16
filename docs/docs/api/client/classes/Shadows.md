@@ -38,7 +38,7 @@ Create a shadow manager.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `world` | [`World`](World.md) | The world to cast shadows in. |
+| `world` | [`World`](World.md)\<`any`\> | The world to cast shadows in. |
 
 #### Returns
 
@@ -52,7 +52,7 @@ Array\&lt;Shadow\&gt;.constructor
 
 ### world
 
-• **world**: [`World`](World.md)
+• **world**: [`World`](World.md)\<`any`\>
 
 The world to cast shadows in.
 
@@ -69,7 +69,7 @@ Add a shadow to an object under the shadow manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`\<`Object3DEventMap`\> | The object to add a shadow to. |
-| `options` | `Partial`\<[`ShadowOptions`](../modules.md#shadowoptions)\> | The options of the shadow. |
+| `options` | `Partial`\<[`ShadowOptions`](../modules.md#shadowoptions-24)\> | The options of the shadow. |
 
 #### Returns
 

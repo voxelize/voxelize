@@ -15,6 +15,14 @@ Properties of a Geometry.
 
 ## Properties
 
+### at
+
+• `Optional` **at**: `number`[]
+
+Geometry at
+
+___
+
 ### faceName
 
 • `Optional` **faceName**: `string`

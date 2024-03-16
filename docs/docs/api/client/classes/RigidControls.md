@@ -49,8 +49,8 @@ to the world's physics engine, and applies movement to the camera.
 | :------ | :------ | :------ |
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
-| `world` | [`World`](World.md) | The world to apply the controls to. |
-| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)\> | The options to initialize the controls with. |
+| `world` | [`World`](World.md)\<`any`\> | The world to apply the controls to. |
+| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-24)\> | The options to initialize the controls with. |
 
 #### Returns
 
@@ -67,7 +67,7 @@ EventEmitter.constructor
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [RigidControls.connect](RigidControls.md#connect) is called.
+when [RigidControls.connect](RigidControls.md#connect-24) is called.
 
 ___
 
@@ -95,7 +95,7 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter) to add a mesh for 2nd and 3rd person
+calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-24) to add a mesh for 2nd and 3rd person
 view.
 
 ___
@@ -108,12 +108,22 @@ The DOM element that pointerlock controls are applied to.
 
 ___
 
+### hud
+
+• `Optional` **hud**: [`Hud`](Hud.md)
+
+A potential link to a [Hud](Hud.md) instance. This can be added by
+calling [RigidControls.attachHud](RigidControls.md#attachhud-24) to add a mesh for the first person
+view.
+
+___
+
 ### inputs
 
 • `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[RigidControls.connect](RigidControls.md#connect), which registers the keyboard inputs for the controls.
+[RigidControls.connect](RigidControls.md#connect-24), which registers the keyboard inputs for the controls.
 
 ___
 
@@ -156,7 +166,7 @@ ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)
+• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-24)
 
 Parameters to initialize the Voxelize controls.
 
@@ -164,7 +174,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-24)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -172,7 +182,7 @@ ___
 
 ### world
 
-• **world**: [`World`](World.md)
+• **world**: [`World`](World.md)\<`any`\>
 
 Reference linking to the Voxelize world instance.
 
@@ -180,13 +190,13 @@ Reference linking to the Voxelize world instance.
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-24)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2)
+[`Coords2`](../modules.md#coords2-24)
 
 ___
 
@@ -228,14 +238,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-24)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3)
+[`Coords3`](../modules.md#coords3-24)
 
 ## Methods
 
@@ -258,6 +268,24 @@ Attach a [Character](Character.md) to this controls instance. This can be seen i
 
 ___
 
+### attachHud
+
+▸ **attachHud**(`hud`): `void`
+
+Attach a [Hud](Hud.md) to this controls instance. This can be seen in 1st person mode.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `hud` | [`Hud`](Hud.md) | The [Hud](Hud.md) to attach to this controls instance. |
+
+#### Returns
+
+`void`
+
+___
+
 ### connect
 
 ▸ **connect**(`inputs`, `namespace?`): () => `void`
@@ -270,7 +298,7 @@ Sets up all event listeners for controls, including:
 - Control lock/unlock events
 
 This function returns a function that can be called to disconnect the controls.
-Keep in mind that if [Inputs.remap](Inputs.md#remap) is used to remap any controls, they will
+Keep in mind that if [Inputs.remap](Inputs.md#remap-24) is used to remap any controls, they will
 not be unbound when the returned function is called.
 
 #### Parameters
@@ -425,7 +453,7 @@ A listener to be implemented to handle incoming packets.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `message` | `MessageProtocol`\<`any`, `any`, `any`, [`number`, `number`, `number`], `any`\> | The message received from the server. |
+| `message` | `MessageProtocol`\<`any`, `any`, `any`, [`number`, `number`, `number`]\> | The message received from the server. |
 
 #### Returns
 
@@ -433,7 +461,7 @@ A listener to be implemented to handle incoming packets.
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-24)
 
 ___
 
@@ -550,6 +578,7 @@ ___
 Update for the camera of the game. This should be called in the game update loop.
 What this does is that it updates the rigid body, and then interpolates the camera's position and rotation
 to the new position and rotation. If a character is attached, then the character is also updated.
+If the hud is attached, then the hud is also updated.
 
 #### Returns
 

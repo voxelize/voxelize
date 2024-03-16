@@ -41,6 +41,18 @@ Geometry _faceName.
 
 ___
 
+### at
+
+• **at**: `number`[]
+
+Geometry at.
+
+#### Implementation of
+
+[IGeometry](../interfaces/protocol.protocol.IGeometry.md).[at](../interfaces/protocol.protocol.IGeometry.md#at)
+
+___
+
 ### faceName
 
 • `Optional` **faceName**: `string`

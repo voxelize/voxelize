@@ -18,7 +18,7 @@ requires inputs to be bound:
 - [RigidControls.connect](/api/client/classes/RigidControls#connect): <kbd>WASD</kbd> and <kbd>Space</kbd> for movement, <kbd>Shift</kbd> for going down and <kbd>R</kbd> for sprinting.
 - [Perspective.connect](/api/client/classes/Perspective#connect): <kbd>C</kbd> for switching between perspectives.
 
-You can change the above bindings by calling [Inputs.remap](Inputs.md#remap) with the corresponding input identifiers, namely
+You can change the above bindings by calling [Inputs.remap](Inputs.md#remap-24) with the corresponding input identifiers, namely
 `RigidControls.INPUT_IDENTIFIER` and `Perspectives.INPUT_IDENTIFIER`.
 
 ## Example
@@ -27,8 +27,8 @@ You can change the above bindings by calling [Inputs.remap](Inputs.md#remap) wit
 const inputs = new VOXELIZE.Inputs();
 
 // Bind the space bar to a function.
-inputs.bind(" ", () => {
-  console.log("Space bar pressed!");
+inputs.bind(" ", (event) => {
+  console.log("Space bar pressed!", event);
 });
 
 // Bind rigid controls to the inputs manager.
@@ -73,7 +73,7 @@ EventEmitter.constructor
 
 ### namespace
 
-• **namespace**: `T` \| ``"*"``
+• **namespace**: ``"*"`` \| `T`
 
 The namespace that the Voxelize inputs is in. Use `setNamespace` to
 set the namespace to something else.
@@ -91,9 +91,9 @@ Bind a keyboard key to a callback.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `key` | `string` | `undefined` | The key to listen for. This checks the `event.key` or the `event.code` property. |
-| `callback` | () => `void` | `undefined` | The callback to call when the key is pressed. |
-| `namespace` | `T` \| ``"*"`` | `"*"` | The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace. |
-| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | `{}` | The specific options of the key to listen for. |
+| `callback` | (`event`: `KeyboardEvent`) => `void` | `undefined` | The callback to call when the key is pressed. |
+| `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace. |
+| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics-24) | `{}` | The specific options of the key to listen for. |
 
 #### Returns
 
@@ -119,9 +119,9 @@ Add a mouse click event listener.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
-| `callback` | () => `void` | `undefined` | The callback to call when the click is fired. |
-| `namespace` | `T` \| ``"*"`` | `"*"` | The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace. |
+| `type` | [`ClickType`](../modules.md#clicktype-24) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
+| `callback` | (`event`: `MouseEvent`) => `void` | `undefined` | The callback to call when the click is fired, passing the MouseEvent. |
+| `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace. |
 
 #### Returns
 
@@ -177,7 +177,7 @@ Remap a key to another key.
 | `newKey` | `string` | The new key to replace the old key with. |
 | `specifics` | `Object` | The specifics of the keys to replace. |
 | `specifics.identifier?` | `string` | - |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-24) | - |
 
 #### Returns
 
@@ -209,7 +209,7 @@ Add a scroll event listener.
 | :------ | :------ | :------ | :------ |
 | `up` | (`delta?`: `number`) => `void` | `undefined` | The callback to call when the scroll wheel is scrolled up. |
 | `down` | (`delta?`: `number`) => `void` | `undefined` | The callback to call when the scroll wheel is scrolled down. |
-| `namespace` | `T` \| ``"*"`` | `"*"` | The namespace to bind the scroll to. Defaults to "*", which means that the scroll will be fired regardless of the namespace. |
+| `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the scroll to. Defaults to "*", which means that the scroll will be fired regardless of the namespace. |
 
 #### Returns
 
@@ -257,7 +257,7 @@ Swap two keys with each other.
 | `keyB` | `string` | The second key to swap. |
 | `specifics` | `Object` | The specifics of the keys to swap. |
 | `specifics.identifier?` | `string` | - |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-24) | - |
 
 #### Returns
 
@@ -276,7 +276,7 @@ Unbind a keyboard key.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `key` | `string` | The key to unbind. |
-| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | The specifics of the key to unbind. |
+| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics-24) | The specifics of the key to unbind. |
 
 #### Returns
 
