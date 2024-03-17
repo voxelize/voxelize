@@ -692,15 +692,26 @@ impl World {
     }
 
     /// Create a basic entity ready to be added more.
-    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+    pub fn create_base_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
         self.ecs_mut()
             .create_entity()
             .with(IDComp::new(id))
             .with(EntityFlag::default())
+            .with(CurrentChunkComp::default())
+    }
+
+    /// Create a basic entity ready to be added more.
+    pub fn create_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+        self.create_base_entity(id, etype)
             .with(ETypeComp::new(etype, false))
             .with(MetadataComp::new())
-            .with(CurrentChunkComp::default())
             .with(CollisionsComp::new())
+    }
+
+    /// Create a basic entity ready to be added more.
+    pub fn create_block_entity(&mut self, id: &str, etype: &str) -> EntityBuilder {
+        self.create_base_entity(id, etype)
+            .with(ETypeComp::new(etype, true))
     }
 
     /// Spawn an entity of type at a location.
@@ -731,8 +742,17 @@ impl World {
         metadata: MetadataComp,
     ) -> Option<Entity> {
         if etype.starts_with("block::") {
-            let entity = self.create_entity(id, etype).build();
-            self.populate_entity(entity, id, etype, metadata);
+            // info!("Reviving block entity with metadata: {:?}", metadata);
+            let entity = self
+                .create_block_entity(id, etype)
+                .with(
+                    metadata
+                        .get::<JsonComp>("json")
+                        .unwrap_or(JsonComp::new("{}")),
+                )
+                .with(metadata.get::<VoxelComp>("voxel").unwrap_or_default())
+                .with(metadata)
+                .build();
             return Some(entity);
         }
 
@@ -1128,7 +1148,13 @@ impl World {
             }
 
             if !loaded_entities.is_empty() {
+                let name = self.name.to_owned();
                 let mut bookkeeping = self.write_resource::<Bookkeeping>();
+                info!(
+                    "World {:?} loaded {} entities from disk.",
+                    name,
+                    loaded_entities.len()
+                );
                 bookkeeping.entities = loaded_entities;
             }
         }
@@ -1169,7 +1195,7 @@ impl World {
         let mut entities = vec![];
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if metadata.is_empty() {
+            if !etype.0.starts_with("block::") && metadata.is_empty() {
                 continue;
             }
 

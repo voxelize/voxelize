@@ -584,10 +584,14 @@ inputs.bind("]", () => {
 });
 
 world.addBlockEntityUpdateListener((data) => {
-  if (data.operation === "UPDATE" || data.operation === "CREATE") {
-    const color = data.newValue.color ?? [0, 0, 0];
-    world.applyBlockTexture("mushroom", "top-py-", new THREE.Color(...color));
-  }
+  //   if (data.operation === "UPDATE" || data.operation === "CREATE") {
+  //     const color = data.newValue.color ?? [0, 0, 0];
+  //     world.applyBlockTexture("mushroom", "top-py-", new THREE.Color(...color));
+  //   }
+  console.log(
+    JSON.stringify(data.oldValue, null, 2),
+    JSON.stringify(data.newValue, null, 2)
+  );
 });
 
 let frame: any;
@@ -866,7 +870,7 @@ const start = async () => {
           return;
       }
 
-      if (currentBlock.name.toLowerCase() === "mushroom") {
+      if (currentBlock.isEntity) {
         const [tx, ty, tz] = voxelInteract.target;
         console.log([tx, ty, tz]);
         world.setBlockEntityDataAt(tx, ty, tz, {

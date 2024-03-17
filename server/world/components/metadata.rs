@@ -30,12 +30,7 @@ impl MetadataComp {
     /// Set a component's metadata
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let value = json!(data);
-
-        if let Some(entry) = self.map.get_mut(component) {
-            *entry = value;
-        } else {
-            self.map.insert(component.to_owned(), value);
-        }
+        self.map.insert(component.to_owned(), value);
     }
 
     /// Get a component's metadata

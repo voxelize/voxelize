@@ -1258,9 +1258,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
 
     const old = this.blockEntitiesMap.get(voxelName);
-    if (old) {
-      this.blockEntitiesMap.get(voxelName).data = data;
+    if (!old) {
+      console.log("No entity found at:", px, py, pz);
+      return;
     }
+
+    old.data = data;
+
     this.packets.push({
       type: "METHOD",
       method: {
@@ -2311,6 +2315,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const { id, type, metadata, operation } = entity;
 
       if (!type.startsWith("block::")) {
+        return;
+      }
+
+      if (!metadata || !metadata.voxel) {
+        console.log("No metadata or voxel in block entity", metadata);
         return;
       }
 

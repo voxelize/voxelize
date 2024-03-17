@@ -42,6 +42,7 @@ impl EntitiesSaver {
         } else {
             etype.to_lowercase()
         };
+        // info!("Saving metadata for entity {}: {:?}", id, metadata);
         map.insert("etype".to_owned(), json!(etype_value));
         map.insert("metadata".to_owned(), json!(metadata));
         let mut path = self.folder.clone();
