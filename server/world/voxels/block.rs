@@ -768,7 +768,7 @@ impl SixFacesBuilder {
     }
 
     pub fn independent_at(mut self, index: usize) -> Self {
-        if index > self.independence.len() {
+        if index >= self.independence.len() {
             return self;
         }
 
