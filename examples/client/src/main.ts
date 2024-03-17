@@ -688,7 +688,7 @@ const start = async () => {
   const hud = new VOXELIZE.Hud();
 
   hud.connect(inputs, "in-game");
-  controls.attachHud(hud);
+  // controls.attachHud(hud);
   bar.onFocusChange((_, current) => {
     const mesh = world.makeBlockMesh(current.content, { material: "basic" });
     hud.setMesh(mesh, false);
