@@ -124,6 +124,8 @@ export type RigidControlsOptions = {
    */
   initialPosition: Coords3;
 
+  initialDirection: Coords3;
+
   /**
    * The interpolation factor of the client's rotation. Defaults to `0.9`.
    */
@@ -260,6 +262,7 @@ const defaultOptions: RigidControlsOptions = {
   minPolarAngle: Math.PI * 0.01,
   maxPolarAngle: Math.PI * 0.99,
   initialPosition: [0, 80, 10],
+  initialDirection: [0, 0, 0],
   rotationLerp: 0.9,
   positionLerp: 1.0,
   stepLerp: 0.6,
@@ -498,7 +501,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       stepHeight: this.options.stepHeight,
     });
 
-    this.teleport(...this.options.initialPosition);
+    this.reset();
   }
 
   onMessage = (
@@ -835,6 +838,16 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   reset = () => {
     this.teleport(...this.options.initialPosition);
+
+    this.quaternion.setFromUnitVectors(
+      new Vector3(0, 0, -1),
+      new Vector3(
+        this.options.initialDirection[0],
+        this.options.initialDirection[1],
+        this.options.initialDirection[2]
+      ).normalize()
+    );
+
     this.object.rotation.set(0, 0, 0);
 
     this.resetMovements();
