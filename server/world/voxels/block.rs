@@ -370,6 +370,10 @@ impl BlockFaces {
         Self { faces: vec![] }
     }
 
+    pub fn empty() -> Self {
+        Self { faces: Vec::new() }
+    }
+
     pub fn independent_at(mut self, index: usize) -> Self {
         if index >= self.faces.len() {
             return self;
