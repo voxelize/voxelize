@@ -19,12 +19,12 @@ impl<'a> System<'a> for EntityTreeSystem {
 
         tree.reset();
 
-        for (ent, body, _) in (&*entities, &bodies, &entity_flags).join() {
+        for (ent, body, _) in (&entities, &bodies, &entity_flags).join() {
             let pos = body.0.get_position();
             tree.add_entity(ent, pos);
         }
 
-        for (ent, body, _) in (&*entities, &bodies, &client_flags).join() {
+        for (ent, body, _) in (&entities, &bodies, &client_flags).join() {
             let pos = body.0.get_position();
             tree.add_player(ent, pos);
         }

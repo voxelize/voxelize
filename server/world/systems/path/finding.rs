@@ -1,7 +1,11 @@
 use std::sync::{Arc, Mutex};
 
+use crate::{
+    AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
+    WorldConfig,
+};
+use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-use crate::{Chunks, Registry, RigidBodyComp, Vec3, VoxelAccess, WorldConfig, PathComp, TargetComp, AStar, PathNode};
 
 const MAX_DEPTH_SEARCH: i32 = 2048;
 
@@ -68,8 +72,28 @@ impl<'a> System<'a> for PathFindingSystem {
                     let height = body.0.aabb.height();
 
                     // Position has to be rounded down because it's offset by +0.5
-                    let body_vpos = Vec3(body_pos.0.floor() as i32, body_pos.1.floor() as i32, body_pos.2.floor() as i32);
-                    let target_vpos = Vec3(target.0.floor() as i32, target.1.floor() as i32, target.2.floor() as i32);
+                    let body_vpos = Vec3(
+                        body_pos.0.floor() as i32,
+                        body_pos.1.floor() as i32,
+                        body_pos.2.floor() as i32,
+                    );
+                    let target_vpos = Vec3(
+                        target.0.floor() as i32,
+                        target.1.floor() as i32,
+                        target.2.floor() as i32,
+                    );
+
+                    // Check the distance between the robot and the target
+                    // If the distance is too large, skip pathfinding for this entity
+                    let max_distance_allowed = target.1 as f64; // Set this to a suitable value for your game
+                    let distance = ((body_vpos.0 - target_vpos.0).pow(2)
+                        + (body_vpos.1 - target_vpos.1).pow(2)
+                        + (body_vpos.2 - target_vpos.2).pow(2))
+                        as f64;
+                    if distance.sqrt() > max_distance_allowed {
+                        entity_path.path = None;
+                        return;
+                    }
 
                     let start = get_standable_voxel(&body_vpos);
                     let goal = get_standable_voxel(&target_vpos);
