@@ -18,6 +18,8 @@ use self::{
     systems::{CountdownSystem, NameMetadataSystem},
 };
 
+use super::shared::{setup_components, setup_dispatcher, setup_entities, setup_methods};
+
 #[derive(Default, Component)]
 #[storage(NullStorage)]
 struct BoxFlag;
@@ -43,7 +45,8 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         .max_chunk([50, 50])
         .saving(true)
         .save_dir("data/worlds/flat")
-        .time_per_day(2400)
+        .time_per_day(24000)
+        .default_time(12000.0)
         .build();
 
     let mut world = World::new("flat", &config);
@@ -56,43 +59,10 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         pipeline.add_stage(FlatlandStage::new().add_soiling(stone.id, 50))
     }
 
-    world.set_dispatcher(|| {
-        DispatcherBuilder::new()
-            .with(UpdateStatsSystem, "update-stats", &[])
-            .with(EntitiesMetaSystem, "entities-meta", &[])
-            .with(NameMetadataSystem, "name-metadata", &["entities-meta"])
-            .with(PeersMetaSystem, "peers-meta", &[])
-            .with(CurrentChunkSystem, "current-chunk", &[])
-            .with(ChunkUpdatingSystem, "chunk-updating", &["current-chunk"])
-            .with(ChunkRequestsSystem, "chunk-requests", &["current-chunk"])
-            .with(
-                ChunkGeneratingSystem,
-                "chunk-generation",
-                &["chunk-requests"],
-            )
-            .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
-            .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
-            .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
-            .with(CountdownSystem, "countdown", &["entities-meta"])
-            .with(DataSavingSystem, "entities-saving", &["entities-meta"])
-            .with(
-                EntitiesSendingSystem,
-                "entities-sending",
-                &["entities-meta"],
-            )
-            .with(PeersSendingSystem, "peers-sending", &["peers-meta"])
-            .with(
-                BroadcastSystem,
-                "broadcast",
-                &["chunk-sending", "entities-sending", "peers-sending"],
-            )
-            .with(
-                CleanupSystem,
-                "cleanup",
-                &["entities-sending", "peers-sending"],
-            )
-            .with(EventsSystem, "events", &["broadcast"])
-    });
+    setup_components(&mut world);
+    setup_methods(&mut world);
+    setup_entities(&mut world);
+    setup_dispatcher(&mut world);
 
     world.ecs_mut().register::<BoxFlag>();
     world.ecs_mut().register::<Name>();

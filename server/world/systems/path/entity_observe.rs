@@ -1,5 +1,5 @@
+use crate::{KdTree, RigidBodyComp, TargetComp};
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-use crate::{RigidBodyComp, TargetComp, KdTree};
 
 pub struct EntityObserveSystem;
 
@@ -21,7 +21,7 @@ impl<'a> System<'a> for EntityObserveSystem {
             .par_join()
             .for_each(|(body, target)| {
                 let position = body.0.get_position();
-                let closest_arr = tree.search(&position, 1);
+                let closest_arr = tree.search_player(&position, 1, false);
 
                 if closest_arr.len() > 0 {
                     let entity = closest_arr[0].1;

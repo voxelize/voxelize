@@ -50,16 +50,25 @@ impl<'a> System<'a> for PathFindingSystem {
 
         let get_standable_voxel = |voxel: &Vec3<i32>| -> Vec3<i32> {
             let mut voxel = voxel.clone();
+            let min_y = 0; // Set this to the minimum y value allowed in your game world
 
             loop {
-                if voxel.1 == 0 || get_is_voxel_passable(voxel.0, voxel.1, voxel.2) {
-                    voxel.1 -= 1;
+                if voxel.1 <= min_y || get_is_voxel_passable(voxel.0, voxel.1, voxel.2) {
+                    if voxel.1 <= min_y {
+                        // If we've reached or passed the minimum y value, stop adjusting the voxel.
+                        // This prevents an infinite loop in scenarios where no solid ground is found.
+                        voxel.1 = min_y;
+                    } else {
+                        // If the current voxel is passable, decrement y to check the voxel below.
+                        voxel.1 -= 1;
+                    }
                 } else {
+                    // Found a non-passable voxel, indicating solid ground. Break the loop.
                     break;
                 }
             }
 
-            voxel.1 += 1;
+            voxel.1 += 1; // Adjust to the standing position on top of the found solid ground.
             voxel
         };
 
