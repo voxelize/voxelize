@@ -120,9 +120,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     }
 
                     // Before starting the A* search, check if start and goal positions are valid
-                    if !get_is_voxel_passable(start.0, start.1, start.2)
-                        || !get_is_voxel_passable(goal.0, goal.1, goal.2)
-                    {
+                    if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
                         entity_path.path = None;
                         return;
                     }
