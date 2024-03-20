@@ -270,6 +270,7 @@ impl World {
         ecs.insert(Transports::new());
         ecs.insert(ChunkInterests::new());
         ecs.insert(Bookkeeping::new());
+        ecs.insert(KdTree::new());
 
         let mut world = Self {
             id,
