@@ -7,7 +7,7 @@ use crate::{
 use log::info;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-const MAX_DEPTH_SEARCH: i32 = 2048;
+const MAX_DEPTH_SEARCH: i32 = 512;
 
 pub struct PathFindingSystem;
 
@@ -115,6 +115,14 @@ impl<'a> System<'a> for PathFindingSystem {
                         + (start.2 - goal.2).pow(2))
                         as f64;
                     if start_goal_distance.sqrt() > max_distance_allowed {
+                        entity_path.path = None;
+                        return;
+                    }
+
+                    // Before starting the A* search, check if start and goal positions are valid
+                    if !get_is_voxel_passable(start.0, start.1, start.2)
+                        || !get_is_voxel_passable(goal.0, goal.1, goal.2)
+                    {
                         entity_path.path = None;
                         return;
                     }
