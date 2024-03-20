@@ -75,7 +75,7 @@ impl<'a> System<'a> for PathFindingSystem {
         (&bodies, &targets, &mut paths)
             .par_join()
             .for_each(|(body, target, entity_path)| {
-                if let Some(target) = target.0.to_owned() {
+                if let Some(target) = target.1.to_owned() {
                     let body_pos = body.0.get_position();
 
                     let height = body.0.aabb.height();
@@ -94,7 +94,7 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     // Check the distance between the robot and the target
                     // If the distance is too large, skip pathfinding for this entity
-                    let max_distance_allowed = target.1 as f64; // Set this to a suitable value for your game
+                    let max_distance_allowed = entity_path.max_distance as f64; // Set this to a suitable value for your game
                     let distance = ((body_vpos.0 - target_vpos.0).pow(2)
                         + (body_vpos.1 - target_vpos.1).pow(2)
                         + (body_vpos.2 - target_vpos.2).pow(2))

@@ -358,7 +358,7 @@ const entities = new VOXELIZE.Entities();
 type BotData = {
   position: VOXELIZE.Coords3;
   rotation: [number, number, number, number];
-  target: VOXELIZE.Coords3;
+  target: [VOXELIZE.TargetType, VOXELIZE.Coords3];
   path: {
     maxNodes: number;
     path: VOXELIZE.Coords3[];
@@ -429,7 +429,7 @@ class Bot extends VOXELIZE.Entity<BotData> {
 
     const origin = this.character.position;
 
-    const [tx, ty, tz] = target || [0, 0, 0];
+    const [tx, ty, tz] = target[1] || [0, 0, 0];
     const delta = new THREE.Vector3(tx, ty, tz).sub(origin);
     const direction = delta.clone().normalize();
 

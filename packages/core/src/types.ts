@@ -9,6 +9,8 @@ export type PartialRecord<K extends keyof any, T> = {
 export type Coords2 = [number, number];
 export type Coords3 = [number, number, number];
 
+export type TargetType = "All" | "Player" | "Entity";
+
 /**
  * A CSS measurement. E.g. "30px", "51em"
  */

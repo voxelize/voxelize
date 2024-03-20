@@ -33,5 +33,5 @@ pub use name::NameComp;
 pub use path::PathComp;
 pub use position::PositionComp;
 pub use rigidbody::RigidBodyComp;
-pub use target::TargetComp;
+pub use target::*;
 pub use voxel::*;

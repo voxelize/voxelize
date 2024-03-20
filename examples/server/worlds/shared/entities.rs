@@ -8,6 +8,7 @@ use voxelize::{
 use super::components::{BotFlag, RotationComp, TextComp};
 
 const MAX_NODES: usize = 24;
+const MAX_DISTANCE: f64 = 30.0;
 
 pub fn setup_entities(world: &mut World) {
     world.set_entity_loader("floating-text", |world, metadata| {
@@ -30,7 +31,7 @@ pub fn setup_entities(world: &mut World) {
             .with(
                 metadata
                     .get::<PathComp>("path")
-                    .unwrap_or_else(|| PathComp::new(MAX_NODES)),
+                    .unwrap_or_else(|| PathComp::new(MAX_NODES, MAX_DISTANCE)),
             )
             .with(metadata.get::<RotationComp>("rotation").unwrap_or_default())
             .with(RigidBodyComp::new(&body))
