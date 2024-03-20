@@ -107,6 +107,16 @@ impl<'a> System<'a> for PathFindingSystem {
                     let start = get_standable_voxel(&body_vpos);
                     let goal = get_standable_voxel(&target_vpos);
 
+                    // Check if the start and goal are too far apart for pathfinding
+                    let start_goal_distance = ((start.0 - goal.0).pow(2)
+                        + (start.1 - goal.1).pow(2)
+                        + (start.2 - goal.2).pow(2))
+                        as f64;
+                    if start_goal_distance.sqrt() > max_distance_allowed {
+                        entity_path.path = None;
+                        return;
+                    }
+
                     let count = Arc::new(Mutex::new(0));
 
                     let path = AStar::calculate(
