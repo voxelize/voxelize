@@ -8,7 +8,7 @@ pub type EType = String;
 pub enum TargetType {
     #[default]
     All,
-    Player,
+    Players,
     Entities,
 }
 
@@ -17,3 +17,21 @@ pub enum TargetType {
 #[derive(Component, Debug, Serialize, Deserialize, Default)]
 #[storage(VecStorage)]
 pub struct TargetComp(pub TargetType, pub Option<Vec3<f32>>);
+
+impl TargetComp {
+    pub fn new(target_type: TargetType, target_position: Option<Vec3<f32>>) -> Self {
+        TargetComp(target_type, target_position)
+    }
+
+    pub fn all() -> Self {
+        TargetComp(TargetType::All, None)
+    }
+
+    pub fn players() -> Self {
+        TargetComp(TargetType::Players, None)
+    }
+
+    pub fn entities() -> Self {
+        TargetComp(TargetType::Entities, None)
+    }
+}

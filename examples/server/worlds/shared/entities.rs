@@ -26,7 +26,11 @@ pub fn setup_entities(world: &mut World) {
         world
             .create_entity(&nanoid!(), "bot")
             .with(BotFlag)
-            .with(metadata.get::<TargetComp>("target").unwrap_or_default())
+            .with(
+                metadata
+                    .get::<TargetComp>("target")
+                    .unwrap_or_else(|| TargetComp::players()),
+            )
             .with(metadata.get::<PositionComp>("position").unwrap_or_default())
             .with(
                 metadata

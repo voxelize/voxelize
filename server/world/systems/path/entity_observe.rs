@@ -23,7 +23,7 @@ impl<'a> System<'a> for EntityObserveSystem {
                 let position = body.0.get_position();
                 let closest_arr = if target.0 == TargetType::All {
                     tree.search(&position, 1)
-                } else if target.0 == TargetType::Player {
+                } else if target.0 == TargetType::Players {
                     tree.search_player(&position, 1, false)
                 } else {
                     tree.search_entity(&position, 1, true)

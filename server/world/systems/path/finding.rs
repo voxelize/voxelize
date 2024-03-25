@@ -50,26 +50,25 @@ impl<'a> System<'a> for PathFindingSystem {
 
         let get_standable_voxel = |voxel: &Vec3<i32>| -> Vec3<i32> {
             let mut voxel = voxel.clone();
-            let min_y = 0; // Set this to the minimum y value allowed in your game world
+            let min_y = 0; // Ensure this is the absolute minimum Y value in your game world.
+
+            // Ensure we start within the world bounds.
+            if voxel.1 < min_y {
+                voxel.1 = min_y;
+            }
 
             while voxel.1 > min_y {
-                if get_is_voxel_passable(voxel.0, voxel.1, voxel.2) {
-                    // If the current voxel is passable, decrement y to check the voxel below.
+                if get_is_voxel_passable(voxel.0, voxel.1 - 1, voxel.2) {
+                    // If the voxel below is passable, decrement y to check further below.
                     voxel.1 -= 1;
                 } else {
-                    // Found a non-passable voxel, indicating solid ground. Break the loop.
+                    // Found a non-passable voxel below, indicating solid ground.
                     break;
                 }
             }
 
-            // If we've reached or passed the minimum y value without finding solid ground,
-            // adjust to the minimum y value to prevent an infinite loop.
-            if voxel.1 <= min_y {
-                voxel.1 = min_y;
-            } else {
-                // Adjust to the standing position on top of the found solid ground.
-                voxel.1 += 1;
-            }
+            // No need to adjust voxel.1 here as we're now ensuring the loop checks the voxel below for passability,
+            // meaning we're already at the correct height for standing when the loop exits.
 
             voxel
         };
@@ -94,6 +93,11 @@ impl<'a> System<'a> for PathFindingSystem {
                         target.2.floor() as i32,
                     );
 
+                    if !get_is_voxel_passable(target_vpos.0, target_vpos.1, target_vpos.2) {
+                        entity_path.path = None;
+                        return;
+                    }
+
                     // Check the distance between the robot and the target
                     // If the distance is too large, skip pathfinding for this entity
                     let max_distance_allowed = entity_path.max_distance as f64; // Set this to a suitable value for your game
@@ -108,6 +112,11 @@ impl<'a> System<'a> for PathFindingSystem {
 
                     let start = get_standable_voxel(&body_vpos);
                     let goal = get_standable_voxel(&target_vpos);
+
+                    if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
+                        entity_path.path = None;
+                        return;
+                    }
 
                     // Check if the start and goal are too far apart for pathfinding
                     let start_goal_distance = ((start.0 - goal.0).pow(2)
