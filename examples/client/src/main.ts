@@ -187,7 +187,7 @@ const controls = new VOXELIZE.RigidControls(
   renderer.domElement,
   world,
   {
-    initialPosition: [0, 12, 0],
+    initialPosition: [0, 82, 0],
     flyForce: 400,
     stepHeight: 1,
   }

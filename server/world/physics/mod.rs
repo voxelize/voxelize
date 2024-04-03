@@ -1,5 +1,6 @@
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
+use log::info;
 use nalgebra::Vector3;
 use rapier3d::prelude::{
     vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
@@ -122,18 +123,18 @@ impl Physics {
     }
 
     pub fn unregister(&mut self, body_handle: &RapierBodyHandle, collider_handle: &ColliderHandle) {
+        self.collider_set.remove(
+            collider_handle.to_owned(),
+            &mut self.island_manager,
+            &mut self.body_set,
+            false,
+        );
         self.body_set.remove(
             body_handle.to_owned(),
             &mut self.island_manager,
             &mut self.collider_set,
             &mut self.impulse_joint_set,
             &mut self.multibody_joint_set,
-            true,
-        );
-        self.collider_set.remove(
-            collider_handle.to_owned(),
-            &mut self.island_manager,
-            &mut self.body_set,
             true,
         );
     }

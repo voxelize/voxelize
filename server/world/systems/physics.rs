@@ -134,8 +134,14 @@ impl<'a> System<'a> for PhysicsSystem {
 
         // Collision detection, push bodies away from one another.
         let mut collision_data = Vec::new();
-        for (curr_chunk, body, interactor, entity) in
-            (&curr_chunks, &mut bodies, &interactors, &entities).join()
+        for (curr_chunk, body, interactor, entity, position) in (
+            &curr_chunks,
+            &mut bodies,
+            &interactors,
+            &entities,
+            &positions,
+        )
+            .join()
         {
             if !chunks.is_chunk_ready(&curr_chunk.coords) {
                 continue;
@@ -144,7 +150,7 @@ impl<'a> System<'a> for PhysicsSystem {
             let rapier_body = physics.get(&interactor.0);
             let after = rapier_body.translation();
 
-            let Vec3(px, py, pz) = body.0.get_position();
+            let Vec3(px, py, pz) = position.0;
 
             let dx = after.x - px;
             let dy = after.y - py;
@@ -160,7 +166,6 @@ impl<'a> System<'a> for PhysicsSystem {
                 collision_data.push((body, dx, dy, dz, len, entity));
             }
         }
-
         for (body, dx, dy, dz, len, entity) in collision_data {
             let mut dx = dx / len;
             let dy = dy / len;

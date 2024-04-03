@@ -483,6 +483,26 @@ impl World {
                     physics.unregister(&body_handle, &collider_handle);
                 }
 
+                {
+                    let mut interactors = self.ecs.write_storage::<InteractorComp>();
+                    interactors.remove(client.entity);
+                }
+
+                {
+                    let mut collisions = self.ecs.write_storage::<CollisionsComp>();
+                    collisions.remove(client.entity);
+                }
+
+                {
+                    let mut rigid_bodies = self.ecs.write_storage::<RigidBodyComp>();
+                    rigid_bodies.remove(client.entity);
+                }
+
+                {
+                    let mut clients = self.ecs.write_storage::<ClientFlag>();
+                    clients.remove(client.entity);
+                }
+
                 let entities = self.ecs.entities();
 
                 entities.delete(client.entity).unwrap_or_else(|_| {
