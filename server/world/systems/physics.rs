@@ -173,20 +173,20 @@ impl<'a> System<'a> for PhysicsSystem {
             }
 
             // Check if the entity is a client, and if so, apply the impulse to the client's body.
-            // if client_flag.get(entity).is_some() {
-            //     if let Some(id) = ids.get(entity) {
-            //         let event = EventBuilder::new("vox-builtin:impulse")
-            //             .payload(vec![
-            //                 dx * config.client_collision_repulsion,
-            //                 dy * config.client_collision_repulsion,
-            //                 dz * config.client_collision_repulsion,
-            //             ])
-            //             .filter(ClientFilter::Direct(id.0.to_owned()))
-            //             .build();
-            //         events.dispatch(event);
-            //         continue;
-            //     }
-            // }
+            if client_flag.get(entity).is_some() {
+                if let Some(id) = ids.get(entity) {
+                    let event = EventBuilder::new("vox-builtin:impulse")
+                        .payload(vec![
+                            dx * config.client_collision_repulsion,
+                            dy * config.client_collision_repulsion,
+                            dz * config.client_collision_repulsion,
+                        ])
+                        .filter(ClientFilter::Direct(id.0.to_owned()))
+                        .build();
+                    events.dispatch(event);
+                    continue;
+                }
+            }
 
             // Apply the impulse to the body.
             body.0.apply_impulse(

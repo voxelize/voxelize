@@ -207,12 +207,15 @@ export type WorldClientOptions = {
    * The interval between each time the world requests the server for its stats. Defaults to 500ms.
    */
   statsSyncInterval: number;
+
+  maxLightsUpdateTime: number;
 };
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
   maxProcessesPerUpdate: 1,
-  maxUpdatesPerUpdate: 12,
+  maxUpdatesPerUpdate: 64,
+  maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
   minLightLevel: 0.04,
@@ -2927,7 +2930,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
-    const { maxHeight, maxLightLevel } = this.options;
+    const processStartTime = performance.now(); // Timing start for the entire function
+
+    const { maxHeight, maxLightLevel, maxLightsUpdateTime } = this.options;
 
     // Placing a light
     const redFlood: LightNode[] = [];
@@ -2935,7 +2940,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     const blueFlood: LightNode[] = [];
     const sunFlood: LightNode[] = [];
 
+    let processedUpdates = 0; // Track the number of processed updates
+
+    const updatesLoopStartTime = performance.now(); // Timing start for updates loop
     for (const update of updates) {
+      if (performance.now() - processStartTime > maxLightsUpdateTime) {
+        console.warn(
+          "Approaching max lights update time, adjusting processing."
+        );
+        break;
+      }
+
       const {
         update: { type, vx, vy, vz, rotation, yRotation },
       } = update;
@@ -3196,12 +3211,38 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         });
       }
-    }
 
+      processedUpdates++; // Increment the count of processed updates
+    }
+    const updatesLoopEndTime = performance.now(); // Timing end for updates loop
+    console.log(
+      `Updates loop processing time: ${
+        updatesLoopEndTime - updatesLoopStartTime
+      }ms`
+    );
+
+    // Proceed with flood light process
+    const floodLightStartTime = performance.now(); // Timing start for flood light
     this.floodLight(sunFlood, "SUNLIGHT");
     this.floodLight(redFlood, "RED");
     this.floodLight(greenFlood, "GREEN");
     this.floodLight(blueFlood, "BLUE");
+    const floodLightEndTime = performance.now(); // Timing end for flood light
+    console.log(
+      `Flood light processing time: ${
+        floodLightEndTime - floodLightStartTime
+      }ms`
+    );
+
+    const processEndTime = performance.now(); // Timing end for the entire function
+    console.log(
+      `Total processLightUpdates function time: ${
+        processEndTime - processStartTime
+      }ms`
+    );
+
+    // Return the remaining updates that were not processed due to time constraint
+    return updates.slice(processedUpdates);
   };
 
   private processClientUpdates = () => {
@@ -3212,13 +3253,19 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.isTrackingChunks = true;
 
+    console.log(this.chunks.toUpdate.length, this.options.maxUpdatesPerUpdate);
+
+    const start = performance.now();
+
     const processUpdatesInIdleTime = () => {
       if (this.chunks.toUpdate.length > 0) {
         const updates = this.chunks.toUpdate.splice(
           0,
           this.options.maxUpdatesPerUpdate
         );
-        this.processLightUpdates(updates);
+        const remainingUpdates = this.processLightUpdates(updates);
+
+        this.chunks.toUpdate.push(...remainingUpdates);
 
         this.chunks.toEmit.push(
           ...updates
@@ -3228,8 +3275,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         // Use setTimeout to give the browser a chance to handle other tasks.
         if (this.chunks.toUpdate.length > 0) {
-          setTimeout(processUpdatesInIdleTime, 0); // 0 ms delay to schedule after any pending tasks
+          requestIdleCallback(processUpdatesInIdleTime); // 0 ms delay to schedule after any pending tasks
           return;
+        } else {
+          const end = performance.now();
+          console.log(end - start);
         }
       }
 

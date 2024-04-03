@@ -189,6 +189,7 @@ const controls = new VOXELIZE.RigidControls(
   {
     initialPosition: [0, 12, 0],
     flyForce: 400,
+    stepHeight: 1,
   }
 );
 
@@ -597,55 +598,81 @@ world.addBlockEntityUpdateListener((data) => {
 let frame: any;
 
 const start = async () => {
+  let isFocused = true;
+  let clearUpdate: any;
+
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      console.log("Page is hidden");
+      isFocused = false;
+      if (!clearUpdate) {
+        clearUpdate = VOXELIZE.setWorkerInterval(update, 1000 / 60);
+      }
+    } else {
+      console.log("Page is visible");
+      if (clearUpdate) {
+        clearUpdate();
+        clearUpdate = null;
+      }
+      isFocused = true;
+    }
+  };
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  const update = () => {
+    if (!world.isInitialized) return;
+
+    console.log("update, focused:", isFocused);
+
+    peers.update();
+    controls.update();
+
+    const inWater =
+      world.getBlockAt(
+        ...camera.getWorldPosition(new THREE.Vector3()).toArray()
+      )?.name === "Water";
+
+    const fogNear = inWater
+      ? 0.1 * world.options.chunkSize * world.renderRadius
+      : 0.7 * world.options.chunkSize * world.renderRadius;
+    const fogFar = inWater
+      ? 0.8 * world.options.chunkSize * world.renderRadius
+      : world.options.chunkSize * world.renderRadius;
+    const fogColor = inWater
+      ? new THREE.Color("#5F9DF7")
+      : world.chunks.uniforms.fogColor.value;
+
+    world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+      world.chunks.uniforms.fogNear.value,
+      fogNear,
+      0.08
+    );
+
+    world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+      world.chunks.uniforms.fogFar.value,
+      fogFar,
+      0.08
+    );
+
+    world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+
+    world.update(
+      controls.object.position,
+      camera.getWorldDirection(new THREE.Vector3())
+    );
+
+    perspective.update();
+    shadows.update();
+    debug.update();
+    lightShined.update();
+    voxelInteract.update();
+    botCharacters.forEach((bot) => bot.update());
+  };
+
   const animate = () => {
     frame = requestAnimationFrame(animate);
-
-    if (world.isInitialized) {
-      peers.update();
-      controls.update();
-
-      const inWater =
-        world.getBlockAt(
-          ...camera.getWorldPosition(new THREE.Vector3()).toArray()
-        )?.name === "Water";
-
-      const fogNear = inWater
-        ? 0.1 * world.options.chunkSize * world.renderRadius
-        : 0.7 * world.options.chunkSize * world.renderRadius;
-      const fogFar = inWater
-        ? 0.8 * world.options.chunkSize * world.renderRadius
-        : world.options.chunkSize * world.renderRadius;
-      const fogColor = inWater
-        ? new THREE.Color("#5F9DF7")
-        : world.chunks.uniforms.fogColor.value;
-
-      world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-        world.chunks.uniforms.fogNear.value,
-        fogNear,
-        0.08
-      );
-
-      world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-        world.chunks.uniforms.fogFar.value,
-        fogFar,
-        0.08
-      );
-
-      world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
-
-      world.update(
-        controls.object.position,
-        camera.getWorldDirection(new THREE.Vector3())
-      );
-
-      perspective.update();
-      shadows.update();
-      debug.update();
-      lightShined.update();
-      voxelInteract.update();
-      botCharacters.forEach((bot) => bot.update());
-    }
-
+    if (isFocused) update();
     composer.render();
   };
 
