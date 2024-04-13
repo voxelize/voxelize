@@ -1,16 +1,31 @@
 // @ts-ignore
-onmessage = (e) => {
-  const {
-    data: { interval, signal },
-  } = e;
+// Improved version with type annotations and scoped interval ID management
+type WorkerMessage = {
+  interval?: number;
+  signal: "start" | "stop";
+};
 
-  let id: any;
+let intervalId: number | null = null;
+
+function clearExistingInterval() {
+  if (intervalId !== null) {
+    clearInterval(intervalId);
+    intervalId = null; // Reset interval ID after clearing
+  }
+}
+
+onmessage = (e: MessageEvent<WorkerMessage>) => {
+  const { interval, signal } = e.data;
 
   if (signal === "start") {
-    id = setInterval(() => {
-      postMessage("tick");
-    }, interval);
+    // Ensure no interval is running before starting a new one
+    clearExistingInterval();
+    if (interval !== undefined) {
+      intervalId = setInterval(() => {
+        postMessage("tick");
+      }, interval);
+    }
   } else if (signal === "stop") {
-    clearInterval(id);
+    clearExistingInterval();
   }
 };

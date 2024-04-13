@@ -189,7 +189,7 @@ const controls = new VOXELIZE.RigidControls(
   {
     initialPosition: [0, 82, 0],
     flyForce: 400,
-    stepHeight: 1,
+    // stepHeight: 1,
   }
 );
 
@@ -565,7 +565,7 @@ network
   .register(peers)
   .register(controls);
 
-const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 43, 45, 300, 400, 500];
+const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 400, 500];
 
 // let isLoading = true;
 // const loadingFade = 500;

@@ -3269,13 +3269,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         this.chunks.toEmit.push(
           ...updates
+            .slice(
+              0,
+              this.options.maxUpdatesPerUpdate - remainingUpdates.length
+            )
             .filter(({ source }) => source === "client")
             .map(({ update }) => update)
         );
 
         // Use setTimeout to give the browser a chance to handle other tasks.
         if (this.chunks.toUpdate.length > 0) {
-          requestIdleCallback(processUpdatesInIdleTime); // 0 ms delay to schedule after any pending tasks
+          requestAnimationFrame(processUpdatesInIdleTime); // 0 ms delay to schedule after any pending tasks
           return;
         } else {
           const end = performance.now();

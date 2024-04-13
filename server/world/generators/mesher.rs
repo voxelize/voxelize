@@ -125,22 +125,38 @@ impl Mesher {
 
         processes
             .into_par_iter()
-            .for_each(|(mut chunk, mut space)| {
+            .map(|(mut chunk, mut space)| {
                 let sender = Arc::clone(&self.sender);
                 let r#type = r#type.to_owned();
 
                 let registry = registry.to_owned();
                 let config = config.to_owned();
 
-                self.pool.spawn(move || {
-                    let chunk_size = config.chunk_size as i32;
+                let chunk_size = config.chunk_size as i32;
 
+                let coords = space.coords.to_owned();
+                let min = space.min.clone();
+                let shape = space.shape.clone();
+
+                let light_colors = [
+                    LightColor::Sunlight,
+                    LightColor::Red,
+                    LightColor::Green,
+                    LightColor::Blue,
+                ];
+
+                let sub_chunks = chunk.updated_levels.to_owned();
+                let Vec3(min_x, min_y, min_z) = chunk.min;
+                let Vec3(max_x, _, max_z) = chunk.max;
+                let blocks_per_sub_chunk =
+                    (space.options.max_height / space.options.sub_chunks) as i32;
+
+                let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
+
+                let task = move || {
                     if chunk.meshes.is_none() {
-                        let coords = space.coords.to_owned();
-
                         let mut light_queues = vec![VecDeque::new(); 4];
 
-                        // From the minimum coordinates of the center chunk, subtract the maximum light.
                         for dx in -1..=1 {
                             for dz in -1..=1 {
                                 let min = Vec3(
@@ -167,16 +183,6 @@ impl Mesher {
                             }
                         }
 
-                        let min = space.min.clone();
-                        let shape = space.shape.clone();
-
-                        let light_colors = [
-                            LightColor::Sunlight,
-                            LightColor::Red,
-                            LightColor::Green,
-                            LightColor::Blue,
-                        ];
-
                         for (queue, color) in light_queues.into_iter().zip(light_colors.iter()) {
                             if !queue.is_empty() {
                                 Lights::flood_light(
@@ -193,16 +199,6 @@ impl Mesher {
 
                         chunk.lights = space.get_lights(coords.0, coords.1).unwrap().clone();
                     }
-
-                    let sub_chunks = chunk.updated_levels.to_owned();
-
-                    let Vec3(min_x, min_y, min_z) = chunk.min;
-                    let Vec3(max_x, _, max_z) = chunk.max;
-
-                    let blocks_per_sub_chunk =
-                        (space.options.max_height / space.options.sub_chunks) as i32;
-
-                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
                     sub_chunks
                         .into_par_iter()
@@ -227,8 +223,11 @@ impl Mesher {
                         });
 
                     sender.send((chunk, r#type)).unwrap();
-                });
-            });
+                };
+
+                self.pool.spawn(task);
+            })
+            .collect::<Vec<_>>();
     }
 
     /// Attempt to retrieve the results from `mesher.process`

@@ -24,6 +24,29 @@ pub fn setup_registry() -> Registry {
         );
     }
 
+    let stairs_base_faces = BlockFaces::six_faces().scale_y(0.5).build();
+    let stairs_base_aabb = AABB::from_faces(&stairs_base_faces);
+    let stairs_top_faces = BlockFaces::six_faces()
+        .scale_z(0.5)
+        .scale_y(0.5)
+        .offset_y(0.5)
+        .build();
+    let stairs_top_aabb = AABB::from_faces(&stairs_top_faces);
+    let stairs_aabbs = vec![stairs_base_aabb, stairs_top_aabb];
+    let stairs_faces = stairs_base_faces + stairs_top_faces;
+
+    registry.register_block(
+        &Block::new("Stairs")
+            .id(13131)
+            .aabbs(&stairs_aabbs)
+            .faces(&stairs_faces)
+            .is_x_transparent(true)
+            .is_z_transparent(true)
+            .rotatable(true)
+            .y_rotatable(true)
+            .build(),
+    );
+
     registry.register_blocks(&biome_test_blocks);
 
     registry.register_air_active_fn(
