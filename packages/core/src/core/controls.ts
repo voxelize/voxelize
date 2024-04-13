@@ -633,18 +633,22 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       );
       this.domElement.removeEventListener("click", documentClickHandler);
     });
-    [
-      ["r", "sprint"],
-      ["w", "front"],
-      ["a", "left"],
-      ["s", "back"],
-      ["d", "right"],
-      [" ", "up"],
-      ["shift", "down"],
-    ].forEach(([key, movement]) => {
+
+    // Adjustments for European keyboard layout
+    const keyMappings = {
+      KeyW: "front",
+      KeyA: "left",
+      KeyS: "back",
+      KeyD: "right",
+      Space: "up",
+      ShiftLeft: "down",
+      KeyR: "sprint",
+    };
+
+    Object.entries(keyMappings).forEach(([code, movement]) => {
       unbinds.push(
         inputs.bind(
-          key,
+          code,
           () => {
             if (!this.isLocked) return;
             this.movements[movement] = true;
@@ -652,19 +656,24 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           namespace,
           {
             identifier: RigidControls.INPUT_IDENTIFIER,
+            occasion: "keydown",
+            checkType: "code",
           }
         )
       );
 
       unbinds.push(
         inputs.bind(
-          key,
+          code,
           () => {
             if (!this.isLocked) return;
             this.movements[movement] = false;
           },
           namespace,
-          { occasion: "keyup", identifier: RigidControls.INPUT_IDENTIFIER }
+          {
+            identifier: RigidControls.INPUT_IDENTIFIER,
+            occasion: "keyup",
+          }
         )
       );
     });

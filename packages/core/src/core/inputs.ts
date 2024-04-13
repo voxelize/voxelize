@@ -26,6 +26,11 @@ export type InputSpecifics = {
    * The occasion that the input should be fired. Defaults to `keydown`.
    */
   occasion?: InputOccasion;
+
+  /**
+   * The type of key to check for. Defaults to `key`.
+   */
+  checkType?: "key" | "code";
 };
 
 type ClickCallbacks = Map<
@@ -206,35 +211,48 @@ export class Inputs<T extends string = any> extends EventEmitter {
   ) => {
     key = this.modifyKey(key);
 
-    const { occasion = "keydown", identifier = "default" } = specifics;
+    const {
+      occasion = "keydown",
+      identifier = "default",
+      checkType = "key",
+    } = specifics;
 
-    const name = key + occasion;
+    const name = key + occasion + checkType;
 
     const existing = this.keyBounds.get(name);
     if (existing) {
       if (existing[identifier])
-        throw new Error(`Error registering input, key ${key}: already bound.`);
+        throw new Error(
+          `Error registering input, key ${key} with checkType ${checkType}: already bound.`
+        );
     }
+
+    const callbackWrapper = (event: KeyboardEvent) => {
+      const eventKey = checkType === "code" ? event.code : event.key;
+      if (eventKey.toLowerCase() === key.toLowerCase()) {
+        callback(event);
+      }
+    };
 
     switch (occasion) {
       case "keydown": {
         this.keyDownCallbacks.set(name, [
           ...(this.keyDownCallbacks.get(name) || []),
-          callback,
+          callbackWrapper,
         ]);
         break;
       }
       case "keyup": {
         this.keyUpCallbacks.set(name, [
           ...(this.keyUpCallbacks.get(name) || []),
-          callback,
+          callbackWrapper,
         ]);
         break;
       }
       case "keypress": {
         this.keyPressCallbacks.set(name, [
           ...(this.keyPressCallbacks.get(name) || []),
-          callback,
+          callbackWrapper,
         ]);
         break;
       }
@@ -254,11 +272,11 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
         const callbacks = map.get(name);
         if (callbacks) {
-          const index = callbacks.indexOf(callback);
+          const index = callbacks.indexOf(callbackWrapper);
           if (index !== -1) callbacks.splice(index, 1);
         }
 
-        // Remove key from keydown callbacks if it is empty.
+        // Remove key from callbacks if it is empty.
         if (map.get(name)?.length === 0) map.delete(name);
       });
 
@@ -267,7 +285,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
     bounds[identifier] = {
       unbind,
-      callback,
+      callback: callbackWrapper,
       namespace,
     };
 
