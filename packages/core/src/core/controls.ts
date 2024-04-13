@@ -673,6 +673,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           {
             identifier: RigidControls.INPUT_IDENTIFIER,
             occasion: "keyup",
+            checkType: "code",
           }
         )
       );
