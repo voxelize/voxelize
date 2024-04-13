@@ -398,6 +398,8 @@ class Bot extends VOXELIZE.Entity<BotData> {
     this.character.position.y += this.character.totalHeight / 4;
     this.add(this.character);
 
+    lightShined.add(this.character);
+
     botPaths.add(this.path);
 
     botCharacters.set(id, this.character);
