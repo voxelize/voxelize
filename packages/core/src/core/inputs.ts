@@ -46,6 +46,14 @@ type ScrollCallbacks = Map<
   }
 >;
 
+type KeyBoundItem<T extends string> = {
+  [key: string]: {
+    unbind: () => void;
+    callback: (event: KeyboardEvent) => void;
+    namespace: T | "*";
+  };
+};
+
 /**
  * A key and mouse binding manager for Voxelize.
  *
@@ -118,16 +126,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * A map for key binds.
    */
-  private keyBounds = new Map<
-    string,
-    {
-      [key: string]: {
-        unbind: () => void;
-        callback: (event: KeyboardEvent) => void;
-        namespace: T | "*";
-      };
-    }
-  >();
+  private keyBounds = new Map<string, KeyBoundItem<T>>();
 
   /**
    * A list of functions to unbind all inputs.
@@ -424,23 +423,29 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the keyboard input listeners.
    */
   private initializeKeyListeners = () => {
+    const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>) => {
+      Object.values(bounds).forEach((bound) => {
+        const { callback, namespace } = bound;
+
+        if (namespace === "*" || namespace === this.namespace) {
+          callback(e);
+        }
+      });
+    };
+
     // Handle all three types of key events while checking namespace and passing the KeyboardEvent.
     const keyListener = (occasion: InputOccasion) => (e: KeyboardEvent) => {
       const { key, code } = e;
-      const keyName = (key || code).toLowerCase();
+      const keyName = key.toLowerCase();
+      const codeName = code.toLowerCase();
       const keyCombo = keyName + occasion;
+      const codeCombo = codeName + occasion;
 
-      const bounds = this.keyBounds.get(keyCombo);
+      const keyBounds = this.keyBounds.get(keyCombo);
+      const codeBounds = this.keyBounds.get(codeCombo);
 
-      if (bounds) {
-        Object.values(bounds).forEach((bound) => {
-          const { callback, namespace } = bound;
-
-          if (namespace === "*" || namespace === this.namespace) {
-            callback(e);
-          }
-        });
-      }
+      if (keyBounds) runBounds(e, keyBounds);
+      if (codeBounds) runBounds(e, codeBounds);
     };
 
     document.addEventListener("keydown", keyListener("keydown"));

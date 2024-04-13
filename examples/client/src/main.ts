@@ -623,8 +623,6 @@ const start = async () => {
   const update = () => {
     if (!world.isInitialized) return;
 
-    console.log("update, focused:", isFocused);
-
     peers.update();
     controls.update();
 
