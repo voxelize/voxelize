@@ -634,7 +634,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.domElement.removeEventListener("click", documentClickHandler);
     });
 
-    // Adjustments for European keyboard layout
     const keyMappings = {
       KeyW: "front",
       KeyA: "left",

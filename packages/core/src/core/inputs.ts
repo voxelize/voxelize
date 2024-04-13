@@ -217,7 +217,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
       checkType = "key",
     } = specifics;
 
-    const name = key + occasion + checkType;
+    const name = key + occasion;
 
     const existing = this.keyBounds.get(name);
     if (existing) {
