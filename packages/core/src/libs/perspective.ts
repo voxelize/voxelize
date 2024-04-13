@@ -149,8 +149,9 @@ export class Perspective {
    * @param namespace The namespace to bind the perspective's keyboard inputs to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
-    const unbind = inputs.bind("c", this.toggle, namespace, {
+    const unbind = inputs.bind("KeyC", this.toggle, namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
+      checkType: "code",
     });
 
     this.inputs = inputs;
