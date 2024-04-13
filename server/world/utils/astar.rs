@@ -1,7 +1,7 @@
 use serde::Serialize;
 
-use pathfinding::prelude::astar;
 use crate::Vec3;
+use pathfinding::prelude::astar;
 
 fn absdiff(a: i32, b: i32) -> u32 {
     if a > b {
@@ -37,6 +37,19 @@ impl AStar {
         let start_node = PathNode::from_vec3(start);
         let goal_node = PathNode::from_vec3(goal);
 
-        astar(&start_node, successors, heuristic, |p| *p == goal_node)
+        let mut visited = std::collections::HashSet::new();
+        visited.insert(start_node.clone());
+
+        astar(
+            &start_node,
+            |p| {
+                successors(p)
+                    .into_iter()
+                    .filter(|(s, _)| visited.insert(s.clone()))
+                    .collect::<Vec<_>>()
+            },
+            heuristic,
+            |p| *p == goal_node,
+        )
     }
 }
