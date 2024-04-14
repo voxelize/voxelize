@@ -61,6 +61,7 @@ uniform float uFogNear;
 uniform float uFogFar;
 uniform float uSunlightIntensity;
 uniform float uMinLightLevel;
+uniform float uLightIntensityAdjustment;
 uniform float uTime;
 varying float vAO;
 varying vec4 vLight; 
@@ -75,13 +76,12 @@ varying vec4 vWorldPosition;
 #include <envmap_fragment>
 
 // Adjusting light intensity for lighter voxel textures
-float lightIntensityAdjustment = 0.9; // Lowering base intensity
 float scale = 2.0;
-float s = clamp(vLight.a * vLight.a * uSunlightIntensity * lightIntensityAdjustment, uMinLightLevel, 1.0);
+float s = clamp(vLight.a * vLight.a * uSunlightIntensity * uLightIntensityAdjustment, uMinLightLevel, 1.0);
 s -= s * exp(-s) * 0.02; // Optimized smoothing with adjusted intensity
 
 // Applying adjusted light intensity
-outgoingLight.rgb *= s + pow(vLight.rgb * lightIntensityAdjustment, vec3(scale));
+outgoingLight.rgb *= s + pow(vLight.rgb * uLightIntensityAdjustment, vec3(scale));
 outgoingLight *= vAO;
 `
     )

@@ -3361,6 +3361,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       vertexShader,
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
+        uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
         uSunlightIntensity: chunksUniforms.sunlightIntensity,
         uAOTable: chunksUniforms.ao,
         uMinLightLevel: chunksUniforms.minLightLevel,

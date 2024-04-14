@@ -86,6 +86,15 @@ export class Chunks {
        */
       value: number;
     };
+    /**
+     * The intensity of the sunlight. Defaults to `1.0`.
+     */
+    lightIntensityAdjustment: {
+      /**
+       * The value passed into the chunk shader.
+       */
+      value: number;
+    };
   } = {
     fogColor: {
       value: new Color("#B1CCFD"),
@@ -107,6 +116,9 @@ export class Chunks {
     },
     time: {
       value: performance.now(),
+    },
+    lightIntensityAdjustment: {
+      value: 0.8,
     },
   };
 
