@@ -90,49 +90,52 @@ impl Chunks {
             return None;
         }
 
-        // Generate path first before getting a mutable reference to the chunk.
         let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
 
-        // Open a file for reading
-        if let Ok(chunk_data) = File::open(&path) {
-            let data: ChunkFileData = serde_json::from_reader(chunk_data)
-                .unwrap_or_else(|_| panic!("Could not load chunk file: {:?}", coords));
+        let chunk_data = match File::open(&path) {
+            Ok(file) => file,
+            Err(_) => return None,
+        };
 
-            let ChunkFileData {
-                id,
-                voxels,
-                height_map,
-            } = data;
+        let data: ChunkFileData = match serde_json::from_reader(chunk_data) {
+            Ok(data) => data,
+            Err(_) => return None,
+        };
 
-            let decode_base64 = |base: String| {
-                let decoded = base64::decode(base).unwrap();
-                let mut decoder = Decoder::new(&decoded[..]).unwrap();
-                let mut buf = Vec::new();
-                decoder.read_to_end(&mut buf).unwrap();
-                let mut data = vec![0; buf.len() / 4];
-                LittleEndian::read_u32_into(&buf, &mut data);
-                data
-            };
+        let ChunkFileData {
+            id,
+            voxels,
+            height_map,
+        } = data;
 
-            let mut chunk = Chunk::new(
-                &id,
-                coords.0,
-                coords.1,
-                &ChunkOptions {
-                    max_height: self.config.max_height,
-                    sub_chunks: self.config.sub_chunks,
-                    size: self.config.chunk_size,
-                },
-            );
+        let decode_base64 = |base: String| {
+            let decoded = base64::decode(base).expect("Failed to decode base64");
+            let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
+            let mut buf = Vec::new();
+            decoder
+                .read_to_end(&mut buf)
+                .expect("Failed to decode data");
+            let mut data = vec![0; buf.len() / 4];
+            LittleEndian::read_u32_into(&buf, &mut data);
+            data
+        };
 
-            chunk.voxels.data = decode_base64(voxels);
-            chunk.height_map.data = decode_base64(height_map);
-            chunk.status = ChunkStatus::Meshing;
+        let mut chunk = Chunk::new(
+            &id,
+            coords.0,
+            coords.1,
+            &ChunkOptions {
+                max_height: self.config.max_height,
+                sub_chunks: self.config.sub_chunks,
+                size: self.config.chunk_size,
+            },
+        );
 
-            Some(chunk)
-        } else {
-            None
-        }
+        chunk.voxels.data = decode_base64(voxels);
+        chunk.height_map.data = decode_base64(height_map);
+        chunk.status = ChunkStatus::Meshing;
+
+        Some(chunk)
     }
 
     // Save a certain chunk.
