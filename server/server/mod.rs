@@ -69,7 +69,16 @@ fn default_info_handle(server: &Server) -> Value {
 
         {
             let clients = world.clients();
-            world_info.insert("clients".to_owned(), json!(clients));
+            world_info.insert(
+                "clients".to_owned(),
+                json!(clients
+                    .values()
+                    .map(|client| json!({
+                        "id": client.id.to_owned(),
+                        "username": client.username.to_owned(),
+                    }))
+                    .collect::<Vec<_>>()),
+            );
         }
 
         {
