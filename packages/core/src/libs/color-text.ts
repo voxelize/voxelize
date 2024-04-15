@@ -45,34 +45,24 @@ export class ColorText {
     text: string,
     defaultColor = "black"
   ): { color: string; text: string }[] {
-    const splitted = text
-      .split(
-        new RegExp(
-          `(\\${ColorText.SPLITTER}[^\\${ColorText.SPLITTER}]*\\${ColorText.SPLITTER})`
-        )
-      )
-      .filter(Boolean);
-
-    if (splitted.length) {
-      if (!splitted[0].includes(ColorText.SPLITTER)) {
-        splitted.unshift(
-          `${ColorText.SPLITTER}${defaultColor}${ColorText.SPLITTER}`
-        );
-      }
-
-      if (splitted[splitted.length - 1].includes(ColorText.SPLITTER)) {
-        splitted.push("");
-      }
-    }
-
+    const lines = text.split("\n").filter(Boolean);
     const result = [];
 
-    for (let i = 0; i < splitted.length; i += 2) {
-      const color = splitted[i].substring(1, splitted[i].length - 1);
-      const text = splitted[i + 1];
-
-      result.push({ color, text });
-    }
+    lines.forEach((line) => {
+      const matches = line.match(
+        new RegExp(`\\${ColorText.SPLITTER}(.*?)\\${ColorText.SPLITTER}`, "g")
+      );
+      if (matches) {
+        matches.forEach((match) => {
+          const colorText = match.split(ColorText.SPLITTER).filter(Boolean);
+          if (colorText.length >= 2) {
+            result.push({ color: colorText[0], text: colorText[1] });
+          }
+        });
+      } else {
+        result.push({ color: defaultColor, text: line });
+      }
+    });
 
     return result;
   }
