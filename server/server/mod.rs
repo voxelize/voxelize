@@ -69,7 +69,7 @@ fn default_info_handle(server: &Server) -> Value {
 
         {
             let clients = world.clients();
-            world_info.insert("clients".to_owned(), json!(clients.len()));
+            world_info.insert("clients".to_owned(), json!(clients));
         }
 
         {
