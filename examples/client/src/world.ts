@@ -117,6 +117,8 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   biomesDOM.appendChild(biomeEntry);
   // });
 
+  const diagonalFaces = ["one1", "one2", "two1", "two2"];
+
   await world.applyBlockTextures([
     { idOrName: "Dirt", faceNames: all, source: DirtImage },
     { idOrName: "Lol", faceNames: all, source: new THREE.Color("#8479E1") },
@@ -142,12 +144,12 @@ export async function setupWorld(world: VOXELIZE.World) {
     { idOrName: "Color", faceNames: all, source: Color2Image },
     { idOrName: "Grass Block", faceNames: side, source: GrassBlockSideImage },
     { idOrName: "Grass Block", faceNames: ["ny"], source: DirtImage },
-    { idOrName: "Grass", faceNames: ["one", "two"], source: GrassImage },
+    { idOrName: "Grass", faceNames: diagonalFaces, source: GrassImage },
     { idOrName: "Stone", faceNames: all, source: StoneImage },
     { idOrName: "Oak Leaves", faceNames: all, source: OakLeavesImage },
     {
       idOrName: "Oak Leaves",
-      faceNames: ["one", "two"],
+      faceNames: diagonalFaces,
       source: OakLeavesImage,
     },
     { idOrName: "Oak Log", faceNames: ["py"], source: OakTopImage },
@@ -199,6 +201,11 @@ export async function setupWorld(world: VOXELIZE.World) {
       source: new THREE.Color("purple"),
     },
   ]);
+
+  diagonalFaces.forEach((face) => {
+    const mat = world.getBlockFaceMaterial("Grass", face);
+    mat.depthWrite = false;
+  });
 
   // await world.applyBlockFrames(
   //   "Water",

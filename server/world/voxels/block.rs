@@ -556,7 +556,7 @@ impl DiagonalFacesBuilder {
 
         BlockFaces::from_faces(vec![
             BlockFace {
-                name: make_name("one"),
+                name: make_name("one1"),
                 dir: [0, 0, 0],
                 independent: false,
                 isolated: false,
@@ -576,6 +576,47 @@ impl DiagonalFacesBuilder {
                     },
                     CornerData {
                         pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + scale_vertical,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 1.0],
+                    },
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + 0.0,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 0.0],
+                    },
+                ],
+            },
+            BlockFace {
+                name: make_name("one2"),
+                dir: [0, 0, 0],
+                independent: false,
+                isolated: false,
+                range: UV::default(),
+                corners: [
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + scale_vertical,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 1.0],
+                    },
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + 0.0,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 0.0],
+                    },
+                    CornerData {
+                        pos: [
                             offset_x + h_max,
                             offset_y + scale_vertical,
                             offset_z + h_max,
@@ -589,7 +630,7 @@ impl DiagonalFacesBuilder {
                 ],
             },
             BlockFace {
-                name: make_name("two"),
+                name: make_name("two1"),
                 dir: [0, 0, 0],
                 independent: false,
                 isolated: false,
@@ -606,6 +647,47 @@ impl DiagonalFacesBuilder {
                     CornerData {
                         pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_min],
                         uv: [0.0, 0.0],
+                    },
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + scale_vertical,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 1.0],
+                    },
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + 0.0,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 0.0],
+                    },
+                ],
+            },
+            BlockFace {
+                name: make_name("two2"),
+                dir: [0, 0, 0],
+                independent: false,
+                isolated: false,
+                range: UV::default(),
+                corners: [
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + scale_vertical,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 1.0],
+                    },
+                    CornerData {
+                        pos: [
+                            offset_x + (h_min + h_max) / 2.0,
+                            offset_y + 0.0,
+                            offset_z + (h_min + h_max) / 2.0,
+                        ],
+                        uv: [0.5, 0.0],
                     },
                     CornerData {
                         pos: [
