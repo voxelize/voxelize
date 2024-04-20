@@ -455,6 +455,7 @@ pub struct DiagonalFacesBuilder {
     prefix: String,
     suffix: String,
     concat: String,
+    to_four: bool,
 }
 
 impl DiagonalFacesBuilder {
@@ -469,6 +470,7 @@ impl DiagonalFacesBuilder {
             prefix: "".to_string(),
             suffix: "".to_string(),
             concat: "".to_string(),
+            to_four: false,
         }
     }
 
@@ -520,6 +522,11 @@ impl DiagonalFacesBuilder {
         self
     }
 
+    pub fn to_four(mut self) -> Self {
+        self.to_four = true;
+        self
+    }
+
     /// Build the diagonal faces.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -531,6 +538,7 @@ impl DiagonalFacesBuilder {
             prefix,
             suffix,
             concat,
+            to_four,
         } = self;
 
         let make_name = |side: &str| {
@@ -554,156 +562,227 @@ impl DiagonalFacesBuilder {
         let h_min = (1.0 - scale_horizontal) / 2.0;
         let h_max = 1.0 - h_min;
 
-        BlockFaces::from_faces(vec![
-            BlockFace {
-                name: make_name("one1"),
-                dir: [0, 0, 0],
-                independent: false,
-                isolated: false,
-                range: UV::default(),
-                corners: [
-                    CornerData {
-                        pos: [
-                            offset_x + h_min,
-                            offset_y + scale_vertical,
-                            offset_z + h_min,
-                        ],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_min],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + scale_vertical,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 1.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + 0.0,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: make_name("one2"),
-                dir: [0, 0, 0],
-                independent: false,
-                isolated: false,
-                range: UV::default(),
-                corners: [
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + scale_vertical,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 1.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + 0.0,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 0.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + h_max,
-                            offset_y + scale_vertical,
-                            offset_z + h_max,
-                        ],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_max],
-                        uv: [1.0, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: make_name("two1"),
-                dir: [0, 0, 0],
-                independent: false,
-                isolated: false,
-                range: UV::default(),
-                corners: [
-                    CornerData {
-                        pos: [
-                            offset_x + h_max,
-                            offset_y + scale_vertical,
-                            offset_z + h_min,
-                        ],
-                        uv: [0.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_min],
-                        uv: [0.0, 0.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + scale_vertical,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 1.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + 0.0,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 0.0],
-                    },
-                ],
-            },
-            BlockFace {
-                name: make_name("two2"),
-                dir: [0, 0, 0],
-                independent: false,
-                isolated: false,
-                range: UV::default(),
-                corners: [
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + scale_vertical,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 1.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + (h_min + h_max) / 2.0,
-                            offset_y + 0.0,
-                            offset_z + (h_min + h_max) / 2.0,
-                        ],
-                        uv: [0.5, 0.0],
-                    },
-                    CornerData {
-                        pos: [
-                            offset_x + h_min,
-                            offset_y + scale_vertical,
-                            offset_z + h_max,
-                        ],
-                        uv: [1.0, 1.0],
-                    },
-                    CornerData {
-                        pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_max],
-                        uv: [1.0, 0.0],
-                    },
-                ],
-            },
-        ])
+        if to_four {
+            BlockFaces::from_faces(vec![
+                BlockFace {
+                    name: make_name("one1"),
+                    dir: [0, 0, 0],
+                    independent: false,
+                    isolated: false,
+                    range: UV::default(),
+                    corners: [
+                        CornerData {
+                            pos: [
+                                offset_x + h_min,
+                                offset_y + scale_vertical,
+                                offset_z + h_min,
+                            ],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_min],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + scale_vertical,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 1.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + 0.0,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 0.0],
+                        },
+                    ],
+                },
+                BlockFace {
+                    name: make_name("one2"),
+                    dir: [0, 0, 0],
+                    independent: false,
+                    isolated: false,
+                    range: UV::default(),
+                    corners: [
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + scale_vertical,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 1.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + 0.0,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 0.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + h_max,
+                                offset_y + scale_vertical,
+                                offset_z + h_max,
+                            ],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_max],
+                            uv: [1.0, 0.0],
+                        },
+                    ],
+                },
+                BlockFace {
+                    name: make_name("two1"),
+                    dir: [0, 0, 0],
+                    independent: false,
+                    isolated: false,
+                    range: UV::default(),
+                    corners: [
+                        CornerData {
+                            pos: [
+                                offset_x + h_max,
+                                offset_y + scale_vertical,
+                                offset_z + h_min,
+                            ],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_min],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + scale_vertical,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 1.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + 0.0,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 0.0],
+                        },
+                    ],
+                },
+                BlockFace {
+                    name: make_name("two2"),
+                    dir: [0, 0, 0],
+                    independent: false,
+                    isolated: false,
+                    range: UV::default(),
+                    corners: [
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + scale_vertical,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 1.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + (h_min + h_max) / 2.0,
+                                offset_y + 0.0,
+                                offset_z + (h_min + h_max) / 2.0,
+                            ],
+                            uv: [0.5, 0.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + h_min,
+                                offset_y + scale_vertical,
+                                offset_z + h_max,
+                            ],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_max],
+                            uv: [1.0, 0.0],
+                        },
+                    ],
+                },
+            ])
+        } else {
+            BlockFaces::from_faces(vec![
+                BlockFace {
+                    name: make_name("one"),
+                    dir: [0, 0, 0],
+                    independent: false,
+                    isolated: false,
+                    range: UV::default(),
+                    corners: [
+                        CornerData {
+                            pos: [
+                                offset_x + h_min,
+                                offset_y + scale_vertical,
+                                offset_z + h_min,
+                            ],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_min],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + h_max,
+                                offset_y + scale_vertical,
+                                offset_z + h_max,
+                            ],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_max],
+                            uv: [1.0, 0.0],
+                        },
+                    ],
+                },
+                BlockFace {
+                    name: make_name("two"),
+                    dir: [0, 0, 0],
+                    independent: false,
+                    isolated: false,
+                    range: UV::default(),
+                    corners: [
+                        CornerData {
+                            pos: [
+                                offset_x + h_max,
+                                offset_y + scale_vertical,
+                                offset_z + h_min,
+                            ],
+                            uv: [0.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_max, offset_y + 0.0, offset_z + h_min],
+                            uv: [0.0, 0.0],
+                        },
+                        CornerData {
+                            pos: [
+                                offset_x + h_min,
+                                offset_y + scale_vertical,
+                                offset_z + h_max,
+                            ],
+                            uv: [1.0, 1.0],
+                        },
+                        CornerData {
+                            pos: [offset_x + h_min, offset_y + 0.0, offset_z + h_max],
+                            uv: [1.0, 0.0],
+                        },
+                    ],
+                },
+            ])
+        }
     }
 }
 
