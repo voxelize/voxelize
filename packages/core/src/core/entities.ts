@@ -20,6 +20,8 @@ export class Entity<T = any> extends Group {
   onUpdate: (data: T) => void;
 
   onDelete: (data: T) => void;
+
+  update?: () => void;
 }
 
 /**
@@ -122,6 +124,12 @@ export class Entities extends Group implements NetIntercept {
         }
       });
     }
+  };
+
+  update = () => {
+    this.map.forEach((entity) => {
+      entity.update?.();
+    });
   };
 
   private createEntityOfType = (type: string, id: string) => {
