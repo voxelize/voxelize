@@ -263,12 +263,20 @@ impl Vec3<f32> {
         dx * dx + dy * dy + dz * dz
     }
 
-    pub fn set_mag(&mut self, mag: f32) {
+    pub fn set_mag(&mut self, mag: f32) -> &Self {
         let len = self.len();
         self.0 /= len;
         self.1 /= len;
         self.2 /= len;
         self.scale(mag);
+        self
+    }
+
+    pub fn limit(&mut self, mag: f32) -> &Self {
+        if self.len() > mag {
+            self.set_mag(mag);
+        }
+        self
     }
 }
 
