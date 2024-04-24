@@ -262,6 +262,14 @@ impl Vec3<f32> {
         let dz = z - oz;
         dx * dx + dy * dy + dz * dz
     }
+
+    pub fn set_mag(&mut self, mag: f32) {
+        let len = self.len();
+        self.0 /= len;
+        self.1 /= len;
+        self.2 /= len;
+        self.scale(mag);
+    }
 }
 
 impl<T: Num + Clone> Index<usize> for Vec3<T> {
