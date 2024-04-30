@@ -541,12 +541,12 @@ impl Physics {
         Physics::process_collisions(space, registry, &mut body.aabb, &leftover, &mut tmp_resting);
 
         // bail if no movement happened in the originally blocked direction
-        if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {
-            return;
-        }
-        if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
-            return;
-        }
+        // if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {
+        //     return;
+        // }
+        // if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
+        //     return;
+        // }
 
         // done, old_box is now at the target auto-stepped position
         body.aabb.copy(old_aabb);
