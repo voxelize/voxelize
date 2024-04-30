@@ -361,6 +361,10 @@ export class Engine {
     const upVec = [0, Math.min(yDist, body.stepHeight + 0.001), 0];
     let collided = false;
 
+    if (yDist <= 0.0) {
+      return;
+    }
+
     // sweep up, bailing on any obstruction
     sweep(this.getVoxel, oldBox, upVec, function () {
       collided = true;

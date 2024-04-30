@@ -513,6 +513,10 @@ impl Physics {
         let up_vec = Vec3(0.0, y_dist, 0.0);
         let mut collided = false;
 
+        if y_dist <= 0.0 {
+            return;
+        }
+
         sweep(
             space,
             registry,
