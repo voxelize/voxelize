@@ -361,10 +361,6 @@ export class Engine {
     const upVec = [0, Math.min(yDist, body.stepHeight + 0.001), 0];
     let collided = false;
 
-    if (yDist <= 0.0) {
-      return;
-    }
-
     // sweep up, bailing on any obstruction
     sweep(this.getVoxel, oldBox, upVec, function () {
       collided = true;
@@ -394,6 +390,12 @@ export class Engine {
     });
 
     // done - oldBox is now at the target autostepped position
+
+    // if the new position is below the old position, then the new position is invalid
+    // since we trying to step upwards
+    if (oldBox.minY < y) {
+      return;
+    }
 
     body.resting[0] = tmpResting[0];
     body.resting[2] = tmpResting[2];

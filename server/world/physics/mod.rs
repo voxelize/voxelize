@@ -513,10 +513,6 @@ impl Physics {
         let up_vec = Vec3(0.0, y_dist, 0.0);
         let mut collided = false;
 
-        if y_dist <= 0.0 {
-            return;
-        }
-
         sweep(
             space,
             registry,
@@ -551,6 +547,12 @@ impl Physics {
         // if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
         //     return;
         // }
+
+        // if the new position is below the old position, then the new position is invalid
+        // since we trying to step upwards
+        if old_aabb.min_y < body.aabb.min_y {
+            return;
+        }
 
         // done, old_box is now at the target auto-stepped position
         body.aabb.copy(old_aabb);
