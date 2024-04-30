@@ -381,10 +381,6 @@ export class Engine {
     const tmpResting = [0, 0, 0];
     this.processCollisions(oldBox, leftover, tmpResting);
 
-    // bail if no movement happened in the originally blocked direction
-    if (xBlocked && !approxEquals(oldBox.minX, targetPos[0])) return;
-    if (zBlocked && !approxEquals(oldBox.minZ, targetPos[2])) return;
-
     // move down a bit to avoid stepping too high, bail on collision
     const temp = oldBox.clone();
     sweep(this.getVoxel, temp, [0, -yDist, 0], (dist) => {
