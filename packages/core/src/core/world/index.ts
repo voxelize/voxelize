@@ -2426,7 +2426,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         case "DELETE": {
           this.blockEntitiesMap.delete(voxelId);
           const block = this.getBlockByName(type.split("::")[1]);
-          console.log("block", block);
           if (block) {
             for (const face of block.faces) {
               if (face.isolated) {
@@ -3065,12 +3064,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         updatedBlock.rotatable ? updatedRotation : undefined
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
-
-      // remove block entities if
-      if (type === 0) {
-        const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
-        this.blockEntitiesMap.delete(voxelName);
-      }
 
       this.setVoxelAt(vx, vy, vz, type);
 
