@@ -683,14 +683,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     // Handle different types of source inputs
     if (typeof source === "string") {
-      const image = new Image();
-      image.src = source;
-      image.onload = () => {
+      this.loader.loadImage(source).then((image) => {
         isolatedMat.map = new Texture(image);
         isolatedMat.map.colorSpace = SRGBColorSpace;
         isolatedMat.map.needsUpdate = true;
         isolatedMat.needsUpdate = true;
-      };
+      });
     } else if (source instanceof HTMLImageElement) {
       isolatedMat.map = new Texture(source);
       isolatedMat.map.colorSpace = SRGBColorSpace;
