@@ -198,7 +198,9 @@ controls.connect(inputs, "in-game");
 
 world.add(character);
 
-world.addChunkInitListener([0, 0], () => controls.teleportToTop(0, 0));
+world.addChunkInitListener([0, 0], () => {
+  controls.teleportToTop(0, 0);
+});
 
 renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 
@@ -567,7 +569,7 @@ network
   .register(peers)
   .register(controls);
 
-const HOTBAR_CONTENT = [1000, 1, 5, 20, 50000, 13131, 45, 300, 400, 500];
+const HOTBAR_CONTENT = [400, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
 
 // let isLoading = true;
 // const loadingFade = 500;
@@ -587,14 +589,21 @@ inputs.bind("]", () => {
 });
 
 world.addBlockEntityUpdateListener((data) => {
-  //   if (data.operation === "UPDATE" || data.operation === "CREATE") {
-  //     const color = data.newValue.color ?? [0, 0, 0];
-  //     world.applyBlockTexture("mushroom", "top-py-", new THREE.Color(...color));
-  //   }
-  console.log(
-    JSON.stringify(data.oldValue, null, 2),
-    JSON.stringify(data.newValue, null, 2)
-  );
+  if (data.operation === "UPDATE" || data.operation === "CREATE") {
+    // console.log("data", data);
+    const color = data.newValue.color ?? [0, 0, 0];
+    console.log("color", color, data.voxel);
+    world.applyBlockTextureAt(
+      "mushroom",
+      "top-py-",
+      new THREE.Color(...color),
+      data.voxel
+    );
+  }
+  // console.log(
+  //   JSON.stringify(data.oldValue, null, 2),
+  //   JSON.stringify(data.newValue, null, 2)
+  // );
 });
 
 let frame: any;
@@ -899,7 +908,6 @@ const start = async () => {
 
       if (currentBlock.isEntity) {
         const [tx, ty, tz] = voxelInteract.target;
-        console.log([tx, ty, tz]);
         world.setBlockEntityDataAt(tx, ty, tz, {
           color: [Math.random(), Math.random(), Math.random()],
         });

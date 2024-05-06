@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  CanvasTexture,
   Color,
   FrontSide,
   Group,
@@ -7,6 +8,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
+  NoColorSpace,
   RepeatWrapping,
   Side,
   Texture,
@@ -279,9 +281,13 @@ export class BoxLayer extends Mesh {
     canvas.width = width;
     canvas.height = height;
 
+    // really curious about here. SRGBColorSpace seems really dark??
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = NoColorSpace;
+
     const material = new MeshBasicMaterial({
       side: this.side,
-      map: new Texture(canvas),
+      map: texture,
       transparent: this.transparent,
       name: face,
     });

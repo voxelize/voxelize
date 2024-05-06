@@ -12,6 +12,7 @@ import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
   BufferGeometry,
+  CanvasTexture,
   Clock,
   Color,
   DoubleSide,
@@ -21,6 +22,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  SRGBColorSpace,
   Scene,
   ShaderLib,
   ShaderMaterial,
@@ -590,9 +592,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     blockFaces.forEach((face) => {
       if (face.isolated) {
         console.warn(
-          "Attempting to apply texture onto an isolated face: ",
-          block.name,
-          face.name
+          `Attempting to apply texture onto an isolated face: ${block.name}, ${face.name}. Use 'applyBlockTextureAt' instead.`
         );
         return;
       }
@@ -659,7 +659,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   applyBlockTextureAt(
     idOrName: number | string,
     faceName: string,
-    source: Texture,
+    source: string | Color | HTMLImageElement | Texture,
     voxel: Coords3
   ) {
     const block = this.getBlockOf(idOrName);
@@ -678,26 +678,70 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    let mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
-    if (!mat) {
-      const isolatedMat = this.makeShaderMaterial();
+    const mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
+    const isolatedMat = mat || this.makeShaderMaterial();
 
-      const map = source;
-      isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
-      isolatedMat.transparent = block.isSeeThrough;
-      isolatedMat.map = map;
-      isolatedMat.uniforms.map.value = map;
-
-      const key = this.makeChunkMaterialKey(block.id, face.name, voxel);
-      this.chunks.materials.set(key, isolatedMat);
-
-      mat = isolatedMat;
-
-      mat.map.needsUpdate = true;
-      mat.needsUpdate = true;
+    // Handle different types of source inputs
+    if (typeof source === "string") {
+      const image = new Image();
+      image.src = source;
+      image.onload = () => {
+        isolatedMat.map = new Texture(image);
+        isolatedMat.map.colorSpace = SRGBColorSpace;
+        isolatedMat.map.needsUpdate = true;
+        isolatedMat.needsUpdate = true;
+      };
+    } else if (source instanceof HTMLImageElement) {
+      isolatedMat.map = new Texture(source);
+      isolatedMat.map.colorSpace = SRGBColorSpace;
+      isolatedMat.map.needsUpdate = true;
+      isolatedMat.needsUpdate = true;
+    } else if (source instanceof Color) {
+      if (isolatedMat.map) {
+        if (isolatedMat.map instanceof AtlasTexture) {
+          isolatedMat.map.paintColor(source);
+          isolatedMat.map.needsUpdate = true;
+        } else if (isolatedMat.map instanceof CanvasTexture) {
+          const canvas = isolatedMat.map.image;
+          const ctx = canvas.getContext("2d");
+          const canvasWidth = canvas.width;
+          const canvasHeight = canvas.height;
+          ctx.fillStyle = source.getStyle();
+          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+          isolatedMat.map.needsUpdate = true;
+        }
+      } else {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = source.getStyle();
+        ctx.fillRect(0, 0, 1, 1);
+        isolatedMat.map = new CanvasTexture(canvas);
+        isolatedMat.map.colorSpace = SRGBColorSpace;
+        isolatedMat.map.needsUpdate = true;
+        isolatedMat.needsUpdate = true;
+      }
+    } else if (source instanceof Texture) {
+      isolatedMat.map = source;
+      isolatedMat.map.needsUpdate = true;
+      isolatedMat.needsUpdate = true;
+    } else {
+      throw new Error("Unsupported source type for texture.");
     }
 
-    return mat;
+    if (isolatedMat.map) {
+      isolatedMat.uniforms.map.value = isolatedMat.map;
+    }
+    isolatedMat.side = block.isSeeThrough ? DoubleSide : FrontSide;
+    isolatedMat.transparent = block.isSeeThrough;
+
+    if (!mat) {
+      const key = this.makeChunkMaterialKey(block.id, face.name, voxel);
+      this.chunks.materials.set(key, isolatedMat);
+    }
+
+    return isolatedMat;
   }
 
   /**
@@ -863,14 +907,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const mat = this.getBlockFaceMaterial(block.id, face.name);
-
-      // We know that this atlas texture will only be used for one single face.
-      if (mat.map instanceof AtlasTexture) {
-        throw new Error(
-          "Cannot apply resolution to a face that is using an atlas texture. Have you accidentally applied keyframes to this face?"
-        );
-      }
-
       const canvas = mat.map.image ?? mat.map.source.data;
 
       // Wait for the image to load.
@@ -1326,7 +1362,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const block = this.getBlockOf(idOrName);
 
-    if (faceName && block.isolatedFaces.has(faceName)) {
+    if (voxel && faceName && block.isolatedFaces.has(faceName)) {
       return this.chunks.materials.get(
         this.makeChunkMaterialKey(block.id, faceName, voxel)
       );
@@ -1362,6 +1398,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const listeners = this.chunkInitializeListeners.get(name) || [];
     listeners.push(listener);
     this.chunkInitializeListeners.set(name, listeners);
+
+    return () => {
+      this.chunkInitializeListeners.delete(name);
+    };
   };
 
   addBlockUpdateListener = (listener: BlockUpdateListener) => {
@@ -2104,7 +2144,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       block.faces.forEach((face) => {
         if (face.independent) {
           block.independentFaces.add(face.name);
-        } else if (face.isolated) {
+        }
+        if (face.isolated) {
           block.isolatedFaces.add(face.name);
         }
       });
@@ -2340,6 +2381,29 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
       this.blockEntityUpdateListeners.forEach((listener) => {
+        const chunkCoords = ChunkUtils.mapVoxelToChunk(
+          [vx, vy, vz],
+          this.options.chunkSize
+        );
+        const chunkName = ChunkUtils.getChunkName(chunkCoords);
+        const chunk = this.chunks.loaded.get(chunkName);
+        // very iffy if statement. the intention is to check if chunk is
+        // mesh-initialized.
+        if (!chunk || chunk.meshes.size === 0) {
+          const unbind = this.addChunkInitListener(chunkCoords, () => {
+            listener({
+              id,
+              voxel: [vx, vy, vz],
+              oldValue: (originalData as any)?.data ?? null,
+              newValue: data as T | null,
+              operation,
+            });
+            unbind();
+          });
+
+          return;
+        }
+
         listener({
           id,
           voxel: [vx, vy, vz],
@@ -2813,7 +2877,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
 
-        let material = this.getBlockFaceMaterial(voxel, faceName);
+        let material = this.getBlockFaceMaterial(
+          voxel,
+          faceName,
+          at && at.length ? at : undefined
+        );
         if (!material) {
           const block = this.getBlockById(voxel);
           const face = block.faces.find((face) => face.name === faceName);
@@ -2830,15 +2898,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           );
           // test draw some random color
           if (isolatedMaterial.map instanceof AtlasTexture) {
-            isolatedMaterial.map.drawImageToRange(
-              {
-                startU: 0,
-                endU: 1,
-                startV: 0,
-                endV: 1,
-              },
-              new Color(Math.random(), Math.random(), Math.random())
-            );
+            // isolatedMaterial.map.paintColor(
+            //   new Color(Math.random(), Math.random(), Math.random())
+            // );
           }
           material = isolatedMaterial;
         }
@@ -3383,8 +3445,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     });
 
-    // @ts-ignore
-    material.map = AtlasTexture.makeUnknownTexture();
+    material.map = AtlasTexture.makeUnknownTexture(
+      this.options.textureUnitDimension
+    );
     material.uniforms.map = { value: material.map };
 
     return material;
@@ -3433,7 +3496,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.chunks.materials.set(key, mat);
 
       block.faces.forEach((face) => {
-        if (!face.independent) return;
+        if (!face.independent || face.isolated) return;
 
         const independentMat = make(
           block.isSeeThrough,

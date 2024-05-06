@@ -131,6 +131,23 @@ export class AtlasTexture extends CanvasTexture {
   }
 
   /**
+   * Paints the entire canvas with a specified color using Three.js Color.
+   *
+   * @param color A Three.js Color instance to use for painting.
+   */
+  paintColor(color: Color) {
+    this.drawImageToRange(
+      {
+        startU: 0,
+        endU: 1,
+        startV: 0,
+        endV: 1,
+      },
+      color
+    );
+  }
+
+  /**
    * Draw a texture to a range on the texture atlas.
    *
    * @param range The range on the texture atlas to draw the texture to.
@@ -330,15 +347,26 @@ export class AtlasTexture extends CanvasTexture {
   }
 
   static makeUnknownTexture(dimension: number) {
-    const texture = new CanvasTexture(AtlasTexture.makeUnknownImage(dimension));
+    const newAtlas = new AtlasTexture(1, dimension);
+    const image = AtlasTexture.makeUnknownImage(dimension);
 
-    texture.minFilter = NearestFilter;
-    texture.magFilter = NearestFilter;
-    texture.generateMipmaps = false;
-    texture.needsUpdate = true;
-    texture.colorSpace = SRGBColorSpace;
+    newAtlas.drawImageToRange(
+      {
+        startU: 0,
+        endU: 0,
+        startV: 0,
+        endV: 0,
+      },
+      image
+    );
 
-    return texture;
+    newAtlas.minFilter = NearestFilter;
+    newAtlas.magFilter = NearestFilter;
+    newAtlas.generateMipmaps = false;
+    newAtlas.needsUpdate = true;
+    newAtlas.colorSpace = SRGBColorSpace;
+
+    return newAtlas;
   }
 }
 
