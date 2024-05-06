@@ -688,12 +688,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Handle different types of source inputs
     if (typeof source === "string") {
       this.loader.loadImage(source).then((image) => {
+        if (isolatedMat.map) {
+          isolatedMat.map.dispose();
+        }
         isolatedMat.map = new Texture(image);
         isolatedMat.map.colorSpace = SRGBColorSpace;
         isolatedMat.map.needsUpdate = true;
         isolatedMat.needsUpdate = true;
       });
     } else if (source instanceof HTMLImageElement) {
+      if (isolatedMat.map) {
+        isolatedMat.map.dispose();
+      }
       isolatedMat.map = new Texture(source);
       isolatedMat.map.colorSpace = SRGBColorSpace;
       isolatedMat.map.needsUpdate = true;
@@ -725,6 +731,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         isolatedMat.needsUpdate = true;
       }
     } else if (source instanceof Texture) {
+      if (isolatedMat.map) {
+        isolatedMat.map.dispose();
+      }
       isolatedMat.map = source;
       isolatedMat.map.needsUpdate = true;
       isolatedMat.needsUpdate = true;
