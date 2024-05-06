@@ -87,13 +87,17 @@ export type BlockUpdateListener = (args: {
   voxel: Coords3;
 }) => void;
 
-export type BlockEntityUpdateListener<T> = (args: {
+export type BlockEntityUpdateData<T> = {
   id: string;
   voxel: Coords3;
   operation: EntityOperation;
   oldValue: T | null;
   newValue: T | null;
-}) => void;
+};
+
+export type BlockEntityUpdateListener<T> = (
+  args: BlockEntityUpdateData<T>
+) => void;
 
 const VOXEL_NEIGHBORS = [
   [1, 0, 0],
