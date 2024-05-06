@@ -3038,7 +3038,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       // remove block entities if
       if (type === 0) {
-        const voxelName = ChunkUtils.getVoxelName(vx, vy, vz);
+        const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
         this.blockEntitiesMap.delete(voxelName);
       }
 
