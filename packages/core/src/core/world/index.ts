@@ -2425,6 +2425,27 @@ export class World<T = any> extends Scene implements NetIntercept {
       switch (operation) {
         case "DELETE": {
           this.blockEntitiesMap.delete(voxelId);
+          const block = this.getBlockByName(type.split("::")[1]);
+          console.log("block", block);
+          if (block) {
+            for (const face of block.faces) {
+              if (face.isolated) {
+                const voxel = [vx, vy, vz] as Coords3;
+                const material = this.getBlockFaceMaterial(
+                  block.id,
+                  face.name,
+                  voxel
+                );
+                if (material) {
+                  material.dispose();
+                  material.map?.dispose();
+                }
+                this.chunks.materials.delete(
+                  this.makeChunkMaterialKey(block.id, face.name, voxel)
+                );
+              }
+            }
+          }
           break;
         }
 
