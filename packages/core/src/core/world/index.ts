@@ -1302,8 +1302,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    old.data = data;
-
     this.packets.push({
       type: "METHOD",
       method: {
