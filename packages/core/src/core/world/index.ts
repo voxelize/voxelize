@@ -3036,6 +3036,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
 
+      // remove block entities if
+      if (type === 0) {
+        const voxelName = ChunkUtils.getVoxelName(vx, vy, vz);
+        this.blockEntitiesMap.delete(voxelName);
+      }
+
       this.setVoxelAt(vx, vy, vz, type);
 
       if (updatedBlock.rotatable) {
