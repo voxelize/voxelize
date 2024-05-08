@@ -264,7 +264,7 @@ export class Debug extends Group {
    */
   update = () => {
     requestAnimationFrame(() => {
-      // loop through all data entries, and get their latest updated values
+      // loop through all data entries, and update only if the value has changed
       this.dataEntries.forEach(
         ({ element, title, attribute, object, formatter }) => {
           if (object?.constructor?.name === "AsyncFunction") return;
@@ -274,9 +274,11 @@ export class Debug extends Group {
             newValue =
               typeof object === "function" ? object() : object[attribute] ?? "";
           }
-          element.textContent = `${title ? `${title}: ` : ""}${formatter(
-            newValue
-          )}`;
+          const formattedValue = formatter(newValue);
+          const wholeString = `${title ? `${title}: ` : ""}${formattedValue}`;
+          if (element.textContent !== wholeString) {
+            element.textContent = wholeString;
+          }
         }
       );
     });
