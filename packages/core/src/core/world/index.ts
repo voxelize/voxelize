@@ -3418,9 +3418,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         let raw = 0;
         raw = BlockUtils.insertID(raw, type);
 
-        console.log("rotation", rotation);
-        console.log("yRotation", yRotation);
-
         if (
           (block.rotatable || block.yRotatable) &&
           (!isNaN(rotation) || !isNaN(yRotation))

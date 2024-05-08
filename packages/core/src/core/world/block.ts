@@ -73,6 +73,8 @@ export type Block = {
    */
   yRotatable: boolean;
 
+  yRotatableSegments: "All" | "Eight" | "Four";
+
   /**
    * Whether or not is this block empty. By default, only "air" is empty.
    */
@@ -249,10 +251,21 @@ export const Y_ROT_SEGMENTS = 16;
  * Rotation value -> index
  */
 export const Y_ROT_MAP: [number, number][] = [];
+export const Y_ROT_MAP_EIGHT: [number, number][] = [];
+export const Y_ROT_MAP_FOUR: [number, number][] = [];
 
 for (let i = 0; i < Y_ROT_SEGMENTS; i++) {
-  Y_ROT_MAP.push([(i / Y_ROT_SEGMENTS) * Math.PI * 2, i]);
-  Y_ROT_MAP.push([(i / Y_ROT_SEGMENTS) * Math.PI * 2 - Math.PI * 2, i]);
+  const toPush: [number, number][] = [
+    [(i / Y_ROT_SEGMENTS) * Math.PI * 2, i],
+    [(i / Y_ROT_SEGMENTS) * Math.PI * 2 - Math.PI * 2, i],
+  ];
+  Y_ROT_MAP.push(...toPush);
+  if (i % 2 === 0) {
+    Y_ROT_MAP_EIGHT.push(...toPush);
+  }
+  if (i % 4 === 0) {
+    Y_ROT_MAP_FOUR.push(...toPush);
+  }
 }
 
 const PI = Math.PI;

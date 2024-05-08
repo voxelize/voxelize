@@ -233,6 +233,7 @@ const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
   highlightColor: new THREE.Color("#000"),
   highlightOpacity: 0.5,
   inverseDirection: true,
+  potentialVisuals: true,
 });
 world.add(voxelInteract);
 
@@ -836,6 +837,8 @@ const start = async () => {
       voxel: [vx, vy, vz],
       rotation,
       yRotation,
+      yRotation4,
+      yRotation8,
     } = voxelInteract.potential;
 
     const updates: VOXELIZE.BlockUpdate[] = [];
@@ -851,8 +854,13 @@ const start = async () => {
             vy: vy + y,
             vz: vz + z,
             type: block.id,
-            rotation,
-            yRotation,
+            rotation: block.rotatable ? rotation : 0,
+            yRotation:
+              block.yRotatableSegments === "All"
+                ? yRotation
+                : block.yRotatableSegments === "Eight"
+                ? yRotation8
+                : yRotation4,
           });
         }
       }

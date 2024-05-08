@@ -239,11 +239,11 @@ export async function setupWorld(world: VOXELIZE.World) {
   // await world.applyBlockGif("Sand", "nx", FunnyGif);
   // await world.applyBlockTexture("Biggie", "pz", new THREE.Color("#2C3639"));
   try {
-    const image = await world.loader.loadImage(
-      "https://i.imgur.com/2ZQZV2w.png"
-    );
-    await world.applyBlockTexture("Biggie", "pz", image);
-    await world.setResolutionOf("Biggie", "pz", 10);
+    // const image = await world.loader.loadImage(
+    //   "https://i.imgur.com/2ZQZV2w.png"
+    // );
+    // await world.applyBlockTexture("Biggie", "pz", image);
+    // await world.setResolutionOf("Biggie", "pz", 10);
   } catch (e) {
     console.warn("oh well,", e);
   }

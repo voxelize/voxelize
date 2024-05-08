@@ -1451,6 +1451,8 @@ pub struct Block {
     /// Whether or not can the block rotate on the y-axis relative to it's overall rotation.
     pub y_rotatable: bool,
 
+    pub y_rotatable_segments: YRotatableSegments,
+
     /// Is the block empty space?
     pub is_empty: bool,
 
@@ -1667,12 +1669,26 @@ impl Block {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub enum YRotatableSegments {
+    All,
+    Eight,
+    Four,
+}
+
+impl Default for YRotatableSegments {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
 #[derive(Default)]
 pub struct BlockBuilder {
     id: u32,
     name: String,
     rotatable: bool,
     y_rotatable: bool,
+    y_rotatable_segments: YRotatableSegments,
     is_empty: bool,
     is_fluid: bool,
     is_passable: bool,
@@ -1735,6 +1751,11 @@ impl BlockBuilder {
     /// Configure whether or not this block is rotatable on the y-axis. Default is false.
     pub fn y_rotatable(mut self, y_rotatable: bool) -> Self {
         self.y_rotatable = y_rotatable;
+        self
+    }
+
+    pub fn y_rotatable_segments(mut self, y_rotatable_segments: &YRotatableSegments) -> Self {
+        self.y_rotatable_segments = y_rotatable_segments.clone();
         self
     }
 
@@ -1924,6 +1945,7 @@ impl BlockBuilder {
             name: self.name,
             rotatable: self.rotatable,
             y_rotatable: self.y_rotatable,
+            y_rotatable_segments: self.y_rotatable_segments,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
             is_light: self.red_light_level > 0

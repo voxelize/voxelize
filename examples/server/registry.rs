@@ -1,6 +1,7 @@
 use voxelize::{
     Block, BlockConditionalPart, BlockDynamicPattern, BlockFaces, BlockRule, BlockRuleLogic,
-    BlockSimpleRule, Registry, Vec3, VoxelPacker, AABB, SIX_FACES_NX, SIX_FACES_PY, SIX_FACES_PZ,
+    BlockSimpleRule, Registry, Vec3, VoxelPacker, YRotatableSegments, AABB, SIX_FACES_NX,
+    SIX_FACES_PY, SIX_FACES_PZ,
 };
 
 const PLANT_SCALE: f32 = 0.6;
@@ -44,6 +45,7 @@ pub fn setup_registry() -> Registry {
             .is_z_transparent(true)
             // .rotatable(true)
             .y_rotatable(true)
+            .y_rotatable_segments(&YRotatableSegments::Four)
             .build(),
     );
 

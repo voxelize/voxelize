@@ -19,6 +19,8 @@ import {
   PY_ROTATION,
   PZ_ROTATION,
   Y_ROT_MAP,
+  Y_ROT_MAP_EIGHT,
+  Y_ROT_MAP_FOUR,
 } from "../core/world/block";
 import { Coords3 } from "../types";
 import { ChunkUtils, MathUtils } from "../utils";
@@ -149,10 +151,14 @@ export class VoxelInteract extends Group {
      * This only works if rotation is {@link PY_ROTATION} or {@link NY_ROTATION}.
      */
     yRotation: number;
+    yRotation8: number;
+    yRotation4: number;
   } | null = {
     voxel: [0, 0, 0],
     rotation: PY_ROTATION,
     yRotation: 0,
+    yRotation4: 0,
+    yRotation8: 0,
   };
 
   /**
@@ -338,13 +344,13 @@ export class VoxelInteract extends Group {
       this.newTargetPosition.set(union.minX, union.minY, union.minZ);
     }
 
+    // target block is look block summed with the normal
     const targetVoxel = [
       this.target[0] + nx,
       this.target[1] + ny,
       this.target[2] + nz,
     ] as Coords3;
 
-    // target block is look block summed with the normal
     const rotation =
       nx !== 0
         ? nx > 0
@@ -360,10 +366,8 @@ export class VoxelInteract extends Group {
           : NZ_ROTATION
         : 0;
 
-    const yRotation = (() => {
+    const calculateYRotation = (segmentCount: 4 | 8 | 16) => {
       if (Math.abs(ny) !== 0) {
-        this.yRotArrow.visible = true;
-
         const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
 
         const [tx, ty, tz] = [
@@ -381,7 +385,14 @@ export class VoxelInteract extends Group {
         let closest: number;
         let closestA: number;
 
-        Y_ROT_MAP.forEach(([a, yRot]) => {
+        const rotMap =
+          segmentCount === 4
+            ? Y_ROT_MAP_FOUR
+            : segmentCount === 8
+            ? Y_ROT_MAP_EIGHT
+            : Y_ROT_MAP;
+
+        rotMap.forEach(([a, yRot]) => {
           if (Math.abs(normalized - a) < min) {
             min = Math.abs(normalized - a);
             closest = yRot;
@@ -397,15 +408,53 @@ export class VoxelInteract extends Group {
         return closest;
       }
 
-      this.yRotArrow.visible = false;
-      return 0;
-    })();
+      const [vx, vy, vz] = [objPos.x, objPos.y, objPos.z];
+
+      const [tx, ty, tz] = [
+        targetVoxel[0] + 0.5,
+        targetVoxel[1] + 0.5,
+        targetVoxel[2] + 0.5,
+      ];
+
+      // use same case as ny > 0
+      const angle = Math.atan2(vx - tx, vz - tz);
+      const normalized = MathUtils.normalizeAngle(angle);
+
+      let min = Infinity;
+      let closest: number;
+      let closestA: number;
+
+      const rotMap =
+        segmentCount === 4
+          ? Y_ROT_MAP_FOUR
+          : segmentCount === 8
+          ? Y_ROT_MAP_EIGHT
+          : Y_ROT_MAP;
+
+      rotMap.forEach(([a, yRot]) => {
+        if (Math.abs(normalized - a) < min) {
+          min = Math.abs(normalized - a);
+          closest = yRot;
+          closestA = a;
+        }
+      });
+
+      const x = ny < 0 ? Math.cos(closestA - Math.PI / 2) : Math.sin(closestA);
+      const z = ny < 0 ? Math.sin(closestA - Math.PI / 2) : Math.cos(closestA);
+      this.yRotArrow.setDirection(new Vector3(x, 0, z).normalize());
+      return closest;
+    };
+
+    const yRotation = calculateYRotation(16);
+    const eightYRotation = calculateYRotation(8);
+    const fourYRotation = calculateYRotation(4);
 
     this.potential = {
       voxel: targetVoxel,
       rotation: rotation,
       yRotation,
-      // lookingAt.rotatable ? closest : undefined,
+      yRotation4: fourYRotation,
+      yRotation8: eightYRotation,
     };
 
     if (this.potential) {
