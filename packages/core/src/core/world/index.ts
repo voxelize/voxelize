@@ -3061,13 +3061,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const newValue = BlockUtils.insertAll(
         updatedBlock.id,
-        updatedBlock.rotatable ? updatedRotation : undefined
+        updatedBlock.rotatable || updatedBlock.yRotatable
+          ? updatedRotation
+          : undefined
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
 
       this.setVoxelAt(vx, vy, vz, type);
 
-      if (updatedBlock.rotatable) {
+      if (updatedBlock.rotatable || updatedBlock.yRotatable) {
         this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
       }
 
@@ -3344,8 +3346,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.isTrackingChunks = true;
 
-    console.log(this.chunks.toUpdate.length, this.options.maxUpdatesPerUpdate);
-
     const start = performance.now();
 
     const processUpdatesInIdleTime = () => {
@@ -3418,7 +3418,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         let raw = 0;
         raw = BlockUtils.insertID(raw, type);
 
-        if (block.rotatable && (!isNaN(rotation) || !isNaN(yRotation))) {
+        console.log("rotation", rotation);
+        console.log("yRotation", yRotation);
+
+        if (
+          (block.rotatable || block.yRotatable) &&
+          (!isNaN(rotation) || !isNaN(yRotation))
+        ) {
           raw = BlockUtils.insertRotation(
             raw,
             BlockRotation.encode(rotation, yRotation)

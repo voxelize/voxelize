@@ -245,8 +245,10 @@ export const Y_ROT_SEGMENTS = 16;
 
 /**
  * A rotational map used to get the closest y-rotation representation to a y-rotation value.
+ *
+ * Rotation value -> index
  */
-export const Y_ROT_MAP = [];
+export const Y_ROT_MAP: [number, number][] = [];
 
 for (let i = 0; i < Y_ROT_SEGMENTS; i++) {
   Y_ROT_MAP.push([(i / Y_ROT_SEGMENTS) * Math.PI * 2, i]);

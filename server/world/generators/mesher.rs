@@ -418,7 +418,7 @@ impl Mesher {
             && is_transparent[4]
             && is_transparent[5];
 
-        if rotatable {
+        if rotatable || y_rotatable {
             rotation.rotate_node(&mut dir, y_rotatable, false);
         }
 
@@ -486,7 +486,7 @@ impl Mesher {
             let mut four_blue_lights = vec![];
 
             for CornerData { mut pos, uv } in corners.iter() {
-                if rotatable {
+                if rotatable || y_rotatable {
                     rotation.rotate_node(&mut pos, y_rotatable, true);
                 }
 

@@ -153,7 +153,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 }
 
                 let current_transparency = current_type.get_rotated_transparency(&rotation);
-                let updated_transparency = if updated_type.rotatable {
+                let updated_transparency = if updated_type.rotatable || updated_type.y_rotatable {
                     updated_type.get_rotated_transparency(&rotation)
                 } else {
                     updated_type.is_transparent
@@ -174,7 +174,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
                 }
 
-                if updated_type.rotatable {
+                if updated_type.rotatable || updated_type.y_rotatable {
                     chunks.set_voxel_rotation(vx, vy, vz, &rotation);
                 }
 

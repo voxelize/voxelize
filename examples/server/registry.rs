@@ -42,7 +42,7 @@ pub fn setup_registry() -> Registry {
             .faces(&stairs_faces)
             .is_x_transparent(true)
             .is_z_transparent(true)
-            .rotatable(true)
+            // .rotatable(true)
             .y_rotatable(true)
             .build(),
     );

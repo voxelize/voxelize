@@ -234,7 +234,7 @@ onmessage = function (e) {
           const { dir: faceDir, corners } = face;
           const dir = [...faceDir] as Coords3;
 
-          if (rotatable) {
+          if (rotatable || yRotatable) {
             rotation.rotateNode(dir, yRotatable, false);
           }
 
@@ -294,7 +294,7 @@ onmessage = function (e) {
             for (const { pos: cornerPos, uv } of corners) {
               const pos = [...cornerPos] as Coords3;
 
-              if (rotatable) {
+              if (rotatable || yRotatable) {
                 rotation.rotateNode(pos, yRotatable, true);
               }
 
