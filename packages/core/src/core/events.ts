@@ -1,5 +1,4 @@
 import { MessageProtocol } from "@voxelize/transport/src/types";
-import { encodeObjectToStruct } from "@voxelize/transport/src/utils/encode-object-to-struct";
 
 import { NetIntercept } from "./network";
 
@@ -118,7 +117,7 @@ export class Events extends Map<string, EventHandler> implements NetIntercept {
       events: [
         {
           name,
-          payload: encodeObjectToStruct(payload),
+          payload: JSON.stringify(payload),
         },
       ],
     });
