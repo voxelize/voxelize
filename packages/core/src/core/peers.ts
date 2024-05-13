@@ -319,17 +319,19 @@ export class Peers<
       });
     }
 
-    const newInfoJson = JSON.stringify(info);
+    if (info) {
+      const newInfoJson = JSON.stringify(info);
 
-    if (info && this.infoJsonCache !== newInfoJson) {
-      this.infoJsonCache = newInfoJson;
+      if (this.infoJsonCache !== newInfoJson) {
+        this.infoJsonCache = newInfoJson;
 
-      const event: MessageProtocol = {
-        type: "PEER",
-        peers: [info],
-      };
+        const event: MessageProtocol = {
+          type: "PEER",
+          peers: [info],
+        };
 
-      this.packets.push(event);
+        this.packets.push(event);
+      }
     }
 
     if (this.options.updateChildren) {
