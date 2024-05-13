@@ -103,6 +103,8 @@ export class Peers<
    */
   public packets: MessageProtocol<any, any, any, any>[] = [];
 
+  private infoJsonCache: string | null = null;
+
   /**
    * Create a peers manager to add multiplayer functionality to your Voxelize game.
    *
@@ -317,7 +319,11 @@ export class Peers<
       });
     }
 
-    if (info) {
+    const newInfoJson = JSON.stringify(info);
+
+    if (info && this.infoJsonCache !== newInfoJson) {
+      this.infoJsonCache = newInfoJson;
+
       const event: MessageProtocol = {
         type: "PEER",
         peers: [info],
