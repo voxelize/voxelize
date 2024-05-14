@@ -77,10 +77,7 @@ cd voxelize
 yarn
 
 # generate protocol buffers
-yarn --cwd transport run proto
-
-# start development
-yarn run dev
+yarn proto
 
 # in a separate terminal, start both frontend/backend demo
 yarn run demo
