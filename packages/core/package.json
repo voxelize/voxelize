@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "clean": "rimraf ./dist",
-    "compile": "vite build",
+    "compile": "vite build && cp src/styles.css dist/styles.css",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "test": "vitest --run",

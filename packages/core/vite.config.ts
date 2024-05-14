@@ -5,7 +5,12 @@ import { defineConfig } from "vite";
 import { glslify } from "vite-plugin-glslify";
 
 export default defineConfig({
-  plugins: [glslify(), externalizeDeps()],
+  plugins: [
+    glslify(),
+    externalizeDeps({
+      except: [/three\/examples\//],
+    }),
+  ],
   define: {
     __buildVersion__: require("./package.json").version,
   },
