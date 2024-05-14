@@ -1,4 +1,4 @@
-import glsl from "vite-plugin-glsl";
+import glsl from "vite-plugin-glslify";
 
 /** @type {import('vite').UserConfig} */
 export default {

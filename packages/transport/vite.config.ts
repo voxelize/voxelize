@@ -1,7 +1,7 @@
 import path from "path";
 
 import { defineConfig } from "vite";
-import glsl from "vite-plugin-glsl";
+import glsl from "vite-plugin-glslify";
 
 export default defineConfig({
   plugins: [glsl() as any],

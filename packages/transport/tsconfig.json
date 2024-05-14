@@ -4,6 +4,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "baseUrl": ".",
+    "allowJs": false,
     "rootDir": "./src"
   }
 }

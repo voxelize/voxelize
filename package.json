@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
-    "build:ts": "lerna run --parallel build",
+    "build:ts": "lerna run --scope '@voxelize/*' build",
     "demo:ts": "cd examples/client && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "test-dev": "vitest",
@@ -44,7 +44,7 @@
     "typedoc": "^0.25.3",
     "typescript": "^5.3.3",
     "vite": "^5.2.11",
-    "vite-plugin-glsl": "^1.3.0",
+    "vite-plugin-glslify": "^2.1.0",
     "vitest": "^1.6.0"
   }
 }
