@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
+    "test": "yarn vitest",
     "compile": "vite build",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",

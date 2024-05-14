@@ -1,3 +1,4 @@
+import { test, describe, expect, it } from "vitest";
 import { decodeStructToObject } from "../src/utils/decode-struct-to-object";
 import { encodeObjectToStruct } from "../src/utils/encode-object-to-struct";
 
