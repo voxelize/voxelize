@@ -5,7 +5,7 @@ type WorkerMessage = {
   signal: "start" | "stop";
 };
 
-let intervalId: number | null = null;
+let intervalId: any | null = null;
 
 function clearExistingInterval() {
   if (intervalId !== null) {

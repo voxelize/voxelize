@@ -7,7 +7,7 @@ import {
   GeometryProtocol,
   MeshProtocol,
   MessageProtocol,
-} from "@voxelize/transport/src/types";
+} from "@voxelize/transport";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
@@ -2610,19 +2610,23 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
 
-    this.packets.push({
-      type: "LOAD",
-      json: {
-        center,
-        direction: new Vector2(direction.x, direction.z).normalize().toArray(),
-        chunks: toRequest,
-      },
-    });
+    if (toRequest.length) {
+      this.packets.push({
+        type: "LOAD",
+        json: {
+          center,
+          direction: new Vector2(direction.x, direction.z)
+            .normalize()
+            .toArray(),
+          chunks: toRequest,
+        },
+      });
 
-    toRequest.forEach((coords) => {
-      const name = ChunkUtils.getChunkName(coords as Coords2);
-      this.chunks.requested.set(name, 0);
-    });
+      toRequest.forEach((coords) => {
+        const name = ChunkUtils.getChunkName(coords as Coords2);
+        this.chunks.requested.set(name, 0);
+      });
+    }
   }
 
   private processChunks(center: Coords2) {

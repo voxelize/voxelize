@@ -4,14 +4,14 @@ import {
   connection as WebSocketConnection,
 } from "websocket";
 
-import protocol from "./protocol";
+import { protocol } from "./protocol";
 import { MessageProtocol } from "./types";
 
 export * from "./types";
 export * from "./utils";
 export { protocol };
 
-const { Message } = protocol.protocol;
+const { Message } = protocol;
 
 /**
  * @noInheritDoc
@@ -229,8 +229,8 @@ export class Transport extends WebSocket {
         (peer) => (peer.metadata = JSON.stringify(peer.metadata))
       );
     }
-    return protocol.protocol.Message.encode(
-      protocol.protocol.Message.create(message)
+    return protocol.Message.encode(
+      protocol.Message.create(message)
     ).finish();
   }
 }

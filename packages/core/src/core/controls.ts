@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 
 import { AABB } from "@voxelize/aabb";
 import { RigidBody } from "@voxelize/physics-engine";
-import { MessageProtocol } from "@voxelize/transport/src/types";
+import { MessageProtocol } from "@voxelize/transport";
 import {
   Clock,
   Euler,

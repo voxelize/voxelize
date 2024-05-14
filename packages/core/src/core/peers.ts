@@ -1,4 +1,4 @@
-import { MessageProtocol, PeerProtocol } from "@voxelize/transport/src/types";
+import { MessageProtocol, PeerProtocol } from "@voxelize/transport";
 import { Group, Object3D, Quaternion, Vector3 } from "three";
 
 import { Character } from "../libs";

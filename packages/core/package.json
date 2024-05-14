@@ -6,8 +6,7 @@
   "publishConfig": {
     "main": "dist/index.cjs",
     "module": "dist/index.mjs",
-    "types": "dist/index.d.ts",
-    "umd": "dist/index.umd.js"
+    "types": "dist/index.d.ts"
   },
   "files": [
     "dist",
