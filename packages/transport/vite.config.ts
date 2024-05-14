@@ -1,10 +1,10 @@
 import path from "path";
 
 import { defineConfig } from "vite";
-import glsl from "vite-plugin-glslify";
+import { glslify } from "vite-plugin-glslify";
 
 export default defineConfig({
-  plugins: [glsl() as any],
+  plugins: [glslify() as any],
 
   build: {
     lib: {
