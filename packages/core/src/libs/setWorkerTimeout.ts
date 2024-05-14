@@ -1,4 +1,4 @@
-import TimeoutWorker from "web-worker:./workers/timeout-worker";
+import TimeoutWorker from "./workers/timeout-worker?worker";
 
 export function setWorkerTimeout(func: () => void, timeout: number) {
   const worker = new TimeoutWorker();

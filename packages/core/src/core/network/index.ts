@@ -1,12 +1,12 @@
 import { protocol } from "@voxelize/transport/src/protocol";
 import { MessageProtocol } from "@voxelize/transport/src/types";
 import DOMUrl from "domurl";
-import DecodeWorker from "shared-worker:./workers/decode-worker.ts";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { SharedWorkerPool } from "../../libs/shared-worker-pool";
 
 import { NetIntercept } from "./intercept";
+import DecodeWorker from "./workers/decode-worker.ts?sharedworker";
 
 export * from "./intercept";
 

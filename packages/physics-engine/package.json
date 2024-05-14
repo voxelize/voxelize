@@ -2,18 +2,20 @@
   "name": "@voxelize/physics-engine",
   "version": "1.1.28",
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
+  "main": "src/index.ts",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "exports": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    },
+    "types": "./dist/index.d.ts"
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "exports": {
-    "require": "./dist/index.js",
-    "import": "./dist/index.mjs"
-  },
-  "types": "./dist/index.d.ts",
   "scripts": {
     "dev": "yarn run build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",

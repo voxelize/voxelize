@@ -5,9 +5,5 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "rootDir": "./src"
-  },
-  "ts-jest": {
-    "files": ["./src/**/*", "./tests/**/*"],
-    "include": ["./src/**/*", "./tests/**/*"]
   }
 }
