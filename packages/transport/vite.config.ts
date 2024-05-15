@@ -1,7 +1,7 @@
 import path from "path";
-import { externalizeDeps } from "vite-plugin-externalize-deps";
 
 import { defineConfig } from "vite";
+import { externalizeDeps } from "vite-plugin-externalize-deps";
 import { glslify } from "vite-plugin-glslify";
 
 export default defineConfig({

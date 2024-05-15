@@ -1,4 +1,4 @@
-importScripts("https://cdn.jsdelivr.net/npm/noisejs@2.1.0/index.min.js");
+import { Noise } from "noisejs";
 
 function set(arr, x, y, z, stride, value) {
   arr[x * stride[0] + y * stride[1] + z * stride[2]] = value;
