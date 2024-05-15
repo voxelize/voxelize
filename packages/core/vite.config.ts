@@ -12,7 +12,7 @@ export default defineConfig({
     }),
   ],
   define: {
-    __buildVersion__: JSON.stringify(require("./package.json").version),
+    __BUILD_VERSION__: JSON.stringify(require("./package.json").version),
   },
   base: "./", // needed to make web workers work: https://github.com/vitejs/vite/discussions/15547#discussioncomment-8950765
   build: {

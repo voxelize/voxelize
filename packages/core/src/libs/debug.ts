@@ -1,7 +1,10 @@
 import { Group } from "three";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 
+import packageJson from "../../package.json";
 import { DOMUtils } from "../utils";
+
+const version = packageJson.version;
 
 /**
  * Parameters to create a {@link Debug} instance.
@@ -335,7 +338,7 @@ export class Debug extends Group {
    */
   private setup = () => {
     if (this.options.showVoxelize) {
-      this.displayTitle(`Voxelize ${"__buildVersion__"}`);
+      this.displayTitle(`Voxelize ${version}`);
       this.displayNewline();
     }
   };
