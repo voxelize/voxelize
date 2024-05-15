@@ -2,22 +2,27 @@
   "name": "@voxelize/transport",
   "version": "1.0.24",
   "license": "MIT",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "publishConfig": {
+    "main": "dist/index.cjs.js",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts"
+  },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
-    "compile": "rollup -c rollup.config.js",
+    "test": "yarn vitest",
+    "compile": "vite build",
     "build": "yarn run clean && yarn run compile && yarn run types",
-    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
     "prepublishOnly": "yarn run build",
     "demo": "node example/index.js",
     "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
-    "proto:js": "pbjs -t static-module -w commonjs -o ./src/protocol.js ../../messages.proto",
+    "proto:js": "pbjs -t static-module -w es6 -o ./src/protocol.js ../../messages.proto",
     "proto": "yarn run proto:js && yarn run proto:ts && mkdirp dist && cp src/protocol.* dist/"
   },
   "dependencies": {

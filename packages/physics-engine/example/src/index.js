@@ -1,3 +1,4 @@
+import { AABB } from "@voxelize/voxel-aabb";
 import {
   WebGLRenderer,
   PerspectiveCamera,
@@ -9,10 +10,10 @@ import {
   MeshNormalMaterial,
   PlaneBufferGeometry,
   DoubleSide,
-} from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { Engine } from '../../dist';
-import { AABB } from '@voxelize/voxel-aabb';
+} from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+
+import { Engine } from "../../dist";
 
 const scene = new Scene();
 const camera = new PerspectiveCamera();
@@ -60,12 +61,12 @@ const engine = new Engine(
     airDrag: 0.1,
     fluidDrag: 1.4,
     fluidDensity: 1.4,
-  },
+  }
 );
 
 const floor = new Mesh(
   new PlaneBufferGeometry(100, 100),
-  new MeshBasicMaterial({ color: '#112233', side: DoubleSide }),
+  new MeshBasicMaterial({ color: "#112233", side: DoubleSide })
 );
 floor.position.y = 1;
 floor.rotateX(Math.PI / 2);
@@ -78,7 +79,7 @@ const renderAABB = (aabb) => {
   mesh.position.set(
     aabb.minX + aabb.width / 2,
     aabb.minY + aabb.height / 2,
-    aabb.minZ + aabb.depth / 2,
+    aabb.minZ + aabb.depth / 2
   );
   return mesh;
 };
@@ -113,16 +114,16 @@ const onAnimationFrameHandler = (timeStamp) => {
 };
 window.requestAnimationFrame(onAnimationFrameHandler);
 
-document.addEventListener('keypress', (event) => {
-  if (event.key === 'w') {
+document.addEventListener("keypress", (event) => {
+  if (event.key === "w") {
     body.applyImpulse([10, 0, 0]);
-  } else if (event.key === 's') {
+  } else if (event.key === "s") {
     body.applyImpulse([-10, 0, 0]);
-  } else if (event.key === 'a') {
+  } else if (event.key === "a") {
     body.applyImpulse([0, 0, 10]);
-  } else if (event.key === 'd') {
+  } else if (event.key === "d") {
     body.applyImpulse([0, 0, -10]);
-  } else if (event.key === ' ') {
+  } else if (event.key === " ") {
     body.applyImpulse([0, 10, 0]);
   }
 });
@@ -135,7 +136,7 @@ const windowResizeHanlder = () => {
   camera.updateProjectionMatrix();
 };
 windowResizeHanlder();
-window.addEventListener('resize', windowResizeHanlder);
+window.addEventListener("resize", windowResizeHanlder);
 
 // dom
 document.body.style.margin = 0;

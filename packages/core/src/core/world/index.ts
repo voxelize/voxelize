@@ -7,7 +7,7 @@ import {
   GeometryProtocol,
   MeshProtocol,
   MessageProtocol,
-} from "@voxelize/transport/src/types";
+} from "@voxelize/transport";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
@@ -33,7 +33,6 @@ import {
   Vector2,
   Vector3,
 } from "three";
-import MeshWorker from "web-worker:./workers/mesh-worker.ts";
 
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
@@ -65,6 +64,7 @@ import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
+import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
 export * from "./chunk";

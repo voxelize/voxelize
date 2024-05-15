@@ -11,13 +11,14 @@ import {
   ShaderMaterial,
   Vector3,
 } from "three";
-import CloudWorker from "web-worker:./workers/clouds-worker.ts";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
 import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl";
 import CloudsVertexShader from "../../shaders/clouds/vertex.glsl";
 import { Coords2, Coords3 } from "../../types";
+
+import CloudWorker from "./workers/clouds-worker.ts?worker";
 
 /**
  * Parameters used to create a new {@link Clouds} instance.

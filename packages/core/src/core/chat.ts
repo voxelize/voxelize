@@ -1,4 +1,4 @@
-import { ChatProtocol, MessageProtocol } from "@voxelize/transport/src/types";
+import { ChatProtocol, MessageProtocol } from "@voxelize/transport";
 
 import { NetIntercept } from "./network";
 

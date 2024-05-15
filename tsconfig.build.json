@@ -9,7 +9,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "strictPropertyInitialization": false,
-    "types": ["jest"],
+    "types": [],
     "jsx": "react"
   },
   "exclude": ["node_modules", "dist"]

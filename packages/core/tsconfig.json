@@ -6,10 +6,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "baseUrl": "./src",
-    "rootDir": "./src"
-  },
-  "ts-jest": {
-    "files": ["./src/**/*", "./tests/**/*"],
-    "include": ["./src/**/*", "./tests/**/*"]
+    "rootDir": "./src",
+    "resolveJsonModule": true
   }
 }

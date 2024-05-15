@@ -1,4 +1,4 @@
-import { MessageProtocol } from "@voxelize/transport/src/types";
+import { MessageProtocol } from "@voxelize/transport";
 
 /**
  * An interceptor for the network layer. When registered to a network

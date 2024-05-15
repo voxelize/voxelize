@@ -1,9 +1,9 @@
-declare module "shared-worker:*" {
+declare module "*?sharedworker" {
   const SharedWorkerFactory: new () => SharedWorker;
   export default SharedWorkerFactory;
 }
 
-declare module "web-worker:*" {
+declare module "*?worker" {
   const WebWorkerFactory: new () => Worker;
   export default WebWorkerFactory;
 }

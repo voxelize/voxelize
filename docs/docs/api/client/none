@@ -87,9 +87,6 @@ yarn
 # generate protocol buffers
 yarn --cwd transport run proto
 
-# start development
-yarn run dev
-
 # in a separate terminal, start both frontend/backend demo
 yarn run demo
 

@@ -1,4 +1,4 @@
-import { ChunkProtocol } from "@voxelize/transport/src/types";
+import { ChunkProtocol } from "@voxelize/transport";
 import { Group, Mesh } from "three";
 
 import { Coords2 } from "../../types";
