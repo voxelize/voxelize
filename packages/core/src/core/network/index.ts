@@ -1,5 +1,5 @@
-import { protocol } from "@voxelize/transport";
 import { MessageProtocol } from "@voxelize/transport";
+import { protocol } from "@voxelize/transport/src/protocol";
 import DOMUrl from "domurl";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
