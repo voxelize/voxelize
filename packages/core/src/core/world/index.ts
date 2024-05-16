@@ -573,7 +573,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param faceNames The face names to apply the texture to.
    * @param source The source of the texture.
    */
-  async applyBlockTexture(
+  applyBlockTexture(
     idOrName: number | string,
     faceNames: string | string[],
     source: string | Color | HTMLImageElement | Texture
@@ -590,8 +590,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     // If it is a string, load the image.
-    const data =
-      typeof source === "string" ? await this.loader.loadImage(source) : source;
+    if (typeof source === "string") {
+      this.loader.loadImage(source).then((data) => {
+        this.applyBlockTexture(idOrName, faceNames, data);
+      });
+      return;
+    }
+
+    const data = source;
 
     blockFaces.forEach((face) => {
       if (face.isolated) {
@@ -761,18 +767,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param data The data to apply the block textures.
    * @returns A promise that resolves when all the textures are applied.
    */
-  async applyBlockTextures(
+  applyBlockTextures(
     data: {
       idOrName: number | string;
       faceNames: string | string[];
       source: string | Color;
     }[]
   ) {
-    return Promise.all(
-      data.map(({ idOrName, faceNames, source }) =>
-        this.applyBlockTexture(idOrName, faceNames, source)
-      )
-    );
+    data.forEach(({ idOrName, faceNames, source }) => {
+      this.applyBlockTexture(idOrName, faceNames, source);
+    });
   }
 
   /**
