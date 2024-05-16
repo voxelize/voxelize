@@ -2,11 +2,11 @@ import path from "path";
 
 import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
-import { glslify } from "vite-plugin-glslify";
+import glsl from "vite-plugin-glsl";
 
 export default defineConfig({
   plugins: [
-    glslify(),
+    glsl(),
     externalizeDeps({
       except: [/three\/examples\//],
     }),
