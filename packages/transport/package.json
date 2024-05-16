@@ -2,15 +2,11 @@
   "name": "@voxelize/transport",
   "version": "1.0.24",
   "license": "MIT",
-  "main": "src/index.ts",
-  "publishConfig": {
-    "main": "dist/index.cjs.js",
-    "module": "dist/index.js",
-    "types": "dist/index.d.ts"
-  },
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
