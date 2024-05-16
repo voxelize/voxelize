@@ -1,7 +1,7 @@
 import "./style.css";
 
 // For official use, you should do `@voxelize/core/styles.css` instead.
-import "@voxelize/core/src/styles.css";
+import "@voxelize/core/styles.css";
 
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
