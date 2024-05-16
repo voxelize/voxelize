@@ -62,8 +62,13 @@ pub type Transports = HashMap<String, Recipient<EncodedMessage>>;
 
 /// The default client metadata parser, parses PositionComp and DirectionComp, and updates RigidBodyComp.
 pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Entity) {
-    let metadata: PeerUpdate =
-        serde_json::from_str(metadata).expect("Could not parse peer update.");
+    let metadata: PeerUpdate = match serde_json::from_str(metadata) {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            warn!("Could not parse peer update: {}", metadata);
+            return;
+        }
+    };
 
     if let Some(position) = metadata.position {
         {
@@ -981,8 +986,13 @@ impl World {
             return;
         };
 
-        let json: OnLoadRequest =
-            serde_json::from_str(&data.json).expect("`on_load` error. Could not read JSON string.");
+        let json: OnLoadRequest = match serde_json::from_str(&data.json) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!("`on_load` error. Could not read JSON string: {}", data.json);
+                return;
+            }
+        };
 
         let chunks = json.chunks;
         if chunks.is_empty() {
@@ -1011,8 +1021,16 @@ impl World {
             return;
         };
 
-        let json: OnUnloadRequest = serde_json::from_str(&data.json)
-            .expect("`on_unload` error. Could not read JSON string.");
+        let json: OnUnloadRequest = match serde_json::from_str(&data.json) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!(
+                    "`on_unload` error. Could not read JSON string: {}",
+                    data.json
+                );
+                return;
+            }
+        };
 
         let chunks = json.chunks;
         if chunks.is_empty() {
