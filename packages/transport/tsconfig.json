@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.build.json",
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/protocol.d.ts", "src/protocol.js"],
   "compilerOptions": {
     "outDir": "./dist",
     "baseUrl": ".",
