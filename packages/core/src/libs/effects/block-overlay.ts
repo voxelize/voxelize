@@ -2,7 +2,7 @@ import { Effect } from "postprocessing";
 import { Color, PerspectiveCamera, Uniform, Vector3 } from "three";
 
 import { World } from "../../core/world";
-import OverlayFragmentShader from "../../shaders/effects/overlay.frag.glsl";
+import OverlayFragmentShader from "../../shaders/effects/overlay.frag.glsl?raw";
 
 /**
  * The block overlay effect is used to add a color blend whenever the camera is inside certain types of blocks.

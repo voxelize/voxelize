@@ -8,8 +8,8 @@ import {
 } from "three";
 
 import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
-import SkyFragmentShader from "../../shaders/sky/fragment.glsl";
-import SkyVertexShader from "../../shaders/sky/vertex.glsl";
+import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
+import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
 export type SkyShadingCycleData = {
   start: number;

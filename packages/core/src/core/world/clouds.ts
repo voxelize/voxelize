@@ -14,8 +14,8 @@ import {
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
-import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl";
-import CloudsVertexShader from "../../shaders/clouds/vertex.glsl";
+import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
+import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
 import CloudWorker from "./workers/clouds-worker.ts?worker";
