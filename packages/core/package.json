@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/core",
-  "version": "0.1.197",
+  "version": "0.1.198",
   "license": "MIT",
   "type": "module",
   "main": "src/index.ts",
