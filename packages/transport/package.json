@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/transport",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -23,13 +23,10 @@
     "proto": "yarn run proto:js && yarn run proto:ts && mkdirp dist && cp src/protocol.* dist/"
   },
   "dependencies": {
-    "fflate": "^0.7.3",
-    "protobufjs": "^7.2.2",
-    "websocket": "^1.0.34"
+    "protobufjs": "^7.2.2"
   },
   "devDependencies": {
     "@types/protobufjs": "^6.0.0",
-    "@types/websocket": "^1.0.5",
     "protobufjs-cli": "^1.1.1"
   }
 }
