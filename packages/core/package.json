@@ -1,20 +1,16 @@
 {
   "name": "@voxelize/core",
-  "version": "0.1.199",
+  "version": "0.1.200",
   "license": "MIT",
   "type": "module",
   "main": "src/index.ts",
   "publishConfig": {
     "main": "dist/index.cjs",
     "module": "dist/index.mjs",
-    "types": "dist/index.d.ts",
-    "files": [
-      "dist"
-    ]
+    "types": "dist/index.d.ts"
   },
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "scripts": {
     "clean": "rimraf ./dist",
