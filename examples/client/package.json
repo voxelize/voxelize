@@ -17,6 +17,7 @@
   "dependencies": {
     "@types/three": "^0.162.0",
     "@voxelize/core": "*",
+    "@voxelize/aabb": "*",
     "lil-gui": "^0.17.0",
     "p5": "^1.5.0",
     "postprocessing": "^6.35.0",

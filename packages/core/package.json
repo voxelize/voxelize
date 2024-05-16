@@ -25,7 +25,9 @@
     "three": "^0.162.0"
   },
   "devDependencies": {
+    "postprocessing": "^6.35.0",
     "@types/gl-vec3": "^1.1.1",
+    "three": "^0.162.0",
     "@types/ndarray": "^1.0.11",
     "@types/omggif": "^1.0.3",
     "@types/three": "^0.162.0",
