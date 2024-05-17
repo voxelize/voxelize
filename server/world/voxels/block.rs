@@ -803,6 +803,7 @@ pub struct SixFacesBuilder {
     suffix: String,
     concat: String,
     independence: [bool; 6],
+    isolation: [bool; 6],
     auto_uv_offset: bool,
     rotation: Option<BlockRotation>,
 }
@@ -827,6 +828,7 @@ impl SixFacesBuilder {
             suffix: "".to_owned(),
             concat: "".to_owned(),
             independence: [false, false, false, false, false, false],
+            isolation: [false, false, false, false, false, false],
             auto_uv_offset: false,
             rotation: None,
         }
@@ -941,6 +943,15 @@ impl SixFacesBuilder {
         self
     }
 
+    pub fn isolated_at(mut self, index: usize) -> Self {
+        if index >= self.isolation.len() {
+            return self;
+        }
+
+        self.isolation[index] = true;
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -962,6 +973,7 @@ impl SixFacesBuilder {
             auto_uv_offset,
             rotation,
             independence,
+            isolation,
         } = self;
 
         let make_name = |side: &str| {
@@ -1008,12 +1020,19 @@ impl SixFacesBuilder {
         let is_pz_independent = independence[SIX_FACES_PZ];
         let is_nz_independent = independence[SIX_FACES_NZ];
 
+        let is_px_isolated = isolation[SIX_FACES_PX];
+        let is_nx_isolated = isolation[SIX_FACES_NX];
+        let is_py_isolated = isolation[SIX_FACES_PY];
+        let is_ny_isolated = isolation[SIX_FACES_NY];
+        let is_pz_isolated = isolation[SIX_FACES_PZ];
+        let is_nz_isolated = isolation[SIX_FACES_NZ];
+
         let mut results = BlockFaces::from_faces(vec![
             BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
-                independent: independence[SIX_FACES_PX],
-                isolated: false,
+                independent: is_px_independent,
+                isolated: is_px_isolated,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -1022,7 +1041,7 @@ impl SixFacesBuilder {
                             1.0 * scale_y + offset_y,
                             1.0 * scale_z + offset_z,
                         ],
-                        uv: if is_px_independent {
+                        uv: if is_px_independent || is_px_isolated {
                             [0.0, 1.0]
                         } else {
                             [uv_offset_z, 1.0 * uv_scale_y + uv_offset_y]
@@ -1030,7 +1049,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_px_independent {
+                        uv: if is_px_independent || is_px_isolated {
                             [0.0, 0.0]
                         } else {
                             [uv_offset_z, uv_offset_y]
@@ -1038,7 +1057,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: if is_px_independent {
+                        uv: if is_px_independent || is_px_isolated {
                             [1.0, 1.0]
                         } else {
                             [
@@ -1049,7 +1068,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
-                        uv: if is_px_independent {
+                        uv: if is_px_independent || is_px_isolated {
                             [1.0, 0.0]
                         } else {
                             [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y]
@@ -1060,13 +1079,13 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("py"),
                 dir: [0, 1, 0],
-                independent: independence[SIX_FACES_PY],
-                isolated: false,
+                independent: is_py_independent,
+                isolated: is_py_isolated,
                 range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_py_independent {
+                        uv: if is_py_independent || is_py_isolated {
                             [1.0, 1.0]
                         } else {
                             [
@@ -1081,7 +1100,7 @@ impl SixFacesBuilder {
                             1.0 * scale_y + offset_y,
                             1.0 * scale_z + offset_z,
                         ],
-                        uv: if is_py_independent {
+                        uv: if is_py_independent || is_py_isolated {
                             [0.0, 1.0]
                         } else {
                             [uv_offset_x, uv_offset_z + 1.0 * uv_scale_z]
@@ -1089,7 +1108,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: if is_py_independent {
+                        uv: if is_py_independent || is_py_isolated {
                             [1.0, 0.0]
                         } else {
                             [uv_offset_x + 1.0 * uv_scale_x, uv_offset_z]
@@ -1097,7 +1116,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: if is_py_independent {
+                        uv: if is_py_independent || is_py_isolated {
                             [0.0, 0.0]
                         } else {
                             [uv_offset_x, uv_offset_z]
@@ -1108,13 +1127,13 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("pz"),
                 dir: [0, 0, 1],
-                independent: independence[SIX_FACES_PZ],
-                isolated: false,
+                independent: is_pz_independent,
+                isolated: is_pz_isolated,
                 range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_pz_independent {
+                        uv: if is_pz_independent || is_pz_isolated {
                             [0.0, 0.0]
                         } else {
                             [uv_offset_x, uv_offset_y]
@@ -1122,7 +1141,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_pz_independent {
+                        uv: if is_pz_independent || is_pz_isolated {
                             [1.0, 0.0]
                         } else {
                             [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y]
@@ -1130,7 +1149,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_pz_independent {
+                        uv: if is_pz_independent || is_pz_isolated {
                             [0.0, 1.0]
                         } else {
                             [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y]
@@ -1142,7 +1161,7 @@ impl SixFacesBuilder {
                             1.0 * scale_y + offset_y,
                             1.0 * scale_z + offset_z,
                         ],
-                        uv: if is_pz_independent {
+                        uv: if is_pz_independent || is_pz_isolated {
                             [1.0, 1.0]
                         } else {
                             [
@@ -1156,13 +1175,13 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("nx"),
                 dir: [-1, 0, 0],
-                independent: independence[SIX_FACES_NX],
-                isolated: false,
+                independent: is_nx_independent,
+                isolated: is_nx_isolated,
                 range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: if is_nx_independent {
+                        uv: if is_nx_independent || is_nx_isolated {
                             [0.0, 1.0]
                         } else {
                             [uv_offset_z, 1.0 * uv_scale_y + uv_offset_y]
@@ -1170,7 +1189,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, offset_y, offset_z],
-                        uv: if is_nx_independent {
+                        uv: if is_nx_independent || is_nx_isolated {
                             [0.0, 0.0]
                         } else {
                             [uv_offset_z, uv_offset_y]
@@ -1178,7 +1197,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_nx_independent {
+                        uv: if is_nx_independent || is_nx_isolated {
                             [1.0, 1.0]
                         } else {
                             [
@@ -1189,7 +1208,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_nx_independent {
+                        uv: if is_nx_independent || is_nx_isolated {
                             [1.0, 0.0]
                         } else {
                             [uv_offset_z + 1.0 * uv_scale_z, uv_offset_y]
@@ -1200,13 +1219,13 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("ny"),
                 dir: [0, -1, 0],
-                independent: independence[SIX_FACES_NY],
-                isolated: false,
+                independent: is_ny_independent,
+                isolated: is_ny_isolated,
                 range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_ny_independent {
+                        uv: if is_ny_independent || is_ny_isolated {
                             [1.0, 0.0]
                         } else {
                             [uv_offset_x + 1.0 * uv_scale_x, uv_offset_z]
@@ -1214,7 +1233,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, offset_y, 1.0 * scale_z + offset_z],
-                        uv: if is_ny_independent {
+                        uv: if is_ny_independent || is_ny_isolated {
                             [0.0, 0.0]
                         } else {
                             [uv_offset_x, uv_offset_z]
@@ -1222,7 +1241,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
-                        uv: if is_ny_independent {
+                        uv: if is_ny_independent || is_ny_isolated {
                             [1.0, 1.0]
                         } else {
                             [
@@ -1233,7 +1252,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, offset_y, offset_z],
-                        uv: if is_ny_independent {
+                        uv: if is_ny_independent || is_ny_isolated {
                             [0.0, 1.0]
                         } else {
                             [uv_offset_x, uv_offset_z + 1.0 * uv_scale_z]
@@ -1244,13 +1263,13 @@ impl SixFacesBuilder {
             BlockFace {
                 name: make_name("nz"),
                 dir: [0, 0, -1],
-                independent: independence[SIX_FACES_NZ],
-                isolated: false,
+                independent: is_nz_independent,
+                isolated: is_nz_isolated,
                 range: UV::default(),
                 corners: [
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, offset_y, offset_z],
-                        uv: if is_nz_independent {
+                        uv: if is_nz_independent || is_nz_isolated {
                             [0.0, 0.0]
                         } else {
                             [uv_offset_x, uv_offset_y]
@@ -1258,7 +1277,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, offset_y, offset_z],
-                        uv: if is_nz_independent {
+                        uv: if is_nz_independent || is_nz_isolated {
                             [1.0, 0.0]
                         } else {
                             [uv_offset_x + 1.0 * uv_scale_x, uv_offset_y]
@@ -1266,7 +1285,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [1.0 * scale_x + offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: if is_nz_independent {
+                        uv: if is_nz_independent || is_nz_isolated {
                             [0.0, 1.0]
                         } else {
                             [uv_offset_x, uv_offset_y + 1.0 * uv_scale_y]
@@ -1274,7 +1293,7 @@ impl SixFacesBuilder {
                     },
                     CornerData {
                         pos: [offset_x, 1.0 * scale_y + offset_y, offset_z],
-                        uv: if is_nz_independent {
+                        uv: if is_nz_independent || is_nz_isolated {
                             [1.0, 1.0]
                         } else {
                             [
