@@ -33,7 +33,7 @@ class Loader {
   /**
    * The internal texture loader used by the loader.
    */
-  private textureLoader = new TextureLoader(this.manager);
+  textureLoader = new TextureLoader(this.manager);
 
   /**
    * The internal audio loader used by the loader.

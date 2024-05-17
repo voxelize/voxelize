@@ -589,15 +589,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    // If it is a string, load the image.
-    if (typeof source === "string") {
-      this.loader.loadImage(source).then((data) => {
-        this.applyBlockTexture(idOrName, faceNames, data);
-      });
-      return;
-    }
-
-    const data = source;
+    const data =
+      typeof source === "string"
+        ? this.loader.textureLoader.load(source)
+        : source;
 
     blockFaces.forEach((face) => {
       if (face.isolated) {
