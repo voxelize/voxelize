@@ -5,7 +5,7 @@ import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { SharedWorkerPool } from "../../libs/shared-worker-pool";
 
 import { NetIntercept } from "./intercept";
-import DecodeWorker from "./workers/decode-worker.ts?sharedworker";
+import DecodeWorker from "./workers/decode-worker.ts?sharedworker&inline";
 
 export * from "./intercept";
 

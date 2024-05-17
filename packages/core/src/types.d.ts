@@ -3,6 +3,11 @@ declare module "*?sharedworker" {
   export default SharedWorkerFactory;
 }
 
+declare module "*?sharedworker&inline" {
+  const SharedWorkerFactory: new () => SharedWorker;
+  export default SharedWorkerFactory;
+}
+
 declare module "*?worker" {
   const WebWorkerFactory: new () => Worker;
   export default WebWorkerFactory;
