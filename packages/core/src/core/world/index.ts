@@ -64,7 +64,7 @@ import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
-import MeshWorker from "./workers/mesh-worker.ts?worker";
+import MeshWorker from "./workers/mesh-worker.ts?worker&inline";
 
 export * from "./block";
 export * from "./chunk";
