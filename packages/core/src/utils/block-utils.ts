@@ -1,4 +1,4 @@
-import { Coords3 } from "types";
+import { Coords3 } from "../types";
 
 import {
   Block,
