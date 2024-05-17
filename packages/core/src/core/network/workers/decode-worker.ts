@@ -51,7 +51,15 @@ onconnect = (e) => {
       if (message.events) {
         message.events.forEach((event) => {
           try {
-            event.payload = JSON.parse(JSON.parse(event.payload));
+            let parsedPayload = event.payload;
+            for (let i = 0; i < 5; i++) {
+              try {
+                parsedPayload = JSON.parse(parsedPayload);
+              } catch {
+                break;
+              }
+            }
+            event.payload = parsedPayload;
           } catch (e) {
             console.log(e);
           }
