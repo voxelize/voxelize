@@ -291,10 +291,11 @@ impl Server {
             ));
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
-                let (addr, _) = self.connections.remove(id).unwrap();
-                self.lost_sessions.insert(id.to_owned(), addr);
+                if let Some((addr, _)) = self.connections.remove(id) {
+                    self.lost_sessions.insert(id.to_owned(), addr);
 
-                world.remove_client(id);
+                    world.remove_client(id);
+                }
             }
 
             return None;
