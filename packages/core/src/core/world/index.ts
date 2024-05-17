@@ -64,7 +64,7 @@ import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
-import MeshWorker from "./workers/mesh-worker.ts?worker&inline";
+import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
 export * from "./chunk";
@@ -453,6 +453,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     maxWorker: navigator.hardwareConcurrency ?? 4,
   });
 
+  private textureLoaderLastMap: Record<string, Date> = {};
+
   private chunksTracker: [Coords2, number][] = [];
 
   private isTrackingChunks = false;
@@ -589,10 +591,29 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    const data =
-      typeof source === "string"
-        ? this.loader.textureLoader.load(source)
-        : source;
+    const now = new Date();
+    blockFaces.forEach((face) => {
+      const id = `${face.name}::${block.id}`;
+      this.textureLoaderLastMap[id] = now;
+    });
+
+    // If it is a string, load the image.
+    if (typeof source === "string") {
+      this.loader.loadImage(source).then((data) => {
+        const filteredFaces = blockFaces.filter((face) => {
+          const id = `${face.name}::${block.id}`;
+          return this.textureLoaderLastMap[id] === now;
+        });
+        this.applyBlockTexture(
+          idOrName,
+          filteredFaces.map((f) => f.name),
+          data
+        );
+      });
+      return;
+    }
+
+    const data = source;
 
     blockFaces.forEach((face) => {
       if (face.isolated) {
@@ -610,10 +631,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (source instanceof Texture) {
           mat.map = source;
           mat.uniforms.map = { value: source };
-          mat.needsUpdate = true;
-        } else if (data instanceof Texture) {
-          mat.map = data;
-          mat.uniforms.map = { value: data };
           mat.needsUpdate = true;
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
@@ -766,16 +783,18 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param data The data to apply the block textures.
    * @returns A promise that resolves when all the textures are applied.
    */
-  applyBlockTextures(
+  async applyBlockTextures(
     data: {
       idOrName: number | string;
       faceNames: string | string[];
       source: string | Color;
     }[]
   ) {
-    data.forEach(({ idOrName, faceNames, source }) => {
-      this.applyBlockTexture(idOrName, faceNames, source);
-    });
+    return Promise.all(
+      data.map(({ idOrName, faceNames, source }) =>
+        this.applyBlockTexture(idOrName, faceNames, source)
+      )
+    );
   }
 
   /**
