@@ -611,6 +611,10 @@ export class World<T = any> extends Scene implements NetIntercept {
           mat.map = source;
           mat.uniforms.map = { value: source };
           mat.needsUpdate = true;
+        } else if (data instanceof Texture) {
+          mat.map = data;
+          mat.uniforms.map = { value: data };
+          mat.needsUpdate = true;
         } else if (data instanceof HTMLImageElement) {
           mat.map.image = data;
           mat.map.needsUpdate = true;
