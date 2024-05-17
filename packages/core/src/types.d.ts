@@ -8,6 +8,16 @@ declare module "*?worker" {
   export default WebWorkerFactory;
 }
 
+declare module "*?worker&url" {
+  const WebWorkerFactory: new () => Worker;
+  export default WebWorkerFactory;
+}
+
+declare module "*?worker&inline" {
+  const WebWorkerFactory: new () => Worker;
+  export default WebWorkerFactory;
+}
+
 declare module "*.glsl" {
   const value: string;
   export default value;

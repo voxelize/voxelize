@@ -1,4 +1,4 @@
-import IntervalWorker from "./workers/interval-worker?worker";
+import IntervalWorker from "./workers/interval-worker?worker&inline";
 
 export function setWorkerInterval(func: () => void, interval: number) {
   const worker = new IntervalWorker();

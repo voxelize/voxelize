@@ -3,7 +3,7 @@ import { NdArray } from "ndarray";
 import { Coords3 } from "../types";
 
 import { WorkerPool } from "./worker-pool";
-import CullWorker from "./workers/cull-worker.ts?worker";
+import CullWorker from "./workers/cull-worker.ts?worker&inline";
 
 export type MeshResultType = {
   positions: Float32Array;
