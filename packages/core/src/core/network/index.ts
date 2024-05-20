@@ -252,7 +252,11 @@ export class Network {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
       ws.binaryType = "arraybuffer";
       // custom Protobuf event sending
-      ws.sendEvent = (event: any) => {
+      ws.sendEvent = async (event: any) => {
+        while (!this.connected) {
+          console.log(`waiting for websocket connection...`)
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
         ws.send(Network.encodeSync(event));
       };
       ws.onopen = () => {
