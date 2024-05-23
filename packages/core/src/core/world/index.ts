@@ -3121,6 +3121,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.attemptBlockCache(vx, vy, vz, newValue);
 
       this.setVoxelAt(vx, vy, vz, type);
+      this.setVoxelStageAt(vx, vy, vz, stage);
 
       if (updatedBlock.rotatable || updatedBlock.yRotatable) {
         this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
@@ -3464,7 +3465,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.packets.push({
       type: "UPDATE",
       updates: updates.map((update) => {
-        const { type, rotation, yRotation } = update;
+        const { type, rotation, yRotation, stage } = update;
 
         const block = this.getBlockById(type);
 
@@ -3479,6 +3480,10 @@ export class World<T = any> extends Scene implements NetIntercept {
             raw,
             BlockRotation.encode(rotation, yRotation)
           );
+        }
+
+        if (stage !== undefined) {
+          raw = BlockUtils.insertStage(raw, stage);
         }
 
         return {
