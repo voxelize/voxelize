@@ -200,6 +200,11 @@ export type BlockUpdate = {
    * The optional y-rotation of the updated block.
    */
   yRotation?: number;
+
+  /**
+   * The optional stage of the updated block.
+   */
+  stage?: number;
 };
 
 export type BlockUpdateWithSource = {

@@ -1125,6 +1125,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     return chunk.getVoxelStage(px, py, pz);
   }
 
+  setVoxelStageAt(px: number, py: number, pz: number, stage: number) {
+    this.checkIsInitialized("set voxel stage", false);
+    const chunk = this.getChunkByPosition(px, py, pz);
+    if (chunk === undefined) return;
+    chunk.setVoxelStage(px, py, pz, stage);
+    this.trackChunkAt(px, py, pz);
+  }
+
   /**
    * Get a voxel sunlight by a 3D world position.
    *
@@ -1684,9 +1692,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     type: number,
     rotation = PY_ROTATION,
     yRotation = 0,
+    stage = 0,
     source: "client" | "server" = "client"
   ) => {
-    this.updateVoxels([{ vx, vy, vz, type, rotation, yRotation }], source);
+    this.updateVoxels(
+      [{ vx, vy, vz, type, rotation, yRotation, stage }],
+      source
+    );
   };
 
   /**
@@ -1714,10 +1726,11 @@ export class World<T = any> extends Scene implements NetIntercept {
           return false;
         }
 
-        const { vx, vy, vz, type, rotation, yRotation } = update;
+        const { vx, vy, vz, type, rotation, yRotation, stage } = update;
 
         const currId = this.getVoxelAt(vx, vy, vz);
         const currRot = this.getVoxelRotationAt(vx, vy, vz);
+        const currStage = this.getVoxelStageAt(vx, vy, vz);
 
         if (!this.getBlockById(type)) {
           console.warn(`Block ID ${type} does not exist.`);
@@ -1727,7 +1740,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (
           currId === type &&
           (rotation !== undefined ? currRot.value === rotation : false) &&
-          (yRotation !== undefined ? currRot.yRotation === yRotation : false)
+          (yRotation !== undefined ? currRot.yRotation === yRotation : false) &&
+          (stage !== undefined ? currStage === stage : false)
         ) {
           return false;
         }
@@ -2361,12 +2375,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           const type = BlockUtils.extractID(voxel);
           const rotation = BlockUtils.extractRotation(voxel);
+          const stage = BlockUtils.extractStage(voxel);
           const localRotation = this.getVoxelRotationAt(vx, vy, vz);
+          const localStage = this.getVoxelStageAt(vx, vy, vz);
 
           if (
             this.getVoxelAt(vx, vy, vz) !== type ||
             localRotation.value !== rotation.value ||
-            localRotation.yRotation !== rotation.yRotation
+            localRotation.yRotation !== rotation.yRotation ||
+            localStage !== stage
           ) {
             this.updateVoxel(
               vx,
@@ -2375,6 +2392,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               type,
               rotation.value,
               rotation.yRotation,
+              stage,
               "server"
             );
           }
@@ -3069,7 +3087,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const {
-        update: { type, vx, vy, vz, rotation, yRotation },
+        update: { type, vx, vy, vz, rotation, yRotation, stage },
       } = update;
 
       const currentBlock = this.getBlockAt(vx, vy, vz);
@@ -3084,12 +3102,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         updatedBlock,
         updatedRotation
       );
+      const currentStage = this.getVoxelStageAt(vx, vy, vz);
 
       const newValue = BlockUtils.insertAll(
         updatedBlock.id,
         updatedBlock.rotatable || updatedBlock.yRotatable
           ? updatedRotation
-          : undefined
+          : undefined,
+        currentStage !== stage ? stage : undefined
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
 
