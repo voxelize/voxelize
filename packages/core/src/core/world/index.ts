@@ -1682,19 +1682,30 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param vy The voxel's Y position.
    * @param vz The voxel's Z position.
    * @param type The type of the voxel.
-   * @param rotation The major axis rotation of the voxel.
-   * @param yRotation The Y rotation on the major axis. Applies to blocks with major axis of PY or NY.
+   * @param options The options for the voxel.
+   * @param options.rotation The major axis rotation of the voxel.
+   * @param options.yRotation The Y rotation on the major axis. Applies to blocks with major axis of PY or NY.
+   * @param options.stage The stage of the voxel.
+   * @param options.source Whether the update is from the client or server. Defaults to "client".
    */
   updateVoxel = (
     vx: number,
     vy: number,
     vz: number,
     type: number,
-    rotation = PY_ROTATION,
-    yRotation = 0,
-    stage = 0,
-    source: "client" | "server" = "client"
+    options: {
+      rotation?: number;
+      yRotation?: number;
+      stage?: number;
+      source?: "client" | "server";
+    }
   ) => {
+    const {
+      rotation = PY_ROTATION,
+      yRotation = 0,
+      stage = 0,
+      source = "client",
+    } = options;
     this.updateVoxels(
       [{ vx, vy, vz, type, rotation, yRotation, stage }],
       source
@@ -2385,16 +2396,12 @@ export class World<T = any> extends Scene implements NetIntercept {
             localRotation.yRotation !== rotation.yRotation ||
             localStage !== stage
           ) {
-            this.updateVoxel(
-              vx,
-              vy,
-              vz,
-              type,
-              rotation.value,
-              rotation.yRotation,
+            this.updateVoxel(vx, vy, vz, type, {
+              rotation: rotation.value,
+              yRotation: rotation.yRotation,
               stage,
-              "server"
-            );
+              source: "server",
+            });
           }
         });
 
