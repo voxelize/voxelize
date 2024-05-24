@@ -1899,7 +1899,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.setTorchLightAt(vx, vy, vz, 0, color);
     }
 
+    let iterationCount = 0;
+    const startTime = performance.now();
+
     while (queue.length) {
+      iterationCount++;
       const node = queue.shift();
       const { voxel, level } = node;
 
@@ -1972,6 +1976,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
+
+    const endTime = performance.now();
+    console.log(
+      `removeLight executed in ${
+        endTime - startTime
+      }ms with ${iterationCount} iterations, color: ${color}`
+    );
 
     this.floodLight(fill, color);
   }
@@ -3132,11 +3143,13 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.removeLight([vx, vy, vz], "SUNLIGHT");
         }
 
-        ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map((color) => {
-          if (this.getTorchLightAt(vx, vy, vz, color) > 0) {
-            this.removeLight([vx, vy, vz], color);
+        ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).forEach(
+          (color) => {
+            if (this.getTorchLightAt(vx, vy, vz, color) > 0) {
+              this.removeLight([vx, vy, vz], color);
+            }
           }
-        });
+        );
       } else {
         let removeCount = 0;
 
@@ -3147,10 +3160,10 @@ export class World<T = any> extends Scene implements NetIntercept {
           [BLUE_LIGHT, this.getTorchLightAt(vx, vy, vz, "BLUE")],
         ] as const;
 
-        VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
+        for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
           const nvy = vy + oy;
           if (nvy < 0 || nvy >= maxHeight) {
-            return;
+            continue;
           }
 
           const nvx = vx + ox;
@@ -3159,7 +3172,6 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
-            // Maybe use the new rotation?
             currentRotation
           );
 
@@ -3181,10 +3193,10 @@ export class World<T = any> extends Scene implements NetIntercept {
               )
             )
           ) {
-            return;
+            continue;
           }
 
-          lightData.forEach(([color, sourceLevel]) => {
+          for (const [color, sourceLevel] of lightData) {
             const isSunlight = color === SUNLIGHT;
 
             const nLevel = isSunlight
@@ -3201,17 +3213,24 @@ export class World<T = any> extends Scene implements NetIntercept {
               removeCount += 1;
               this.removeLight([nvx, nvy, nvz], color);
             }
-          });
-        });
+          }
+        }
 
         if (removeCount === 0) {
           if (this.getSunlightAt(vx, vy, vz) !== 0) {
             this.removeLight([vx, vy, vz], "SUNLIGHT");
           }
 
-          ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).map(
+          ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).forEach(
             (color) => {
-              if (this.getTorchLightAt(vx, vy, vz, color) !== 0) {
+              if (
+                this.getTorchLightAt(vx, vy, vz, color) !== 0 &&
+                (color === RED_LIGHT
+                  ? currentBlock.redLightLevel !== 0
+                  : color === GREEN_LIGHT
+                  ? currentBlock.greenLightLevel !== 0
+                  : currentBlock.blueLightLevel !== 0)
+              ) {
                 this.removeLight([vx, vy, vz], color);
               }
             }
@@ -3251,11 +3270,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       } else {
         // Check the six neighbors.
-        VOXEL_NEIGHBORS.forEach(([ox, oy, oz]) => {
+        for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
           const nvy = vy + oy;
 
           if (nvy < 0) {
-            return;
+            continue;
           }
 
           // Sunlight should propagate downwards here.
@@ -3276,7 +3295,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               });
             }
 
-            return;
+            continue;
           }
 
           const nvx = vx + ox;
@@ -3314,7 +3333,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               )
             )
           ) {
-            return;
+            continue;
           }
 
           const level =
@@ -3356,7 +3375,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               level: blueLevel,
             });
           }
-        });
+        }
       }
 
       processedUpdates++; // Increment the count of processed updates
