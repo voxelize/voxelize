@@ -20,10 +20,6 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         WriteStorage<'a, ChunkRequestsComp>,
     );
 
-    // 1. Go through all chunk requests, specifically under the `requested` set.
-    // 2. If chunk DNE, Add the chunks to be generated in the pipeline.
-    // 3. Move the chunk from the `requested` set to the `processed` set.
-    // 4. Otherwise, send directly to the client.
     fn run(&mut self, data: Self::SystemData) {
         let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests) =
             data;
@@ -36,69 +32,48 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             let mut to_add_back_to_requested = HashSet::new();
 
             for coords in requests.requests.drain(..) {
-                // If the chunk is actually ready, send to client.
                 if chunks.is_chunk_ready(&coords) {
-                    let mut clients_to_send = to_send.remove(&id.0).unwrap_or_default();
+                    let clients_to_send = to_send.entry(id.0.clone()).or_default();
 
                     if clients_to_send.len() >= max_response_per_tick {
-                        to_send.insert(id.0.clone(), clients_to_send);
                         to_add_back_to_requested.insert(coords);
                         continue;
                     }
 
-                    // Add the chunk to the list of chunks to send to the client.
                     clients_to_send.insert(coords.clone());
-
-                    to_send.insert(id.0.clone(), clients_to_send);
-
                     interests.add(&id.0, &coords);
-
-                    continue;
-                }
-
-                if !interests.has_interests(&coords) {
-                    chunks
-                        .light_traversed_chunks(&coords)
-                        .into_iter()
-                        .for_each(|coords| {
-                            // If this chunk is DNE or if this chunk is still in the pipeline, we re-add it to the pipeline.
-                            if chunks.raw(&coords).is_none()
-                                || matches!(
-                                    chunks.raw(&coords).unwrap().status,
-                                    ChunkStatus::Generating(_)
-                                )
-                            {
-                                pipeline.add_chunk(&coords, false);
-                            }
-                            // If this chunk is in the meshing stage, we re-add it to the mesher.
-                            else if let Some(chunk) = chunks.raw(&coords) {
-                                if matches!(chunk.status, ChunkStatus::Meshing) {
+                } else {
+                    if !interests.has_interests(&coords) {
+                        for coords in chunks.light_traversed_chunks(&coords) {
+                            match chunks.raw(&coords) {
+                                Some(chunk) if matches!(chunk.status, ChunkStatus::Meshing) => {
                                     mesher.add_chunk(&coords, false);
                                 }
+                                None | Some(_) => {
+                                    pipeline.add_chunk(&coords, false);
+                                }
                             }
-                        });
+                        }
+                    }
+                    interests.add(&id.0, &coords);
                 }
-
-                interests.add(&id.0, &coords);
             }
 
-            // Add the chunks back to the requested set.
             requests.requests.extend(to_add_back_to_requested);
         }
 
-        // Send the chunks to the client.
-        to_send.into_iter().for_each(|(id, coords)| {
+        for (id, coords) in to_send {
             let chunks: Vec<ChunkProtocol> = coords
                 .into_iter()
-                .map(|coords| {
-                    let chunk = chunks.get(&coords).unwrap();
-
-                    chunk.to_model(true, true, 0..config.sub_chunks as u32)
+                .filter_map(|coords| {
+                    chunks
+                        .get(&coords)
+                        .map(|chunk| chunk.to_model(true, true, 0..config.sub_chunks as u32))
                 })
                 .collect();
 
             let message = Message::new(&MessageType::Load).chunks(&chunks).build();
-            queue.push((message, ClientFilter::Direct(id)))
-        })
+            queue.push((message, ClientFilter::Direct(id)));
+        }
     }
 }
