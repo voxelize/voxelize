@@ -1,0 +1,32 @@
+{
+  "name": "@voxelize/protocol",
+  "version": "1.0.32",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "clean": "rimraf ./dist",
+    "test": "yarn vitest",
+    "compile": "vite build",
+    "build": "yarn run clean && yarn run compile && yarn run types && yarn run copyproto",
+    "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
+    "copyproto": "cp ./src/protocol.* ./dist",
+    "prepublishOnly": "yarn run build",
+    "demo": "node example/index.js",
+    "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
+    "proto:js": "pbjs -t static-module -w es6 -o ./src/protocol.js ../../messages.proto",
+    "proto": "yarn run proto:js && yarn run proto:ts && mkdirp dist && cp src/protocol.* dist/"
+  },
+  "dependencies": {
+    "protobufjs": "^7.2.2"
+  },
+  "devDependencies": {
+    "@types/protobufjs": "^6.0.0",
+    "protobufjs-cli": "^1.1.1"
+  }
+}
