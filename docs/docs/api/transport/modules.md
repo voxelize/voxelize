@@ -1,6 +1,6 @@
 ---
 id: "modules"
-title: "@voxelize/transport"
+title: "@voxelize/protocol"
 sidebar_label: "Exports"
 sidebar_position: 0.5
 custom_edit_url: null

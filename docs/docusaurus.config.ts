@@ -190,11 +190,11 @@ const config: Config = {
     [
       "docusaurus-plugin-typedoc",
       {
-        entryPoints: ["../packages/transport/src/index.ts"],
-        id: "@voxelize/transport",
-        out: "api/transport",
-        tsconfig: "../packages/transport/tsconfig.json",
-        ...sharedTypeDocConfig("Transport API"),
+        entryPoints: ["../packages/protocol/src/index.ts"],
+        id: "@voxelize/protocol",
+        out: "api/protocol",
+        tsconfig: "../packages/protocol/tsconfig.json",
+        ...sharedTypeDocConfig("Protocol API"),
       },
     ],
     [

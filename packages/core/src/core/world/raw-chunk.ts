@@ -1,4 +1,4 @@
-import { ChunkProtocol } from "@voxelize/transport";
+import { ChunkProtocol } from "@voxelize/protocol";
 import ndarray, { NdArray } from "ndarray";
 
 import { Coords2, Coords3 } from "../../types";

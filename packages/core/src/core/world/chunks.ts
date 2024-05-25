@@ -1,4 +1,4 @@
-import { ChunkProtocol } from "@voxelize/transport";
+import { ChunkProtocol } from "@voxelize/protocol";
 import { Color, Vector4 } from "three";
 import { Coords2 } from "types";
 

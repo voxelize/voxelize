@@ -1,4 +1,4 @@
-const { Transport } = require("../dist/index.cjs");
+const { Transport } = require("../dist/index.js");
 
 const transport = new Transport();
 

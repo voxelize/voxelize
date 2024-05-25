@@ -7,7 +7,7 @@ import {
   GeometryProtocol,
   MeshProtocol,
   MessageProtocol,
-} from "@voxelize/transport";
+} from "@voxelize/protocol";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,

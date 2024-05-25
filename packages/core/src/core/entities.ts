@@ -1,4 +1,4 @@
-import { MessageProtocol } from "@voxelize/transport";
+import { MessageProtocol } from "@voxelize/protocol";
 import { Group } from "three";
 
 import { NetIntercept } from "./network";
