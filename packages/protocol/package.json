@@ -17,7 +17,6 @@
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
     "copyproto": "cp ./src/protocol.* ./dist",
     "prepublishOnly": "yarn run build",
-    "demo": "node example/index.js",
     "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
     "proto:js": "pbjs -t static-module -w es6 -o ./src/protocol.js ../../messages.proto",
     "proto": "yarn run proto:js && yarn run proto:ts && mkdirp dist && cp src/protocol.* dist/"
