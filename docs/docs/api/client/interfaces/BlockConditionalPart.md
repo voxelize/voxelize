@@ -16,7 +16,7 @@ ___
 
 ### faces
 
-• **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv-24)  }[]
+• **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv-8)  }[]
 
 ___
 
@@ -28,4 +28,4 @@ ___
 
 ### rule
 
-• **rule**: [`BlockRule`](../modules.md#blockrule-24)
+• **rule**: [`BlockRule`](../modules.md#blockrule-8)

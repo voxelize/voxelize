@@ -69,3 +69,13 @@ Set a new entity type to the entities manager.
 #### Returns
 
 `void`
+
+___
+
+### update
+
+▸ **update**(): `void`
+
+#### Returns
+
+`void`

@@ -28,7 +28,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-24)\> |
+| `options` | `Partial`\<[`ItemSlotsOptions`](../modules.md#itemslotsoptions-8)\> |
 
 #### Returns
 
@@ -102,7 +102,7 @@ ___
 
 ### options
 
-• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-24)
+• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions-8)
 
 ___
 

@@ -24,6 +24,7 @@
     "postprocessing": "^6.33.3",
     "prism-react-renderer": "^2.2.0",
     "prism-themes": "^1.9.0",
+    "protobufjs": "^7.3.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-type-animation": "^3.2.0",

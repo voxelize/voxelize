@@ -149,7 +149,13 @@ export class Perspective {
    * @param namespace The namespace to bind the perspective's keyboard inputs to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
-    const unbind = inputs.bind("KeyC", this.toggle, namespace, {
+    const unbindKeyC = inputs.bind("KeyC", () => this.toggle(), namespace, {
+      identifier: Perspective.INPUT_IDENTIFIER,
+      checkType: "code",
+    });
+
+    // no clue why but this seems to work, f5 seems to be reversed
+    const unbindF5 = inputs.bind("F5", () => this.toggle(true), namespace, {
       identifier: Perspective.INPUT_IDENTIFIER,
       checkType: "code",
     });
@@ -158,7 +164,8 @@ export class Perspective {
 
     return () => {
       try {
-        unbind();
+        unbindKeyC();
+        unbindF5();
       } catch (e) {
         // Ignore.
       }
@@ -169,17 +176,31 @@ export class Perspective {
    * Toggle between the first, second and third person perspectives. The order goes from first person to
    * third person and then to second person.
    */
-  toggle = () => {
-    switch (this.state) {
-      case "first":
-        this.state = "third";
-        break;
-      case "second":
-        this.state = "first";
-        break;
-      case "third":
-        this.state = "second";
-        break;
+  toggle = (inverse = false) => {
+    if (inverse) {
+      switch (this.state) {
+        case "first":
+          this.state = "second";
+          break;
+        case "second":
+          this.state = "third";
+          break;
+        case "third":
+          this.state = "first";
+          break;
+      }
+    } else {
+      switch (this.state) {
+        case "first":
+          this.state = "third";
+          break;
+        case "second":
+          this.state = "first";
+          break;
+        case "third":
+          this.state = "second";
+          break;
+      }
     }
   };
 

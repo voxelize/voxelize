@@ -111,3 +111,17 @@ ___
 ##### Returns
 
 `void`
+
+___
+
+### update
+
+• `Optional` **update**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
+
+##### Returns
+
+`void`

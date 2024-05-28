@@ -75,7 +75,7 @@ custom_edit_url: null
 
 ### ArmsOptions
 
-Ƭ **ArmsOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-24) & \{ `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
+Ƭ **ArmsOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-8) & \{ `shoulderDrop?`: `number` ; `shoulderGap?`: `number`  }
 
 Parameters to create a character's arms.
 Defaults to:
@@ -150,14 +150,15 @@ A block type in the world. This is defined by the server.
 | :------ | :------ | :------ |
 | `aabbs` | `AABB`[] | A list of axis-aligned bounding boxes that this block has. |
 | `blueLightLevel` | `number` | The blue light level of the block. |
-| `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3-24)) => \{ `aabbs`: [`Block`](modules.md#block-24)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block-24)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block-24)[``"isTransparent"``]  } | If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this just returns the faces and AABB's that are defined in the block data. |
+| `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3-8)) => \{ `aabbs`: [`Block`](modules.md#block-8)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block-8)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block-8)[``"isTransparent"``]  } | If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this just returns the faces and AABB's that are defined in the block data. |
 | `dynamicPatterns` | [`BlockDynamicPattern`](interfaces/BlockDynamicPattern.md)[] | - |
-| `faces` | \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](modules.md#uv-24)  }[] | A list of block face data that this block has. |
+| `faces` | \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](modules.md#uv-8)  }[] | A list of block face data that this block has. |
 | `greenLightLevel` | `number` | The green light level of the block. |
 | `id` | `number` | The block id. |
 | `independentFaces` | `Set`\<`string`\> | A set of block face names that are independent (high resolution or animated). This is generated on the client side. |
 | `isDynamic` | `boolean` | Whether or not does the block generate dynamic faces or AABB's. If this is true, the block will use `dynamicFn` to generate the faces and AABB's. |
 | `isEmpty` | `boolean` | Whether or not is this block empty. By default, only "air" is empty. |
+| `isEntity` | `boolean` | - |
 | `isFluid` | `boolean` | Whether or not is the block a fluid block. |
 | `isLight` | `boolean` | Whether or not is this block a light source. |
 | `isOpaque` | `boolean` | Whether or not is this block opaque (not transparent). |
@@ -171,12 +172,35 @@ A block type in the world. This is defined by the server.
 | `rotatable` | `boolean` | Whether or not is the block rotatable. |
 | `transparentStandalone` | `boolean` | - |
 | `yRotatable` | `boolean` | Whether or not the block is rotatable around the y-axis (has to face either PX or NX). |
+| `yRotatableSegments` | ``"All"`` \| ``"Eight"`` \| ``"Four"`` | - |
+
+___
+
+### BlockEntityUpdateData
+
+Ƭ **BlockEntityUpdateData**\<`T`\>: `Object`
+
+#### Type parameters
+
+| Name |
+| :------ |
+| `T` |
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+| `newValue` | `T` \| ``null`` |
+| `oldValue` | `T` \| ``null`` |
+| `operation` | `EntityOperation` |
+| `voxel` | [`Coords3`](modules.md#coords3-8) |
 
 ___
 
 ### BlockEntityUpdateListener
 
-Ƭ **BlockEntityUpdateListener**\<`T`\>: (`args`: \{ `id`: `string` ; `newValue`: `T` \| ``null`` ; `oldValue`: `T` \| ``null`` ; `operation`: `EntityOperation` ; `voxel`: [`Coords3`](modules.md#coords3-24)  }) => `void`
+Ƭ **BlockEntityUpdateListener**\<`T`\>: (`args`: [`BlockEntityUpdateData`](modules.md#blockentityupdatedata-8)\<`T`\>) => `void`
 
 #### Type parameters
 
@@ -192,12 +216,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `args` | `Object` |
-| `args.id` | `string` |
-| `args.newValue` | `T` \| ``null`` |
-| `args.oldValue` | `T` \| ``null`` |
-| `args.operation` | `EntityOperation` |
-| `args.voxel` | [`Coords3`](modules.md#coords3-24) |
+| `args` | [`BlockEntityUpdateData`](modules.md#blockentityupdatedata-8)\<`T`\> |
 
 ##### Returns
 
@@ -207,7 +226,7 @@ ___
 
 ### BlockRule
 
-Ƭ **BlockRule**: \{ `type`: ``"none"``  } \| \{ `type`: ``"simple"``  } & [`BlockSimpleRule`](modules.md#blocksimplerule-24) \| \{ `logic`: [`BlockRuleLogic`](enums/BlockRuleLogic.md) ; `rules`: [`BlockRule`](modules.md#blockrule-24)[] ; `type`: ``"combination"``  }
+Ƭ **BlockRule**: \{ `type`: ``"none"``  } \| \{ `type`: ``"simple"``  } & [`BlockSimpleRule`](modules.md#blocksimplerule-8) \| \{ `logic`: [`BlockRuleLogic`](enums/BlockRuleLogic.md) ; `rules`: [`BlockRule`](modules.md#blockrule-8)[] ; `type`: ``"combination"``  }
 
 ___
 
@@ -220,7 +239,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id?` | `number` |
-| `offset` | [`Coords3`](modules.md#coords3-24) |
+| `offset` | [`Coords3`](modules.md#coords3-8) |
 | `rotation?` | [`BlockRotation`](classes/BlockRotation.md) |
 | `stage?` | `number` |
 
@@ -237,6 +256,7 @@ A block update to make on the server.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `rotation?` | `number` | The optional rotation of the updated block. |
+| `stage?` | `number` | The optional stage of the updated block. |
 | `type` | `number` | The voxel type. |
 | `vx` | `number` | The voxel x-coordinate. |
 | `vy` | `number` | The voxel y-coordinate. |
@@ -247,7 +267,7 @@ ___
 
 ### BlockUpdateListener
 
-Ƭ **BlockUpdateListener**: (`args`: \{ `newValue`: `number` ; `oldValue`: `number` ; `voxel`: [`Coords3`](modules.md#coords3-24)  }) => `void`
+Ƭ **BlockUpdateListener**: (`args`: \{ `newValue`: `number` ; `oldValue`: `number` ; `voxel`: [`Coords3`](modules.md#coords3-8)  }) => `void`
 
 #### Type declaration
 
@@ -260,7 +280,7 @@ ___
 | `args` | `Object` |
 | `args.newValue` | `number` |
 | `args.oldValue` | `number` |
-| `args.voxel` | [`Coords3`](modules.md#coords3-24) |
+| `args.voxel` | [`Coords3`](modules.md#coords3-8) |
 
 ##### Returns
 
@@ -277,13 +297,13 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `source` | ``"client"`` \| ``"server"`` |
-| `update` | [`BlockUpdate`](modules.md#blockupdate-24) |
+| `update` | [`BlockUpdate`](modules.md#blockupdate-8) |
 
 ___
 
 ### BodyOptions
 
-Ƭ **BodyOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-24)
+Ƭ **BodyOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-8)
 
 Parameters to create a character's body.
 Defaults to:
@@ -357,12 +377,12 @@ Parameters to create a character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `arms?` | `Partial`\<[`ArmsOptions`](modules.md#armsoptions-24)\> | Parameters to create the character's arms. |
-| `body?` | `Partial`\<[`BodyOptions`](modules.md#bodyoptions-24)\> | Parameters to create the character's body. |
-| `head?` | `Partial`\<[`HeadOptions`](modules.md#headoptions-24)\> | Parameters to create the character's head. |
+| `arms?` | `Partial`\<[`ArmsOptions`](modules.md#armsoptions-8)\> | Parameters to create the character's arms. |
+| `body?` | `Partial`\<[`BodyOptions`](modules.md#bodyoptions-8)\> | Parameters to create the character's body. |
+| `head?` | `Partial`\<[`HeadOptions`](modules.md#headoptions-8)\> | Parameters to create the character's head. |
 | `idleArmSwing?` | `number` | The speed at which the arms swing when the character is idle. Defaults to `0.06`. |
-| `legs?` | `Partial`\<[`LegOptions`](modules.md#legoptions-24)\> | Parameters to create the character's legs. |
-| `nameTagOptions?` | `Partial`\<[`NameTagOptions`](modules.md#nametagoptions-24)\> | - |
+| `legs?` | `Partial`\<[`LegOptions`](modules.md#legoptions-8)\> | Parameters to create the character's legs. |
+| `nameTagOptions?` | `Partial`\<[`NameTagOptions`](modules.md#nametagoptions-8)\> | - |
 | `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
 | `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
 | `swingLerp?` | `number` | The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`. |
@@ -392,7 +412,7 @@ Parameters used to create a new [Clouds](classes/Clouds.md) instance.
 | `cloudHeight` | `number` | The y-height at which the clouds are generated. Defaults to `256`. |
 | `color` | `string` | The color of the clouds. Defaults to `#fff`. |
 | `count` | `number` | The number of cloud cells to generate, `count` * `count`. Defaults to `16`. |
-| `dimensions` | [`Coords3`](modules.md#coords3-24) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
+| `dimensions` | [`Coords3`](modules.md#coords3-8) | The dimension of each cloud block. Defaults to `[20, 20, 20]`. |
 | `falloff` | `number` | The noise falloff factor used to generate the clouds. Defaults to `0.9`. |
 | `height` | `number` | The vertical count of how many cloud blocks are in a cloud cell. This is also used to determine the overall count of cloud blocks of all the clouds. Defaults to `3`. |
 | `lerpFactor` | `number` | The lerp factor used to translate cloud blocks from their original position to their new position. Defaults to `0.3`. |
@@ -453,11 +473,11 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `dimensions` | [`Coords3`](modules.md#coords3-24) |
-| `max` | [`Coords3`](modules.md#coords3-24) |
-| `min` | [`Coords3`](modules.md#coords3-24) |
-| `realMax` | [`Coords3`](modules.md#coords3-24) |
-| `realMin` | [`Coords3`](modules.md#coords3-24) |
+| `dimensions` | [`Coords3`](modules.md#coords3-8) |
+| `max` | [`Coords3`](modules.md#coords3-8) |
+| `min` | [`Coords3`](modules.md#coords3-8) |
+| `realMax` | [`Coords3`](modules.md#coords3-8) |
+| `realMin` | [`Coords3`](modules.md#coords3-8) |
 
 ___
 
@@ -487,7 +507,7 @@ Parameters to create a [Debug](classes/Debug.md) instance.
 | `entryStyles` | `Partial`\<`CSSStyleDeclaration`\> | Styles to apply to the wrapper of all debug entries. |
 | `lineClass` | `string` | A class to add to each of the debug entry line (top left). |
 | `lineStyles` | `Partial`\<`CSSStyleDeclaration`\> | Styles to apply to each of the debug entry line (top left). |
-| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [Debug.toggle](classes/Debug.md#toggle-24). |
+| `onByDefault` | `boolean` | Whether or not should the debug panel be displayed by default when the page loads. Defaults to `true`. You can toggle the debug panel by calling [Debug.toggle](classes/Debug.md#toggle-8). |
 | `showVoxelize` | `boolean` | Whether or not should `Voxelize x.x.x` be displayed in the top-left debug panel. Defaults to `true`. |
 | `stats` | `boolean` | Whether or not should [stats.js](https://github.com/mrdoob/stats.js/) be enabled. Defaults to `true`. |
 
@@ -544,7 +564,7 @@ ___
 
 ### HeadOptions
 
-Ƭ **HeadOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-24) & \{ `neckGap?`: `number`  }
+Ƭ **HeadOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-8) & \{ `neckGap?`: `number`  }
 
 Parameters to create a character's head.
 Defaults to:
@@ -601,8 +621,9 @@ The specific options of the key to listen to.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
+| `checkType?` | ``"key"`` \| ``"code"`` | The type of key to check for. Defaults to `key`. |
 | `identifier?` | `string` | A special identifier to tag this input with. This is useful for removing specific inputs from the input listener later on. |
-| `occasion?` | [`InputOccasion`](modules.md#inputoccasion-24) | The occasion that the input should be fired. Defaults to `keydown`. |
+| `occasion?` | [`InputOccasion`](modules.md#inputoccasion-8) | The occasion that the input should be fired. Defaults to `keydown`. |
 
 ___
 
@@ -617,7 +638,7 @@ ___
 | `activatedByDefault` | `boolean` |
 | `focusFirstByDefault` | `boolean` |
 | `horizontalCount` | `number` |
-| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-24) |
+| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-8) |
 | `scrollable?` | `boolean` |
 | `slotClass` | `string` |
 | `slotFocusClass` | `string` |
@@ -638,7 +659,7 @@ ___
 
 ### LegOptions
 
-Ƭ **LegOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-24) & \{ `betweenLegsGap?`: `number`  }
+Ƭ **LegOptions**: [`CanvasBoxOptions`](modules.md#canvasboxoptions-8) & \{ `betweenLegsGap?`: `number`  }
 
 Parameters to create the legs of a character.
 Defaults to:
@@ -677,7 +698,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `level` | `number` |
-| `voxel` | [`Coords3`](modules.md#coords3-24) |
+| `voxel` | [`Coords3`](modules.md#coords3-8) |
 
 ___
 
@@ -813,7 +834,7 @@ Parameters to create a portrait with.
 | :------ | :------ | :------ |
 | `height` | `number` | The height of the portrait canvas. Defaults to `100` pixels. |
 | `lightRotationOffset` | `number` | The rotation around the y axis about the camera. This is used to calculate the position of the light. Defaults to `-Math.PI / 8`. |
-| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-24) | The position of where the camera should be looking at. Defaults to `pxyz`, which means that the camera will be looking at the center of the object from the positive x, y, and z axis scaled by the zoom. |
+| `perspective` | [`CameraPerspective`](modules.md#cameraperspective-8) | The position of where the camera should be looking at. Defaults to `pxyz`, which means that the camera will be looking at the center of the object from the positive x, y, and z axis scaled by the zoom. |
 | `renderOnce` | `boolean` | Whether or not should this portrait only render once. Defaults to `false`. |
 | `width` | `number` | The width of the portrait canvas. Defaults to `100` pixels. |
 | `zoom` | `number` | The arbitrary zoom from the camera to the object. This is used to calculate the zoom of the camera. Defaults to `1`. |
@@ -872,7 +893,8 @@ Parameters to initialize the Voxelize Controls.
 | `flyImpulse` | `number` | The level impulse of which a client flies at. Defaults to `2.5`. |
 | `flyInertia` | `number` | The inertia of a client when they're flying. Defaults to `6`. |
 | `flySpeed` | `number` | The level of speed at which a client flies at. Defaults to `40`. |
-| `initialPosition` | [`Coords3`](modules.md#coords3-24) | Initial position of the client. Defaults to `(0, 80, 10)`. |
+| `initialDirection` | [`Coords3`](modules.md#coords3-8) | - |
+| `initialPosition` | [`Coords3`](modules.md#coords3-8) | Initial position of the client. Defaults to `(0, 80, 10)`. |
 | `jumpForce` | `number` | The level of force applied to the client when jumping. Defaults to `1`. |
 | `jumpImpulse` | `number` | The level of impulse at which the client jumps upwards. Defaults to `8`. |
 | `jumpTime` | `number` | The time, in milliseconds, that a client can be jumping. Defaults to `50`ms. |
@@ -970,6 +992,12 @@ ___
 
 ___
 
+### TargetType
+
+Ƭ **TargetType**: ``"All"`` \| ``"Player"`` \| ``"Entity"``
+
+___
+
 ### UV
 
 Ƭ **UV**: `Object`
@@ -1052,15 +1080,16 @@ The client-side options to create a world. These are client-side only and can be
 | `chunkLoadExponent` | `number` | The exponent applied to the ratio that chunks are loaded, which would then be used to determine whether an angle to a chunk is worth loading. Defaults to `8`. |
 | `chunkRerequestInterval` | `number` | The interval between each time a chunk is re-requested to the server. Defaults to `300` updates. |
 | `chunkUniformsOverwrite` | `Partial`\<`Chunks`[``"uniforms"``]\> | The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`. |
-| `cloudsOptions` | `Partial`\<[`CloudsOptions`](modules.md#cloudsoptions-24)\> | The options to create the clouds. Defaults to `{}`. |
+| `cloudsOptions` | `Partial`\<[`CloudsOptions`](modules.md#cloudsoptions-8)\> | The options to create the clouds. Defaults to `{}`. |
 | `defaultRenderRadius` | `number` | The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks. |
 | `maxChunkRequestsPerUpdate` | `number` | The maximum chunk requests this world can request from the server per world update. Defaults to `12` chunks. |
+| `maxLightsUpdateTime` | `number` | - |
 | `maxMeshesPerUpdate` | `number` | - |
 | `maxProcessesPerUpdate` | `number` | The maximum amount of chunks received from the server that can be processed per world update. By process, it means to be turned into a `Chunk` instance. Defaults to `8` chunks. |
 | `maxUpdatesPerUpdate` | `number` | The maximum voxel updates that can be sent to the server per world update. Defaults to `1000` updates. |
 | `minLightLevel` | `number` | The minimum light level even when sunlight and torch light levels are at zero. Defaults to `0.04`. |
 | `shouldGenerateChunkMeshes` | `boolean` | Whether or not should the world generate ThreeJS meshes. Defaults to `true`. |
-| `skyOptions` | `Partial`\<[`SkyOptions`](modules.md#skyoptions-24)\> | The options to create the sky. Defaults to `{}`. |
+| `skyOptions` | `Partial`\<[`SkyOptions`](modules.md#skyoptions-8)\> | The options to create the sky. Defaults to `{}`. |
 | `statsSyncInterval` | `number` | The interval between each time the world requests the server for its stats. Defaults to 500ms. |
 | `sunlightChangeSpan` | `number` | The fraction of the day that sunlight takes to change from appearing to disappearing or disappearing to appearing. Defaults to `0.1`. |
 | `sunlightEndTimeFrac` | `number` | The fraction of the day that sunlight starts to disappear. Defaults to `0.7`. |
@@ -1072,9 +1101,9 @@ ___
 
 ### WorldOptions
 
-Ƭ **WorldOptions**: [`WorldClientOptions`](modules.md#worldclientoptions-24) & [`WorldServerOptions`](modules.md#worldserveroptions-24)
+Ƭ **WorldOptions**: [`WorldClientOptions`](modules.md#worldclientoptions-8) & [`WorldServerOptions`](modules.md#worldserveroptions-8)
 
-The options to create a world. This consists of [WorldClientOptions](modules.md#worldclientoptions-24) and [WorldServerOptions](modules.md#worldserveroptions-24).
+The options to create a world. This consists of [WorldClientOptions](modules.md#worldclientoptions-8) and [WorldServerOptions](modules.md#worldserveroptions-8).
 
 ___
 
@@ -1120,7 +1149,7 @@ ___
 
 ### BOX\_SIDES
 
-• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-24)[]
+• `Const` **BOX\_SIDES**: [`BoxSides`](modules.md#boxsides-8)[]
 
 The six default faces of a canvas box.
 
@@ -1227,9 +1256,23 @@ ___
 
 ### Y\_ROT\_MAP
 
-• `Const` **Y\_ROT\_MAP**: `any`[] = `[]`
+• `Const` **Y\_ROT\_MAP**: [`number`, `number`][] = `[]`
 
 A rotational map used to get the closest y-rotation representation to a y-rotation value.
+
+Rotation value -> index
+
+___
+
+### Y\_ROT\_MAP\_EIGHT
+
+• `Const` **Y\_ROT\_MAP\_EIGHT**: [`number`, `number`][] = `[]`
+
+___
+
+### Y\_ROT\_MAP\_FOUR
+
+• `Const` **Y\_ROT\_MAP\_FOUR**: [`number`, `number`][] = `[]`
 
 ___
 
@@ -1254,7 +1297,7 @@ A preset of art functions to draw on canvas boxes.
 
 | Name | Type |
 | :------ | :------ |
-| `drawCrown` | [`ArtFunction`](modules.md#artfunction-24) |
+| `drawCrown` | [`ArtFunction`](modules.md#artfunction-8) |
 | `drawMoon` | (`moonRadius`: `number`, `moonColor`: `string`, `phase`: `number`) => (`context`: `CanvasRenderingContext2D`, `canvas`: `HTMLCanvasElement`) => `void` |
 | `drawStars` | (`starCount`: `number`, `starColors`: `string`[]) => (`context`: `CanvasRenderingContext2D`, `canvas`: `HTMLCanvasElement`) => `void` |
 | `drawSun` | (`sunRadius`: `number`, `sunColor`: `string`) => (`context`: `CanvasRenderingContext2D`, `canvas`: `HTMLCanvasElement`) => `void` |
@@ -1304,18 +1347,18 @@ ___
 
 ### cull
 
-▸ **cull**(`array`, `options`): `Promise`\<[`MeshResultType`](modules.md#meshresulttype-24)\>
+▸ **cull**(`array`, `options`): `Promise`\<[`MeshResultType`](modules.md#meshresulttype-8)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `array` | `NdArray`\<`number`[] \| `TypedArray` \| `GenericArray`\<`number`\>\> |
-| `options` | [`CullOptionsType`](modules.md#culloptionstype-24) |
+| `options` | [`CullOptionsType`](modules.md#culloptionstype-8) |
 
 #### Returns
 
-`Promise`\<[`MeshResultType`](modules.md#meshresulttype-24)\>
+`Promise`\<[`MeshResultType`](modules.md#meshresulttype-8)\>
 
 ___
 
