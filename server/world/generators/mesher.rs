@@ -231,30 +231,26 @@ impl Mesher {
     }
 
     /// Attempt to retrieve the results from `mesher.process`
-    pub fn results(&mut self) -> Option<(Chunk, MessageType)> {
-        let result = self.receiver.try_recv();
+    pub fn results(&mut self) -> Vec<(Chunk, MessageType)> {
+        let mut results = Vec::new();
 
-        if result.is_err() {
-            return None;
-        }
-
-        let result = result.unwrap();
-
-        if !self.map.contains(&result.0.coords) {
-            return None;
-        }
-
-        if let Some(count) = self.skips.remove(&result.0.coords) {
-            if count > 0 {
-                self.skips.insert(result.0.coords.to_owned(), count - 1);
-
-                return None;
+        while let Ok(result) = self.receiver.try_recv() {
+            if !self.map.contains(&result.0.coords) {
+                continue;
             }
+
+            if let Some(count) = self.skips.remove(&result.0.coords) {
+                if count > 0 {
+                    self.skips.insert(result.0.coords.to_owned(), count - 1);
+                    continue;
+                }
+            }
+
+            self.remove_chunk(&result.0.coords);
+            results.push(result);
         }
 
-        self.remove_chunk(&result.0.coords);
-
-        Some(result)
+        results
     }
 
     /// Mesh this space and separate individual block types into their own meshes.
