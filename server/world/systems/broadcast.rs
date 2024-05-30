@@ -4,7 +4,7 @@ use crate::{
     common::ClientFilter,
     server::encode_message,
     world::{Clients, MessageQueue},
-    EncodedMessage, Transports,
+    EncodedMessage, EncodedMessageQueue, Transports,
 };
 
 pub struct BroadcastSystem;
@@ -14,18 +14,22 @@ impl<'a> System<'a> for BroadcastSystem {
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
         WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, EncodedMessageQueue>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, mut queue) = data;
+        let (transports, clients, mut queue, mut encoded_queue) = data;
 
-        if queue.is_empty() {
+        encoded_queue.append(queue.drain(..).collect());
+        encoded_queue.process();
+
+        let done_messages = encoded_queue.receive();
+
+        if done_messages.is_empty() {
             return;
         }
 
-        for (message, filter) in queue.drain(..) {
-            let encoded = EncodedMessage(encode_message(&message));
-
+        for (encoded, filter) in done_messages {
             transports.values().for_each(|recipient| {
                 recipient.do_send(encoded.to_owned());
             });

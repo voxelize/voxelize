@@ -276,6 +276,7 @@ impl World {
         ecs.insert(ChunkInterests::new());
         ecs.insert(Bookkeeping::new());
         ecs.insert(KdTree::new());
+        ecs.insert(EncodedMessageQueue::new());
 
         let mut world = Self {
             id,
