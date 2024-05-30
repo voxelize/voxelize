@@ -80,7 +80,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                          HANDLING PIPELINE RESULTS                         */
         /* -------------------------------------------------------------------------- */
-        if let Some((mut chunk, extra_changes)) = pipeline.results() {
+        for (mut chunk, extra_changes) in pipeline.results() {
             for (voxel, id) in extra_changes {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
 

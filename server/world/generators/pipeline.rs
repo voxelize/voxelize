@@ -347,22 +347,17 @@ impl Pipeline {
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
-    pub fn results(&mut self) -> Option<(Chunk, Vec<VoxelUpdate>)> {
-        let result = self.receiver.try_recv();
+    pub fn results(&mut self) -> Vec<(Chunk, Vec<VoxelUpdate>)> {
+        let mut results = Vec::new();
 
-        if result.is_err() {
-            return None;
+        while let Ok(result) = self.receiver.try_recv() {
+            if self.chunks.contains(&result.0.coords) {
+                self.remove_chunk(&result.0.coords);
+                results.push(result);
+            }
         }
 
-        let result = result.unwrap();
-
-        if !self.chunks.contains(&result.0.coords) {
-            return None;
-        }
-
-        self.remove_chunk(&result.0.coords);
-
-        Some(result)
+        results
     }
 
     /// Merge consecutive chunk stages that don't require spaces together into meta stages.
