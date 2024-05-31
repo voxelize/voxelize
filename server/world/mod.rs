@@ -282,7 +282,7 @@ impl World {
         ecs.insert(Bookkeeping::new());
         ecs.insert(KdTree::new());
         ecs.insert(EncodedMessageQueue::new());
-        ecs.insert(Profiler::new(Duration::from_millis(5)));
+        ecs.insert(Profiler::new(Duration::from_millis(3)));
 
         let mut world = Self {
             id,
