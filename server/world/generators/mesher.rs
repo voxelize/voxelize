@@ -123,37 +123,35 @@ impl Mesher {
             self.map.insert(chunk.coords.to_owned());
         });
 
-        processes
-            .into_par_iter()
-            .for_each(|(mut chunk, mut space)| {
-                let sender = Arc::clone(&self.sender);
-                let r#type = r#type.to_owned();
+        let sender = Arc::clone(&self.sender);
+        let r#type = r#type.to_owned();
+        let registry = registry.to_owned();
+        let config = config.to_owned();
 
-                let registry = registry.to_owned();
-                let config = config.to_owned();
+        self.pool.spawn_fifo(move || {
+            processes
+                .into_par_iter()
+                .for_each(|(mut chunk, mut space)| {
+                    let chunk_size = config.chunk_size as i32;
+                    let coords = space.coords.to_owned();
+                    let min = space.min.clone();
+                    let shape = space.shape.clone();
 
-                let chunk_size = config.chunk_size as i32;
+                    let light_colors = [
+                        LightColor::Sunlight,
+                        LightColor::Red,
+                        LightColor::Green,
+                        LightColor::Blue,
+                    ];
 
-                let coords = space.coords.to_owned();
-                let min = space.min.clone();
-                let shape = space.shape.clone();
+                    let sub_chunks = chunk.updated_levels.to_owned();
+                    let Vec3(min_x, min_y, min_z) = chunk.min;
+                    let Vec3(max_x, _, max_z) = chunk.max;
+                    let blocks_per_sub_chunk =
+                        (space.options.max_height / space.options.sub_chunks) as i32;
 
-                let light_colors = [
-                    LightColor::Sunlight,
-                    LightColor::Red,
-                    LightColor::Green,
-                    LightColor::Blue,
-                ];
+                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
-                let sub_chunks = chunk.updated_levels.to_owned();
-                let Vec3(min_x, min_y, min_z) = chunk.min;
-                let Vec3(max_x, _, max_z) = chunk.max;
-                let blocks_per_sub_chunk =
-                    (space.options.max_height / space.options.sub_chunks) as i32;
-
-                let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
-
-                self.pool.spawn(move || {
                     if chunk.meshes.is_none() {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
@@ -222,9 +220,9 @@ impl Mesher {
                                 .insert(level as u32, MeshProtocol { level, geometries });
                         });
 
-                    sender.send((chunk, r#type)).unwrap();
+                    sender.send((chunk, r#type.clone())).unwrap();
                 });
-            });
+        });
     }
 
     /// Attempt to retrieve the results from `mesher.process`

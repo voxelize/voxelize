@@ -287,7 +287,7 @@ impl Pipeline {
         self.stages.push(Arc::new(stage));
     }
 
-    /// Process a list of chunk processes, generated from the ECS system `PipeliningSystem` .
+    /// Process a list of chunk processes, generated from the ECS system `PipeliningSystem`.
     pub fn process(
         &mut self,
         processes: Vec<(Chunk, Option<Space>)>,
@@ -313,37 +313,42 @@ impl Pipeline {
             })
             .collect();
 
-        processes
-            .into_par_iter()
-            .enumerate()
-            .for_each(|(_, (chunk, space, stage))| {
-                let sender = Arc::clone(&self.sender);
+        let sender = Arc::clone(&self.sender);
+        let registry = registry.to_owned();
+        let config = config.to_owned();
 
-                let registry = registry.to_owned();
-                let config = config.to_owned();
+        rayon::spawn_fifo(move || {
+            processes
+                .into_par_iter()
+                .enumerate()
+                .for_each(|(_, (chunk, space, stage))| {
+                    let sender = Arc::clone(&sender);
+                    let registry = registry.clone();
+                    let config = config.clone();
 
-                self.pool.spawn(move || {
-                    let mut changes = vec![];
+                    rayon::spawn_fifo(move || {
+                        let mut changes = vec![];
 
-                    let mut chunk = stage.process(
-                        chunk,
-                        Resources {
-                            registry: &registry,
-                            config: &config,
-                        },
-                        space,
-                    );
+                        let mut chunk = stage.process(
+                            chunk,
+                            Resources {
+                                registry: &registry,
+                                config: &config,
+                            },
+                            space,
+                        );
 
-                    // Calculate the max height after processing each chunk.
-                    chunk.calculate_max_height(&registry);
+                        // Calculate the max height after processing each chunk.
+                        chunk.calculate_max_height(&registry);
 
-                    if !chunk.extra_changes.is_empty() {
-                        changes.append(&mut chunk.extra_changes.drain(..).collect());
-                    }
+                        if !chunk.extra_changes.is_empty() {
+                            changes.append(&mut chunk.extra_changes.drain(..).collect());
+                        }
 
-                    sender.send((chunk, changes)).unwrap();
+                        sender.send((chunk, changes)).unwrap();
+                    });
                 });
-            });
+        });
     }
 
     /// Attempt to retrieve the results from `pipeline.process`
