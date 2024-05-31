@@ -125,7 +125,7 @@ impl Mesher {
 
         processes
             .into_par_iter()
-            .map(|(mut chunk, mut space)| {
+            .for_each(|(mut chunk, mut space)| {
                 let sender = Arc::clone(&self.sender);
                 let r#type = r#type.to_owned();
 
@@ -153,7 +153,7 @@ impl Mesher {
 
                 let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
-                let task = move || {
+                self.pool.spawn(move || {
                     if chunk.meshes.is_none() {
                         let mut light_queues = vec![VecDeque::new(); 4];
 
@@ -223,11 +223,8 @@ impl Mesher {
                         });
 
                     sender.send((chunk, r#type)).unwrap();
-                };
-
-                self.pool.spawn(task);
-            })
-            .collect::<Vec<_>>();
+                });
+            });
     }
 
     /// Attempt to retrieve the results from `mesher.process`

@@ -8,6 +8,7 @@ mod generators;
 mod interests;
 mod messages;
 mod physics;
+mod profiler;
 mod registry;
 mod search;
 mod stats;
@@ -20,6 +21,7 @@ use actix::Recipient;
 use hashbrown::HashMap;
 use log::{info, warn};
 use nanoid::nanoid;
+use profiler::Profiler;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
@@ -27,9 +29,12 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
-use std::fs::{self, File};
 use std::path::PathBuf;
 use std::{env, sync::Arc};
+use std::{
+    fs::{self, File},
+    time::Duration,
+};
 
 use crate::{
     encode_message,
@@ -277,6 +282,7 @@ impl World {
         ecs.insert(Bookkeeping::new());
         ecs.insert(KdTree::new());
         ecs.insert(EncodedMessageQueue::new());
+        ecs.insert(Profiler::new(Duration::from_millis(5)));
 
         let mut world = Self {
             id,
@@ -947,6 +953,8 @@ impl World {
 
         let mut dispatcher = (self.dispatcher)().build();
         dispatcher.dispatch(&self.ecs);
+
+        self.write_resource::<Profiler>().summarize();
 
         self.ecs.maintain();
     }

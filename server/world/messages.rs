@@ -35,14 +35,13 @@ impl EncodedMessageQueue {
             return;
         }
 
-        all_pending
-            .into_par_iter()
-            .map(|(message, filter)| {
+        let sender = Arc::clone(&self.sender);
+        rayon::spawn_fifo(move || {
+            all_pending.into_par_iter().for_each(|(message, filter)| {
                 let encoded = EncodedMessage(encode_message(&message));
-                let sender = Arc::clone(&self.sender);
                 sender.send(vec![(encoded, filter)]).unwrap();
-            })
-            .collect::<Vec<_>>();
+            });
+        });
     }
 
     pub fn receive(&mut self) -> Vec<(EncodedMessage, ClientFilter)> {
