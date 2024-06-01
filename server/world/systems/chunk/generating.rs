@@ -4,6 +4,7 @@ use std::{cmp::Ordering, collections::VecDeque};
 use hashbrown::{HashMap, HashSet};
 use log::info;
 use nanoid::nanoid;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
@@ -297,7 +298,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                         PUSHING CHUNKS TO BE MESHED                        */
         /* -------------------------------------------------------------------------- */
         profiler.time("pushing_chunks_to_be_meshed");
-        let mut processes = vec![];
 
         if !mesher.queue.is_empty() {
             let mut queue: Vec<Vec2<i32>> = mesher.queue.to_owned().into();
@@ -306,6 +306,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         let mut processed_count = 0;
+        let mut ready_chunks = vec![];
+
         while !mesher.queue.is_empty() && processed_count < config.max_chunks_per_tick {
             let coords = mesher.get().unwrap();
             let mut ready = true;
@@ -360,21 +362,27 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
 
             let chunk = chunks.raw(&coords).unwrap().clone();
-
-            let mut space = chunks
-                .make_space(&coords, config.max_light_level as usize)
-                .needs_height_maps()
-                .needs_voxels();
-
-            if chunk.meshes.is_some() {
-                space = space.needs_lights()
-            }
-
-            let space = space.strict().build();
-
-            processes.push((chunk, space));
+            ready_chunks.push((coords, chunk));
             processed_count += 1;
         }
+
+        // Process the ready chunks in parallel
+        let processes = ready_chunks
+            .into_par_iter()
+            .map(|(coords, chunk)| {
+                let mut space = chunks
+                    .make_space(&coords, config.max_light_level as usize)
+                    .needs_height_maps()
+                    .needs_voxels();
+
+                if chunk.meshes.is_some() {
+                    space = space.needs_lights()
+                }
+
+                let space = space.strict().build();
+                (chunk, space)
+            })
+            .collect();
 
         if !processes.is_empty() {
             mesher.process(processes, &MessageType::Load, &registry, &config);

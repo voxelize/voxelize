@@ -149,32 +149,29 @@ impl SpaceBuilder<'_> {
         let mut lights = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
         let mut height_maps = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
 
-        self.chunks
-            .light_traversed_chunks(&self.coords)
-            .into_iter()
-            .for_each(|n_coords| {
-                if !self.chunks.is_within_world(&n_coords) {
-                    return;
+        for n_coords in self.chunks.light_traversed_chunks(&self.coords) {
+            if !self.chunks.is_within_world(&n_coords) {
+                continue;
+            }
+
+            if let Some(chunk) = self.chunks.raw(&n_coords) {
+                if self.needs_voxels {
+                    voxels.insert(n_coords.clone(), chunk.voxels.clone());
                 }
 
-                if let Some(chunk) = self.chunks.raw(&n_coords) {
-                    if self.needs_voxels {
-                        voxels.insert(n_coords.to_owned(), chunk.voxels.clone());
-                    }
-
-                    if self.needs_lights {
-                        lights.insert(n_coords.to_owned(), chunk.lights.clone());
-                    } else {
-                        lights.insert(n_coords.to_owned(), ndarray(&chunk.lights.shape, 0));
-                    }
-
-                    if self.needs_height_maps {
-                        height_maps.insert(n_coords.to_owned(), chunk.height_map.clone());
-                    }
-                } else if self.strict {
-                    panic!("Space incomplete in strict mode: {:?}", n_coords);
+                if self.needs_lights {
+                    lights.insert(n_coords.clone(), chunk.lights.clone());
+                } else {
+                    lights.insert(n_coords.clone(), ndarray(&chunk.lights.shape, 0));
                 }
-            });
+
+                if self.needs_height_maps {
+                    height_maps.insert(n_coords.clone(), chunk.height_map.clone());
+                }
+            } else if self.strict {
+                panic!("Space incomplete in strict mode: {:?}", n_coords);
+            }
+        }
 
         let min = Vec3(
             cx * chunk_size as i32 - margin as i32,
@@ -185,8 +182,8 @@ impl SpaceBuilder<'_> {
         let shape = Vec3(width, max_height, width);
 
         Space {
-            coords: self.coords.to_owned(),
-            options: self.options.to_owned(),
+            coords: self.coords,
+            options: self.options,
 
             width,
             shape,
