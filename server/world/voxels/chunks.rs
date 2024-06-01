@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
@@ -85,7 +86,7 @@ impl Chunks {
     }
 
     // Try to load the data of a chunk, returns whether successful or not.
-    pub fn try_load(&mut self, coords: &Vec2<i32>) -> Option<Chunk> {
+    pub fn try_load(&self, coords: &Vec2<i32>) -> Option<Chunk> {
         if !self.config.saving {
             return None;
         }
@@ -97,7 +98,7 @@ impl Chunks {
         let data: ChunkFileData = serde_json::from_reader(chunk_data).ok()?;
 
         let decode_base64 = |base: &str| -> Vec<u32> {
-            let decoded = base64::decode(base).expect("Failed to decode base64");
+            let decoded = STANDARD.decode(base).expect("Failed to decode base64");
             let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
             let mut buf = Vec::new();
             decoder

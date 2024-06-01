@@ -10,7 +10,7 @@ use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 use crate::world::profiler::Profiler;
 use crate::{
     BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRequestsComp, ChunkStatus, ChunkUtils,
-    Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Vec2, Vec3,
+    Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Stats, Vec2, Vec3,
     VoxelAccess, WorldConfig,
 };
 
@@ -22,6 +22,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, Clients>,
+        ReadExpect<'a, Stats>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
@@ -35,6 +36,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             config,
             registry,
             clients,
+            stats,
             mut chunks,
             mut interests,
             mut pipeline,
@@ -42,6 +44,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             mut profiler,
             requests,
         ) = data;
+
+        if stats.tick % 2 == 0 {
+            return;
+        }
 
         profiler.time("generating");
 
@@ -151,27 +157,48 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut processes = vec![];
 
         if !pipeline.queue.is_empty() {
+            profiler.time("sorting_queue");
             let mut queue: Vec<Vec2<i32>> = pipeline.queue.iter().cloned().collect();
             queue.sort_by(|a, b| interests.compare(a, b));
             pipeline.queue = VecDeque::from(queue);
+            profiler.time_end("sorting_queue");
         }
 
         let mut processed_count = 0;
+        let mut potential_coords = vec![];
+
         while !pipeline.queue.is_empty()
             && !pipeline.stages.is_empty()
             && processed_count < config.max_chunks_per_tick
         {
+            profiler.time(&format!("getting_coords_{}", processed_count));
             let coords = pipeline.get().unwrap();
-            let chunk = chunks.raw(&coords);
+            potential_coords.push(coords);
+            profiler.time_end(&format!("getting_coords_{}", processed_count));
+            processed_count += 1;
+        }
 
-            if chunk.is_none() {
-                if let Some(chunk) = chunks.try_load(&coords) {
-                    pipeline.remove_chunk(&coords);
-                    mesher.add_chunk(&coords, false);
-                    chunks.renew(chunk, false);
-                    continue;
-                }
+        // Parallel loading of chunks
+        profiler.time("parallel_loading_chunks");
+        let loaded_chunks: Vec<Option<Chunk>> = potential_coords
+            .par_iter()
+            .map(|coords| chunks.try_load(coords))
+            .collect();
+        profiler.time_end("parallel_loading_chunks");
 
+        processed_count = 0;
+        for (coords, loaded_chunk) in potential_coords.into_iter().zip(loaded_chunks.into_iter()) {
+            profiler.time(&format!("processing_chunk_{}", processed_count));
+            if let Some(chunk) = loaded_chunk {
+                pipeline.remove_chunk(&coords);
+                mesher.add_chunk(&coords, false);
+                chunks.renew(chunk, false);
+                profiler.time_end(&format!("processing_chunk_{}", processed_count));
+                continue;
+            }
+
+            if chunks.raw(&coords).is_none() {
+                profiler.time(&format!("creating_new_chunk_{}", processed_count));
                 let new_chunk = Chunk::new(
                     &nanoid!(),
                     coords.0,
@@ -182,14 +209,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         size: config.chunk_size,
                     },
                 );
-
                 chunks.renew(new_chunk, false);
+                profiler.time_end(&format!("creating_new_chunk_{}", processed_count));
             }
 
             let chunk = chunks.raw(&coords).unwrap();
 
             if !matches!(chunk.status, ChunkStatus::Generating(_)) {
                 pipeline.remove_chunk(&coords);
+                profiler.time_end(&format!("processing_chunk_{}", processed_count));
                 continue;
             }
 
@@ -233,11 +261,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
 
                 if !ready {
+                    profiler.time_end(&format!("processing_chunk_{}", processed_count));
                     continue;
                 }
             }
 
             if let Some(data) = stage.needs_space() {
+                profiler.time(&format!("making_space_{}", processed_count));
                 let mut space = chunks.make_space(&chunk.coords, margin);
 
                 if data.needs_voxels {
@@ -254,15 +284,19 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 let space = space.build();
                 processes.push((chunk, Some(space)));
+                profiler.time_end(&format!("making_space_{}", processed_count));
             } else {
                 processes.push((chunk, None));
             }
 
+            profiler.time_end(&format!("processing_chunk_{}", processed_count));
             processed_count += 1;
         }
 
         if !processes.is_empty() {
+            profiler.time("pipeline_process");
             pipeline.process(processes, &registry, &config);
+            profiler.time_end("pipeline_process");
         }
         profiler.time_end("pushing_chunks_to_be_processed");
 
