@@ -144,7 +144,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut processes = vec![];
 
         if !pipeline.queue.is_empty() {
-            let mut queue: Vec<Vec2<i32>> = pipeline.queue.to_owned().into();
+            let mut queue: Vec<Vec2<i32>> = pipeline.queue.iter().cloned().collect();
             queue.sort_by(|a, b| interests.compare(a, b));
             pipeline.queue = VecDeque::from(queue);
         }
@@ -298,10 +298,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                         PUSHING CHUNKS TO BE MESHED                        */
         /* -------------------------------------------------------------------------- */
         profiler.time("pushing_chunks_to_be_meshed");
-        let mut processes = vec![];
 
         if !mesher.queue.is_empty() {
-            let mut queue: Vec<Vec2<i32>> = mesher.queue.to_owned().into();
+            let mut queue: Vec<Vec2<i32>> = mesher.queue.iter().cloned().collect();
             queue.sort_by(|a, b| interests.compare(a, b));
             mesher.queue = VecDeque::from(queue);
         }
@@ -368,7 +367,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         // Process the ready chunks in parallel
-        processes = ready_chunks
+        let processes = ready_chunks
             .into_par_iter()
             .map(|(coords, chunk)| {
                 let mut space = chunks
@@ -383,7 +382,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 let space = space.strict().build();
                 (chunk, space)
             })
-            .collect();
+            .collect::<Vec<_>>();
 
         if !processes.is_empty() {
             mesher.process(processes, &MessageType::Load, &registry, &config);
