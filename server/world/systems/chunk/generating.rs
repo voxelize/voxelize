@@ -298,6 +298,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                         PUSHING CHUNKS TO BE MESHED                        */
         /* -------------------------------------------------------------------------- */
         profiler.time("pushing_chunks_to_be_meshed");
+        let mut processes = vec![];
 
         if !mesher.queue.is_empty() {
             let mut queue: Vec<Vec2<i32>> = mesher.queue.to_owned().into();
@@ -367,7 +368,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         // Process the ready chunks in parallel
-        let processes = ready_chunks
+        processes = ready_chunks
             .into_par_iter()
             .map(|(coords, chunk)| {
                 let mut space = chunks
