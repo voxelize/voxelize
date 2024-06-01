@@ -53,30 +53,29 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         profiler.time("recalculate_chunk_interest_weights");
         interests.weights.clear();
 
-        let mut weights = HashMap::new();
+        let mut weights = HashMap::with_capacity(interests.map.len());
 
         for (coords, ids) in &interests.map {
-            let mut weight = 0.0;
-
-            for id in ids {
-                if let Some(client) = clients.get(id) {
-                    if let Some(request) = requests.get(client.entity) {
-                        let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                        let direction_to_chunk =
-                            Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
-                        let mag = (direction_to_chunk.0.pow(2) as f32
-                            + direction_to_chunk.1.pow(2) as f32)
-                            .sqrt();
-                        let normalized_direction_to_chunk = Vec2(
-                            direction_to_chunk.0 as f32 / mag,
-                            direction_to_chunk.1 as f32 / mag,
-                        );
-                        let dot_product = request.direction.0 * normalized_direction_to_chunk.0
-                            + request.direction.1 * normalized_direction_to_chunk.1;
-                        weight += dist * dot_product.max(0.0);
-                    }
-                }
-            }
+            let weight: f32 = ids
+                .iter()
+                .filter_map(|id| clients.get(id))
+                .filter_map(|client| requests.get(client.entity))
+                .map(|request| {
+                    let dist = ChunkUtils::distance_squared(&request.center, &coords);
+                    let direction_to_chunk =
+                        Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
+                    let mag = (direction_to_chunk.0.pow(2) as f32
+                        + direction_to_chunk.1.pow(2) as f32)
+                        .sqrt();
+                    let normalized_direction_to_chunk = Vec2(
+                        direction_to_chunk.0 as f32 / mag,
+                        direction_to_chunk.1 as f32 / mag,
+                    );
+                    let dot_product = request.direction.0 * normalized_direction_to_chunk.0
+                        + request.direction.1 * normalized_direction_to_chunk.1;
+                    dist * dot_product.max(0.0)
+                })
+                .sum();
 
             weights.insert(coords.clone(), weight);
         }

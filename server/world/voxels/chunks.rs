@@ -7,7 +7,7 @@ use specs::Entity;
 use std::{
     collections::VecDeque,
     fs::{self, File},
-    io::{Read, Write},
+    io::{BufReader, Read, Write},
     path::PathBuf,
 };
 
@@ -91,24 +91,12 @@ impl Chunks {
         }
 
         let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
+        let file = File::open(&path).ok()?;
+        let chunk_data = BufReader::new(file);
 
-        let chunk_data = match File::open(&path) {
-            Ok(file) => file,
-            Err(_) => return None,
-        };
+        let data: ChunkFileData = serde_json::from_reader(chunk_data).ok()?;
 
-        let data: ChunkFileData = match serde_json::from_reader(chunk_data) {
-            Ok(data) => data,
-            Err(_) => return None,
-        };
-
-        let ChunkFileData {
-            id,
-            voxels,
-            height_map,
-        } = data;
-
-        let decode_base64 = |base: String| {
+        let decode_base64 = |base: &str| -> Vec<u32> {
             let decoded = base64::decode(base).expect("Failed to decode base64");
             let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
             let mut buf = Vec::new();
@@ -120,8 +108,13 @@ impl Chunks {
             data
         };
 
+        let (voxels, height_map) = rayon::join(
+            || decode_base64(&data.voxels),
+            || decode_base64(&data.height_map),
+        );
+
         let mut chunk = Chunk::new(
-            &id,
+            &data.id,
             coords.0,
             coords.1,
             &ChunkOptions {
@@ -131,8 +124,8 @@ impl Chunks {
             },
         );
 
-        chunk.voxels.data = decode_base64(voxels);
-        chunk.height_map.data = decode_base64(height_map);
+        chunk.voxels.data = voxels;
+        chunk.height_map.data = height_map;
         chunk.status = ChunkStatus::Meshing;
 
         Some(chunk)

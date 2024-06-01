@@ -17,12 +17,8 @@ impl Profiler {
     }
 
     pub fn time(&mut self, label: &str) {
-        if self.times.contains_key(label) {
-            warn!("Profiler: Timer for label '{}' is already running", label);
-        } else {
-            self.times
-                .insert(label.to_string(), (Instant::now(), Duration::new(0, 0)));
-        }
+        self.times
+            .insert(label.to_string(), (Instant::now(), Duration::new(0, 0)));
     }
 
     pub fn time_end(&mut self, label: &str) {
