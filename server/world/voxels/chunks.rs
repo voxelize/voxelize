@@ -85,6 +85,11 @@ impl Chunks {
         }
     }
 
+    pub fn test_load(&self, coords: &Vec2<i32>) -> bool {
+        let path = self.get_chunk_file_path(&ChunkUtils::get_chunk_name(coords.0, coords.1));
+        File::open(&path).is_ok()
+    }
+
     // Try to load the data of a chunk, returns whether successful or not.
     pub fn try_load(&self, coords: &Vec2<i32>) -> Option<Chunk> {
         if !self.config.saving {

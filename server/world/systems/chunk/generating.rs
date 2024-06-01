@@ -62,37 +62,30 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         let mut weights = HashMap::with_capacity(interests.map.len());
 
-        interests.map.iter().for_each(|(coords, ids)| {
-            let mut weight: f32 = 0.0;
-
-            if !mesher.queue.contains(coords) && !pipeline.queue.contains(coords) {
-                weights.insert(coords.clone(), weight);
-                return;
-            }
-
-            ids.iter()
+        for (coords, ids) in &interests.map {
+            let weight: f32 = ids
+                .iter()
                 .filter_map(|id| clients.get(id))
                 .filter_map(|client| requests.get(client.entity))
-                .for_each(|request| {
+                .map(|request| {
                     let dist = ChunkUtils::distance_squared(&request.center, &coords);
                     let direction_to_chunk =
                         Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
                     let mag = (direction_to_chunk.0.pow(2) as f32
                         + direction_to_chunk.1.pow(2) as f32)
                         .sqrt();
-                    if mag != 0.0 {
-                        let normalized_direction_to_chunk = Vec2(
-                            direction_to_chunk.0 as f32 / mag,
-                            direction_to_chunk.1 as f32 / mag,
-                        );
-                        let dot_product = request.direction.0 * normalized_direction_to_chunk.0
-                            + request.direction.1 * normalized_direction_to_chunk.1;
-                        weight += dist * dot_product.max(0.0);
-                    }
-                });
+                    let normalized_direction_to_chunk = Vec2(
+                        direction_to_chunk.0 as f32 / mag,
+                        direction_to_chunk.1 as f32 / mag,
+                    );
+                    let dot_product = request.direction.0 * normalized_direction_to_chunk.0
+                        + request.direction.1 * normalized_direction_to_chunk.1;
+                    dist * dot_product.max(0.0)
+                })
+                .sum();
 
             weights.insert(coords.clone(), weight);
-        });
+        }
 
         interests.weights = weights;
         profiler.time_end("recalculate_chunk_interest_weights");
@@ -165,40 +158,23 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         }
 
         let mut processed_count = 0;
-        let mut potential_coords = vec![];
-
+        let mut to_load = vec![];
         while !pipeline.queue.is_empty()
             && !pipeline.stages.is_empty()
             && processed_count < config.max_chunks_per_tick
         {
-            profiler.time(&format!("getting_coords_{}", processed_count));
             let coords = pipeline.get().unwrap();
-            potential_coords.push(coords);
-            profiler.time_end(&format!("getting_coords_{}", processed_count));
-            processed_count += 1;
-        }
+            let chunk = chunks.raw(&coords);
 
-        // Parallel loading of chunks
-        profiler.time("parallel_loading_chunks");
-        let loaded_chunks: Vec<Option<Chunk>> = potential_coords
-            .par_iter()
-            .map(|coords| chunks.try_load(coords))
-            .collect();
-        profiler.time_end("parallel_loading_chunks");
+            if chunk.is_none() {
+                let can_load = chunks.test_load(&coords);
+                if can_load {
+                    pipeline.remove_chunk(&coords);
+                    mesher.add_chunk(&coords, false);
+                    to_load.push(coords);
+                    continue;
+                }
 
-        processed_count = 0;
-        for (coords, loaded_chunk) in potential_coords.into_iter().zip(loaded_chunks.into_iter()) {
-            profiler.time(&format!("processing_chunk_{}", processed_count));
-            if let Some(chunk) = loaded_chunk {
-                pipeline.remove_chunk(&coords);
-                mesher.add_chunk(&coords, false);
-                chunks.renew(chunk, false);
-                profiler.time_end(&format!("processing_chunk_{}", processed_count));
-                continue;
-            }
-
-            if chunks.raw(&coords).is_none() {
-                profiler.time(&format!("creating_new_chunk_{}", processed_count));
                 let new_chunk = Chunk::new(
                     &nanoid!(),
                     coords.0,
@@ -209,15 +185,14 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         size: config.chunk_size,
                     },
                 );
+
                 chunks.renew(new_chunk, false);
-                profiler.time_end(&format!("creating_new_chunk_{}", processed_count));
             }
 
             let chunk = chunks.raw(&coords).unwrap();
 
             if !matches!(chunk.status, ChunkStatus::Generating(_)) {
                 pipeline.remove_chunk(&coords);
-                profiler.time_end(&format!("processing_chunk_{}", processed_count));
                 continue;
             }
 
@@ -261,13 +236,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
 
                 if !ready {
-                    profiler.time_end(&format!("processing_chunk_{}", processed_count));
                     continue;
                 }
             }
 
             if let Some(data) = stage.needs_space() {
-                profiler.time(&format!("making_space_{}", processed_count));
                 let mut space = chunks.make_space(&chunk.coords, margin);
 
                 if data.needs_voxels {
@@ -284,13 +257,25 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
                 let space = space.build();
                 processes.push((chunk, Some(space)));
-                profiler.time_end(&format!("making_space_{}", processed_count));
             } else {
                 processes.push((chunk, None));
             }
 
-            profiler.time_end(&format!("processing_chunk_{}", processed_count));
             processed_count += 1;
+        }
+
+        // parallelize loading
+        let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
+            .into_par_iter()
+            .map(|coords| (coords.to_owned(), chunks.try_load(&coords)))
+            .collect();
+
+        for (coords, loaded_chunk) in loaded_chunks.into_iter() {
+            if let Some(chunk) = loaded_chunk {
+                chunks.renew(chunk, false);
+            } else {
+                pipeline.add_chunk(&coords, false);
+            }
         }
 
         if !processes.is_empty() {
