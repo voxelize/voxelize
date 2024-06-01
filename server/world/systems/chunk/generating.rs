@@ -59,6 +59,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         interests.map.iter().for_each(|(coords, ids)| {
             let mut weight: f32 = 0.0;
 
+            if !mesher.queue.contains(coords) && !pipeline.queue.contains(coords) {
+                weights.insert(coords.clone(), weight);
+                return;
+            }
+
             ids.iter()
                 .filter_map(|id| clients.get(id))
                 .filter_map(|client| requests.get(client.entity))
