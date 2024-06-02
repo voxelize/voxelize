@@ -132,7 +132,7 @@ impl Mesher {
         let registry = Arc::new(registry.clone());
         let config = Arc::new(config.clone());
 
-        self.pool.spawn_fifo(move || {
+        self.pool.spawn(move || {
             processes
                 .into_par_iter()
                 .for_each(|(mut chunk, mut space)| {

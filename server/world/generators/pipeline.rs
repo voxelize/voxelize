@@ -317,7 +317,7 @@ impl Pipeline {
         let registry = registry.to_owned();
         let config = config.to_owned();
 
-        rayon::spawn_fifo(move || {
+        rayon::spawn(move || {
             processes
                 .into_par_iter()
                 .enumerate()
