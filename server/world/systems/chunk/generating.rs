@@ -425,7 +425,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
         // Process the ready chunks in parallel
         if !ready_chunks.is_empty() {
-            profiler.time("process_ready_chunks");
+            profiler.time(&format!("process_ready_chunks_{}", ready_chunks.len()));
             let processes = ready_chunks
                 .into_iter()
                 .map(|(coords, chunk)| {
@@ -442,7 +442,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     (chunk, space)
                 })
                 .collect::<Vec<_>>();
-            profiler.time_end("process_ready_chunks");
+            profiler.time_end(&format!("process_ready_chunks_{}", ready_chunks.len()));
 
             if !processes.is_empty() {
                 profiler.time("mesher_process");
