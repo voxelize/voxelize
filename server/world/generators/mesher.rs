@@ -128,9 +128,9 @@ impl Mesher {
         });
 
         let sender = Arc::clone(&self.sender);
-        let r#type = r#type.to_owned();
-        let registry = registry.to_owned();
-        let config = config.to_owned();
+        let r#type = r#type.clone();
+        let registry = Arc::new(registry.clone());
+        let config = Arc::new(config.clone());
 
         self.pool.spawn_fifo(move || {
             processes
@@ -138,8 +138,8 @@ impl Mesher {
                 .for_each(|(mut chunk, mut space)| {
                     let chunk_size = config.chunk_size as i32;
                     let coords = space.coords.to_owned();
-                    let min = space.min.clone();
-                    let shape = space.shape.clone();
+                    let min = space.min.to_owned();
+                    let shape = space.shape.to_owned();
 
                     let light_colors = [
                         LightColor::Sunlight,
@@ -148,13 +148,11 @@ impl Mesher {
                         LightColor::Blue,
                     ];
 
-                    let sub_chunks = chunk.updated_levels.to_owned();
+                    let sub_chunks = chunk.updated_levels.clone();
                     let Vec3(min_x, min_y, min_z) = chunk.min;
                     let Vec3(max_x, _, max_z) = chunk.max;
                     let blocks_per_sub_chunk =
                         (space.options.max_height / space.options.sub_chunks) as i32;
-
-                    let sub_chunks: Vec<_> = sub_chunks.into_iter().collect();
 
                     if chunk.meshes.is_none() {
                         let mut light_queues = vec![VecDeque::new(); 4];
@@ -169,9 +167,9 @@ impl Mesher {
                                         - if dz == 0 && dz == 0 { 1 } else { 0 },
                                 );
                                 let shape = Vec3(
-                                    (chunk_size) as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
+                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
                                     space.options.max_height as usize,
-                                    (chunk_size) as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
+                                    chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
                                 );
 
                                 let light_subqueues =
@@ -180,7 +178,7 @@ impl Mesher {
                                 for (queue, subqueue) in
                                     light_queues.iter_mut().zip(light_subqueues.into_iter())
                                 {
-                                    queue.extend(subqueue.into_iter());
+                                    queue.extend(subqueue);
                                 }
                             }
                         }
@@ -202,27 +200,19 @@ impl Mesher {
                         chunk.lights = space.get_lights(coords.0, coords.1).unwrap().clone();
                     }
 
-                    sub_chunks
-                        .into_par_iter()
-                        .map(|level| {
-                            let level = level as i32;
+                    for level in sub_chunks {
+                        let level = level as i32;
 
-                            let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
-                            let max =
-                                Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
+                        let min = Vec3(min_x, min_y + level * blocks_per_sub_chunk, min_z);
+                        let max = Vec3(max_x, min_y + (level + 1) * blocks_per_sub_chunk, max_z);
 
-                            let geometries = Self::mesh_space(&min, &max, &space, &registry);
+                        let geometries = Mesher::mesh_space(&min, &max, &space, &registry);
 
-                            (geometries, level)
-                        })
-                        .collect::<Vec<(Vec<GeometryProtocol>, i32)>>()
-                        .into_iter()
-                        .for_each(|(geometries, level)| {
-                            chunk
-                                .meshes
-                                .get_or_insert_with(HashMap::new)
-                                .insert(level as u32, MeshProtocol { level, geometries });
-                        });
+                        chunk
+                            .meshes
+                            .get_or_insert_with(HashMap::new)
+                            .insert(level as u32, MeshProtocol { level, geometries });
+                    }
 
                     sender.send((chunk, r#type.clone())).unwrap();
                 });
