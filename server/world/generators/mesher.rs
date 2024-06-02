@@ -101,6 +101,10 @@ impl Mesher {
         self.queue.retain(|c| c != coords);
     }
 
+    pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
+        self.map.contains(coords)
+    }
+
     /// Pop the first chunk coordinate in the queue.
     pub fn get(&mut self) -> Option<Vec2<i32>> {
         self.queue.pop_front()

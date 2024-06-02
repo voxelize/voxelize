@@ -1,4 +1,5 @@
 use hashbrown::{HashMap, HashSet};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{ndarray, BlockUtils, ChunkUtils, LightUtils, Ndarray, Vec2, Vec3};
 
@@ -145,33 +146,67 @@ impl SpaceBuilder<'_> {
 
         let width = chunk_size + margin * 2;
 
-        let mut voxels = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
-        let mut lights = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
-        let mut height_maps = HashMap::<Vec2<i32>, Ndarray<u32>>::new();
-
-        for n_coords in self.chunks.light_traversed_chunks(&self.coords) {
-            if !self.chunks.is_within_world(&n_coords) {
-                continue;
-            }
-
-            if let Some(chunk) = self.chunks.raw(&n_coords) {
-                if self.needs_voxels {
-                    voxels.insert(n_coords.clone(), chunk.voxels.clone());
+        let (voxels, lights, height_maps): (HashMap<_, _>, HashMap<_, _>, HashMap<_, _>) = self
+            .chunks
+            .light_traversed_chunks(&self.coords)
+            .into_par_iter()
+            .filter_map(|n_coords| {
+                if !self.chunks.is_within_world(&n_coords) {
+                    return None;
                 }
 
-                if self.needs_lights {
-                    lights.insert(n_coords.clone(), chunk.lights.clone());
+                if let Some(chunk) = self.chunks.raw(&n_coords) {
+                    let voxels = if self.needs_voxels {
+                        Some((n_coords.clone(), chunk.voxels.clone()))
+                    } else {
+                        None
+                    };
+
+                    let lights = if self.needs_lights {
+                        Some((n_coords.clone(), chunk.lights.clone()))
+                    } else {
+                        Some((n_coords.clone(), ndarray(&chunk.lights.shape, 0)))
+                    };
+
+                    let height_maps = if self.needs_height_maps {
+                        Some((n_coords.clone(), chunk.height_map.clone()))
+                    } else {
+                        None
+                    };
+
+                    Some((voxels, lights, height_maps))
+                } else if self.strict {
+                    panic!("Space incomplete in strict mode: {:?}", n_coords);
                 } else {
-                    lights.insert(n_coords.clone(), ndarray(&chunk.lights.shape, 0));
+                    None
                 }
-
-                if self.needs_height_maps {
-                    height_maps.insert(n_coords.clone(), chunk.height_map.clone());
-                }
-            } else if self.strict {
-                panic!("Space incomplete in strict mode: {:?}", n_coords);
-            }
-        }
+            })
+            .fold(
+                || (HashMap::new(), HashMap::new(), HashMap::new()),
+                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
+                 (voxels, lights, height_maps)| {
+                    if let Some(voxel) = voxels {
+                        voxels_acc.insert(voxel.0, voxel.1);
+                    }
+                    if let Some(light) = lights {
+                        lights_acc.insert(light.0, light.1);
+                    }
+                    if let Some(height_map) = height_maps {
+                        height_maps_acc.insert(height_map.0, height_map.1);
+                    }
+                    (voxels_acc, lights_acc, height_maps_acc)
+                },
+            )
+            .reduce(
+                || (HashMap::new(), HashMap::new(), HashMap::new()),
+                |(mut voxels_acc, mut lights_acc, mut height_maps_acc),
+                 (voxels, lights, height_maps)| {
+                    voxels_acc.extend(voxels);
+                    lights_acc.extend(lights);
+                    height_maps_acc.extend(height_maps);
+                    (voxels_acc, lights_acc, height_maps_acc)
+                },
+            );
 
         let min = Vec3(
             cx * chunk_size as i32 - margin as i32,

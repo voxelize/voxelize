@@ -63,6 +63,13 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut weights = HashMap::with_capacity(interests.map.len());
 
         for (coords, ids) in &interests.map {
+            if chunks.is_chunk_ready(&coords)
+                && !pipeline.has_chunk(&coords)
+                && !mesher.has_chunk(&coords)
+            {
+                continue;
+            }
+
             let weight: f32 = ids
                 .iter()
                 .filter_map(|id| clients.get(id))
@@ -326,21 +333,32 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         profiler.time("pushing_chunks_to_be_meshed");
 
         if !mesher.queue.is_empty() {
+            profiler.time("queue_sorting");
             let mut queue: Vec<Vec2<i32>> = mesher.queue.iter().cloned().collect();
             queue.sort_by(|a, b| interests.compare(a, b));
             mesher.queue = VecDeque::from(queue);
+            profiler.time_end("queue_sorting");
         }
 
         let mut processed_count = 0;
         let mut ready_chunks = vec![];
 
         while !mesher.queue.is_empty() && processed_count < config.max_chunks_per_tick {
+            profiler.time("mesher_get");
             let coords = mesher.get().unwrap();
+            profiler.time_end("mesher_get");
             let mut ready = true;
 
-            for n_coords in chunks.light_traversed_chunks(&coords) {
+            profiler.time("light_traversed_chunks");
+            for (i, n_coords) in chunks
+                .light_traversed_chunks(&coords)
+                .into_iter()
+                .enumerate()
+            {
+                profiler.time(format!("light_traversed_chunks_{}", i).as_str());
                 if !chunks.map.contains_key(&n_coords) {
                     ready = false;
+                    profiler.time_end(format!("light_traversed_chunks_{}", i).as_str());
                     break;
                 }
 
@@ -348,12 +366,15 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     if matches!(n_chunk.status, ChunkStatus::Generating(_)) {
                         ready = false;
                         chunks.add_listener(&n_coords, &coords);
+                        profiler.time_end(format!("light_traversed_chunks_{}", i).as_str());
                         break;
                     }
                 }
 
                 if let Some(blocks) = pipeline.leftovers.get(&n_coords) {
-                    for (voxel, val) in blocks {
+                    profiler.time(format!("pipeline_leftovers_{}", i).as_str());
+                    for (j, (voxel, val)) in blocks.iter().enumerate() {
+                        profiler.time(format!("pipeline_leftovers_{}_{}", i, j).as_str());
                         let Vec3(vx, vy, vz) = *voxel;
                         chunks.set_raw_voxel(vx, vy, vz, *val);
 
@@ -373,47 +394,63 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         } else if height < vy as u32 {
                             chunks.set_max_height(vx, vz, vy as u32);
                         }
+                        profiler.time_end(format!("pipeline_leftovers_{}_{}", i, j).as_str());
                     }
+                    profiler.time_end(format!("pipeline_leftovers_{}", i).as_str());
                 }
+                profiler.time_end(format!("light_traversed_chunks_{}", i).as_str());
             }
+            profiler.time_end("light_traversed_chunks");
 
             if !ready {
                 continue;
             }
 
+            profiler.time("pipeline_leftovers_remove");
             pipeline.leftovers.remove(&coords);
+            profiler.time_end("pipeline_leftovers_remove");
 
             if config.saving {
+                profiler.time("add_chunk_to_save");
                 chunks.add_chunk_to_save(&coords, false);
+                profiler.time_end("add_chunk_to_save");
             }
 
+            profiler.time("chunks_raw_clone");
             let chunk = chunks.raw(&coords).unwrap().clone();
             ready_chunks.push((coords, chunk));
             processed_count += 1;
+            profiler.time_end("chunks_raw_clone");
         }
 
         // Process the ready chunks in parallel
-        let processes = ready_chunks
-            .into_par_iter()
-            .map(|(coords, chunk)| {
-                let mut space = chunks
-                    .make_space(&coords, config.max_light_level as usize)
-                    .needs_height_maps()
-                    .needs_voxels();
+        if !ready_chunks.is_empty() {
+            profiler.time("process_ready_chunks");
+            let processes = ready_chunks
+                .into_iter()
+                .map(|(coords, chunk)| {
+                    let mut space = chunks
+                        .make_space(&coords, config.max_light_level as usize)
+                        .needs_height_maps()
+                        .needs_voxels();
 
-                if chunk.meshes.is_some() {
-                    space = space.needs_lights()
-                }
+                    if chunk.meshes.is_some() {
+                        space = space.needs_lights()
+                    }
 
-                let space = space.strict().build();
-                (chunk, space)
-            })
-            .collect::<Vec<_>>();
+                    let space = space.strict().build();
+                    (chunk, space)
+                })
+                .collect::<Vec<_>>();
+            profiler.time_end("process_ready_chunks");
 
-        if !processes.is_empty() {
-            mesher.process(processes, &MessageType::Load, &registry, &config);
+            if !processes.is_empty() {
+                profiler.time("mesher_process");
+                mesher.process(processes, &MessageType::Load, &registry, &config);
+                profiler.time_end("mesher_process");
+            }
+            profiler.time_end("pushing_chunks_to_be_meshed");
         }
-        profiler.time_end("pushing_chunks_to_be_meshed");
 
         profiler.time_end("generating");
     }
