@@ -625,7 +625,7 @@ const DEFAULT_DEBUG: bool = true;
 const DEFAULT_PORT: u16 = 4000;
 const DEFAULT_ADDR: &str = "0.0.0.0";
 const DEFAULT_SERVE: &str = "";
-const DEFAULT_INTERVAL: u64 = 8;
+const DEFAULT_INTERVAL: u64 = 50;
 
 /// Builder for a voxelize server.
 pub struct ServerBuilder {
