@@ -14644,6 +14644,11 @@ three@^0.162.0:
   resolved "https://registry.yarnpkg.com/three/-/three-0.162.0.tgz#b15a511f1498e0c42d4d00bbb411c7527b06097e"
   integrity sha512-xfCYj4RnlozReCmUd+XQzj6/5OjDNHBy5nT6rVwrOKGENAvpXe2z1jL+DZYaMu4/9pNsjH/4Os/VvS9IrH7IOQ==
 
+three@^0.165.0:
+  version "0.165.0"
+  resolved "https://registry.yarnpkg.com/three/-/three-0.165.0.tgz#43b93b9b56c71b7eeee6b531d737ab573633ccd1"
+  integrity sha512-cc96IlVYGydeceu0e5xq70H8/yoVT/tXBxV/W8A/U6uOq7DXc4/s1Mkmnu6SqoYGhSRWWYFOhVwvq6V0VtbplA==
+
 through2@^2.0.0:
   version "2.0.5"
   resolved "https://registry.yarnpkg.com/through2/-/through2-2.0.5.tgz#01c1e39eb31d07cb7d03a96a70823260b23132cd"
