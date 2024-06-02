@@ -22,7 +22,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`HudOptions`](../modules.md#hudoptions-8)\> |
+| `options` | `Partial`\<[`HudOptions`](../modules.md#hudoptions)\> |
 
 #### Returns
 
@@ -36,7 +36,7 @@ THREE.Group.constructor
 
 ### options
 
-• **options**: [`HudOptions`](../modules.md#hudoptions-8)
+• **options**: [`HudOptions`](../modules.md#hudoptions)
 
 ## Methods
 

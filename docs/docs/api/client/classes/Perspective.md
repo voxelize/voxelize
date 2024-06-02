@@ -39,7 +39,7 @@ perspective is the first person perspective.
 | :------ | :------ | :------ |
 | `controls` | [`RigidControls`](RigidControls.md) | The rigid controls that this perspective instance is attached to. |
 | `world` | [`World`](World.md)\<`any`\> | The world that this perspective instance is working with. |
-| `options` | `Partial`\<[`PerspectiveOptions`](../modules.md#perspectiveoptions-8)\> | Parameters to configure the perspective. |
+| `options` | `Partial`\<[`PerspectiveOptions`](../modules.md#perspectiveoptions)\> | Parameters to configure the perspective. |
 
 #### Returns
 
@@ -52,7 +52,7 @@ perspective is the first person perspective.
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-perspective"``
 
 This is the identifier that is used to bind the perspective's keyboard inputs
-when [Perspective.connect](Perspective.md#connect-8) is called.
+when [Perspective.connect](Perspective.md#connect) is called.
 
 ___
 
@@ -96,7 +96,7 @@ ___
 
 ### options
 
-• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions-8)
+• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions)
 
 Parameters to configure the perspective.
 
@@ -122,7 +122,7 @@ Getter for the perspective's state.
 
 • `set` **state**(`state`): `void`
 
-Setter for the perspective's state. This will call [Perspective.onChangeState](Perspective.md#onchangestate-8) if it is implemented.
+Setter for the perspective's state. This will call [Perspective.onChangeState](Perspective.md#onchangestate) if it is implemented.
 
 #### Parameters
 
@@ -166,10 +166,16 @@ ___
 
 ### toggle
 
-▸ **toggle**(): `void`
+▸ **toggle**(`inverse?`): `void`
 
 Toggle between the first, second and third person perspectives. The order goes from first person to
 third person and then to second person.
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `inverse` | `boolean` | `false` |
 
 #### Returns
 
