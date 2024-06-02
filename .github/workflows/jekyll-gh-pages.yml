@@ -37,6 +37,8 @@ jobs:
           yarn build
           cd ../transport
           yarn build
+          cd ../protocol
+          yarn build
           cd ../core
           yarn build
       - name: Build Docs
