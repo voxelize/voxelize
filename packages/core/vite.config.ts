@@ -3,12 +3,23 @@ import path from "path";
 import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
 import glsl from "vite-plugin-glsl";
+import { replaceCodePlugin } from "vite-plugin-replace";
+
+import { version } from "./package.json";
 
 export default defineConfig({
   plugins: [
     glsl(),
     externalizeDeps({
       except: [/three\/examples\//],
+    }),
+    replaceCodePlugin({
+      replacements: [
+        {
+          from: "__VOXELIZE_VERSION__",
+          to: version,
+        },
+      ],
     }),
   ],
   base: "./", // needed to make web workers work: https://github.com/vitejs/vite/discussions/15547#discussioncomment-8950765

@@ -414,6 +414,10 @@ impl Chunks {
     }
 
     fn get_chunk_file_path(&self, chunk_name: &str) -> PathBuf {
+        if self.folder.is_none() {
+            return PathBuf::new();
+        }
+
         let mut path = self.folder.clone().unwrap();
         path.push(format!("{}.json", chunk_name));
         path
