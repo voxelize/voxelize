@@ -36,7 +36,7 @@ impl EncodedMessageQueue {
         }
 
         let sender = Arc::clone(&self.sender);
-        rayon::spawn_fifo(move || {
+        rayon::spawn(move || {
             all_pending.into_par_iter().for_each(|(message, filter)| {
                 let encoded = EncodedMessage(encode_message(&message));
                 sender.send(vec![(encoded, filter)]).unwrap();
