@@ -1,6 +1,5 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
-import { raycast } from "@voxelize/raycast";
 import {
   EntityOperation,
   EntityProtocol,
@@ -8,6 +7,7 @@ import {
   MeshProtocol,
   MessageProtocol,
 } from "@voxelize/protocol";
+import { raycast } from "@voxelize/raycast";
 import { NetIntercept } from "core/network";
 import {
   BufferAttribute,
