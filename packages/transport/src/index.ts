@@ -4,7 +4,7 @@ import {
   connection as WebSocketConnection,
 } from "websocket";
 
-import protocol from "./protocol";
+import protocol from "@voxelize/protocol";
 import { MessageProtocol } from "./types";
 
 const { Message, Entity } = protocol.protocol;
