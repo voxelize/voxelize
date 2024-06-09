@@ -3,15 +3,9 @@ import path from "path";
 import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
 
-import { version } from "./package.json";
-
 export default defineConfig({
-  plugins: [
-    externalizeDeps({
-      except: [/three\/examples\//],
-    }),
-  ],
-  base: "./", // needed to make web workers work: https://github.com/vitejs/vite/discussions/15547#discussioncomment-8950765
+  plugins: [externalizeDeps()],
+  base: "./",
   build: {
     minify: false,
     lib: {
