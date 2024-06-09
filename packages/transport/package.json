@@ -16,10 +16,7 @@
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "prepublishOnly": "yarn run build",
-    "demo": "node example/index.js",
-    "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
-    "proto:js": "pbjs -t static-module -w commonjs -o ./src/protocol.js ../../messages.proto",
-    "proto": "yarn run proto:js && yarn run proto:ts && mkdir -p dist && cp src/protocol.* dist/"
+    "demo": "node example/index.js"
   },
   "dependencies": {
     "@voxelize/protocol": "*",
