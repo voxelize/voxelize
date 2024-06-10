@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 pub struct StatsJson {
     pub tick: u64,
     pub time: f32,
+    pub delta: f32,
 }
 
 /// A general statistical manager of Voxelize.
@@ -62,6 +63,7 @@ impl Stats {
         StatsJson {
             tick: self.tick,
             time: self.time,
+            delta: self.delta,
         }
     }
 

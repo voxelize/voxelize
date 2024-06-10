@@ -60,33 +60,27 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut weights = HashMap::with_capacity(interests.map.len());
 
         for (coords, ids) in &interests.map {
-            if chunks.is_chunk_ready(&coords)
-                && !pipeline.has_chunk(&coords)
-                && !mesher.has_chunk(&coords)
-            {
-                continue;
-            }
+            let mut weight = 0.0;
 
-            let weight: f32 = ids
-                .iter()
-                .filter_map(|id| clients.get(id))
-                .filter_map(|client| requests.get(client.entity))
-                .map(|request| {
-                    let dist = ChunkUtils::distance_squared(&request.center, &coords);
-                    let direction_to_chunk =
-                        Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
-                    let mag = (direction_to_chunk.0.pow(2) as f32
-                        + direction_to_chunk.1.pow(2) as f32)
-                        .sqrt();
-                    let normalized_direction_to_chunk = Vec2(
-                        direction_to_chunk.0 as f32 / mag,
-                        direction_to_chunk.1 as f32 / mag,
-                    );
-                    let dot_product = request.direction.0 * normalized_direction_to_chunk.0
-                        + request.direction.1 * normalized_direction_to_chunk.1;
-                    dist * dot_product.max(0.0)
-                })
-                .sum();
+            for id in ids {
+                if let Some(client) = clients.get(id) {
+                    if let Some(request) = requests.get(client.entity) {
+                        let dist = ChunkUtils::distance_squared(&request.center, &coords);
+                        let direction_to_chunk =
+                            Vec2(coords.0 - request.center.0, coords.1 - request.center.1);
+                        let mag = (direction_to_chunk.0.pow(2) as f32
+                            + direction_to_chunk.1.pow(2) as f32)
+                            .sqrt();
+                        let normalized_direction_to_chunk = Vec2(
+                            direction_to_chunk.0 as f32 / mag,
+                            direction_to_chunk.1 as f32 / mag,
+                        );
+                        let dot_product = request.direction.0 * normalized_direction_to_chunk.0
+                            + request.direction.1 * normalized_direction_to_chunk.1;
+                        weight += dist * dot_product.max(0.0);
+                    }
+                }
+            }
 
             weights.insert(coords.clone(), weight);
         }
@@ -157,12 +151,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             pipeline.queue = VecDeque::from(queue);
         }
 
-        let mut processed_count = 0;
         let mut to_load = vec![];
-        while !pipeline.queue.is_empty()
-            && !pipeline.stages.is_empty()
-            && processed_count < config.max_chunks_per_tick
-        {
+        while !pipeline.queue.is_empty() && !pipeline.stages.is_empty() {
             let coords = pipeline.get().unwrap();
             let chunk = chunks.raw(&coords);
 
@@ -260,8 +250,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             } else {
                 processes.push((chunk, None));
             }
-
-            processed_count += 1;
         }
 
         // parallelize loading
@@ -326,10 +314,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             mesher.queue = VecDeque::from(queue);
         }
 
-        let mut processed_count = 0;
         let mut ready_chunks = vec![];
 
-        while !mesher.queue.is_empty() && processed_count < config.max_chunks_per_tick {
+        while !mesher.queue.is_empty() {
             let coords = mesher.get().unwrap();
             let mut ready = true;
 
@@ -388,7 +375,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             let chunk = chunks.raw(&coords).unwrap().clone();
             ready_chunks.push((coords, chunk));
-            processed_count += 1;
         }
 
         // Process the ready chunks in parallel

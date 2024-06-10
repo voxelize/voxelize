@@ -233,7 +233,7 @@ const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
   highlightColor: new THREE.Color("#000"),
   highlightOpacity: 0.5,
   inverseDirection: true,
-  potentialVisuals: true,
+  // potentialVisuals: true,
 });
 world.add(voxelInteract);
 
