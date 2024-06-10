@@ -149,10 +149,20 @@ export class Perspective {
    * @param namespace The namespace to bind the perspective's keyboard inputs to.
    */
   connect = (inputs: Inputs, namespace = "*") => {
-    const unbindKeyC = inputs.bind("KeyC", () => this.toggle(), namespace, {
-      identifier: Perspective.INPUT_IDENTIFIER,
-      checkType: "code",
-    });
+    const unbindKeyC = inputs.bind(
+      "KeyC",
+      () => {
+        if (!this.controls?.isLocked) {
+          return;
+        }
+        this.toggle();
+      },
+      namespace,
+      {
+        identifier: Perspective.INPUT_IDENTIFIER,
+        checkType: "code",
+      }
+    );
 
     // no clue why but this seems to work, f5 seems to be reversed
     const unbindF5 = inputs.bind("F5", () => this.toggle(true), namespace, {

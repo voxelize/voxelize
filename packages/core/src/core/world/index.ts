@@ -8,7 +8,7 @@ import {
   MessageProtocol,
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
-import { NetIntercept } from "core/network";
+import { NetIntercept } from "../../core/network";
 import {
   BufferAttribute,
   BufferGeometry,

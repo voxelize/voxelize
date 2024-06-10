@@ -69,7 +69,7 @@ const defaultOptions: SkyOptions = {
  *
  */
 export class Sky extends CanvasBox {
-  public options: CanvasBoxOptions & SkyOptions;
+  declare public options: CanvasBoxOptions & SkyOptions;
 
   /**
    * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.

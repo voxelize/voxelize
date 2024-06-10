@@ -2,37 +2,31 @@
   "name": "@voxelize/transport",
   "version": "1.0.33",
   "license": "MIT",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
-    "compile": "rollup -c rollup.config.js",
+    "compile": "vite build",
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "prepublishOnly": "yarn run build",
-    "demo": "node example/index.js",
-    "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",
-    "proto:js": "pbjs -t static-module -w commonjs -o ./src/protocol.js ../../messages.proto",
-    "proto": "yarn run proto:js && yarn run proto:ts && mkdir -p dist && cp src/protocol.* dist/"
+    "demo": "node example/index.js"
   },
   "dependencies": {
+    "@voxelize/protocol": "*",
     "fflate": "^0.7.3",
     "protobufjs": "^7.2.2",
     "websocket": "^1.0.34"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^25.0.8",
-    "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^15.2.3",
     "@types/protobufjs": "^6.0.0",
     "@types/websocket": "^1.0.5",
-    "protobufjs-cli": "^1.1.1",
-    "rollup-plugin-swc3": "^0.11.2",
-    "rollup-plugin-terser": "^7.0.2"
+    "protobufjs-cli": "^1.1.1"
   }
 }
