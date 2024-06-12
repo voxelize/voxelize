@@ -45,10 +45,6 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             requests,
         ) = data;
 
-        if stats.tick % 2 == 0 {
-            return;
-        }
-
         let chunk_size = config.chunk_size;
 
         /* -------------------------------------------------------------------------- */

@@ -336,6 +336,7 @@ impl Server {
 
         None
     }
+
     /// Prepare all worlds on the server to start.
     pub fn prepare(&mut self) {
         for world in self.worlds.values_mut() {
@@ -626,7 +627,7 @@ const DEFAULT_DEBUG: bool = true;
 const DEFAULT_PORT: u16 = 4000;
 const DEFAULT_ADDR: &str = "0.0.0.0";
 const DEFAULT_SERVE: &str = "";
-const DEFAULT_INTERVAL: u64 = 25;
+const DEFAULT_INTERVAL: u64 = 16;
 
 /// Builder for a voxelize server.
 pub struct ServerBuilder {
