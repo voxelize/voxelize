@@ -24,28 +24,28 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: "18"
-          cache: "yarn"
+          cache: "pnpm"
       - name: Build deps
         run: |
-          yarn
-          yarn proto
+          pnpm install
+          pnpm run proto
           cd packages/aabb
-          yarn build
+          pnpm build
           cd ../raycast
-          yarn build
+          pnpm build
           cd ../physics-engine
-          yarn build
+          pnpm build
           cd ../transport
-          yarn build
+          pnpm build
           cd ../protocol
-          yarn build
+          pnpm build
           cd ../core
-          yarn build
+          pnpm build
       - name: Build Docs
         run: |
           cd docs
-          yarn 
-          yarn build
+          pnpm install
+          pnpm build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
