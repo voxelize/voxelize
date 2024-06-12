@@ -8,6 +8,6 @@
     "baseUrl": "./src",
     "rootDir": "./src",
     "resolveJsonModule": true,
-    "types": ["vite-plugin-glsl/ext", "./src/types.d.ts"]
+    "types": ["vite-plugin-glsl/ext"]
   }
 }
