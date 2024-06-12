@@ -27,7 +27,7 @@ jobs:
       - name: Build deps
         run: |
           npm i -g pnpm
-          pnpm install
+          pnpm install --no-frozen-lockfile
           pnpm run proto
           cd packages/aabb
           pnpm build
