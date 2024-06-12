@@ -2,11 +2,6 @@
   "name": "voxelize",
   "license": "MIT",
   "private": true,
-  "workspaces": [
-    "docs",
-    "packages/*",
-    "examples/client"
-  ],
   "scripts": {
     "dev": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",

@@ -15,7 +15,8 @@
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "test": "vitest --run",
-    "prepublishOnly": "yarn run build"
+    "prepublishOnly": "yarn run build",
+    "preinstall": "npx only-allow pnpm"
   },
   "peerDependencies": {
     "postprocessing": "^6.35.0",
