@@ -1,4 +1,4 @@
-import { protocol } from "@voxelize/protocol";
+import { protocol } from "@voxelize/protocol/src/index";
 import * as fflate from "fflate";
 
 const { Message, Entity } = protocol;
