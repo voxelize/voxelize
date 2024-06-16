@@ -2,8 +2,8 @@
   "name": "@voxelize/protocol",
   "version": "1.0.33",
   "license": "MIT",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
