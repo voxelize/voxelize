@@ -120,12 +120,6 @@ export class Arm extends THREE.Group {
   private setArmMesh = () => {
     const arm = new CanvasBox({ width: 0.3, height: 1, depth: 0.3 });
     arm.paint("all", new THREE.Color(ARM_COLOR));
-    // const color = new THREE.Color(ARM_COLOR);
-    // const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
-    // const material = new THREE.MeshBasicMaterial({
-    //   color,
-    // });
-    // const mesh = new THREE.Mesh(geometry, material);
     arm.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
     arm.quaternion.multiply(ARM_QUATERION);
 
