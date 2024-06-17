@@ -721,10 +721,6 @@ const start = async () => {
   const arm = new VOXELIZE.Arm();
   const armScene = new THREE.Scene();
   const armCamera = camera.clone();
-  arm.getWorldPosition = (position: THREE.Vector3) => {
-    position.copy(controls.object.position);
-    return position;
-  };
   lightShined.add(arm);
   armScene.add(arm);
 
