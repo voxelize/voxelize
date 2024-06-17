@@ -570,7 +570,7 @@ network
   .register(peers)
   .register(controls);
 
-const HOTBAR_CONTENT = [400, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
+const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
 
 // let isLoading = true;
 // const loadingFade = 500;
@@ -721,6 +721,11 @@ const start = async () => {
   const arm = new VOXELIZE.Arm();
   const armScene = new THREE.Scene();
   const armCamera = camera.clone();
+  arm.getWorldPosition = (position: THREE.Vector3) => {
+    position.copy(controls.object.position);
+    return position;
+  };
+  lightShined.add(arm);
   armScene.add(arm);
 
   arm.connect(inputs, "in-game");

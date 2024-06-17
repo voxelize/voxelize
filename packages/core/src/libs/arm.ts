@@ -119,15 +119,12 @@ export class Arm extends THREE.Group {
   private setArmMesh = () => {
     const color = new THREE.Color(ARM_COLOR);
     const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
-    // TODO: Make mesh appear in front of everything
     const material = new THREE.MeshBasicMaterial({
       color,
-      // depthTest: false,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
     mesh.quaternion.multiply(ARM_QUATERION);
-    // this.mesh.renderOrder = 9999999;
 
     this.mixer = new THREE.AnimationMixer(mesh);
     this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
@@ -142,17 +139,6 @@ export class Arm extends THREE.Group {
   private setBlockMesh = (mesh: THREE.Object3D) => {
     mesh.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
     mesh.quaternion.multiply(BLOCK_QUATERNION);
-
-    // TODO: Make mesh appear in front of everything
-    // mesh.traverse((child) => {
-    //   if (
-    //     child instanceof THREE.Mesh &&
-    //     child.material instanceof THREE.Material
-    //   ) {
-    //     child.material.depthTest = false; // Disable depth testing
-    //     child.renderOrder = 99999999; // Set a high render order
-    //   }
-    // });
 
     this.mixer = new THREE.AnimationMixer(mesh);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);

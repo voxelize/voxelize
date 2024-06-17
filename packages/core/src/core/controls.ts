@@ -924,6 +924,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   attachArm = (arm: Arm) => {
     this.arm = arm;
+    arm.getWorldPosition = (position: Vector3) => {
+      position.copy(this.object.position);
+      return position;
+    };
   };
 
   /**
