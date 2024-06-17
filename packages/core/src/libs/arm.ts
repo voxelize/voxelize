@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import { Inputs } from "../core/inputs";
 
+import { CanvasBox } from "./canvas-box";
 import { ARM_COLOR } from "./character";
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
@@ -117,23 +118,25 @@ export class Arm extends THREE.Group {
   };
 
   private setArmMesh = () => {
-    const color = new THREE.Color(ARM_COLOR);
-    const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
-    const material = new THREE.MeshBasicMaterial({
-      color,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
-    mesh.quaternion.multiply(ARM_QUATERION);
+    const arm = new CanvasBox({ width: 0.3, height: 0.3, depth: 0.3 });
+    arm.paint("all", new THREE.Color(ARM_COLOR));
+    // const color = new THREE.Color(ARM_COLOR);
+    // const geometry = new THREE.BoxGeometry(0.3, 1, 0.3);
+    // const material = new THREE.MeshBasicMaterial({
+    //   color,
+    // });
+    // const mesh = new THREE.Mesh(geometry, material);
+    arm.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
+    arm.quaternion.multiply(ARM_QUATERION);
 
-    this.mixer = new THREE.AnimationMixer(mesh);
+    this.mixer = new THREE.AnimationMixer(arm);
     this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
 
     this.placeAnimation = undefined;
 
-    this.add(mesh);
+    this.add(arm);
   };
 
   private setBlockMesh = (mesh: THREE.Object3D) => {
