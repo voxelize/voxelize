@@ -680,14 +680,6 @@ const start = async () => {
     botCharacters.forEach((bot) => bot.update());
   };
 
-  const animate = () => {
-    frame = requestAnimationFrame(animate);
-    if (isFocused) update();
-    composer.render();
-  };
-
-  animate();
-
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);
   await world.initialize();
@@ -727,6 +719,9 @@ const start = async () => {
   document.body.appendChild(bar.element);
 
   const arm = new VOXELIZE.Arm();
+  const armScene = new THREE.Scene();
+  const armCamera = camera.clone();
+  armScene.add(arm);
 
   arm.connect(inputs, "in-game");
   controls.attachArm(arm);
@@ -740,6 +735,16 @@ const start = async () => {
   //   const json = await data.json();
   //   return json.worlds.terrain.chunks.active_voxels;
   // });
+
+  const animate = () => {
+    frame = requestAnimationFrame(animate);
+    if (isFocused) update();
+    composer.render();
+    renderer.clearDepth();
+    renderer.render(armScene, armCamera);
+  };
+
+  animate();
 
   debug.registerDisplay("Holding", () => {
     const slot = bar.getFocused();

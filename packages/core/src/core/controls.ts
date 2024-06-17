@@ -923,8 +923,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @param arm The {@link Arm} to attach to this controls instance.
    */
   attachArm = (arm: Arm) => {
-    this.camera.add(arm);
-
     this.arm = arm;
   };
 
