@@ -12,7 +12,7 @@ import {
   Vector3,
 } from "three";
 
-import { Character, Hud } from "../libs";
+import { Arm, Character } from "../libs";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -348,11 +348,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   public character?: Character;
 
   /**
-   * A potential link to a {@link Hud} instance. This can be added by
-   * calling {@link RigidControls.attachHud} to add a mesh for the first person
+   * A potential link to a {@link Arm} instance. This can be added by
+   * calling {@link RigidControls.attachArm} to add a mesh for the first person
    * view.
    */
-  public hud?: Hud;
+  public arm?: Arm;
 
   /**
    * The DOM element that pointerlock controls are applied to.
@@ -555,7 +555,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * Update for the camera of the game. This should be called in the game update loop.
    * What this does is that it updates the rigid body, and then interpolates the camera's position and rotation
    * to the new position and rotation. If a character is attached, then the character is also updated.
-   * If the hud is attached, then the hud is also updated.
+   * If the arm is attached, then the arm is also updated.
    */
   update = () => {
     // Normalize the delta
@@ -579,7 +579,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.character.update();
     }
 
-    if (this.hud) this.hud.update(delta);
+    if (this.arm) this.arm.update(delta);
 
     this.moveRigidBody();
     this.updateRigidBody(delta);
@@ -918,14 +918,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   /**
-   * Attach a {@link Hud} to this controls instance. This can be seen in 1st person mode.
+   * Attach a {@link Arm} to this controls instance. This can be seen in 1st person mode.
    *
-   * @param hud The {@link Hud} to attach to this controls instance.
+   * @param arm The {@link Arm} to attach to this controls instance.
    */
-  attachHud = (hud: Hud) => {
-    this.camera.add(hud);
+  attachArm = (arm: Arm) => {
+    this.camera.add(arm);
 
-    this.hud = hud;
+    this.arm = arm;
   };
 
   /**

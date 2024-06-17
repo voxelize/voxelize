@@ -355,6 +355,12 @@ ___
 
 ## Other Classes
 
+### Arm
+
+• **Arm**: Class Arm
+
+___
+
 ### Arrow
 
 • **Arrow**: Class Arrow
@@ -554,12 +560,6 @@ ___
 • **FaceAnimation**: Class FaceAnimation
 
 The animation data that is used internally in an atlas texture. This holds the data and will be used to draw on the texture atlas.
-
-___
-
-### Hud
-
-• **Hud**: Class Hud
 
 ___
 
@@ -898,6 +898,23 @@ through the interceptor, and also allowing the interceptor to send
 packets to the server.
 
 ## Type Aliases
+
+### ArmOptions
+
+Ƭ **ArmOptions**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `armColor?` | string |
+| `armMesh?` | THREE.Object3D |
+| `armPosition?` | THREE.Vector3 |
+| `armQuaternion?` | THREE.Quaternion |
+| `blockPosition?` | THREE.Vector3 |
+| `blockQuaternion?` | THREE.Quaternion |
+
+___
 
 ### ArmsOptions
 
@@ -1409,23 +1426,6 @@ Defaults to:
 }
 ```
 where `CHARACTER_SCALE` is 0.9.
-
-___
-
-### HudOptions
-
-Ƭ **HudOptions**: `Object`
-
-#### Type declaration
-
-| Name | Type |
-| :------ | :------ |
-| `armColor?` | string |
-| `armMesh?` | THREE.Object3D |
-| `armPosition?` | THREE.Vector3 |
-| `armQuaternion?` | THREE.Quaternion |
-| `blockPosition?` | THREE.Vector3 |
-| `blockQuaternion?` | THREE.Quaternion |
 
 ___
 

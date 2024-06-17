@@ -1,5 +1,6 @@
 export * from "../core/world/clouds";
 export * from "../core/world/sky";
+export * from "./arm";
 export * from "./arrow";
 export * from "./canvas-box";
 export * from "./character";
@@ -18,4 +19,3 @@ export * from "./shared-worker-pool";
 export * from "./sprite-text";
 export * from "./voxel-interact";
 export * from "./worker-pool";
-export * from "./hud";

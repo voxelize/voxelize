@@ -726,13 +726,13 @@ const start = async () => {
 
   document.body.appendChild(bar.element);
 
-  const hud = new VOXELIZE.Hud();
+  const arm = new VOXELIZE.Arm();
 
-  hud.connect(inputs, "in-game");
-  // controls.attachHud(hud);
+  arm.connect(inputs, "in-game");
+  controls.attachArm(arm);
   bar.onFocusChange((_, current) => {
     const mesh = world.makeBlockMesh(current.content, { material: "basic" });
-    hud.setMesh(mesh, false);
+    arm.setMesh(mesh, false);
   });
 
   // debug.registerDisplay("Active Voxels", async () => {

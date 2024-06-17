@@ -14,7 +14,7 @@ const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   -Math.PI / 4
 );
 
-export type HudOptions = {
+export type ArmOptions = {
   armMesh?: THREE.Object3D;
   armPosition?: THREE.Vector3;
   armQuaternion?: THREE.Quaternion;
@@ -23,7 +23,7 @@ export type HudOptions = {
   armColor?: string;
 };
 
-const defaultOptions: HudOptions = {
+const defaultOptions: ArmOptions = {
   armMesh: undefined,
   armPosition: ARM_POSITION,
   armQuaternion: ARM_QUATERION,
@@ -32,8 +32,8 @@ const defaultOptions: HudOptions = {
   armColor: ARM_COLOR,
 };
 
-export class Hud extends THREE.Group {
-  public options: HudOptions;
+export class Arm extends THREE.Group {
+  public options: ArmOptions;
 
   private mixer: THREE.AnimationMixer;
 
@@ -47,7 +47,7 @@ export class Hud extends THREE.Group {
 
   private placeAnimation: THREE.AnimationAction;
 
-  constructor(options: Partial<HudOptions> = {}) {
+  constructor(options: Partial<ArmOptions> = {}) {
     super();
 
     this.options = {
@@ -75,12 +75,12 @@ export class Hud extends THREE.Group {
   }
 
   /**
-   * Connect the HUD to the given input manager. This will allow the HUD to listen to left
-   * and right clicks to play HUD animations. This function returns a function that when called
-   * unbinds the HUD's keyboard inputs.
+   * Connect the arm to the given input manager. This will allow the arm to listen to left
+   * and right clicks to play arm animations. This function returns a function that when called
+   * unbinds the arm's keyboard inputs.
    *
-   * @param inputs The {@link Inputs} instance to bind the HUD's keyboard inputs to.
-   * @param namespace The namespace to bind the HUD's keyboard inputs to.
+   * @param inputs The {@link Inputs} instance to bind the arm's keyboard inputs to.
+   * @param namespace The namespace to bind the arm's keyboard inputs to.
    */
   public connect = (inputs: Inputs, namespace = "*") => {
     const unbindLeftClick = inputs.click("left", this.playSwing, namespace);
@@ -97,9 +97,9 @@ export class Hud extends THREE.Group {
   };
 
   /**
-   * Set a new mesh for the HUD. If `animate` is true, the transition will be animated.
+   * Set a new mesh for the arm. If `animate` is true, the transition will be animated.
    *
-   * @param mesh New mesh for the HUD
+   * @param mesh New mesh for the arm
    * @param animate Whether to animate the transition
    */
   public setMesh = (mesh: THREE.Object3D | undefined, animate: boolean) => {
@@ -343,7 +343,7 @@ export class Hud extends THREE.Group {
 
   /**
    *
-   * Update the arm's animation. Note that when a hud is attached to a control,
+   * Update the arm's animation. Note that when a arm is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
   public update(delta: number) {

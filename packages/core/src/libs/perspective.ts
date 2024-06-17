@@ -229,11 +229,11 @@ export class Perspective {
       }
     }
 
-    if (this.controls.hud) {
-      if (this.state === "first" && !this.controls.hud.visible) {
-        this.controls.hud.visible = true;
-      } else if (this.state !== "first" && this.controls.hud.visible) {
-        this.controls.hud.visible = false;
+    if (this.controls.arm) {
+      if (this.state === "first" && !this.controls.arm.visible) {
+        this.controls.arm.visible = true;
+      } else if (this.state !== "first" && this.controls.arm.visible) {
+        this.controls.arm.visible = false;
       }
     }
 
