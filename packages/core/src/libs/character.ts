@@ -425,12 +425,12 @@ export class Character extends Group {
     this.createModel();
 
     this.swingClip = this.generateSwingClip(
-      this.rightArm.position,
-      this.rightArm.quaternion,
-      "swing"
+      this.rightArmGroup.position,
+      this.rightArmGroup.quaternion,
+      "characterArmSwing"
     );
 
-    this.mixer = new AnimationMixer(this.rightArm);
+    this.mixer = new AnimationMixer(this.rightArmGroup);
     this.swingAnimation = this.mixer.clipAction(this.swingClip);
     this.swingAnimation.setLoop(LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
@@ -441,7 +441,8 @@ export class Character extends Group {
    * actually lerp to the new position and rotation. Note that when a character is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
-  update() {
+  update(delta: number) {
+    this.mixer.update(delta);
     this.calculateDelta();
     this.playArmSwingAnimation();
     this.playWalkingAnimation();

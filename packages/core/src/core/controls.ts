@@ -576,7 +576,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       const cameraPosition = this.object.position.toArray();
 
       this.character.set(cameraPosition, [dx, dy, dz]);
-      this.character.update();
+      this.character.update(delta);
     }
 
     if (this.arm) this.arm.update(delta);
