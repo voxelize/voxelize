@@ -733,17 +733,19 @@ const start = async () => {
       material: "basic",
     });
     arm.setArmObject(armBlock, false);
+
     const characterBlock = world.makeBlockMesh(current.content, {
       material: "basic",
     });
-    // const size = 0.3;
-    // characterBlock.quaternion.setFromAxisAngle(
-    //   new THREE.Vector3(0, 1, 0),
-    //   -Math.PI / 4
-    // );
-    // characterBlock.scale.set(size, size, size);
-    // characterBlock.position.set(0, -size * 0.5, -size * 0.5);
-
+    if (characterBlock) {
+      const size = 0.3;
+      characterBlock.quaternion.setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        -Math.PI / 4
+      );
+      characterBlock.scale.set(size, size, size);
+      characterBlock.position.set(0, -size * 0.5, -size * 0.5);
+    }
     character.setArmObject(characterBlock);
   });
 

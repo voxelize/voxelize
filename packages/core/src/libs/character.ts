@@ -841,16 +841,15 @@ export class Character extends Group {
     }
 
     if (object) {
-      const size = 0.3;
-      const halfSize = size * 0.5;
-
       object.name = objectName;
-      object.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 4);
-      object.scale.set(size, size, size);
-      object.position.set(
-        this.options.arms.width,
-        -this.options.arms.height - halfSize,
-        -this.options.arms.depth - halfSize
+
+      // Position object at the "hand" of the arm.
+      object.position.add(
+        new Vector3(
+          this.options.arms.width,
+          -this.options.arms.height,
+          -this.options.arms.depth
+        )
       );
 
       this.rightArmGroup.add(object);
