@@ -79,11 +79,9 @@ export class Arm extends THREE.Group {
 
   private blockSwingClip: THREE.AnimationClip;
 
-  private blockPlaceClip: THREE.AnimationClip;
-
   private swingAnimation: THREE.AnimationAction;
 
-  private placeAnimation: THREE.AnimationAction;
+  private rightClickSwing = false;
 
   constructor(options: Partial<ArmOptions> = {}) {
     super();
@@ -109,15 +107,6 @@ export class Arm extends THREE.Group {
       BLOCK_SWING_POSITIONS,
       SWING_QUATERNIONS
     );
-    this.blockPlaceClip = AnimationUtils.generateClip(
-      "blockPlace",
-      SWING_TIMES,
-      this.options.blockPosition,
-      this.options.blockQuaternion,
-      BLOCK_SWING_POSITIONS,
-      SWING_QUATERNIONS
-    );
-
     this.setArmMesh();
   }
 
@@ -131,7 +120,15 @@ export class Arm extends THREE.Group {
    */
   public connect = (inputs: Inputs, namespace = "*") => {
     const unbindLeftClick = inputs.click("left", this.playSwing, namespace);
-    const unbindRightClick = inputs.click("right", this.playPlace, namespace);
+    const unbindRightClick = inputs.click(
+      "right",
+      () => {
+        if (this.rightClickSwing) {
+          this.playSwing();
+        }
+      },
+      namespace
+    );
 
     return () => {
       try {
@@ -174,7 +171,7 @@ export class Arm extends THREE.Group {
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
 
-    this.placeAnimation = undefined;
+    this.rightClickSwing = false;
 
     this.add(arm);
   };
@@ -188,9 +185,8 @@ export class Arm extends THREE.Group {
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
 
-    this.placeAnimation = this.mixer.clipAction(this.blockPlaceClip);
-    this.placeAnimation.setLoop(THREE.LoopOnce, 1);
-    this.placeAnimation.clampWhenFinished = true;
+    // TODO(balta): Only swing if block is placed, come up with better logic for this
+    this.rightClickSwing = true;
 
     this.add(mesh);
   };
@@ -211,16 +207,6 @@ export class Arm extends THREE.Group {
     if (this.swingAnimation) {
       this.swingAnimation.reset();
       this.swingAnimation.play();
-    }
-  };
-
-  /**
-   * Play the "place" animation.
-   */
-  private playPlace = () => {
-    if (this.placeAnimation) {
-      this.placeAnimation.reset();
-      this.placeAnimation.play();
     }
   };
 }
