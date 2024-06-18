@@ -16,7 +16,8 @@
     "build": "yarn run clean && yarn run compile && yarn run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "prepublishOnly": "yarn run build",
-    "demo": "node example/index.js"
+    "demo": "node example/index.js",
+    "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {
     "@voxelize/protocol": "*",

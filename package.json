@@ -12,7 +12,8 @@
     "test": "vitest --run",
     "lint": "eslint --fix --ext js,ts,tsx .",
     "docs": "cd docs && yarn run start",
-    "proto": "cd packages/protocol && yarn run proto"
+    "proto": "cd packages/protocol && yarn run proto",
+    "preinstall": "npx only-allow pnpm"
   },
   "devDependencies": {
     "@swc/core": "^1.3.41",

@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
     "prepublishOnly": "yarn run build",
-    "start": "webpack serve --config example/webpack.config.js"
+    "start": "webpack serve --config example/webpack.config.js",
+    "preinstall": "npx only-allow pnpm"
   },
   "repository": "https://github.com/shaoruu/voxel-physics-engine.git",
   "author": "Ian Huang <21ianh1@students.tas.tw>",
