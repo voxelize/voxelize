@@ -21,6 +21,35 @@ const CHARACTER_SCALE = 0.9;
 
 export const ARM_COLOR = "#548ca8";
 
+const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
+
+const SWING_QUATERNIONS = [
+  new Quaternion(
+    0.22181091786438836,
+    0.1299627903568272,
+    0.4885423545532194,
+    0.8338081060090633
+  ),
+  new Quaternion(
+    0.893363678312996,
+    -0.013401460299294354,
+    -0.006736763863508881,
+    0.4490839065760065
+  ),
+  new Quaternion(
+    0.9328672195091751,
+    -0.12196055833290745,
+    -0.04393897067375234,
+    0.3360859113864748
+  ),
+  new Quaternion(
+    0.7659226373876284,
+    0.04985520396032439,
+    0.04163546301748589,
+    0.6396432289914226
+  ),
+];
+
 /**
  * Parameters to create a character's head.
  * Defaults to:
@@ -427,11 +456,11 @@ export class Character extends Group {
 
     this.swingClip = AnimationUtils.generateClip(
       "characterArmSwing",
-      [0, 0.05, 0.1, 0.15, 0.2, 0.3],
+      SWING_TIMES,
       position,
       quaternion,
       [position, position, position, position],
-      [quaternion, quaternion, quaternion, quaternion]
+      SWING_QUATERNIONS
     );
 
     this.mixer = new AnimationMixer(this.rightArmGroup);
@@ -448,7 +477,7 @@ export class Character extends Group {
   update(delta: number) {
     this.mixer.update(delta);
     this.calculateDelta();
-    this.playArmSwingAnimation();
+    // this.playArmSwingAnimation();
     this.playWalkingAnimation();
     this.lerpAll();
   }
