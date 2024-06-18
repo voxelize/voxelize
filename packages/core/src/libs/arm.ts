@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { Inputs } from "../core/inputs";
+import { AnimationUtils } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
 import { ARM_COLOR } from "./character";
@@ -14,6 +15,27 @@ const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
   -Math.PI / 4
 );
+
+const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
+
+const SWING_POSITIONS = [
+  new THREE.Vector3(0.66, -0.77, -1),
+  new THREE.Vector3(0.66, -1.02, -1),
+  new THREE.Vector3(0.66, -1.7, -1),
+  new THREE.Vector3(1, -1.3, -1),
+];
+
+const SWING_QUATERNIONS = [
+  new THREE.Quaternion(-0.41, -0.0746578340503426, 0.21, 0.9061274463528878),
+  new THREE.Quaternion(-0.41, -0.0746578340503426, 0.52, 0.9061274463528878),
+  new THREE.Quaternion(-0.41, -0.0746578340503426, 0.75, 0.9061274463528878),
+  new THREE.Quaternion(
+    -0.37533027751786524,
+    -0.0746578340503426,
+    -0.18023995550173696,
+    0.9061274463528878
+  ),
+];
 
 export type ArmOptions = {
   armMesh?: THREE.Object3D;
@@ -56,20 +78,29 @@ export class Arm extends THREE.Group {
       ...options,
     };
 
-    this.armSwingClip = this.generateSwingClip(
+    this.armSwingClip = AnimationUtils.generateClip(
+      "armSwing",
+      SWING_TIMES,
       this.options.armPosition,
       this.options.armQuaternion,
-      "armSwing"
+      SWING_POSITIONS,
+      SWING_QUATERNIONS
     );
-    this.blockSwingClip = this.generateSwingClip(
+    this.blockSwingClip = AnimationUtils.generateClip(
+      "blockSwing",
+      SWING_TIMES,
       this.options.blockPosition,
       this.options.blockQuaternion,
-      "blockSwing"
+      SWING_POSITIONS,
+      SWING_QUATERNIONS
     );
-    this.blockPlaceClip = this.generatePlaceClip(
+    this.blockPlaceClip = AnimationUtils.generateClip(
+      "blockPlace",
+      SWING_TIMES,
       this.options.blockPosition,
       this.options.blockQuaternion,
-      "blockPlace"
+      SWING_POSITIONS,
+      SWING_QUATERNIONS
     );
 
     this.setArmMesh();
@@ -147,181 +178,6 @@ export class Arm extends THREE.Group {
     this.placeAnimation.clampWhenFinished = true;
 
     this.add(mesh);
-  };
-
-  /**
-   * Generates a "swing" animation clip.
-   *
-   * @param pInitial Initial position
-   * @param qInitial Initial quaternion
-   * @param name Name of the clip
-   * @returns Animation clip
-   */
-  private generateSwingClip = (
-    pInitial: THREE.Vector3,
-    qInitial: THREE.Quaternion,
-    name: string
-  ) => {
-    const timestamps = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
-
-    const pMid = pInitial.clone();
-    pMid.x -= 0.34;
-    pMid.y += 0.23;
-    const pMid2 = pMid.clone();
-    pMid2.y -= 0.25;
-    const pMid3 = pMid2.clone();
-    pMid3.y -= 0.68;
-    const pMid4 = pInitial.clone();
-    pMid4.y -= 0.3;
-    const positionKF = new THREE.VectorKeyframeTrack(".position", timestamps, [
-      pInitial.x,
-      pInitial.y,
-      pInitial.z,
-      pMid.x,
-      pMid.y,
-      pMid.z,
-      pMid2.x,
-      pMid2.y,
-      pMid2.z,
-      pMid3.x,
-      pMid3.y,
-      pMid3.z,
-      pMid4.x,
-      pMid4.y,
-      pMid4.z,
-      pInitial.x,
-      pInitial.y,
-      pInitial.z,
-    ]);
-    const qMid = qInitial.clone();
-    qMid.x -= qInitial.x + 0.41;
-    qMid.z += 0.21 - qInitial.z;
-    const qMid2 = qMid.clone();
-    qMid2.z += 0.31;
-    const qMid3 = qMid2.clone();
-    qMid3.z += 0.23;
-    const qMid4 = qInitial.clone();
-
-    const quaternionKF = new THREE.QuaternionKeyframeTrack(
-      ".quaternion",
-      timestamps,
-      [
-        qInitial.x,
-        qInitial.y,
-        qInitial.z,
-        qInitial.w,
-        qMid.x,
-        qMid.y,
-        qMid.z,
-        qMid.w,
-        qMid2.x,
-        qMid2.y,
-        qMid2.z,
-        qMid2.w,
-        qMid3.x,
-        qMid3.y,
-        qMid3.z,
-        qMid3.w,
-        qMid4.x,
-        qMid4.y,
-        qMid4.z,
-        qMid4.w,
-        qInitial.x,
-        qInitial.y,
-        qInitial.z,
-        qInitial.w,
-      ]
-    );
-
-    return new THREE.AnimationClip(name, 0.3, [positionKF, quaternionKF]);
-  };
-
-  /**
-   *
-   * Generates a "place" animation clip.
-   *
-   * @param pInitial Initial position
-   * @param qInitial Initial quaternion
-   * @param name Name of the clip
-   * @returns Animation clip
-   */
-  private generatePlaceClip = (
-    pInitial: THREE.Vector3,
-    qInitial: THREE.Quaternion,
-    name: string
-  ) => {
-    const timestamps = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
-
-    const pMid = pInitial.clone();
-    pMid.x -= 0.34;
-    pMid.y += 0.23;
-    const pMid2 = pMid.clone();
-    pMid2.y -= 0.25;
-    const pMid3 = pMid2.clone();
-    pMid3.y -= 0.68;
-    const pMid4 = pInitial.clone();
-    pMid4.y -= 0.3;
-    const positionKF = new THREE.VectorKeyframeTrack(".position", timestamps, [
-      pInitial.x,
-      pInitial.y,
-      pInitial.z,
-      pMid.x,
-      pMid.y,
-      pMid.z,
-      pMid2.x,
-      pMid2.y,
-      pMid2.z,
-      pMid3.x,
-      pMid3.y,
-      pMid3.z,
-      pMid4.x,
-      pMid4.y,
-      pMid4.z,
-      pInitial.x,
-      pInitial.y,
-      pInitial.z,
-    ]);
-    const qMid = qInitial.clone();
-    qMid.x -= qInitial.x + 0.41;
-    qMid.z += 0.21 - qInitial.z;
-    const qMid2 = qMid.clone();
-    qMid2.z += 0.31;
-    const qMid3 = qMid2.clone();
-    qMid3.z += 0.23;
-    const qMid4 = qInitial.clone();
-
-    const quaternionKF = new THREE.QuaternionKeyframeTrack(
-      ".quaternion",
-      timestamps,
-      [
-        qInitial.x,
-        qInitial.y,
-        qInitial.z,
-        qInitial.w,
-        qMid.x,
-        qMid.y,
-        qMid.z,
-        qMid.w,
-        qMid2.x,
-        qMid2.y,
-        qMid2.z,
-        qMid2.w,
-        qMid3.x,
-        qMid3.y,
-        qMid3.z,
-        qMid3.w,
-        qMid4.x,
-        qMid4.y,
-        qMid4.z,
-        qMid4.w,
-        qInitial.x,
-        qInitial.y,
-        qInitial.z,
-        qInitial.w,
-      ]
-    );
-
-    return new THREE.AnimationClip(name, 0.3, [positionKF, quaternionKF]);
   };
 
   /**

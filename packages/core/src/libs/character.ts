@@ -9,12 +9,10 @@ import {
   LoopOnce,
   MathUtils,
   Quaternion,
-  QuaternionKeyframeTrack,
   Vector3,
-  VectorKeyframeTrack,
 } from "three";
 
-import { MathUtils as VoxMathUtils } from "../utils";
+import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
 import { NameTag, NameTagOptions } from "./nametag";
@@ -424,10 +422,16 @@ export class Character extends Group {
 
     this.createModel();
 
-    this.swingClip = this.generateSwingClip(
-      this.rightArmGroup.position,
-      this.rightArmGroup.quaternion,
-      "characterArmSwing"
+    const position = this.rightArmGroup.position;
+    const quaternion = this.rightArmGroup.quaternion;
+
+    this.swingClip = AnimationUtils.generateClip(
+      "characterArmSwing",
+      [0, 0.05, 0.1, 0.15, 0.2, 0.3],
+      position,
+      quaternion,
+      [position, position, position, position],
+      [quaternion, quaternion, quaternion, quaternion]
     );
 
     this.mixer = new AnimationMixer(this.rightArmGroup);
@@ -787,92 +791,5 @@ export class Character extends Group {
       this.swingAnimation.reset();
       this.swingAnimation.play();
     }
-  };
-
-  /**
-   * Generates a "swing" animation clip.
-   *
-   * @param pInitial Initial position
-   * @param qInitial Initial quaternion
-   * @param name Name of the clip
-   * @returns Animation clip
-   */
-  private generateSwingClip = (
-    pInitial: Vector3,
-    qInitial: Quaternion,
-    name: string
-  ) => {
-    const timestamps = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
-
-    const pMid = pInitial.clone();
-    pMid.x -= 0.34;
-    pMid.y += 0.23;
-    const pMid2 = pMid.clone();
-    pMid2.y -= 0.25;
-    const pMid3 = pMid2.clone();
-    pMid3.y -= 0.68;
-    const pMid4 = pInitial.clone();
-    pMid4.y -= 0.3;
-    const positionKF = new VectorKeyframeTrack(".position", timestamps, [
-      pInitial.x,
-      pInitial.y,
-      pInitial.z,
-      pMid.x,
-      pMid.y,
-      pMid.z,
-      pMid2.x,
-      pMid2.y,
-      pMid2.z,
-      pMid3.x,
-      pMid3.y,
-      pMid3.z,
-      pMid4.x,
-      pMid4.y,
-      pMid4.z,
-      pInitial.x,
-      pInitial.y,
-      pInitial.z,
-    ]);
-    const qMid = qInitial.clone();
-    qMid.x -= qInitial.x + 0.41;
-    qMid.z += 0.21 - qInitial.z;
-    const qMid2 = qMid.clone();
-    qMid2.z += 0.31;
-    const qMid3 = qMid2.clone();
-    qMid3.z += 0.23;
-    const qMid4 = qInitial.clone();
-
-    const quaternionKF = new QuaternionKeyframeTrack(
-      ".quaternion",
-      timestamps,
-      [
-        qInitial.x,
-        qInitial.y,
-        qInitial.z,
-        qInitial.w,
-        qMid.x,
-        qMid.y,
-        qMid.z,
-        qMid.w,
-        qMid2.x,
-        qMid2.y,
-        qMid2.z,
-        qMid2.w,
-        qMid3.x,
-        qMid3.y,
-        qMid3.z,
-        qMid3.w,
-        qMid4.x,
-        qMid4.y,
-        qMid4.z,
-        qMid4.w,
-        qInitial.x,
-        qInitial.y,
-        qInitial.z,
-        qInitial.w,
-      ]
-    );
-
-    return new AnimationClip(name, 0.3, [positionKF, quaternionKF]);
   };
 }
