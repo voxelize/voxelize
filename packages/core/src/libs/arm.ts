@@ -156,7 +156,7 @@ export class Arm extends THREE.Group {
         this.setBlockMesh(mesh);
       }
     } else {
-      // TODO: Create animation of arm coming down and coming back up
+      // TODO(balta): Create animation of arm coming down and coming back up
     }
   };
 
