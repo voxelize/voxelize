@@ -35,6 +35,7 @@ async fn ws_route(
     options: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
     if !secret.is_none() {
+        info!("Secret: {:?}", secret);
         let error = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "wrong secret!");
 
         if let Some(client_secret) = options.get("secret") {

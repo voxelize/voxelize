@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
-    "build:ts": "lerna run --scope '@voxelize/*' build",
+    "build": "cd packages && pnpm -r --filter \"@voxelize/*\" build",
     "demo:ts": "cd examples/client && yarn demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "test-dev": "vitest",

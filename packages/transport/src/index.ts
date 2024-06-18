@@ -1,10 +1,10 @@
+import protocol from "@voxelize/protocol";
 import * as fflate from "fflate";
 import {
   client as WebSocket,
   connection as WebSocketConnection,
 } from "websocket";
 
-import protocol from "@voxelize/protocol";
 import { MessageProtocol } from "./types";
 
 const { Message, Entity } = protocol.protocol;

@@ -3,7 +3,7 @@ import path from "path";
 import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
 import glsl from "vite-plugin-glsl";
-import { replaceCodePlugin } from "vite-plugin-replace";
+import stringReplace from "vite-plugin-string-replace";
 
 import { version } from "./package.json";
 
@@ -13,14 +13,12 @@ export default defineConfig({
     externalizeDeps({
       except: [/three\/examples\//],
     }),
-    replaceCodePlugin({
-      replacements: [
-        {
-          from: "__VOXELIZE_VERSION__",
-          to: version,
-        },
-      ],
-    }),
+    stringReplace([
+      {
+        search: "__VOXELIZE_VERSION__",
+        replace: version,
+      },
+    ]),
   ],
   base: "./", // needed to make web workers work: https://github.com/vitejs/vite/discussions/15547#discussioncomment-8950765
   build: {
