@@ -18,12 +18,27 @@ const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
 
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
-const SWING_POSITIONS = [
-  new THREE.Vector3(0.66, -0.77, -1),
-  new THREE.Vector3(0.66, -1.02, -1),
-  new THREE.Vector3(0.66, -1.7, -1),
-  new THREE.Vector3(1, -1.3, -1),
+const SWING_POSITIONS_DELTA = [
+  new THREE.Vector3(-0.34, 0.23, 0),
+  new THREE.Vector3(0, -0.25, 0),
+  new THREE.Vector3(0, -0.68, 0),
+  new THREE.Vector3(0, -0.3, 0),
 ];
+
+const generateSwingPositions = (initialPosition: THREE.Vector3) => {
+  const positions = [];
+  for (let i = 0; i < SWING_POSITIONS_DELTA.length; i++) {
+    const nextPosition = (
+      i === 0 ? initialPosition.clone() : positions[i - 1].clone()
+    ).add(SWING_POSITIONS_DELTA[i]);
+    positions.push(nextPosition);
+  }
+  return positions;
+};
+
+const ARM_SWING_POSITIONS = generateSwingPositions(ARM_POSITION);
+
+const BLOCK_SWING_POSITIONS = generateSwingPositions(BLOCK_POSITION);
 
 const SWING_QUATERNIONS = [
   new THREE.Quaternion(-0.41, -0.0746578340503426, 0.21, 0.9061274463528878),
@@ -83,7 +98,7 @@ export class Arm extends THREE.Group {
       SWING_TIMES,
       this.options.armPosition,
       this.options.armQuaternion,
-      SWING_POSITIONS,
+      ARM_SWING_POSITIONS,
       SWING_QUATERNIONS
     );
     this.blockSwingClip = AnimationUtils.generateClip(
@@ -91,7 +106,7 @@ export class Arm extends THREE.Group {
       SWING_TIMES,
       this.options.blockPosition,
       this.options.blockQuaternion,
-      SWING_POSITIONS,
+      BLOCK_SWING_POSITIONS,
       SWING_QUATERNIONS
     );
     this.blockPlaceClip = AnimationUtils.generateClip(
@@ -99,7 +114,7 @@ export class Arm extends THREE.Group {
       SWING_TIMES,
       this.options.blockPosition,
       this.options.blockQuaternion,
-      SWING_POSITIONS,
+      BLOCK_SWING_POSITIONS,
       SWING_QUATERNIONS
     );
 
