@@ -182,6 +182,8 @@ const shadows = new VOXELIZE.Shadows(world);
 
 const character = createCharacter();
 
+character.connect(inputs, "in-game");
+
 const controls = new VOXELIZE.RigidControls(
   camera,
   renderer.domElement,
