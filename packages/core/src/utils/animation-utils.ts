@@ -11,11 +11,11 @@ export class AnimationUtils {
    * Generates an animation clip.
    *
    * @param name Name of the clip
-   * @param timestamps Timestamps of the clip
-   * @param pInitial Initial position
-   * @param qInitial Initial quaternion
-   * @param pMids Mid positions
-   * @param qMids Mid quaternions
+   * @param times Times of the clip
+   * @param initialPosition Initial position
+   * @param initialQuaternion Initial quaternion
+   * @param midPositions Middle positions
+   * @param midQuaternions Middle quaternions
    * @returns Animation clip
    */
   static generateClip(

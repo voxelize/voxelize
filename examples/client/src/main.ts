@@ -729,8 +729,9 @@ const start = async () => {
   arm.connect(inputs, "in-game");
   controls.attachArm(arm);
   bar.onFocusChange((_, current) => {
-    const mesh = world.makeBlockMesh(current.content, { material: "basic" });
-    arm.setMesh(mesh, false);
+    const block = world.makeBlockMesh(current.content, { material: "basic" });
+    arm.setArmObject(block, false);
+    // character.setArmObject(block);
   });
 
   // debug.registerDisplay("Active Voxels", async () => {

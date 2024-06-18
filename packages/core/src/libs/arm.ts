@@ -53,7 +53,7 @@ const SWING_QUATERNIONS = [
 ];
 
 export type ArmOptions = {
-  armMesh?: THREE.Object3D;
+  armObject?: THREE.Object3D;
   armPosition?: THREE.Vector3;
   armQuaternion?: THREE.Quaternion;
   blockPosition?: THREE.Vector3;
@@ -62,7 +62,7 @@ export type ArmOptions = {
 };
 
 const defaultOptions: ArmOptions = {
-  armMesh: undefined,
+  armObject: undefined,
   armPosition: ARM_POSITION,
   armQuaternion: ARM_QUATERION,
   blockPosition: BLOCK_POSITION,
@@ -107,7 +107,7 @@ export class Arm extends THREE.Group {
       BLOCK_SWING_POSITIONS,
       SWING_QUATERNIONS
     );
-    this.setArmMesh();
+    this.setArm();
   }
 
   /**
@@ -141,26 +141,29 @@ export class Arm extends THREE.Group {
   };
 
   /**
-   * Set a new mesh for the arm. If `animate` is true, the transition will be animated.
+   * Set a new object for the arm. If `animate` is true, the transition will be animated.
    *
-   * @param mesh New mesh for the arm
+   * @param object New object for the arm
    * @param animate Whether to animate the transition
    */
-  public setMesh = (mesh: THREE.Object3D | undefined, animate: boolean) => {
+  public setArmObject = (
+    object: THREE.Object3D | undefined,
+    animate: boolean
+  ) => {
     if (!animate) {
       this.clear();
 
-      if (!mesh) {
-        this.setArmMesh();
+      if (!object) {
+        this.setArm();
       } else {
-        this.setBlockMesh(mesh);
+        this.setBlock(object);
       }
     } else {
       // TODO(balta): Create animation of arm coming down and coming back up
     }
   };
 
-  private setArmMesh = () => {
+  private setArm = () => {
     const arm = new CanvasBox({ width: 0.3, height: 1, depth: 0.3 });
     arm.paint("all", new THREE.Color(ARM_COLOR));
     arm.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
@@ -176,11 +179,11 @@ export class Arm extends THREE.Group {
     this.add(arm);
   };
 
-  private setBlockMesh = (mesh: THREE.Object3D) => {
-    mesh.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
-    mesh.quaternion.multiply(BLOCK_QUATERNION);
+  private setBlock = (object: THREE.Object3D) => {
+    object.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
+    object.quaternion.multiply(BLOCK_QUATERNION);
 
-    this.mixer = new THREE.AnimationMixer(mesh);
+    this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
@@ -188,7 +191,7 @@ export class Arm extends THREE.Group {
     // TODO(balta): Only swing if block is placed, come up with better logic for this
     this.rightClickSwing = true;
 
-    this.add(mesh);
+    this.add(object);
   };
 
   /**

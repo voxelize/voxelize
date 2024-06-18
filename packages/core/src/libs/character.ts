@@ -8,6 +8,7 @@ import {
   Group,
   LoopOnce,
   MathUtils,
+  Object3D,
   Quaternion,
   Vector3,
 } from "three";
@@ -474,10 +475,12 @@ export class Character extends Group {
    * actually lerp to the new position and rotation. Note that when a character is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
-  update(delta: number) {
-    this.mixer.update(delta);
+  update(delta?: number) {
+    if (delta) {
+      this.mixer.update(delta);
+    }
     this.calculateDelta();
-    // this.playArmSwingAnimation();
+    this.playArmSwingAnimation();
     this.playWalkingAnimation();
     this.lerpAll();
   }
@@ -765,6 +768,8 @@ export class Character extends Group {
       this.options.swingLerp
     );
 
+    if (this.swingAnimation.isRunning()) return;
+
     this.rightArmGroup.rotation.x = MathUtils.lerp(
       this.rightArmGroup.rotation.x,
       Math.sin((performance.now() * speed) / scale + Math.PI) * amplitude,
@@ -820,5 +825,14 @@ export class Character extends Group {
       this.swingAnimation.reset();
       this.swingAnimation.play();
     }
+  };
+
+  /**
+   * Set the character's arm item.
+   *
+   * @param object The object to set as the arm item.
+   */
+  public setArmObject = (object: Object3D) => {
+    this.rightArmGroup.add(object);
   };
 }
