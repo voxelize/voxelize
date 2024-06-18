@@ -832,7 +832,28 @@ export class Character extends Group {
    *
    * @param object The object to set as the arm item.
    */
-  public setArmObject = (object: Object3D) => {
-    this.rightArmGroup.add(object);
+  public setArmObject = (object: Object3D | undefined) => {
+    const objectName = "armObject";
+
+    const existingObject = this.rightArmGroup.getObjectByName(objectName);
+    if (existingObject) {
+      this.rightArmGroup.remove(existingObject);
+    }
+
+    if (object) {
+      const size = 0.3;
+      const halfSize = size * 0.5;
+
+      object.name = objectName;
+      object.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 4);
+      object.scale.set(size, size, size);
+      object.position.set(
+        this.options.arms.width,
+        -this.options.arms.height - halfSize,
+        -this.options.arms.depth - halfSize
+      );
+
+      this.rightArmGroup.add(object);
+    }
   };
 }

@@ -729,9 +729,22 @@ const start = async () => {
   arm.connect(inputs, "in-game");
   controls.attachArm(arm);
   bar.onFocusChange((_, current) => {
-    const block = world.makeBlockMesh(current.content, { material: "basic" });
-    arm.setArmObject(block, false);
-    // character.setArmObject(block);
+    const armBlock = world.makeBlockMesh(current.content, {
+      material: "basic",
+    });
+    arm.setArmObject(armBlock, false);
+    const characterBlock = world.makeBlockMesh(current.content, {
+      material: "basic",
+    });
+    // const size = 0.3;
+    // characterBlock.quaternion.setFromAxisAngle(
+    //   new THREE.Vector3(0, 1, 0),
+    //   -Math.PI / 4
+    // );
+    // characterBlock.scale.set(size, size, size);
+    // characterBlock.position.set(0, -size * 0.5, -size * 0.5);
+
+    character.setArmObject(characterBlock);
   });
 
   // debug.registerDisplay("Active Voxels", async () => {
