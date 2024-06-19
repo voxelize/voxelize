@@ -103,11 +103,6 @@ export class Peers<
    */
   public packets: MessageProtocol<any, any, any, any>[] = [];
 
-  /**
-   * An internal clock instance for calculating delta time.
-   */
-  private clock = new Clock();
-
   private infoJsonCache: string | null = null;
 
   /**
@@ -335,9 +330,6 @@ export class Peers<
   update() {
     if (!this.object) return;
 
-    // Normalize the delta
-    const delta = Math.min(0.1, this.clock.getDelta());
-
     const info = this.packInfo();
 
     if (this.ownPeer && info) {
@@ -367,8 +359,7 @@ export class Peers<
         if (child === this.ownPeer) return;
 
         if (child instanceof Character) {
-          // @ts-ignore
-          child.update(delta);
+          child.update();
         }
       });
     }

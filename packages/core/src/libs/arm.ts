@@ -83,6 +83,11 @@ export class Arm extends THREE.Group {
 
   private rightClickSwing = false;
 
+  /**
+   * An internal clock instance for calculating delta time.
+   */
+  private clock = new THREE.Clock();
+
   emitSwingEvent: () => void;
 
   constructor(options: Partial<ArmOptions> = {}) {
@@ -201,7 +206,10 @@ export class Arm extends THREE.Group {
    * Update the arm's animation. Note that when a arm is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
-  public update(delta: number) {
+  public update() {
+    // Normalize the delta
+    const delta = Math.min(0.1, this.clock.getDelta());
+
     this.mixer.update(delta);
   }
 

@@ -3,6 +3,7 @@ import {
   AnimationAction,
   AnimationClip,
   AnimationMixer,
+  Clock,
   Color,
   DoubleSide,
   Group,
@@ -402,6 +403,11 @@ export class Character extends Group {
   private armSwingAnimation: AnimationAction;
 
   /**
+   * An internal clock instance for calculating delta time.
+   */
+  private clock = new Clock();
+
+  /**
    * Create a new Voxelize character.
    *
    * @param options Parameters to create a Voxelize character.
@@ -475,10 +481,11 @@ export class Character extends Group {
    * actually lerp to the new position and rotation. Note that when a character is attached to a control,
    * `update` is called automatically within the control's update loop.
    */
-  update(delta?: number) {
-    if (delta) {
-      this.mixer.update(delta);
-    }
+  update() {
+    // Normalize the delta
+    const delta = Math.min(0.1, this.clock.getDelta());
+
+    this.mixer.update(delta);
     this.calculateDelta();
     this.playArmSwingAnimation();
     this.playWalkingAnimation();
