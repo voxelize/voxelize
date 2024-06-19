@@ -211,17 +211,6 @@ perspective.connect(inputs, "in-game");
 
 const network = new VOXELIZE.Network();
 
-window.addEventListener("resize", () => {
-  const width = window.innerWidth as number;
-  const height = window.innerHeight as number;
-
-  renderer.setSize(width, height);
-  renderer.pixelRatio = window.devicePixelRatio;
-
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-});
-
 controls.on("lock", () => {
   inputs.setNamespace("in-game");
 });
@@ -796,6 +785,20 @@ const start = async () => {
   const armCamera = camera.clone();
   lightShined.add(arm);
   armScene.add(arm);
+
+  window.addEventListener("resize", () => {
+    const width = window.innerWidth as number;
+    const height = window.innerHeight as number;
+
+    renderer.setSize(width, height);
+    renderer.pixelRatio = window.devicePixelRatio;
+
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    armCamera.aspect = width / height;
+    armCamera.updateProjectionMatrix();
+  });
 
   arm.connect(inputs, "in-game");
   controls.attachArm(arm);
