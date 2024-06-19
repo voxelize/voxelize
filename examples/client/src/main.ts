@@ -283,14 +283,84 @@ inputs.bind(
 //   { identifier: "BRUH" }
 // );
 
-const peers = new VOXELIZE.Peers<VOXELIZE.Character>(controls.object);
-
-peers.createPeer = createCharacter;
-
-peers.onPeerUpdate = (object, data, info) => {
-  object.set(data.position, data.direction);
-  object.username = info.username;
+type PeersMeta = {
+  direction: number[];
+  position: number[];
+  holdingObjectId: number;
 };
+
+class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
+  constructor(public object?: THREE.Object3D) {
+    super(object);
+  }
+
+  createPeer = createCharacter;
+
+  onPeerUpdate = (
+    object: VOXELIZE.Character,
+    data: PeersMeta,
+    info: { id: string; username: string }
+  ) => {
+    object.set(data.position, data.direction);
+    object.username = info.username;
+    if (
+      object instanceof VOXELIZE.Character &&
+      data.holdingObjectId !== undefined &&
+      data.holdingObjectId !== object.holdingObjectId &&
+      world.isInitialized
+    ) {
+      const newHoldingObjectId = data.holdingObjectId;
+      const characterBlock = world.makeBlockMesh(newHoldingObjectId, {
+        material: "basic",
+      });
+      if (characterBlock) {
+        const size = 0.3;
+        characterBlock.quaternion.setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          -Math.PI / 4
+        );
+        characterBlock.scale.set(size, size, size);
+        characterBlock.position.set(0, -size * 0.5, -size * 0.5);
+      }
+      character.setArmHoldingObject(characterBlock, newHoldingObjectId);
+    }
+  };
+
+  packInfo = () => {
+    const emptyQ = new THREE.Quaternion();
+    const emptyP = new THREE.Vector3();
+
+    if (!this.object) return;
+
+    const {
+      x: dx,
+      y: dy,
+      z: dz,
+    } = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(this.object.getWorldQuaternion(emptyQ))
+      .normalize();
+    const { x: px, y: py, z: pz } = this.object.getWorldPosition(emptyP);
+
+    let holdingObjectId = 0;
+
+    if (this.ownPeer) {
+      holdingObjectId = this.ownPeer.holdingObjectId;
+    }
+
+    return {
+      id: this.ownID,
+      username: this.ownUsername,
+      metadata: {
+        position: [px, py, pz],
+        direction: [dx, dy, dz],
+        holdingObjectId,
+      } as any as PeersMeta,
+    };
+  };
+}
+
+const peers = new Peers(controls.object);
+peers.setOwnPeer(character);
 
 world.add(peers);
 
@@ -749,7 +819,7 @@ const start = async () => {
       characterBlock.scale.set(size, size, size);
       characterBlock.position.set(0, -size * 0.5, -size * 0.5);
     }
-    character.setArmHoldingObject(characterBlock);
+    character.setArmHoldingObject(characterBlock, current.content);
   });
 
   // debug.registerDisplay("Active Voxels", async () => {
