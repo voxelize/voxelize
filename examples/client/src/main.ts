@@ -306,7 +306,7 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
     if (
       object instanceof VOXELIZE.Character &&
       data.holding_object_id !== undefined &&
-      data.holding_object_id !== object.holdingObjectId &&
+      data.holding_object_id !== object.userData.holdingObjectId &&
       world.isInitialized
     ) {
       const newHoldingObjectId = data.holding_object_id;
@@ -322,7 +322,8 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
         characterBlock.scale.set(size, size, size);
         characterBlock.position.set(0, -size * 0.5, -size * 0.5);
       }
-      object.setArmHoldingObject(characterBlock, newHoldingObjectId);
+      object.setArmHoldingObject(characterBlock);
+      object.userData.holdingObjectId = data.holding_object_id;
     }
   };
 
@@ -344,7 +345,7 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
     let holdingObjectId = 0;
 
     if (this.ownPeer) {
-      holdingObjectId = this.ownPeer.holdingObjectId;
+      holdingObjectId = this.ownPeer.userData.holdingObjectId ?? 0;
     }
 
     return {
@@ -819,7 +820,8 @@ const start = async () => {
       characterBlock.scale.set(size, size, size);
       characterBlock.position.set(0, -size * 0.5, -size * 0.5);
     }
-    character.setArmHoldingObject(characterBlock, current.content);
+    character.userData.holdingObjectId = current.content;
+    character.setArmHoldingObject(characterBlock);
   });
 
   // debug.registerDisplay("Active Voxels", async () => {

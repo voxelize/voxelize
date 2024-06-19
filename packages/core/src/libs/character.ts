@@ -387,11 +387,6 @@ export class Character extends Group {
   public extraData: any = null;
 
   /**
-   * The id of the object the character is holding with zero being the default value.
-   */
-  public holdingObjectId = 0;
-
-  /**
    * A listener called when a character starts moving.
    */
   onMove: () => void;
@@ -848,10 +843,8 @@ export class Character extends Group {
    */
   public setArmHoldingObject = (
     object: Object3D | undefined,
-    objectId: number,
     side: "left" | "right" = "right"
   ) => {
-    this.holdingObjectId = objectId;
     const objectName = "armObject";
 
     let armGroup = this.rightArmGroup;
