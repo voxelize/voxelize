@@ -438,6 +438,18 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private clock = new Clock();
 
   /**
+   * A list of packets that will be sent to the server.
+   *
+   * @hidden
+   */
+  public packets: MessageProtocol<any, any, any, any>[] = [];
+
+  /**
+   * The client's own peer ID. This is set when the client first connects to the server.
+   */
+  public ownID = "";
+
+  /**
    * This is the identifier that is used to bind the rigid controls' keyboard inputs
    * when {@link RigidControls.connect} is called.
    */
@@ -508,6 +520,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     message: MessageProtocol<any, any, any, [number, number, number]>
   ) => {
     switch (message.type) {
+      case "INIT": {
+        const { id } = message.json;
+        this.ownID = id;
+        break;
+      }
       case "EVENT": {
         const { events } = message;
 
@@ -927,6 +944,17 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     arm.getWorldPosition = (position: Vector3) => {
       position.copy(this.object.position);
       return position;
+    };
+    arm.emitSwingEvent = () => {
+      this.packets.push({
+        type: "EVENT",
+        events: [
+          {
+            name: "vox-builtin:arm-swing",
+            payload: this.ownID,
+          },
+        ],
+      });
     };
   };
 

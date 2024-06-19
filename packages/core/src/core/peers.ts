@@ -220,10 +220,9 @@ export class Peers<
         for (const event of events) {
           const { name, payload: id } = event;
 
-          const peer = this.getObjectByName(id);
-
           switch (name.toLowerCase()) {
             case "vox-builtin:arm-swing": {
+              const peer = this.getObjectByName(id);
               if (peer && peer instanceof Character) {
                 peer.playArmSwingAnimation();
               }
