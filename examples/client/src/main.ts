@@ -322,7 +322,7 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
         characterBlock.scale.set(size, size, size);
         characterBlock.position.set(0, -size * 0.5, -size * 0.5);
       }
-      character.setArmHoldingObject(characterBlock, newHoldingObjectId);
+      object.setArmHoldingObject(characterBlock, newHoldingObjectId);
     }
   };
 
@@ -353,7 +353,7 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
       metadata: {
         position: [px, py, pz],
         direction: [dx, dy, dz],
-        holdingObjectId,
+        holding_object_id: holdingObjectId,
       } as any as PeersMeta,
     };
   };

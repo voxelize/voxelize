@@ -1,3 +1,4 @@
+use fern::meta;
 use serde::Deserialize;
 use specs::Entity;
 use voxelize::{default_client_parser, World};
@@ -6,7 +7,7 @@ use super::components::{HoldingObjectIdComp, RoleComp};
 
 #[derive(Deserialize, Default)]
 struct ClientJSON {
-    role: String,
+    // role: String,
     holding_object_id: u32,
 }
 
@@ -20,12 +21,12 @@ fn client_parser(world: &mut World, metadata: &str, ent: Entity) {
 
     let metadata = serde_json::from_str::<ClientJSON>(metadata).unwrap_or_default();
 
-    {
-        let mut roles = world.write_component::<RoleComp>();
-        if let Some(role) = roles.get_mut(ent) {
-            role.0 = metadata.role.to_owned();
-        }
-    }
+    // {
+    //     let mut roles = world.write_component::<RoleComp>();
+    //     if let Some(role) = roles.get_mut(ent) {
+    //         role.0 = metadata.role.to_owned();
+    //     }
+    // }
 
     {
         let mut holding_object_ids = world.write_component::<HoldingObjectIdComp>();
