@@ -1,5 +1,5 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/protocol";
-import { Group, Object3D, Quaternion, Vector3 } from "three";
+import { Clock, Group, Object3D, Quaternion, Vector3 } from "three";
 
 import { Character } from "../libs";
 
@@ -102,6 +102,11 @@ export class Peers<
    * @hidden
    */
   public packets: MessageProtocol<any, any, any, any>[] = [];
+
+  /**
+   * An internal clock instance for calculating delta time.
+   */
+  private clock = new Clock();
 
   private infoJsonCache: string | null = null;
 
@@ -214,6 +219,26 @@ export class Peers<
         this.onPeerLeave?.(id, peer as C);
         break;
       }
+      case "EVENT": {
+        const { events } = message;
+
+        for (const event of events) {
+          const { name, payload: id } = event;
+
+          const peer = this.getObjectByName(id);
+
+          switch (name.toLowerCase()) {
+            case "vox-builtin:arm-swing": {
+              if (peer && peer instanceof Character) {
+                peer.playArmSwing();
+              }
+              break;
+            }
+          }
+        }
+
+        break;
+      }
       default: {
         break;
       }
@@ -310,6 +335,9 @@ export class Peers<
   update() {
     if (!this.object) return;
 
+    // Normalize the delta
+    const delta = Math.min(0.1, this.clock.getDelta());
+
     const info = this.packInfo();
 
     if (this.ownPeer && info) {
@@ -340,7 +368,7 @@ export class Peers<
 
         if (child instanceof Character) {
           // @ts-ignore
-          child.update();
+          child.update(delta);
         }
       });
     }

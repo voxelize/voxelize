@@ -728,6 +728,9 @@ const start = async () => {
 
   arm.connect(inputs, "in-game");
   controls.attachArm(arm);
+  arm.emitSwingEvent = () => {
+    events.emit("vox-builtin:arm-swing", peers.ownID);
+  };
   bar.onFocusChange((_, current) => {
     const armBlock = world.makeBlockMesh(current.content, {
       material: "basic",

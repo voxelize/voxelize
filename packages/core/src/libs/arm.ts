@@ -83,6 +83,8 @@ export class Arm extends THREE.Group {
 
   private rightClickSwing = false;
 
+  emitSwingEvent: () => void;
+
   constructor(options: Partial<ArmOptions> = {}) {
     super();
 
@@ -119,12 +121,12 @@ export class Arm extends THREE.Group {
    * @param namespace The namespace to bind the arm's keyboard inputs to.
    */
   public connect = (inputs: Inputs, namespace = "*") => {
-    const unbindLeftClick = inputs.click("left", this.playSwing, namespace);
+    const unbindLeftClick = inputs.click("left", this.doSwing, namespace);
     const unbindRightClick = inputs.click(
       "right",
       () => {
         if (this.rightClickSwing) {
-          this.playSwing();
+          this.doSwing();
         }
       },
       namespace
@@ -204,9 +206,19 @@ export class Arm extends THREE.Group {
   }
 
   /**
+   * Perform an arm swing by playing the swing animation and sending an event to the network.
+   */
+  public doSwing = () => {
+    this.playSwingAnimation();
+    if (this.emitSwingEvent) {
+      this.emitSwingEvent();
+    }
+  };
+
+  /**
    * Play the "swing" animation.
    */
-  private playSwing = () => {
+  private playSwingAnimation = () => {
     if (this.swingAnimation) {
       this.swingAnimation.reset();
       this.swingAnimation.play();

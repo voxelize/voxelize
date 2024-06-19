@@ -397,9 +397,9 @@ export class Character extends Group {
 
   private mixer: AnimationMixer;
 
-  private swingClip: AnimationClip;
+  private armSwingClip: AnimationClip;
 
-  private swingAnimation: AnimationAction;
+  private armSwingAnimation: AnimationAction;
 
   /**
    * Create a new Voxelize character.
@@ -455,7 +455,7 @@ export class Character extends Group {
     const position = this.rightArmGroup.position;
     const quaternion = this.rightArmGroup.quaternion;
 
-    this.swingClip = AnimationUtils.generateClip(
+    this.armSwingClip = AnimationUtils.generateClip(
       "characterArmSwing",
       SWING_TIMES,
       position,
@@ -465,9 +465,9 @@ export class Character extends Group {
     );
 
     this.mixer = new AnimationMixer(this.rightArmGroup);
-    this.swingAnimation = this.mixer.clipAction(this.swingClip);
-    this.swingAnimation.setLoop(LoopOnce, 1);
-    this.swingAnimation.clampWhenFinished = true;
+    this.armSwingAnimation = this.mixer.clipAction(this.armSwingClip);
+    this.armSwingAnimation.setLoop(LoopOnce, 1);
+    this.armSwingAnimation.clampWhenFinished = true;
   }
 
   /**
@@ -768,7 +768,7 @@ export class Character extends Group {
       this.options.swingLerp
     );
 
-    if (this.swingAnimation.isRunning()) return;
+    if (this.armSwingAnimation.isRunning()) return;
 
     this.rightArmGroup.rotation.x = MathUtils.lerp(
       this.rightArmGroup.rotation.x,
@@ -804,8 +804,12 @@ export class Character extends Group {
    * @param namespace The namespace to bind the arm's keyboard inputs to.
    */
   public connect = (inputs: Inputs, namespace = "*") => {
-    const unbindLeftClick = inputs.click("left", this.playSwing, namespace);
-    const unbindRightClick = inputs.click("right", this.playSwing, namespace);
+    const unbindLeftClick = inputs.click("left", this.playArmSwing, namespace);
+    const unbindRightClick = inputs.click(
+      "right",
+      this.playArmSwing,
+      namespace
+    );
 
     return () => {
       try {
@@ -820,10 +824,10 @@ export class Character extends Group {
   /**
    * Play the "swing" animation.
    */
-  private playSwing = () => {
-    if (this.swingAnimation) {
-      this.swingAnimation.reset();
-      this.swingAnimation.play();
+  public playArmSwing = () => {
+    if (this.armSwingAnimation) {
+      this.armSwingAnimation.reset();
+      this.armSwingAnimation.play();
     }
   };
 
