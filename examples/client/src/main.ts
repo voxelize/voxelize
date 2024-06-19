@@ -286,7 +286,7 @@ inputs.bind(
 type PeersMeta = {
   direction: number[];
   position: number[];
-  holdingObjectId: number;
+  holding_object_id: number;
 };
 
 class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
@@ -305,11 +305,11 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
     object.username = info.username;
     if (
       object instanceof VOXELIZE.Character &&
-      data.holdingObjectId !== undefined &&
-      data.holdingObjectId !== object.holdingObjectId &&
+      data.holding_object_id !== undefined &&
+      data.holding_object_id !== object.holdingObjectId &&
       world.isInitialized
     ) {
-      const newHoldingObjectId = data.holdingObjectId;
+      const newHoldingObjectId = data.holding_object_id;
       const characterBlock = world.makeBlockMesh(newHoldingObjectId, {
         material: "basic",
       });

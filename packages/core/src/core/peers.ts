@@ -243,6 +243,7 @@ export class Peers<
 
     if (peers) {
       peers.forEach((peer: any) => {
+        console.log(peer.metadata);
         if (!this.options.countSelf && (!this.ownID || peer.id === this.ownID))
           return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id, peer);
@@ -350,6 +351,7 @@ export class Peers<
           peers: [info],
         };
 
+        console.log(info);
         this.packets.push(event);
       }
     }
