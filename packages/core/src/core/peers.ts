@@ -1,5 +1,5 @@
 import { MessageProtocol, PeerProtocol } from "@voxelize/protocol";
-import { Clock, Group, Object3D, Quaternion, Vector3 } from "three";
+import { Group, Object3D, Quaternion, Vector3 } from "three";
 
 import { Character } from "../libs";
 

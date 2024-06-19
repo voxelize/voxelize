@@ -448,6 +448,7 @@ pub fn setup_terrain_world() -> World {
     setup_entities(&mut world);
     setup_dispatcher(&mut world);
     setup_methods(&mut world);
+    setup_client(&mut world);
 
     world.set_method_handle("time", |world, _, payload| {
         let time_per_day = world.config().time_per_day as f32;
