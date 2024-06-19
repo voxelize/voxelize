@@ -35,7 +35,9 @@ export type CommandProcessor = (rest: string) => void;
  *
  * @category Core
  */
-export class Chat implements NetIntercept {
+export class Chat<T extends ChatProtocol = ChatProtocol>
+  implements NetIntercept
+{
   /**
    * A list of commands added by `addCommand`.
    */
@@ -58,7 +60,7 @@ export class Chat implements NetIntercept {
    *
    * @param chat The chat message to send.
    */
-  public send(chat: ChatProtocol) {
+  public send(chat: T) {
     if (chat.body.startsWith(this._commandSymbol)) {
       const words = chat.body
         .substring(this._commandSymbol.length)
@@ -81,7 +83,7 @@ export class Chat implements NetIntercept {
     });
   }
 
-  public onChat: (chat: ChatProtocol) => void;
+  public onChat: (chat: T) => void;
 
   /**
    * Add a command to the chat system. Commands are case sensitive.
@@ -142,7 +144,7 @@ export class Chat implements NetIntercept {
       }
       case "CHAT": {
         const { chat } = message;
-        this.onChat?.(chat);
+        this.onChat?.(chat as T);
         break;
       }
     }
