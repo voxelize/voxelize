@@ -16,5 +16,6 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {},
+    emptyOutDir: process.env.NODE_ENV === "production",
   },
 });

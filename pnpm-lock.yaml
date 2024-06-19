@@ -327,9 +327,6 @@ importers:
       '@types/uuid':
         specifier: ^8.3.4
         version: 8.3.4
-      npm-run-all:
-        specifier: ^4.1.5
-        version: 4.1.5
       postprocessing:
         specifier: ^6.35.0
         version: 6.35.0(three@0.165.0)

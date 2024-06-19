@@ -13,7 +13,7 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "watch": "pnpm build --watch",
+    "watch": "cross-env NODE_ENV=development pnpm build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
     "prepublishOnly": "yarn run build",
     "start": "webpack serve --config example/webpack.config.js",

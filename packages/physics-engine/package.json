@@ -14,7 +14,7 @@
     "types": "./dist/index.d.ts"
   },
   "scripts": {
-    "dev": "yarn run build --watch",
+    "watch": "yarn run build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
     "prepublishOnly": "yarn run build",
     "start": "webpack serve --config example/webpack.config.js",
