@@ -487,8 +487,8 @@ export class Character extends Group {
 
     this.mixer.update(delta);
     this.calculateDelta();
-    this.playArmSwingAnimation();
-    this.playWalkingAnimation();
+    this.playArmsWalkingAnimation();
+    this.playLegsWalkingAnimation();
     this.lerpAll();
   }
 
@@ -759,7 +759,7 @@ export class Character extends Group {
   /**
    * Play the walking animation for the character, in other words the arm movements.
    */
-  private playArmSwingAnimation = () => {
+  private playArmsWalkingAnimation = () => {
     const scale = 100;
     const speed = Math.max(this.speed, this.options.idleArmSwing);
     const amplitude = speed * 1;
@@ -792,7 +792,7 @@ export class Character extends Group {
   /**
    * Play the walking animation for the character, in other words the leg movements.
    */
-  private playWalkingAnimation = () => {
+  private playLegsWalkingAnimation = () => {
     const scale = 100;
     const amplitude = this.speed * 1;
 
@@ -811,17 +811,15 @@ export class Character extends Group {
    * @param namespace The namespace to bind the arm's keyboard inputs to.
    */
   public connect = (inputs: Inputs, namespace = "*") => {
-    const unbindLeftClick = inputs.click("left", this.playArmSwing, namespace);
-    const unbindRightClick = inputs.click(
-      "right",
-      this.playArmSwing,
+    const unbindLeftClick = inputs.click(
+      "left",
+      this.playArmSwingAnimation,
       namespace
     );
 
     return () => {
       try {
         unbindLeftClick();
-        unbindRightClick();
       } catch (e) {
         // Ignore.
       }
@@ -831,7 +829,7 @@ export class Character extends Group {
   /**
    * Play the "swing" animation.
    */
-  public playArmSwing = () => {
+  public playArmSwingAnimation = () => {
     if (this.armSwingAnimation) {
       this.armSwingAnimation.reset();
       this.armSwingAnimation.play();

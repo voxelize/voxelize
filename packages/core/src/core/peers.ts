@@ -225,7 +225,7 @@ export class Peers<
           switch (name.toLowerCase()) {
             case "vox-builtin:arm-swing": {
               if (peer && peer instanceof Character) {
-                peer.playArmSwing();
+                peer.playArmSwingAnimation();
               }
               break;
             }

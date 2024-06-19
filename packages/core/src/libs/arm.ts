@@ -81,8 +81,6 @@ export class Arm extends THREE.Group {
 
   private swingAnimation: THREE.AnimationAction;
 
-  private rightClickSwing = false;
-
   /**
    * An internal clock instance for calculating delta time.
    */
@@ -127,20 +125,10 @@ export class Arm extends THREE.Group {
    */
   public connect = (inputs: Inputs, namespace = "*") => {
     const unbindLeftClick = inputs.click("left", this.doSwing, namespace);
-    const unbindRightClick = inputs.click(
-      "right",
-      () => {
-        if (this.rightClickSwing) {
-          this.doSwing();
-        }
-      },
-      namespace
-    );
 
     return () => {
       try {
         unbindLeftClick();
-        unbindRightClick();
       } catch (e) {
         // Ignore.
       }
@@ -181,8 +169,6 @@ export class Arm extends THREE.Group {
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
 
-    this.rightClickSwing = false;
-
     this.add(arm);
   };
 
@@ -194,9 +180,6 @@ export class Arm extends THREE.Group {
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
     this.swingAnimation.clampWhenFinished = true;
-
-    // TODO(balta): Only swing if block is placed, come up with better logic for this
-    this.rightClickSwing = true;
 
     this.add(object);
   };
