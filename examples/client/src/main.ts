@@ -746,7 +746,7 @@ const start = async () => {
       characterBlock.scale.set(size, size, size);
       characterBlock.position.set(0, -size * 0.5, -size * 0.5);
     }
-    character.setArmObject(characterBlock);
+    character.setArmHoldingObject(characterBlock);
   });
 
   // debug.registerDisplay("Active Voxels", async () => {

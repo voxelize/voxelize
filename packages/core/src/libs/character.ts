@@ -828,16 +828,24 @@ export class Character extends Group {
   };
 
   /**
-   * Set the character's arm item.
+   * Set the character's arm holding object.
    *
-   * @param object The object to set as the arm item.
+   * @param object The object to set as the arm holding object.
    */
-  public setArmObject = (object: Object3D | undefined) => {
+  public setArmHoldingObject = (
+    object: Object3D | undefined,
+    side: "left" | "right" = "right"
+  ) => {
     const objectName = "armObject";
 
-    const existingObject = this.rightArmGroup.getObjectByName(objectName);
+    let armGroup = this.rightArmGroup;
+    if (side === "left") {
+      armGroup = this.leftArmGroup;
+    }
+
+    const existingObject = armGroup.getObjectByName(objectName);
     if (existingObject) {
-      this.rightArmGroup.remove(existingObject);
+      armGroup.remove(existingObject);
     }
 
     if (object) {
@@ -846,13 +854,13 @@ export class Character extends Group {
       // Position object at the "hand" of the arm.
       object.position.add(
         new Vector3(
-          this.options.arms.width,
+          this.options.arms.width * (side === "left" ? -1 : 1),
           -this.options.arms.height,
           -this.options.arms.depth
         )
       );
 
-      this.rightArmGroup.add(object);
+      armGroup.add(object);
     }
   };
 }
