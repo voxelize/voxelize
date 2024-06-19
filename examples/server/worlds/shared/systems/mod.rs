@@ -1,4 +1,4 @@
-mod role_metadata;
+mod extra_peer_meta;
 mod rotation_metadata;
 mod text_metadata;
 mod void_kill;
@@ -13,7 +13,7 @@ use voxelize::{
 };
 
 use self::{
-    role_metadata::ExtraPeerMetaSystem, rotation_metadata::RotationMetadataSystem,
+    extra_peer_meta::ExtraPeerMetaSystem, rotation_metadata::RotationMetadataSystem,
     text_metadata::TextMetadataSystem, void_kill::VoidKillSystem,
 };
 
