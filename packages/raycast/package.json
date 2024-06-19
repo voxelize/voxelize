@@ -2,21 +2,18 @@
   "name": "@voxelize/raycast",
   "version": "1.0.9",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
-  "main": "src/index.ts",
-  "publishConfig": {
-    "access": "public",
-    "main": "./dist/index.js",
-    "module": "./dist/index.mjs",
-    "exports": {
-      "require": "./dist/index.js",
-      "import": "./dist/index.mjs"
-    },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
     "types": "./dist/index.d.ts"
   },
+  "types": "./dist/index.d.ts",
   "scripts": {
+    "watch": "pnpm build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
     "prepublishOnly": "yarn run build",
     "start": "webpack serve --config example/webpack.config.js",
@@ -26,7 +23,7 @@
   "author": "Ian Huang <21ianh1@students.tas.tw>",
   "license": "MIT",
   "dependencies": {
-    "@voxelize/aabb": "*",
+    "@voxelize/aabb": "workspace:*",
     "tsup": "^5.12.7",
     "typescript": "^4.6.4",
     "vitest": "^0.10.4"

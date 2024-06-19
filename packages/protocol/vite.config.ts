@@ -4,7 +4,15 @@ import { defineConfig } from "vite";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
 
 export default defineConfig({
-  plugins: [externalizeDeps()],
+  plugins: [
+    externalizeDeps({}),
+    // copy([
+    //   {
+    //     src: path.resolve(__dirname, "./src/protocol.*"),
+    //     dest: path.resolve(__dirname, "./dist/protocol.*"),
+    //   },
+    // ]),
+  ],
   base: "./",
   build: {
     minify: false,

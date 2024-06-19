@@ -3,7 +3,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "cross-env RUST_BACKTRACE=full cargo watch -w server -x \"build --release\"",
+    "watch": "pnpm -r --parallel --filter \"@voxelize/*\" watch",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "build": "cd packages && pnpm -r --filter \"@voxelize/*\" build",
     "demo:ts": "cd examples/client && yarn demo",

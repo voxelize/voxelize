@@ -2,21 +2,18 @@
   "name": "@voxelize/aabb",
   "version": "1.0.0",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
-  "publishConfig": {
-    "access": "public",
-    "main": "./dist/index.js",
-    "module": "./dist/index.mjs",
-    "exports": {
-      "require": "./dist/index.js",
-      "import": "./dist/index.mjs"
-    },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
     "types": "./dist/index.d.ts"
   },
-  "main": "src/index.ts",
+  "types": "./dist/index.d.ts",
   "scripts": {
+    "watch": "pnpm build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
     "prepublishOnly": "yarn run build",
     "start": "webpack serve --config example/webpack.config.js"

@@ -1,6 +1,7 @@
 import path from "path";
 
 import { defineConfig } from "vite";
+import { copy } from "vite-plugin-copy";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
 import glsl from "vite-plugin-glsl";
 import stringReplace from "vite-plugin-string-replace";
@@ -17,6 +18,12 @@ export default defineConfig({
       {
         search: "__VOXELIZE_VERSION__",
         replace: version,
+      },
+    ]),
+    copy([
+      {
+        src: path.resolve(__dirname, "./src/styles.css"),
+        dest: path.resolve(__dirname, "./dist/styles.css"),
       },
     ]),
   ],

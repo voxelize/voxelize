@@ -2,14 +2,19 @@
   "name": "@voxelize/protocol",
   "version": "1.0.33",
   "license": "MIT",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
+    "types": "./dist/index.d.ts"
+  },
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "watch": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
     "test": "yarn vitest",
     "compile": "vite build",
@@ -23,7 +28,8 @@
     "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {
-    "protobufjs": "^7.2.2"
+    "protobufjs": "^7.2.2",
+    "vite-plugin-copy": "^0.1.6"
   },
   "devDependencies": {
     "@types/protobufjs": "^6.0.0",

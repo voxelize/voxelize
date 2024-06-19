@@ -308,6 +308,9 @@ importers:
       uuid:
         specifier: ^8.3.2
         version: 8.3.2
+      vite-plugin-copy:
+        specifier: ^0.1.6
+        version: 0.1.6
     devDependencies:
       '@types/gl-vec3':
         specifier: ^1.1.1
@@ -324,6 +327,9 @@ importers:
       '@types/uuid':
         specifier: ^8.3.4
         version: 8.3.4
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
       postprocessing:
         specifier: ^6.35.0
         version: 6.35.0(three@0.165.0)
@@ -337,7 +343,7 @@ importers:
   packages/physics-engine:
     dependencies:
       '@voxelize/aabb':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../aabb
       tsup:
         specifier: ^5.12.7
@@ -391,6 +397,9 @@ importers:
       protobufjs:
         specifier: ^7.2.2
         version: 7.2.2
+      vite-plugin-copy:
+        specifier: ^0.1.6
+        version: 0.1.6
     devDependencies:
       '@types/protobufjs':
         specifier: ^6.0.0
@@ -402,7 +411,7 @@ importers:
   packages/raycast:
     dependencies:
       '@voxelize/aabb':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../aabb
       tsup:
         specifier: ^5.12.7
@@ -457,7 +466,7 @@ importers:
   packages/transport:
     dependencies:
       '@voxelize/protocol':
-        specifier: '*'
+        specifier: workspace:*
         version: link:../protocol
       fflate:
         specifier: ^0.7.3
@@ -13115,6 +13124,7 @@ packages:
   /pidtree@0.3.1:
     resolution: {integrity: sha512-qQbW94hLHEqCg7nhby4yRC7G2+jYHY4Rguc2bjw7Uug4GIJuu1tvf2uHaZv5Q8zdt+WKJ6qK1FOI6amaWUo5FA==}
     engines: {node: '>=0.10'}
+    hasBin: true
     dev: true
 
   /pify@2.3.0:
@@ -14718,6 +14728,7 @@ packages:
 
   /semver@5.7.1:
     resolution: {integrity: sha512-sauaDf/PZdVgrLTNYHRtpXa1iRiKcaebiKQ1BJdpQlWH2lCvexQdX55snPFyK7QzpudqbCI0qXFfOasHdyNDGQ==}
+    hasBin: true
     dev: true
 
   /semver@6.3.1:
@@ -15010,6 +15021,7 @@ packages:
   /source-map@0.6.1:
     resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
     engines: {node: '>=0.10.0'}
+    requiresBuild: true
 
   /source-map@0.7.4:
     resolution: {integrity: sha512-l3BikUxvPOcn5E74dZiq5BGsTb5yEwhaTSzccU6t4sDOH8NWJCstKO5QT2CvtFoK6F0saL7p9xHAqHOlCPJygA==}
@@ -16129,6 +16141,13 @@ packages:
       - terser
     dev: true
 
+  /vite-plugin-copy@0.1.6:
+    resolution: {integrity: sha512-bqIaefZOE2Jx8P5wJuHKL5GzCERa/pcwdUQWaocyTNXgalN2xkxXH7LmqRJ34V2OlKF2F9E/zj0zITS7U6PpUg==}
+    engines: {node: '>=14.8.0'}
+    dependencies:
+      fast-glob: 3.3.2
+    dev: false
+
   /vite-plugin-externalize-deps@0.8.0(vite@5.2.11):
     resolution: {integrity: sha512-MdC8kRNQ1ZjhUicU2HcqGVhL0UUFqv83Zp1JZdHjE82PoPR8wsSWZ3axpot7B6img3sW6g8shYJikE0CKA0chA==}
     peerDependencies:
@@ -16746,6 +16765,7 @@ packages:
 
   /which@1.3.1:
     resolution: {integrity: sha512-HxJdYWq1MTIQbJ3nw0cqssHoTNU267KlrDuGZ1WYlxDStUtKUhOaJmh112/TZmHxxUfuJqPXSOm7tDyas0OSIQ==}
+    hasBin: true
     dependencies:
       isexe: 2.0.0
 

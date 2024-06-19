@@ -254,8 +254,8 @@ export class Network {
       // custom Protobuf event sending
       ws.sendEvent = async (event: any) => {
         while (!this.connected) {
-          console.log(`waiting for websocket connection...`)
-          await new Promise(resolve => setTimeout(resolve, 100))
+          console.log(`waiting for websocket connection...`);
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
         ws.send(Network.encodeSync(event));
       };

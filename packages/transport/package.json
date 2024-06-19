@@ -2,15 +2,19 @@
   "name": "@voxelize/transport",
   "version": "1.0.33",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "src"
-  ],
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
+    "types": "./dist/index.d.ts"
+  },
   "scripts": {
-    "dev": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
+    "watch": "npm-run-all --parallel \"compile -w\" \"types -w --preserveWatchOutput\"",
     "clean": "rimraf ./dist",
     "compile": "vite build",
     "build": "yarn run clean && yarn run compile && yarn run types",
@@ -20,7 +24,7 @@
     "preinstall": "npx only-allow pnpm"
   },
   "dependencies": {
-    "@voxelize/protocol": "*",
+    "@voxelize/protocol": "workspace:*",
     "fflate": "^0.7.3",
     "protobufjs": "^7.2.2",
     "websocket": "^1.0.34"

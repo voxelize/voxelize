@@ -8,7 +8,6 @@ import {
   MessageProtocol,
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
-import { NetIntercept } from "../../core/network";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -34,6 +33,7 @@ import {
   Vector3,
 } from "three";
 
+import { NetIntercept } from "../../core/network";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { Coords2, Coords3 } from "../../types";

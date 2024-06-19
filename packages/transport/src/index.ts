@@ -1,4 +1,4 @@
-import protocol from "@voxelize/protocol";
+import { protocol } from "@voxelize/protocol";
 import * as fflate from "fflate";
 import {
   client as WebSocket,
@@ -7,7 +7,7 @@ import {
 
 import { MessageProtocol } from "./types";
 
-const { Message, Entity } = protocol.protocol;
+const { Message, Entity } = protocol;
 
 /**
  * @noInheritDoc
@@ -49,7 +49,7 @@ export class Transport extends WebSocket {
   onEvent?: (event: MessageProtocol) => void;
   onAction?: (event: MessageProtocol) => void;
 
-  connect = async (address: string, secret: string) => {
+  async connect(address: string, secret: string) {
     this.address = address;
     this.secret = secret;
 
@@ -99,7 +99,7 @@ export class Transport extends WebSocket {
         resolve();
       });
     });
-  };
+  }
 
   send = (event: MessageProtocol) => {
     if (!this.connection) return;
