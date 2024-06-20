@@ -106,6 +106,11 @@ export class Peers<
   private infoJsonCache: string | null = null;
 
   /**
+   * Maps the peer ID to the peer object.
+   */
+  private peerMap: Map<string, C> = new Map();
+
+  /**
    * Create a peers manager to add multiplayer functionality to your Voxelize game.
    *
    * @param object The object that is used to send client's own data back to the server.
@@ -174,8 +179,8 @@ export class Peers<
 
     const internalOnJoin = (id: string) => {
       const peer = this.createPeer(id);
-      peer.name = id;
       this.add(peer);
+      this.peerMap.set(id, peer);
       return peer;
     };
 
@@ -195,7 +200,7 @@ export class Peers<
           return;
         }
 
-        const peer = this.getObjectByName(id);
+        const peer = this.getPeerById(id);
 
         if (peer) {
           break;
@@ -207,7 +212,7 @@ export class Peers<
       }
       case "LEAVE": {
         const { text: id } = message;
-        const peer = this.getObjectByName(id);
+        const peer = this.getPeerById(id);
 
         if (peer) this.remove(peer);
 
@@ -222,7 +227,7 @@ export class Peers<
 
           switch (name.toLowerCase()) {
             case "vox-builtin:arm-swing": {
-              const peer = this.getObjectByName(id);
+              const peer = this.getPeerById(id);
               if (peer && peer instanceof Character) {
                 peer.playArmSwingAnimation();
               }
@@ -246,7 +251,8 @@ export class Peers<
           return;
         if (message.type === "INIT") this.onPeerJoin?.(peer.id, peer);
 
-        let object = this.getObjectByName(peer.id) as C;
+        let object = this.getPeerById(peer.id);
+
         if (!object) {
           object = internalOnJoin(peer.id);
         }
@@ -313,12 +319,12 @@ export class Peers<
   }
 
   /**
-   * Get a peer instance by its ID. This uses the `getObjectByName` method of the peers group.
+   * Get a peer instance by its ID using the `peerMap`.
    *
    * @param id The ID of the peer to get.
    * @returns The peer object with the given ID.
    */
-  getPeerById = (id: string) => this.getObjectByName(id) as C;
+  getPeerById = (id: string) => this.peerMap.get(id);
 
   /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
