@@ -227,7 +227,9 @@ export class Network {
     this.socket.protocol = this.socket.protocol.replace(/http/, "ws");
     this.socket.hash = "";
     this.socket.searchParams.set("secret", options.secret || "");
-    this.socket.searchParams.set("client_id", this.clientInfo.id || "");
+    if (this.clientInfo.id) {
+      this.socket.searchParams.set("client_id", this.clientInfo.id);
+    }
 
     const MAX = 10000;
     let index = Math.floor(Math.random() * MAX).toString();
