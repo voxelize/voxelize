@@ -1,9 +1,6 @@
 use specs::{ReadStorage, System, WriteStorage};
 
-use crate::{
-    world::components::{MetadataComp, PositionComp},
-    ClientFlag, DirectionComp, NameComp,
-};
+use crate::world::components::{ClientFlag, DirectionComp, MetadataComp, NameComp, PositionComp};
 
 pub struct PeersMetaSystem;
 

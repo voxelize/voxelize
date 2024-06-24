@@ -1,11 +1,11 @@
 use nanoid::nanoid;
 use specs::Builder;
 use voxelize::{
-    BrainComp, InteractorComp, PathComp, PositionComp, RigidBody, RigidBodyComp, TargetComp, World,
-    AABB,
+    BrainComp, DirectionComp, InteractorComp, PathComp, PositionComp, RigidBody, RigidBodyComp,
+    TargetComp, World, AABB,
 };
 
-use super::components::{BotFlag, RotationComp, TextComp};
+use super::components::{BotFlag, TextComp};
 
 const MAX_NODES: usize = 24;
 const MAX_DISTANCE: f64 = 30.0;
@@ -37,7 +37,11 @@ pub fn setup_entities(world: &mut World) {
                     .get::<PathComp>("path")
                     .unwrap_or_else(|| PathComp::new(MAX_NODES, MAX_DISTANCE)),
             )
-            .with(metadata.get::<RotationComp>("rotation").unwrap_or_default())
+            .with(
+                metadata
+                    .get::<DirectionComp>("direction")
+                    .unwrap_or_default(),
+            )
             .with(RigidBodyComp::new(&body))
             .with(InteractorComp::new(&interactor))
             .with(BrainComp::default())

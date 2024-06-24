@@ -1,5 +1,4 @@
 mod extra_peer_meta;
-mod rotation_metadata;
 mod text_metadata;
 mod void_kill;
 
@@ -13,8 +12,8 @@ use voxelize::{
 };
 
 use self::{
-    extra_peer_meta::ExtraPeerMetaSystem, rotation_metadata::RotationMetadataSystem,
-    text_metadata::TextMetadataSystem, void_kill::VoidKillSystem,
+    extra_peer_meta::ExtraPeerMetaSystem, text_metadata::TextMetadataSystem,
+    void_kill::VoidKillSystem,
 };
 
 pub fn setup_dispatcher(world: &mut World) {
@@ -26,7 +25,6 @@ pub fn setup_dispatcher(world: &mut World) {
             .with(PathFindingSystem, "path-finding", &["entity-observe"])
             .with(TextMetadataSystem, "text-meta", &[])
             .with(TargetMetadataSystem, "target-meta", &[])
-            .with(RotationMetadataSystem, "rotation-meta", &[])
             .with(PathMetadataSystem, "path-meta", &[])
             .with(EntityTreeSystem, "entity-tree", &[])
             .with(WalkTowardsSystem, "walk-towards", &["path-finding"])
@@ -36,7 +34,6 @@ pub fn setup_dispatcher(world: &mut World) {
                 &[
                     "text-meta",
                     "target-meta",
-                    "rotation-meta",
                     "path-meta",
                     "entity-observe",
                     "entity-tree",

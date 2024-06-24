@@ -421,7 +421,7 @@ const entities = new VOXELIZE.Entities();
 
 type BotData = {
   position: VOXELIZE.Coords3;
-  rotation: [number, number, number, number];
+  direction: number[];
   target: [VOXELIZE.TargetType, VOXELIZE.Coords3];
   path: {
     maxNodes: number;
