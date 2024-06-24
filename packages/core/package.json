@@ -8,19 +8,15 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "exports": {
-    "require": "./dist/index.js",
-    "import": "./dist/index.mjs",
-    "types": "./dist/index.d.ts"
-  },
   "scripts": {
     "clean": "rimraf ./dist",
     "compile": "vite build",
-    "build": "yarn run clean && yarn run compile && yarn run types",
+    "build": "yarn run clean && yarn run compile && yarn run types && yarn run copy",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "watch": "cross-env NODE_ENV=development npm-run-all --parallel watch:*",
     "watch:build": "pnpm types --watch --preserveWatchOutput",
     "watch:compile": "pnpm compile --watch",
+    "copy": "cp ./src/styles.css ./dist",
     "test": "vitest --run",
     "prepublishOnly": "yarn run build",
     "preinstall": "npx only-allow pnpm"

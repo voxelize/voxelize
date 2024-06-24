@@ -23,7 +23,7 @@ export default defineConfig({
     copy([
       {
         src: path.resolve(__dirname, "./src/styles.css"),
-        dest: path.resolve(__dirname, "./dist/styles.css"),
+        dest: path.resolve(__dirname, "./dist"),
       },
     ]),
   ],
