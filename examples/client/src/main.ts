@@ -182,8 +182,6 @@ const shadows = new VOXELIZE.Shadows(world);
 
 const character = createCharacter();
 
-character.connect(inputs, "in-game");
-
 const controls = new VOXELIZE.RigidControls(
   camera,
   renderer.domElement,
@@ -785,6 +783,8 @@ const start = async () => {
   const armCamera = camera.clone();
   lightShined.add(arm);
   armScene.add(arm);
+  arm.connect(inputs, "in-game");
+  controls.attachArm(arm);
 
   window.addEventListener("resize", () => {
     const width = window.innerWidth as number;
@@ -800,8 +800,6 @@ const start = async () => {
     armCamera.updateProjectionMatrix();
   });
 
-  arm.connect(inputs, "in-game");
-  controls.attachArm(arm);
   bar.onFocusChange((_, current) => {
     const armBlock = world.makeBlockMesh(current.content, {
       material: "basic",

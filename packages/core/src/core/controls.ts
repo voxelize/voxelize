@@ -946,6 +946,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       return position;
     };
     arm.emitSwingEvent = () => {
+      this.character.playArmSwingAnimation();
       this.packets.push({
         type: "EVENT",
         events: [

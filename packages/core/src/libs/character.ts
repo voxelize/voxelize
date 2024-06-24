@@ -803,30 +803,6 @@ export class Character extends Group {
   };
 
   /**
-   * Connect the character to the given input manager. This will allow the character to listen to left
-   * and right clicks to play arm animations. This function returns a function that when called
-   * unbinds the arm's keyboard inputs.
-   *
-   * @param inputs The {@link Inputs} instance to bind the arm's keyboard inputs to.
-   * @param namespace The namespace to bind the arm's keyboard inputs to.
-   */
-  public connect = (inputs: Inputs, namespace = "*") => {
-    const unbindLeftClick = inputs.click(
-      "left",
-      this.playArmSwingAnimation,
-      namespace
-    );
-
-    return () => {
-      try {
-        unbindLeftClick();
-      } catch (e) {
-        // Ignore.
-      }
-    };
-  };
-
-  /**
    * Play the "swing" animation.
    */
   public playArmSwingAnimation = () => {
