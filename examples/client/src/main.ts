@@ -430,7 +430,6 @@ type BotData = {
 };
 
 const botPaths = new THREE.Group();
-const botCharacters = new Map<string, VOXELIZE.Character>();
 
 world.add(botPaths);
 
@@ -464,8 +463,6 @@ class Bot extends VOXELIZE.Entity<BotData> {
     lightShined.add(this.character);
 
     botPaths.add(this.path);
-
-    botCharacters.set(id, this.character);
   }
 
   adjustPosition = (position: VOXELIZE.Coords3) => {
@@ -485,7 +482,6 @@ class Bot extends VOXELIZE.Entity<BotData> {
     });
 
     botPaths.remove(this.path);
-    botCharacters.delete(this.entityId);
   };
 
   onUpdate = (data: BotData) => {
@@ -525,6 +521,10 @@ class Bot extends VOXELIZE.Entity<BotData> {
         this.path.add(mesh);
       }
     }
+  };
+
+  update = () => {
+    this.character.update();
   };
 }
 
@@ -737,7 +737,7 @@ const start = async () => {
     debug.update();
     lightShined.update();
     voxelInteract.update();
-    botCharacters.forEach((bot) => bot.update());
+    entities.update();
   };
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
