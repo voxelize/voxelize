@@ -71,11 +71,17 @@ const SWING_QUATERNIONS = [
  * ```
  * where `CHARACTER_SCALE` is 0.9.
  */
-export type HeadOptions = CanvasBoxOptions & {
+
+type ColorCanvasBoxOptions = CanvasBoxOptions & {
+  color: Color | string;
+};
+
+export type HeadOptions = ColorCanvasBoxOptions & {
   /**
    * The distance between the head and the body.
    */
   neckGap?: number;
+  faceColor?: Color | string;
 };
 
 /**
@@ -92,7 +98,7 @@ export type HeadOptions = CanvasBoxOptions & {
  * ```
  * where `CHARACTER_SCALE` is 0.9.
  */
-export type BodyOptions = CanvasBoxOptions;
+export type BodyOptions = ColorCanvasBoxOptions;
 
 /**
  * Parameters to create the legs of a character.
@@ -114,7 +120,7 @@ export type BodyOptions = CanvasBoxOptions;
  * where `CHARACTER_SCALE` is 0.9.
  */
 
-export type LegOptions = CanvasBoxOptions & {
+export type LegOptions = ColorCanvasBoxOptions & {
   /**
    * The gap between the legs.
    */
@@ -140,7 +146,7 @@ export type LegOptions = CanvasBoxOptions & {
  * }
  * ```
  */
-export type ArmsOptions = CanvasBoxOptions & {
+export type ArmsOptions = ColorCanvasBoxOptions & {
   /**
    * The distance from the top of the body to the top of the arms.
    */
@@ -213,6 +219,8 @@ const defaultCharacterOptions: CharacterOptions = {
 };
 
 const defaultHeadOptions: HeadOptions = {
+  color: "#96baff",
+  faceColor: "#f99999",
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -226,6 +234,7 @@ const defaultHeadOptions: HeadOptions = {
 };
 
 const defaultBodyOptions: BodyOptions = {
+  color: "#2b2e42",
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -234,6 +243,7 @@ const defaultBodyOptions: BodyOptions = {
 };
 
 const defaultArmsOptions: ArmsOptions = {
+  color: ARM_COLOR,
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -248,6 +258,7 @@ const defaultArmsOptions: ArmsOptions = {
 };
 
 const defaultLegsOptions: LegOptions = {
+  color: "#96baff",
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -571,26 +582,51 @@ export class Character extends Group {
     );
   }
 
-  set bodyColor(color: string) {
+  set bodyColor(color: string | Color) {
     this.body.paint("all", new Color(color));
+    this.options.body.color = color;
   }
 
-  set armColor(color: string) {
+  get bodyColor(): string | Color {
+    return this.options.body.color;
+  }
+
+  set armColor(color: string | Color) {
     this.leftArm.paint("all", new Color(color));
     this.rightArm.paint("all", new Color(color));
+    this.options.arms.color = color;
   }
 
-  set legColor(color: string) {
+  get armColor(): string | Color {
+    return this.options.arms.color;
+  }
+
+  set legColor(color: string | Color) {
     this.leftLeg.paint("all", new Color(color));
     this.rightLeg.paint("all", new Color(color));
+    this.options.legs.color = color;
   }
 
-  set headColor(color: string) {
+  get legColor(): string | Color {
+    return this.options.legs.color;
+  }
+
+  set headColor(color: string | Color) {
     this.head.paint("all", new Color(color));
+    this.options.head.color = color;
   }
 
-  set faceColor(color: string) {
+  get headColor(): string | Color {
+    return this.options.head.color;
+  }
+
+  set faceColor(color: string | Color) {
     this.head.paint("front", new Color(color));
+    this.options.head.faceColor = color;
+  }
+
+  get faceColor(): string | Color {
+    return this.options.head.faceColor;
   }
 
   /**
@@ -683,13 +719,13 @@ export class Character extends Group {
       this.rightLegGroup.position.x += this.options.legs.betweenLegsGap / 2;
     }
 
-    head.paint("all", new Color("#96baff"));
-    head.paint("front", new Color("#f99999"));
-    body.paint("all", new Color("#2b2e42"));
-    leftArm.paint("all", new Color(ARM_COLOR));
-    rightArm.paint("all", new Color(ARM_COLOR));
-    leftLeg.paint("all", new Color("#96baff"));
-    rightLeg.paint("all", new Color("#96baff"));
+    head.paint("all", new Color(this.options.head.color));
+    head.paint("front", new Color(this.options.head.faceColor));
+    body.paint("all", new Color(this.options.body.color));
+    leftArm.paint("all", new Color(this.options.arms.color));
+    rightArm.paint("all", new Color(this.options.arms.color));
+    leftLeg.paint("all", new Color(this.options.legs.color));
+    rightLeg.paint("all", new Color(this.options.legs.color));
 
     this.add(this.headGroup, this.bodyGroup);
 
