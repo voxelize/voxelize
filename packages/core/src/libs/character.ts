@@ -21,8 +21,6 @@ import { NameTag, NameTagOptions } from "./nametag";
 
 const CHARACTER_SCALE = 0.9;
 
-export const ARM_COLOR = "#548ca8";
-
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
 const SWING_QUATERNIONS = [
@@ -81,7 +79,7 @@ export type HeadOptions = ColorCanvasBoxOptions & {
    * The distance between the head and the body.
    */
   neckGap?: number;
-  faceColor?: Color | string;
+  faceColor: Color | string;
 };
 
 /**
@@ -210,7 +208,7 @@ export type CharacterOptions = {
   arms?: Partial<ArmsOptions>;
 };
 
-const defaultCharacterOptions: CharacterOptions = {
+export const defaultCharacterOptions: CharacterOptions = {
   swingLerp: 0.8,
   walkingSpeed: 1.4,
   positionLerp: 0.7,
@@ -218,7 +216,7 @@ const defaultCharacterOptions: CharacterOptions = {
   idleArmSwing: 0.06,
 };
 
-const defaultHeadOptions: HeadOptions = {
+export const defaultHeadOptions: HeadOptions = {
   color: "#96baff",
   faceColor: "#f99999",
   gap: 0.1 * CHARACTER_SCALE,
@@ -233,7 +231,7 @@ const defaultHeadOptions: HeadOptions = {
   neckGap: 0.05 * CHARACTER_SCALE,
 };
 
-const defaultBodyOptions: BodyOptions = {
+export const defaultBodyOptions: BodyOptions = {
   color: "#2b2e42",
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
@@ -242,8 +240,8 @@ const defaultBodyOptions: BodyOptions = {
   widthSegments: 16,
 };
 
-const defaultArmsOptions: ArmsOptions = {
-  color: ARM_COLOR,
+export const defaultArmsOptions: ArmsOptions = {
+  color: "#548ca8",
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,
   side: DoubleSide,
@@ -257,7 +255,7 @@ const defaultArmsOptions: ArmsOptions = {
   shoulderDrop: 0.25 * CHARACTER_SCALE,
 };
 
-const defaultLegsOptions: LegOptions = {
+export const defaultLegsOptions: LegOptions = {
   color: "#96baff",
   gap: 0.1 * CHARACTER_SCALE,
   layers: 1,

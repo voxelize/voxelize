@@ -4,7 +4,7 @@ import { Inputs } from "../core/inputs";
 import { AnimationUtils } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
-import { ARM_COLOR } from "./character";
+import { defaultArmsOptions } from "./character";
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
@@ -58,7 +58,7 @@ export type ArmOptions = {
   armQuaternion?: THREE.Quaternion;
   blockPosition?: THREE.Vector3;
   blockQuaternion?: THREE.Quaternion;
-  armColor?: string;
+  armColor?: string | THREE.Color;
 };
 
 const defaultOptions: ArmOptions = {
@@ -67,7 +67,7 @@ const defaultOptions: ArmOptions = {
   armQuaternion: ARM_QUATERION,
   blockPosition: BLOCK_POSITION,
   blockQuaternion: BLOCK_QUATERNION,
-  armColor: ARM_COLOR,
+  armColor: defaultArmsOptions.color,
 };
 
 export class Arm extends THREE.Group {
@@ -160,7 +160,7 @@ export class Arm extends THREE.Group {
 
   private setArm = () => {
     const arm = new CanvasBox({ width: 0.3, height: 1, depth: 0.3 });
-    arm.paint("all", new THREE.Color(ARM_COLOR));
+    arm.paint("all", new THREE.Color(this.options.armColor));
     arm.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
     arm.quaternion.multiply(ARM_QUATERION);
 
