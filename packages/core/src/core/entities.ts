@@ -53,7 +53,10 @@ export class Entity<T = any> extends Group {
  */
 export class Entities extends Group implements NetIntercept {
   public map: Map<string, Entity> = new Map();
-  public types: Map<string, new (id: string) => Entity> = new Map();
+  public types: Map<
+    string,
+    (new (id: string) => Entity) | ((id: string) => Entity)
+  > = new Map();
 
   /**
    * Set a new entity type to the entities manager.
@@ -61,7 +64,10 @@ export class Entities extends Group implements NetIntercept {
    * @param type The type of entity to register.
    * @param entity The entity class to register.
    */
-  setClass = (type: string, entity: new (id: string) => Entity) => {
+  setClass = (
+    type: string,
+    entity: (new (id: string) => Entity) | ((id: string) => Entity)
+  ) => {
     this.types.set(type.toLowerCase(), entity);
   };
 
@@ -139,7 +145,16 @@ export class Entities extends Group implements NetIntercept {
     }
 
     const Entity = this.types.get(type.toLowerCase());
-    const object = new Entity(id);
+    let object;
+    if (
+      typeof Entity === "function" &&
+      Entity.prototype &&
+      Entity.prototype.constructor
+    ) {
+      object = new (Entity as new (id: string) => Entity)(id);
+    } else {
+      object = (Entity as (id: string) => Entity)(id);
+    }
     this.map.set(id, object);
     this.add(object);
 
