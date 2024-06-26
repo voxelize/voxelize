@@ -213,7 +213,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const {
       occasion = "keydown",
       identifier = "default",
-      checkType = "key",
+      checkType = "code",
     } = specifics;
 
     const name = key + occasion;
@@ -228,7 +228,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
     const callbackWrapper = (event: KeyboardEvent) => {
       const eventKey = checkType === "code" ? event.code : event.key;
-      if (eventKey.toLowerCase() === key.toLowerCase()) {
+      if (this.modifyKey(eventKey) === this.modifyKey(key)) {
         callback(event);
       }
     };
@@ -327,12 +327,22 @@ export class Inputs<T extends string = any> extends EventEmitter {
   swap = (
     keyA: string,
     keyB: string,
-    specifics: { occasion?: InputOccasion; identifier?: string } = {}
+    specifics: {
+      occasion?: InputOccasion;
+      identifier?: string;
+      checkType?: "key" | "code";
+    } = {}
   ) => {
+    const originalKeyA = keyA;
+    const originalKeyB = keyB;
     keyA = this.modifyKey(keyA);
     keyB = this.modifyKey(keyB);
 
-    const { occasion = "keydown", identifier = "default" } = specifics;
+    const {
+      occasion = "keydown",
+      identifier = "default",
+      checkType = "code",
+    } = specifics;
 
     const nameA = keyA + occasion;
     const nameB = keyB + occasion;
@@ -358,8 +368,16 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
     unbindA();
     unbindB();
-    this.bind(keyB, callbackA, namespaceA, specifics);
-    this.bind(keyA, callbackB, namespaceB, specifics);
+    this.bind(originalKeyB, callbackA, namespaceA, {
+      occasion,
+      identifier,
+      checkType,
+    });
+    this.bind(originalKeyA, callbackB, namespaceB, {
+      occasion,
+      identifier,
+      checkType,
+    });
   };
 
   /**
@@ -372,11 +390,21 @@ export class Inputs<T extends string = any> extends EventEmitter {
   remap = (
     oldKey: string,
     newKey: string,
-    specifics: { occasion?: InputOccasion; identifier?: string } = {}
+    specifics: {
+      occasion?: InputOccasion;
+      identifier?: string;
+      checkType?: "key" | "code";
+    } = {}
   ) => {
+    const originalNewKey = newKey;
     oldKey = this.modifyKey(oldKey);
+    newKey = this.modifyKey(newKey);
 
-    const { occasion = "keydown", identifier = "default" } = specifics;
+    const {
+      occasion = "keydown",
+      identifier = "default",
+      checkType = "code",
+    } = specifics;
 
     const name = oldKey + occasion;
     const bounds = (this.keyBounds.get(name) || {})[identifier];
@@ -386,9 +414,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
     }
 
     const { unbind, callback, namespace } = bounds;
-
     unbind();
-    this.bind(newKey, callback, namespace, specifics);
+
+    this.bind(originalNewKey, callback, namespace, {
+      occasion,
+      identifier,
+      checkType,
+    });
   };
 
   /**
