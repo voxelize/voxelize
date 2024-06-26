@@ -111,7 +111,7 @@ export class Peers<
   /**
    * Maps the peer ID to the peer object.
    */
-  private map: Map<string, C> = new Map();
+  public map: Map<string, C> = new Map();
 
   /**
    * Create a peers manager to add multiplayer functionality to your Voxelize game.
@@ -220,6 +220,7 @@ export class Peers<
         const peer = this.getPeerById(id);
 
         if (peer && this.options.autoAddToSelf) this.remove(peer);
+        this.map.delete(id);
 
         this.onPeerLeave?.(id, peer as C);
         break;
