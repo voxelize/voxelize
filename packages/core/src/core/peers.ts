@@ -24,11 +24,14 @@ export type PeersOptions = {
    * mesh. Defaults to `true`.
    */
   updateChildren: boolean;
+
+  autoAddToSelf: boolean;
 };
 
 const defaultOptions: PeersOptions = {
   countSelf: false,
   updateChildren: true,
+  autoAddToSelf: true,
 };
 
 /**
@@ -179,7 +182,9 @@ export class Peers<
 
     const internalOnJoin = (id: string) => {
       const peer = this.createPeer(id);
-      this.add(peer);
+      if (this.options.autoAddToSelf) {
+        this.add(peer);
+      }
       this.peerMap.set(id, peer);
       return peer;
     };
@@ -214,7 +219,7 @@ export class Peers<
         const { text: id } = message;
         const peer = this.getPeerById(id);
 
-        if (peer) this.remove(peer);
+        if (peer && this.options.autoAddToSelf) this.remove(peer);
 
         this.onPeerLeave?.(id, peer as C);
         break;
@@ -278,7 +283,9 @@ export class Peers<
    */
   setOwnPeer(peer: C) {
     this.ownPeer = peer;
-    this.add(peer);
+    if (this.options.autoAddToSelf) {
+      this.add(peer);
+    }
   }
 
   /**
@@ -288,6 +295,7 @@ export class Peers<
    */
   setOwnUsername(username: string) {
     this.ownUsername = username;
+    this.ownPeer.name = username;
   }
 
   /**
