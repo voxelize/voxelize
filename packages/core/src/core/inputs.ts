@@ -445,6 +445,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Make everything lower case.
    */
   private modifyKey = (key: string) => {
+    if (!key) return key;
     // Make first character upper case
     return (
       key.length > 1 ? key.charAt(0).toUpperCase() + key.slice(1) : key
