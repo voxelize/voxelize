@@ -132,6 +132,14 @@ export class Entities extends Group implements NetIntercept {
     }
   };
 
+  /**
+   * Get an entity instance by its ID.
+   *
+   * @param id The ID of the entity to get.
+   * @returns The entity object with the given ID.
+   */
+  getEntityById = (id: string) => this.map.get(id);
+
   update = () => {
     this.map.forEach((entity) => {
       entity.update?.();

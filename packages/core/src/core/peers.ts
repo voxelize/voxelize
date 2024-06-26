@@ -111,7 +111,7 @@ export class Peers<
   /**
    * Maps the peer ID to the peer object.
    */
-  private peerMap: Map<string, C> = new Map();
+  private map: Map<string, C> = new Map();
 
   /**
    * Create a peers manager to add multiplayer functionality to your Voxelize game.
@@ -185,7 +185,7 @@ export class Peers<
       if (this.options.autoAddToSelf) {
         this.add(peer);
       }
-      this.peerMap.set(id, peer);
+      this.map.set(id, peer);
       return peer;
     };
 
@@ -327,12 +327,12 @@ export class Peers<
   }
 
   /**
-   * Get a peer instance by its ID using the `peerMap`.
+   * Get a peer instance by its ID using the `map`.
    *
    * @param id The ID of the peer to get.
    * @returns The peer object with the given ID.
    */
-  getPeerById = (id: string) => this.peerMap.get(id);
+  getPeerById = (id: string) => this.map.get(id);
 
   /**
    * Update the peers manager. Internally, this attempts to call any children that has a `update` method.
