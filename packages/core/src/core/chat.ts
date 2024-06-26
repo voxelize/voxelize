@@ -1,5 +1,7 @@
 import { ChatProtocol, MessageProtocol } from "@voxelize/protocol";
 
+import { DOMUtils } from "../utils/dom-utils";
+
 import { NetIntercept } from "./network";
 
 /**
@@ -54,6 +56,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    * The symbol that is used to trigger commands.
    */
   private _commandSymbol: string;
+  private _commandSymbolCode: string;
 
   /**
    * Send a chat to the server.
@@ -140,6 +143,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       case "INIT": {
         const { commandSymbol } = message.json.options;
         this._commandSymbol = commandSymbol;
+        this._commandSymbolCode = DOMUtils.mapKeyToCode(commandSymbol);
         break;
       }
       case "CHAT": {
@@ -155,5 +159,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
    */
   get commandSymbol(): string {
     return this._commandSymbol;
+  }
+
+  get commandSymbolCode(): string {
+    return this._commandSymbolCode;
   }
 }

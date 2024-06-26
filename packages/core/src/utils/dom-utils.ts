@@ -44,6 +44,53 @@ export class DOMUtils {
     return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${a})`;
   };
 
+  private static keyMap: { [key: string]: string } | null = null;
+
+  static mapKeyToCode = (key: string) => {
+    if (!DOMUtils.keyMap) {
+      DOMUtils.keyMap = {
+        ArrowUp: "KeyW",
+        ArrowDown: "KeyS",
+        ArrowLeft: "KeyA",
+        ArrowRight: "KeyD",
+        Space: "Space",
+        ShiftLeft: "ShiftLeft",
+        ShiftRight: "ShiftRight",
+        ControlLeft: "ControlLeft",
+        ControlRight: "ControlRight",
+        AltLeft: "AltLeft",
+        AltRight: "AltRight",
+        Enter: "Enter",
+        Escape: "Escape",
+        Tab: "Tab",
+        "/": "Slash",
+        ".": "Period",
+        ",": "Comma",
+        ";": "Semicolon",
+        "'": "Quote",
+        "[": "BracketLeft",
+        "]": "BracketRight",
+        "\\": "Backslash",
+        "-": "Minus",
+        "=": "Equal",
+        "`": "Backquote",
+      };
+
+      // Handle regular a-z keys
+      for (let i = 65; i <= 90; i++) {
+        const char = String.fromCharCode(i);
+        DOMUtils.keyMap[char.toLowerCase()] = `Key${char}`;
+      }
+
+      // Handle number keys
+      for (let i = 0; i <= 9; i++) {
+        DOMUtils.keyMap[i.toString()] = `Digit${i}`;
+      }
+    }
+
+    return DOMUtils.keyMap[key] || key;
+  };
+
   private constructor() {
     // NOTHING
   }
