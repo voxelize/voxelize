@@ -873,9 +873,9 @@ export class Character extends Group {
       // Position object at the "hand" of the arm.
       object.position.add(
         new Vector3(
-          this.options.arms.width * (side === "left" ? -1 : 1),
+          (this.options.arms.width * (side === "left" ? -1 : 1)) / 2,
           -this.options.arms.height,
-          -this.options.arms.depth
+          0
         )
       );
 

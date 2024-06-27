@@ -143,7 +143,8 @@ export class Arm extends THREE.Group {
    */
   public setArmObject = (
     object: THREE.Object3D | undefined,
-    animate: boolean
+    animate: boolean,
+    setInitialState = true
   ) => {
     if (!animate) {
       this.clear();
@@ -151,7 +152,7 @@ export class Arm extends THREE.Group {
       if (!object) {
         this.setArm();
       } else {
-        this.setBlock(object);
+        this.setBlock(object, setInitialState);
       }
     } else {
       // TODO(balta): Create animation of arm coming down and coming back up
@@ -172,16 +173,33 @@ export class Arm extends THREE.Group {
     this.add(arm);
   };
 
-  private setBlock = (object: THREE.Object3D) => {
-    object.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
-    object.quaternion.multiply(BLOCK_QUATERNION);
+  private setBlock = (object: THREE.Object3D, setInitialState: boolean) => {
+    if (setInitialState) {
+      object.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
+      object.quaternion.multiply(BLOCK_QUATERNION);
 
-    this.mixer = new THREE.AnimationMixer(object);
-    this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
-    this.swingAnimation.setLoop(THREE.LoopOnce, 1);
-    this.swingAnimation.clampWhenFinished = true;
+      this.mixer = new THREE.AnimationMixer(object);
+      this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
+      this.swingAnimation.setLoop(THREE.LoopOnce, 1);
+      this.swingAnimation.clampWhenFinished = true;
 
-    this.add(object);
+      this.add(object);
+    } else {
+      this.mixer = new THREE.AnimationMixer(object);
+      const newClip = AnimationUtils.generateClip(
+        "customSwing",
+        SWING_TIMES,
+        object.position,
+        object.quaternion,
+        generateSwingPositions(object.position),
+        SWING_QUATERNIONS
+      );
+      this.swingAnimation = this.mixer.clipAction(newClip);
+      this.swingAnimation.setLoop(THREE.LoopOnce, 1);
+      this.swingAnimation.clampWhenFinished = true;
+
+      this.add(object);
+    }
   };
 
   /**
