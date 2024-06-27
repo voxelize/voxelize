@@ -54,19 +54,33 @@ const SWING_QUATERNIONS = [
 
 export type ArmOptions = {
   armObject?: THREE.Object3D;
-  armPosition?: THREE.Vector3;
-  armQuaternion?: THREE.Quaternion;
-  blockPosition?: THREE.Vector3;
-  blockQuaternion?: THREE.Quaternion;
+  armConfiguration?: ArmConfiguration;
+  blockConfiguration?: ArmConfiguration;
   armColor?: string | THREE.Color;
+  defaultConfigurations?: Record<string, ArmOptions>;
+};
+
+type ArmConfiguration = {
+  position?: THREE.Vector3;
+  quaternion?: THREE.Quaternion;
+  swingPositions?: THREE.Vector3[];
+  swingQuaternions?: THREE.Quaternion[];
 };
 
 const defaultOptions: ArmOptions = {
   armObject: undefined,
-  armPosition: ARM_POSITION,
-  armQuaternion: ARM_QUATERION,
-  blockPosition: BLOCK_POSITION,
-  blockQuaternion: BLOCK_QUATERNION,
+  armConfiguration: {
+    position: ARM_POSITION,
+    quaternion: ARM_QUATERION,
+    swingPositions: ARM_SWING_POSITIONS,
+    swingQuaternions: SWING_QUATERNIONS,
+  },
+  blockConfiguration: {
+    position: BLOCK_POSITION,
+    quaternion: BLOCK_QUATERNION,
+    swingPositions: BLOCK_SWING_POSITIONS,
+    swingQuaternions: SWING_QUATERNIONS,
+  },
   armColor: defaultArmsOptions.color,
 };
 
@@ -99,18 +113,18 @@ export class Arm extends THREE.Group {
     this.armSwingClip = AnimationUtils.generateClip(
       "armSwing",
       SWING_TIMES,
-      this.options.armPosition,
-      this.options.armQuaternion,
-      ARM_SWING_POSITIONS,
-      SWING_QUATERNIONS
+      this.options.armConfiguration?.position,
+      this.options.armConfiguration?.quaternion,
+      this.options.armConfiguration?.swingPositions,
+      this.options.armConfiguration?.swingQuaternions
     );
     this.blockSwingClip = AnimationUtils.generateClip(
       "blockSwing",
       SWING_TIMES,
-      this.options.blockPosition,
-      this.options.blockQuaternion,
-      BLOCK_SWING_POSITIONS,
-      SWING_QUATERNIONS
+      this.options.blockConfiguration?.position,
+      this.options.blockConfiguration?.quaternion,
+      this.options.blockConfiguration?.swingPositions,
+      this.options.blockConfiguration?.swingQuaternions
     );
     this.setArm();
   }
