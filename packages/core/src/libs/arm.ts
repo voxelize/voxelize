@@ -54,32 +54,35 @@ const SWING_QUATERNIONS = [
 
 export type ArmOptions = {
   armObject?: THREE.Object3D;
-  armConfiguration?: ArmConfiguration;
-  blockConfiguration?: ArmConfiguration;
+  armObjectOptions: ArmObjectOptions;
+  blockObjectOptions?: ArmObjectOptions;
   armColor?: string | THREE.Color;
-  defaultConfigurations?: Record<string, ArmOptions>;
+  customObjectOptions?: Record<string, ArmObjectOptions>;
 };
 
-type ArmConfiguration = {
-  position?: THREE.Vector3;
-  quaternion?: THREE.Quaternion;
+type ArmObjectOptions = {
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
   swingPositions?: THREE.Vector3[];
   swingQuaternions?: THREE.Quaternion[];
+  swingTimes?: number[];
 };
 
 const defaultOptions: ArmOptions = {
   armObject: undefined,
-  armConfiguration: {
+  armObjectOptions: {
     position: ARM_POSITION,
     quaternion: ARM_QUATERION,
     swingPositions: ARM_SWING_POSITIONS,
     swingQuaternions: SWING_QUATERNIONS,
+    swingTimes: SWING_TIMES,
   },
-  blockConfiguration: {
+  blockObjectOptions: {
     position: BLOCK_POSITION,
     quaternion: BLOCK_QUATERNION,
     swingPositions: BLOCK_SWING_POSITIONS,
     swingQuaternions: SWING_QUATERNIONS,
+    swingTimes: SWING_TIMES,
   },
   armColor: defaultArmsOptions.color,
 };
@@ -94,6 +97,8 @@ export class Arm extends THREE.Group {
   private blockSwingClip: THREE.AnimationClip;
 
   private swingAnimation: THREE.AnimationAction;
+
+  private customSwingClips: Record<string, THREE.AnimationClip>;
 
   /**
    * An internal clock instance for calculating delta time.
@@ -112,20 +117,35 @@ export class Arm extends THREE.Group {
 
     this.armSwingClip = AnimationUtils.generateClip(
       "armSwing",
-      SWING_TIMES,
-      this.options.armConfiguration?.position,
-      this.options.armConfiguration?.quaternion,
-      this.options.armConfiguration?.swingPositions,
-      this.options.armConfiguration?.swingQuaternions
+      this.options.armObjectOptions?.swingTimes,
+      this.options.armObjectOptions?.position,
+      this.options.armObjectOptions?.quaternion,
+      this.options.armObjectOptions?.swingPositions,
+      this.options.armObjectOptions?.swingQuaternions
     );
     this.blockSwingClip = AnimationUtils.generateClip(
       "blockSwing",
-      SWING_TIMES,
-      this.options.blockConfiguration?.position,
-      this.options.blockConfiguration?.quaternion,
-      this.options.blockConfiguration?.swingPositions,
-      this.options.blockConfiguration?.swingQuaternions
+      this.options.blockObjectOptions?.swingTimes,
+      this.options.blockObjectOptions?.position,
+      this.options.blockObjectOptions?.quaternion,
+      this.options.blockObjectOptions?.swingPositions,
+      this.options.blockObjectOptions?.swingQuaternions
     );
+
+    this.customSwingClips = {};
+    for (const [type, options] of Object.entries(
+      this.options.customObjectOptions || {}
+    )) {
+      this.customSwingClips[type] = AnimationUtils.generateClip(
+        `customSwing-${type}`,
+        options.swingTimes ?? SWING_TIMES,
+        options.position,
+        options.quaternion,
+        options.swingPositions ?? generateSwingPositions(options.position),
+        options.swingQuaternions ?? SWING_QUATERNIONS
+      );
+    }
+
     this.setArm();
   }
 
@@ -158,15 +178,17 @@ export class Arm extends THREE.Group {
   public setArmObject = (
     object: THREE.Object3D | undefined,
     animate: boolean,
-    setInitialState = true
+    customType?: string
   ) => {
     if (!animate) {
       this.clear();
 
-      if (!object) {
+      if (customType) {
+        this.setCustomObject(customType, object);
+      } else if (!object) {
         this.setArm();
       } else {
-        this.setBlock(object, setInitialState);
+        this.setBlock(object);
       }
     } else {
       // TODO(balta): Create animation of arm coming down and coming back up
@@ -176,8 +198,12 @@ export class Arm extends THREE.Group {
   private setArm = () => {
     const arm = new CanvasBox({ width: 0.3, height: 1, depth: 0.3 });
     arm.paint("all", new THREE.Color(this.options.armColor));
-    arm.position.set(ARM_POSITION.x, ARM_POSITION.y, ARM_POSITION.z);
-    arm.quaternion.multiply(ARM_QUATERION);
+    arm.position.set(
+      this.options.armObjectOptions?.position.x,
+      this.options.armObjectOptions?.position.y,
+      this.options.armObjectOptions?.position.z
+    );
+    arm.quaternion.multiply(this.options.armObjectOptions?.quaternion);
 
     this.mixer = new THREE.AnimationMixer(arm);
     this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
@@ -187,33 +213,41 @@ export class Arm extends THREE.Group {
     this.add(arm);
   };
 
-  private setBlock = (object: THREE.Object3D, setInitialState: boolean) => {
-    if (setInitialState) {
-      object.position.set(BLOCK_POSITION.x, BLOCK_POSITION.y, BLOCK_POSITION.z);
-      object.quaternion.multiply(BLOCK_QUATERNION);
+  private setBlock = (object: THREE.Object3D) => {
+    object.position.set(
+      this.options.blockObjectOptions?.position.x,
+      this.options.blockObjectOptions?.position.y,
+      this.options.blockObjectOptions?.position.z
+    );
+    object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
-      this.mixer = new THREE.AnimationMixer(object);
-      this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
-      this.swingAnimation.setLoop(THREE.LoopOnce, 1);
-      this.swingAnimation.clampWhenFinished = true;
+    this.mixer = new THREE.AnimationMixer(object);
+    this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
+    this.swingAnimation.setLoop(THREE.LoopOnce, 1);
+    this.swingAnimation.clampWhenFinished = true;
 
-      this.add(object);
-    } else {
-      this.mixer = new THREE.AnimationMixer(object);
-      const newClip = AnimationUtils.generateClip(
-        "customSwing",
-        SWING_TIMES,
-        object.position,
-        object.quaternion,
-        generateSwingPositions(object.position),
-        SWING_QUATERNIONS
-      );
-      this.swingAnimation = this.mixer.clipAction(newClip);
-      this.swingAnimation.setLoop(THREE.LoopOnce, 1);
-      this.swingAnimation.clampWhenFinished = true;
+    this.add(object);
+  };
 
-      this.add(object);
+  private setCustomObject = (type: string, object: THREE.Object3D) => {
+    const options = this.options.customObjectOptions?.[type];
+    if (!options) {
+      throw new Error(`No options found for custom object type: ${type}`);
     }
+
+    object.position.set(
+      options.position.x,
+      options.position.y,
+      options.position.z
+    );
+    object.quaternion.multiply(options.quaternion);
+
+    this.mixer = new THREE.AnimationMixer(object);
+    this.swingAnimation = this.mixer.clipAction(this.customSwingClips[type]);
+    this.swingAnimation.setLoop(THREE.LoopOnce, 1);
+    this.swingAnimation.clampWhenFinished = true;
+
+    this.add(object);
   };
 
   /**
