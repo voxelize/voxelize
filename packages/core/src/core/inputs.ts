@@ -50,7 +50,7 @@ type KeyBoundItem<T extends string> = {
   [key: string]: {
     unbind: () => void;
     callback: (event: KeyboardEvent) => void;
-    namespace: T | "*";
+    namespaces: T | T[] | "*";
   };
 };
 
@@ -205,7 +205,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
   bind = (
     key: string,
     callback: (event: KeyboardEvent) => void,
-    namespace: T | "*" = "*",
+    namespaces: T | T[] | "*" = "*",
     specifics: InputSpecifics = {}
   ) => {
     key = this.modifyKey(key);
@@ -285,7 +285,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
     bounds[identifier] = {
       unbind,
       callback: callbackWrapper,
-      namespace,
+      namespaces,
     };
 
     this.keyBounds.set(name, bounds);
@@ -358,12 +358,12 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const {
       unbind: unbindA,
       callback: callbackA,
-      namespace: namespaceA,
+      namespaces: namespaceA,
     } = boundsA;
     const {
       unbind: unbindB,
       callback: callbackB,
-      namespace: namespaceB,
+      namespaces: namespaceB,
     } = boundsB;
 
     unbindA();
@@ -413,10 +413,10 @@ export class Inputs<T extends string = any> extends EventEmitter {
       throw new Error(`Key ${name} is not bound.`);
     }
 
-    const { unbind, callback, namespace } = bounds;
+    const { unbind, callback, namespaces } = bounds;
     unbind();
 
-    this.bind(originalNewKey, callback, namespace, {
+    this.bind(originalNewKey, callback, namespaces, {
       occasion,
       identifier,
       checkType,
@@ -458,9 +458,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
   private initializeKeyListeners = () => {
     const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>) => {
       Object.values(bounds).forEach((bound) => {
-        const { callback, namespace } = bound;
+        const { callback, namespaces } = bound;
 
-        if (namespace === "*" || namespace === this.namespace) {
+        if (
+          namespaces === "*" || Array.isArray(namespaces)
+            ? new Set(namespaces).has(this.namespace)
+            : namespaces === this.namespace
+        ) {
           callback(e);
         }
       });

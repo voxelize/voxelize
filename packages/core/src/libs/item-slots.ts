@@ -235,6 +235,9 @@ export class ItemSlots<T = number> {
   public slotTotalWidth: number;
   public slotTotalHeight: number;
 
+  public hoveredRow = -1;
+  public hoveredCol = -1;
+
   public onSlotClick: (slot: ItemSlot<T>) => void = noop;
   public onSlotUpdate: (slot: ItemSlot<T>) => void = noop;
   public onFocusChange = (
@@ -440,6 +443,9 @@ export class ItemSlots<T = number> {
       this.canvas.onmousemove = (event) => {
         const { row, col } = this.getRowColFromEvent(event);
 
+        this.hoveredRow = row;
+        this.hoveredCol = col;
+
         if (row === -1 || col === -1) {
           if (mouseHoverPrevRow !== null && mouseHoverPrevCol !== null) {
             this.slots[mouseHoverPrevRow][
@@ -475,6 +481,9 @@ export class ItemSlots<T = number> {
 
     this.canvas.onmouseleave = () => {
       if (!this.activated) return;
+
+      this.hoveredRow = -1;
+      this.hoveredCol = -1;
 
       if (mouseHoverPrevRow !== null && mouseHoverPrevCol !== null) {
         this.slots[mouseHoverPrevRow][
