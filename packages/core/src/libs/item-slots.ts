@@ -130,7 +130,7 @@ export class ItemSlot<T = number> {
 
   getObject = () => this.object;
 
-  setObject = (object: Object3D | Texture) => {
+  setObject = (object: Object3D | HTMLImageElement) => {
     if (this.object) {
       this.scene.remove(this.object);
     }
@@ -140,11 +140,13 @@ export class ItemSlot<T = number> {
       this.scene.add(object);
     } else {
       const geometry = new PlaneGeometry(2, 2);
-      object.colorSpace = SRGBColorSpace;
-      object.minFilter = NearestFilter;
-      object.magFilter = NearestFilter;
+      const texture = new Texture(object);
+      texture.needsUpdate = true;
+      texture.colorSpace = SRGBColorSpace;
+      texture.minFilter = NearestFilter;
+      texture.magFilter = NearestFilter;
       const material = new MeshBasicMaterial({
-        map: object,
+        map: texture,
         transparent: true,
       });
       material.needsUpdate = true;
