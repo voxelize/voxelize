@@ -1,10 +1,16 @@
 import merge from "deepmerge";
 import {
   DirectionalLight,
+  DoubleSide,
+  Mesh,
+  MeshBasicMaterial,
+  NearestFilter,
   Object3D,
   OrthographicCamera,
+  PlaneGeometry,
   Scene,
   SRGBColorSpace,
+  Texture,
   Vector3,
   WebGLRenderer,
 } from "three";
@@ -124,13 +130,30 @@ export class ItemSlot<T = number> {
 
   getObject = () => this.object;
 
-  setObject = (object: Object3D) => {
+  setObject = (object: Object3D | Texture) => {
     if (this.object) {
       this.scene.remove(this.object);
     }
 
-    this.object = object;
-    this.scene.add(object);
+    if (object instanceof Object3D) {
+      this.object = object;
+      this.scene.add(object);
+    } else {
+      const geometry = new PlaneGeometry(2, 2);
+      object.colorSpace = SRGBColorSpace;
+      object.minFilter = NearestFilter;
+      object.magFilter = NearestFilter;
+      const material = new MeshBasicMaterial({
+        map: object,
+        transparent: true,
+      });
+      material.needsUpdate = true;
+      const plane = new Mesh(geometry, material);
+      this.object = plane;
+      this.setPerspective("pz");
+      this.scene.add(plane);
+    }
+
     this.triggerChange();
   };
 
