@@ -1,5 +1,5 @@
-use specs::{ReadStorage, System, WriteStorage};
 use crate::{MetadataComp, TargetComp};
+use specs::{ReadStorage, System, WriteStorage};
 
 pub struct TargetMetadataSystem;
 

@@ -423,7 +423,7 @@ type BotData = {
   position: VOXELIZE.Coords3;
   direction: number[];
   target: {
-    target_type: VOXELIZE.TargetType;
+    targetType: VOXELIZE.TargetType;
     position: VOXELIZE.Coords3;
   };
   path: {

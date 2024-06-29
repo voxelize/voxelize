@@ -15,6 +15,7 @@ pub enum TargetType {
 /// By adding this component, an entity has the ability to scan around
 /// and look at the closest entity.
 #[derive(Component, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 #[storage(VecStorage)]
 pub struct TargetComp {
     pub target_type: TargetType,
