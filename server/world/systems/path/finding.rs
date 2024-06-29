@@ -76,7 +76,7 @@ impl<'a> System<'a> for PathFindingSystem {
         (&bodies, &targets, &mut paths)
             .par_join()
             .for_each(|(body, target, entity_path)| {
-                if let Some(target) = target.1.to_owned() {
+                if let Some(target_position) = target.position.to_owned() {
                     let body_pos = body.0.get_position();
 
                     let height = body.0.aabb.height();
@@ -88,9 +88,9 @@ impl<'a> System<'a> for PathFindingSystem {
                         body_pos.2.floor() as i32,
                     );
                     let target_vpos = Vec3(
-                        target.0.floor() as i32,
-                        target.1.floor() as i32,
-                        target.2.floor() as i32,
+                        target_position.0.floor() as i32,
+                        target_position.1.floor() as i32,
+                        target_position.2.floor() as i32,
                     );
 
                     if !get_is_voxel_passable(target_vpos.0, target_vpos.1, target_vpos.2) {

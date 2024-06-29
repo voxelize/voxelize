@@ -1,6 +1,6 @@
 use crate::Vec3;
 use serde::{Deserialize, Serialize};
-use specs::{Component, VecStorage};
+use specs::{Component, Entity, VecStorage};
 
 pub type EType = String;
 
@@ -16,22 +16,47 @@ pub enum TargetType {
 /// and look at the closest entity.
 #[derive(Component, Debug, Serialize, Deserialize, Default)]
 #[storage(VecStorage)]
-pub struct TargetComp(pub TargetType, pub Option<Vec3<f32>>);
+pub struct TargetComp {
+    pub target_type: TargetType,
+    pub position: Option<Vec3<f32>>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub entity: Option<Entity>,
+}
 
 impl TargetComp {
-    pub fn new(target_type: TargetType, target_position: Option<Vec3<f32>>) -> Self {
-        TargetComp(target_type, target_position)
+    pub fn new(
+        target_type: TargetType,
+        position: Option<Vec3<f32>>,
+        entity: Option<Entity>,
+    ) -> Self {
+        TargetComp {
+            target_type,
+            position,
+            entity,
+        }
     }
 
     pub fn all() -> Self {
-        TargetComp(TargetType::All, None)
+        TargetComp {
+            target_type: TargetType::All,
+            position: None,
+            entity: None,
+        }
     }
 
     pub fn players() -> Self {
-        TargetComp(TargetType::Players, None)
+        TargetComp {
+            target_type: TargetType::Players,
+            position: None,
+            entity: None,
+        }
     }
 
     pub fn entities() -> Self {
-        TargetComp(TargetType::Entities, None)
+        TargetComp {
+            target_type: TargetType::Entities,
+            position: None,
+            entity: None,
+        }
     }
 }

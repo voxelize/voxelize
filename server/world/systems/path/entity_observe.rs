@@ -21,9 +21,9 @@ impl<'a> System<'a> for EntityObserveSystem {
             .par_join()
             .for_each(|(body, target)| {
                 let position = body.0.get_position();
-                let closest_arr = if target.0 == TargetType::All {
+                let closest_arr = if target.target_type == TargetType::All {
                     tree.search(&position, 1)
-                } else if target.0 == TargetType::Players {
+                } else if target.target_type == TargetType::Players {
                     tree.search_player(&position, 1, false)
                 } else {
                     tree.search_entity(&position, 1, true)
@@ -35,12 +35,15 @@ impl<'a> System<'a> for EntityObserveSystem {
                     if let Some(body) = bodies.get(entity.to_owned()) {
                         let position = body.0.get_position();
 
-                        target.1 = Some(position);
+                        target.position = Some(position);
+                        target.entity = Some(entity.to_owned());
                     } else {
-                        target.1 = None;
+                        target.position = None;
+                        target.entity = None;
                     }
                 } else {
-                    target.1 = None;
+                    target.position = None;
+                    target.entity = None;
                 }
             });
     }
