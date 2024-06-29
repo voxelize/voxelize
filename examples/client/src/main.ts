@@ -238,7 +238,7 @@ const gui = new GUI();
 gui.domElement.style.top = "10px";
 
 inputs.bind(
-  "t",
+  "KeyT",
   () => {
     controls.unlock(() => {
       inputs.setNamespace("chat");
@@ -363,7 +363,7 @@ VOXELIZE.ColorText.SPLITTER = "$";
 // );
 
 inputs.bind(
-  "g",
+  "KeyG",
   () => {
     controls.toggleGhostMode();
   },
@@ -371,16 +371,16 @@ inputs.bind(
 );
 
 inputs.bind(
-  "enter",
+  "Enter",
   () => {
     controls.lock();
   },
   "chat"
 );
 
-inputs.bind("f", controls.toggleFly, "in-game");
+inputs.bind("KeyF", controls.toggleFly, "in-game");
 
-inputs.bind("j", debug.toggle, "*");
+inputs.bind("KeyJ", debug.toggle, "*");
 
 // inputs.bind("l", () => {
 //   network.action("create_world", "new_world");
@@ -413,7 +413,7 @@ debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
   });
 });
 
-inputs.bind("p", () => {
+inputs.bind("KeyP", () => {
   voxelInteract.toggle();
 });
 
@@ -535,17 +535,22 @@ world.add(entities);
 
 const method = new VOXELIZE.Method();
 
-inputs.bind("v", () => {
+inputs.bind("KeyV", () => {
   method.call("time", {
     time: world.options.timePerDay / 2,
   });
 });
 
-inputs.bind("z", () => {
-  method.call("spawn-bot", {
-    position: controls.object.position.toArray(),
-  });
-});
+inputs.bind(
+  "KeyZ",
+  () => {
+    console.log("hello");
+    method.call("spawn-bot", {
+      position: controls.object.position.toArray(),
+    });
+  },
+  "in-game"
+);
 
 const events = new VOXELIZE.Events();
 
@@ -553,7 +558,7 @@ events.on("test", (payload) => {
   console.log("test event:", payload);
 });
 
-inputs.bind("n", () => {
+inputs.bind("KeyN", () => {
   events.emit("test", {
     test: "Hello World",
     nested: {
@@ -886,11 +891,22 @@ const start = async () => {
     slot.setContent(id);
   });
 
-  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].forEach((key) => {
+  [
+    "Digit1",
+    "Digit2",
+    "Digit3",
+    "Digit4",
+    "Digit5",
+    "Digit6",
+    "Digit7",
+    "Digit8",
+    "Digit9",
+    "Digit0",
+  ].forEach((key) => {
     inputs.bind(
       key,
       () => {
-        const index = key !== "0" ? parseInt(key) : 10;
+        const index = parseInt(key.replace("Digit", ""));
         bar.setFocused(0, index - 1);
       },
       "in-game"
