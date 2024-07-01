@@ -13,8 +13,8 @@ use std::{
 };
 
 use crate::{
-    ChunkOptions, ChunkStatus, ChunkUtils, LightUtils, MessageType, Vec2, Vec3, VoxelUpdate,
-    WorldConfig,
+    ChunkOptions, ChunkStatus, ChunkUtils, LightUtils, MessageType, Registry, Vec2, Vec3,
+    VoxelUpdate, WorldConfig,
 };
 
 use super::{
@@ -91,7 +91,7 @@ impl Chunks {
     }
 
     // Try to load the data of a chunk, returns whether successful or not.
-    pub fn try_load(&self, coords: &Vec2<i32>) -> Option<Chunk> {
+    pub fn try_load(&self, coords: &Vec2<i32>, registry: &Registry) -> Option<Chunk> {
         if !self.config.saving {
             return None;
         }
@@ -103,6 +103,10 @@ impl Chunks {
         let data: ChunkFileData = serde_json::from_reader(chunk_data).ok()?;
 
         let decode_base64 = |base: &str| -> Vec<u32> {
+            if base.is_empty() {
+                return vec![];
+            }
+
             let decoded = STANDARD.decode(base).expect("Failed to decode base64");
             let mut decoder = Decoder::new(&decoded[..]).expect("Failed to create decoder");
             let mut buf = Vec::new();
@@ -131,7 +135,13 @@ impl Chunks {
         );
 
         chunk.voxels.data = voxels;
-        chunk.height_map.data = height_map;
+
+        if height_map.len() > 0 {
+            chunk.height_map.data = height_map;
+        } else {
+            chunk.calculate_max_height(registry);
+        }
+
         chunk.status = ChunkStatus::Meshing;
 
         Some(chunk)

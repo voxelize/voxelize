@@ -251,7 +251,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         // parallelize loading
         let loaded_chunks: Vec<(Vec2<i32>, Option<Chunk>)> = to_load
             .into_par_iter()
-            .map(|coords| (coords.to_owned(), chunks.try_load(&coords)))
+            .map(|coords| (coords.to_owned(), chunks.try_load(&coords, &registry)))
             .collect();
 
         for (coords, loaded_chunk) in loaded_chunks.into_iter() {
