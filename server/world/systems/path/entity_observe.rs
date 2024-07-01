@@ -1,4 +1,4 @@
-use crate::{KdTree, RigidBodyComp, TargetComp, TargetType};
+use crate::{IDComp, KdTree, RigidBodyComp, TargetComp, TargetType};
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct EntityObserveSystem;
@@ -8,6 +8,7 @@ impl<'a> System<'a> for EntityObserveSystem {
     type SystemData = (
         ReadExpect<'a, KdTree>,
         ReadStorage<'a, RigidBodyComp>,
+        ReadStorage<'a, IDComp>,
         WriteStorage<'a, TargetComp>,
     );
 
@@ -15,7 +16,7 @@ impl<'a> System<'a> for EntityObserveSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (tree, bodies, mut targets) = data;
+        let (tree, bodies, ids, mut targets) = data;
 
         (&bodies, &mut targets)
             .par_join()
@@ -32,18 +33,20 @@ impl<'a> System<'a> for EntityObserveSystem {
                 if closest_arr.len() > 0 {
                     let entity = closest_arr[0].1;
 
-                    if let Some(body) = bodies.get(entity.to_owned()) {
+                    if let (Some(body), Some(id)) =
+                        (bodies.get(entity.to_owned()), ids.get(entity.to_owned()))
+                    {
                         let position = body.0.get_position();
 
                         target.position = Some(position);
-                        target.entity = Some(entity.to_owned());
+                        target.id = Some(id.0.clone());
                     } else {
                         target.position = None;
-                        target.entity = None;
+                        target.id = None;
                     }
                 } else {
                     target.position = None;
-                    target.entity = None;
+                    target.id = None;
                 }
             });
     }

@@ -20,20 +20,15 @@ pub enum TargetType {
 pub struct TargetComp {
     pub target_type: TargetType,
     pub position: Option<Vec3<f32>>,
-    #[serde(skip_serializing, skip_deserializing)]
-    pub entity: Option<Entity>,
+    pub id: Option<String>,
 }
 
 impl TargetComp {
-    pub fn new(
-        target_type: TargetType,
-        position: Option<Vec3<f32>>,
-        entity: Option<Entity>,
-    ) -> Self {
+    pub fn new(target_type: TargetType, position: Option<Vec3<f32>>, id: Option<String>) -> Self {
         TargetComp {
             target_type,
             position,
-            entity,
+            id,
         }
     }
 
@@ -41,7 +36,7 @@ impl TargetComp {
         TargetComp {
             target_type: TargetType::All,
             position: None,
-            entity: None,
+            id: None,
         }
     }
 
@@ -49,7 +44,7 @@ impl TargetComp {
         TargetComp {
             target_type: TargetType::Players,
             position: None,
-            entity: None,
+            id: None,
         }
     }
 
@@ -57,7 +52,7 @@ impl TargetComp {
         TargetComp {
             target_type: TargetType::Entities,
             position: None,
-            entity: None,
+            id: None,
         }
     }
 }
