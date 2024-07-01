@@ -521,9 +521,14 @@ impl Actor for Server {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
-            act.tick();
-        });
+        for world in self.worlds.values_mut() {
+            let world_name = world.name.clone();
+            ctx.run_interval(Duration::from_millis(self.interval), move |act, _| {
+                if let Some(world) = act.get_world_mut(&world_name) {
+                    world.tick();
+                }
+            });
+        }
     }
 }
 
