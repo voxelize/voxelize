@@ -1875,7 +1875,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
   }
-
   public removeLight(voxel: Coords3, color: LightColor) {
     const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
       this.options;

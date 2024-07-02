@@ -45,14 +45,9 @@ onmessage = function (e) {
   const { chunksData, min, max } = e.data;
   const { chunkSize } = e.data.options as WorldOptions;
 
-  const chunks: (Chunk | null)[] = chunksData.map((chunkData: any) => {
-    if (!chunkData) {
-      return null;
-    }
-
-    const chunk = RawChunk.deserialize(chunkData);
-    return chunk;
-  });
+  const chunks: (Chunk | null)[] = chunksData.map((chunkData: any) =>
+    chunkData ? RawChunk.deserialize(chunkData) : null
+  );
 
   const getChunkByCoords = (coords: Coords2) => {
     const centerCoords = chunks[4].coords;
@@ -88,6 +83,155 @@ onmessage = function (e) {
     return chunk?.getTorchLight(vx, vy, vz, color) ?? 0;
   };
 
+  // New helper function for light calculation
+  function calculateLightValues(
+    vx: number,
+    vy: number,
+    vz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+    dir: number[],
+    isSeeThrough: boolean,
+    isAllTransparent: boolean
+  ) {
+    if (isSeeThrough || isAllTransparent) {
+      return {
+        sun: getSunlightAt(vx, vy, vz),
+        red: getTorchlightAt(vx, vy, vz, "RED"),
+        green: getTorchlightAt(vx, vy, vz, "GREEN"),
+        blue: getTorchlightAt(vx, vy, vz, "BLUE"),
+      };
+    }
+
+    const sumSunlights: number[] = [];
+    const sumRedLights: number[] = [];
+    const sumGreenLights: number[] = [];
+    const sumBlueLights: number[] = [];
+
+    // Loop through all 9 neighbors of this vertex
+    for (let x = 0; x <= 1; x++) {
+      for (let y = 0; y <= 1; y++) {
+        for (let z = 0; z <= 1; z++) {
+          const offsetX = x * (dx === 0 ? -1 : 1);
+          const offsetY = y * (dy === 0 ? -1 : 1);
+          const offsetZ = z * (dz === 0 ? -1 : 1);
+
+          const localSunlight = getSunlightAt(
+            vx + offsetX,
+            vy + offsetY,
+            vz + offsetZ
+          );
+          const localRedLight = getTorchlightAt(
+            vx + offsetX,
+            vy + offsetY,
+            vz + offsetZ,
+            "RED"
+          );
+          const localGreenLight = getTorchlightAt(
+            vx + offsetX,
+            vy + offsetY,
+            vz + offsetZ,
+            "GREEN"
+          );
+          const localBlueLight = getTorchlightAt(
+            vx + offsetX,
+            vy + offsetY,
+            vz + offsetZ,
+            "BLUE"
+          );
+
+          if (
+            localSunlight == 0 &&
+            localRedLight == 0 &&
+            localGreenLight == 0 &&
+            localBlueLight == 0
+          ) {
+            continue;
+          }
+
+          const diagonal4 = getBlockAt(
+            vx + offsetX,
+            vy + offsetY,
+            vz + offsetZ
+          );
+
+          if (diagonal4.isOpaque) {
+            continue;
+          }
+
+          if (dir[0] * offsetX + dir[1] * offsetY + dir[2] * offsetZ === 0) {
+            const facing = getBlockAt(
+              vx + offsetX * dir[0],
+              vy + offsetY * dir[1],
+              vz + offsetZ * dir[2]
+            );
+
+            if (facing.isOpaque) {
+              continue;
+            }
+          }
+
+          // Diagonal light leaking fix
+          if (Math.abs(offsetX) + Math.abs(offsetY) + Math.abs(offsetZ) === 3) {
+            const diagonalYZ = getBlockAt(vx, vy + offsetY, vz + offsetZ);
+            const diagonalXZ = getBlockAt(vx + offsetX, vy, vz + offsetZ);
+            const diagonalXY = getBlockAt(vx + offsetX, vy + offsetY, vz);
+
+            // Three corners are blocked
+            if (
+              diagonalYZ.isOpaque &&
+              diagonalXZ.isOpaque &&
+              diagonalXY.isOpaque
+            ) {
+              continue;
+            }
+
+            // Two corners are blocked
+            if (diagonalXY.isOpaque && diagonalXZ.isOpaque) {
+              const neighborY = getBlockAt(vx, vy + offsetY, vz);
+              const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
+
+              if (neighborY.isOpaque && neighborZ.isOpaque) {
+                continue;
+              }
+            }
+
+            if (diagonalXY.isOpaque && diagonalYZ.isOpaque) {
+              const neighborX = getBlockAt(vx + offsetX, vy, vz);
+              const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
+
+              if (neighborX.isOpaque && neighborZ.isOpaque) {
+                continue;
+              }
+            }
+
+            if (diagonalXZ.isOpaque && diagonalYZ.isOpaque) {
+              const neighborX = getBlockAt(vx + offsetX, vy, vz);
+              const neighborY = getBlockAt(vx, vy + offsetY, vz);
+
+              if (neighborX.isOpaque && neighborY.isOpaque) {
+                continue;
+              }
+            }
+          }
+
+          sumSunlights.push(localSunlight);
+          sumRedLights.push(localRedLight);
+          sumGreenLights.push(localGreenLight);
+          sumBlueLights.push(localBlueLight);
+        }
+      }
+    }
+
+    return {
+      sun: sumSunlights.reduce((a, b) => a + b, 0) / sumSunlights.length,
+      red: sumRedLights.reduce((a, b) => a + b, 0) / sumRedLights.length,
+      green: sumGreenLights.reduce((a, b) => a + b, 0) / sumGreenLights.length,
+      blue: sumBlueLights.reduce((a, b) => a + b, 0) / sumBlueLights.length,
+    };
+  }
+
   const getVoxelRotationAt = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
     const chunk = getChunkByCoords(coords);
@@ -110,6 +254,16 @@ onmessage = function (e) {
   const [maxX, maxY, maxZ] = max;
 
   const geometries: Record<string, InProgressGeometryProtocol> = {};
+
+  // Pre-calculate direction offsets
+  const directions = [
+    [-1, 0, 0],
+    [1, 0, 0],
+    [0, -1, 0],
+    [0, 1, 0],
+    [0, 0, -1],
+    [0, 0, 1],
+  ];
 
   for (let vx = minX; vx < maxX; vx++) {
     for (let vz = minZ; vz < maxZ; vz++) {
@@ -169,24 +323,11 @@ onmessage = function (e) {
           }
         }
 
-        // Skip blocks that are completely surrounded by other blocks
-        let isSurrounded = true;
-
-        for (const [dx, dy, dz] of [
-          [-1, 0, 0],
-          [1, 0, 0],
-          [0, -1, 0],
-          [0, 1, 0],
-          [0, 0, -1],
-          [0, 0, 1],
-        ]) {
+        // Optimize surrounding check
+        const isSurrounded = !directions.some(([dx, dy, dz]) => {
           const neighbor = getVoxelAt(vx + dx, vy + dy, vz + dz);
-          const neighborBlock = registry.blocksById.get(neighbor);
-          if (!neighborBlock?.isOpaque) {
-            isSurrounded = false;
-            break;
-          }
-        }
+          return !registry.blocksById.get(neighbor)?.isOpaque;
+        });
 
         if (isSurrounded) {
           continue;
@@ -286,10 +427,7 @@ onmessage = function (e) {
             const ndx = Math.floor(geometry.positions.length / 3);
 
             const faceAOs: number[] = [];
-            const fourSunlights: number[] = [];
-            const fourRedLights: number[] = [];
-            const fourGreenLights: number[] = [];
-            const fourBlueLights: number[] = [];
+            const fourLights: number[][] = [[], [], [], []];
 
             for (const { pos: cornerPos, uv } of corners) {
               const pos = [...cornerPos] as Coords3;
@@ -322,11 +460,6 @@ onmessage = function (e) {
               const unitDy = dy === 0 ? -1 : 1;
               const unitDz = dz === 0 ? -1 : 1;
 
-              const sumSunlights: number[] = [];
-              const sumRedLights: number[] = [];
-              const sumGreenLights: number[] = [];
-              const sumBlueLights: number[] = [];
-
               const b011 = !getBlockAt(vx + 0, vy + unitDy, vz + unitDz)
                 .isOpaque;
               const b101 = !getBlockAt(vx + unitDx, vy + 0, vz + unitDz)
@@ -345,194 +478,46 @@ onmessage = function (e) {
                   ? vertexAO(b110, b011, b111)
                   : vertexAO(b011, b101, b111);
 
-              let sunlight: number;
-              let redLight: number;
-              let greenLight: number;
-              let blueLight: number;
-
-              if (isSeeThrough || isAllTransparent) {
-                sunlight = getSunlightAt(vx, vy, vz);
-                redLight = getTorchlightAt(vx, vy, vz, "RED");
-                greenLight = getTorchlightAt(vx, vy, vz, "GREEN");
-                blueLight = getTorchlightAt(vx, vy, vz, "BLUE");
-              } else {
-                // Loop through all 9 neighbors of this vertex
-                for (let x = 0; x <= 1; x++) {
-                  for (let y = 0; y <= 1; y++) {
-                    for (let z = 0; z <= 1; z++) {
-                      const offsetX = x * unitDx;
-                      const offsetY = y * unitDy;
-                      const offsetZ = z * unitDz;
-
-                      const localSunlight = getSunlightAt(
-                        vx + offsetX,
-                        vy + offsetY,
-                        vz + offsetZ
-                      );
-                      const localRedLight = getTorchlightAt(
-                        vx + offsetX,
-                        vy + offsetY,
-                        vz + offsetZ,
-                        "RED"
-                      );
-                      const localGreenLight = getTorchlightAt(
-                        vx + offsetX,
-                        vy + offsetY,
-                        vz + offsetZ,
-                        "GREEN"
-                      );
-                      const localBlueLight = getTorchlightAt(
-                        vx + offsetX,
-                        vy + offsetY,
-                        vz + offsetZ,
-                        "BLUE"
-                      );
-
-                      if (
-                        localSunlight == 0 &&
-                        localRedLight == 0 &&
-                        localGreenLight == 0 &&
-                        localBlueLight == 0
-                      ) {
-                        continue;
-                      }
-
-                      const diagonal4 = getBlockAt(
-                        vx + offsetX,
-                        vy + offsetY,
-                        vz + offsetZ
-                      );
-
-                      if (diagonal4.isOpaque) {
-                        continue;
-                      }
-
-                      if (
-                        dir[0] * offsetX +
-                          dir[1] * offsetY +
-                          dir[2] * offsetZ ===
-                        0
-                      ) {
-                        const facing = getBlockAt(
-                          vx + offsetX * dir[0],
-                          vy + offsetY * dir[1],
-                          vz + offsetZ * dir[2]
-                        );
-
-                        if (facing.isOpaque) {
-                          continue;
-                        }
-                      }
-
-                      // Diagonal light leaking fix
-                      if (
-                        Math.abs(offsetX) +
-                          Math.abs(offsetY) +
-                          Math.abs(offsetZ) ===
-                        3
-                      ) {
-                        const diagonalYZ = getBlockAt(
-                          vx,
-                          vy + offsetY,
-                          vz + offsetZ
-                        );
-                        const diagonalXZ = getBlockAt(
-                          vx + offsetX,
-                          vy,
-                          vz + offsetZ
-                        );
-                        const diagonalXY = getBlockAt(
-                          vx + offsetX,
-                          vy + offsetY,
-                          vz
-                        );
-
-                        // Three corners are blocked
-                        if (
-                          diagonalYZ.isOpaque &&
-                          diagonalXZ.isOpaque &&
-                          diagonalXY.isOpaque
-                        ) {
-                          continue;
-                        }
-
-                        // Two corners are blocked
-                        if (diagonalXY.isOpaque && diagonalXZ.isOpaque) {
-                          const neighborY = getBlockAt(vx, vy + offsetY, vz);
-                          const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
-
-                          if (neighborY.isOpaque && neighborZ.isOpaque) {
-                            continue;
-                          }
-                        }
-
-                        if (diagonalXY.isOpaque && diagonalYZ.isOpaque) {
-                          const neighborX = getBlockAt(vx + offsetX, vy, vz);
-                          const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
-
-                          if (neighborX.isOpaque && neighborZ.isOpaque) {
-                            continue;
-                          }
-                        }
-
-                        if (diagonalXZ.isOpaque && diagonalYZ.isOpaque) {
-                          const neighborX = getBlockAt(vx + offsetX, vy, vz);
-                          const neighborY = getBlockAt(vx, vy + offsetY, vz);
-
-                          if (neighborX.isOpaque && neighborY.isOpaque) {
-                            continue;
-                          }
-                        }
-                      }
-
-                      sumSunlights.push(localSunlight);
-                      sumRedLights.push(localRedLight);
-                      sumGreenLights.push(localGreenLight);
-                      sumBlueLights.push(localBlueLight);
-                    }
-                  }
-                }
-
-                sunlight =
-                  sumSunlights.reduce((a, b) => a + b, 0) / sumSunlights.length;
-                redLight =
-                  sumRedLights.reduce((a, b) => a + b, 0) / sumRedLights.length;
-                greenLight =
-                  sumGreenLights.reduce((a, b) => a + b, 0) /
-                  sumGreenLights.length;
-                blueLight =
-                  sumBlueLights.reduce((a, b) => a + b, 0) /
-                  sumBlueLights.length;
-              }
+              const lightValues = calculateLightValues(
+                vx,
+                vy,
+                vz,
+                dx,
+                dy,
+                dz,
+                dir,
+                isSeeThrough,
+                isAllTransparent
+              );
 
               let light = 0;
-              light = LightUtils.insertRedLight(light, redLight);
-              light = LightUtils.insertGreenLight(light, greenLight);
-              light = LightUtils.insertBlueLight(light, blueLight);
-              light = LightUtils.insertSunlight(light, sunlight);
+              light = LightUtils.insertRedLight(light, lightValues.red);
+              light = LightUtils.insertGreenLight(light, lightValues.green);
+              light = LightUtils.insertBlueLight(light, lightValues.blue);
+              light = LightUtils.insertSunlight(light, lightValues.sun);
               geometry.lights.push(Math.floor(light) | (ao << 16));
 
-              fourSunlights.push(sunlight);
-              fourRedLights.push(redLight);
-              fourGreenLights.push(greenLight);
-              fourBlueLights.push(blueLight);
+              fourLights[0].push(lightValues.sun);
+              fourLights[1].push(lightValues.red);
+              fourLights[2].push(lightValues.green);
+              fourLights[3].push(lightValues.blue);
               faceAOs.push(ao);
             }
 
-            const aRt = fourRedLights[0];
-            const bRt = fourRedLights[1];
-            const cRt = fourRedLights[2];
-            const dRt = fourRedLights[3];
+            const aRt = fourLights[1][0];
+            const bRt = fourLights[1][1];
+            const cRt = fourLights[1][2];
+            const dRt = fourLights[1][3];
 
-            const aGt = fourGreenLights[0];
-            const bGt = fourGreenLights[1];
-            const cGt = fourGreenLights[2];
-            const dGt = fourGreenLights[3];
+            const aGt = fourLights[2][0];
+            const bGt = fourLights[2][1];
+            const cGt = fourLights[2][2];
+            const dGt = fourLights[2][3];
 
-            const aBt = fourBlueLights[0];
-            const bBt = fourBlueLights[1];
-            const cBt = fourBlueLights[2];
-            const dBt = fourBlueLights[3];
+            const aBt = fourLights[3][0];
+            const bBt = fourLights[3][1];
+            const cBt = fourLights[3][2];
+            const dBt = fourLights[3][3];
 
             const threshold = 0;
 
@@ -613,7 +598,7 @@ onmessage = function (e) {
   const geometriesPacked = Object.values(geometries)
     .map((geometry) => {
       const packedGeometry = {
-        indices: new Uint16Array(geometry.indices),
+        indices: new Uint16Array(geometry.indices.length),
         lights: new Int32Array(geometry.lights),
         positions: new Float32Array(geometry.positions),
         uvs: new Float32Array(geometry.uvs),
@@ -621,6 +606,10 @@ onmessage = function (e) {
         faceName: geometry.faceName,
         at: geometry.at,
       };
+
+      for (let i = 0; i < geometry.indices.length; i++) {
+        packedGeometry.indices[i] = geometry.indices[i];
+      }
 
       arrayBuffers.push(packedGeometry.indices.buffer);
       arrayBuffers.push(packedGeometry.lights.buffer);
