@@ -1,5 +1,5 @@
+use crate::{BrainComp, PathComp, RigidBodyComp, Stats, Vec3};
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-use crate::{RigidBodyComp, Stats, Vec3, BrainComp, PathComp};
 
 pub struct WalkTowardsSystem;
 
@@ -29,9 +29,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         return;
                     }
 
-                    let position = body.0.get_position();
-                    // Position has to be rounded down because it's offset by +0.5
-                    let voxel = Vec3(position.0.floor() as i32, position.1.floor() as i32, position.2.floor() as i32);
+                    let vpos = body.0.get_voxel_position();
 
                     let mut i = 0;
                     let mut target = nodes[i].clone();
@@ -42,7 +40,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         }
 
                         // means currently is in the attended node
-                        if target.0 == voxel.0 && target.2 == voxel.2 {
+                        if target.0 == vpos.0 && target.2 == vpos.2 {
                             i = i + 1;
                             target = nodes[i].clone();
                         } else {
@@ -51,7 +49,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     }
 
                     // jumping
-                    if voxel.1 < nodes[i].1 {
+                    if vpos.1 < nodes[i].1 {
                         brain.jump();
                     } else {
                         brain.stop_jumping();
@@ -66,7 +64,6 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                     brain.walk();
                     brain.operate(&target, &mut body.0, delta);
-
                 } else {
                     brain.stop();
                 }
