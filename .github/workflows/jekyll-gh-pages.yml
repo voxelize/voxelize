@@ -29,17 +29,6 @@ jobs:
           npm i -g pnpm
           pnpm install --no-frozen-lockfile
           pnpm run proto
-          cd packages/aabb
-          pnpm build
-          cd ../raycast
-          pnpm build
-          cd ../physics-engine
-          pnpm build
-          cd ../transport
-          pnpm build
-          cd ../protocol
-          pnpm build
-          cd ../core
           pnpm build
       - name: Build Docs
         run: |

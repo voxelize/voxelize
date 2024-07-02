@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### Chat
 
-• **Chat**: Class Chat
+• **Chat**: Class Chat\<T\>
 
 A network interceptor that gives flexible control over the chat feature of
 the game. This also allows for custom commands to be added.
@@ -42,6 +42,12 @@ network.register(chat);
 ```
 
 ![Chat](/img/docs/chat.png)
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends ChatProtocol = ChatProtocol |
 
 ___
 
@@ -354,6 +360,12 @@ lightShined.update();
 ___
 
 ## Other Classes
+
+### AnimationUtils
+
+• **AnimationUtils**: Class AnimationUtils
+
+___
 
 ### Arm
 
@@ -907,18 +919,17 @@ packets to the server.
 
 | Name | Type |
 | :------ | :------ |
-| `armColor?` | string |
-| `armMesh?` | THREE.Object3D |
-| `armPosition?` | THREE.Vector3 |
-| `armQuaternion?` | THREE.Quaternion |
-| `blockPosition?` | THREE.Vector3 |
-| `blockQuaternion?` | THREE.Quaternion |
+| `armColor?` | string \| THREE.Color |
+| `armObject?` | THREE.Object3D |
+| `armObjectOptions` | ArmObjectOptions |
+| `blockObjectOptions?` | ArmObjectOptions |
+| `customObjectOptions?` | Record\<string, ArmObjectOptions\> |
 
 ___
 
 ### ArmsOptions
 
-Ƭ **ArmsOptions**: CanvasBoxOptions & Object
+Ƭ **ArmsOptions**: ColorCanvasBoxOptions & Object
 
 Parameters to create a character's arms.
 Defaults to:
@@ -1146,7 +1157,7 @@ ___
 
 ### BodyOptions
 
-Ƭ **BodyOptions**: CanvasBoxOptions
+Ƭ **BodyOptions**: ColorCanvasBoxOptions
 
 Parameters to create a character's body.
 Defaults to:
@@ -1407,25 +1418,7 @@ ___
 
 ### HeadOptions
 
-Ƭ **HeadOptions**: CanvasBoxOptions & Object
-
-Parameters to create a character's head.
-Defaults to:
-```ts
-{
-  gap: 0.1 * CHARACTER_SCALE,
-  layers: 1,
-  side: THREE.DoubleSide,
-  width: 0.5 * CHARACTER_SCALE,
-  widthSegments: 16,
-  height: 0.25 * CHARACTER_SCALE,
-  heightSegments: 8,
-  depth: 0.5 * CHARACTER_SCALE,
-  depthSegments: 16,
-  neckGap: 0.05 * CHARACTER_SCALE,
-}
-```
-where `CHARACTER_SCALE` is 0.9.
+Ƭ **HeadOptions**: ColorCanvasBoxOptions & Object
 
 ___
 
@@ -1485,7 +1478,7 @@ ___
 
 ### LegOptions
 
-Ƭ **LegOptions**: CanvasBoxOptions & Object
+Ƭ **LegOptions**: ColorCanvasBoxOptions & Object
 
 Parameters to create the legs of a character.
 Defaults to:
@@ -1625,6 +1618,7 @@ Parameters to customize the peers manager.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
+| `autoAddToSelf` | boolean | - |
 | `countSelf` | boolean | Whether or not should the client themselves be counted as "updated". In other words, whether or not should the update function be called on the client's own data. Defaults to `false`. |
 | `updateChildren` | boolean | Whether or not should the peers manager automatically call `update` on any children mesh. Defaults to `true`. |
 
@@ -1959,12 +1953,6 @@ The options defined on the server-side, passed to the client on network joining.
 
 ## Variables
 
-### ARM\_COLOR
-
-• `Const` **ARM\_COLOR**: "#548ca8" = `"#548ca8"`
-
-___
-
 ### BLUE\_LIGHT
 
 • `Const` **BLUE\_LIGHT**: "BLUE" = `"BLUE"`
@@ -2139,6 +2127,36 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `sway` | Method sway |
+
+___
+
+### defaultArmsOptions
+
+• `Const` **defaultArmsOptions**: ArmsOptions
+
+___
+
+### defaultBodyOptions
+
+• `Const` **defaultBodyOptions**: BodyOptions
+
+___
+
+### defaultCharacterOptions
+
+• `Const` **defaultCharacterOptions**: CharacterOptions
+
+___
+
+### defaultHeadOptions
+
+• `Const` **defaultHeadOptions**: HeadOptions
+
+___
+
+### defaultLegsOptions
+
+• `Const` **defaultLegsOptions**: LegOptions
 
 ## Functions
 
