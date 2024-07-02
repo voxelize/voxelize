@@ -79,6 +79,17 @@ impl RigidBody {
         )
     }
 
+    /// Get the voxel position of the rigid body.
+    /// Ceil for y for partial blocks (i.e slabs)
+    pub fn get_voxel_position(&self) -> Vec3<i32> {
+        let [offset_w, _, offset_d] = self.aabb_offset();
+        Vec3(
+            (self.aabb.min_x + offset_w).floor() as i32,
+            self.aabb.min_y.ceil() as i32,
+            (self.aabb.min_z + offset_d).floor() as i32,
+        )
+    }
+
     /// Adds a vector to rigid body's internal force, which gets processed every tick.
     pub fn apply_force(&mut self, fx: f32, fy: f32, fz: f32) {
         self.forces[0] += fx;

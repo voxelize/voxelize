@@ -77,16 +77,10 @@ impl<'a> System<'a> for PathFindingSystem {
             .par_join()
             .for_each(|(body, target, entity_path)| {
                 if let Some(target_position) = target.position.to_owned() {
-                    let body_pos = body.0.get_position();
+                    let body_vpos = body.0.get_voxel_position();
 
                     let height = body.0.aabb.height();
 
-                    // Position has to be rounded down because it's offset by +0.5
-                    let body_vpos = Vec3(
-                        body_pos.0.floor() as i32,
-                        body_pos.1.floor() as i32,
-                        body_pos.2.floor() as i32,
-                    );
                     let target_vpos = Vec3(
                         target_position.0.floor() as i32,
                         target_position.1.floor() as i32,
