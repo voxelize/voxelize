@@ -57,6 +57,11 @@ impl<'a> System<'a> for PathFindingSystem {
                 voxel.1 = min_y;
             }
 
+            // Edge case for half blocks like slabs
+            if !get_is_voxel_passable(voxel.0, voxel.1, voxel.2) {
+                return voxel;
+            }
+
             while voxel.1 > min_y {
                 if get_is_voxel_passable(voxel.0, voxel.1 - 1, voxel.2) {
                     // If the voxel below is passable, decrement y to check further below.
