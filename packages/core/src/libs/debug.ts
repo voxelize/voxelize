@@ -21,7 +21,7 @@ export type DebugOptions = {
   /**
    * Styles to apply to the wrapper of all debug entries.
    */
-  entryStyles: Partial<CSSStyleDeclaration>;
+  entriesStyles: Partial<CSSStyleDeclaration>;
 
   /**
    * A class to add to the wrapper of all debug entries.
@@ -54,12 +54,15 @@ export type DebugOptions = {
   showVoxelize: boolean;
 
   asyncPeriod: number;
+
+  newLineStyles: Partial<CSSStyleDeclaration>;
+  statsStyles: Partial<CSSStyleDeclaration>;
 };
 
 const defaultOptions: DebugOptions = {
   stats: true,
   onByDefault: true,
-  entryStyles: {},
+  entriesStyles: {},
   entriesClass: "debug-entries",
   lineStyles: {},
   lineClass: "debug-line",
@@ -67,6 +70,8 @@ const defaultOptions: DebugOptions = {
   dataClass: "debug-data",
   showVoxelize: true,
   asyncPeriod: 1000,
+  newLineStyles: {},
+  statsStyles: {},
 };
 
 /**
@@ -294,7 +299,7 @@ export class Debug extends Group {
     dataEntry.classList.add(this.options.lineClass);
 
     DOMUtils.applyStyles(dataEntry, {
-      ...(newline ? { height: "16px" } : {}),
+      ...(newline ? { height: "16px", ...this.options.newLineStyles } : {}),
       ...(this.options.lineStyles || {}),
     });
 
@@ -313,7 +318,7 @@ export class Debug extends Group {
     this.entriesWrapper.classList.add(this.options.entriesClass);
 
     DOMUtils.applyStyles(this.dataWrapper, this.options.dataStyles);
-    DOMUtils.applyStyles(this.entriesWrapper, this.options.entryStyles);
+    DOMUtils.applyStyles(this.entriesWrapper, this.options.entriesStyles);
 
     if (this.options.stats) {
       this.stats = new Stats();
@@ -326,6 +331,7 @@ export class Debug extends Group {
         left: "unset",
         zIndex: "1000000000000",
         marginTop: "13.333px",
+        ...(this.options.statsStyles || {}),
       });
     }
   };
