@@ -69,6 +69,11 @@ impl RigidBody {
         self.mark_active()
     }
 
+    /// Set the position of the rigid body, which is the center of the rigid body.
+    pub fn set_voxel_position(&mut self, vx: i32, vy: i32, vz: i32) {
+        self.set_position(vx as f32, vy as f32, vz as f32);
+    }
+
     /// Get the position of the rigid body, which is the center of the rigid body.
     pub fn get_position(&self) -> Vec3<f32> {
         let [offset_w, offset_h, offset_d] = self.aabb_offset();
