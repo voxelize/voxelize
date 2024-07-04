@@ -532,6 +532,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           switch (event.name.toLowerCase()) {
             case "vox-builtin:position": {
               this.body.setPosition(event.payload);
+              this.body.velocity = [0, 0, 0];
               break;
             }
 
