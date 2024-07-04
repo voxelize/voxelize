@@ -193,6 +193,13 @@ export class Network {
       this.flush();
       this.sync();
     }, 1000 / 60);
+
+    const MAX = 10000;
+    let index = Math.floor(Math.random() * MAX).toString();
+    index =
+      new Array(MAX.toString().length - index.length).fill("0").join("") +
+      index;
+    this.clientInfo.username = `Guest ${index}`;
   }
 
   /**
@@ -230,13 +237,6 @@ export class Network {
     if (this.clientInfo.id) {
       this.socket.searchParams.set("client_id", this.clientInfo.id);
     }
-
-    const MAX = 10000;
-    let index = Math.floor(Math.random() * MAX).toString();
-    index =
-      new Array(MAX.toString().length - index.length).fill("0").join("") +
-      index;
-    this.clientInfo.username = `Guest ${index}`;
 
     // if websocket connection already exists, disconnect it
     if (this.ws) {
