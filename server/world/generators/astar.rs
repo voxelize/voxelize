@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashSet};
 use std::hash::Hash;
-use std::sync::{Arc, Mutex};
 
 pub struct AStar;
 
@@ -45,42 +44,49 @@ impl AStar {
         successors: &dyn Fn(&AStarNode) -> Vec<(AStarNode, u32)>,
         heuristic: &dyn Fn(&AStarNode) -> f32,
     ) -> Option<(Vec<AStarNode>, u32)> {
-        let mut open_set = BinaryHeap::new();
-        let mut came_from = HashMap::new();
-        let mut g_score = HashMap::new();
-        let mut f_score = HashMap::new();
+        let mut open_set = BinaryHeap::with_capacity(512);
+        let mut closed_set = HashSet::with_capacity(512);
+        let mut came_from = Vec::with_capacity(512);
+        let mut g_score = Vec::with_capacity(512);
+        let mut f_score = Vec::with_capacity(512);
 
-        g_score.insert(start.clone(), 0);
-        f_score.insert(start.clone(), heuristic(start));
+        g_score.push((start.clone(), 0));
+        f_score.push((start.clone(), heuristic(start)));
         open_set.push(State {
-            cost: f_score[start],
+            cost: heuristic(start),
             node: start.clone(),
         });
 
-        let count = Arc::new(Mutex::new(0));
+        let mut count = 0;
 
         while let Some(State { node, .. }) = open_set.pop() {
             if node == *goal {
-                let path = Self::reconstruct_path(&came_from, &node);
-                return Some((path, *g_score.get(&node).unwrap()));
+                return Some((
+                    Self::reconstruct_path(&came_from, &node),
+                    g_score.iter().find(|(n, _)| n == &node).unwrap().1,
+                ));
             }
 
+            if closed_set.contains(&node) {
+                continue;
+            }
+            closed_set.insert(node.clone());
+
             for (neighbor, cost) in successors(&node) {
-                let mut locked_count = count.lock().unwrap();
-                *locked_count += 1;
-                if *locked_count >= 512 {
-                    // MAX_DEPTH_SEARCH
+                count += 1;
+                if count >= 512 {
                     return None;
                 }
-                drop(locked_count);
 
-                let tentative_g_score = g_score[&node] + cost;
+                let tentative_g_score = g_score.iter().find(|(n, _)| n == &node).unwrap().1 + cost;
 
-                if tentative_g_score < *g_score.get(&neighbor).unwrap_or(&u32::MAX) {
-                    came_from.insert(neighbor.clone(), node.clone());
-                    g_score.insert(neighbor.clone(), tentative_g_score);
+                if !closed_set.contains(&neighbor) && !g_score.iter().any(|(n, _)| n == &neighbor)
+                    || tentative_g_score < g_score.iter().find(|(n, _)| n == &neighbor).unwrap().1
+                {
+                    came_from.push((neighbor.clone(), node.clone()));
+                    g_score.push((neighbor.clone(), tentative_g_score));
                     let f = tentative_g_score as f32 + heuristic(&neighbor);
-                    f_score.insert(neighbor.clone(), f);
+                    f_score.push((neighbor.clone(), f));
                     open_set.push(State {
                         cost: f,
                         node: neighbor,
@@ -93,12 +99,12 @@ impl AStar {
     }
 
     fn reconstruct_path(
-        came_from: &HashMap<AStarNode, AStarNode>,
+        came_from: &[(AStarNode, AStarNode)],
         current: &AStarNode,
     ) -> Vec<AStarNode> {
         let mut path = vec![current.clone()];
         let mut current = current;
-        while let Some(prev) = came_from.get(current) {
+        while let Some((_, prev)) = came_from.iter().find(|(n, _)| n == current) {
             path.push(prev.clone());
             current = prev;
         }
