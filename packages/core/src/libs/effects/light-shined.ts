@@ -128,7 +128,11 @@ export class LightShined {
 
   private setupLightMaterials = (obj: Object3D) => {
     const setupMaterial = (material: Material) => {
-      if (material instanceof ShaderMaterial) return;
+      if (
+        material instanceof ShaderMaterial ||
+        material.userData.lightEffectSetup
+      )
+        return;
 
       const lightUniform = { value: new Color(1, 1, 1) };
       const oldOnBeforeCompile = material.onBeforeCompile;
@@ -165,25 +169,57 @@ export class LightShined {
         obj.userData.lightUniforms = [];
       }
       obj.userData.lightUniforms.push(lightUniform);
+      material.userData.lightEffectSetup = true;
     };
 
-    if (obj instanceof Mesh) {
-      if (Array.isArray(obj.material)) {
-        obj.material.forEach(setupMaterial);
-      } else {
-        setupMaterial(obj.material);
-      }
-    }
+    const isMesh = (object: any): object is Mesh => {
+      return object.isMesh;
+    };
 
-    obj.traverse((child) => {
-      if (child instanceof Mesh) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(setupMaterial);
+    const setupObjectAndChildren = (object: Object3D) => {
+      if (isMesh(object)) {
+        if (Array.isArray(object.material)) {
+          object.material.forEach(setupMaterial);
         } else {
-          setupMaterial(child.material);
+          setupMaterial(object.material);
         }
       }
-    });
+      object.children.forEach(setupObjectAndChildren);
+    };
+
+    // Setup initial materials
+    setupObjectAndChildren(obj);
+
+    // Setup proxies to detect changes
+    const setupProxies = (object: Object3D) => {
+      if (isMesh(object)) {
+        object.material = new Proxy(object.material, {
+          set: (target, prop, value) => {
+            target[prop] = value;
+            if (prop === "needsUpdate" && value === true) {
+              setupObjectAndChildren(object);
+            }
+            return true;
+          },
+        });
+        obj.userData.justChanged = true;
+      }
+
+      object.children = new Proxy(object.children, {
+        set: (target, prop, value) => {
+          target[prop] = value;
+          if (typeof prop === "string" && !isNaN(Number(prop))) {
+            setupObjectAndChildren(value);
+            setupProxies(value);
+          }
+          return true;
+        },
+      });
+
+      object.children.forEach(setupProxies);
+    };
+
+    setupProxies(obj);
   };
 
   private updateObject = (obj: Object3D, color: Color) => {
@@ -193,9 +229,14 @@ export class LightShined {
 
     if (obj.userData.lightUniforms) {
       obj.userData.lightUniforms.forEach((uniform: { value: Color }) => {
-        uniform.value.lerp(color, this.options.lerpFactor);
+        if (obj.userData.justChanged) {
+          uniform.value.copy(color);
+        } else {
+          uniform.value.lerp(color, this.options.lerpFactor);
+        }
       });
     }
+    obj.userData.justChanged = false;
   };
 
   /**
