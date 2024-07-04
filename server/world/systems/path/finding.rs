@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -27,10 +28,16 @@ impl<'a> System<'a> for PathFindingSystem {
 
         let (chunks, registry, config, bodies, targets, mut paths) = data;
 
+        let voxel_cache = Arc::new(Mutex::new(HashMap::new()));
+
         let get_is_voxel_passable = |vx: i32, vy: i32, vz: i32| {
-            let voxel = chunks.get_voxel(vx, vy, vz);
-            let block = registry.get_block_by_id(voxel);
-            block.is_passable || block.is_fluid
+            let key = (vx, vy, vz);
+            let mut cache = voxel_cache.lock().unwrap();
+            *cache.entry(key).or_insert_with(|| {
+                let voxel = chunks.get_voxel(vx, vy, vz);
+                let block = registry.get_block_by_id(voxel);
+                block.is_passable || block.is_fluid
+            })
         };
 
         // Returns whether or not a block can be stepped on

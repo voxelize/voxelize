@@ -64,7 +64,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             .collect::<Vec<_>>();
 
         // Differentiating the entities to see which entities are freshly created.
-        let mut entity_updates = vec![];
+        let mut entity_updates = Vec::with_capacity(updated_entities.len());
         let mut new_entity_ids = HashSet::new();
 
         let old_entity_handlers = physics.entity_to_handlers.clone();
