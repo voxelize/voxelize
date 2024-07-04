@@ -33,13 +33,11 @@ impl<'a> System<'a> for EntityObserveSystem {
                 if closest_arr.len() > 0 {
                     let entity = closest_arr[0].1;
 
-                    if let (Some(body), Some(id)) =
-                        (bodies.get(entity.to_owned()), ids.get(entity.to_owned()))
-                    {
+                    if let Some(body) = bodies.get(entity.to_owned()) {
                         let position = body.0.get_position();
 
                         target.position = Some(position);
-                        target.id = Some(id.0.clone());
+                        target.id = Some(entity.id());
                     } else {
                         target.position = None;
                         target.id = None;

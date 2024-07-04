@@ -1,6 +1,6 @@
 use crate::Vec3;
 use serde::{Deserialize, Serialize};
-use specs::{Component, Entity, VecStorage};
+use specs::{world::Index, Component, VecStorage};
 
 pub type EType = String;
 
@@ -20,11 +20,11 @@ pub enum TargetType {
 pub struct TargetComp {
     pub target_type: TargetType,
     pub position: Option<Vec3<f32>>,
-    pub id: Option<String>,
+    pub id: Option<Index>,
 }
 
 impl TargetComp {
-    pub fn new(target_type: TargetType, position: Option<Vec3<f32>>, id: Option<String>) -> Self {
+    pub fn new(target_type: TargetType, position: Option<Vec3<f32>>, id: Option<Index>) -> Self {
         TargetComp {
             target_type,
             position,
