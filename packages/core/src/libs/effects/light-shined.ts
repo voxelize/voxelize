@@ -1,4 +1,11 @@
-import { Color, Mesh, Object3D, Vector3 } from "three";
+import {
+  Color,
+  Material,
+  Mesh,
+  Object3D,
+  ShaderMaterial,
+  Vector3,
+} from "three";
 
 import { World } from "../../core";
 import { ChunkUtils } from "../../utils";
@@ -78,6 +85,7 @@ export class LightShined {
    */
   add = (obj: Object3D) => {
     this.list.add(obj);
+    this.setupLightMaterials(obj);
   };
 
   /**
@@ -118,19 +126,74 @@ export class LightShined {
     });
   };
 
+  private setupLightMaterials = (obj: Object3D) => {
+    const setupMaterial = (material: Material) => {
+      if (material instanceof ShaderMaterial) return;
+
+      const lightUniform = { value: new Color(1, 1, 1) };
+      const oldOnBeforeCompile = material.onBeforeCompile;
+      material.onBeforeCompile = (shader, renderer) => {
+        if (oldOnBeforeCompile) {
+          oldOnBeforeCompile(shader, renderer);
+        }
+
+        shader.uniforms.lightEffect = lightUniform;
+        shader.vertexShader = shader.vertexShader.replace(
+          "void main() {",
+          `
+          uniform vec3 lightEffect;
+          void main() {
+          `
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "void main() {",
+          `
+          uniform vec3 lightEffect;
+          void main() {
+          `
+        );
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <color_fragment>",
+          `
+          #include <color_fragment>
+          diffuseColor.rgb *= lightEffect;
+          `
+        );
+      };
+      material.needsUpdate = true;
+      if (!obj.userData.lightUniforms) {
+        obj.userData.lightUniforms = [];
+      }
+      obj.userData.lightUniforms.push(lightUniform);
+    };
+
+    if (obj instanceof Mesh) {
+      if (Array.isArray(obj.material)) {
+        obj.material.forEach(setupMaterial);
+      } else {
+        setupMaterial(obj.material);
+      }
+    }
+
+    obj.traverse((child) => {
+      if (child instanceof Mesh) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(setupMaterial);
+        } else {
+          setupMaterial(child.material);
+        }
+      }
+    });
+  };
+
   private updateObject = (obj: Object3D, color: Color) => {
     for (const type of this.ignored) {
       if (obj instanceof type) return;
     }
 
-    if (obj instanceof Mesh) {
-      const materials = Array.isArray(obj.material)
-        ? obj.material
-        : [obj.material];
-      materials.forEach((mat) => {
-        if (mat && mat.color) {
-          mat.color.copy(color);
-        }
+    if (obj.userData.lightUniforms) {
+      obj.userData.lightUniforms.forEach((uniform: { value: Color }) => {
+        uniform.value.lerp(color, this.options.lerpFactor);
       });
     }
   };
@@ -154,17 +217,6 @@ export class LightShined {
       if (!chunk) return;
 
       color = this.world.getLightColorAt(...voxel);
-    }
-
-    if (obj.userData.voxelizeLightShined) {
-      const oldColor = obj.userData.voxelizeLightShined;
-      const subbedColor = (oldColor as Color).sub(color);
-      const colorDifference =
-        subbedColor.r ** 2 + subbedColor.g ** 2 + subbedColor.b ** 2;
-
-      if (colorDifference < 0.01) {
-        return;
-      }
     }
 
     this.updateObject(obj, color);
