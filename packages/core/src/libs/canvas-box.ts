@@ -249,10 +249,17 @@ export class BoxLayer extends Mesh {
 
       const { width, height } = this.getDimensionFromSide(face);
 
-      if (art instanceof Texture) {
+      const isTexture = (art: any): art is Texture => {
+        return art.isTexture;
+      };
+      const isColor = (art: any): art is Color => {
+        return art.isColor;
+      };
+
+      if (isTexture(art)) {
         context.drawImage(art.image, 0, 0, width, height);
       } else {
-        if (art instanceof Color) {
+        if (isColor(art)) {
           context.save();
           context.fillStyle = `rgb(${art.r * 255},${art.g * 255},${
             art.b * 255
