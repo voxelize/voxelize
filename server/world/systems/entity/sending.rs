@@ -1,6 +1,9 @@
-use hashbrown::{HashMap, HashSet};
+use fnv::{FnvHashMap, FnvHashSet};
+use hashbrown::HashMap;
 use log::{info, trace};
-use specs::{Entities, Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use rayon::prelude::*;
+use smallvec::{smallvec, SmallVec};
+use specs::{Entities, Join, ParJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     Bookkeeping, ClientFilter, ETypeComp, EntitiesSaver, EntityFlag, EntityOperation,
@@ -38,8 +41,13 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             mut metadatas,
         ) = data;
 
-        let mut new_entity_handlers = HashMap::new();
+        let mut new_entity_handlers = HashMap::default();
+        let mut updated_entities = Vec::with_capacity(flags.count());
+        let mut new_entity_ids = FnvHashSet::default();
+        let mut entity_updates: SmallVec<[EntityProtocol; 16]> = SmallVec::default();
+        let mut new_bookkeeping_records = HashMap::default();
 
+        // Collect new entity handlers
         for (ent, interactor) in (&entities, &interactors).join() {
             new_entity_handlers.insert(
                 ent,
@@ -50,116 +58,78 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
         }
 
-        let mut updated_entities = vec![];
+        // Collect updated entities
+        updated_entities.extend(
+            (&ids, &entities, &flags)
+                .join()
+                .map(|(id, ent, _)| (id.0.clone(), ent)),
+        );
 
-        for (id, ent, _) in (&ids, &entities, &flags).join() {
-            updated_entities.push((id.0.to_owned(), ent));
-        }
-
-        let old_entities = bookkeeping
-            .entities
-            .to_owned()
-            .drain()
-            .map(|(id, ent)| (id, ent))
-            .collect::<Vec<_>>();
-
-        // Differentiating the entities to see which entities are freshly created.
-        let mut entity_updates = Vec::with_capacity(updated_entities.len());
-        let mut new_entity_ids = HashSet::new();
-
+        let old_entities: Vec<_> = bookkeeping.entities.drain().collect();
         let old_entity_handlers = physics.entity_to_handlers.clone();
 
-        old_entities
-            .iter()
-            .for_each(|(id, (etype, ent, metadata))| {
-                let mut found = false;
-
-                for (new_id, _) in &updated_entities {
-                    if new_id == id {
-                        found = true;
-                        break;
-                    }
-                }
-
-                if found {
-                    return;
-                }
-
+        // Process old entities
+        let mut delete_updates = Vec::new();
+        for (id, (etype, ent, metadata)) in old_entities.iter() {
+            if !updated_entities.iter().any(|(new_id, _)| new_id == id) {
                 entities_saver.remove(id);
-
                 if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
                     physics.unregister(body_handle, collider_handle);
                 }
-
-                entity_updates.push(EntityProtocol {
+                delete_updates.push(EntityProtocol {
                     operation: EntityOperation::Delete,
-                    id: id.to_owned(),
-                    r#type: etype.to_owned(),
+                    id: id.clone(),
+                    r#type: etype.clone(),
                     metadata: Some(metadata.to_string()),
                 });
-            });
+            }
+        }
+        entity_updates.extend(delete_updates);
 
         physics.entity_to_handlers = new_entity_handlers;
 
-        updated_entities
-            .iter()
-            .filter(|(id, _)| {
-                let mut found = false;
+        // Identify new entities
+        new_entity_ids.extend(
+            updated_entities
+                .iter()
+                .filter(|(id, _)| !old_entities.iter().any(|(old_id, _)| old_id == id))
+                .map(|(id, _)| id.clone()),
+        );
 
-                for (old_id, _) in &old_entities {
-                    if old_id == id {
-                        found = true;
-                        break;
+        // Process updated entities
+        let new_updates: Vec<_> = (&entities, &ids, &mut metadatas, &etypes, &flags)
+            .join()
+            .filter_map(|(ent, id, metadata, etype, _)| {
+                if metadata.is_empty() {
+                    return None;
+                }
+                new_bookkeeping_records
+                    .insert(id.0.clone(), (etype.0.clone(), ent, metadata.clone()));
+
+                if new_entity_ids.contains(&id.0) {
+                    Some(EntityProtocol {
+                        operation: EntityOperation::Create,
+                        id: id.0.clone(),
+                        r#type: etype.0.clone(),
+                        metadata: Some(metadata.to_string()),
+                    })
+                } else {
+                    let (json_str, updated) = metadata.to_cached_str();
+                    if updated {
+                        Some(EntityProtocol {
+                            operation: EntityOperation::Update,
+                            id: id.0.clone(),
+                            r#type: etype.0.clone(),
+                            metadata: Some(json_str),
+                        })
+                    } else {
+                        None
                     }
                 }
-
-                !found
             })
-            .for_each(|(id, _)| {
-                new_entity_ids.insert(id.to_owned());
-            });
+            .collect();
 
-        let mut new_bookkeeping_records = HashMap::new();
-
-        for (ent, id, metadata, etype, _) in
-            (&entities, &ids, &mut metadatas, &etypes, &flags).join()
-        {
-            if metadata.is_empty() {
-                continue;
-            }
-
-            // Make sure metadata is not empty before recording it.
-            new_bookkeeping_records.insert(
-                id.0.to_owned(),
-                (etype.0.to_owned(), ent, metadata.to_owned()),
-            );
-
-            if new_entity_ids.contains(&id.0) {
-                entity_updates.push(EntityProtocol {
-                    operation: EntityOperation::Create,
-                    id: id.0.to_owned(),
-                    r#type: etype.0.to_owned(),
-                    metadata: Some(metadata.to_string()),
-                });
-
-                continue;
-            }
-
-            let (json_str, updated) = metadata.to_cached_str();
-
-            if !updated {
-                continue;
-            }
-
-            entity_updates.push(EntityProtocol {
-                operation: EntityOperation::Update,
-                id: id.0.to_owned(),
-                r#type: etype.0.to_owned(),
-                metadata: Some(json_str),
-            });
-
-            metadata.reset();
-        }
+        entity_updates.extend(new_updates);
 
         bookkeeping.entities = new_bookkeeping_records;
 

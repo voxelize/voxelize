@@ -48,6 +48,8 @@ nalgebra = "0.33.0"
 nanoid = "0.4.0"
 noise = "0.9.0"
 num = "0.4.2"
+smallvec = "1.13.2"
+fnv = "1.0.7"
 prost = "0.12.4"
 rapier3d = { version = "0.21.0", features = ["simd-stable"] }
 rayon = "1.10.0"
