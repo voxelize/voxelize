@@ -1,5 +1,5 @@
+import Stats from "stats.js";
 import { Group } from "three";
-import Stats from "three/examples/jsm/libs/stats.module.js";
 
 import { DOMUtils } from "../utils";
 
