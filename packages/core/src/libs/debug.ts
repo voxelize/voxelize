@@ -214,6 +214,10 @@ export class Debug extends Group {
     }
   };
 
+  dispose = () => {
+    this.dataWrapper.remove();
+  };
+
   /**
    * Add a static title to the debug entries for grouping.
    *

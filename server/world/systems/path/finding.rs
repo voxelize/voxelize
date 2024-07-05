@@ -251,7 +251,6 @@ impl<'a> System<'a> for PathFindingSystem {
                     if let Some((nodes, count)) = path {
                         if count > entity_path.max_nodes as u32 {
                             entity_path.path = None;
-                            warn!("Path exceeded max nodes for entity at {:?}", body_vpos);
                         } else {
                             entity_path.path = Some(
                                 nodes
@@ -267,7 +266,6 @@ impl<'a> System<'a> for PathFindingSystem {
                         }
                     } else {
                         entity_path.path = None;
-                        warn!("No path found for entity at {:?}", body_vpos);
                     }
 
                     if start_time.elapsed() > MAX_PATHFINDING_TIME {

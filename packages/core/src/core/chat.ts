@@ -98,7 +98,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     trigger: string,
     process: CommandProcessor,
     aliases: string[] = []
-  ) {
+  ): () => void {
     if (this.commands.has(trigger)) {
       throw new Error(`Command trigger already taken: ${trigger}`);
     }
@@ -119,6 +119,11 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
       this.commands.set(alias, process);
     }
+
+    return () => {
+      this.commands.delete(trigger);
+      aliases.forEach((alias) => this.commands.delete(alias));
+    };
   }
 
   /**
