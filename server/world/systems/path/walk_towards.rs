@@ -1,4 +1,5 @@
 use crate::{BrainComp, PathComp, RigidBodyComp, Stats, Vec3};
+use log::warn;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct WalkTowardsSystem;
@@ -31,21 +32,34 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                     let vpos = body.0.get_voxel_position();
 
+                    // Add a safety counter to prevent infinite loops
+                    let mut safety_counter = 0;
+                    let max_iterations = 100; // Adjust as needed
+
                     let mut i = 0;
                     let mut target = nodes[i].clone();
 
                     loop {
-                        if i >= nodes.len() - 1 {
+                        if i >= nodes.len() - 1 || safety_counter >= max_iterations {
                             break;
                         }
 
                         // means currently is in the attended node
                         if target.0 == vpos.0 && target.2 == vpos.2 {
-                            i = i + 1;
+                            i += 1;
                             target = nodes[i].clone();
                         } else {
                             break;
                         }
+
+                        safety_counter += 1;
+                    }
+
+                    // Check if we've hit the safety limit
+                    if safety_counter >= max_iterations {
+                        warn!("Hit safety limit for entity at position {:?}", vpos);
+                        brain.stop();
+                        return;
                     }
 
                     // jumping
