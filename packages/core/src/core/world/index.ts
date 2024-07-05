@@ -46,6 +46,7 @@ import {
   LightUtils,
   RED_LIGHT,
   SUNLIGHT,
+  ThreeUtils,
 } from "../../utils";
 
 import {
@@ -628,7 +629,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       // If the face is independent, that means this face does not share a texture atlas with other faces.
       // In this case, we can just set the map to the texture.
       if (face.independent) {
-        if (source instanceof Texture) {
+        if (ThreeUtils.isTexture(source)) {
           mat.map = source;
           mat.uniforms.map = { value: source };
           mat.needsUpdate = true;
@@ -636,7 +637,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           mat.map.image = data;
           mat.map.needsUpdate = true;
           mat.needsUpdate = true;
-        } else if (data instanceof Color) {
+        } else if (ThreeUtils.isColor(data)) {
           const canvas = mat.map.image;
           canvas.width = 1;
           canvas.height = 1;
@@ -726,12 +727,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       isolatedMat.map.colorSpace = SRGBColorSpace;
       isolatedMat.map.needsUpdate = true;
       isolatedMat.needsUpdate = true;
-    } else if (source instanceof Color) {
+    } else if (ThreeUtils.isColor(source)) {
       if (isolatedMat.map) {
         if (isolatedMat.map instanceof AtlasTexture) {
           isolatedMat.map.paintColor(source);
           isolatedMat.map.needsUpdate = true;
-        } else if (isolatedMat.map instanceof CanvasTexture) {
+        } else if (ThreeUtils.isCanvasTexture(isolatedMat.map)) {
           const canvas = isolatedMat.map.image;
           const ctx = canvas.getContext("2d");
           const canvasWidth = canvas.width;
@@ -752,7 +753,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         isolatedMat.map.needsUpdate = true;
         isolatedMat.needsUpdate = true;
       }
-    } else if (source instanceof Texture) {
+    } else if (ThreeUtils.isTexture(source)) {
       if (isolatedMat.map) {
         isolatedMat.map.dispose();
       }

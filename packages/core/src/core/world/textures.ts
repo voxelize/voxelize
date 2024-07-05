@@ -7,6 +7,8 @@ import {
   Texture,
 } from "three";
 
+import { ThreeUtils } from "../../utils";
+
 import { UV } from "./uv";
 
 /**
@@ -166,10 +168,9 @@ export class AtlasTexture extends CanvasTexture {
   ) {
     const { startU, endV } = range;
 
-    const image2 =
-      image instanceof Texture
-        ? image.image
-        : (image as any as HTMLImageElement);
+    const image2 = ThreeUtils.isTexture(image)
+      ? image.image
+      : (image as any as HTMLImageElement);
 
     if (!image2) {
       return;

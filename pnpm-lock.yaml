@@ -123,8 +123,8 @@ importers:
         specifier: ^0.21.0
         version: 0.21.0(typedoc-plugin-markdown@3.17.1)(typedoc@0.25.3)
       postprocessing:
-        specifier: ^6.33.3
-        version: 6.33.3(three@0.165.0)
+        specifier: ^6.35.5
+        version: 6.35.5(three@0.165.0)
       prism-react-renderer:
         specifier: ^2.2.0
         version: 2.2.0(react@18.2.0)
@@ -187,8 +187,8 @@ importers:
         specifier: ^1.5.0
         version: 1.6.0
       postprocessing:
-        specifier: ^6.35.0
-        version: 6.35.0(three@0.165.0)
+        specifier: ^6.35.5
+        version: 6.35.5(three@0.165.0)
       three:
         specifier: ^0.165.0
         version: 0.165.0
@@ -301,7 +301,7 @@ importers:
         version: 1.0.10
       postprocessing:
         specifier: ^6.35.0
-        version: 6.35.0(three@0.162.0)
+        version: 6.35.0(three@0.165.0)
       regenerator-runtime:
         specifier: ^0.13.9
         version: 0.13.11
@@ -311,9 +311,6 @@ importers:
       stats.js:
         specifier: ^0.17.0
         version: 0.17.0
-      three:
-        specifier: ^0.162.0
-        version: 0.162.0
       uuid:
         specifier: ^8.3.2
         version: 8.3.2
@@ -339,6 +336,9 @@ importers:
       '@types/uuid':
         specifier: ^8.3.4
         version: 8.3.4
+      three:
+        specifier: ^0.165.0
+        version: 0.165.0
       vite-plugin-string-replace:
         specifier: ^1.1.3
         version: 1.1.3
@@ -13619,29 +13619,20 @@ packages:
       picocolors: 1.0.1
       source-map-js: 1.2.0
 
-  /postprocessing@6.33.3(three@0.165.0):
-    resolution: {integrity: sha512-zQAVvcMf7bfeggQNQeVErD/UFd1XHBi2X6+yxwIv9PjhGCLAYKue3UuzVyu95O7ZUvkDwF0TyTzKdxoaVwYi7w==}
-    engines: {node: '>= 0.13.2'}
-    peerDependencies:
-      three: '>= 0.138.0 < 0.159.0'
-    dependencies:
-      three: 0.165.0
-    dev: false
-
-  /postprocessing@6.35.0(three@0.162.0):
-    resolution: {integrity: sha512-a7ozbPX/m6HFmAVfCpu5uzysGcqlefn/Y64Bcrjt/v2t5yrVJyBLj5tHTHSgjemh5QeiMfAFJ0gosysgRDJ9EA==}
-    engines: {node: '>= 0.13.2'}
-    peerDependencies:
-      three: '>= 0.152.0 < 0.163.0'
-    dependencies:
-      three: 0.162.0
-    dev: false
-
   /postprocessing@6.35.0(three@0.165.0):
     resolution: {integrity: sha512-a7ozbPX/m6HFmAVfCpu5uzysGcqlefn/Y64Bcrjt/v2t5yrVJyBLj5tHTHSgjemh5QeiMfAFJ0gosysgRDJ9EA==}
     engines: {node: '>= 0.13.2'}
     peerDependencies:
       three: '>= 0.152.0 < 0.163.0'
+    dependencies:
+      three: 0.165.0
+    dev: false
+
+  /postprocessing@6.35.5(three@0.165.0):
+    resolution: {integrity: sha512-nO8pxbiQT7+u3qv/q4LL1x6tstZWuduDlkOLFWQm3vFFKHzAsRMxqwsGAktkHKMSGXVEwTBvT3TKPklNALQheg==}
+    engines: {node: '>= 0.13.2'}
+    peerDependencies:
+      three: '>= 0.152.0 < 0.166.0'
     dependencies:
       three: 0.165.0
     dev: false
@@ -15473,10 +15464,6 @@ packages:
     resolution: {integrity: sha512-RVZSIV5IG10Hk3enotrhvz0T9em6cyHBLkH/YAZuKqd8hRkKhSfCGIcP2KUY0EPxndzANBmNllzWPwak+bheSw==}
     dependencies:
       any-promise: 1.3.0
-
-  /three@0.162.0:
-    resolution: {integrity: sha512-xfCYj4RnlozReCmUd+XQzj6/5OjDNHBy5nT6rVwrOKGENAvpXe2z1jL+DZYaMu4/9pNsjH/4Os/VvS9IrH7IOQ==}
-    dev: false
 
   /three@0.165.0:
     resolution: {integrity: sha512-cc96IlVYGydeceu0e5xq70H8/yoVT/tXBxV/W8A/U6uOq7DXc4/s1Mkmnu6SqoYGhSRWWYFOhVwvq6V0VtbplA==}

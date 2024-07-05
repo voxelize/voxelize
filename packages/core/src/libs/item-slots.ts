@@ -1,7 +1,6 @@
 import merge from "deepmerge";
 import {
   DirectionalLight,
-  DoubleSide,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
@@ -17,7 +16,7 @@ import {
 
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
-import { DOMUtils } from "../utils";
+import { DOMUtils, ThreeUtils } from "../utils";
 
 export type ItemSlotsOptions = {
   wrapperClass: string;
@@ -135,7 +134,7 @@ export class ItemSlot<T = number> {
       this.scene.remove(this.object);
     }
 
-    if (object instanceof Object3D) {
+    if (ThreeUtils.isObject3D(object)) {
       this.object = object;
       this.scene.add(object);
     } else {

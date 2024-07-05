@@ -25,7 +25,7 @@
     "@mdx-js/react": "^3.0.0",
     "clsx": "^1.2.1",
     "docusaurus-plugin-typedoc": "^0.21.0",
-    "postprocessing": "^6.33.3",
+    "postprocessing": "^6.35.5",
     "prism-react-renderer": "^2.2.0",
     "prism-themes": "^1.9.0",
     "protobufjs": "^7.3.0",

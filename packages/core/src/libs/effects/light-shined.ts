@@ -1,14 +1,7 @@
-import {
-  Color,
-  Material,
-  Mesh,
-  Object3D,
-  ShaderMaterial,
-  Vector3,
-} from "three";
+import { Color, Material, Mesh, Object3D, Vector3 } from "three";
 
 import { World } from "../../core";
-import { ChunkUtils } from "../../utils";
+import { ChunkUtils, ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
 
@@ -129,7 +122,7 @@ export class LightShined {
   private setupLightMaterials = (obj: Object3D) => {
     const setupMaterial = (material: Material) => {
       if (
-        material instanceof ShaderMaterial ||
+        ThreeUtils.isShaderMaterial(material) ||
         material.userData.lightEffectSetup
       )
         return;

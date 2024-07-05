@@ -268,10 +268,11 @@ impl<'a> System<'a> for PathFindingSystem {
                         entity_path.path = None;
                     }
 
-                    if start_time.elapsed() > MAX_PATHFINDING_TIME {
+                    let elapsed = start_time.elapsed();
+                    if elapsed > MAX_PATHFINDING_TIME {
                         warn!(
-                            "Pathfinding exceeded time limit for entity at {:?}",
-                            body_vpos
+                            "Pathfinding exceeded time limit for entity at {:?}. Took {:?}",
+                            body_vpos, elapsed
                         );
                     }
                 }
