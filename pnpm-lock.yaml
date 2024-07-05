@@ -382,9 +382,6 @@ importers:
       rimraf:
         specifier: ^3.0.2
         version: 3.0.2
-      three:
-        specifier: ^0.165.0
-        version: 0.165.0
       webpack:
         specifier: ^5.72.1
         version: 5.76.2(@swc/core@1.3.41)(esbuild@0.14.54)(webpack-cli@4.10.0)
