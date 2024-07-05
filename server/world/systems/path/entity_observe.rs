@@ -1,12 +1,12 @@
 use crate::{IDComp, KdTree, RigidBodyComp, TargetComp, TargetType};
-use specs::{ReadExpect, ReadStorage, System, WriteStorage};
+use specs::{Read, ReadStorage, System, WriteStorage};
 
 pub struct EntityObserveSystem;
 
 impl<'a> System<'a> for EntityObserveSystem {
     #[allow(clippy::type_complexity)]
     type SystemData = (
-        ReadExpect<'a, KdTree>,
+        Read<'a, KdTree>,
         ReadStorage<'a, RigidBodyComp>,
         ReadStorage<'a, IDComp>,
         WriteStorage<'a, TargetComp>,

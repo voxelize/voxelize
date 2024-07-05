@@ -1,12 +1,12 @@
 use crate::{ClientFlag, EntityFlag, KdTree, RigidBodyComp};
-use specs::{Entities, ReadStorage, System, WriteExpect};
+use specs::{Entities, ReadStorage, System, Write};
 
 pub struct EntityTreeSystem;
 
 impl<'a> System<'a> for EntityTreeSystem {
     type SystemData = (
         Entities<'a>,
-        WriteExpect<'a, KdTree>,
+        Write<'a, KdTree>,
         ReadStorage<'a, EntityFlag>,
         ReadStorage<'a, ClientFlag>,
         ReadStorage<'a, RigidBodyComp>,

@@ -1,118 +1,241 @@
-use kdtree::distance::squared_euclidean;
-use kdtree::KdTree as KdTreeCore;
-
 use crate::Vec3;
 use specs::Entity;
+use std::cmp::Ordering;
 
-/// World-wide K-dimensional tree for fast positional querying
-///
-/// Separated into three searchable sections:
-///
-/// 1. Union: All entities
-/// 2. Players: All players
-/// 3. Entities: All entities
-#[derive(Debug)]
-pub struct KdTree {
-    all: KdTreeCore<f32, Entity, Vec<f32>>,
-    players: KdTreeCore<f32, Entity, Vec<f32>>,
-    entities: KdTreeCore<f32, Entity, Vec<f32>>,
+#[derive(Debug, Clone)]
+struct KdNode {
+    point: Vec3<f32>,
+    entity: Entity,
+    is_player: bool,
+    left: Option<Box<KdNode>>,
+    right: Option<Box<KdNode>>,
 }
 
-impl Default for KdTree {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Debug)]
+pub struct KdTree {
+    root: Option<Box<KdNode>>,
+    dimension: usize,
 }
 
 impl KdTree {
     pub fn new() -> Self {
         Self {
-            all: KdTreeCore::new(3),
-            players: KdTreeCore::new(3),
-            entities: KdTreeCore::new(3),
+            root: None,
+            dimension: 3,
         }
+    }
+
+    pub fn add(&mut self, point: Vec3<f32>, entity: Entity) {
+        let new_node = Box::new(KdNode {
+            point,
+            entity,
+            is_player: false,
+            left: None,
+            right: None,
+        });
+        let root = self.root.take();
+        self.root = Some(self.insert(root, new_node, 0));
+    }
+
+    fn insert(
+        &mut self,
+        node: Option<Box<KdNode>>,
+        new_node: Box<KdNode>,
+        depth: usize,
+    ) -> Box<KdNode> {
+        if let Some(mut node) = node {
+            let axis = depth % self.dimension;
+            if new_node.point[axis] < node.point[axis] {
+                node.left = Some(self.insert(node.left.take(), new_node, depth + 1));
+            } else {
+                node.right = Some(self.insert(node.right.take(), new_node, depth + 1));
+            }
+            node
+        } else {
+            new_node
+        }
+    }
+
+    pub fn nearest(&self, target: &Vec3<f32>, k: usize) -> Vec<(f32, Entity)> {
+        let mut nearest = Vec::with_capacity(k);
+        if let Some(root) = &self.root {
+            self.nearest_recursive(root, target, k, 0, &mut nearest);
+        }
+        nearest.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+        nearest
+    }
+
+    fn nearest_recursive(
+        &self,
+        node: &KdNode,
+        target: &Vec3<f32>,
+        k: usize,
+        depth: usize,
+        nearest: &mut Vec<(f32, Entity)>,
+    ) {
+        let dist = squared_distance(&node.point, target);
+
+        if nearest.len() < k {
+            nearest.push((dist, node.entity));
+            nearest.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+        } else if dist < nearest[0].0 {
+            nearest[0] = (dist, node.entity);
+            nearest.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+        }
+
+        let axis = depth % self.dimension;
+        let diff = target[axis] - node.point[axis];
+
+        let (closer, further) = if diff <= 0.0 {
+            (&node.left, &node.right)
+        } else {
+            (&node.right, &node.left)
+        };
+
+        if let Some(closer) = closer {
+            self.nearest_recursive(closer, target, k, depth + 1, nearest);
+        }
+
+        if let Some(further) = further {
+            if nearest.is_empty() || diff * diff < nearest[0].0 || nearest.len() < k {
+                self.nearest_recursive(further, target, k, depth + 1, nearest);
+            }
+        }
+    }
+
+    pub fn nearest_n(&self, target: &Vec3<f32>, n: usize) -> Vec<(f32, Entity)> {
+        self.nearest(target, n)
+    }
+
+    pub fn nearest_one(&self, target: &Vec3<f32>) -> Option<(f32, Entity)> {
+        self.nearest(target, 1).into_iter().next()
+    }
+
+    pub fn clear(&mut self) {
+        self.root = None;
     }
 
     pub fn reset(&mut self) {
-        self.all = KdTreeCore::new(3);
-        self.players = KdTreeCore::new(3);
-        self.entities = KdTreeCore::new(3);
+        self.clear();
     }
 
-    pub fn add_player(&mut self, ent: Entity, point: Vec3<f32>) {
-        self.players
-            .add(vec![point.0, point.1, point.2], ent)
-            .expect("Unable to construct KdTree.");
-
-        self.all
-            .add(vec![point.0, point.1, point.2], ent)
-            .expect("Unable to construct KdTree.");
+    pub fn add_entity(&mut self, entity: Entity, position: Vec3<f32>) {
+        self.add_internal(position, entity, false);
     }
 
-    pub fn add_entity(&mut self, ent: Entity, point: Vec3<f32>) {
-        self.entities
-            .add(vec![point.0, point.1, point.2], ent)
-            .expect("Unable to construct KdTree.");
-
-        self.all
-            .add(vec![point.0, point.1, point.2], ent)
-            .expect("Unable to construct KdTree.");
+    pub fn add_player(&mut self, entity: Entity, position: Vec3<f32>) {
+        self.add_internal(position, entity, true);
     }
 
-    pub fn search(&self, point: &Vec3<f32>, count: usize) -> Vec<(f32, &Entity)> {
-        let mut results = self
-            .all
-            .nearest(&[point.0, point.1, point.2], count + 1, &squared_euclidean)
-            .expect("Unable to search KdTree.");
+    fn add_internal(&mut self, point: Vec3<f32>, entity: Entity, is_player: bool) {
+        let new_node = Box::new(KdNode {
+            point,
+            entity,
+            is_player,
+            left: None,
+            right: None,
+        });
+        let root = self.root.take();
+        self.root = Some(self.insert(root, new_node, 0));
+    }
 
-        if !results.is_empty() {
-            results.remove(0);
-        }
-
-        results
+    pub fn search(&self, target: &Vec3<f32>, k: usize) -> Vec<(f32, Entity)> {
+        self.nearest(target, k)
     }
 
     pub fn search_player(
         &self,
-        point: &Vec3<f32>,
-        count: usize,
-        is_player: bool,
-    ) -> Vec<(f32, &Entity)> {
-        let mut results = self
-            .players
-            .nearest(
-                &[point.0, point.1, point.2],
-                count + if is_player { 1 } else { 0 },
-                &squared_euclidean,
-            )
-            .expect("Unable to search KdTree.");
-
-        if is_player && !results.is_empty() {
-            results.remove(0);
+        target: &Vec3<f32>,
+        k: usize,
+        exclude_self: bool,
+    ) -> Vec<(f32, Entity)> {
+        let mut nearest = Vec::with_capacity(k);
+        if let Some(root) = &self.root {
+            self.search_recursive(root, target, k, 0, &mut nearest, true, exclude_self);
         }
-
-        results
+        nearest.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+        nearest
     }
 
     pub fn search_entity(
         &self,
-        point: &Vec3<f32>,
-        count: usize,
-        is_entity: bool,
-    ) -> Vec<(f32, &Entity)> {
-        let mut results = self
-            .entities
-            .nearest(
-                &[point.0, point.1, point.2],
-                count + if is_entity { 1 } else { 0 },
-                &squared_euclidean,
-            )
-            .expect("Unable to search KdTree.");
+        target: &Vec3<f32>,
+        k: usize,
+        exclude_self: bool,
+    ) -> Vec<(f32, Entity)> {
+        let mut nearest = Vec::with_capacity(k);
+        if let Some(root) = &self.root {
+            self.search_recursive(root, target, k, 0, &mut nearest, false, exclude_self);
+        }
+        nearest.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+        nearest
+    }
 
-        if is_entity && !results.is_empty() {
-            results.remove(0);
+    fn search_recursive(
+        &self,
+        node: &KdNode,
+        target: &Vec3<f32>,
+        k: usize,
+        depth: usize,
+        nearest: &mut Vec<(f32, Entity)>,
+        players_only: bool,
+        exclude_self: bool,
+    ) {
+        let dist = squared_distance(&node.point, target);
+
+        if (!players_only || node.is_player) && (!exclude_self || dist > 0.0) {
+            if nearest.len() < k {
+                nearest.push((dist, node.entity));
+                nearest.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+            } else if dist < nearest[0].0 {
+                nearest[0] = (dist, node.entity);
+                nearest.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+            }
         }
 
-        results
+        let axis = depth % self.dimension;
+        let diff = target[axis] - node.point[axis];
+
+        let (closer, further) = if diff <= 0.0 {
+            (&node.left, &node.right)
+        } else {
+            (&node.right, &node.left)
+        };
+
+        if let Some(closer) = closer {
+            self.search_recursive(
+                closer,
+                target,
+                k,
+                depth + 1,
+                nearest,
+                players_only,
+                exclude_self,
+            );
+        }
+
+        if let Some(further) = further {
+            if nearest.is_empty() || diff * diff < nearest[0].0 || nearest.len() < k {
+                self.search_recursive(
+                    further,
+                    target,
+                    k,
+                    depth + 1,
+                    nearest,
+                    players_only,
+                    exclude_self,
+                );
+            }
+        }
+    }
+}
+
+fn squared_distance(a: &Vec3<f32>, b: &Vec3<f32>) -> f32 {
+    (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)
+}
+
+impl Default for KdTree {
+    fn default() -> Self {
+        Self::new()
     }
 }

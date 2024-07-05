@@ -2,12 +2,15 @@ use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
 use log::info;
 use nalgebra::Vector3;
-use rapier3d::prelude::{
-    vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
-    ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
-    IslandManager, MultibodyJointSet, NarrowPhase, PhysicsHooks, PhysicsPipeline,
-    RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
-    RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
+use rapier3d::{
+    geometry::DefaultBroadPhase,
+    prelude::{
+        vector, ActiveEvents, BroadPhase, CCDSolver, ChannelEventCollector, ColliderBuilder,
+        ColliderHandle, ColliderSet, CollisionEvent, ImpulseJointSet, IntegrationParameters,
+        IslandManager, MultibodyJointSet, NarrowPhase, PhysicsHooks, PhysicsPipeline,
+        RigidBody as RapierBody, RigidBodyBuilder as RapierBodyBuilder,
+        RigidBodyHandle as RapierBodyHandle, RigidBodySet as RapierBodySet,
+    },
 };
 use specs::Entity;
 
@@ -31,7 +34,7 @@ pub struct Physics {
     pipeline: PhysicsPipeline,
     integration_options: IntegrationParameters,
     island_manager: IslandManager,
-    broad_phase: BroadPhase,
+    broad_phase: DefaultBroadPhase,
     narrow_phase: NarrowPhase,
     impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,
@@ -51,7 +54,7 @@ impl Physics {
         Self {
             collision_recv,
             body_set: RapierBodySet::default(),
-            broad_phase: BroadPhase::default(),
+            broad_phase: DefaultBroadPhase::new(),
             ccd_solver: CCDSolver::default(),
             collider_set: ColliderSet::default(),
             impulse_joint_set: ImpulseJointSet::default(),
