@@ -3,6 +3,7 @@ mod clients;
 mod components;
 mod config;
 mod entities;
+mod entity_ids;
 mod events;
 mod generators;
 mod interests;
@@ -50,6 +51,7 @@ pub use clients::*;
 pub use components::*;
 pub use config::*;
 pub use entities::*;
+pub use entity_ids::*;
 pub use events::*;
 pub use generators::*;
 pub use interests::*;
@@ -283,6 +285,7 @@ impl World {
         ecs.insert(KdTree::new());
         ecs.insert(EncodedMessageQueue::new());
         ecs.insert(Profiler::new(Duration::from_secs_f64(0.001)));
+        ecs.insert(EntityIDs::new());
 
         let mut world = Self {
             id,
@@ -459,6 +462,8 @@ impl World {
             },
         );
 
+        self.entity_ids_mut().insert(id.to_owned(), ent.id());
+
         self.send(addr, &init_message);
 
         let join_message = Message::new(&MessageType::Join).text(id).build();
@@ -470,6 +475,7 @@ impl World {
     /// Remove a client from the world by endpoint.
     pub(crate) fn remove_client(&mut self, id: &str) {
         let removed = self.clients_mut().remove(id);
+        self.entity_ids_mut().remove(id);
 
         if let Some(client) = removed {
             {
@@ -637,6 +643,16 @@ impl World {
     /// Access a mutable clients map in the ECS world.
     pub fn clients_mut(&mut self) -> FetchMut<Clients> {
         self.write_resource::<Clients>()
+    }
+
+    /// Access all entity IDs in the ECS world.
+    pub fn entity_ids(&self) -> Fetch<EntityIDs> {
+        self.read_resource::<EntityIDs>()
+    }
+
+    /// Access a mutable entity IDs map in the ECS world.
+    pub fn entity_ids_mut(&mut self) -> FetchMut<EntityIDs> {
+        self.write_resource::<EntityIDs>()
     }
 
     /// Access the registry in the ECS world.
@@ -842,6 +858,10 @@ impl World {
             .write_storage::<MetadataComp>()
             .insert(ent, metadata)
             .expect("Failed to insert metadata component");
+
+        let ent_id = ent.id();
+
+        self.entity_ids_mut().insert(id.to_owned(), ent_id);
     }
 
     /// Check if this world is empty.
