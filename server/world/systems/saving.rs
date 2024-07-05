@@ -30,13 +30,16 @@ impl<'a> System<'a> for DataSavingSystem {
             return;
         }
 
-        let entities_saver = Arc::new(entities_saver);
+        // Only save entities if save_entities is true
+        if config.save_entities {
+            let entities_saver = Arc::new(entities_saver);
 
-        (&ids, &etypes, &mut metadatas)
-            .par_join()
-            .for_each(|(id, etype, metadata)| {
-                entities_saver.save(&id.0, &etype.0, etype.1, &metadata);
-            });
+            (&ids, &etypes, &mut metadatas)
+                .par_join()
+                .for_each(|(id, etype, metadata)| {
+                    entities_saver.save(&id.0, &etype.0, etype.1, &metadata);
+                });
+        }
 
         stats.save();
     }

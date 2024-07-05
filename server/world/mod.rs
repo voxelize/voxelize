@@ -263,7 +263,7 @@ impl World {
         ecs.insert(config.clone());
 
         ecs.insert(Chunks::new(config));
-        ecs.insert(EntitiesSaver::new(config.saving, &config.save_dir));
+        ecs.insert(EntitiesSaver::new(&config));
         ecs.insert(Stats::new(
             config.saving,
             &config.save_dir,

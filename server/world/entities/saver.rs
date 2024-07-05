@@ -6,7 +6,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::{ETypeComp, IDComp, MetadataComp, PositionComp, RigidBodyComp};
+use crate::{ETypeComp, IDComp, MetadataComp, PositionComp, RigidBodyComp, WorldConfig};
 
 /// Takes all the metadata components, and saves them into the
 /// world saving directory by their ID's.
@@ -17,15 +17,18 @@ pub struct EntitiesSaver {
 }
 
 impl EntitiesSaver {
-    pub fn new(saving: bool, directory: &str) -> Self {
-        let mut folder = PathBuf::from(&directory);
+    pub fn new(config: &WorldConfig) -> Self {
+        let mut folder = PathBuf::from(&config.save_dir);
         folder.push("entities");
 
-        if saving {
+        if config.saving && config.save_entities {
             fs::create_dir_all(&folder).expect("Unable to create entities directory...");
         }
 
-        Self { saving, folder }
+        Self {
+            saving: config.saving && config.save_entities,
+            folder,
+        }
     }
 
     pub fn save(&self, id: &str, etype: &str, is_block: bool, metadata: &MetadataComp) {

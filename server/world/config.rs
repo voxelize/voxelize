@@ -94,6 +94,9 @@ pub struct WorldConfig {
 
     /// Prefix for all commands.
     pub command_symbol: String,
+
+    /// Whether entities should be saved. Only applies if `saving` is true.
+    pub save_entities: bool,
 }
 
 impl Default for WorldConfig {
@@ -171,6 +174,7 @@ pub struct WorldConfigBuilder {
     save_dir: String,
     save_interval: usize,
     command_symbol: String,
+    save_entities: bool,
 }
 
 impl WorldConfigBuilder {
@@ -207,6 +211,7 @@ impl WorldConfigBuilder {
             save_interval: DEFAULT_SAVE_INTERVAL,
             terrain: NoiseOptions::default(),
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
+            save_entities: true,
         }
     }
 
@@ -367,6 +372,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure whether entities should be saved. Only applies if `saving` is true.
+    pub fn save_entities(mut self, save_entities: bool) -> Self {
+        self.save_entities = save_entities;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -413,6 +424,7 @@ impl WorldConfigBuilder {
             save_dir: self.save_dir,
             save_interval: self.save_interval,
             command_symbol: self.command_symbol,
+            save_entities: self.save_entities,
         }
     }
 }
