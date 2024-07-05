@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::{
     AStar, AStarNode, Chunks, PathComp, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
     WorldConfig,
 };
-use log::info;
+use log::{info, warn};
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 const MAX_DEPTH_SEARCH: i32 = 512;
+const MAX_PATHFINDING_TIME: Duration = Duration::from_millis(10);
 
 pub struct PathFindingSystem;
 
@@ -140,6 +142,7 @@ impl<'a> System<'a> for PathFindingSystem {
                         return;
                     }
 
+                    let start_time = Instant::now();
                     let count = Arc::new(Mutex::new(0));
 
                     let path = AStar::calculate(
@@ -151,7 +154,9 @@ impl<'a> System<'a> for PathFindingSystem {
                             let mut locked_count = count.lock().unwrap();
 
                             *locked_count += 1;
-                            if *locked_count >= MAX_DEPTH_SEARCH {
+                            if *locked_count >= MAX_DEPTH_SEARCH
+                                || start_time.elapsed() > MAX_PATHFINDING_TIME
+                            {
                                 return successors;
                             }
 
@@ -246,6 +251,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     if let Some((nodes, count)) = path {
                         if count > entity_path.max_nodes as u32 {
                             entity_path.path = None;
+                            warn!("Path exceeded max nodes for entity at {:?}", body_vpos);
                         } else {
                             entity_path.path = Some(
                                 nodes
@@ -254,9 +260,21 @@ impl<'a> System<'a> for PathFindingSystem {
                                     .map(|p| Vec3(p.0, p.1, p.2))
                                     .collect::<Vec<_>>(),
                             );
+                            info!(
+                                "Path found for entity at {:?} with {} nodes",
+                                body_vpos, count
+                            );
                         }
                     } else {
                         entity_path.path = None;
+                        warn!("No path found for entity at {:?}", body_vpos);
+                    }
+
+                    if start_time.elapsed() > MAX_PATHFINDING_TIME {
+                        warn!(
+                            "Pathfinding exceeded time limit for entity at {:?}",
+                            body_vpos
+                        );
                     }
                 }
             });

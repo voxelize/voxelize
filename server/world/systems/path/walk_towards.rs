@@ -32,32 +32,20 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                     let vpos = body.0.get_voxel_position();
 
-                    // Add a safety counter to prevent infinite loops
-                    let mut safety_counter = 0;
-                    let max_iterations = 100; // Adjust as needed
-
                     let mut i = 0;
                     let mut target = nodes[i].clone();
 
-                    loop {
-                        if i >= nodes.len() - 1 || safety_counter >= max_iterations {
+                    // Find the next target node
+                    for (index, node) in nodes.iter().enumerate() {
+                        if node.0 != vpos.0 || node.2 != vpos.2 {
+                            i = index;
+                            target = node.clone();
                             break;
                         }
-
-                        // means currently is in the attended node
-                        if target.0 == vpos.0 && target.2 == vpos.2 {
-                            i += 1;
-                            target = nodes[i].clone();
-                        } else {
-                            break;
-                        }
-
-                        safety_counter += 1;
                     }
 
-                    // Check if we've hit the safety limit
-                    if safety_counter >= max_iterations {
-                        warn!("Hit safety limit for entity at position {:?}", vpos);
+                    // If we've reached the end of the path
+                    if i == nodes.len() - 1 && target.0 == vpos.0 && target.2 == vpos.2 {
                         brain.stop();
                         return;
                     }
