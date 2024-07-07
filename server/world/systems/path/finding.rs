@@ -259,10 +259,10 @@ impl<'a> System<'a> for PathFindingSystem {
                                     .map(|p| Vec3(p.0, p.1, p.2))
                                     .collect::<Vec<_>>(),
                             );
-                            info!(
-                                "Path found for entity at {:?} with {} nodes",
-                                body_vpos, count
-                            );
+                            // info!(
+                            //     "Path found for entity at {:?} with {} nodes",
+                            //     body_vpos, count
+                            // );
                         }
                     } else {
                         entity_path.path = None;

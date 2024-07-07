@@ -22,9 +22,9 @@ impl<'a> System<'a> for PeersSendingSystem {
 
         let (clients, mut queue, flag, ids, names, mut metadatas) = data;
 
-        if clients.len() <= 1 {
-            return;
-        }
+        // if clients.len() <= 1 {
+        //     return;
+        // }
 
         let mut peers = vec![];
         for (id, name, metadata, _) in (&ids, &names, &mut metadatas, &flag).join() {

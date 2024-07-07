@@ -197,8 +197,7 @@ export class Peers<
       }
       case "JOIN": {
         const { text: id } = message;
-        if (!this.options.countSelf && (!this.ownID || this.ownID === id))
-          return;
+        if (this.ownID && this.ownID === id) return;
 
         if (!this.createPeer) {
           console.warn("Peers.createPeer is not defined, skipping peer join.");
@@ -253,13 +252,13 @@ export class Peers<
 
     if (peers) {
       peers.forEach((peer: any) => {
-        if (!this.options.countSelf && (!this.ownID || peer.id === this.ownID))
-          return;
-        if (message.type === "INIT") this.onPeerJoin?.(peer.id, peer);
+        const self = this.ownID && peer.id === this.ownID;
 
-        let object = this.getPeerById(peer.id);
+        if (!this.options.countSelf && self) return;
 
-        if (!object) {
+        let object = self ? this.ownPeer : this.getPeerById(peer.id);
+
+        if (!object && !self) {
           object = internalOnJoin(peer.id);
         }
 
