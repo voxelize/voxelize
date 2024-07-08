@@ -22,10 +22,15 @@ impl<'a> System<'a> for EntitiesMetaSystem {
 
         let (flag, positions, directions, voxels, jsons, mut metadatas) = data;
 
-        (&positions, &directions, &mut metadatas, &flag)
+        (&positions, &mut metadatas, &flag)
             .par_join()
-            .for_each(|(position, direction, metadata, _)| {
+            .for_each(|(position, metadata, _)| {
                 metadata.set("position", position);
+            });
+
+        (&directions, &mut metadatas, &flag)
+            .par_join()
+            .for_each(|(direction, metadata, _)| {
                 metadata.set("direction", direction);
             });
 
