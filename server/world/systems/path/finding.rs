@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::{
-    AStar, AStarNode, Chunks, PathComp, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
+    AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
     WorldConfig,
 };
 use log::{info, warn};
@@ -146,10 +146,10 @@ impl<'a> System<'a> for PathFindingSystem {
                     let count = Arc::new(Mutex::new(0));
 
                     let path = AStar::calculate(
-                        &AStarNode(start.0, start.1, start.2),
-                        &AStarNode(goal.0, goal.1, goal.2),
+                        &start,
+                        &goal,
                         &|node| {
-                            let AStarNode(vx, vy, vz) = *node;
+                            let &PathNode(vx, vy, vz) = node;
                             let mut successors = vec![];
                             let mut locked_count = count.lock().unwrap();
 
@@ -173,79 +173,79 @@ impl<'a> System<'a> for PathFindingSystem {
 
                             // +X direction
                             if walkable(vx + 1, vy - 1, vz, height) {
-                                successors.push((AStarNode(vx + 1, vy, vz), 1));
+                                successors.push((PathNode(vx + 1, vy, vz), 1));
                             } else if walkable(vx + 1, vy, vz, height) && py {
-                                successors.push((AStarNode(vx + 1, vy + 1, vz), 2));
+                                successors.push((PathNode(vx + 1, vy + 1, vz), 2));
                             } else if walkable(vx + 1, vy - 2, vz, height) && px {
-                                successors.push((AStarNode(vx + 1, vy - 1, vz), 2));
+                                successors.push((PathNode(vx + 1, vy - 1, vz), 2));
                             }
 
                             // -X direction
                             if walkable(vx - 1, vy - 1, vz, height) {
-                                successors.push((AStarNode(vx - 1, vy, vz), 1));
+                                successors.push((PathNode(vx - 1, vy, vz), 1));
                             } else if walkable(vx - 1, vy, vz, height) && py {
-                                successors.push((AStarNode(vx - 1, vy + 1, vz), 2));
+                                successors.push((PathNode(vx - 1, vy + 1, vz), 2));
                             } else if walkable(vx - 1, vy - 2, vz, height) && nx {
-                                successors.push((AStarNode(vx - 1, vy - 1, vz), 2));
+                                successors.push((PathNode(vx - 1, vy - 1, vz), 2));
                             }
 
                             // +Z direction
                             if walkable(vx, vy - 1, vz + 1, height) {
-                                successors.push((AStarNode(vx, vy, vz + 1), 1));
+                                successors.push((PathNode(vx, vy, vz + 1), 1));
                             } else if walkable(vx, vy, vz + 1, height) && py {
-                                successors.push((AStarNode(vx, vy + 1, vz + 1), 2));
+                                successors.push((PathNode(vx, vy + 1, vz + 1), 2));
                             } else if walkable(vx, vy - 2, vz + 1, height) && pz {
-                                successors.push((AStarNode(vx, vy - 1, vz + 1), 2));
+                                successors.push((PathNode(vx, vy - 1, vz + 1), 2));
                             }
 
                             // -Z direction
                             if walkable(vx, vy - 1, vz - 1, height) {
-                                successors.push((AStarNode(vx, vy, vz - 1), 1));
+                                successors.push((PathNode(vx, vy, vz - 1), 1));
                             } else if walkable(vx, vy, vz - 1, height) && py {
-                                successors.push((AStarNode(vx, vy + 1, vz - 1), 2));
+                                successors.push((PathNode(vx, vy + 1, vz - 1), 2));
                             } else if walkable(vx, vy - 2, vz - 1, height) && nz {
-                                successors.push((AStarNode(vx, vy - 1, vz - 1), 2));
+                                successors.push((PathNode(vx, vy - 1, vz - 1), 2));
                             }
 
                             // +X+Z direction
                             if walkable(vx + 1, vy - 1, vz + 1, height) && px && pz {
-                                successors.push((AStarNode(vx + 1, vy, vz + 1), 2));
+                                successors.push((PathNode(vx + 1, vy, vz + 1), 2));
                             } else if walkable(vx + 1, vy, vz + 1, height) && py && pxpy && pzpy {
-                                successors.push((AStarNode(vx + 1, vy + 1, vz + 1), 3));
+                                successors.push((PathNode(vx + 1, vy + 1, vz + 1), 3));
                             } else if walkable(vx + 1, vy - 2, vz + 1, height) && px && pz {
-                                successors.push((AStarNode(vx + 1, vy - 1, vz + 1), 3));
+                                successors.push((PathNode(vx + 1, vy - 1, vz + 1), 3));
                             }
 
                             // +X-Z direction
                             if walkable(vx + 1, vy - 1, vz - 1, height) && px && nz {
-                                successors.push((AStarNode(vx + 1, vy, vz - 1), 2));
+                                successors.push((PathNode(vx + 1, vy, vz - 1), 2));
                             } else if walkable(vx + 1, vy, vz - 1, height) && py && pxpy && nzpy {
-                                successors.push((AStarNode(vx + 1, vy + 1, vz - 1), 3));
+                                successors.push((PathNode(vx + 1, vy + 1, vz - 1), 3));
                             } else if walkable(vx + 1, vy - 2, vz - 1, height) && px && nz {
-                                successors.push((AStarNode(vx + 1, vy - 1, vz - 1), 3));
+                                successors.push((PathNode(vx + 1, vy - 1, vz - 1), 3));
                             }
 
                             // -X+Z direction
                             if walkable(vx - 1, vy - 1, vz + 1, height) && nx && pz {
-                                successors.push((AStarNode(vx - 1, vy, vz + 1), 2));
+                                successors.push((PathNode(vx - 1, vy, vz + 1), 2));
                             } else if walkable(vx - 1, vy, vz + 1, height) && py && nxpy && pzpy {
-                                successors.push((AStarNode(vx - 1, vy + 1, vz + 1), 3));
+                                successors.push((PathNode(vx - 1, vy + 1, vz + 1), 3));
                             } else if walkable(vx - 1, vy - 2, vz + 1, height) && nx && pz {
-                                successors.push((AStarNode(vx - 1, vy - 1, vz + 1), 3));
+                                successors.push((PathNode(vx - 1, vy - 1, vz + 1), 3));
                             }
 
                             // -X-Z direction
                             if walkable(vx - 1, vy - 1, vz - 1, height) && nx && nz {
-                                successors.push((AStarNode(vx - 1, vy, vz - 1), 2));
+                                successors.push((PathNode(vx - 1, vy, vz - 1), 2));
                             } else if walkable(vx - 1, vy, vz - 1, height) && py && nxpy && nzpy {
-                                successors.push((AStarNode(vx - 1, vy + 1, vz - 1), 3));
+                                successors.push((PathNode(vx - 1, vy + 1, vz - 1), 3));
                             } else if walkable(vx - 1, vy - 2, vz - 1, height) && nx && nz {
-                                successors.push((AStarNode(vx - 1, vy - 1, vz - 1), 3));
+                                successors.push((PathNode(vx - 1, vy - 1, vz - 1), 3));
                             }
 
                             successors
                         },
-                        &|p| p.distance(&AStarNode(goal.0, goal.1, goal.2)) / 3.0,
+                        &|p| p.distance(&PathNode(goal.0, goal.1, goal.2)) / 3,
                     );
 
                     if let Some((nodes, count)) = path {
@@ -259,10 +259,6 @@ impl<'a> System<'a> for PathFindingSystem {
                                     .map(|p| Vec3(p.0, p.1, p.2))
                                     .collect::<Vec<_>>(),
                             );
-                            // info!(
-                            //     "Path found for entity at {:?} with {} nodes",
-                            //     body_vpos, count
-                            // );
                         }
                     } else {
                         entity_path.path = None;

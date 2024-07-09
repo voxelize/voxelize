@@ -1,4 +1,3 @@
-mod astar;
 mod lights;
 mod lsystem;
 mod mesher;
@@ -9,7 +8,6 @@ mod terrain;
 mod trees;
 
 pub use self::noise::*;
-pub use astar::*;
 pub use lights::{LightNode, Lights};
 pub use lsystem::*;
 pub use mesher::Mesher;
