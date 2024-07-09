@@ -1,16 +1,13 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::{
     AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
     WorldConfig,
 };
-use log::{info, warn};
+use log::warn;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-
-const MAX_DEPTH_SEARCH: i32 = 512;
-const MAX_PATHFINDING_TIME: Duration = Duration::from_millis(10);
 
 pub struct PathFindingSystem;
 
@@ -154,8 +151,8 @@ impl<'a> System<'a> for PathFindingSystem {
                             let mut locked_count = count.lock().unwrap();
 
                             *locked_count += 1;
-                            if *locked_count >= MAX_DEPTH_SEARCH
-                                || start_time.elapsed() > MAX_PATHFINDING_TIME
+                            if *locked_count >= entity_path.max_depth_search
+                                || start_time.elapsed() > entity_path.max_pathfinding_time
                             {
                                 return successors;
                             }
@@ -265,7 +262,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     }
 
                     let elapsed = start_time.elapsed();
-                    if elapsed > MAX_PATHFINDING_TIME {
+                    if elapsed > entity_path.max_pathfinding_time {
                         warn!(
                             "Pathfinding exceeded time limit for entity at {:?}. Took {:?}",
                             body_vpos, elapsed

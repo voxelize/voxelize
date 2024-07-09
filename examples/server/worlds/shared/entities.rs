@@ -1,5 +1,6 @@
 use nanoid::nanoid;
 use specs::Builder;
+use std::time::Duration;
 use voxelize::{
     BrainComp, DirectionComp, InteractorComp, PathComp, PositionComp, RigidBody, RigidBodyComp,
     TargetComp, World, AABB,
@@ -9,6 +10,8 @@ use super::components::{BotFlag, TextComp};
 
 const MAX_NODES: usize = 24;
 const MAX_DISTANCE: f64 = 30.0;
+const MAX_DEPTH_SEARCH: i32 = 512;
+const MAX_PATHFINDING_TIME: Duration = Duration::from_millis(10);
 
 pub fn setup_entities(world: &mut World) {
     world.set_entity_loader("floating-text", |world, metadata| {
@@ -32,11 +35,14 @@ pub fn setup_entities(world: &mut World) {
                     .unwrap_or_else(|| TargetComp::players()),
             )
             .with(metadata.get::<PositionComp>("position").unwrap_or_default())
-            .with(
-                metadata
-                    .get::<PathComp>("path")
-                    .unwrap_or_else(|| PathComp::new(MAX_NODES, MAX_DISTANCE)),
-            )
+            .with(metadata.get::<PathComp>("path").unwrap_or_else(|| {
+                PathComp::new(
+                    MAX_NODES,
+                    MAX_DISTANCE,
+                    MAX_DEPTH_SEARCH,
+                    MAX_PATHFINDING_TIME,
+                )
+            }))
             .with(
                 metadata
                     .get::<DirectionComp>("direction")
