@@ -74,14 +74,16 @@ git clone https://github.com/shaoruu/voxelize.git
 cd voxelize
 
 # download dependencies
-yarn
+pnpm install
 
 # generate protocol buffers
-yarn proto
+pnpm run proto
+
+# fresh build
+pnpm run build
 
 # in a separate terminal, start both frontend/backend demo
-yarn run demo
-
+pnpm run demo
 ```
 
 visit http://localhost:3000
