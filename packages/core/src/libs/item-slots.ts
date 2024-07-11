@@ -129,9 +129,14 @@ export class ItemSlot<T = number> {
 
   getObject = () => this.object;
 
-  setObject = (object: Object3D | HTMLImageElement) => {
+  setObject = (object: Object3D | HTMLImageElement | undefined) => {
     if (this.object) {
       this.scene.remove(this.object);
+    }
+
+    if (object === undefined) {
+      this.object = undefined;
+      return;
     }
 
     if (ThreeUtils.isObject3D(object)) {
