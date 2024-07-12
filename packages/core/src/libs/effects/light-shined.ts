@@ -15,10 +15,15 @@ export type LightShinedOptions = {
    * The lerping factor of the brightness of each mesh. Defaults to `0.1`.
    */
   lerpFactor: number;
+  /**
+   * The maximum brightness cap for the light effect. Defaults to `1.2`.
+   */
+  maxBrightness: number;
 };
 
 const defaultOptions: LightShinedOptions = {
   lerpFactor: 0.1,
+  maxBrightness: 0.8,
 };
 
 /**
@@ -227,6 +232,10 @@ export class LightShined {
         } else {
           uniform.value.lerp(color, this.options.lerpFactor);
         }
+        // Apply the brightness cap
+        uniform.value.r = Math.min(uniform.value.r, this.options.maxBrightness);
+        uniform.value.g = Math.min(uniform.value.g, this.options.maxBrightness);
+        uniform.value.b = Math.min(uniform.value.b, this.options.maxBrightness);
       });
     }
     obj.userData.justChanged = false;
