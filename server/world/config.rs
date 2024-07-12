@@ -110,6 +110,10 @@ impl WorldConfig {
     pub fn new() -> WorldConfigBuilder {
         WorldConfigBuilder::new()
     }
+
+    pub fn make_copy(&self) -> WorldConfig {
+        self.clone()
+    }
 }
 
 const DEFAULT_MAX_CLIENT: usize = 100;

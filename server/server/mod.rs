@@ -4,13 +4,14 @@ mod session;
 use std::time::{Duration, Instant};
 
 use actix::{
-    Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, Recipient,
+    Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, Recipient,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::HashMap;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{info, warn};
 use nanoid::nanoid;
+use rayon::ThreadPool;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -18,7 +19,9 @@ use std::sync::Arc;
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
-    ChunkStatus, Mesher, MessageQueue, Stats,
+    ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo, Mesher,
+    MessageQueue, Preload, Prepare, Stats, SyncWorld, Tick, TransportJoinRequest,
+    TransportLeaveRequest,
 };
 
 pub use models::*;
@@ -62,94 +65,92 @@ fn default_info_handle(server: &Server) -> Value {
 
     info.insert("transports".to_owned(), json!(transports));
 
-    let mut worlds = HashMap::new();
+    // for (name, world) in server.worlds.iter() {
+    //     let mut world_info = HashMap::new();
 
-    for (name, world) in server.worlds.iter() {
-        let mut world_info = HashMap::new();
+    //     {
+    //         let clients = world.clients();
+    //         world_info.insert(
+    //             "clients".to_owned(),
+    //             json!(clients
+    //                 .values()
+    //                 .map(|client| json!({
+    //                     "id": client.id.to_owned(),
+    //                     "username": client.username.to_owned(),
+    //                 }))
+    //                 .collect::<Vec<_>>()),
+    //         );
+    //     }
 
-        {
-            let clients = world.clients();
-            world_info.insert(
-                "clients".to_owned(),
-                json!(clients
-                    .values()
-                    .map(|client| json!({
-                        "id": client.id.to_owned(),
-                        "username": client.username.to_owned(),
-                    }))
-                    .collect::<Vec<_>>()),
-            );
-        }
+    //     {
+    //         let config = world.config();
+    //         world_info.insert("config".to_owned(), json!(*config));
+    //     }
 
-        {
-            let config = world.config();
-            world_info.insert("config".to_owned(), json!(*config));
-        }
+    //     {
+    //         let stats = world.read_resource::<Stats>();
+    //         let mut stats_info = HashMap::new();
 
-        {
-            let stats = world.read_resource::<Stats>();
-            let mut stats_info = HashMap::new();
+    //         stats_info.insert("tick".to_owned(), json!(stats.tick));
+    //         stats_info.insert("delta".to_owned(), json!(stats.delta));
 
-            stats_info.insert("tick".to_owned(), json!(stats.tick));
-            stats_info.insert("delta".to_owned(), json!(stats.delta));
+    //         world_info.insert("stats".to_owned(), json!(stats_info));
+    //     }
 
-            world_info.insert("stats".to_owned(), json!(stats_info));
-        }
+    //     {
+    //         let chunks = world.chunks();
+    //         let pipeline = world.pipeline();
+    //         let mesher = world.read_resource::<Mesher>();
 
-        {
-            let chunks = world.chunks();
-            let pipeline = world.pipeline();
-            let mesher = world.read_resource::<Mesher>();
+    //         let mut generating: i32 = 0;
+    //         let mut meshing: i32 = 0;
+    //         let mut ready: i32 = 0;
 
-            let mut generating: i32 = 0;
-            let mut meshing: i32 = 0;
-            let mut ready: i32 = 0;
+    //         for chunk in chunks.map.values() {
+    //             match chunk.status {
+    //                 ChunkStatus::Generating(_) => generating += 1,
+    //                 ChunkStatus::Meshing => meshing += 1,
+    //                 ChunkStatus::Ready => ready += 1,
+    //             }
+    //         }
 
-            for chunk in chunks.map.values() {
-                match chunk.status {
-                    ChunkStatus::Generating(_) => generating += 1,
-                    ChunkStatus::Meshing => meshing += 1,
-                    ChunkStatus::Ready => ready += 1,
-                }
-            }
+    //         world_info.insert(
+    //             "chunks".to_owned(),
+    //             json!({
+    //                 "count": chunks.map.len(),
+    //                 "generating": generating,
+    //                 "meshing": meshing,
+    //                 "ready": ready,
+    //                 "pipeline_chunks": pipeline.chunks,
+    //                 "pipeline_queue": pipeline.queue,
+    //                 "mesher_chunks": mesher.map,
+    //                 "mesher_queue": mesher.queue,
+    //                 "active_voxels": chunks.active_voxels.len()
+    //             }),
+    //         );
+    //     }
 
-            world_info.insert(
-                "chunks".to_owned(),
-                json!({
-                    "count": chunks.map.len(),
-                    "generating": generating,
-                    "meshing": meshing,
-                    "ready": ready,
-                    "pipeline_chunks": pipeline.chunks,
-                    "pipeline_queue": pipeline.queue,
-                    "mesher_chunks": mesher.map,
-                    "mesher_queue": mesher.queue,
-                    "active_voxels": chunks.active_voxels.len()
-                }),
-            );
-        }
+    //     {
+    //         let pipeline = world.pipeline();
 
-        {
-            let pipeline = world.pipeline();
+    //         let pipeline_info = json!({
+    //             "count": json!(pipeline.chunks.len()),
+    //             "stages": json!(
+    //                 pipeline
+    //                     .stages
+    //                     .iter()
+    //                     .map(|stage| json!(stage.name()))
+    //                     .collect::<Vec<_>>()
+    //             )
+    //         });
 
-            let pipeline_info = json!({
-                "count": json!(pipeline.chunks.len()),
-                "stages": json!(
-                    pipeline
-                        .stages
-                        .iter()
-                        .map(|stage| json!(stage.name()))
-                        .collect::<Vec<_>>()
-                )
-            });
+    //         world_info.insert("pipeline".to_owned(), pipeline_info);
+    //     }
 
-            world_info.insert("pipeline".to_owned(), pipeline_info);
-        }
+    //     worlds.insert(name.to_owned(), json!(world_info));
+    // }
 
-        worlds.insert(name.to_owned(), json!(world_info));
-    }
-
-    info.insert("worlds".to_owned(), json!(worlds));
+    // info.insert("worlds".to_owned(), json!(worlds));
 
     serde_json::to_value(info).unwrap()
 }
@@ -179,7 +180,7 @@ pub struct Server {
     pub secret: Option<String>,
 
     /// A map of all the worlds.
-    pub worlds: HashMap<String, World>,
+    pub worlds: HashMap<String, Addr<SyncWorld>>,
 
     /// Registry of the server.
     pub registry: Registry,
@@ -209,17 +210,17 @@ impl Server {
     /// Add a world instance to the server. Different worlds have different configurations, and can hold
     /// their own set of clients within. If the server has already started, the added world will be
     /// started right away.
-    pub fn add_world(&mut self, mut world: World) -> Result<&mut World, AddWorldError> {
+    pub fn add_world(&mut self, mut world: World) -> Result<&mut Addr<SyncWorld>, AddWorldError> {
         let name = world.name.clone();
-
         let saving = world.config().saving;
         let save_dir = world.config().save_dir.clone();
-
         world.ecs_mut().insert(self.registry.clone());
 
-        if self.worlds.insert(name.to_owned(), world).is_some() {
+        let addr = world.start();
+
+        if self.worlds.insert(name.clone(), addr).is_some() {
             return Err(AddWorldError);
-        };
+        }
 
         info!(
             "🌎 World created: {} ({})",
@@ -234,26 +235,26 @@ impl Server {
         Ok(self.worlds.get_mut(&name).unwrap())
     }
 
-    /// Create a world in the server. Different worlds have different configurations, and can hold
-    /// their own set of clients within. If the server has already started, the added world will be
-    /// started right away.
-    pub fn create_world(
-        &mut self,
-        name: &str,
-        config: &WorldConfig,
-    ) -> Result<&mut World, AddWorldError> {
-        let mut world = World::new(name, config);
-        world.ecs_mut().insert(self.registry.clone());
-        self.add_world(world)
-    }
+    // /// Create a world in the server. Different worlds have different configurations, and can hold
+    // /// their own set of clients within. If the server has already started, the added world will be
+    // /// started right away.
+    // pub fn create_world(
+    //     &mut self,
+    //     name: &str,
+    //     config: &WorldConfig,
+    // ) -> Result<&mut Addr<SyncWorld>, AddWorldError> {
+    //     let mut world = World::new(name, config);
+    //     world.ecs_mut().insert(self.registry.clone());
+    //     self.add_world(world)
+    // }
 
     /// Get a world reference by name.
-    pub fn get_world(&self, world_name: &str) -> Option<&World> {
+    pub fn get_world(&self, world_name: &str) -> Option<&Addr<SyncWorld>> {
         self.worlds.get(world_name)
     }
 
     /// Get a mutable world reference by name.
-    pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut World> {
+    pub fn get_world_mut(&mut self, world_name: &str) -> Option<&mut Addr<SyncWorld>> {
         self.worlds.get_mut(world_name)
     }
 
@@ -277,7 +278,11 @@ impl Server {
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
                 if let Some(addr) = self.lost_sessions.remove(id) {
-                    world.add_client(id, &json.username, &addr);
+                    world.do_send(ClientJoinRequest {
+                        id: id.to_owned(),
+                        username: json.username,
+                        addr: addr.clone(),
+                    });
                     self.connections.insert(id.to_owned(), (addr, json.world));
                     return None;
                 }
@@ -294,7 +299,7 @@ impl Server {
                 if let Some((addr, _)) = self.connections.remove(id) {
                     self.lost_sessions.insert(id.to_owned(), addr);
 
-                    world.remove_client(id);
+                    world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
             }
 
@@ -313,7 +318,10 @@ impl Server {
             }
 
             if let Some(world) = self.get_world_mut(&data.text) {
-                world.on_request(id, data);
+                world.do_send(ClientRequest {
+                    client_id: id.to_owned(),
+                    data,
+                });
 
                 return None;
             } else {
@@ -331,23 +339,26 @@ impl Server {
         let (_, world_name) = connection.unwrap().to_owned();
 
         if let Some(world) = self.get_world_mut(&world_name) {
-            world.on_request(id, data);
+            world.do_send(ClientRequest {
+                client_id: id.to_owned(),
+                data,
+            });
         }
 
         None
     }
 
     /// Prepare all worlds on the server to start.
-    pub fn prepare(&mut self) {
+    pub async fn prepare(&mut self) {
         for world in self.worlds.values_mut() {
-            world.prepare();
+            world.do_send(Prepare);
         }
 
-        self.preload();
+        self.preload().await;
     }
 
     /// Preload all the worlds.
-    pub(crate) fn preload(&mut self) {
+    pub(crate) async fn preload(&mut self) {
         let m = MultiProgress::new();
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] [{bar:40.cyan/blue}] {msg} {spinner:.green} {percent:>7}%",
@@ -358,15 +369,17 @@ impl Server {
         let mut bars = vec![];
 
         for world in self.worlds.values_mut() {
-            if !world.config().preload {
+            let info = world.send(GetInfo).await.unwrap();
+
+            if !info.config.preload {
                 bars.push(None);
                 continue;
             }
 
-            world.preload();
+            world.do_send(Preload);
 
             let bar = m.insert_from_back(0, ProgressBar::new(100));
-            bar.set_message(world.name.clone());
+            bar.set_message(info.name.clone());
             bar.set_style(sty.clone());
             bar.set_position(0);
             bars.push(Some(bar));
@@ -378,20 +391,22 @@ impl Server {
             let mut done = true;
 
             for (i, world) in self.worlds.values_mut().enumerate() {
-                if bars[i].is_none() || !world.config().preload {
+                let info = world.send(GetInfo).await.unwrap();
+
+                if bars[i].is_none() || !info.config.preload {
                     continue;
                 }
 
                 let bar = bars[i].as_mut().unwrap();
 
-                if !world.preloading || world.preload_progress >= 1.0 {
+                if !info.preloading || info.preload_progress >= 1.0 {
                     bar.finish_and_clear();
                     continue;
                 }
 
-                world.tick();
+                world.do_send(Tick);
 
-                let at = (world.preload_progress * 100.0) as u64;
+                let at = (info.preload_progress * 100.0) as u64;
 
                 done = false;
                 bar.set_position(at);
@@ -403,12 +418,13 @@ impl Server {
             }
         }
 
-        let preload_len = self
-            .worlds
-            .values()
-            .filter(|world| world.config().preload)
-            .collect::<Vec<&World>>()
-            .len();
+        let mut preload_len = 0;
+        for world in self.worlds.values() {
+            let info = world.send(GetInfo).await.unwrap();
+            if info.config.preload {
+                preload_len += 1;
+            }
+        }
 
         info!(
             "✅ Total of {} world{} preloaded in {}s",
@@ -421,7 +437,7 @@ impl Server {
     /// Tick every world on this server.
     pub(crate) fn tick(&mut self) {
         for world in self.worlds.values_mut() {
-            world.tick();
+            world.do_send(Tick);
         }
     }
 
@@ -499,10 +515,6 @@ pub struct Disconnect {
 #[rtype(result = "Value")]
 pub struct Info;
 
-#[derive(ActixMessage)]
-#[rtype(result = "f32")]
-pub struct Time(pub String);
-
 /// Send message to specific world
 #[derive(ActixMessage)]
 #[rtype(result = "Option<String>")]
@@ -521,14 +533,12 @@ impl Actor for Server {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        for world in self.worlds.values_mut() {
-            let world_name = world.name.clone();
-            ctx.run_interval(Duration::from_millis(self.interval), move |act, _| {
-                if let Some(world) = act.get_world_mut(&world_name) {
-                    world.tick();
-                }
-            });
-        }
+        // Set up a recurring task to tick all worlds
+        ctx.run_interval(Duration::from_millis(self.interval), |act, _| {
+            for world in act.worlds.values() {
+                world.do_send(Tick);
+            }
+        });
     }
 }
 
@@ -551,9 +561,12 @@ impl Handler<Connect> for Server {
 
         if msg.is_transport {
             // Send init messages of the worlds to the transport.
-            self.worlds
-                .values_mut()
-                .for_each(|world| world.add_transport(&id, &msg.addr));
+            self.worlds.values_mut().for_each(|world| {
+                world.do_send(TransportJoinRequest {
+                    id: id.clone(),
+                    addr: msg.addr.clone(),
+                })
+            });
 
             self.transport_sessions.insert(id.to_owned(), msg.addr);
 
@@ -578,13 +591,13 @@ impl Handler<Disconnect> for Server {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         if let Some((_, world_name)) = self.connections.remove(&msg.id) {
             if let Some(world) = self.worlds.get_mut(&world_name) {
-                world.remove_client(&msg.id);
+                world.do_send(ClientLeaveRequest { id: msg.id.clone() });
             }
         }
 
         if let Some(_) = self.transport_sessions.remove(&msg.id) {
             self.worlds.values_mut().for_each(|world| {
-                world.remove_transport(&msg.id);
+                world.do_send(TransportLeaveRequest { id: msg.id.clone() });
             });
 
             info!("A transport server connection has ended.")
@@ -600,22 +613,6 @@ impl Handler<Info> for Server {
 
     fn handle(&mut self, _: Info, _: &mut Context<Self>) -> Self::Result {
         MessageResult(self.get_info())
-    }
-}
-
-impl Handler<Time> for Server {
-    type Result = MessageResult<Time>;
-
-    fn handle(&mut self, Time(world_name): Time, _: &mut Context<Self>) -> Self::Result {
-        let world = self.worlds.get(&world_name);
-
-        if world.is_none() {
-            return MessageResult(0.0);
-        }
-
-        let world = world.unwrap();
-
-        MessageResult(world.read_resource::<Stats>().time)
     }
 }
 
