@@ -1,4 +1,4 @@
-use crate::{IDComp, KdTree, RigidBodyComp, TargetComp, TargetType};
+use crate::{IDComp, KdTree, PositionComp, TargetComp, TargetType};
 use specs::{Read, ReadStorage, System, WriteStorage};
 
 pub struct EntityObserveSystem;
@@ -7,7 +7,7 @@ impl<'a> System<'a> for EntityObserveSystem {
     #[allow(clippy::type_complexity)]
     type SystemData = (
         Read<'a, KdTree>,
-        ReadStorage<'a, RigidBodyComp>,
+        ReadStorage<'a, PositionComp>,
         ReadStorage<'a, IDComp>,
         WriteStorage<'a, TargetComp>,
     );
@@ -16,28 +16,26 @@ impl<'a> System<'a> for EntityObserveSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (tree, bodies, ids, mut targets) = data;
+        let (tree, positions, ids, mut targets) = data;
 
-        (&bodies, &mut targets)
+        (&positions, &mut targets)
             .par_join()
-            .for_each(|(body, target)| {
-                let position = body.0.get_position();
+            .for_each(|(position, target)| {
                 let closest_arr = if target.target_type == TargetType::All {
-                    tree.search(&position, 1)
+                    tree.search(&position.0, 1)
                 } else if target.target_type == TargetType::Players {
-                    tree.search_player(&position, 1, false)
+                    tree.search_player(&position.0, 1, false)
                 } else {
-                    tree.search_entity(&position, 1, true)
+                    tree.search_entity(&position.0, 1, true)
                 };
 
                 if closest_arr.len() > 0 {
                     let entity = closest_arr[0].1;
 
-                    if let Some(body) = bodies.get(entity.to_owned()) {
-                        let position = body.0.get_position();
+                    if let Some(target_position) = positions.get(entity.to_owned()) {
                         let id = ids.get(*entity).unwrap().0.clone();
 
-                        target.position = Some(position);
+                        target.position = Some(target_position.0.clone());
                         target.id = Some(id);
                     } else {
                         target.position = None;
