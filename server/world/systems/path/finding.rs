@@ -261,13 +261,13 @@ impl<'a> System<'a> for PathFindingSystem {
                         entity_path.path = None;
                     }
 
-                    let elapsed = start_time.elapsed();
-                    if elapsed > entity_path.max_pathfinding_time {
-                        warn!(
-                            "Pathfinding exceeded time limit for entity at {:?}. Took {:?}",
-                            body_vpos, elapsed
-                        );
-                    }
+                    // let elapsed = start_time.elapsed();
+                    // if elapsed > entity_path.max_pathfinding_time {
+                    //     warn!(
+                    //         "Pathfinding exceeded time limit for entity at {:?}. Took {:?}",
+                    //         body_vpos, elapsed
+                    //     );
+                    // }
                 }
             });
     }
