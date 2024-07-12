@@ -75,6 +75,12 @@ export class Shadow extends Mesh {
       ...options,
     };
 
+    // The geometry is created with a fixed radius, not respecting the maxRadius option
+    // We need to scale the mesh to respect the maxRadius
+
+    const scale = this.options.maxRadius / defaultOptions.maxRadius;
+    this.scale.set(scale, scale, 1);
+
     this.rotateX(Math.PI / 2);
     this.renderOrder = -1;
   }
@@ -88,7 +94,7 @@ export class Shadow extends Mesh {
     const position = new Vector3();
     this.parent.getWorldPosition(position);
 
-    const { maxDistance } = this.options;
+    const { maxDistance, maxRadius } = this.options;
 
     const result = this.world.raycastVoxels(
       position.toArray(),
@@ -111,7 +117,8 @@ export class Shadow extends Mesh {
         (point[1] - position.y) ** 2 +
         (point[2] - position.z) ** 2
     );
-    const scale = Math.max(1 - dist / maxDistance, 0) ** 2;
+    const distanceScale = Math.max(1 - dist / maxDistance, 0) ** 2;
+    const radiusScale = maxRadius / defaultOptions.maxRadius;
 
     const newPosition = new Vector3(
       point[0],
@@ -121,7 +128,7 @@ export class Shadow extends Mesh {
     newPosition.sub(position);
 
     this.position.copy(newPosition);
-    this.scale.set(scale, scale, 1);
+    this.scale.set(distanceScale * radiusScale, distanceScale * radiusScale, 1);
   };
 }
 
