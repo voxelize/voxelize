@@ -98,7 +98,7 @@ impl Voxelize {
     /// running indefinitely. Keep in mind that the server instance passed in isn't a borrow, so `Voxelize::run`
     /// takes ownership of the server.
     pub async fn run(mut server: Server) -> std::io::Result<()> {
-        server.prepare();
+        server.prepare().await;
         server.started = true;
 
         let addr = server.addr.to_owned();

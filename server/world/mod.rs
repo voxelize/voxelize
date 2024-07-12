@@ -18,7 +18,11 @@ mod types;
 mod utils;
 mod voxels;
 
-use actix::Recipient;
+use actix::{
+    Actor, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, Recipient,
+    SyncContext,
+};
+use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
 use log::{info, warn};
 use nanoid::nanoid;
@@ -31,6 +35,7 @@ use specs::{
     World as ECSWorld, WorldExt, WriteStorage,
 };
 use std::path::PathBuf;
+use std::sync::{Mutex, RwLock};
 use std::{env, sync::Arc};
 use std::{
     fs::{self, File},
@@ -41,7 +46,7 @@ use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType},
-    EncodedMessage, EntityOperation, EntityProtocol, PeerProtocol, Vec2, Vec3,
+    EncodedMessage, EntityOperation, EntityProtocol, PeerProtocol, Server, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
@@ -128,28 +133,199 @@ pub struct World {
     ecs: ECSWorld,
 
     /// The modifier of the ECS dispatcher.
-    dispatcher: Arc<dyn Fn() -> DispatcherBuilder<'static, 'static>>,
+    dispatcher: Arc<dyn Fn() -> DispatcherBuilder<'static, 'static> + Send + Sync>,
 
     /// The modifier of any new client.
-    client_modifier: Option<Arc<dyn Fn(&mut World, Entity)>>,
+    client_modifier: Option<Arc<dyn Fn(&mut World, Entity) + Send + Sync>>,
 
     /// The metadata parser for clients.
-    client_parser: Arc<dyn Fn(&mut World, &str, Entity)>,
+    client_parser: Arc<dyn Fn(&mut World, &str, Entity) + Send + Sync>,
 
     /// The handler for `Method`s.
-    method_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str)>>,
+    method_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str) + Send + Sync>>,
 
     /// The handlers for `Event`s.
-    event_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str)>>,
+    event_handles: HashMap<String, Arc<dyn Fn(&mut World, &str, &str) + Send + Sync>>,
 
     /// The handler for `Transport`s.
-    transport_handle: Option<Arc<dyn Fn(&mut World, Value)>>,
+    transport_handle: Option<Arc<dyn Fn(&mut World, Value) + Send + Sync>>,
 
     /// The handler for commands.
-    command_handle: Option<Arc<dyn Fn(&mut World, &str, &str)>>,
+    command_handle: Option<Arc<dyn Fn(&mut World, &str, &str) + Send + Sync>>,
 
     /// A map to spawn and create entities.
-    entity_loaders: HashMap<String, Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder>>,
+    entity_loaders:
+        HashMap<String, Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>>,
+
+    addr: Option<Addr<SyncWorld>>,
+
+    server_addr: Option<Addr<Server>>,
+}
+
+// Define messages for the World actor
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct Tick;
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct Prepare;
+
+#[derive(ActixMessage)]
+#[rtype(result = "WorldConfig")]
+pub(crate) struct GetConfig;
+
+pub struct WorldInfo {
+    pub name: String,
+    pub config: WorldConfig,
+    pub preloading: bool,
+    pub preload_progress: f32,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "WorldInfo")]
+pub(crate) struct GetInfo;
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct Preload;
+
+pub struct PreloadProgressResponse {
+    pub preloading: bool,
+    pub progress: f32,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct ClientRequest {
+    pub client_id: String,
+    pub data: Message,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct ClientJoinRequest {
+    pub id: String,
+    pub username: String,
+    pub addr: Recipient<EncodedMessage>,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct ClientLeaveRequest {
+    pub id: String,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct TransportJoinRequest {
+    pub id: String,
+    pub addr: Recipient<EncodedMessage>,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct TransportLeaveRequest {
+    pub id: String,
+}
+
+// Create a new struct that will be the actual actor
+pub struct SyncWorld(Arc<std::sync::RwLock<World>>);
+
+impl Actor for SyncWorld {
+    type Context = SyncContext<Self>;
+}
+
+// Implement handler for Tick message
+impl Handler<Tick> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, _: Tick, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().tick();
+    }
+}
+
+impl Handler<Prepare> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, _: Prepare, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().prepare();
+    }
+}
+
+impl Handler<GetConfig> for SyncWorld {
+    type Result = MessageResult<GetConfig>;
+
+    fn handle(&mut self, _: GetConfig, _: &mut SyncContext<Self>) -> Self::Result {
+        MessageResult(self.0.read().unwrap().config().make_copy())
+    }
+}
+
+impl Handler<GetInfo> for SyncWorld {
+    type Result = MessageResult<GetInfo>;
+
+    fn handle(&mut self, _: GetInfo, _: &mut SyncContext<Self>) -> Self::Result {
+        let world = self.0.read().unwrap();
+        let config = world.config().make_copy();
+        MessageResult(WorldInfo {
+            name: world.name.clone(),
+            config,
+            preloading: world.preloading,
+            preload_progress: world.preload_progress,
+        })
+    }
+}
+
+impl Handler<Preload> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, _: Preload, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().preload();
+    }
+}
+
+// Implement handler for ClientRequest message
+impl Handler<ClientRequest> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: ClientRequest, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().on_request(&msg.client_id, msg.data);
+    }
+}
+
+impl Handler<ClientJoinRequest> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: ClientJoinRequest, _: &mut SyncContext<Self>) {
+        self.0
+            .write()
+            .unwrap()
+            .add_client(&msg.id, &msg.username, &msg.addr);
+    }
+}
+
+impl Handler<ClientLeaveRequest> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: ClientLeaveRequest, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().remove_client(&msg.id);
+    }
+}
+
+impl Handler<TransportJoinRequest> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: TransportJoinRequest, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().add_transport(&msg.id, &msg.addr);
+    }
+}
+
+impl Handler<TransportLeaveRequest> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: TransportLeaveRequest, _: &mut SyncContext<Self>) {
+        self.0.write().unwrap().remove_transport(&msg.id);
+    }
 }
 
 fn dispatcher() -> DispatcherBuilder<'static, 'static> {
@@ -304,6 +480,8 @@ impl World {
             client_modifier: None,
             transport_handle: None,
             command_handle: None,
+            addr: None,
+            server_addr: None,
         };
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
@@ -351,6 +529,16 @@ impl World {
         });
 
         world
+    }
+
+    pub fn start(mut self) -> Addr<SyncWorld> {
+        self.prepare();
+        self.preload();
+
+        let world = Arc::new(RwLock::new(self));
+        let addr = SyncArbiter::start(1, move || SyncWorld(world.clone()));
+
+        addr
     }
 
     /// Get a reference to the ECS world..
@@ -539,22 +727,30 @@ impl World {
         }
     }
 
-    pub fn set_dispatcher<F: Fn() -> DispatcherBuilder<'static, 'static> + 'static>(
+    pub fn set_dispatcher<
+        F: Fn() -> DispatcherBuilder<'static, 'static> + Send + Sync + 'static,
+    >(
         &mut self,
         dispatch: F,
     ) {
         self.dispatcher = Arc::new(dispatch);
     }
 
-    pub fn set_client_modifier<F: Fn(&mut World, Entity) + 'static>(&mut self, modifier: F) {
+    pub fn set_client_modifier<F: Fn(&mut World, Entity) + Send + Sync + 'static>(
+        &mut self,
+        modifier: F,
+    ) {
         self.client_modifier = Some(Arc::new(modifier));
     }
 
-    pub fn set_client_parser<F: Fn(&mut World, &str, Entity) + 'static>(&mut self, parser: F) {
+    pub fn set_client_parser<F: Fn(&mut World, &str, Entity) + Send + Sync + 'static>(
+        &mut self,
+        parser: F,
+    ) {
         self.client_parser = Arc::new(parser);
     }
 
-    pub fn set_method_handle<F: Fn(&mut World, &str, &str) + 'static>(
+    pub fn set_method_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
         &mut self,
         method: &str,
         handle: F,
@@ -563,7 +759,7 @@ impl World {
             .insert(method.to_lowercase(), Arc::new(handle));
     }
 
-    pub fn set_event_handle<F: Fn(&mut World, &str, &str) + 'static>(
+    pub fn set_event_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
         &mut self,
         event: &str,
         handle: F,
@@ -572,15 +768,23 @@ impl World {
             .insert(event.to_lowercase(), Arc::new(handle));
     }
 
-    pub fn set_transport_handle<F: Fn(&mut World, Value) + 'static>(&mut self, handle: F) {
+    pub fn set_transport_handle<F: Fn(&mut World, Value) + Send + Sync + 'static>(
+        &mut self,
+        handle: F,
+    ) {
         self.transport_handle = Some(Arc::new(handle));
     }
 
-    pub fn set_command_handle<F: Fn(&mut World, &str, &str) + 'static>(&mut self, handle: F) {
+    pub fn set_command_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
+        &mut self,
+        handle: F,
+    ) {
         self.command_handle = Some(Arc::new(handle));
     }
 
-    pub fn set_entity_loader<F: Fn(&mut World, MetadataComp) -> EntityBuilder + 'static>(
+    pub fn set_entity_loader<
+        F: Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync + 'static,
+    >(
         &mut self,
         etype: &str,
         loader: F,
