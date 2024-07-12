@@ -675,8 +675,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.applyBlockTextureAt(
       idOrName,
       faceName,
-      new AtlasTexture(
-        1,
+      AtlasTexture.makeUnknownTexture(
         defaultDimension ?? this.options.textureUnitDimension
       ),
       voxel
@@ -2046,7 +2045,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       let geometry = geometries.get(identifier);
 
       if (!geometry) {
-        const chunkMat = this.getBlockFaceMaterial(block.id, name);
+        const chunkMat = face.isolated
+          ? {
+              map: AtlasTexture.makeUnknownTexture(
+                this.options.textureUnitDimension
+              ),
+            }
+          : this.getBlockFaceMaterial(block.id, name);
 
         const matOptions = {
           transparent: isSeeThrough,
