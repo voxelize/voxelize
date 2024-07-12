@@ -47,6 +47,16 @@ export type MethodProtocol<T> = {
   payload: T;
 };
 
+export type MovementProtocol = {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+  front: boolean;
+  back: boolean;
+  sprint: boolean;
+};
+
 export type UpdateProtocol = {
   vx: number;
   vy: number;
@@ -89,6 +99,7 @@ export type MessageProtocol<
 
   chat?: ChatProtocol;
   method?: MethodProtocol<Method>;
+  movement?: MovementProtocol;
 
   peers?: PeerProtocol<Peer>[];
   entities?: EntityProtocol<Entity>[];

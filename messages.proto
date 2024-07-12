@@ -69,6 +69,16 @@ message ChatMessage {
   string body = 3;
 }
 
+message MovementMessage {
+  bool up = 1;
+  bool down = 2;
+  bool left = 3;
+  bool right = 4;
+  bool front = 5;
+  bool back = 6;
+  bool sprint = 7;
+}
+
 message Message {
   enum Type {
     INIT = 0;
@@ -86,6 +96,7 @@ message Message {
     EVENT = 12;
     ACTION = 13;
     STATS = 14;
+    MOVEMENT = 15;
   }
 
   Type type = 1;
@@ -94,10 +105,11 @@ message Message {
 
   Method method = 4;
   ChatMessage chat = 5;
+  MovementMessage movement = 6;
 
-  repeated Peer peers = 6;
-  repeated Entity entities = 7;
-  repeated Chunk chunks = 8;
-  repeated Event events = 9;
-  repeated Update updates = 10;
+  repeated Peer peers = 7;
+  repeated Entity entities = 8;
+  repeated Chunk chunks = 9;
+  repeated Event events = 10;
+  repeated Update updates = 11;
 }

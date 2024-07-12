@@ -73,14 +73,6 @@ async fn main() -> std::io::Result<()> {
         .add_world(setup_flat_world(&registry))
         .expect("Could not create flat world.");
 
-    server.set_action_handle("create_world", |value, server| {
-        info!("World creating...");
-        let name: String = serde_json::from_value(value).expect("Can't understand name.");
-        server
-            .create_world(&name, &WorldConfig::default())
-            .expect("Could not create world.");
-    });
-
     // let config2 = WorldConfig::new()
     //     .min_chunk([-100, -100])
     //     .max_chunk([100, 100])
