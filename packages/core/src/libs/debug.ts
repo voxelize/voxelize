@@ -57,6 +57,8 @@ export type DebugOptions = {
 
   newLineStyles: Partial<CSSStyleDeclaration>;
   statsStyles: Partial<CSSStyleDeclaration>;
+
+  containerId: string;
 };
 
 const defaultOptions: DebugOptions = {
@@ -72,6 +74,7 @@ const defaultOptions: DebugOptions = {
   asyncPeriod: 1000,
   newLineStyles: {},
   statsStyles: {},
+  containerId: "voxelize-debug",
 };
 
 /**
@@ -361,5 +364,6 @@ export class Debug extends Group {
     }
 
     this.domElement.appendChild(this.dataWrapper);
+    this.dataWrapper.id = this.options.containerId;
   };
 }
