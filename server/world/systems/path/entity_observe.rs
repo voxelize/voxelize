@@ -35,9 +35,10 @@ impl<'a> System<'a> for EntityObserveSystem {
 
                     if let Some(body) = bodies.get(entity.to_owned()) {
                         let position = body.0.get_position();
+                        let id = ids.get(*entity).unwrap().0.clone();
 
                         target.position = Some(position);
-                        target.id = Some(entity.id());
+                        target.id = Some(id);
                     } else {
                         target.position = None;
                         target.id = None;
