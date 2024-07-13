@@ -599,6 +599,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     if (this.arm) this.arm.update();
 
+    this.emitMovements();
     this.moveRigidBody();
     this.updateRigidBody(delta);
   };
@@ -1003,6 +1004,31 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   get chunk() {
     return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.options.chunkSize);
   }
+
+  private emitMovements = () => {
+    const { object } = this;
+
+    const vec = new Vector3();
+
+    // get the frontwards-backwards direction vectors
+    vec.setFromMatrixColumn(object.matrix, 0);
+    vec.crossVectors(object.up, vec);
+    const { x: forwardX, z: forwardZ } = vec;
+
+    // get the side-ways vectors
+    vec.setFromMatrixColumn(object.matrix, 0);
+    const { x: sideX, z: sideZ } = vec;
+
+    const totalX = forwardX + sideX;
+    const totalZ = forwardZ + sideZ;
+
+    const angle = Math.atan2(totalX, totalZ);
+
+    this.packets.push({
+      type: "MOVEMENTS",
+      movements: { ...this.movements, angle },
+    });
+  };
 
   /**
    * Move the client's rigid body according to the current movement state.

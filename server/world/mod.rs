@@ -82,22 +82,6 @@ pub fn default_client_parser(world: &mut World, metadata: &str, client_ent: Enti
         }
     };
 
-    if let Some(position) = metadata.position {
-        {
-            let mut positions = world.write_component::<PositionComp>();
-            if let Some(p) = positions.get_mut(client_ent) {
-                p.0.set(position.0, position.1, position.2);
-            }
-        }
-
-        {
-            let mut bodies = world.write_component::<RigidBodyComp>();
-            if let Some(b) = bodies.get_mut(client_ent) {
-                b.0.set_position(position.0, position.1, position.2);
-            }
-        }
-    }
-
     if let Some(direction) = metadata.direction {
         let mut directions = world.write_component::<DirectionComp>();
         if let Some(d) = directions.get_mut(client_ent) {
