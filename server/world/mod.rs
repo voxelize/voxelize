@@ -634,6 +634,7 @@ impl World {
             .with(RigidBodyComp::new(&body))
             .with(InteractorComp::new(&interactor))
             .with(CollisionsComp::new())
+            .with(BrainComp::default())
             .build();
 
         if let Some(modifier) = self.client_modifier.to_owned() {
@@ -805,6 +806,7 @@ impl World {
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
+            MessageType::Movement => self.on_movement(client_id, data),
             MessageType::Transport => {
                 if self.transport_handle.is_none() {
                     warn!("Transport calls are being called, but no transport handlers set!");
@@ -1386,6 +1388,97 @@ impl World {
             } else {
                 self.broadcast(data, ClientFilter::All);
             }
+        }
+    }
+
+    /// Handler for `Movement` type messages.
+    fn on_movement(&mut self, client_id: &str, data: Message) {
+        let client_ent = if let Some(client) = self.clients().get(client_id) {
+            client.entity.to_owned()
+        } else {
+            return;
+        };
+
+        if let Some(movements) = data.movements {
+            let mut brains = self.write_component::<BrainComp>();
+            let mut brain = brains.get_mut(client_ent).unwrap();
+            let state = &mut brain.state;
+
+            let sprint = movements.sprint;
+            let right = movements.right;
+            let left = movements.left;
+            let up = movements.up;
+            let down = movements.down;
+            let front = movements.front;
+            let back = movements.back;
+            let mut angle = movements.angle;
+
+            let fb = if front {
+                if back {
+                    0
+                } else {
+                    1
+                }
+            } else {
+                if back {
+                    -1
+                } else {
+                    0
+                }
+            };
+            let rl = if left {
+                if right {
+                    0
+                } else {
+                    1
+                }
+            } else {
+                if right {
+                    -1
+                } else {
+                    0
+                }
+            };
+
+            if (fb | rl) == 0 {
+                state.running = false;
+
+                if state.sprinting {
+                    // brain.movements.sprint = false;
+                    state.sprinting = false;
+                }
+            } else {
+                state.running = true;
+                if fb != 0 {
+                    if fb == -1 {
+                        angle += std::f32::consts::PI;
+                    }
+                    if rl != 0 {
+                        angle += (std::f32::consts::PI / 4.0) * fb as f32 * rl as f32;
+                    }
+                } else {
+                    angle += (rl as f32 * std::f32::consts::PI) / 2.0;
+                }
+                // not sure why add std::f32::consts::PI / 4.0, but it was always off by that.
+                state.heading = angle + std::f32::consts::PI / 4.0;
+            }
+
+            // set jump as true, and brain will handle the jumping
+            // state.jumping = if up { if down { false } else { true } } else { if down { false } else { false } };
+            state.jumping = up;
+
+            // crouch to true, so far used for flying
+            state.crouching = down;
+
+            // // apply sprint state change
+            state.sprinting = sprint;
+
+            // // means landed, no more fly
+            // if !brain.ghost_mode {
+            //     if brain.body.gravity_multiplier == 0 && brain.body.at_rest_y == -1 {
+            //         brain.body.gravity_multiplier = 1;
+            //     }
+            // }
         }
     }
 

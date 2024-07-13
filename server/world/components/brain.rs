@@ -1,12 +1,14 @@
 use specs::{Component, VecStorage};
 
-use serde::{Deserialize, Serialize};
 use crate::{RigidBody, Vec3};
+use serde::{Deserialize, Serialize};
 
 pub struct BrainState {
     pub heading: f32,
     pub running: bool,
     pub jumping: bool,
+    pub sprinting: bool,
+    pub crouching: bool,
 
     pub jump_count: u32,
     pub is_jumping: bool,
@@ -19,6 +21,8 @@ impl Default for BrainState {
             heading: 0.0,
             running: false,
             jumping: false,
+            sprinting: false,
+            crouching: false,
 
             jump_count: 0,
             is_jumping: false,
