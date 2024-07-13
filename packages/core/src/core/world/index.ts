@@ -2319,7 +2319,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const overallDuration = performance.now() - startOverall;
     if (overallDuration > 1000 / 60) {
-      const isDebug = true;
+      const isDebug = false;
       const log = isDebug ? console.log : () => {};
       log("maintainChunks took", maintainChunksDuration, "ms");
       log("requestChunks took", requestChunksDuration, "ms");
