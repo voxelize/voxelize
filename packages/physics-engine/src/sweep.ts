@@ -210,13 +210,6 @@ export function sweep(
     (1 - closest.h) * vz,
   ];
 
-  if (closest.h !== 1 && closest.ny === 0) {
-    console.log(
-      "closest",
-      JSON.stringify({ closest, leftover, vx, dx, axis, dir }, null, 2)
-    );
-  }
-
   // Bail out on truthy response
   if (dir !== 0 && callback(mag * closest.h, axis, dir, leftover, voxel)) {
     return;

@@ -25,6 +25,7 @@
   "license": "MIT",
   "dependencies": {
     "@voxelize/aabb": "workspace:*",
+    "@voxelize/raycast": "workspace:*",
     "tsup": "^5.12.7",
     "typescript": "^4.6.4",
     "vitest": "^0.10.4"

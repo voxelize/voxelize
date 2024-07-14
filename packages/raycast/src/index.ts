@@ -110,7 +110,7 @@ function raycast(
       const result = raycastAABB(
         origin,
         [dx, dy, dz],
-        aabb.clone().translate([ix, iy, iz]),
+        aabb.clone(),
         maxDistance
       );
       if (result) {

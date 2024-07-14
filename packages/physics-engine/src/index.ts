@@ -1,4 +1,5 @@
 import { AABB } from "@voxelize/aabb";
+import raycast from "@voxelize/raycast";
 
 import { RigidBody } from "./rigid-body";
 import { sweep } from "./sweep";
@@ -223,35 +224,31 @@ export class Engine {
 
     const walls: AABB[] = [];
 
-    const pxpz = [Math.floor(oldBox.maxX), Math.floor(oldBox.maxZ)];
-    const pxnz = [Math.floor(oldBox.maxX), Math.floor(oldBox.minZ)];
-    const nxpz = [Math.floor(oldBox.minX), Math.floor(oldBox.maxZ)];
-    const nxnz = [Math.floor(oldBox.minX), Math.floor(oldBox.minZ)];
     const footY = Math.floor(oldBox.minY);
+    const pxpz = [oldBox.maxX, footY, oldBox.maxZ];
+    const pxnz = [oldBox.maxX, footY, oldBox.minZ];
+    const nxpz = [oldBox.minX, footY, oldBox.maxZ];
+    const nxnz = [oldBox.minX, footY, oldBox.minZ];
 
-    const isEmpty = (vx: number, vy: number, vz: number) => {
-      return !this.getVoxel(vx, vy, vz).length;
-    };
-
-    const isEmptyUnderNxPz = isEmpty(nxpz[0], footY - 1, nxpz[1]);
-    const isEmptyUnderNxNz = isEmpty(nxnz[0], footY - 1, nxnz[1]);
-    const isEmptyUnderPxPz = isEmpty(pxpz[0], footY - 1, pxpz[1]);
-    const isEmptyUnderPxNz = isEmpty(pxnz[0], footY - 1, pxnz[1]);
+    const isEmptyUnderNxPz = this.isRaycastEmpty(nxpz, [0, -1, 0]);
+    const isEmptyUnderNxNz = this.isRaycastEmpty(nxnz, [0, -1, 0]);
+    const isEmptyUnderPxPz = this.isRaycastEmpty(pxpz, [0, -1, 0]);
+    const isEmptyUnderPxNz = this.isRaycastEmpty(pxnz, [0, -1, 0]);
 
     const bodyXWidth = oldBox.maxX - oldBox.minX;
     const bodyZWidth = oldBox.maxZ - oldBox.minZ;
     const clingingFactorInVoxel = 0.2; // 0.2 voxels of clinging
 
     // px direction
-    if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
-      const foundX = this.foundGroundVx(oldBox, footY, true);
+    if (dx[0] > 0 && isEmptyUnderPxPz && isEmptyUnderPxNz) {
+      const foundX = this.findCliffX(oldBox, footY, true);
       if (foundX !== null) {
         walls.push(
           new AABB(
-            foundX + 1 - clingingFactorInVoxel + bodyXWidth,
+            foundX - clingingFactorInVoxel + bodyXWidth,
             footY,
             oldBox.minZ,
-            foundX + 1 - clingingFactorInVoxel + bodyXWidth + 0.1,
+            foundX - clingingFactorInVoxel + bodyXWidth + 0.1,
             footY + 1,
             oldBox.maxZ
           )
@@ -259,8 +256,8 @@ export class Engine {
       }
     }
     // nx direction
-    else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
-      const foundX = this.foundGroundVx(oldBox, footY, false);
+    else if (dx[0] < 0 && isEmptyUnderNxPz && isEmptyUnderNxNz) {
+      const foundX = this.findCliffX(oldBox, footY, false);
       if (foundX !== null) {
         walls.push(
           new AABB(
@@ -276,24 +273,24 @@ export class Engine {
     }
 
     // pz direction
-    if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
-      const foundZ = this.findGroundVz(oldBox, footY, true);
+    if (dx[2] > 0 && isEmptyUnderPxPz && isEmptyUnderNxPz) {
+      const foundZ = this.findCliffVz(oldBox, footY, true);
       if (foundZ !== null) {
         walls.push(
           new AABB(
             oldBox.minX,
             footY,
-            foundZ + 1 - clingingFactorInVoxel + bodyZWidth,
+            foundZ - clingingFactorInVoxel + bodyZWidth,
             oldBox.maxX,
             footY + 1,
-            foundZ + 1 - clingingFactorInVoxel + bodyZWidth + 0.1
+            foundZ - clingingFactorInVoxel + bodyZWidth + 0.1
           )
         );
       }
     }
     // nz direction
-    else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
-      const foundZ = this.findGroundVz(oldBox, footY, false);
+    else if (dx[2] < 0 && isEmptyUnderPxNz && isEmptyUnderNxNz) {
+      const foundZ = this.findCliffVz(oldBox, footY, false);
       if (foundZ !== null) {
         walls.push(
           new AABB(
@@ -317,7 +314,7 @@ export class Engine {
   };
 
   // Helper method to find ground in X direction
-  foundGroundVx = (box: AABB, footY: number, isPx: boolean): number | null => {
+  findCliffX = (box: AABB, footY: number, isPx: boolean): number | null => {
     const startX = Math.floor(isPx ? box.maxX : box.minX);
     const endX = Math.floor(isPx ? box.minX : box.maxX);
     const startZ = Math.floor(box.maxZ);
@@ -326,8 +323,14 @@ export class Engine {
 
     for (let x = startX; isPx ? x >= endX : x <= endX; x += step) {
       for (let z = startZ; z >= endZ; z--) {
-        if (!this.isEmpty(x, footY - 1, z)) {
-          return x;
+        if (!this.isEmpty([x, footY - 1, z])) {
+          const voxel = [x, footY - 1, z];
+          const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+          const union = aabbs.reduce((acc, aabb) => {
+            return acc.union(aabb);
+          }, aabbs[0]);
+          console.log("union", union);
+          return isPx ? union.maxX : union.minX;
         }
       }
     }
@@ -335,7 +338,7 @@ export class Engine {
   };
 
   // Helper method to find ground in Z direction
-  findGroundVz = (box: AABB, footY: number, isPz: boolean): number | null => {
+  findCliffVz = (box: AABB, footY: number, isPz: boolean): number | null => {
     const startX = Math.floor(box.maxX);
     const endX = Math.floor(box.minX);
     const startZ = Math.floor(isPz ? box.maxZ : box.minZ);
@@ -344,16 +347,27 @@ export class Engine {
 
     for (let z = startZ; isPz ? z >= endZ : z <= endZ; z += step) {
       for (let x = startX; x >= endX; x--) {
-        if (!this.isEmpty(x, footY - 1, z)) {
-          return z;
+        if (!this.isEmpty([x, footY - 1, z])) {
+          const voxel = [x, footY - 1, z];
+          const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+          const union = aabbs.reduce((acc, aabb) => {
+            return acc.union(aabb);
+          }, aabbs[0]);
+          return isPz ? union.maxZ : union.minZ;
         }
       }
     }
     return null;
   };
 
-  isEmpty = (x: number, y: number, z: number) => {
-    return !this.getVoxel(x, y, z).length;
+  isRaycastEmpty = (voxel: number[], direction: number[]) => {
+    const result = raycast(this.getVoxel, voxel, direction, 1 - Engine.EPSILON);
+    return !result;
+  };
+
+  isEmpty = (voxel: number[]) => {
+    const result = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+    return result.length === 0;
   };
 
   applyFluidForces = (body: RigidBody) => {
