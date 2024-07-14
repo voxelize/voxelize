@@ -18,7 +18,7 @@ use crate::{
     InteractorComp, Vec3,
 };
 
-struct RigidControlsOptions {
+pub struct RigidControlsOptions {
     sensitivity: f32,
     min_polar_angle: f32,
     max_polar_angle: f32,
@@ -27,9 +27,9 @@ struct RigidControlsOptions {
     rotation_lerp: f32,
     position_lerp: f32,
     step_lerp: f32,
-    body_width: f32,
-    body_height: f32,
-    body_depth: f32,
+    pub body_width: f32,
+    pub body_height: f32,
+    pub body_depth: f32,
     eye_height: f32,
     max_speed: f32,
     move_force: f32,
@@ -52,7 +52,7 @@ struct RigidControlsOptions {
     step_height: f32,
 }
 
-const DEFAULT_OPTIONS: RigidControlsOptions = RigidControlsOptions {
+pub const DEFAULT_RIGID_CONTROLS_OPTIONS: RigidControlsOptions = RigidControlsOptions {
     sensitivity: 100.0,
     min_polar_angle: std::f32::consts::PI * 0.01,
     max_polar_angle: std::f32::consts::PI * 0.99,
@@ -156,7 +156,7 @@ impl<'a> System<'a> for PhysicsSystem {
         (&mut bodies, &mut brains, &client_flag)
             .join()
             .for_each(|(body, brain, _)| {
-                let options = &DEFAULT_OPTIONS;
+                let options = &DEFAULT_RIGID_CONTROLS_OPTIONS;
                 let body = &mut body.0;
                 let state = &mut brain.state;
                 let dt = stats.delta;

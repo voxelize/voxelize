@@ -23,6 +23,8 @@ import { World } from "./world";
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
 
+const SERVER_DISCREPANCY_TOLERANCE = [0, 0, 0];
+
 function rotateY(a: number[], b: number[], c: number) {
   const bx = b[0];
   const bz = b[2];
@@ -561,8 +563,21 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
           const { position } = peer.metadata;
           if (position) {
-            const [x, y, z] = position as number[];
-            this.body.setPosition(position);
+            let [x, y, z] = this.body.getPosition();
+
+            const [serverX, serverY, serverZ] = position as number[];
+
+            if (Math.abs(serverX - x) > SERVER_DISCREPANCY_TOLERANCE[0]) {
+              x = serverX;
+            }
+            if (Math.abs(serverY - y) > SERVER_DISCREPANCY_TOLERANCE[1]) {
+              y = serverY;
+            }
+            if (Math.abs(serverZ - z) > SERVER_DISCREPANCY_TOLERANCE[2]) {
+              z = serverZ;
+            }
+
+            this.body.setPosition([x, y, z]);
             const { eyeHeight, bodyHeight } = this.options;
             this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
           }

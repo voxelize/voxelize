@@ -598,8 +598,19 @@ impl World {
     ) {
         let init_message = self.generate_init_message(id);
 
-        let body =
-            RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
+        let options = &DEFAULT_RIGID_CONTROLS_OPTIONS;
+        let body_width = options.body_width;
+        let body_height = options.body_height;
+        let body_depth = options.body_depth;
+
+        let body = RigidBody::new(
+            &AABB::new()
+                .scale_x(body_width)
+                .scale_y(body_height)
+                .scale_z(body_depth)
+                .build(),
+        )
+        .build();
 
         let interactor = self.physics_mut().register(&body);
 
