@@ -329,7 +329,6 @@ export class Engine {
           const union = aabbs.reduce((acc, aabb) => {
             return acc.union(aabb);
           }, aabbs[0]);
-          console.log("union", union);
           return isPx ? union.maxX : union.minX;
         }
       }
