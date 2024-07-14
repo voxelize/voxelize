@@ -126,7 +126,7 @@ pub fn sweep(
     registry: &Registry,
     target: &mut AABB,
     velocity: &Vec3<f32>,
-    callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3]) -> bool,
+    callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3], &[i32; 3]) -> bool,
     translate: bool,
     max_iterations: usize,
 ) {
@@ -143,37 +143,43 @@ pub fn sweep(
     } else {
         target.min_x + vx
     })
-    .floor();
+    .floor() as i32
+        - 1;
     let min_y = (if vy > 0.0 {
         target.min_y
     } else {
         target.min_y + vy
     })
-    .floor();
+    .floor() as i32
+        - 1;
     let min_z = (if vz > 0.0 {
         target.min_z
     } else {
         target.min_z + vz
     })
-    .floor();
+    .floor() as i32
+        - 1;
     let max_x = (if vx > 0.0 {
         target.max_x + vx
     } else {
         target.max_x
     })
-    .floor();
+    .floor() as i32
+        + 1;
     let max_y = (if vy > 0.0 {
         target.max_y + vy
     } else {
         target.max_y
     })
-    .floor();
+    .floor() as i32
+        + 1;
     let max_z = (if vz > 0.0 {
         target.max_z + vz
     } else {
         target.max_z
     })
-    .floor();
+    .floor() as i32
+        + 1;
 
     let mut closest = SweepResults {
         h: 1.0,
@@ -181,10 +187,11 @@ pub fn sweep(
         ny: 0.0,
         nz: 0.0,
     };
+    let mut voxel = [0, 0, 0];
 
-    for vx in (min_x as i32)..=(max_x as i32) {
-        for vz in (min_z as i32)..=(max_z as i32) {
-            for vy in (min_y as i32)..=(max_y as i32) {
+    for vx in min_x..=max_x {
+        for vz in min_z..=max_z {
+            for vy in min_y..=max_y {
                 let id = space.get_voxel(vx, vy, vz);
                 let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
@@ -207,6 +214,7 @@ pub fn sweep(
                     // Check if this collision is closer than the closest so far
                     if result.h < closest.h {
                         closest = result;
+                        voxel = [vx, vy, vz];
                     }
                 })
             }
@@ -242,7 +250,7 @@ pub fn sweep(
         (1.0 - closest.h) * vz,
     ];
 
-    if dir != 0 && callback(mag * closest.h, axis, dir, &mut leftover) {
+    if dir != 0 && callback(mag * closest.h, axis, dir, &mut leftover, &voxel) {
         return;
     }
 

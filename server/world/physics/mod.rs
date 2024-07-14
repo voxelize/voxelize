@@ -336,7 +336,7 @@ impl Physics {
             registry,
             &mut body.aabb,
             &sleep_vec,
-            &mut |_, _, _, _| {
+            &mut |_, _, _, _, _| {
                 is_resting = true;
                 true
             },
@@ -450,7 +450,7 @@ impl Physics {
             registry,
             aabb,
             velocity,
-            &mut |_, axis, dir, vec| -> bool {
+            &mut |_, axis, dir, vec, _| -> bool {
                 resting[axis] = dir;
                 vec[axis] = 0.0;
                 false
@@ -479,13 +479,6 @@ impl Physics {
             return;
         }
 
-        // continue auto-stepping only if headed sufficiently into obstruction
-        let ratio = (dx[0] / dx[2]).abs();
-        let cutoff = 4.0;
-        if !x_blocked && ratio > cutoff || !z_blocked && ratio < 1.0 / cutoff {
-            return;
-        }
-
         // original target position before being obstructed
         let target_pos = [
             old_aabb.min_x + dx.0,
@@ -493,26 +486,48 @@ impl Physics {
             old_aabb.min_z + dx.2,
         ];
 
+        let mut voxel = [0, 0, 0];
+
         // move towards the target until the first x/z collision
         sweep(
             space,
             registry,
             &mut body.aabb,
             dx,
-            &mut |_, axis, _, vec| {
+            &mut |_, axis, _, vec, vox| {
                 if axis == 1 {
                     vec[axis] = 0.0;
                     return false;
+                } else {
+                    voxel = *vox;
+                    return true;
                 }
-                true
             },
             true,
             10,
         );
 
         let y = body.aabb.min_y;
-        // TODO: AUTO_STEPPING HAPPENS HERE
-        let y_dist = (y + body.step_height + 0.001).floor() - y;
+        let mut max_step = 0.0;
+
+        if voxel != [0, 0, 0] {
+            let id = space.get_voxel(voxel[0], voxel[1], voxel[2]);
+            let rotation = space.get_voxel_rotation(voxel[0], voxel[1], voxel[2]);
+            let block = registry.get_block_by_id(id);
+
+            if block.is_fluid || block.is_empty || block.is_passable {
+                return;
+            }
+
+            let aabbs = block.get_aabbs(&Vec3(voxel[0], voxel[1], voxel[2]), space, registry);
+            for aabb in aabbs {
+                if aabb.max_y > max_step {
+                    max_step = aabb.max_y;
+                }
+            }
+        }
+
+        let y_dist = (y.floor() + max_step - y + 1e-4).min(body.step_height + 1e-3);
         let up_vec = Vec3(0.0, y_dist, 0.0);
         let mut collided = false;
 
@@ -521,7 +536,7 @@ impl Physics {
             registry,
             &mut body.aabb,
             &up_vec,
-            &mut |_, _, _, _| {
+            &mut |_, _, _, _, _| {
                 collided = true;
                 true
             },
@@ -543,24 +558,36 @@ impl Physics {
         let mut tmp_resting = Vec3::default();
         Physics::process_collisions(space, registry, &mut body.aabb, &leftover, &mut tmp_resting);
 
-        // bail if no movement happened in the originally blocked direction
-        // if x_blocked && !approx_equals(old_aabb.min_x, target_pos[0]) {
-        //     return;
-        // }
-        // if z_blocked && !approx_equals(old_aabb.min_z, target_pos[2]) {
-        //     return;
-        // }
+        // move down to the original y position
+        let mut temp = old_aabb.clone();
+        sweep(
+            space,
+            registry,
+            &mut temp,
+            &Vec3(0.0, -y_dist, 0.0),
+            &mut |dist, _, _, _, _| {
+                if dist > 1e-4 {
+                    old_aabb.translate(0.0, -dist + 1e-4, 0.0);
+                }
+                true
+            },
+            true,
+            10,
+        );
 
         // if the new position is below the old position, then the new position is invalid
         // since we trying to step upwards
-        if old_aabb.min_y < body.aabb.min_y {
+        if old_aabb.min_y < y {
             return;
         }
 
-        // done, old_box is now at the target auto-stepped position
-        body.aabb.copy(old_aabb);
         body.resting[0] = tmp_resting[0];
         body.resting[2] = tmp_resting[2];
-        body.stepped = true;
+
+        // if let Some(on_step) = &body.on_step {
+        //     on_step(old_aabb, &tmp_resting);
+        // } else {
+        //     body.aabb = old_aabb.clone();
+        // }
     }
 }

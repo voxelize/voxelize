@@ -266,7 +266,7 @@ const defaultOptions: RigidControlsOptions = {
   initialPosition: [0, 80, 10],
   initialDirection: [0, 0, 0],
   rotationLerp: 0.9,
-  positionLerp: 0.5,
+  positionLerp: 0.6,
   stepLerp: 0.6,
 
   bodyWidth: 0.8,
