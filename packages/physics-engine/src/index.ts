@@ -240,7 +240,7 @@ export class Engine {
     const clingingFactorInVoxel = 0.2; // 0.2 voxels of clinging
 
     // px direction
-    if (dx[0] > 0 && isEmptyUnderPxPz && isEmptyUnderPxNz) {
+    if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
       const foundX = this.findCliffX(oldBox, footY, true);
       if (foundX !== null) {
         walls.push(
@@ -256,7 +256,7 @@ export class Engine {
       }
     }
     // nx direction
-    else if (dx[0] < 0 && isEmptyUnderNxPz && isEmptyUnderNxNz) {
+    else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
       const foundX = this.findCliffX(oldBox, footY, false);
       if (foundX !== null) {
         walls.push(
@@ -273,7 +273,7 @@ export class Engine {
     }
 
     // pz direction
-    if (dx[2] > 0 && isEmptyUnderPxPz && isEmptyUnderNxPz) {
+    if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
       const foundZ = this.findCliffVz(oldBox, footY, true);
       if (foundZ !== null) {
         walls.push(
@@ -289,7 +289,7 @@ export class Engine {
       }
     }
     // nz direction
-    else if (dx[2] < 0 && isEmptyUnderPxNz && isEmptyUnderNxNz) {
+    else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
       const foundZ = this.findCliffVz(oldBox, footY, false);
       if (foundZ !== null) {
         walls.push(
