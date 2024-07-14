@@ -801,7 +801,7 @@ impl World {
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
-            MessageType::Movements => self.on_movement(client_id, data),
+            MessageType::Movements => self.on_movements(client_id, data),
             MessageType::Transport => {
                 if self.transport_handle.is_none() {
                     warn!("Transport calls are being called, but no transport handlers set!");
@@ -1386,8 +1386,8 @@ impl World {
         }
     }
 
-    /// Handler for `Movement` type messages.
-    fn on_movement(&mut self, client_id: &str, data: Message) {
+    /// Handler for `Movements` type messages.
+    fn on_movements(&mut self, client_id: &str, data: Message) {
         let client_ent = if let Some(client) = self.clients().get(client_id) {
             client.entity.to_owned()
         } else {

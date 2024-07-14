@@ -266,7 +266,7 @@ const defaultOptions: RigidControlsOptions = {
   initialPosition: [0, 80, 10],
   initialDirection: [0, 0, 0],
   rotationLerp: 0.9,
-  positionLerp: 1.0,
+  positionLerp: 0.5,
   stepLerp: 0.6,
 
   bodyWidth: 0.8,
@@ -565,7 +565,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           if (position) {
             let [x, y, z] = this.body.getPosition();
 
-            const [serverX, serverY, serverZ] = position as number[];
+            const serverX = position[0] as number;
+            const serverY = position[1] as number;
+            const serverZ = position[2] as number;
 
             if (Math.abs(serverX - x) > SERVER_DISCREPANCY_TOLERANCE[0]) {
               x = serverX;
@@ -631,8 +633,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     if (this.arm) this.arm.update();
 
     this.emitMovements();
-    this.moveRigidBody();
-    this.updateRigidBody(delta);
+    // this.moveRigidBody();
+    // this.updateRigidBody(delta);
   };
 
   /**
