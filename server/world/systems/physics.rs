@@ -49,7 +49,7 @@ pub struct RigidControlsOptions {
     jump_force: f32,
     jump_time: f32,
     air_jumps: u32,
-    step_height: f32,
+    pub step_height: f32,
 }
 
 pub const DEFAULT_RIGID_CONTROLS_OPTIONS: RigidControlsOptions = RigidControlsOptions {

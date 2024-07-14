@@ -602,6 +602,7 @@ impl World {
         let body_width = options.body_width;
         let body_height = options.body_height;
         let body_depth = options.body_depth;
+        let step_height = options.step_height;
 
         let body = RigidBody::new(
             &AABB::new()
@@ -610,6 +611,7 @@ impl World {
                 .scale_z(body_depth)
                 .build(),
         )
+        .step_height(step_height)
         .build();
 
         let interactor = self.physics_mut().register(&body);

@@ -249,7 +249,7 @@ impl Physics {
         body.impulses.set(0.0, 0.0, 0.0);
 
         // cache old position for use in autostepping
-        let tmp_box = if body.auto_step {
+        let tmp_box = if body.step_height > 0.0 {
             Some(body.aabb.clone())
         } else {
             None
@@ -259,7 +259,7 @@ impl Physics {
         Physics::process_collisions(space, registry, &mut body.aabb, &dx, &mut body.resting);
 
         // if autostep, and on ground, run collisions again with stepped up aabb
-        if body.auto_step {
+        if body.step_height > 0.0 {
             let mut tmp_box = tmp_box.unwrap();
             Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx);
         }
@@ -512,7 +512,7 @@ impl Physics {
 
         let y = body.aabb.min_y;
         // TODO: AUTO_STEPPING HAPPENS HERE
-        let y_dist = (y + 1.001).floor() - y;
+        let y_dist = (y + body.step_height + 0.001).floor() - y;
         let up_vec = Vec3(0.0, y_dist, 0.0);
         let mut collided = false;
 
