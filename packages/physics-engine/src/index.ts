@@ -239,39 +239,72 @@ export class Engine {
     const isEmptyUnderPxNz = isEmpty(pxnz[0], footY - 1, pxnz[1]);
 
     const bodyXWidth = oldBox.maxX - oldBox.minX;
+    const bodyZWidth = oldBox.maxZ - oldBox.minZ;
     const clingingFactorInVoxel = 0.2; // 0.2 voxels of clinging
 
-    // let's try doing px only
-    if (dx[0] > 0) {
-      if (isEmptyUnderPxPz && isEmptyUnderPxNz) {
-        const startX = Math.floor(oldBox.maxX);
-        const endX = Math.floor(oldBox.minX);
-        const startZ = Math.floor(oldBox.maxZ);
-        const endZ = Math.floor(oldBox.minZ);
-        let foundX: number | null = null;
-        let foundZ: number | null = null;
-        for (let x = startX; x >= endX; x--) {
-          for (let z = startZ; z >= endZ; z--) {
-            if (!isEmpty(x, footY - 1, z)) {
-              foundX = x;
-              foundZ = z;
-              break;
-            }
-          }
-        }
-        // found the ground to cling off of in the px direction
-        if (foundX !== null && foundZ !== null) {
-          walls.push(
-            new AABB(
-              foundX + 1 - clingingFactorInVoxel + bodyXWidth,
-              footY,
-              oldBox.minZ,
-              foundX + 1 - clingingFactorInVoxel + bodyXWidth + 0.1,
-              footY + 1,
-              oldBox.maxZ
-            )
-          );
-        }
+    // px direction
+    if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
+      const foundX = this.findGroundX(oldBox, footY, true);
+      if (foundX !== null) {
+        walls.push(
+          new AABB(
+            foundX + 1 - clingingFactorInVoxel + bodyXWidth,
+            footY,
+            oldBox.minZ,
+            foundX + 1 - clingingFactorInVoxel + bodyXWidth + 0.1,
+            footY + 1,
+            oldBox.maxZ
+          )
+        );
+      }
+    }
+    // nx direction
+    else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
+      const foundX = this.findGroundX(oldBox, footY, false);
+      if (foundX !== null) {
+        walls.push(
+          new AABB(
+            foundX + clingingFactorInVoxel - bodyXWidth - 0.1,
+            footY,
+            oldBox.minZ,
+            foundX + clingingFactorInVoxel - bodyXWidth,
+            footY + 1,
+            oldBox.maxZ
+          )
+        );
+      }
+    }
+
+    // pz direction
+    if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
+      const foundZ = this.findGroundZ(oldBox, footY, true);
+      if (foundZ !== null) {
+        walls.push(
+          new AABB(
+            oldBox.minX,
+            footY,
+            foundZ + 1 - clingingFactorInVoxel + bodyZWidth,
+            oldBox.maxX,
+            footY + 1,
+            foundZ + 1 - clingingFactorInVoxel + bodyZWidth + 0.1
+          )
+        );
+      }
+    }
+    // nz direction
+    else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
+      const foundZ = this.findGroundZ(oldBox, footY, false);
+      if (foundZ !== null) {
+        walls.push(
+          new AABB(
+            oldBox.minX,
+            footY,
+            foundZ + clingingFactorInVoxel - bodyZWidth - 0.1,
+            oldBox.maxX,
+            footY + 1,
+            foundZ + clingingFactorInVoxel - bodyZWidth
+          )
+        );
       }
     }
 
@@ -281,6 +314,46 @@ export class Engine {
       this.processCollisions(oldBox, [dx[0], 0, dx[2]], tmpResting, walls);
       body.aabb = oldBox;
     }
+  };
+
+  // Helper method to find ground in X direction
+  findGroundX = (box: AABB, footY: number, isPx: boolean): number | null => {
+    const startX = Math.floor(isPx ? box.maxX : box.minX);
+    const endX = Math.floor(isPx ? box.minX : box.maxX);
+    const startZ = Math.floor(box.maxZ);
+    const endZ = Math.floor(box.minZ);
+    const step = isPx ? -1 : 1;
+
+    for (let x = startX; isPx ? x >= endX : x <= endX; x += step) {
+      for (let z = startZ; z >= endZ; z--) {
+        if (!this.isEmpty(x, footY - 1, z)) {
+          return x;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Helper method to find ground in Z direction
+  findGroundZ = (box: AABB, footY: number, isPz: boolean): number | null => {
+    const startX = Math.floor(box.maxX);
+    const endX = Math.floor(box.minX);
+    const startZ = Math.floor(isPz ? box.maxZ : box.minZ);
+    const endZ = Math.floor(isPz ? box.minZ : box.maxZ);
+    const step = isPz ? -1 : 1;
+
+    for (let z = startZ; isPz ? z >= endZ : z <= endZ; z += step) {
+      for (let x = startX; x >= endX; x--) {
+        if (!this.isEmpty(x, footY - 1, z)) {
+          return z;
+        }
+      }
+    }
+    return null;
+  };
+
+  isEmpty = (x: number, y: number, z: number) => {
+    return !this.getVoxel(x, y, z).length;
   };
 
   applyFluidForces = (body: RigidBody) => {
