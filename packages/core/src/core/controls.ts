@@ -562,6 +562,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           const { position } = peer.metadata;
           if (position) {
             const [x, y, z] = position as number[];
+            this.body.setPosition(position);
             const { eyeHeight, bodyHeight } = this.options;
             this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
           }

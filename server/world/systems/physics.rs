@@ -348,12 +348,6 @@ impl<'a> System<'a> for PhysicsSystem {
                         body.friction = standing_friction;
                     }
                 }
-
-                // let Vec3(x, y, z) = body.get_position();
-                // let eye_height = options.eye_height;
-                // let body_height = options.body_height;
-                // self.new_position
-                //     .set(x, y + body_height * (eye_height - 0.5), z);
             });
 
         // Tick the voxel physics of all entities.
