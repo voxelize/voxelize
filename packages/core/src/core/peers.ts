@@ -267,7 +267,11 @@ export class Peers<
             "Peers.onPeerUpdate is not defined, skipping peer update."
           );
         } else {
-          this.onPeerUpdate(object, peer.metadata, {
+          // Position and direction are managed by controls for self
+          const metadata = self
+            ? { ...peer.metadata, position: undefined, direction: undefined }
+            : peer.metadata;
+          this.onPeerUpdate(object, metadata, {
             id: peer.id,
             username: peer.username,
           });

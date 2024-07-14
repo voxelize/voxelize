@@ -552,6 +552,21 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         break;
       }
+      case "PEER": {
+        const { peers } = message;
+        peers.forEach((peer: any) => {
+          const self = this.ownID && peer.id === this.ownID;
+
+          if (!self) return;
+
+          const { position } = peer.metadata;
+          if (position) {
+            const [x, y, z] = position as number[];
+            const { eyeHeight, bodyHeight } = this.options;
+            this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+          }
+        });
+      }
     }
   };
 
