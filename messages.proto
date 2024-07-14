@@ -97,7 +97,7 @@ message Message {
     EVENT = 12;
     ACTION = 13;
     STATS = 14;
-    MOVEMENT = 15;
+    MOVEMENTS = 15;
   }
 
   Type type = 1;

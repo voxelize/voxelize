@@ -790,7 +790,7 @@ impl World {
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
-            MessageType::Movement => self.on_movement(client_id, data),
+            MessageType::Movements => self.on_movement(client_id, data),
             MessageType::Transport => {
                 if self.transport_handle.is_none() {
                     warn!("Transport calls are being called, but no transport handlers set!");

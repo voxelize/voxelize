@@ -94,7 +94,8 @@ export type MessageProtocol<
     | "TRANSPORT"
     | "EVENT"
     | "ACTION"
-    | "STATS";
+    | "STATS"
+    | "MOVEMENTS";
   json?: T;
   text?: string;
 
