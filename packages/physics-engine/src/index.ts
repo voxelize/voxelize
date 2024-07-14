@@ -173,6 +173,8 @@ export class Engine {
     // sweeps aabb along dx and accounts for collisions
     this.processCollisions(body.aabb, dx, body.resting);
 
+    this.tryCliffHanging(body, tmpBox, dx);
+
     // if autostep, and on ground, run collisions again with stepped up aabb
     if (body.stepHeight > 0) {
       this.tryAutoStepping(body, tmpBox, dx);
@@ -214,6 +216,71 @@ export class Engine {
     const vsq =
       body.velocity[0] ** 2 + body.velocity[1] ** 2 + body.velocity[2] ** 2;
     if (vsq > 1e-5) body.markActive();
+  };
+
+  tryCliffHanging = (body: RigidBody, oldBox: AABB, dx: number[]) => {
+    if (!body.isCliffHanging || !body.resting[1]) return;
+
+    const walls: AABB[] = [];
+
+    const pxpz = [Math.floor(oldBox.maxX), Math.floor(oldBox.maxZ)];
+    const pxnz = [Math.floor(oldBox.maxX), Math.floor(oldBox.minZ)];
+    const nxpz = [Math.floor(oldBox.minX), Math.floor(oldBox.maxZ)];
+    const nxnz = [Math.floor(oldBox.minX), Math.floor(oldBox.minZ)];
+    const footY = Math.floor(oldBox.minY);
+
+    const isEmpty = (vx: number, vy: number, vz: number) => {
+      return !this.getVoxel(vx, vy, vz).length;
+    };
+
+    const isEmptyUnderNxPz = isEmpty(nxpz[0], footY - 1, nxpz[1]);
+    const isEmptyUnderNxNz = isEmpty(nxnz[0], footY - 1, nxnz[1]);
+    const isEmptyUnderPxPz = isEmpty(pxpz[0], footY - 1, pxpz[1]);
+    const isEmptyUnderPxNz = isEmpty(pxnz[0], footY - 1, pxnz[1]);
+
+    const bodyXWidth = oldBox.maxX - oldBox.minX;
+    const clingingFactorInVoxel = 0.2; // 0.2 voxels of clinging
+
+    // let's try doing px only
+    if (dx[0] > 0) {
+      if (isEmptyUnderPxPz && isEmptyUnderPxNz) {
+        const startX = Math.floor(oldBox.maxX);
+        const endX = Math.floor(oldBox.minX);
+        const startZ = Math.floor(oldBox.maxZ);
+        const endZ = Math.floor(oldBox.minZ);
+        let foundX: number | null = null;
+        let foundZ: number | null = null;
+        for (let x = startX; x >= endX; x--) {
+          for (let z = startZ; z >= endZ; z--) {
+            if (!isEmpty(x, footY - 1, z)) {
+              foundX = x;
+              foundZ = z;
+              break;
+            }
+          }
+        }
+        // found the ground to cling off of in the px direction
+        if (foundX !== null && foundZ !== null) {
+          walls.push(
+            new AABB(
+              foundX + 1 - clingingFactorInVoxel + bodyXWidth,
+              footY,
+              oldBox.minZ,
+              foundX + 1 - clingingFactorInVoxel + bodyXWidth + 0.1,
+              footY + 1,
+              oldBox.maxZ
+            )
+          );
+        }
+      }
+    }
+
+    // process walls as collision
+    if (walls.length > 0) {
+      const tmpResting = [0, 0, 0];
+      this.processCollisions(oldBox, [dx[0], 0, dx[2]], tmpResting, walls);
+      body.aabb = oldBox;
+    }
   };
 
   applyFluidForces = (body: RigidBody) => {
@@ -290,7 +357,12 @@ export class Engine {
     body.velocity[(axis + 2) % 3] *= scalar;
   };
 
-  processCollisions = (box: AABB, velocity: number[], resting: number[]) => {
+  processCollisions = (
+    box: AABB,
+    velocity: number[],
+    resting: number[],
+    extras: AABB[] = []
+  ) => {
     resting[0] = 0;
     resting[1] = 0;
     resting[2] = 0;
@@ -303,7 +375,10 @@ export class Engine {
         resting[axis] = dir;
         vec[axis] = 0;
         return false;
-      }
+      },
+      true,
+      100,
+      extras
     );
   };
 

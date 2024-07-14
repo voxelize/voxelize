@@ -1068,6 +1068,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         this.body.gravityMultiplier = 1;
       }
     }
+
+    this.body.isCliffHanging = state.crouching;
   };
 
   /**

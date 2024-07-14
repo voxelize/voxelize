@@ -144,7 +144,8 @@ export function sweep(
     voxel?: number[]
   ) => boolean,
   translate = true,
-  maxIterations = 100
+  maxIterations = 100,
+  extras: AABB[] = []
 ) {
   if (maxIterations <= 0) return;
 
@@ -162,6 +163,14 @@ export function sweep(
   let voxel: number[] = [];
   let closest = { h: 1, nx: 0, ny: 0, nz: 0 };
 
+  for (const e of extras) {
+    const collision = sweepAABB(box, e, velocity);
+    if (collision.h < closest.h) {
+      closest = collision;
+      voxel = [vx, vy, vz];
+    }
+  }
+
   for (let vx = minX; vx <= maxX; vx++) {
     for (let vz = minZ; vz <= maxZ; vz++) {
       for (let vy = minY; vy <= maxY; vy++) {
@@ -170,7 +179,7 @@ export function sweep(
         for (const aabb of AABBs) {
           const collision = sweepAABB(box, aabb, velocity);
 
-          //Check if this collision is closer than the closest so far.
+          // Check if this collision is closer than the closest so far.
           if (collision.h < closest.h) {
             closest = collision;
             voxel = [vx, vy, vz];
@@ -201,6 +210,13 @@ export function sweep(
     (1 - closest.h) * vz,
   ];
 
+  if (closest.h !== 1 && closest.ny === 0) {
+    console.log(
+      "closest",
+      JSON.stringify({ closest, leftover, vx, dx, axis, dir }, null, 2)
+    );
+  }
+
   // Bail out on truthy response
   if (dir !== 0 && callback(mag * closest.h, axis, dir, leftover, voxel)) {
     return;
@@ -208,6 +224,14 @@ export function sweep(
 
   // Continue to handle
   if (leftover[0] ** 2 + leftover[1] ** 2 + leftover[2] ** 2 != 0.0) {
-    sweep(getVoxels, box, leftover, callback, translate, maxIterations - 1);
+    sweep(
+      getVoxels,
+      box,
+      leftover,
+      callback,
+      translate,
+      maxIterations - 1,
+      extras
+    );
   }
 }
