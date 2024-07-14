@@ -244,7 +244,7 @@ export class Engine {
 
     // px direction
     if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
-      const foundX = this.findGroundX(oldBox, footY, true);
+      const foundX = this.foundGroundVx(oldBox, footY, true);
       if (foundX !== null) {
         walls.push(
           new AABB(
@@ -260,7 +260,7 @@ export class Engine {
     }
     // nx direction
     else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
-      const foundX = this.findGroundX(oldBox, footY, false);
+      const foundX = this.foundGroundVx(oldBox, footY, false);
       if (foundX !== null) {
         walls.push(
           new AABB(
@@ -277,7 +277,7 @@ export class Engine {
 
     // pz direction
     if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
-      const foundZ = this.findGroundZ(oldBox, footY, true);
+      const foundZ = this.findGroundVz(oldBox, footY, true);
       if (foundZ !== null) {
         walls.push(
           new AABB(
@@ -293,7 +293,7 @@ export class Engine {
     }
     // nz direction
     else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
-      const foundZ = this.findGroundZ(oldBox, footY, false);
+      const foundZ = this.findGroundVz(oldBox, footY, false);
       if (foundZ !== null) {
         walls.push(
           new AABB(
@@ -317,7 +317,7 @@ export class Engine {
   };
 
   // Helper method to find ground in X direction
-  findGroundX = (box: AABB, footY: number, isPx: boolean): number | null => {
+  foundGroundVx = (box: AABB, footY: number, isPx: boolean): number | null => {
     const startX = Math.floor(isPx ? box.maxX : box.minX);
     const endX = Math.floor(isPx ? box.minX : box.maxX);
     const startZ = Math.floor(box.maxZ);
@@ -335,7 +335,7 @@ export class Engine {
   };
 
   // Helper method to find ground in Z direction
-  findGroundZ = (box: AABB, footY: number, isPz: boolean): number | null => {
+  findGroundVz = (box: AABB, footY: number, isPz: boolean): number | null => {
     const startX = Math.floor(box.maxX);
     const endX = Math.floor(box.minX);
     const startZ = Math.floor(isPz ? box.maxZ : box.minZ);
