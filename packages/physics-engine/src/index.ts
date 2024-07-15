@@ -315,48 +315,58 @@ export class Engine {
 
   // Helper method to find ground in X direction
   findCliffX = (box: AABB, footY: number, isPx: boolean): number | null => {
-    const startX = Math.floor(isPx ? box.maxX : box.minX);
-    const endX = Math.floor(isPx ? box.minX : box.maxX);
+    const startX = Math.floor(isPx ? box.minX : box.maxX);
+    const endX = Math.floor(isPx ? box.maxX : box.minX);
     const startZ = Math.floor(box.maxZ);
     const endZ = Math.floor(box.minZ);
-    const step = isPx ? -1 : 1;
+    const step = isPx ? 1 : -1;
 
-    for (let x = startX; isPx ? x >= endX : x <= endX; x += step) {
+    let cliffX = null;
+    for (let x = startX; isPx ? x <= endX : x >= endX; x += step) {
       for (let z = startZ; z >= endZ; z--) {
-        if (!this.isEmpty([x, footY - 1, z])) {
-          const voxel = [x, footY - 1, z];
-          const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
-          const union = aabbs.reduce((acc, aabb) => {
-            return acc.union(aabb);
-          }, aabbs[0]);
-          return isPx ? union.maxX : union.minX;
+        if (this.isEmpty([x, footY - 1, z])) {
+          break;
         }
+        const voxel = [x, footY - 1, z];
+        const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+        if (aabbs.length === 0) {
+          continue;
+        }
+        const union = aabbs.reduce((acc, aabb) => {
+          return acc.union(aabb);
+        }, aabbs[0]);
+        cliffX = isPx ? union.maxX : union.minX;
       }
     }
-    return null;
+    return cliffX;
   };
 
   // Helper method to find ground in Z direction
   findCliffVz = (box: AABB, footY: number, isPz: boolean): number | null => {
     const startX = Math.floor(box.maxX);
     const endX = Math.floor(box.minX);
-    const startZ = Math.floor(isPz ? box.maxZ : box.minZ);
-    const endZ = Math.floor(isPz ? box.minZ : box.maxZ);
-    const step = isPz ? -1 : 1;
+    const startZ = Math.floor(isPz ? box.minZ : box.maxZ);
+    const endZ = Math.floor(isPz ? box.maxZ : box.minZ);
+    const step = isPz ? 1 : -1;
 
-    for (let z = startZ; isPz ? z >= endZ : z <= endZ; z += step) {
+    let cliffZ = null;
+    for (let z = startZ; isPz ? z <= endZ : z >= endZ; z += step) {
       for (let x = startX; x >= endX; x--) {
-        if (!this.isEmpty([x, footY - 1, z])) {
-          const voxel = [x, footY - 1, z];
-          const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
-          const union = aabbs.reduce((acc, aabb) => {
-            return acc.union(aabb);
-          }, aabbs[0]);
-          return isPz ? union.maxZ : union.minZ;
+        if (this.isEmpty([x, footY - 1, z])) {
+          break;
         }
+        const voxel = [x, footY - 1, z];
+        const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+        if (aabbs.length === 0) {
+          continue;
+        }
+        const union = aabbs.reduce((acc, aabb) => {
+          return acc.union(aabb);
+        }, aabbs[0]);
+        cliffZ = isPz ? union.maxZ : union.minZ;
       }
     }
-    return null;
+    return cliffZ;
   };
 
   isRaycastEmpty = (voxel: number[], direction: number[]) => {
