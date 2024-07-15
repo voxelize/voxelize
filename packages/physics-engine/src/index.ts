@@ -224,7 +224,10 @@ export class Engine {
 
     const walls: AABB[] = [];
 
-    const footY = Math.floor(oldBox.minY);
+    const footY =
+      Math.abs(oldBox.minY - Math.floor(oldBox.minY)) <= Engine.EPSILON
+        ? Math.floor(oldBox.minY)
+        : oldBox.minY;
     const pxpz = [oldBox.maxX, footY, oldBox.maxZ];
     const pxnz = [oldBox.maxX, footY, oldBox.minZ];
     const nxpz = [oldBox.minX, footY, oldBox.maxZ];
@@ -327,7 +330,7 @@ export class Engine {
         if (this.isRaycastEmpty([x, footY, z], [0, -1, 0])) {
           continue;
         }
-        const voxel = [x, footY - 1, z];
+        const voxel = [x, footY - Engine.EPSILON * 3, z];
         const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
         if (aabbs.length === 0) {
           continue;
@@ -355,7 +358,7 @@ export class Engine {
         if (this.isRaycastEmpty([x, footY, z], [0, -1, 0])) {
           continue;
         }
-        const voxel = [x, footY - 1, z];
+        const voxel = [x, footY - Engine.EPSILON * 3, z];
         const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
         if (aabbs.length === 0) {
           continue;
@@ -370,7 +373,7 @@ export class Engine {
   };
 
   isRaycastEmpty = (voxel: number[], direction: number[]) => {
-    const result = raycast(this.getVoxel, voxel, direction, 1 - Engine.EPSILON);
+    const result = raycast(this.getVoxel, voxel, direction, Engine.EPSILON * 3);
     return !result;
   };
 
