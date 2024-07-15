@@ -324,8 +324,8 @@ export class Engine {
     let cliffX = null;
     for (let x = startX; isPx ? x <= endX : x >= endX; x += step) {
       for (let z = startZ; z >= endZ; z--) {
-        if (this.isEmpty([x, footY - 1, z])) {
-          break;
+        if (this.isRaycastEmpty([x, footY, z], [0, -1, 0])) {
+          continue;
         }
         const voxel = [x, footY - 1, z];
         const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
@@ -352,8 +352,8 @@ export class Engine {
     let cliffZ = null;
     for (let z = startZ; isPz ? z <= endZ : z >= endZ; z += step) {
       for (let x = startX; x >= endX; x--) {
-        if (this.isEmpty([x, footY - 1, z])) {
-          break;
+        if (this.isRaycastEmpty([x, footY, z], [0, -1, 0])) {
+          continue;
         }
         const voxel = [x, footY - 1, z];
         const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
@@ -372,11 +372,6 @@ export class Engine {
   isRaycastEmpty = (voxel: number[], direction: number[]) => {
     const result = raycast(this.getVoxel, voxel, direction, 1 - Engine.EPSILON);
     return !result;
-  };
-
-  isEmpty = (voxel: number[]) => {
-    const result = this.getVoxel(voxel[0], voxel[1], voxel[2]);
-    return result.length === 0;
   };
 
   applyFluidForces = (body: RigidBody) => {
