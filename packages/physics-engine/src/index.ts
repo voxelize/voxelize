@@ -246,12 +246,16 @@ export class Engine {
     if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
       const foundX = this.findCliffX(oldBox, footY, true);
       if (foundX !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          foundX - oldBox.minX
+        );
         walls.push(
           new AABB(
-            foundX - clingingFactorInVoxel + bodyXWidth,
+            foundX - minClingFactor + bodyXWidth,
             footY,
             oldBox.minZ,
-            foundX - clingingFactorInVoxel + bodyXWidth + 0.1,
+            foundX - minClingFactor + bodyXWidth + 0.1,
             footY + 1,
             oldBox.maxZ
           )
@@ -262,12 +266,16 @@ export class Engine {
     else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
       const foundX = this.findCliffX(oldBox, footY, false);
       if (foundX !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          oldBox.maxX - foundX
+        );
         walls.push(
           new AABB(
-            foundX + clingingFactorInVoxel - bodyXWidth - 0.1,
+            foundX + minClingFactor - bodyXWidth - 0.1,
             footY,
             oldBox.minZ,
-            foundX + clingingFactorInVoxel - bodyXWidth,
+            foundX + minClingFactor - bodyXWidth,
             footY + 1,
             oldBox.maxZ
           )
@@ -279,14 +287,18 @@ export class Engine {
     if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
       const foundZ = this.findCliffVz(oldBox, footY, true);
       if (foundZ !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          foundZ - oldBox.minZ
+        );
         walls.push(
           new AABB(
             oldBox.minX,
             footY,
-            foundZ - clingingFactorInVoxel + bodyZWidth,
+            foundZ - minClingFactor + bodyZWidth,
             oldBox.maxX,
             footY + 1,
-            foundZ - clingingFactorInVoxel + bodyZWidth + 0.1
+            foundZ - minClingFactor + bodyZWidth + 0.1
           )
         );
       }
@@ -295,14 +307,18 @@ export class Engine {
     else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
       const foundZ = this.findCliffVz(oldBox, footY, false);
       if (foundZ !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          oldBox.maxX - foundZ
+        );
         walls.push(
           new AABB(
             oldBox.minX,
             footY,
-            foundZ + clingingFactorInVoxel - bodyZWidth - 0.1,
+            foundZ + minClingFactor - bodyZWidth - 0.1,
             oldBox.maxX,
             footY + 1,
-            foundZ + clingingFactorInVoxel - bodyZWidth
+            foundZ + minClingFactor - bodyZWidth
           )
         );
       }
