@@ -284,7 +284,7 @@ const defaultOptions: RigidControlsOptions = {
   flyInertia: 6,
 
   sprintFactor: 1.4,
-  crouchFactor: 0.6,
+  crouchFactor: 0.45,
   alwaysSprint: false,
   airMoveMult: 0.7,
   fluidPushForce: 0.3,
@@ -1068,6 +1068,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         this.body.gravityMultiplier = 1;
       }
     }
+
+    this.body.isCliffHanging = state.crouching;
   };
 
   /**
@@ -1137,7 +1139,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         let speed = maxSpeed;
         // todo: add crouch/sprint modifiers if needed
         if (this.state.sprinting) speed *= sprintFactor;
-        if (this.state.crouching) speed *= crouchFactor;
+        if (this.state.crouching && this.body.resting[1] === -1)
+          speed *= crouchFactor;
         m[2] = speed;
 
         // rotate move vector to entity's heading

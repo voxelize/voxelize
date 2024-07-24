@@ -1573,6 +1573,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         const rotation = this.getVoxelRotationAt(wx, wy, wz);
+        const vx = Math.floor(wx);
+        const vy = Math.floor(wy);
+        const vz = Math.floor(wz);
 
         if (dynamicPatterns && dynamicPatterns.length > 0) {
           const aabbs = this.getBlockAABBsForDynamicPatterns(
@@ -1580,7 +1583,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             wy,
             wz,
             dynamicPatterns
-          ).map((aabb) => rotation.rotateAABB(aabb));
+          ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
           return aabbs;
         }
 
@@ -1590,7 +1593,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               ? dynamicFn([wx | 0, wy | 0, wz | 0]).aabbs
               : aabbs
             : aabbs
-        ).map((aabb) => rotation.rotateAABB(aabb));
+        ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
       },
       origin,
       direction,

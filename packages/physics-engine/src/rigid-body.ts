@@ -13,6 +13,7 @@ class RigidBody {
   public forces = [0, 0, 0];
   public impulses = [0, 0, 0];
   public sleepFrameCount = 10 | 0;
+  public isCliffHanging = false;
 
   constructor(
     public aabb: AABB,

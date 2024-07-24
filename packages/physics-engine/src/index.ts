@@ -1,4 +1,5 @@
 import { AABB } from "@voxelize/aabb";
+import raycast from "@voxelize/raycast";
 
 import { RigidBody } from "./rigid-body";
 import { sweep } from "./sweep";
@@ -173,6 +174,8 @@ export class Engine {
     // sweeps aabb along dx and accounts for collisions
     this.processCollisions(body.aabb, dx, body.resting);
 
+    this.tryCliffHanging(body, tmpBox, dx);
+
     // if autostep, and on ground, run collisions again with stepped up aabb
     if (body.stepHeight > 0) {
       this.tryAutoStepping(body, tmpBox, dx);
@@ -214,6 +217,185 @@ export class Engine {
     const vsq =
       body.velocity[0] ** 2 + body.velocity[1] ** 2 + body.velocity[2] ** 2;
     if (vsq > 1e-5) body.markActive();
+  };
+
+  tryCliffHanging = (body: RigidBody, oldBox: AABB, dx: number[]) => {
+    if (!body.isCliffHanging || !body.resting[1]) return;
+
+    const walls: AABB[] = [];
+
+    const footY =
+      Math.abs(oldBox.minY - Math.floor(oldBox.minY)) <= Engine.EPSILON
+        ? Math.floor(oldBox.minY)
+        : oldBox.minY;
+    const pxpz = [oldBox.maxX, footY, oldBox.maxZ];
+    const pxnz = [oldBox.maxX, footY, oldBox.minZ];
+    const nxpz = [oldBox.minX, footY, oldBox.maxZ];
+    const nxnz = [oldBox.minX, footY, oldBox.minZ];
+
+    const isEmptyUnderNxPz = this.isRaycastEmpty(nxpz, [0, -1, 0]);
+    const isEmptyUnderNxNz = this.isRaycastEmpty(nxnz, [0, -1, 0]);
+    const isEmptyUnderPxPz = this.isRaycastEmpty(pxpz, [0, -1, 0]);
+    const isEmptyUnderPxNz = this.isRaycastEmpty(pxnz, [0, -1, 0]);
+
+    const bodyXWidth = oldBox.maxX - oldBox.minX;
+    const bodyZWidth = oldBox.maxZ - oldBox.minZ;
+    const clingingFactorInVoxel = 0.2; // 0.2 voxels of clinging
+
+    // px direction
+    if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
+      const foundX = this.findCliffX(oldBox, footY, true);
+      if (foundX !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          foundX - oldBox.minX
+        );
+        walls.push(
+          new AABB(
+            foundX - minClingFactor + bodyXWidth,
+            footY,
+            oldBox.minZ,
+            foundX - minClingFactor + bodyXWidth + 0.1,
+            footY + 1,
+            oldBox.maxZ
+          )
+        );
+      }
+    }
+    // nx direction
+    else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
+      const foundX = this.findCliffX(oldBox, footY, false);
+      if (foundX !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          oldBox.maxX - foundX
+        );
+        walls.push(
+          new AABB(
+            foundX + minClingFactor - bodyXWidth - 0.1,
+            footY,
+            oldBox.minZ,
+            foundX + minClingFactor - bodyXWidth,
+            footY + 1,
+            oldBox.maxZ
+          )
+        );
+      }
+    }
+
+    // pz direction
+    if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
+      const foundZ = this.findCliffVz(oldBox, footY, true);
+      if (foundZ !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          foundZ - oldBox.minZ
+        );
+        walls.push(
+          new AABB(
+            oldBox.minX,
+            footY,
+            foundZ - minClingFactor + bodyZWidth,
+            oldBox.maxX,
+            footY + 1,
+            foundZ - minClingFactor + bodyZWidth + 0.1
+          )
+        );
+      }
+    }
+    // nz direction
+    else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
+      const foundZ = this.findCliffVz(oldBox, footY, false);
+      if (foundZ !== null) {
+        const minClingFactor = Math.min(
+          clingingFactorInVoxel,
+          oldBox.maxX - foundZ
+        );
+        walls.push(
+          new AABB(
+            oldBox.minX,
+            footY,
+            foundZ + minClingFactor - bodyZWidth - 0.1,
+            oldBox.maxX,
+            footY + 1,
+            foundZ + minClingFactor - bodyZWidth
+          )
+        );
+      }
+    }
+
+    // process walls as collision
+    if (walls.length > 0) {
+      const tmpResting = [0, 0, 0];
+      this.processCollisions(oldBox, [dx[0], 0, dx[2]], tmpResting, walls);
+      body.aabb = oldBox;
+    }
+  };
+
+  // Helper method to find ground in X direction
+  findCliffX = (box: AABB, footY: number, isPx: boolean): number | null => {
+    const startX = Math.floor(isPx ? box.minX : box.maxX);
+    const endX = Math.floor(isPx ? box.maxX : box.minX);
+    const startZ = Math.floor(box.maxZ);
+    const endZ = Math.floor(box.minZ);
+    const step = isPx ? 1 : -1;
+
+    let cliffX = null;
+    for (let x = startX; isPx ? x <= endX : x >= endX; x += step) {
+      for (let z = startZ; z >= endZ; z--) {
+        const voxel = [x, footY - Engine.EPSILON * 3, z];
+        if (this.isEmpty(voxel)) {
+          continue;
+        }
+        const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+        if (aabbs.length === 0) {
+          continue;
+        }
+        const union = aabbs.reduce((acc, aabb) => {
+          return acc.union(aabb);
+        }, aabbs[0]);
+        cliffX = isPx ? union.maxX : union.minX;
+      }
+    }
+    return cliffX;
+  };
+
+  // Helper method to find ground in Z direction
+  findCliffVz = (box: AABB, footY: number, isPz: boolean): number | null => {
+    const startX = Math.floor(box.maxX);
+    const endX = Math.floor(box.minX);
+    const startZ = Math.floor(isPz ? box.minZ : box.maxZ);
+    const endZ = Math.floor(isPz ? box.maxZ : box.minZ);
+    const step = isPz ? 1 : -1;
+
+    let cliffZ = null;
+    for (let z = startZ; isPz ? z <= endZ : z >= endZ; z += step) {
+      for (let x = startX; x >= endX; x--) {
+        const voxel = [x, footY - Engine.EPSILON * 3, z];
+        if (this.isEmpty(voxel)) {
+          continue;
+        }
+        const aabbs = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+        if (aabbs.length === 0) {
+          continue;
+        }
+        const union = aabbs.reduce((acc, aabb) => {
+          return acc.union(aabb);
+        }, aabbs[0]);
+        cliffZ = isPz ? union.maxZ : union.minZ;
+      }
+    }
+    return cliffZ;
+  };
+
+  isRaycastEmpty = (voxel: number[], direction: number[]) => {
+    const result = raycast(this.getVoxel, voxel, direction, Engine.EPSILON * 3);
+    return !result;
+  };
+
+  isEmpty = (voxel: number[]) => {
+    const result = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+    return result.length === 0;
   };
 
   applyFluidForces = (body: RigidBody) => {
@@ -290,7 +472,12 @@ export class Engine {
     body.velocity[(axis + 2) % 3] *= scalar;
   };
 
-  processCollisions = (box: AABB, velocity: number[], resting: number[]) => {
+  processCollisions = (
+    box: AABB,
+    velocity: number[],
+    resting: number[],
+    extras: AABB[] = []
+  ) => {
     resting[0] = 0;
     resting[1] = 0;
     resting[2] = 0;
@@ -303,7 +490,10 @@ export class Engine {
         resting[axis] = dir;
         vec[axis] = 0;
         return false;
-      }
+      },
+      true,
+      100,
+      extras
     );
   };
 
