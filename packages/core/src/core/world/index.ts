@@ -2991,17 +2991,21 @@ export class World<T = any> extends Scene implements NetIntercept {
             return;
           }
 
-          const isolatedMaterial = this.getIsolatedBlockMaterialAt(
-            at,
-            faceName
-          );
-          // test draw some random color
-          if (isolatedMaterial.map instanceof AtlasTexture) {
-            // isolatedMaterial.map.paintColor(
-            //   new Color(Math.random(), Math.random(), Math.random())
-            // );
+          try {
+            const isolatedMaterial = this.getIsolatedBlockMaterialAt(
+              at,
+              faceName
+            );
+            // test draw some random color
+            if (isolatedMaterial.map instanceof AtlasTexture) {
+              // isolatedMaterial.map.paintColor(
+              //   new Color(Math.random(), Math.random(), Math.random())
+              // );
+            }
+            material = isolatedMaterial;
+          } catch (e) {
+            console.error(e);
           }
-          material = isolatedMaterial;
         }
 
         const mesh = new Mesh(geometry, material);
