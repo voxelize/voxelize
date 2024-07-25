@@ -35,23 +35,22 @@ export type InputSpecifics = {
 
 type ClickCallbacks = Map<
   string,
-  { callback: (event: MouseEvent) => void; namespace: string }
+  { callback: (event: MouseEvent) => boolean | void; namespace: string }
 >;
 type ScrollCallbacks = Map<
   string,
   {
-    up: (delta?: number, event?: WheelEvent) => void;
-    down: (delta?: number, event?: WheelEvent) => void;
+    up: (delta?: number, event?: WheelEvent) => boolean | void;
+    down: (delta?: number, event?: WheelEvent) => boolean | void;
     namespace: string;
   }
 >;
 
 type KeyBoundItem<T extends string> = {
-  [key: string]: {
-    unbind: () => void;
-    callback: (event: KeyboardEvent) => void;
-    namespaces: T | T[] | "*";
-  };
+  unbind: () => void;
+  callback: (event: KeyboardEvent) => boolean | void;
+  namespaces: T | T[] | "*";
+  identifier: string;
 };
 
 /**
@@ -108,25 +107,31 @@ export class Inputs<T extends string = any> extends EventEmitter {
   /**
    * A map for keydown callbacks.
    */
-  private keyDownCallbacks: Map<string, ((event: KeyboardEvent) => void)[]> =
-    new Map();
+  private keyDownCallbacks: Map<
+    string,
+    ((event: KeyboardEvent) => boolean | void)[]
+  > = new Map();
 
   /**
    * A map for keyup callbacks.
    */
-  private keyUpCallbacks: Map<string, ((event: KeyboardEvent) => void)[]> =
-    new Map();
+  private keyUpCallbacks: Map<
+    string,
+    ((event: KeyboardEvent) => boolean | void)[]
+  > = new Map();
 
   /**
    * A map for key press callbacks.
    */
-  private keyPressCallbacks: Map<string, ((event: KeyboardEvent) => void)[]> =
-    new Map();
+  private keyPressCallbacks: Map<
+    string,
+    ((event: KeyboardEvent) => boolean | void)[]
+  > = new Map();
 
   /**
    * A map for key binds.
    */
-  private keyBounds = new Map<string, KeyBoundItem<T>>();
+  private keyBounds = new Map<string, KeyBoundItem<T>[]>();
 
   /**
    * A list of functions to unbind all inputs.
@@ -167,7 +172,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   click = (
     type: ClickType,
-    callback: (event: MouseEvent) => void,
+    callback: (event: MouseEvent) => boolean | void,
     namespace: T | "*" = "*"
   ) => {
     const id = uuidv4();
@@ -184,8 +189,8 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * @returns A function to unbind the scroll.
    */
   scroll = (
-    up: (delta?: number) => void,
-    down: (delta?: number) => void,
+    up: (delta?: number) => boolean | void,
+    down: (delta?: number) => boolean | void,
     namespace: T | "*" = "*"
   ) => {
     const id = uuidv4();
@@ -204,7 +209,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   bind = (
     key: string,
-    callback: (event: KeyboardEvent) => void,
+    callback: (event: KeyboardEvent) => boolean | void,
     namespaces: T | T[] | "*" = "*",
     specifics: InputSpecifics = {}
   ) => {
@@ -218,77 +223,64 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
     const name = key + occasion;
 
-    const existing = this.keyBounds.get(name);
-    if (existing) {
-      if (existing[identifier])
-        throw new Error(
-          `Error registering input, key ${key} with checkType ${checkType}: already bound.`
-        );
+    const existing = this.keyBounds.get(name) || [];
+    if (existing.some((item) => item.identifier === identifier)) {
+      throw new Error(
+        `Error registering input, key ${key} with checkType ${checkType}: already bound.`
+      );
     }
 
     const callbackWrapper = (event: KeyboardEvent) => {
       const eventKey = checkType === "code" ? event.code : event.key;
       if (this.modifyKey(eventKey) === this.modifyKey(key)) {
-        callback(event);
+        return callback(event);
       }
+
+      return false;
     };
 
-    switch (occasion) {
-      case "keydown": {
-        this.keyDownCallbacks.set(name, [
-          ...(this.keyDownCallbacks.get(name) || []),
-          callbackWrapper,
-        ]);
-        break;
-      }
-      case "keyup": {
-        this.keyUpCallbacks.set(name, [
-          ...(this.keyUpCallbacks.get(name) || []),
-          callbackWrapper,
-        ]);
-        break;
-      }
-      case "keypress": {
-        this.keyPressCallbacks.set(name, [
-          ...(this.keyPressCallbacks.get(name) || []),
-          callbackWrapper,
-        ]);
-        break;
-      }
-    }
+    const callbackMap =
+      occasion === "keydown"
+        ? this.keyDownCallbacks
+        : occasion === "keyup"
+        ? this.keyUpCallbacks
+        : this.keyPressCallbacks;
 
-    const bounds = this.keyBounds.get(name) || {};
+    callbackMap.set(name, [...(callbackMap.get(name) || []), callbackWrapper]);
 
     const unbind = () => {
-      (
-        [
-          ["keydown", this.keyDownCallbacks],
-          ["keyup", this.keyUpCallbacks],
-          ["keypress", this.keyPressCallbacks],
-        ] as [string, Map<string, ((event: KeyboardEvent) => void)[]>][]
-      ).forEach(([o, map]) => {
-        if (o !== occasion) return;
+      const callbacks = callbackMap.get(name);
+      if (callbacks) {
+        const index = callbacks.indexOf(callbackWrapper);
+        if (index !== -1) callbacks.splice(index, 1);
+      }
 
-        const callbacks = map.get(name);
-        if (callbacks) {
-          const index = callbacks.indexOf(callbackWrapper);
-          if (index !== -1) callbacks.splice(index, 1);
+      // Remove key from callbacks if it is empty.
+      if (callbackMap.get(name)?.length === 0) callbackMap.delete(name);
+
+      const boundItems = this.keyBounds.get(name) || [];
+      const index = boundItems.findIndex(
+        (item) => item.identifier === identifier
+      );
+      if (index !== -1) {
+        boundItems.splice(index, 1);
+        if (boundItems.length === 0) {
+          this.keyBounds.delete(name);
+        } else {
+          this.keyBounds.set(name, boundItems);
         }
-
-        // Remove key from callbacks if it is empty.
-        if (map.get(name)?.length === 0) map.delete(name);
-      });
-
-      delete bounds[identifier];
+      }
     };
 
-    bounds[identifier] = {
+    const newBound: KeyBoundItem<T> = {
       unbind,
       callback: callbackWrapper,
       namespaces,
+      identifier,
     };
 
-    this.keyBounds.set(name, bounds);
+    existing.push(newBound);
+    this.keyBounds.set(name, existing);
 
     return unbind;
   };
@@ -306,10 +298,11 @@ export class Inputs<T extends string = any> extends EventEmitter {
     const { occasion = "keydown", identifier = "default" } = specifics;
 
     const name = key + occasion;
-    const bounds = (this.keyBounds.get(name) || {})[identifier];
+    const bounds = this.keyBounds.get(name) || [];
 
-    if (bounds) {
-      const { unbind } = bounds;
+    const index = bounds.findIndex((item) => item.identifier === identifier);
+    if (index !== -1) {
+      const { unbind } = bounds[index];
       unbind();
       return true;
     }
@@ -346,12 +339,15 @@ export class Inputs<T extends string = any> extends EventEmitter {
 
     const nameA = keyA + occasion;
     const nameB = keyB + occasion;
-    const boundsA = (this.keyBounds.get(nameA) || {})[identifier];
-    const boundsB = (this.keyBounds.get(nameB) || {})[identifier];
+    const boundsA = this.keyBounds.get(nameA) || [];
+    const boundsB = this.keyBounds.get(nameB) || [];
 
-    if (!boundsA) {
+    const indexA = boundsA.findIndex((item) => item.identifier === identifier);
+    const indexB = boundsB.findIndex((item) => item.identifier === identifier);
+
+    if (indexA === -1) {
       throw new Error(`Key ${nameA} is not bound.`);
-    } else if (!boundsB) {
+    } else if (indexB === -1) {
       throw new Error(`Key ${nameB} is not bound.`);
     }
 
@@ -359,12 +355,12 @@ export class Inputs<T extends string = any> extends EventEmitter {
       unbind: unbindA,
       callback: callbackA,
       namespaces: namespaceA,
-    } = boundsA;
+    } = boundsA[indexA];
     const {
       unbind: unbindB,
       callback: callbackB,
       namespaces: namespaceB,
-    } = boundsB;
+    } = boundsB[indexB];
 
     unbindA();
     unbindB();
@@ -407,13 +403,14 @@ export class Inputs<T extends string = any> extends EventEmitter {
     } = specifics;
 
     const name = oldKey + occasion;
-    const bounds = (this.keyBounds.get(name) || {})[identifier];
+    const bounds = this.keyBounds.get(name) || [];
 
-    if (!bounds) {
+    const index = bounds.findIndex((item) => item.identifier === identifier);
+    if (index === -1) {
       throw new Error(`Key ${name} is not bound.`);
     }
 
-    const { unbind, callback, namespaces } = bounds;
+    const { unbind, callback, namespaces } = bounds[index];
     unbind();
 
     this.bind(originalNewKey, callback, namespaces, {
@@ -437,7 +434,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Reset all keyboard keys by unbinding all keys.
    */
   reset = () => {
-    this.keyBounds.forEach((b) => Object.values(b).forEach((e) => e.unbind()));
+    this.keyBounds.forEach((bounds) => bounds.forEach((item) => item.unbind()));
     this.unbinds.forEach((fn) => fn());
   };
 
@@ -456,8 +453,8 @@ export class Inputs<T extends string = any> extends EventEmitter {
    * Initialize the keyboard input listeners.
    */
   private initializeKeyListeners = () => {
-    const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>) => {
-      Object.values(bounds).forEach((bound) => {
+    const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>[]) => {
+      for (const bound of bounds) {
         const { callback, namespaces } = bound;
 
         if (
@@ -465,9 +462,10 @@ export class Inputs<T extends string = any> extends EventEmitter {
             ? new Set(namespaces).has(this.namespace)
             : namespaces === this.namespace
         ) {
-          callback(e);
+          const result = callback(e);
+          if (result) break;
         }
-      });
+      }
     };
 
     // Handle all three types of key events while checking namespace and passing the KeyboardEvent.
@@ -508,9 +506,13 @@ export class Inputs<T extends string = any> extends EventEmitter {
       else if (event.button === 2)
         callbacks = this.clickCallbacks.get("right") as any;
 
-      callbacks.forEach(({ namespace, callback }) => {
-        if (this.namespace === namespace || namespace === "*") callback(event);
-      });
+      for (const bound of callbacks.values()) {
+        const { namespace, callback } = bound;
+        if (this.namespace === namespace || namespace === "*") {
+          const result = callback(event);
+          if (result) break;
+        }
+      }
     };
 
     document.addEventListener("mousedown", listener, false);
@@ -524,12 +526,16 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   private initializeScrollListeners = () => {
     const listener = (event: WheelEvent) => {
-      this.scrollCallbacks.forEach(({ up, down, namespace }) => {
+      for (const bound of this.scrollCallbacks.values()) {
+        const { up, down, namespace } = bound;
         if (this.namespace === namespace || namespace === "*") {
-          if (event.deltaY > 0) up(event.deltaY, event);
-          else if (event.deltaY < 0) down(event.deltaY, event);
+          const result =
+            event.deltaY > 0
+              ? up(event.deltaY, event)
+              : down(event.deltaY, event);
+          if (result) break;
         }
-      });
+      }
     };
 
     document.addEventListener("wheel", listener);
