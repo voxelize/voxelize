@@ -91,6 +91,7 @@ export type BlockUpdateListener = (args: {
 export type BlockEntityUpdateData<T> = {
   id: string;
   voxel: Coords3;
+  etype: string;
   operation: EntityOperation;
   oldValue: T | null;
   newValue: T | null;
@@ -2472,6 +2473,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               oldValue: (originalData as any)?.data ?? null,
               newValue: data as T | null,
               operation,
+              etype: type,
             });
             unbind();
           });
@@ -2485,6 +2487,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           oldValue: (originalData as any)?.data ?? null,
           newValue: data as T | null,
           operation,
+          etype: type,
         });
       });
 
