@@ -1405,8 +1405,19 @@ impl World {
 
                 if let Ok(entity_data) = File::open(&path) {
                     let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let mut data: HashMap<String, Value> = serde_json::from_reader(entity_data)
-                        .unwrap_or_else(|_| panic!("Could not load entity file: {:?}", path));
+                    let mut data: HashMap<String, Value> =
+                        match serde_json::from_reader(entity_data) {
+                            Ok(data) => data,
+                            Err(e) => {
+                                info!(
+                                    "Could not load entity file: {:?}. Error: {}, removing...",
+                                    path, e
+                                );
+                                // remove the file
+                                fs::remove_file(path).unwrap();
+                                continue;
+                            }
+                        };
                     let etype: String = serde_json::from_value(data.remove("etype").unwrap())
                         .unwrap_or_else(|_| {
                             panic!("EType filed does not exist on file: {:?}", path)
