@@ -996,6 +996,12 @@ impl World {
     ) -> Option<Entity> {
         if etype.starts_with("block::") {
             // info!("Reviving block entity with metadata: {:?}", metadata);
+            let voxel_meta = metadata.get::<VoxelComp>("voxel").unwrap_or_default();
+            let voxel = voxel_meta.0.clone();
+            info!(
+                "Reviving block entity with voxel: {:?} of type {}",
+                voxel, etype
+            );
             let entity = self
                 .create_block_entity(id, etype)
                 .with(
@@ -1003,9 +1009,10 @@ impl World {
                         .get::<JsonComp>("json")
                         .unwrap_or(JsonComp::new("{}")),
                 )
-                .with(metadata.get::<VoxelComp>("voxel").unwrap_or_default())
+                .with(voxel_meta)
                 .with(metadata)
                 .build();
+            self.chunks_mut().block_entities.insert(voxel, entity);
             return Some(entity);
         }
 

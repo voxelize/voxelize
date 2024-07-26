@@ -120,13 +120,15 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 let current_type = registry.get_block_by_id(current_id);
                 let updated_type = registry.get_block_by_id(updated_id);
 
-                // need to remove an entity
-                if current_type.is_entity {
-                    let entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
-                    if let Some(entity) = entity {
-                        entities.delete(entity).expect("Failed to delete entity");
-                    }
+                let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
+                if let Some(existing_entity) = existing_entity {
+                    lazy.exec_mut(move |world| {
+                        world
+                            .delete_entity(existing_entity)
+                            .expect("Failed to delete entity");
+                    });
                 }
+
                 // need to add an entity
                 if updated_type.is_entity {
                     let entity = entities.create();

@@ -55,7 +55,7 @@ pub struct Chunks {
     /// A cache of what chunks has been borrowed mutable.
     pub(crate) cache: HashSet<Vec2<i32>>,
 
-    pub(crate) block_entities: HashMap<Vec3<i32>, Entity>,
+    pub block_entities: HashMap<Vec3<i32>, Entity>,
 
     /// A copy of the world's config.
     config: WorldConfig,
