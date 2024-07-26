@@ -34,6 +34,7 @@ use specs::{
     Builder, Component, DispatcherBuilder, Entity, EntityBuilder, Join, ReadStorage, SystemData,
     World as ECSWorld, WorldExt, WriteStorage,
 };
+use std::f64::consts::E;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
 use std::{env, sync::Arc};
@@ -995,13 +996,8 @@ impl World {
         metadata: MetadataComp,
     ) -> Option<Entity> {
         if etype.starts_with("block::") {
-            // info!("Reviving block entity with metadata: {:?}", metadata);
             let voxel_meta = metadata.get::<VoxelComp>("voxel").unwrap_or_default();
             let voxel = voxel_meta.0.clone();
-            info!(
-                "Reviving block entity with voxel: {:?} of type {}",
-                voxel, etype
-            );
             let entity = self
                 .create_block_entity(id, etype)
                 .with(
@@ -1422,6 +1418,13 @@ impl World {
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
                         loaded_entities.insert(id.to_owned(), (etype, ent, metadata));
+                    } else {
+                        info!(
+                            "Failed to revive block entity {:?} of type {}, removing...",
+                            id, etype
+                        );
+                        // remove the file
+                        fs::remove_file(path).unwrap();
                     }
                 }
             }
