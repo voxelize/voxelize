@@ -58,6 +58,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   private _commandSymbol: string;
   private _commandSymbolCode: string;
 
+  private fallbackCommand: CommandProcessor | null = null;
+
   /**
    * Send a chat to the server.
    *
@@ -76,6 +78,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
       if (process) {
         process(rest.trim());
+        return;
+      }
+
+      // Call fallback command if set and no matching command found
+      if (this.fallbackCommand) {
+        this.fallbackCommand(
+          chat.body.substring(this._commandSymbol.length).trim()
+        );
         return;
       }
     }
@@ -168,5 +178,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   get commandSymbolCode(): string {
     return this._commandSymbolCode;
+  }
+
+  /**
+   * Set a fallback command to be executed when no matching command is found.
+   *
+   * @param fallback - The fallback command processor.
+   */
+  public setFallbackCommand(fallback: CommandProcessor) {
+    this.fallbackCommand = fallback;
   }
 }
