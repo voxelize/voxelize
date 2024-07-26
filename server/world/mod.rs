@@ -1414,7 +1414,7 @@ impl World {
                                     path, e
                                 );
                                 // remove the file
-                                // fs::remove_file(path).unwrap();
+                                fs::remove_file(path).unwrap();
                                 continue;
                             }
                         };
@@ -1435,7 +1435,7 @@ impl World {
                             id, etype
                         );
                         // remove the file
-                        // fs::remove_file(path).unwrap();
+                        fs::remove_file(path).unwrap();
                     }
                 }
             }
