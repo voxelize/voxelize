@@ -1,10 +1,11 @@
 export type GeometryProtocol = {
   voxel: number;
+  at?: [number, number, number];
   faceName?: string;
-  positions: number[];
-  uvs: number[];
-  indices: number[];
-  lights: number[];
+  positions: Float32Array;
+  uvs: Float32Array;
+  indices: Uint32Array;
+  lights: Uint32Array;
 };
 
 export type MeshProtocol = {
@@ -27,8 +28,10 @@ export type PeerProtocol<T> = {
   metadata: T;
 };
 
+export type EntityOperation = "CREATE" | "UPDATE" | "DELETE";
+
 export type EntityProtocol<T> = {
-  operation: "CREATE" | "UPDATE" | "DELETE";
+  operation: EntityOperation;
   id: string;
   type: string;
   metadata: T;
@@ -42,6 +45,17 @@ export type EventProtocol<T> = {
 export type MethodProtocol<T> = {
   name: string;
   payload: T;
+};
+
+export type MovementsProtocol = {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+  front: boolean;
+  back: boolean;
+  sprint: boolean;
+  angle: number;
 };
 
 export type UpdateProtocol = {
@@ -80,12 +94,14 @@ export type MessageProtocol<
     | "TRANSPORT"
     | "EVENT"
     | "ACTION"
-    | "STATS";
+    | "STATS"
+    | "MOVEMENTS";
   json?: T;
   text?: string;
 
   chat?: ChatProtocol;
   method?: MethodProtocol<Method>;
+  movements?: MovementsProtocol;
 
   peers?: PeerProtocol<Peer>[];
   entities?: EntityProtocol<Entity>[];

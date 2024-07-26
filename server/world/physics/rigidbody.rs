@@ -50,8 +50,8 @@ pub struct RigidBody {
     /// Gravity Multiplier of this rigid body. Set to 0 to fly.
     pub gravity_multiplier: f32,
 
-    /// Whether or not this rigid body auto-steps up blocks.
-    pub auto_step: bool,
+    /// The height at which this rigid body can step up.
+    pub step_height: f32,
 }
 
 impl RigidBody {
@@ -152,7 +152,7 @@ pub struct RigidBodyBuilder {
     friction: f32,
     restitution: f32,
     gravity_multiplier: f32,
-    auto_step: bool,
+    step_height: f32,
 }
 
 impl RigidBodyBuilder {
@@ -164,7 +164,7 @@ impl RigidBodyBuilder {
             mass: 1.0,
             friction: 1.0,
             gravity_multiplier: 1.0,
-            auto_step: false,
+            step_height: 0.0,
 
             ..Default::default()
         }
@@ -192,8 +192,8 @@ impl RigidBodyBuilder {
         self
     }
 
-    pub fn auto_step(mut self, auto_step: bool) -> Self {
-        self.auto_step = auto_step;
+    pub fn step_height(mut self, step_height: f32) -> Self {
+        self.step_height = step_height;
         self
     }
 
@@ -218,7 +218,7 @@ impl RigidBodyBuilder {
             friction: self.friction,
             restitution: self.restitution,
             gravity_multiplier: self.gravity_multiplier,
-            auto_step: self.auto_step,
+            step_height: self.step_height,
         }
     }
 }

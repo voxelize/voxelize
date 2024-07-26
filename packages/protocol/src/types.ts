@@ -47,6 +47,17 @@ export type MethodProtocol<T> = {
   payload: T;
 };
 
+export type MovementsProtocol = {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+  front: boolean;
+  back: boolean;
+  sprint: boolean;
+  angle: number;
+};
+
 export type UpdateProtocol = {
   vx: number;
   vy: number;
@@ -83,12 +94,14 @@ export type MessageProtocol<
     | "TRANSPORT"
     | "EVENT"
     | "ACTION"
-    | "STATS";
+    | "STATS"
+    | "MOVEMENTS";
   json?: T;
   text?: string;
 
   chat?: ChatProtocol;
   method?: MethodProtocol<Method>;
+  movements?: MovementsProtocol;
 
   peers?: PeerProtocol<Peer>[];
   entities?: EntityProtocol<Entity>[];

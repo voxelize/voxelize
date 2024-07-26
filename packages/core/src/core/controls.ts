@@ -23,6 +23,8 @@ import { World } from "./world";
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
 
+const SERVER_DISCREPANCY_TOLERANCE = [0, 0, 0];
+
 function rotateY(a: number[], b: number[], c: number) {
   const bx = b[0];
   const bz = b[2];
@@ -264,7 +266,7 @@ const defaultOptions: RigidControlsOptions = {
   initialPosition: [0, 80, 10],
   initialDirection: [0, 0, 0],
   rotationLerp: 0.9,
-  positionLerp: 1.0,
+  positionLerp: 0.6,
   stepLerp: 0.6,
 
   bodyWidth: 0.8,
@@ -552,6 +554,37 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         break;
       }
+      case "PEER": {
+        const { peers } = message;
+        peers.forEach((peer: any) => {
+          const self = this.ownID && peer.id === this.ownID;
+
+          if (!self) return;
+
+          const { position } = peer.metadata;
+          if (position) {
+            let [x, y, z] = this.body.getPosition();
+
+            const serverX = position[0] as number;
+            const serverY = position[1] as number;
+            const serverZ = position[2] as number;
+
+            if (Math.abs(serverX - x) > SERVER_DISCREPANCY_TOLERANCE[0]) {
+              x = serverX;
+            }
+            if (Math.abs(serverY - y) > SERVER_DISCREPANCY_TOLERANCE[1]) {
+              y = serverY;
+            }
+            if (Math.abs(serverZ - z) > SERVER_DISCREPANCY_TOLERANCE[2]) {
+              z = serverZ;
+            }
+
+            this.body.setPosition([x, y, z]);
+            const { eyeHeight, bodyHeight } = this.options;
+            this.newPosition.set(x, y + bodyHeight * (eyeHeight - 0.5), z);
+          }
+        });
+      }
     }
   };
 
@@ -599,8 +632,9 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     if (this.arm) this.arm.update();
 
-    this.moveRigidBody();
-    this.updateRigidBody(delta);
+    this.emitMovements();
+    // this.moveRigidBody();
+    // this.updateRigidBody(delta);
   };
 
   /**
@@ -1003,6 +1037,31 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   get chunk() {
     return ChunkUtils.mapVoxelToChunk(this.voxel, this.world.options.chunkSize);
   }
+
+  private emitMovements = () => {
+    const { object } = this;
+
+    const vec = new Vector3();
+
+    // get the frontwards-backwards direction vectors
+    vec.setFromMatrixColumn(object.matrix, 0);
+    vec.crossVectors(object.up, vec);
+    const { x: forwardX, z: forwardZ } = vec;
+
+    // get the side-ways vectors
+    vec.setFromMatrixColumn(object.matrix, 0);
+    const { x: sideX, z: sideZ } = vec;
+
+    const totalX = forwardX + sideX;
+    const totalZ = forwardZ + sideZ;
+
+    const angle = Math.atan2(totalX, totalZ);
+
+    this.packets.push({
+      type: "MOVEMENTS",
+      movements: { ...this.movements, angle },
+    });
+  };
 
   /**
    * Move the client's rigid body according to the current movement state.
