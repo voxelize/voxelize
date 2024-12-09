@@ -76,9 +76,9 @@ async fn main() -> std::io::Result<()> {
     server.set_action_handle("create_world", |value, server| {
         info!("World creating...");
         let name: String = serde_json::from_value(value).expect("Can't understand name.");
-        server
-            .create_world(&name, &WorldConfig::default())
-            .expect("Could not create world.");
+        let config = WorldConfig::default();
+        let world = voxelize::World::new(&name, &config);
+        server.add_world(world).expect("Could not create world");
     });
 
     // let config2 = WorldConfig::new()
