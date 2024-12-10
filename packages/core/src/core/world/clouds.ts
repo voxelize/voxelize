@@ -357,24 +357,48 @@ export class Clouds extends Group {
    */
   private shiftZ = async (direction = 1) => {
     const { width } = this.options;
-
+  
+    // Guard against uninitialized meshes array
+    if (!this.meshes || this.meshes.length === 0) {
+      return;
+    }
+  
+    // Ensure all inner arrays exist
     for (let x = 0; x < width; x++) {
+      if (!this.meshes[x]) {
+        this.meshes[x] = [];
+      }
       const arr = this.meshes[x];
-      const cell = direction > 0 ? arr.shift() : arr.pop();
-
-      await this.makeCell(
+      
+      // Guard against empty arrays
+      if (arr.length === 0) {
+        continue;
+      }
+  
+      // Safe array mutations with null checks
+      const cell = direction > 0 
+        ? arr.shift() 
+        : arr.pop();
+  
+      if (!cell) {
+        continue;
+      }
+  
+      // Generate new cell
+      const newCell = await this.makeCell(
         x + this.xOffset,
         this.zOffset + (direction > 0 ? width : 0),
         cell
       );
-
+  
+      // Safe array insertions
       if (direction > 0) {
-        arr.push(cell);
+        arr.push(newCell);
       } else {
-        arr.unshift(cell);
+        arr.unshift(newCell);
       }
     }
-
+  
     this.zOffset += direction;
   };
 
