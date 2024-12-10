@@ -17,6 +17,25 @@ import LolImage from "./assets/lol.png";
 // import { Map } from "./map";
 import { setupWorld } from "./world";
 
+import { 
+  BACKEND_SERVER,
+  HOTBAR_CONTENT,
+  RANDOM_TELEPORT_WIDTH,
+  MIN_BUILD_RADIUS,
+  MAX_BUILD_RADIUS 
+} from "./config/constants";
+
+import {
+  defaultWorldSettings,
+  defaultCameraSettings,
+  defaultControlSettings,
+  defaultFogSettings,
+  defaultGuiSettings,
+  defaultDebugSettings
+} from "./config/settings";
+
+import { createWorld, currentWorldName } from "./systems/world";
+
 const createCharacter = () => {
   const character = new VOXELIZE.Character();
   world.loader.load().then(() => {
@@ -26,18 +45,6 @@ const createCharacter = () => {
   shadows.add(character);
   return character;
 };
-
-const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
-const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
-
-const currentWorldName =
-  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
-
-if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
-  BACKEND_SERVER_INSTANCE.port = "4000";
-}
-
-const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
 
 class Box extends VOXELIZE.Entity<{
   position: VOXELIZE.Coords3;
@@ -67,9 +74,7 @@ class Box extends VOXELIZE.Entity<{
 
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
-const world = new VOXELIZE.World({
-  textureUnitDimension: 8,
-});
+const world = createWorld();
 
 const chat = new VOXELIZE.Chat();
 const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
@@ -84,73 +89,6 @@ inputs.on("namespace", (namespace) => {
   console.log("namespace changed", namespace);
 });
 inputs.setNamespace("menu");
-
-world.sky.setShadingPhases([
-  // start of sunrise
-  {
-    name: "sunrise",
-    color: {
-      top: "#7694CF",
-      middle: "#B0483A",
-      bottom: "#222",
-    },
-    skyOffset: 0.05,
-    voidOffset: 0.6,
-    start: 0.2,
-  },
-  // end of sunrise
-  {
-    name: "daylight",
-    color: {
-      top: "#73A3FB",
-      middle: "#B1CCFD",
-      bottom: "#222",
-    },
-    skyOffset: 0,
-    voidOffset: 0.6,
-    start: 0.25,
-  },
-  // start of sunset
-  {
-    name: "sunset",
-    color: {
-      top: "#A57A59",
-      middle: "#FC5935",
-      bottom: "#222",
-    },
-    skyOffset: 0.05,
-    voidOffset: 0.6,
-    start: 0.7,
-  },
-  // end of sunset
-  {
-    name: "night",
-    color: {
-      top: "#000",
-      middle: "#000",
-      bottom: "#000",
-    },
-    skyOffset: 0.1,
-    voidOffset: 0.6,
-    start: 0.75,
-  },
-]);
-
-world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
-world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
-world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
-world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
-
-// const sky = new VOXELIZE.Sky(2000);
-// sky.paint("top", VOXELIZE.artFunctions.drawSun);
-// world.add(sky);
-
-// const clouds = new VOXELIZE.Clouds({
-//   uFogColor: sky.uMiddleColor,
-// });
-
-// world.add(clouds);
-// world.setFogColor(sky.getMiddleColor());
 
 const camera = new THREE.PerspectiveCamera(
   90,
@@ -638,8 +576,6 @@ network
   .register(peers)
   .register(controls);
 
-const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
-
 // let isLoading = true;
 // const loadingFade = 500;
 const loading = document.getElementById("loading") as HTMLDivElement;
@@ -649,7 +585,6 @@ loading.style.display = "none";
 // ) as HTMLDivElement;
 // loading.style.transition = `${loadingFade}ms opacity ease`;
 
-const RANDOM_TELEPORT_WIDTH = 1000000;
 inputs.bind("]", () => {
   controls.teleportToTop(
     Math.random() * RANDOM_TELEPORT_WIDTH,
@@ -830,11 +765,11 @@ const start = async () => {
     character.setArmHoldingObject(characterBlock);
   });
 
-  debug.registerDisplay("Active Voxels", async () => {
-    const data = await fetch(`${BACKEND_SERVER}info`);
-    const json = await data.json();
-    return json.worlds.terrain.chunks.active_voxels;
-  });
+  // debug.registerDisplay("Active Voxels", async () => {
+  //   const data = await fetch(`${BACKEND_SERVER}info`);
+  //   const json = await data.json();
+  //   return json.worlds.terrain.chunks.active_voxels;
+  // });
 
   const animate = () => {
     frame = requestAnimationFrame(animate);
