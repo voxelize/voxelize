@@ -398,15 +398,65 @@ onmessage = function (e) {
           let seeThroughCheck = false;
 
           if (isSeeThrough && !isOpaque && nBlock.isOpaque) {
-            const selfBounding = AABB.union(aabbs);
-            const nBounding = AABB.union(nBlock.aabbs);
-            nBounding.translate(dir);
-            if (
-              !(
-                selfBounding.intersects(nBounding) ||
-                selfBounding.touches(nBounding)
-              )
-            ) {
+            // Get first AABB as base if exists
+            let selfBounding = aabbs[0] || new AABB(0, 0, 0, 1, 1, 1);
+            let nBounding = nBlock.aabbs[0] || new AABB(0, 0, 0, 1, 1, 1);
+          
+            // Union remaining AABBs
+            for (let i = 1; i < aabbs.length; i++) {
+              const aabb = aabbs[i];
+              selfBounding = new AABB(
+                Math.min(selfBounding.minX, aabb.minX),
+                Math.min(selfBounding.minY, aabb.minY),
+                Math.min(selfBounding.minZ, aabb.minZ),
+                Math.max(selfBounding.maxX, aabb.maxX),
+                Math.max(selfBounding.maxY, aabb.maxY),
+                Math.max(selfBounding.maxZ, aabb.maxZ)
+              );
+            }
+          
+            for (let i = 1; i < nBlock.aabbs.length; i++) {
+              const aabb = nBlock.aabbs[i];
+              nBounding = new AABB(
+                Math.min(nBounding.minX, aabb.minX),
+                Math.min(nBounding.minY, aabb.minY),
+                Math.min(nBounding.minZ, aabb.minZ),
+                Math.max(nBounding.maxX, aabb.maxX),
+                Math.max(nBounding.maxY, aabb.maxY),
+                Math.max(nBounding.maxZ, aabb.maxZ)
+              );
+            }
+          
+            // Create translated bounding box
+            const translatedBounding = new AABB(
+              nBounding.minX + dir[0],
+              nBounding.minY + dir[1],
+              nBounding.minZ + dir[2],
+              nBounding.maxX + dir[0],
+              nBounding.maxY + dir[1],
+              nBounding.maxZ + dir[2]
+            );
+          
+            // Manual intersection check
+            const intersects = !(
+              translatedBounding.maxX < selfBounding.minX ||
+              translatedBounding.minX > selfBounding.maxX ||
+              translatedBounding.maxY < selfBounding.minY ||
+              translatedBounding.minY > selfBounding.maxY ||
+              translatedBounding.maxZ < selfBounding.minZ ||
+              translatedBounding.minZ > selfBounding.maxZ
+            );
+          
+            // Manual touching check
+            const touches = 
+              translatedBounding.maxX === selfBounding.minX ||
+              translatedBounding.minX === selfBounding.maxX ||
+              translatedBounding.maxY === selfBounding.minY ||
+              translatedBounding.minY === selfBounding.maxY ||
+              translatedBounding.maxZ === selfBounding.minZ ||
+              translatedBounding.minZ === selfBounding.maxZ;
+          
+            if (!(intersects || touches)) {
               seeThroughCheck = true;
             }
           }
