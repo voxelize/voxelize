@@ -830,11 +830,11 @@ const start = async () => {
     character.setArmHoldingObject(characterBlock);
   });
 
-  // debug.registerDisplay("Active Voxels", async () => {
-  //   const data = await fetch(`${BACKEND_SERVER}info`);
-  //   const json = await data.json();
-  //   return json.worlds.terrain.chunks.active_voxels;
-  // });
+  debug.registerDisplay("Active Voxels", async () => {
+    const data = await fetch(`${BACKEND_SERVER}info`);
+    const json = await data.json();
+    return json.worlds.terrain.chunks.active_voxels;
+  });
 
   const animate = () => {
     frame = requestAnimationFrame(animate);
@@ -864,17 +864,17 @@ const start = async () => {
     return block ? block.name : "<Empty>";
   });
 
-  // debug.registerDisplay("Build radius", () => {
-  //   return radius;
-  // });
+  debug.registerDisplay("Build radius", () => {
+    return radius;
+  });
 
-  // debug.registerDisplay("# of triangles", () => {
-  //   return renderer.info.render.triangles;
-  // });
+  debug.registerDisplay("# of triangles", () => {
+    return renderer.info.render.triangles;
+  });
 
-  // debug.registerDisplay("# of points", () => {
-  //   return renderer.info.render.points;
-  // });
+  debug.registerDisplay("# of points", () => {
+    return renderer.info.render.points;
+  });
 
   debug.registerDisplay("Concurrent WebWorkers", () => {
     return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
