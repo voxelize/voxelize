@@ -22,7 +22,8 @@ import {
   HOTBAR_CONTENT,
   RANDOM_TELEPORT_WIDTH,
   MIN_BUILD_RADIUS,
-  MAX_BUILD_RADIUS 
+  MAX_BUILD_RADIUS,
+  NETWORK_SECRET
 } from "./config/constants";
 
 import {
@@ -31,7 +32,9 @@ import {
   defaultControlSettings,
   defaultFogSettings,
   defaultGuiSettings,
-  defaultDebugSettings
+  defaultDebugSettings,
+  defaultItemBarSettings,
+  defaultBuildSettings
 } from "./config/settings";
 
 import { createWorld, currentWorldName } from "./systems/world";
@@ -91,21 +94,18 @@ inputs.on("namespace", (namespace) => {
 inputs.setNamespace("menu");
 
 const camera = new THREE.PerspectiveCamera(
-  90,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  5000
+  defaultCameraSettings.fov,
+  defaultCameraSettings.aspect,
+  defaultCameraSettings.near,
+  defaultCameraSettings.far
 );
 
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-});
+const renderer = new THREE.WebGLRenderer({ canvas });
 renderer.setSize(
   renderer.domElement.offsetWidth,
   renderer.domElement.offsetHeight
 );
 renderer.setPixelRatio(1);
-
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const composer = new EffectComposer(renderer);
@@ -124,11 +124,7 @@ const controls = new VOXELIZE.RigidControls(
   camera,
   renderer.domElement,
   world,
-  {
-    initialPosition: [0, 82, 0],
-    flyForce: 400,
-    // stepHeight: 1,
-  }
+  defaultControlSettings
 );
 
 controls.attachCharacter(character);
@@ -173,7 +169,7 @@ const debug = new VOXELIZE.Debug(document.body, {
 });
 
 const gui = new GUI();
-gui.domElement.style.top = "10px";
+Object.assign(gui.domElement.style, defaultGuiSettings.domElementStyle);
 
 inputs.bind(
   "KeyT",
@@ -389,7 +385,7 @@ class Bot extends VOXELIZE.Entity<BotData> {
         fontFace: "ConnectionSerif-d20X",
       },
     });
-    this.character.username = "$#B4D4FF$Ian's Bot";
+    this.character.username = "$#B4D4FF$Eric's Bot";
 
     // shadows.add(this.character);
     // lightShined.add(this.character);
@@ -683,7 +679,7 @@ const start = async () => {
     entities.update();
   };
 
-  await network.connect(BACKEND_SERVER, { secret: "test" });
+  await network.connect(BACKEND_SERVER, { secret: NETWORK_SECRET });
   await network.join(currentWorldName);
   await world.initialize();
   await setupWorld(world);
@@ -709,15 +705,7 @@ const start = async () => {
     options.pathVisible = value;
   });
 
-  const bar = new VOXELIZE.ItemSlots({
-    verticalCount: 1,
-    horizontalCount: HOTBAR_CONTENT.length,
-    wrapperStyles: {
-      left: "50%",
-      transform: "translateX(-50%)",
-    },
-    scrollable: false,
-  });
+  const bar = new VOXELIZE.ItemSlots(defaultItemBarSettings);
 
   document.body.appendChild(bar.element);
 
@@ -851,10 +839,10 @@ const start = async () => {
     );
   });
 
-  let radius = 1;
-  const maxRadius = 10;
-  const minRadius = 1;
-  const circular = true;
+  let radius = defaultBuildSettings.radius;
+  const maxRadius = defaultBuildSettings.maxRadius;
+  const minRadius = defaultBuildSettings.minRadius;
+  const circular = defaultBuildSettings.circular;
 
   const bulkDestroy = () => {
     if (!voxelInteract.target) return;
