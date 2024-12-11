@@ -23,7 +23,10 @@ import {
   RANDOM_TELEPORT_WIDTH,
   MIN_BUILD_RADIUS,
   MAX_BUILD_RADIUS,
-  NETWORK_SECRET
+  NETWORK_SECRET,
+  BOT_HEAD_COLOR,
+  BOT_HEAD_FRONT_COLOR,
+  BOT_SCALE,
 } from "./config/constants";
 
 import {
@@ -160,13 +163,7 @@ const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
 });
 world.add(voxelInteract);
 
-const debug = new VOXELIZE.Debug(document.body, {
-  dataStyles: {
-    top: "unset",
-    bottom: "10px",
-    left: "10px",
-  },
-});
+const debug = new VOXELIZE.Debug(document.body, defaultDebugSettings);
 
 const gui = new GUI();
 Object.assign(gui.domElement.style, defaultGuiSettings.domElementStyle);
@@ -390,10 +387,10 @@ class Bot extends VOXELIZE.Entity<BotData> {
     // shadows.add(this.character);
     // lightShined.add(this.character);
 
-    this.character.head.paint("all", new THREE.Color("#F99417"));
-    this.character.head.paint("front", new THREE.Color("#F4CE14"));
+    this.character.head.paint("all", new THREE.Color(BOT_HEAD_COLOR));
+    this.character.head.paint("front", new THREE.Color(BOT_HEAD_FRONT_COLOR));
+    this.character.scale.set(BOT_SCALE, BOT_SCALE, BOT_SCALE);
 
-    this.character.scale.set(0.5, 0.5, 0.5);
     this.character.position.y += this.character.totalHeight / 4;
     this.add(this.character);
 
