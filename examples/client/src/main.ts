@@ -1,89 +1,47 @@
 import "./style.css";
 
-// For official use, you should do `@voxelize/core/styles.css` instead.
-import "@voxelize/core/styles.css";
-
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
-import {
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
 import * as THREE from "three";
 
-import LolImage from "./assets/lol.png";
-// import { Map } from "./map";
-import { setupWorld } from "./world";
-
-const createCharacter = () => {
-  const character = new VOXELIZE.Character();
-  world.loader.load().then(() => {
-    character.head.paint("front", world.loader.getTexture(LolImage));
-  });
-  lightShined.add(character);
-  shadows.add(character);
-  return character;
-};
-
-const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
-const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
-
-const currentWorldName =
-  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
-
-if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
-  BACKEND_SERVER_INSTANCE.port = "4000";
-}
-
-const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
-
-class Box extends VOXELIZE.Entity<{
-  position: VOXELIZE.Coords3;
-}> {
-  constructor(id: string) {
-    super(id);
-
-    this.add(
-      new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 0.5, 0.5),
-        new THREE.MeshBasicMaterial()
-      )
-    );
-
-    shadows.add(this);
-    lightShined.add(this);
-  }
-
-  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
-    this.position.set(...data.position);
-  };
-
-  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
-    this.position.set(...data.position);
-  };
-}
+import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
+/* -------------------------------------------------------------------------- */
+/*                               VOXELIZE WORLD                               */
+/* -------------------------------------------------------------------------- */
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
 });
 
-const chat = new VOXELIZE.Chat();
-const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
+import { setupWorld } from "./world";
+// actual world setup code handled later after network and world are initialized
 
-const options = { pathVisible: false };
+/* -------------------------------------------------------------------------- */
+/*                         THREE-JS UTILITIES/CLASSES                         */
+/* -------------------------------------------------------------------------- */
+const camera = new THREE.PerspectiveCamera(
+  90,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  5000
+);
 
-world.loader.loadTexture(LolImage, (texture) => {
-  character.head.paint("front", texture);
+const renderer = new THREE.WebGLRenderer({
+  canvas,
 });
+renderer.setSize(renderer.domElement.offsetWidth, renderer.domElement.offsetHeight);
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-inputs.on("namespace", (namespace) => {
-  console.log("namespace changed", namespace);
-});
-inputs.setNamespace("menu");
+// resize window event listener found inside start() function
+
+/* -------------------------------------------------------------------------- */
+/*                             VISUAL IMPROVEMENTS                            */
+/* -------------------------------------------------------------------------- */
+const shadows = new VOXELIZE.Shadows(world);
+const lightShined = new VOXELIZE.LightShined(world);
 
 world.sky.setShadingPhases([
   // start of sunrise
@@ -152,36 +110,12 @@ world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
 // world.add(clouds);
 // world.setFogColor(sky.getMiddleColor());
 
-const camera = new THREE.PerspectiveCamera(
-  90,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  5000
-);
+/* -------------------------------------------------------------------------- */
+/*                               PLAYER CONTROLS                              */
+/* -------------------------------------------------------------------------- */
+const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-});
-renderer.setSize(
-  renderer.domElement.offsetWidth,
-  renderer.domElement.offsetHeight
-);
-renderer.setPixelRatio(1);
-
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-
-const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
-composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
-
-const lightShined = new VOXELIZE.LightShined(world);
-const shadows = new VOXELIZE.Shadows(world);
-
-const character = createCharacter();
-
+// To run around the world
 const controls = new VOXELIZE.RigidControls(
   camera,
   renderer.domElement,
@@ -193,30 +127,12 @@ const controls = new VOXELIZE.RigidControls(
   }
 );
 
-controls.attachCharacter(character);
 controls.connect(inputs, "in-game");
 
-world.add(character);
+inputs.bind("KeyG", () => {controls.toggleGhostMode();}, "in-game");
+inputs.bind("KeyF", controls.toggleFly, "in-game");
 
-world.addChunkInitListener([0, 0], () => {
-  controls.teleportToTop(0, 0);
-});
-
-renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
-
-const perspective = new VOXELIZE.Perspective(controls, world);
-perspective.connect(inputs, "in-game");
-
-const network = new VOXELIZE.Network();
-
-controls.on("lock", () => {
-  inputs.setNamespace("in-game");
-});
-
-controls.on("unlock", () => {
-  inputs.setNamespace("menu");
-});
-
+// To add/remove blocks
 const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
   highlightType: "outline",
   highlightColor: new THREE.Color("#000"),
@@ -226,50 +142,165 @@ const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
 });
 world.add(voxelInteract);
 
-const debug = new VOXELIZE.Debug(document.body, {
-  dataStyles: {
-    top: "unset",
-    bottom: "10px",
-    left: "10px",
+let radius = 1;
+const maxRadius = 10;
+const minRadius = 1;
+const circular = true;
+
+const bulkDestroy = () => {
+  if (!voxelInteract.target) return;
+
+  const [vx, vy, vz] = voxelInteract.target;
+
+  const updates: VOXELIZE.BlockUpdate[] = [];
+
+  for (let x = -radius; x <= radius; x++) {
+    for (let y = -radius; y <= radius; y++) {
+      for (let z = -radius; z <= radius; z++) {
+        if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
+
+        updates.push({
+          vx: vx + x,
+          vy: vy + y,
+          vz: vz + z,
+          type: 0,
+        });
+      }
+    }
+  }
+
+  if (updates.length) controls.world.updateVoxels(updates);
+};
+inputs.click("left", bulkDestroy, "in-game");
+
+// unsure where holdingBlockType equivilent is located
+
+const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
+const bar = new VOXELIZE.ItemSlots({
+  verticalCount: 1,
+  horizontalCount: HOTBAR_CONTENT.length,
+  wrapperStyles: {
+    left: "50%",
+    transform: "translateX(-50%)",
   },
+  scrollable: false,
 });
 
-const gui = new GUI();
-gui.domElement.style.top = "10px";
+document.body.appendChild(bar.element);
 
-inputs.bind(
-  "KeyT",
+inputs.click(
+  "middle",
   () => {
-    controls.unlock(() => {
-      inputs.setNamespace("chat");
-    });
+    if (!voxelInteract.target) return;
+    const [vx, vy, vz] = voxelInteract.target;
+    const block = controls.world.getBlockAt(vx, vy, vz);
+    const slot = bar.getFocused();
+    slot.setObject(world.makeBlockMesh(block.id, { material: "standard" }));
+    slot.setContent(block.id);
   },
   "in-game"
 );
 
-inputs.bind(
-  "Escape",
-  () => {
-    controls.lock();
-  },
-  "chat",
-  {
-    // Need this so that ESC doesn't unlock the pointerlock.
-    occasion: "keyup",
+const bulkPlace = () => {
+  if (!voxelInteract.potential) return;
+
+  const {
+    voxel: [vx, vy, vz],
+    rotation,
+    yRotation,
+    yRotation4,
+    yRotation8,
+  } = voxelInteract.potential;
+
+  const updates: VOXELIZE.BlockUpdate[] = [];
+  const block = world.getBlockById(bar.getFocused().content);
+
+  for (let x = -radius; x <= radius; x++) {
+    for (let y = -radius; y <= radius; y++) {
+      for (let z = -radius; z <= radius; z++) {
+        if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
+
+        updates.push({
+          vx: vx + x,
+          vy: vy + y,
+          vz: vz + z,
+          type: block.id,
+          rotation: block.rotatable ? rotation : 0,
+          yRotation:
+            block.yRotatableSegments === "All"
+              ? yRotation
+              : block.yRotatableSegments === "Eight"
+              ? yRotation8
+              : yRotation4,
+        });
+      }
+    }
   }
+
+  if (updates.length) controls.world.updateVoxels(updates);
+};
+
+inputs.click(
+  "right",
+  () => {
+    if (!voxelInteract.potential) return;
+    const {
+      voxel: [vx, vy, vz],
+    } = voxelInteract.potential;
+    if (!voxelInteract.target) return;
+    const currentBlock = world.getBlockAt(...voxelInteract.target);
+    const slot = bar.getFocused();
+    const id = slot.content;
+    if (!id) return;
+
+    const block = world.getBlockById(id);
+    if (!block.isPassable) {
+      const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
+      if (
+        aabbs.find((aabb) =>
+          aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
+        )
+      )
+        return;
+    }
+
+    if (currentBlock.isEntity) {
+      const [tx, ty, tz] = voxelInteract.target;
+      world.setBlockEntityDataAt(tx, ty, tz, {
+        color: [Math.random(), Math.random(), Math.random()],
+      });
+      return;
+    }
+
+    bulkPlace();
+  },
+  "in-game"
 );
 
-// let hand = "glass";
+// Add a character to the control
+world.loader.loadTexture(LolImage, (texture) => {
+  character.head.paint("front", texture);
+});
+const createCharacter = () => {
+  const character = new VOXELIZE.Character();
+  world.loader.load().then(() => {
+    character.head.paint("front", world.loader.getTexture(LolImage));
+  });
+  lightShined.add(character);
+  shadows.add(character);
+  return character;
+};
 
-// inputs.bind(
-//   "b",
-//   () => {
-//     inputs.remap("t", "c", { occasion: "keyup" });
-//   },
-//   "in-game",
-//   { identifier: "BRUH" }
-// );
+const character = createCharacter();
+controls.attachCharacter(character);
 
+// To change the perspective of the player
+const perspective = new VOXELIZE.Perspective(controls, world);
+perspective.connect(inputs, "in-game");
+
+/* -------------------------------------------------------------------------- */
+/*                           MULTIPLAYER CHARACTERS                           */
+/* -------------------------------------------------------------------------- */
 type PeersMeta = {
   direction: number[];
   position: number[];
@@ -346,11 +377,182 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
     };
   };
 }
-
 const peers = new Peers(controls.object);
-peers.setOwnPeer(character);
+
+// unsure where create peer code is located
+
+// peer update located in seperate update() function
 
 world.add(peers);
+
+/* -------------------------------------------------------------------------- */
+/*                                  DEBUGGING                                 */
+/* -------------------------------------------------------------------------- */
+const debug = new VOXELIZE.Debug(document.body, {
+  dataStyles: {
+    top: "unset",
+    bottom: "10px",
+    left: "10px",
+  },
+});
+
+debug.registerDisplay("Time", () => {
+  return `${Math.floor(
+    (world.time / world.options.timePerDay) * 100
+  )}% (${world.time.toFixed(2)})`;
+});
+
+const gui = new GUI();
+gui.domElement.style.top = "10px";
+
+inputs.bind("KeyJ", debug.toggle, "*");
+
+/* -------------------------------------------------------------------------- */
+/*                               NETWORK MANAGER                              */
+/* -------------------------------------------------------------------------- */
+const network = new VOXELIZE.Network();
+
+const chat = new VOXELIZE.Chat();
+const entities = new VOXELIZE.Entities();
+const method = new VOXELIZE.Method();
+const events = new VOXELIZE.Events();
+network
+  .register(chat)
+  .register(entities)
+  .register(world)
+  .register(method)
+  .register(events)
+  .register(peers)
+  .register(controls);
+
+/* -------------------------------------------------------------------------- */
+/*                               MAIN GAME LOOPS                              */
+/* -------------------------------------------------------------------------- */
+
+
+
+/* -------------------------------------------------------------------------- */
+/*                                 OTHER CODE                                 */
+/* -------------------------------------------------------------------------- */
+
+
+
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
+
+import LolImage from "./assets/lol.png";
+// import { Map } from "./map";
+
+const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
+
+const currentWorldName =
+  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
+
+if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+  BACKEND_SERVER_INSTANCE.port = "4000";
+}
+
+const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
+
+class Box extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+}> {
+  constructor(id: string) {
+    super(id);
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshBasicMaterial()
+      )
+    );
+
+    shadows.add(this);
+    lightShined.add(this);
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+}
+
+
+
+const options = { pathVisible: false };
+
+inputs.on("namespace", (namespace) => {
+  console.log("namespace changed", namespace);
+});
+inputs.setNamespace("menu");
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
+
+const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
+composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
+
+world.add(character);
+
+world.addChunkInitListener([0, 0], () => {
+  controls.teleportToTop(0, 0);
+});
+
+renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
+
+controls.on("lock", () => {
+  inputs.setNamespace("in-game");
+});
+
+controls.on("unlock", () => {
+  inputs.setNamespace("menu");
+});
+
+inputs.bind(
+  "KeyT",
+  () => {
+    controls.unlock(() => {
+      inputs.setNamespace("chat");
+    });
+  },
+  "in-game"
+);
+
+inputs.bind(
+  "Escape",
+  () => {
+    controls.lock();
+  },
+  "chat",
+  {
+    // Need this so that ESC doesn't unlock the pointerlock.
+    occasion: "keyup",
+  }
+);
+
+// let hand = "glass";
+
+// inputs.bind(
+//   "b",
+//   () => {
+//     inputs.remap("t", "c", { occasion: "keyup" });
+//   },
+//   "in-game",
+//   { identifier: "BRUH" }
+// );
+
+peers.setOwnPeer(character);
+
+
 
 VOXELIZE.ColorText.SPLITTER = "$";
 
@@ -363,14 +565,6 @@ VOXELIZE.ColorText.SPLITTER = "$";
 // );
 
 inputs.bind(
-  "KeyG",
-  () => {
-    controls.toggleGhostMode();
-  },
-  "in-game"
-);
-
-inputs.bind(
   "Enter",
   () => {
     controls.lock();
@@ -378,21 +572,11 @@ inputs.bind(
   "chat"
 );
 
-inputs.bind("KeyF", controls.toggleFly, "in-game");
-
-inputs.bind("KeyJ", debug.toggle, "*");
-
 // inputs.bind("l", () => {
 //   network.action("create_world", "new_world");
 // });
 
 debug.registerDisplay("Position", controls, "voxel");
-
-debug.registerDisplay("Time", () => {
-  return `${Math.floor(
-    (world.time / world.options.timePerDay) * 100
-  )}% (${world.time.toFixed(2)})`;
-});
 
 debug.registerDisplay("Sunlight", () => {
   return world.getSunlightAt(...controls.voxel);
@@ -417,7 +601,7 @@ inputs.bind("KeyP", () => {
   voxelInteract.toggle();
 });
 
-const entities = new VOXELIZE.Entities();
+
 
 type BotData = {
   position: VOXELIZE.Coords3;
@@ -451,7 +635,7 @@ class Bot extends VOXELIZE.Entity<BotData> {
         fontFace: "ConnectionSerif-d20X",
       },
     });
-    this.character.username = "$#B4D4FF$Ian's Bot";
+    this.character.username = "$#B4D4FF$Eric's Bot";
 
     // shadows.add(this.character);
     // lightShined.add(this.character);
@@ -536,7 +720,7 @@ entities.setClass("box", Box);
 
 world.add(entities);
 
-const method = new VOXELIZE.Method();
+
 
 inputs.bind("KeyV", () => {
   method.call("time", {
@@ -555,7 +739,7 @@ inputs.bind(
   "in-game"
 );
 
-const events = new VOXELIZE.Events();
+
 
 events.on("test", (payload) => {
   console.log("test event:", payload);
@@ -628,17 +812,6 @@ inputs.bind("KeyN", () => {
 // inputs.bind("escape", () => {
 //   map.setVisible(false);
 // });
-
-network
-  .register(chat)
-  .register(entities)
-  .register(world)
-  .register(method)
-  .register(events)
-  .register(peers)
-  .register(controls);
-
-const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
 
 // let isLoading = true;
 // const loadingFade = 500;
@@ -774,18 +947,6 @@ const start = async () => {
     options.pathVisible = value;
   });
 
-  const bar = new VOXELIZE.ItemSlots({
-    verticalCount: 1,
-    horizontalCount: HOTBAR_CONTENT.length,
-    wrapperStyles: {
-      left: "50%",
-      transform: "translateX(-50%)",
-    },
-    scrollable: false,
-  });
-
-  document.body.appendChild(bar.element);
-
   const arm = new VOXELIZE.Arm();
   const armScene = new THREE.Scene();
   const armCamera = camera.clone();
@@ -916,130 +1077,9 @@ const start = async () => {
     );
   });
 
-  let radius = 1;
-  const maxRadius = 10;
-  const minRadius = 1;
-  const circular = true;
-
-  const bulkDestroy = () => {
-    if (!voxelInteract.target) return;
-
-    const [vx, vy, vz] = voxelInteract.target;
-
-    const updates: VOXELIZE.BlockUpdate[] = [];
-
-    for (let x = -radius; x <= radius; x++) {
-      for (let y = -radius; y <= radius; y++) {
-        for (let z = -radius; z <= radius; z++) {
-          if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
-
-          updates.push({
-            vx: vx + x,
-            vy: vy + y,
-            vz: vz + z,
-            type: 0,
-          });
-        }
-      }
-    }
-
-    if (updates.length) controls.world.updateVoxels(updates);
-  };
-
-  const bulkPlace = () => {
-    if (!voxelInteract.potential) return;
-
-    const {
-      voxel: [vx, vy, vz],
-      rotation,
-      yRotation,
-      yRotation4,
-      yRotation8,
-    } = voxelInteract.potential;
-
-    const updates: VOXELIZE.BlockUpdate[] = [];
-    const block = world.getBlockById(bar.getFocused().content);
-
-    for (let x = -radius; x <= radius; x++) {
-      for (let y = -radius; y <= radius; y++) {
-        for (let z = -radius; z <= radius; z++) {
-          if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
-
-          updates.push({
-            vx: vx + x,
-            vy: vy + y,
-            vz: vz + z,
-            type: block.id,
-            rotation: block.rotatable ? rotation : 0,
-            yRotation:
-              block.yRotatableSegments === "All"
-                ? yRotation
-                : block.yRotatableSegments === "Eight"
-                ? yRotation8
-                : yRotation4,
-          });
-        }
-      }
-    }
-
-    if (updates.length) controls.world.updateVoxels(updates);
-  };
-
   inputs.scroll(
     () => (radius = Math.min(maxRadius, radius + 1)),
     () => (radius = Math.max(minRadius, radius - 1)),
-    "in-game"
-  );
-
-  inputs.click("left", bulkDestroy, "in-game");
-
-  inputs.click(
-    "middle",
-    () => {
-      if (!voxelInteract.target) return;
-      const [vx, vy, vz] = voxelInteract.target;
-      const block = controls.world.getBlockAt(vx, vy, vz);
-      const slot = bar.getFocused();
-      slot.setObject(world.makeBlockMesh(block.id, { material: "standard" }));
-      slot.setContent(block.id);
-    },
-    "in-game"
-  );
-
-  inputs.click(
-    "right",
-    () => {
-      if (!voxelInteract.potential) return;
-      const {
-        voxel: [vx, vy, vz],
-      } = voxelInteract.potential;
-      if (!voxelInteract.target) return;
-      const currentBlock = world.getBlockAt(...voxelInteract.target);
-      const slot = bar.getFocused();
-      const id = slot.content;
-      if (!id) return;
-
-      const block = world.getBlockById(id);
-      if (!block.isPassable) {
-        const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
-        if (
-          aabbs.find((aabb) =>
-            aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
-          )
-        )
-          return;
-      }
-
-      if (currentBlock.isEntity) {
-        const [tx, ty, tz] = voxelInteract.target;
-        world.setBlockEntityDataAt(tx, ty, tz, {
-          color: [Math.random(), Math.random(), Math.random()],
-        });
-        return;
-      }
-
-      bulkPlace();
-    },
     "in-game"
   );
 
