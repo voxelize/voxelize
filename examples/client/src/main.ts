@@ -147,6 +147,12 @@ const maxRadius = 10;
 const minRadius = 1;
 const circular = true;
 
+inputs.scroll(
+  () => (radius = Math.min(maxRadius, radius + 1)),
+  () => (radius = Math.max(minRadius, radius - 1)),
+  "in-game"
+);
+
 const bulkDestroy = () => {
   if (!voxelInteract.target) return;
 
@@ -396,21 +402,85 @@ const debug = new VOXELIZE.Debug(document.body, {
   },
 });
 
+debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
+debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
+debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
+debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
+
+debug.registerDisplay("Position", controls, "voxel");
+
+debug.registerDisplay("Voxel Stage", () => {
+  return world.getVoxelStageAt(...controls.voxel);
+});
+
 debug.registerDisplay("Time", () => {
   return `${Math.floor(
     (world.time / world.options.timePerDay) * 100
   )}% (${world.time.toFixed(2)})`;
 });
 
+debug.registerDisplay("Sunlight", () => {
+  return world.getSunlightAt(...controls.voxel);
+});
+
+["Red", "Green", "Blue"].forEach((color) => {
+  debug.registerDisplay(`${color} Light`, () => {
+    return world.getTorchLightAt(...controls.voxel, color.toUpperCase() as any);
+  });
+});
+
+debug.registerDisplay("Holding", () => {
+  const slot = bar.getFocused();
+  if (!slot) return;
+
+  const id = slot.getContent();
+  const block = world.getBlockById(id);
+  return block ? block.name : "<Empty>";
+});
+
+debug.registerDisplay("Looking at", () => {
+  const { target } = voxelInteract;
+  if (!target) return "<Empty>";
+
+  const [x, y, z] = target;
+  const block = world.getBlockAt(x, y, z);
+  return block ? block.name : "<Empty>";
+});
+
+debug.registerDisplay("Build radius", () => {
+  return radius;
+});
+
+debug.registerDisplay("# of triangles", () => {
+  return renderer.info.render.triangles;
+});
+
+debug.registerDisplay("# of points", () => {
+  return renderer.info.render.points;
+});
+
+debug.registerDisplay("Concurrent WebWorkers", () => {
+  return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
+});
+
+// packet queue length defined after network is initialized
+
 const gui = new GUI();
 gui.domElement.style.top = "10px";
 
 inputs.bind("KeyJ", debug.toggle, "*");
 
+// debug.registerDisplay("Active Voxels", async () => {
+//   const data = await fetch(`${BACKEND_SERVER}info`);
+//   const json = await data.json();
+//   return json.worlds.terrain.chunks.active_voxels;
+// });
+
 /* -------------------------------------------------------------------------- */
 /*                               NETWORK MANAGER                              */
 /* -------------------------------------------------------------------------- */
 const network = new VOXELIZE.Network();
+debug.registerDisplay("Packet queue length", network, "packetQueueLength"); //! usually under debug section
 
 const chat = new VOXELIZE.Chat();
 const entities = new VOXELIZE.Entities();
@@ -432,11 +502,8 @@ network
 
 
 /* -------------------------------------------------------------------------- */
-/*                                 OTHER CODE                                 */
+/*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
-
-
-
 import {
   EffectComposer,
   EffectPass,
@@ -575,27 +642,6 @@ inputs.bind(
 // inputs.bind("l", () => {
 //   network.action("create_world", "new_world");
 // });
-
-debug.registerDisplay("Position", controls, "voxel");
-
-debug.registerDisplay("Sunlight", () => {
-  return world.getSunlightAt(...controls.voxel);
-});
-
-debug.registerDisplay("Voxel Stage", () => {
-  return world.getVoxelStageAt(...controls.voxel);
-});
-
-debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
-debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
-debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
-debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
-
-["Red", "Green", "Blue"].forEach((color) => {
-  debug.registerDisplay(`${color} Light`, () => {
-    return world.getTorchLightAt(...controls.voxel, color.toUpperCase() as any);
-  });
-});
 
 inputs.bind("KeyP", () => {
   voxelInteract.toggle();
@@ -991,12 +1037,6 @@ const start = async () => {
     character.setArmHoldingObject(characterBlock);
   });
 
-  // debug.registerDisplay("Active Voxels", async () => {
-  //   const data = await fetch(`${BACKEND_SERVER}info`);
-  //   const json = await data.json();
-  //   return json.worlds.terrain.chunks.active_voxels;
-  // });
-
   const animate = () => {
     frame = requestAnimationFrame(animate);
     if (isFocused) update();
@@ -1006,42 +1046,6 @@ const start = async () => {
   };
 
   animate();
-
-  debug.registerDisplay("Holding", () => {
-    const slot = bar.getFocused();
-    if (!slot) return;
-
-    const id = slot.getContent();
-    const block = world.getBlockById(id);
-    return block ? block.name : "<Empty>";
-  });
-
-  debug.registerDisplay("Looking at", () => {
-    const { target } = voxelInteract;
-    if (!target) return "<Empty>";
-
-    const [x, y, z] = target;
-    const block = world.getBlockAt(x, y, z);
-    return block ? block.name : "<Empty>";
-  });
-
-  // debug.registerDisplay("Build radius", () => {
-  //   return radius;
-  // });
-
-  // debug.registerDisplay("# of triangles", () => {
-  //   return renderer.info.render.triangles;
-  // });
-
-  // debug.registerDisplay("# of points", () => {
-  //   return renderer.info.render.points;
-  // });
-
-  debug.registerDisplay("Concurrent WebWorkers", () => {
-    return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
-  });
-
-  debug.registerDisplay("Packet queue length", network, "packetQueueLength");
 
   HOTBAR_CONTENT.forEach((id, index) => {
     const slot = bar.getSlot(0, index);
@@ -1076,12 +1080,6 @@ const start = async () => {
       "in-game"
     );
   });
-
-  inputs.scroll(
-    () => (radius = Math.min(maxRadius, radius + 1)),
-    () => (radius = Math.max(minRadius, radius - 1)),
-    "in-game"
-  );
 
   bar.connect(inputs);
 
