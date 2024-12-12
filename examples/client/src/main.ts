@@ -304,6 +304,118 @@ controls.attachCharacter(character);
 const perspective = new VOXELIZE.Perspective(controls, world);
 perspective.connect(inputs, "in-game");
 
+inputs.bind(
+  "KeyT",
+  () => {
+    controls.unlock(() => {
+      inputs.setNamespace("chat");
+    });
+  },
+  "in-game"
+);
+
+inputs.bind(
+  "Escape",
+  () => {
+    controls.lock();
+  },
+  "chat",
+  {
+    // Need this so that ESC doesn't unlock the pointerlock.
+    occasion: "keyup",
+  }
+);
+
+inputs.bind(
+  "Enter",
+  () => {
+    controls.lock();
+  },
+  "chat"
+);
+
+inputs.bind("KeyP", () => {
+  voxelInteract.toggle();
+});
+
+inputs.bind("KeyV", () => {
+  method.call("time", {
+    time: world.options.timePerDay / 2,
+  });
+});
+
+inputs.bind(
+  "KeyZ",
+  () => {
+    console.log("hello");
+    method.call("spawn-bot", {
+      position: controls.object.position.toArray(),
+    });
+  },
+  "in-game"
+);
+
+inputs.bind("KeyN", () => {
+  events.emit("test", {
+    test: "Hello World",
+    nested: {
+      test: "Hello World",
+      array: [1, 2, 3],
+      arrayOfObjects: [
+        {
+          test: "Hello World",
+
+          nested: {
+            test: "Hello World",
+            array: [1, 2, 3],
+
+            arrayOfObjects: [
+              {
+                test: "Hello World",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+});
+
+const RANDOM_TELEPORT_WIDTH = 1000000;
+inputs.bind("]", () => {
+  controls.teleportToTop(
+    Math.random() * RANDOM_TELEPORT_WIDTH,
+    Math.random() * RANDOM_TELEPORT_WIDTH
+  );
+});
+
+// inputs.bind("m", map.toggle);
+
+// inputs.bind("escape", () => {
+//   map.setVisible(false);
+// });
+
+// inputs.bind("l", () => {
+//   network.action("create_world", "new_world");
+// });
+
+// inputs.bind(
+//   "b",
+//   () => {
+//     inputs.remap("t", "c", { occasion: "keyup" });
+//   },
+//   "in-game",
+//   { identifier: "BRUH" }
+// );
+
+// inputs.bind(
+//   "o",
+//   () => {
+//     console.log(controls.object.position);
+//   },
+//   "in-game"
+// );
+
 /* -------------------------------------------------------------------------- */
 /*                           MULTIPLAYER CHARACTERS                           */
 /* -------------------------------------------------------------------------- */
@@ -584,69 +696,11 @@ controls.on("unlock", () => {
   inputs.setNamespace("menu");
 });
 
-inputs.bind(
-  "KeyT",
-  () => {
-    controls.unlock(() => {
-      inputs.setNamespace("chat");
-    });
-  },
-  "in-game"
-);
-
-inputs.bind(
-  "Escape",
-  () => {
-    controls.lock();
-  },
-  "chat",
-  {
-    // Need this so that ESC doesn't unlock the pointerlock.
-    occasion: "keyup",
-  }
-);
-
 // let hand = "glass";
-
-// inputs.bind(
-//   "b",
-//   () => {
-//     inputs.remap("t", "c", { occasion: "keyup" });
-//   },
-//   "in-game",
-//   { identifier: "BRUH" }
-// );
 
 peers.setOwnPeer(character);
 
-
-
 VOXELIZE.ColorText.SPLITTER = "$";
-
-// inputs.bind(
-//   "o",
-//   () => {
-//     console.log(controls.object.position);
-//   },
-//   "in-game"
-// );
-
-inputs.bind(
-  "Enter",
-  () => {
-    controls.lock();
-  },
-  "chat"
-);
-
-// inputs.bind("l", () => {
-//   network.action("create_world", "new_world");
-// });
-
-inputs.bind("KeyP", () => {
-  voxelInteract.toggle();
-});
-
 
 
 type BotData = {
@@ -766,55 +820,8 @@ entities.setClass("box", Box);
 
 world.add(entities);
 
-
-
-inputs.bind("KeyV", () => {
-  method.call("time", {
-    time: world.options.timePerDay / 2,
-  });
-});
-
-inputs.bind(
-  "KeyZ",
-  () => {
-    console.log("hello");
-    method.call("spawn-bot", {
-      position: controls.object.position.toArray(),
-    });
-  },
-  "in-game"
-);
-
-
-
 events.on("test", (payload) => {
   console.log("test event:", payload);
-});
-
-inputs.bind("KeyN", () => {
-  events.emit("test", {
-    test: "Hello World",
-    nested: {
-      test: "Hello World",
-      array: [1, 2, 3],
-      arrayOfObjects: [
-        {
-          test: "Hello World",
-
-          nested: {
-            test: "Hello World",
-            array: [1, 2, 3],
-
-            arrayOfObjects: [
-              {
-                test: "Hello World",
-              },
-            ],
-          },
-        },
-      ],
-    },
-  });
 });
 
 // Create a test for atlas
@@ -853,12 +860,6 @@ inputs.bind("KeyN", () => {
 
 // const map = new Map(world, document.getElementById("biomes") || document.body);
 
-// inputs.bind("m", map.toggle);
-
-// inputs.bind("escape", () => {
-//   map.setVisible(false);
-// });
-
 // let isLoading = true;
 // const loadingFade = 500;
 const loading = document.getElementById("loading") as HTMLDivElement;
@@ -867,14 +868,6 @@ loading.style.display = "none";
 //   "loading-bar-inner"
 // ) as HTMLDivElement;
 // loading.style.transition = `${loadingFade}ms opacity ease`;
-
-const RANDOM_TELEPORT_WIDTH = 1000000;
-inputs.bind("]", () => {
-  controls.teleportToTop(
-    Math.random() * RANDOM_TELEPORT_WIDTH,
-    Math.random() * RANDOM_TELEPORT_WIDTH
-  );
-});
 
 world.addBlockEntityUpdateListener((data) => {
   if (data.operation === "UPDATE" || data.operation === "CREATE") {
