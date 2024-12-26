@@ -887,10 +887,111 @@ world.addBlockEntityUpdateListener((data) => {
   // );
 });
 
+const update = () => {
+  if (!world.isInitialized) return;
+
+  peers.update();
+  controls.update();
+
+  const inWater =
+    world.getBlockAt(
+      ...camera.getWorldPosition(new THREE.Vector3()).toArray()
+    )?.name === "Water";
+
+  const fogNear = inWater
+    ? 0.1 * world.options.chunkSize * world.renderRadius
+    : 0.7 * world.options.chunkSize * world.renderRadius;
+  const fogFar = inWater
+    ? 0.8 * world.options.chunkSize * world.renderRadius
+    : world.options.chunkSize * world.renderRadius;
+  const fogColor = inWater
+    ? new THREE.Color("#5F9DF7")
+    : world.chunks.uniforms.fogColor.value;
+
+  world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+    world.chunks.uniforms.fogNear.value,
+    fogNear,
+    0.08
+  );
+
+  world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+    world.chunks.uniforms.fogFar.value,
+    fogFar,
+    0.08
+  );
+
+  world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+
+  world.update(
+    controls.object.position,
+    camera.getWorldDirection(new THREE.Vector3())
+  );
+
+  perspective.update();
+  shadows.update();
+  debug.update();
+  lightShined.update();
+  voxelInteract.update();
+  entities.update();
+};
+
+const arm = new VOXELIZE.Arm();
+const armScene = new THREE.Scene();
+const armCamera = camera.clone();
+lightShined.add(arm);
+armScene.add(arm);
+arm.connect(inputs, "in-game");
+controls.attachArm(arm);
+
+window.addEventListener("resize", () => {
+  const width = window.innerWidth as number;
+  const height = window.innerHeight as number;
+
+  renderer.setSize(width, height);
+  renderer.pixelRatio = window.devicePixelRatio;
+
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+
+  armCamera.aspect = width / height;
+  armCamera.updateProjectionMatrix();
+});
+
+bar.onFocusChange((_, current) => {
+  const armBlock = world.makeBlockMesh(current.content, {
+    material: "basic",
+  });
+  arm.setArmObject(armBlock, false);
+
+  const characterBlock = world.makeBlockMesh(current.content, {
+    material: "basic",
+  });
+  if (characterBlock) {
+    const size = 0.3;
+    characterBlock.quaternion.setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      -Math.PI / 4
+    );
+    characterBlock.scale.set(size, size, size);
+    characterBlock.position.set(0, -size * 0.5, -size * 0.5);
+  }
+  character.userData.holdingObjectId = current.content;
+  character.setArmHoldingObject(characterBlock);
+});
+
+let isFocused = true;
+const animate = () => {
+  frame = requestAnimationFrame(animate);
+  if (isFocused) update();
+  composer.render();
+  renderer.clearDepth();
+  renderer.render(armScene, armCamera);
+};
+
 let frame: any;
 
 const start = async () => {
-  let isFocused = true;
+
   let clearUpdate: any;
 
   const handleVisibilityChange = () => {
@@ -912,53 +1013,7 @@ const start = async () => {
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
-  const update = () => {
-    if (!world.isInitialized) return;
-
-    peers.update();
-    controls.update();
-
-    const inWater =
-      world.getBlockAt(
-        ...camera.getWorldPosition(new THREE.Vector3()).toArray()
-      )?.name === "Water";
-
-    const fogNear = inWater
-      ? 0.1 * world.options.chunkSize * world.renderRadius
-      : 0.7 * world.options.chunkSize * world.renderRadius;
-    const fogFar = inWater
-      ? 0.8 * world.options.chunkSize * world.renderRadius
-      : world.options.chunkSize * world.renderRadius;
-    const fogColor = inWater
-      ? new THREE.Color("#5F9DF7")
-      : world.chunks.uniforms.fogColor.value;
-
-    world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-      world.chunks.uniforms.fogNear.value,
-      fogNear,
-      0.08
-    );
-
-    world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-      world.chunks.uniforms.fogFar.value,
-      fogFar,
-      0.08
-    );
-
-    world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
-
-    world.update(
-      controls.object.position,
-      camera.getWorldDirection(new THREE.Vector3())
-    );
-
-    perspective.update();
-    shadows.update();
-    debug.update();
-    lightShined.update();
-    voxelInteract.update();
-    entities.update();
-  };
+  animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);
@@ -985,60 +1040,6 @@ const start = async () => {
   gui.add(options, "pathVisible").onChange((value: boolean) => {
     options.pathVisible = value;
   });
-
-  const arm = new VOXELIZE.Arm();
-  const armScene = new THREE.Scene();
-  const armCamera = camera.clone();
-  lightShined.add(arm);
-  armScene.add(arm);
-  arm.connect(inputs, "in-game");
-  controls.attachArm(arm);
-
-  window.addEventListener("resize", () => {
-    const width = window.innerWidth as number;
-    const height = window.innerHeight as number;
-
-    renderer.setSize(width, height);
-    renderer.pixelRatio = window.devicePixelRatio;
-
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-
-    armCamera.aspect = width / height;
-    armCamera.updateProjectionMatrix();
-  });
-
-  bar.onFocusChange((_, current) => {
-    const armBlock = world.makeBlockMesh(current.content, {
-      material: "basic",
-    });
-    arm.setArmObject(armBlock, false);
-
-    const characterBlock = world.makeBlockMesh(current.content, {
-      material: "basic",
-    });
-    if (characterBlock) {
-      const size = 0.3;
-      characterBlock.quaternion.setFromAxisAngle(
-        new THREE.Vector3(0, 1, 0),
-        -Math.PI / 4
-      );
-      characterBlock.scale.set(size, size, size);
-      characterBlock.position.set(0, -size * 0.5, -size * 0.5);
-    }
-    character.userData.holdingObjectId = current.content;
-    character.setArmHoldingObject(characterBlock);
-  });
-
-  const animate = () => {
-    frame = requestAnimationFrame(animate);
-    if (isFocused) update();
-    composer.render();
-    renderer.clearDepth();
-    renderer.render(armScene, armCamera);
-  };
-
-  animate();
 
   HOTBAR_CONTENT.forEach((id, index) => {
     const slot = bar.getSlot(0, index);
