@@ -289,11 +289,14 @@ world.loader.loadTexture(LolImage, (texture) => {
 });
 const createCharacter = () => {
   const character = new VOXELIZE.Character();
+  world.add(character);
+  lightShined.add(character);
+  shadows.add(character);
+
   world.loader.load().then(() => {
     character.head.paint("front", world.loader.getTexture(LolImage));
   });
-  lightShined.add(character);
-  shadows.add(character);
+
   return character;
 };
 
@@ -497,9 +500,11 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
 }
 const peers = new Peers(controls.object);
 
-// unsure where create peer code is located
+// createPeer code found in Peers class
 
-// peer update located in seperate update() function
+// onPeerUpdate code located in Peers class
+
+peers.setOwnPeer(character);
 
 world.add(peers);
 
@@ -599,12 +604,12 @@ const entities = new VOXELIZE.Entities();
 const method = new VOXELIZE.Method();
 const events = new VOXELIZE.Events();
 network
+  .register(world)
+  .register(peers)
   .register(chat)
   .register(entities)
-  .register(world)
   .register(method)
   .register(events)
-  .register(peers)
   .register(controls);
 
 /* -------------------------------------------------------------------------- */
@@ -658,18 +663,11 @@ class Box extends VOXELIZE.Entity<{
   };
 }
 
-
-
-const options = { pathVisible: false };
-
 inputs.on("namespace", (namespace) => {
   console.log("namespace changed", namespace);
 });
 inputs.setNamespace("menu");
 
-
-
-world.add(character);
 
 world.addChunkInitListener([0, 0], () => {
   controls.teleportToTop(0, 0);
@@ -687,7 +685,7 @@ controls.on("unlock", () => {
 
 // let hand = "glass";
 
-peers.setOwnPeer(character);
+
 
 VOXELIZE.ColorText.SPLITTER = "$";
 
@@ -706,9 +704,9 @@ type BotData = {
 };
 
 const botPaths = new THREE.Group();
-
 world.add(botPaths);
 
+const options = { pathVisible: false };
 class Bot extends VOXELIZE.Entity<BotData> {
   entityId: string;
   character: VOXELIZE.Character;
