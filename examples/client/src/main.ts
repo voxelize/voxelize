@@ -389,7 +389,7 @@ inputs.bind("]", () => {
   );
 });
 
-// inputs.bind("m", map.toggle);
+// map toggle bind located after map initialization
 
 // inputs.bind("escape", () => {
 //   map.setVisible(false);
@@ -608,12 +608,6 @@ network
   .register(controls);
 
 /* -------------------------------------------------------------------------- */
-/*                               MAIN GAME LOOPS                              */
-/* -------------------------------------------------------------------------- */
-
-
-
-/* -------------------------------------------------------------------------- */
 /*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
 import {
@@ -624,7 +618,7 @@ import {
 } from "postprocessing";
 
 import LolImage from "./assets/lol.png";
-// import { Map } from "./map";
+import { Map } from "./map";
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
@@ -673,12 +667,7 @@ inputs.on("namespace", (namespace) => {
 });
 inputs.setNamespace("menu");
 
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
 
-const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
-composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 world.add(character);
 
@@ -858,7 +847,8 @@ events.on("test", (payload) => {
 //   document.body.appendChild(canvas);
 // }
 
-// const map = new Map(world, document.getElementById("biomes") || document.body);
+const map = new Map(world, document.getElementById("biomes") || document.body);
+inputs.bind("m", map.toggle); //! does not seem to work
 
 // let isLoading = true;
 // const loadingFade = 500;
@@ -886,54 +876,6 @@ world.addBlockEntityUpdateListener((data) => {
   //   JSON.stringify(data.newValue, null, 2)
   // );
 });
-
-const update = () => {
-  if (!world.isInitialized) return;
-
-  peers.update();
-  controls.update();
-
-  const inWater =
-    world.getBlockAt(
-      ...camera.getWorldPosition(new THREE.Vector3()).toArray()
-    )?.name === "Water";
-
-  const fogNear = inWater
-    ? 0.1 * world.options.chunkSize * world.renderRadius
-    : 0.7 * world.options.chunkSize * world.renderRadius;
-  const fogFar = inWater
-    ? 0.8 * world.options.chunkSize * world.renderRadius
-    : world.options.chunkSize * world.renderRadius;
-  const fogColor = inWater
-    ? new THREE.Color("#5F9DF7")
-    : world.chunks.uniforms.fogColor.value;
-
-  world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-    world.chunks.uniforms.fogNear.value,
-    fogNear,
-    0.08
-  );
-
-  world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-    world.chunks.uniforms.fogFar.value,
-    fogFar,
-    0.08
-  );
-
-  world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
-
-  world.update(
-    controls.object.position,
-    camera.getWorldDirection(new THREE.Vector3())
-  );
-
-  perspective.update();
-  shadows.update();
-  debug.update();
-  lightShined.update();
-  voxelInteract.update();
-  entities.update();
-};
 
 const arm = new VOXELIZE.Arm();
 const armScene = new THREE.Scene();
@@ -979,7 +921,68 @@ bar.onFocusChange((_, current) => {
   character.setArmHoldingObject(characterBlock);
 });
 
+/* -------------------------------------------------------------------------- */
+/*                               MAIN GAME LOOPS                              */
+/* -------------------------------------------------------------------------- */
+const update = () => {
+  if (!world.isInitialized) return;
+
+  perspective.update();
+  voxelInteract.update();
+  controls.update();
+  lightShined.update();
+  shadows.update();
+
+  const inWater =
+  world.getBlockAt(
+    ...camera.getWorldPosition(new THREE.Vector3()).toArray()
+  )?.name === "Water";
+
+  const fogNear = inWater
+    ? 0.1 * world.options.chunkSize * world.renderRadius
+    : 0.7 * world.options.chunkSize * world.renderRadius;
+  const fogFar = inWater
+    ? 0.8 * world.options.chunkSize * world.renderRadius
+    : world.options.chunkSize * world.renderRadius;
+  const fogColor = inWater
+    ? new THREE.Color("#5F9DF7")
+    : world.chunks.uniforms.fogColor.value;
+
+  world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+    world.chunks.uniforms.fogNear.value,
+    fogNear,
+    0.08
+  );
+
+  world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+    world.chunks.uniforms.fogFar.value,
+    fogFar,
+    0.08
+  );
+
+  world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+  
+  world.update(
+    controls.object.position,
+    camera.getWorldDirection(new THREE.Vector3())
+  );
+
+  entities.update();
+
+  peers.update();
+  debug.update();
+};
+
+let frame: any;
 let isFocused = true;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
+
+const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
+composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
+
 const animate = () => {
   frame = requestAnimationFrame(animate);
   if (isFocused) update();
@@ -987,8 +990,6 @@ const animate = () => {
   renderer.clearDepth();
   renderer.render(armScene, armCamera);
 };
-
-let frame: any;
 
 const start = async () => {
 
@@ -1017,42 +1018,43 @@ const start = async () => {
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);
+  
   await world.initialize();
   await setupWorld(world);
 
-  world.renderRadius = 8;
+  gui
+  .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
+  .onFinishChange((time: number) => {
+    world.time = time;
+  });
 
   gui
-    .add({ world: currentWorldName }, "world", ["terrain", "flat"])
-    .onChange((worldName: string) => {
-      localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
-      window.location.reload();
-    });
+  .add({ world: currentWorldName }, "world", ["terrain", "flat"])
+  .onChange((worldName: string) => {
+    localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
+    window.location.reload();
+  });
 
-  gui.add(world, "renderRadius", 3, 20, 1);
-  // gui.add(map, "dimension", 1, 10, 0.1);
-  gui.add(voxelInteract.options, "ignoreFluids");
-  gui
-    .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
-    .onFinishChange((time: number) => {
-      world.time = time;
-    });
   gui.add(options, "pathVisible").onChange((value: boolean) => {
     options.pathVisible = value;
   });
+
+  world.renderRadius = 8;
+  gui.add(world, "renderRadius", 3, 20, 1);
+
+  gui.add(voxelInteract.options, "ignoreFluids");
+
+  gui.add(map, "dimension", 1, 10, 0.1);
 
   HOTBAR_CONTENT.forEach((id, index) => {
     const slot = bar.getSlot(0, index);
     const mesh = world.makeBlockMesh(id, { material: "standard" });
     if (mesh) slot.setObject(mesh);
-
     if (id === 500) {
       slot.setPerspective("pz");
     }
-
     slot.setContent(id);
   });
-
   [
     "Digit1",
     "Digit2",
@@ -1074,19 +1076,15 @@ const start = async () => {
       "in-game"
     );
   });
-
   bar.connect(inputs);
 
   inputs.bind(
     ";",
     () => {
       const updates: VOXELIZE.BlockUpdate[] = [];
-
       const [vx, vy, vz] = controls.voxel;
-
       const width = 80;
       const height = 80;
-
       for (let x = -width / 2; x <= width / 2; x++) {
         for (let y = 0; y <= height; y++) {
           updates.push({
