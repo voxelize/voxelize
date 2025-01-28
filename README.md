@@ -73,13 +73,6 @@ Before starting, make sure to install the following:
 git clone https://github.com/shaoruu/voxelize.git
 cd voxelize
 
-# install pnpm
-# install rust
-# install protobuf
-
-# install cargo-watch
-cargo install cargo-watch
-
 # download dependencies
 pnpm install
 
