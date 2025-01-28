@@ -11,14 +11,14 @@
   "scripts": {
     "clean": "rimraf ./dist",
     "compile": "vite build",
-    "build": "yarn run clean && yarn run compile && yarn run types && yarn run copy",
+    "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copy",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
     "watch": "cross-env NODE_ENV=development npm-run-all --parallel watch:*",
     "watch:build": "pnpm types --watch --preserveWatchOutput",
     "watch:compile": "pnpm compile --watch",
     "copy": "cp ./src/styles.css ./dist",
     "test": "vitest --run",
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "preinstall": "npx only-allow pnpm"
   },
   "peerDependencies": {
