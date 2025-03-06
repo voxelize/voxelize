@@ -1,89 +1,47 @@
 import "./style.css";
 
-// For official use, you should do `@voxelize/core/styles.css` instead.
-import "@voxelize/core/styles.css";
-
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
-import {
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
 import * as THREE from "three";
 
-import LolImage from "./assets/lol.png";
-// import { Map } from "./map";
-import { setupWorld } from "./world";
-
-const createCharacter = () => {
-  const character = new VOXELIZE.Character();
-  world.loader.load().then(() => {
-    character.head.paint("front", world.loader.getTexture(LolImage));
-  });
-  lightShined.add(character);
-  shadows.add(character);
-  return character;
-};
-
-const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
-const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
-
-const currentWorldName =
-  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
-
-if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
-  BACKEND_SERVER_INSTANCE.port = "4000";
-}
-
-const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
-
-class Box extends VOXELIZE.Entity<{
-  position: VOXELIZE.Coords3;
-}> {
-  constructor(id: string) {
-    super(id);
-
-    this.add(
-      new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 0.5, 0.5),
-        new THREE.MeshBasicMaterial()
-      )
-    );
-
-    shadows.add(this);
-    lightShined.add(this);
-  }
-
-  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
-    this.position.set(...data.position);
-  };
-
-  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
-    this.position.set(...data.position);
-  };
-}
+import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
+/* -------------------------------------------------------------------------- */
+/*                               VOXELIZE WORLD                               */
+/* -------------------------------------------------------------------------- */
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
 });
 
-const chat = new VOXELIZE.Chat();
-const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
+import { setupWorld } from "./world";
+// actual world setup code handled later after network and world are initialized
 
-const options = { pathVisible: false };
+/* -------------------------------------------------------------------------- */
+/*                         THREE-JS UTILITIES/CLASSES                         */
+/* -------------------------------------------------------------------------- */
+const camera = new THREE.PerspectiveCamera(
+  90,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  5000
+);
 
-world.loader.loadTexture(LolImage, (texture) => {
-  character.head.paint("front", texture);
+const renderer = new THREE.WebGLRenderer({
+  canvas,
 });
+renderer.setSize(renderer.domElement.offsetWidth, renderer.domElement.offsetHeight);
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-inputs.on("namespace", (namespace) => {
-  console.log("namespace changed", namespace);
-});
-inputs.setNamespace("menu");
+// resize window event listener found inside start() function
+
+/* -------------------------------------------------------------------------- */
+/*                             VISUAL IMPROVEMENTS                            */
+/* -------------------------------------------------------------------------- */
+const shadows = new VOXELIZE.Shadows(world);
+const lightShined = new VOXELIZE.LightShined(world);
 
 world.sky.setShadingPhases([
   // start of sunrise
@@ -152,36 +110,12 @@ world.sky.paint("sides", VOXELIZE.artFunctions.drawStars());
 // world.add(clouds);
 // world.setFogColor(sky.getMiddleColor());
 
-const camera = new THREE.PerspectiveCamera(
-  90,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  5000
-);
+/* -------------------------------------------------------------------------- */
+/*                               PLAYER CONTROLS                              */
+/* -------------------------------------------------------------------------- */
+const inputs = new VOXELIZE.Inputs<"menu" | "in-game" | "chat">();
 
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-});
-renderer.setSize(
-  renderer.domElement.offsetWidth,
-  renderer.domElement.offsetHeight
-);
-renderer.setPixelRatio(1);
-
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-
-const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
-overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
-composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
-
-const lightShined = new VOXELIZE.LightShined(world);
-const shadows = new VOXELIZE.Shadows(world);
-
-const character = createCharacter();
-
+// To run around the world
 const controls = new VOXELIZE.RigidControls(
   camera,
   renderer.domElement,
@@ -193,30 +127,12 @@ const controls = new VOXELIZE.RigidControls(
   }
 );
 
-controls.attachCharacter(character);
 controls.connect(inputs, "in-game");
 
-world.add(character);
+inputs.bind("KeyG", () => {controls.toggleGhostMode();}, "in-game");
+inputs.bind("KeyF", controls.toggleFly, "in-game");
 
-world.addChunkInitListener([0, 0], () => {
-  controls.teleportToTop(0, 0);
-});
-
-renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
-
-const perspective = new VOXELIZE.Perspective(controls, world);
-perspective.connect(inputs, "in-game");
-
-const network = new VOXELIZE.Network();
-
-controls.on("lock", () => {
-  inputs.setNamespace("in-game");
-});
-
-controls.on("unlock", () => {
-  inputs.setNamespace("menu");
-});
-
+// To add/remove blocks
 const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
   highlightType: "outline",
   highlightColor: new THREE.Color("#000"),
@@ -226,16 +142,170 @@ const voxelInteract = new VOXELIZE.VoxelInteract(controls.object, world, {
 });
 world.add(voxelInteract);
 
-const debug = new VOXELIZE.Debug(document.body, {
-  dataStyles: {
-    top: "unset",
-    bottom: "10px",
-    left: "10px",
+let radius = 1;
+const maxRadius = 10;
+const minRadius = 1;
+const circular = true;
+
+inputs.scroll(
+  () => (radius = Math.min(maxRadius, radius + 1)),
+  () => (radius = Math.max(minRadius, radius - 1)),
+  "in-game"
+);
+
+const bulkDestroy = () => {
+  if (!voxelInteract.target) return;
+
+  const [vx, vy, vz] = voxelInteract.target;
+
+  const updates: VOXELIZE.BlockUpdate[] = [];
+
+  for (let x = -radius; x <= radius; x++) {
+    for (let y = -radius; y <= radius; y++) {
+      for (let z = -radius; z <= radius; z++) {
+        if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
+
+        updates.push({
+          vx: vx + x,
+          vy: vy + y,
+          vz: vz + z,
+          type: 0,
+        });
+      }
+    }
+  }
+
+  if (updates.length) controls.world.updateVoxels(updates);
+};
+inputs.click("left", bulkDestroy, "in-game");
+
+// unsure where holdingBlockType equivilent is located
+
+const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
+const bar = new VOXELIZE.ItemSlots({
+  verticalCount: 1,
+  horizontalCount: HOTBAR_CONTENT.length,
+  wrapperStyles: {
+    left: "50%",
+    transform: "translateX(-50%)",
   },
+  scrollable: false,
 });
 
-const gui = new GUI();
-gui.domElement.style.top = "10px";
+document.body.appendChild(bar.element);
+
+inputs.click(
+  "middle",
+  () => {
+    if (!voxelInteract.target) return;
+    const [vx, vy, vz] = voxelInteract.target;
+    const block = controls.world.getBlockAt(vx, vy, vz);
+    const slot = bar.getFocused();
+    slot.setObject(world.makeBlockMesh(block.id, { material: "standard" }));
+    slot.setContent(block.id);
+  },
+  "in-game"
+);
+
+const bulkPlace = () => {
+  if (!voxelInteract.potential) return;
+
+  const {
+    voxel: [vx, vy, vz],
+    rotation,
+    yRotation,
+    yRotation4,
+    yRotation8,
+  } = voxelInteract.potential;
+
+  const updates: VOXELIZE.BlockUpdate[] = [];
+  const block = world.getBlockById(bar.getFocused().content);
+
+  for (let x = -radius; x <= radius; x++) {
+    for (let y = -radius; y <= radius; y++) {
+      for (let z = -radius; z <= radius; z++) {
+        if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
+
+        updates.push({
+          vx: vx + x,
+          vy: vy + y,
+          vz: vz + z,
+          type: block.id,
+          rotation: block.rotatable ? rotation : 0,
+          yRotation:
+            block.yRotatableSegments === "All"
+              ? yRotation
+              : block.yRotatableSegments === "Eight"
+              ? yRotation8
+              : yRotation4,
+        });
+      }
+    }
+  }
+
+  if (updates.length) controls.world.updateVoxels(updates);
+};
+
+inputs.click(
+  "right",
+  () => {
+    if (!voxelInteract.potential) return;
+    const {
+      voxel: [vx, vy, vz],
+    } = voxelInteract.potential;
+    if (!voxelInteract.target) return;
+    const currentBlock = world.getBlockAt(...voxelInteract.target);
+    const slot = bar.getFocused();
+    const id = slot.content;
+    if (!id) return;
+
+    const block = world.getBlockById(id);
+    if (!block.isPassable) {
+      const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
+      if (
+        aabbs.find((aabb) =>
+          aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
+        )
+      )
+        return;
+    }
+
+    if (currentBlock.isEntity) {
+      const [tx, ty, tz] = voxelInteract.target;
+      world.setBlockEntityDataAt(tx, ty, tz, {
+        color: [Math.random(), Math.random(), Math.random()],
+      });
+      return;
+    }
+
+    bulkPlace();
+  },
+  "in-game"
+);
+
+// Add a character to the control
+world.loader.loadTexture(LolImage, (texture) => {
+  character.head.paint("front", texture);
+});
+const createCharacter = () => {
+  const character = new VOXELIZE.Character();
+  world.add(character);
+  lightShined.add(character);
+  shadows.add(character);
+
+  world.loader.load().then(() => {
+    character.head.paint("front", world.loader.getTexture(LolImage));
+  });
+
+  return character;
+};
+
+const character = createCharacter();
+controls.attachCharacter(character);
+
+// To change the perspective of the player
+const perspective = new VOXELIZE.Perspective(controls, world);
+perspective.connect(inputs, "in-game");
 
 inputs.bind(
   "KeyT",
@@ -259,7 +329,78 @@ inputs.bind(
   }
 );
 
-// let hand = "glass";
+inputs.bind(
+  "Enter",
+  () => {
+    controls.lock();
+  },
+  "chat"
+);
+
+inputs.bind("KeyP", () => {
+  voxelInteract.toggle();
+});
+
+inputs.bind("KeyV", () => {
+  method.call("time", {
+    time: world.options.timePerDay / 2,
+  });
+});
+
+inputs.bind(
+  "KeyZ",
+  () => {
+    console.log("hello");
+    method.call("spawn-bot", {
+      position: controls.object.position.toArray(),
+    });
+  },
+  "in-game"
+);
+
+inputs.bind("KeyN", () => {
+  events.emit("test", {
+    test: "Hello World",
+    nested: {
+      test: "Hello World",
+      array: [1, 2, 3],
+      arrayOfObjects: [
+        {
+          test: "Hello World",
+
+          nested: {
+            test: "Hello World",
+            array: [1, 2, 3],
+
+            arrayOfObjects: [
+              {
+                test: "Hello World",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+});
+
+const RANDOM_TELEPORT_WIDTH = 1000000;
+inputs.bind("]", () => {
+  controls.teleportToTop(
+    Math.random() * RANDOM_TELEPORT_WIDTH,
+    Math.random() * RANDOM_TELEPORT_WIDTH
+  );
+});
+
+// map toggle bind located after map initialization
+
+// inputs.bind("escape", () => {
+//   map.setVisible(false);
+// });
+
+// inputs.bind("l", () => {
+//   network.action("create_world", "new_world");
+// });
 
 // inputs.bind(
 //   "b",
@@ -270,6 +411,17 @@ inputs.bind(
 //   { identifier: "BRUH" }
 // );
 
+// inputs.bind(
+//   "o",
+//   () => {
+//     console.log(controls.object.position);
+//   },
+//   "in-game"
+// );
+
+/* -------------------------------------------------------------------------- */
+/*                           MULTIPLAYER CHARACTERS                           */
+/* -------------------------------------------------------------------------- */
 type PeersMeta = {
   direction: number[];
   position: number[];
@@ -346,47 +498,37 @@ class Peers extends VOXELIZE.Peers<VOXELIZE.Character, PeersMeta> {
     };
   };
 }
-
 const peers = new Peers(controls.object);
+
+// createPeer code found in Peers class
+
+// onPeerUpdate code located in Peers class
+
 peers.setOwnPeer(character);
 
 world.add(peers);
 
-VOXELIZE.ColorText.SPLITTER = "$";
-
-// inputs.bind(
-//   "o",
-//   () => {
-//     console.log(controls.object.position);
-//   },
-//   "in-game"
-// );
-
-inputs.bind(
-  "KeyG",
-  () => {
-    controls.toggleGhostMode();
+/* -------------------------------------------------------------------------- */
+/*                                  DEBUGGING                                 */
+/* -------------------------------------------------------------------------- */
+const debug = new VOXELIZE.Debug(document.body, {
+  dataStyles: {
+    top: "unset",
+    bottom: "10px",
+    left: "10px",
   },
-  "in-game"
-);
+});
 
-inputs.bind(
-  "Enter",
-  () => {
-    controls.lock();
-  },
-  "chat"
-);
-
-inputs.bind("KeyF", controls.toggleFly, "in-game");
-
-inputs.bind("KeyJ", debug.toggle, "*");
-
-// inputs.bind("l", () => {
-//   network.action("create_world", "new_world");
-// });
+debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
+debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
+debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
+debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
 
 debug.registerDisplay("Position", controls, "voxel");
+
+debug.registerDisplay("Voxel Stage", () => {
+  return world.getVoxelStageAt(...controls.voxel);
+});
 
 debug.registerDisplay("Time", () => {
   return `${Math.floor(
@@ -398,26 +540,155 @@ debug.registerDisplay("Sunlight", () => {
   return world.getSunlightAt(...controls.voxel);
 });
 
-debug.registerDisplay("Voxel Stage", () => {
-  return world.getVoxelStageAt(...controls.voxel);
-});
-
-debug.registerDisplay("Chunks to Request", world.chunks.toRequest, "length");
-debug.registerDisplay("Chunks Requested", world.chunks.requested, "size");
-debug.registerDisplay("Chunks to Process", world.chunks.toProcess, "length");
-debug.registerDisplay("Chunks Loaded", world.chunks.loaded, "size");
-
 ["Red", "Green", "Blue"].forEach((color) => {
   debug.registerDisplay(`${color} Light`, () => {
     return world.getTorchLightAt(...controls.voxel, color.toUpperCase() as any);
   });
 });
 
-inputs.bind("KeyP", () => {
-  voxelInteract.toggle();
+debug.registerDisplay("Holding", () => {
+  const slot = bar.getFocused();
+  if (!slot) return;
+
+  const id = slot.getContent();
+  const block = world.getBlockById(id);
+  return block ? block.name : "<Empty>";
 });
 
+debug.registerDisplay("Looking at", () => {
+  const { target } = voxelInteract;
+  if (!target) return "<Empty>";
+
+  const [x, y, z] = target;
+  const block = world.getBlockAt(x, y, z);
+  return block ? block.name : "<Empty>";
+});
+
+debug.registerDisplay("Build radius", () => {
+  return radius;
+});
+
+debug.registerDisplay("# of triangles", () => {
+  return renderer.info.render.triangles;
+});
+
+debug.registerDisplay("# of points", () => {
+  return renderer.info.render.points;
+});
+
+debug.registerDisplay("Concurrent WebWorkers", () => {
+  return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
+});
+
+// packet queue length defined after network is initialized
+
+const gui = new GUI();
+gui.domElement.style.top = "10px";
+
+inputs.bind("KeyJ", debug.toggle, "*");
+
+// debug.registerDisplay("Active Voxels", async () => {
+//   const data = await fetch(`${BACKEND_SERVER}info`);
+//   const json = await data.json();
+//   return json.worlds.terrain.chunks.active_voxels;
+// });
+
+/* -------------------------------------------------------------------------- */
+/*                               NETWORK MANAGER                              */
+/* -------------------------------------------------------------------------- */
+const network = new VOXELIZE.Network();
+debug.registerDisplay("Packet queue length", network, "packetQueueLength"); //! usually under debug section
+
+const chat = new VOXELIZE.Chat();
 const entities = new VOXELIZE.Entities();
+const method = new VOXELIZE.Method();
+const events = new VOXELIZE.Events();
+network
+  .register(world)
+  .register(peers)
+  .register(chat)
+  .register(entities)
+  .register(method)
+  .register(events)
+  .register(controls);
+
+/* -------------------------------------------------------------------------- */
+/*                                UNSORTED CODE                               */
+/* -------------------------------------------------------------------------- */
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
+
+import LolImage from "./assets/lol.png";
+import { Map } from "./map";
+
+const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
+const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
+
+const currentWorldName =
+  localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
+
+if (BACKEND_SERVER_INSTANCE.origin.includes("localhost")) {
+  BACKEND_SERVER_INSTANCE.port = "4000";
+}
+
+const BACKEND_SERVER = BACKEND_SERVER_INSTANCE.toString();
+
+class Box extends VOXELIZE.Entity<{
+  position: VOXELIZE.Coords3;
+}> {
+  constructor(id: string) {
+    super(id);
+
+    this.add(
+      new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshBasicMaterial()
+      )
+    );
+
+    shadows.add(this);
+    lightShined.add(this);
+  }
+
+  onCreate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+
+  onUpdate = (data: { position: VOXELIZE.Coords3 }) => {
+    this.position.set(...data.position);
+  };
+}
+
+inputs.on("namespace", (namespace) => {
+  console.log("namespace changed", namespace);
+});
+inputs.setNamespace("menu");
+
+
+world.addChunkInitListener([0, 0], () => {
+  controls.teleportToTop(0, 0);
+});
+
+renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
+
+controls.on("lock", () => {
+  inputs.setNamespace("in-game");
+});
+
+controls.on("unlock", () => {
+  inputs.setNamespace("menu");
+});
+
+// let hand = "glass";
+
+
+
+VOXELIZE.ColorText.SPLITTER = "$";
+
 
 type BotData = {
   position: VOXELIZE.Coords3;
@@ -433,9 +704,9 @@ type BotData = {
 };
 
 const botPaths = new THREE.Group();
-
 world.add(botPaths);
 
+const options = { pathVisible: false };
 class Bot extends VOXELIZE.Entity<BotData> {
   entityId: string;
   character: VOXELIZE.Character;
@@ -451,15 +722,15 @@ class Bot extends VOXELIZE.Entity<BotData> {
         fontFace: "ConnectionSerif-d20X",
       },
     });
-    this.character.username = "$#B4D4FF$Ian's Bot";
+    this.character.username = "$#B4D4FF$Eric's Bot";
 
     // shadows.add(this.character);
     // lightShined.add(this.character);
 
-    this.character.head.paint("all", new THREE.Color("#F99417"));
-    this.character.head.paint("front", new THREE.Color("#F4CE14"));
+    this.character.head.paint("all", new THREE.Color(BOT_HEAD_COLOR));
+    this.character.head.paint("front", new THREE.Color(BOT_HEAD_FRONT_COLOR));
+    this.character.scale.set(BOT_SCALE, BOT_SCALE, BOT_SCALE);
 
-    this.character.scale.set(0.5, 0.5, 0.5);
     this.character.position.y += this.character.totalHeight / 4;
     this.add(this.character);
 
@@ -536,55 +807,8 @@ entities.setClass("box", Box);
 
 world.add(entities);
 
-const method = new VOXELIZE.Method();
-
-inputs.bind("KeyV", () => {
-  method.call("time", {
-    time: world.options.timePerDay / 2,
-  });
-});
-
-inputs.bind(
-  "KeyZ",
-  () => {
-    console.log("hello");
-    method.call("spawn-bot", {
-      position: controls.object.position.toArray(),
-    });
-  },
-  "in-game"
-);
-
-const events = new VOXELIZE.Events();
-
 events.on("test", (payload) => {
   console.log("test event:", payload);
-});
-
-inputs.bind("KeyN", () => {
-  events.emit("test", {
-    test: "Hello World",
-    nested: {
-      test: "Hello World",
-      array: [1, 2, 3],
-      arrayOfObjects: [
-        {
-          test: "Hello World",
-
-          nested: {
-            test: "Hello World",
-            array: [1, 2, 3],
-
-            arrayOfObjects: [
-              {
-                test: "Hello World",
-              },
-            ],
-          },
-        },
-      ],
-    },
-  });
 });
 
 // Create a test for atlas
@@ -621,24 +845,8 @@ inputs.bind("KeyN", () => {
 //   document.body.appendChild(canvas);
 // }
 
-// const map = new Map(world, document.getElementById("biomes") || document.body);
-
-// inputs.bind("m", map.toggle);
-
-// inputs.bind("escape", () => {
-//   map.setVisible(false);
-// });
-
-network
-  .register(chat)
-  .register(entities)
-  .register(world)
-  .register(method)
-  .register(events)
-  .register(peers)
-  .register(controls);
-
-const HOTBAR_CONTENT = [0, 1, 5, 20, 50000, 13131, 45, 300, 1000, 500];
+const map = new Map(world, document.getElementById("biomes") || document.body);
+inputs.bind("m", map.toggle); //! does not seem to work
 
 // let isLoading = true;
 // const loadingFade = 500;
@@ -648,14 +856,6 @@ loading.style.display = "none";
 //   "loading-bar-inner"
 // ) as HTMLDivElement;
 // loading.style.transition = `${loadingFade}ms opacity ease`;
-
-const RANDOM_TELEPORT_WIDTH = 1000000;
-inputs.bind("]", () => {
-  controls.teleportToTop(
-    Math.random() * RANDOM_TELEPORT_WIDTH,
-    Math.random() * RANDOM_TELEPORT_WIDTH
-  );
-});
 
 world.addBlockEntityUpdateListener((data) => {
   if (data.operation === "UPDATE" || data.operation === "CREATE") {
@@ -675,10 +875,122 @@ world.addBlockEntityUpdateListener((data) => {
   // );
 });
 
+const arm = new VOXELIZE.Arm();
+const armScene = new THREE.Scene();
+const armCamera = camera.clone();
+lightShined.add(arm);
+armScene.add(arm);
+arm.connect(inputs, "in-game");
+controls.attachArm(arm);
+
+window.addEventListener("resize", () => {
+  const width = window.innerWidth as number;
+  const height = window.innerHeight as number;
+
+  renderer.setSize(width, height);
+  renderer.pixelRatio = window.devicePixelRatio;
+
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+
+  armCamera.aspect = width / height;
+  armCamera.updateProjectionMatrix();
+});
+
+bar.onFocusChange((_, current) => {
+  const armBlock = world.makeBlockMesh(current.content, {
+    material: "basic",
+  });
+  arm.setArmObject(armBlock, false);
+
+  const characterBlock = world.makeBlockMesh(current.content, {
+    material: "basic",
+  });
+  if (characterBlock) {
+    const size = 0.3;
+    characterBlock.quaternion.setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      -Math.PI / 4
+    );
+    characterBlock.scale.set(size, size, size);
+    characterBlock.position.set(0, -size * 0.5, -size * 0.5);
+  }
+  character.userData.holdingObjectId = current.content;
+  character.setArmHoldingObject(characterBlock);
+});
+
+/* -------------------------------------------------------------------------- */
+/*                               MAIN GAME LOOPS                              */
+/* -------------------------------------------------------------------------- */
+const update = () => {
+  if (!world.isInitialized) return;
+
+  perspective.update();
+  voxelInteract.update();
+  controls.update();
+  lightShined.update();
+  shadows.update();
+
+  const inWater =
+  world.getBlockAt(
+    ...camera.getWorldPosition(new THREE.Vector3()).toArray()
+  )?.name === "Water";
+
+  const fogNear = inWater
+    ? 0.1 * world.options.chunkSize * world.renderRadius
+    : 0.7 * world.options.chunkSize * world.renderRadius;
+  const fogFar = inWater
+    ? 0.8 * world.options.chunkSize * world.renderRadius
+    : world.options.chunkSize * world.renderRadius;
+  const fogColor = inWater
+    ? new THREE.Color("#5F9DF7")
+    : world.chunks.uniforms.fogColor.value;
+
+  world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
+    world.chunks.uniforms.fogNear.value,
+    fogNear,
+    0.08
+  );
+
+  world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
+    world.chunks.uniforms.fogFar.value,
+    fogFar,
+    0.08
+  );
+
+  world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
+  
+  world.update(
+    controls.object.position,
+    camera.getWorldDirection(new THREE.Vector3())
+  );
+
+  entities.update();
+
+  peers.update();
+  debug.update();
+};
+
 let frame: any;
+let isFocused = true;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(world, camera));
+
+const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
+overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
+composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
+
+const animate = () => {
+  frame = requestAnimationFrame(animate);
+  if (isFocused) update();
+  composer.render();
+  renderer.clearDepth();
+  renderer.render(armScene, armCamera);
+};
 
 const start = async () => {
-  let isFocused = true;
+
   let clearUpdate: any;
 
   const handleVisibilityChange = () => {
@@ -700,200 +1012,47 @@ const start = async () => {
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
-  const update = () => {
-    if (!world.isInitialized) return;
-
-    peers.update();
-    controls.update();
-
-    const inWater =
-      world.getBlockAt(
-        ...camera.getWorldPosition(new THREE.Vector3()).toArray()
-      )?.name === "Water";
-
-    const fogNear = inWater
-      ? 0.1 * world.options.chunkSize * world.renderRadius
-      : 0.7 * world.options.chunkSize * world.renderRadius;
-    const fogFar = inWater
-      ? 0.8 * world.options.chunkSize * world.renderRadius
-      : world.options.chunkSize * world.renderRadius;
-    const fogColor = inWater
-      ? new THREE.Color("#5F9DF7")
-      : world.chunks.uniforms.fogColor.value;
-
-    world.chunks.uniforms.fogNear.value = THREE.MathUtils.lerp(
-      world.chunks.uniforms.fogNear.value,
-      fogNear,
-      0.08
-    );
-
-    world.chunks.uniforms.fogFar.value = THREE.MathUtils.lerp(
-      world.chunks.uniforms.fogFar.value,
-      fogFar,
-      0.08
-    );
-
-    world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
-
-    world.update(
-      controls.object.position,
-      camera.getWorldDirection(new THREE.Vector3())
-    );
-
-    perspective.update();
-    shadows.update();
-    debug.update();
-    lightShined.update();
-    voxelInteract.update();
-    entities.update();
-  };
+  animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);
+  
   await world.initialize();
   await setupWorld(world);
 
-  world.renderRadius = 8;
+  gui
+  .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
+  .onFinishChange((time: number) => {
+    world.time = time;
+  });
 
   gui
-    .add({ world: currentWorldName }, "world", ["terrain", "flat"])
-    .onChange((worldName: string) => {
-      localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
-      window.location.reload();
-    });
+  .add({ world: currentWorldName }, "world", ["terrain", "flat"])
+  .onChange((worldName: string) => {
+    localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
+    window.location.reload();
+  });
 
-  gui.add(world, "renderRadius", 3, 20, 1);
-  // gui.add(map, "dimension", 1, 10, 0.1);
-  gui.add(voxelInteract.options, "ignoreFluids");
-  gui
-    .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
-    .onFinishChange((time: number) => {
-      world.time = time;
-    });
   gui.add(options, "pathVisible").onChange((value: boolean) => {
     options.pathVisible = value;
   });
 
-  const bar = new VOXELIZE.ItemSlots({
-    verticalCount: 1,
-    horizontalCount: HOTBAR_CONTENT.length,
-    wrapperStyles: {
-      left: "50%",
-      transform: "translateX(-50%)",
-    },
-    scrollable: false,
-  });
+  world.renderRadius = 8;
+  gui.add(world, "renderRadius", 3, 20, 1);
 
-  document.body.appendChild(bar.element);
+  gui.add(voxelInteract.options, "ignoreFluids");
 
-  const arm = new VOXELIZE.Arm();
-  const armScene = new THREE.Scene();
-  const armCamera = camera.clone();
-  lightShined.add(arm);
-  armScene.add(arm);
-  arm.connect(inputs, "in-game");
-  controls.attachArm(arm);
-
-  window.addEventListener("resize", () => {
-    const width = window.innerWidth as number;
-    const height = window.innerHeight as number;
-
-    renderer.setSize(width, height);
-    renderer.pixelRatio = window.devicePixelRatio;
-
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-
-    armCamera.aspect = width / height;
-    armCamera.updateProjectionMatrix();
-  });
-
-  bar.onFocusChange((_, current) => {
-    const armBlock = world.makeBlockMesh(current.content, {
-      material: "basic",
-    });
-    arm.setArmObject(armBlock, false);
-
-    const characterBlock = world.makeBlockMesh(current.content, {
-      material: "basic",
-    });
-    if (characterBlock) {
-      const size = 0.3;
-      characterBlock.quaternion.setFromAxisAngle(
-        new THREE.Vector3(0, 1, 0),
-        -Math.PI / 4
-      );
-      characterBlock.scale.set(size, size, size);
-      characterBlock.position.set(0, -size * 0.5, -size * 0.5);
-    }
-    character.userData.holdingObjectId = current.content;
-    character.setArmHoldingObject(characterBlock);
-  });
-
-  // debug.registerDisplay("Active Voxels", async () => {
-  //   const data = await fetch(`${BACKEND_SERVER}info`);
-  //   const json = await data.json();
-  //   return json.worlds.terrain.chunks.active_voxels;
-  // });
-
-  const animate = () => {
-    frame = requestAnimationFrame(animate);
-    if (isFocused) update();
-    composer.render();
-    renderer.clearDepth();
-    renderer.render(armScene, armCamera);
-  };
-
-  animate();
-
-  debug.registerDisplay("Holding", () => {
-    const slot = bar.getFocused();
-    if (!slot) return;
-
-    const id = slot.getContent();
-    const block = world.getBlockById(id);
-    return block ? block.name : "<Empty>";
-  });
-
-  debug.registerDisplay("Looking at", () => {
-    const { target } = voxelInteract;
-    if (!target) return "<Empty>";
-
-    const [x, y, z] = target;
-    const block = world.getBlockAt(x, y, z);
-    return block ? block.name : "<Empty>";
-  });
-
-  // debug.registerDisplay("Build radius", () => {
-  //   return radius;
-  // });
-
-  // debug.registerDisplay("# of triangles", () => {
-  //   return renderer.info.render.triangles;
-  // });
-
-  // debug.registerDisplay("# of points", () => {
-  //   return renderer.info.render.points;
-  // });
-
-  debug.registerDisplay("Concurrent WebWorkers", () => {
-    return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
-  });
-
-  debug.registerDisplay("Packet queue length", network, "packetQueueLength");
+  gui.add(map, "dimension", 1, 10, 0.1);
 
   HOTBAR_CONTENT.forEach((id, index) => {
     const slot = bar.getSlot(0, index);
     const mesh = world.makeBlockMesh(id, { material: "standard" });
     if (mesh) slot.setObject(mesh);
-
     if (id === 500) {
       slot.setPerspective("pz");
     }
-
     slot.setContent(id);
   });
-
   [
     "Digit1",
     "Digit2",
@@ -915,146 +1074,15 @@ const start = async () => {
       "in-game"
     );
   });
-
-  let radius = 1;
-  const maxRadius = 10;
-  const minRadius = 1;
-  const circular = true;
-
-  const bulkDestroy = () => {
-    if (!voxelInteract.target) return;
-
-    const [vx, vy, vz] = voxelInteract.target;
-
-    const updates: VOXELIZE.BlockUpdate[] = [];
-
-    for (let x = -radius; x <= radius; x++) {
-      for (let y = -radius; y <= radius; y++) {
-        for (let z = -radius; z <= radius; z++) {
-          if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
-
-          updates.push({
-            vx: vx + x,
-            vy: vy + y,
-            vz: vz + z,
-            type: 0,
-          });
-        }
-      }
-    }
-
-    if (updates.length) controls.world.updateVoxels(updates);
-  };
-
-  const bulkPlace = () => {
-    if (!voxelInteract.potential) return;
-
-    const {
-      voxel: [vx, vy, vz],
-      rotation,
-      yRotation,
-      yRotation4,
-      yRotation8,
-    } = voxelInteract.potential;
-
-    const updates: VOXELIZE.BlockUpdate[] = [];
-    const block = world.getBlockById(bar.getFocused().content);
-
-    for (let x = -radius; x <= radius; x++) {
-      for (let y = -radius; y <= radius; y++) {
-        for (let z = -radius; z <= radius; z++) {
-          if (circular && x ** 2 + y ** 2 + z ** 2 > radius ** 2 - 1) continue;
-
-          updates.push({
-            vx: vx + x,
-            vy: vy + y,
-            vz: vz + z,
-            type: block.id,
-            rotation: block.rotatable ? rotation : 0,
-            yRotation:
-              block.yRotatableSegments === "All"
-                ? yRotation
-                : block.yRotatableSegments === "Eight"
-                ? yRotation8
-                : yRotation4,
-          });
-        }
-      }
-    }
-
-    if (updates.length) controls.world.updateVoxels(updates);
-  };
-
-  inputs.scroll(
-    () => (radius = Math.min(maxRadius, radius + 1)),
-    () => (radius = Math.max(minRadius, radius - 1)),
-    "in-game"
-  );
-
-  inputs.click("left", bulkDestroy, "in-game");
-
-  inputs.click(
-    "middle",
-    () => {
-      if (!voxelInteract.target) return;
-      const [vx, vy, vz] = voxelInteract.target;
-      const block = controls.world.getBlockAt(vx, vy, vz);
-      const slot = bar.getFocused();
-      slot.setObject(world.makeBlockMesh(block.id, { material: "standard" }));
-      slot.setContent(block.id);
-    },
-    "in-game"
-  );
-
-  inputs.click(
-    "right",
-    () => {
-      if (!voxelInteract.potential) return;
-      const {
-        voxel: [vx, vy, vz],
-      } = voxelInteract.potential;
-      if (!voxelInteract.target) return;
-      const currentBlock = world.getBlockAt(...voxelInteract.target);
-      const slot = bar.getFocused();
-      const id = slot.content;
-      if (!id) return;
-
-      const block = world.getBlockById(id);
-      if (!block.isPassable) {
-        const aabbs = world.getBlockAABBsByIdAt(id, vx, vy, vz);
-        if (
-          aabbs.find((aabb) =>
-            aabb.clone().translate([vx, vy, vz]).intersects(controls.body.aabb)
-          )
-        )
-          return;
-      }
-
-      if (currentBlock.isEntity) {
-        const [tx, ty, tz] = voxelInteract.target;
-        world.setBlockEntityDataAt(tx, ty, tz, {
-          color: [Math.random(), Math.random(), Math.random()],
-        });
-        return;
-      }
-
-      bulkPlace();
-    },
-    "in-game"
-  );
-
   bar.connect(inputs);
 
   inputs.bind(
     ";",
     () => {
       const updates: VOXELIZE.BlockUpdate[] = [];
-
       const [vx, vy, vz] = controls.voxel;
-
       const width = 80;
       const height = 80;
-
       for (let x = -width / 2; x <= width / 2; x++) {
         for (let y = 0; y <= height; y++) {
           updates.push({
