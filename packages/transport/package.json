@@ -25,13 +25,13 @@
   },
   "dependencies": {
     "@voxelize/protocol": "workspace:*",
-    "fflate": "^0.7.3",
-    "protobufjs": "^7.2.2",
-    "websocket": "^1.0.34"
+    "fflate": "^0.7.4",
+    "protobufjs": "^7.4.0",
+    "websocket": "^1.0.35"
   },
   "devDependencies": {
     "@types/protobufjs": "^6.0.0",
-    "@types/websocket": "^1.0.5",
-    "protobufjs-cli": "^1.1.1"
+    "@types/websocket": "^1.0.10",
+    "protobufjs-cli": "^1.1.3"
   }
 }

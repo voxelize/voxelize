@@ -26,9 +26,9 @@
     "three": "^0.165.0"
   },
   "devDependencies": {
-    "@types/gl-vec3": "^1.1.1",
-    "@types/ndarray": "^1.0.11",
-    "@types/omggif": "^1.0.3",
+    "@types/gl-vec3": "^1.1.4",
+    "@types/ndarray": "^1.0.14",
+    "@types/omggif": "^1.0.5",
     "@types/stats.js": "^0.17.3",
     "@types/three": "^0.165.0",
     "@types/uuid": "^8.3.4",
@@ -41,7 +41,7 @@
     "@voxelize/physics-engine": "workspace:*",
     "@voxelize/protocol": "workspace:*",
     "@voxelize/raycast": "workspace:*",
-    "deepmerge": "^4.2.2",
+    "deepmerge": "^4.3.1",
     "domurl": "^2.3.4",
     "events": "^3.3.0",
     "fflate": "^0.7.4",
@@ -50,8 +50,8 @@
     "ndarray": "^1.0.19",
     "noisejs": "^2.1.0",
     "omggif": "^1.0.10",
-    "regenerator-runtime": "^0.13.9",
-    "socket.io-client": "^4.4.1",
+    "regenerator-runtime": "^0.13.11",
+    "socket.io-client": "^4.8.1",
     "stats.js": "^0.17.0",
     "uuid": "^8.3.2",
     "vite-plugin-copy": "^0.1.6"
