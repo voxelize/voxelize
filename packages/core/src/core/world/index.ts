@@ -2439,7 +2439,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (!metadata || !metadata.voxel) {
-        console.log("No metadata or voxel in block entity", metadata);
+        console.log(
+          "No metadata or voxel in block entity",
+          id,
+          type,
+          operation,
+          metadata
+        );
         return;
       }
 

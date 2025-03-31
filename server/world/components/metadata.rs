@@ -1,4 +1,7 @@
+use bincode;
+use blake3::Hash;
 use hashbrown::HashMap;
+use log::info;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{Component, VecStorage};
@@ -11,7 +14,7 @@ pub struct MetadataComp {
 
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    cache: String,
+    cache_hash: Option<Hash>,
 }
 
 impl MetadataComp {
@@ -23,7 +26,7 @@ impl MetadataComp {
     pub fn from_map(map: HashMap<String, Value>) -> Self {
         Self {
             map,
-            cache: String::new(),
+            cache_hash: None,
         }
     }
 
@@ -42,18 +45,29 @@ impl MetadataComp {
         None
     }
 
-    /// Convert metadata to JSON string, also caches is current state.
-    pub fn to_cached_str(&mut self) -> (String, bool) {
-        let mut updated = false;
-        let j = self.to_string();
+    /// Calculate hash of the current metadata map
+    fn calculate_hash(&self) -> Hash {
+        // Serialize to binary format which is more efficient than JSON string
+        let bytes = bincode::serialize(&self.map).unwrap_or_default();
+        blake3::hash(&bytes)
+    }
 
-        if self.cache != j {
+    /// Convert metadata to JSON string, also caches is current state using hash.
+    pub fn to_cached_str(&mut self) -> (String, bool) {
+        let current_hash = self.calculate_hash();
+
+        let mut updated = false;
+        if let Some(cache_hash) = self.cache_hash {
+            if cache_hash != current_hash {
+                updated = true;
+                self.cache_hash = Some(current_hash);
+            }
+        } else {
             updated = true;
+            self.cache_hash = Some(current_hash);
         }
 
-        self.cache = j.clone();
-
-        (j, updated)
+        (self.to_string(), updated)
     }
 
     /// Get a clean JSON string with no side-effects.
@@ -69,5 +83,6 @@ impl MetadataComp {
     /// Reset this metadata
     pub fn reset(&mut self) {
         self.map.clear();
+        self.cache_hash = None;
     }
 }
