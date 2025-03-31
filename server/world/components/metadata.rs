@@ -1,4 +1,7 @@
+use bincode;
+use blake3::Hash;
 use hashbrown::HashMap;
+use log::info;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{Component, VecStorage};
@@ -11,7 +14,11 @@ pub struct MetadataComp {
 
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    cache: String,
+    cache_hash: Option<Hash>,
+
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    cached_json: Option<String>,
 }
 
 impl MetadataComp {
@@ -23,7 +30,8 @@ impl MetadataComp {
     pub fn from_map(map: HashMap<String, Value>) -> Self {
         Self {
             map,
-            cache: String::new(),
+            cache_hash: None,
+            cached_json: None,
         }
     }
 
@@ -31,6 +39,8 @@ impl MetadataComp {
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let value = json!(data);
         self.map.insert(component.to_owned(), value);
+        // Invalidate caches when data changes
+        self.cached_json = None;
     }
 
     /// Get a component's metadata
@@ -42,18 +52,42 @@ impl MetadataComp {
         None
     }
 
-    /// Convert metadata to JSON string, also caches is current state.
-    pub fn to_cached_str(&mut self) -> (String, bool) {
-        let mut updated = false;
-        let j = self.to_string();
+    /// Calculate hash of the current metadata map
+    fn calculate_hash(&self) -> Hash {
+        // Serialize to binary format which is more efficient than JSON string
+        let bytes = bincode::serialize(&self.map).unwrap_or_default();
+        blake3::hash(&bytes)
+    }
 
-        if self.cache != j {
+    /// Convert metadata to JSON string, also caches is current state using hash.
+    pub fn to_cached_str(&mut self) -> (String, bool) {
+        let current_hash = self.calculate_hash();
+
+        let mut updated = false;
+        if let Some(cache_hash) = self.cache_hash {
+            if cache_hash != current_hash {
+                updated = true;
+                self.cache_hash = Some(current_hash);
+                // Invalidate JSON cache when hash changes
+                self.cached_json = None;
+            }
+        } else {
             updated = true;
+            self.cache_hash = Some(current_hash);
+            // Invalidate JSON cache for first update
+            self.cached_json = None;
         }
 
-        self.cache = j.clone();
+        // Use cached JSON if available and not updated
+        if !updated && self.cached_json.is_some() {
+            return (self.cached_json.clone().unwrap(), updated);
+        }
 
-        (j, updated)
+        // Generate and cache the JSON string
+        let json_str = self.to_string();
+        self.cached_json = Some(json_str.clone());
+        
+        (json_str, updated)
     }
 
     /// Get a clean JSON string with no side-effects.
