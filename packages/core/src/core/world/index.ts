@@ -619,9 +619,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     blockFaces.forEach((face) => {
       if (face.isolated) {
-        console.warn(
-          `Attempting to apply texture onto an isolated face: ${block.name}, ${face.name}. Use 'applyBlockTextureAt' instead.`
-        );
+        // console.warn(
+        //   `Attempting to apply texture onto an isolated face: ${block.name}, ${face.name}. Use 'applyBlockTextureAt' instead.`
+        // );
         return;
       }
 
