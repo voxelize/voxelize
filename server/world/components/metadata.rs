@@ -103,7 +103,5 @@ impl MetadataComp {
     /// Reset this metadata
     pub fn reset(&mut self) {
         self.map.clear();
-        self.cache_hash = None;
-        self.cached_json = None;
     }
 }
