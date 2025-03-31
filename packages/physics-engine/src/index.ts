@@ -309,7 +309,7 @@ export class Engine {
       if (foundZ !== null) {
         const minClingFactor = Math.min(
           clingingFactorInVoxel,
-          oldBox.maxX - foundZ
+          oldBox.maxZ - foundZ
         );
         walls.push(
           new AABB(
@@ -641,3 +641,4 @@ export class Engine {
 
 export * from "./rigid-body";
 export * from "./sweep";
+
