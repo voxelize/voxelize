@@ -15,6 +15,10 @@ pub struct MetadataComp {
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     cache_hash: Option<Hash>,
+
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    cached_json: Option<String>,
 }
 
 impl MetadataComp {
@@ -27,6 +31,7 @@ impl MetadataComp {
         Self {
             map,
             cache_hash: None,
+            cached_json: None,
         }
     }
 
@@ -34,6 +39,8 @@ impl MetadataComp {
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let value = json!(data);
         self.map.insert(component.to_owned(), value);
+        // Invalidate caches when data changes
+        self.cached_json = None;
     }
 
     /// Get a component's metadata
@@ -61,13 +68,26 @@ impl MetadataComp {
             if cache_hash != current_hash {
                 updated = true;
                 self.cache_hash = Some(current_hash);
+                // Invalidate JSON cache when hash changes
+                self.cached_json = None;
             }
         } else {
             updated = true;
             self.cache_hash = Some(current_hash);
+            // Invalidate JSON cache for first update
+            self.cached_json = None;
         }
 
-        (self.to_string(), updated)
+        // Use cached JSON if available and not updated
+        if !updated && self.cached_json.is_some() {
+            return (self.cached_json.clone().unwrap(), updated);
+        }
+
+        // Generate and cache the JSON string
+        let json_str = self.to_string();
+        self.cached_json = Some(json_str.clone());
+        
+        (json_str, updated)
     }
 
     /// Get a clean JSON string with no side-effects.
@@ -83,5 +103,7 @@ impl MetadataComp {
     /// Reset this metadata
     pub fn reset(&mut self) {
         self.map.clear();
+        self.cache_hash = None;
+        self.cached_json = None;
     }
 }
