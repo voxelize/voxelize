@@ -667,57 +667,61 @@ impl World {
         self.entity_ids_mut().remove(id);
 
         if let Some(client) = removed {
+            // Use a flag to track if we need to delete the entity
+            let mut should_delete_entity = true;
+
             {
                 // Remove rapier physics body.
                 let interactors = self.ecs.read_storage::<InteractorComp>();
-                let interactor = interactors
-                    .get(client.entity)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Something went wrong with deleting this client: {}",
-                            client.id
-                        )
-                    })
-                    .to_owned();
-
-                let body_handle = interactor.body_handle().to_owned();
-                let collider_handle = interactor.collider_handle().to_owned();
-
-                drop(interactors);
-
-                {
-                    let mut physics = self.physics_mut();
-                    physics.unregister(&body_handle, &collider_handle);
+                
+                // Safely get the interactor component, with error handling
+                let interactor_result = interactors.get(client.entity)
+                    .map(|interactor| interactor.to_owned());
+                    
+                if let Some(interactor) = interactor_result {
+                    let body_handle = interactor.body_handle().to_owned();
+                    let collider_handle = interactor.collider_handle().to_owned();
+                    
+                    drop(interactors);
+                    
+                    {
+                        let mut physics = self.physics_mut();
+                        physics.unregister(&body_handle, &collider_handle);
+                    }
+                    
+                    {
+                        let mut interactors = self.ecs.write_storage::<InteractorComp>();
+                        interactors.remove(client.entity);
+                    }
+                    
+                    {
+                        let mut collisions = self.ecs.write_storage::<CollisionsComp>();
+                        collisions.remove(client.entity);
+                    }
+                    
+                    {
+                        let mut rigid_bodies = self.ecs.write_storage::<RigidBodyComp>();
+                        rigid_bodies.remove(client.entity);
+                    }
+                    
+                    {
+                        let mut clients = self.ecs.write_storage::<ClientFlag>();
+                        clients.remove(client.entity);
+                    }
+                } else {
+                    // If we can't find the interactor, the entity might already be deleted or invalid
+                    should_delete_entity = false;
+                    log::warn!("Client entity for {} not found or already removed", client.id);
                 }
+            }
 
-                {
-                    let mut interactors = self.ecs.write_storage::<InteractorComp>();
-                    interactors.remove(client.entity);
-                }
-
-                {
-                    let mut collisions = self.ecs.write_storage::<CollisionsComp>();
-                    collisions.remove(client.entity);
-                }
-
-                {
-                    let mut rigid_bodies = self.ecs.write_storage::<RigidBodyComp>();
-                    rigid_bodies.remove(client.entity);
-                }
-
-                {
-                    let mut clients = self.ecs.write_storage::<ClientFlag>();
-                    clients.remove(client.entity);
-                }
-
+            if should_delete_entity {
                 let entities = self.ecs.entities();
-
-                entities.delete(client.entity).unwrap_or_else(|_| {
-                    panic!(
-                        "Something went wrong with deleting this client: {}",
-                        client.id
-                    )
-                });
+                
+                // Safe deletion with error handling
+                if let Err(e) = entities.delete(client.entity) {
+                    log::warn!("Error deleting client entity {}: {:?}", client.id, e);
+                }
             }
 
             self.ecs.maintain();
@@ -1488,7 +1492,7 @@ impl World {
         let mut entities = vec![];
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if !etype.0.starts_with("block::") && metadata.is_empty() {
+            if (!etype.0.starts_with("block::") && metadata.is_empty()) {
                 continue;
             }
 
