@@ -673,37 +673,38 @@ impl World {
             {
                 // Remove rapier physics body.
                 let interactors = self.ecs.read_storage::<InteractorComp>();
-                
+
                 // Safely get the interactor component, with error handling
-                let interactor_result = interactors.get(client.entity)
+                let interactor_result = interactors
+                    .get(client.entity)
                     .map(|interactor| interactor.to_owned());
-                    
+
                 if let Some(interactor) = interactor_result {
                     let body_handle = interactor.body_handle().to_owned();
                     let collider_handle = interactor.collider_handle().to_owned();
-                    
+
                     drop(interactors);
-                    
+
                     {
                         let mut physics = self.physics_mut();
                         physics.unregister(&body_handle, &collider_handle);
                     }
-                    
+
                     {
                         let mut interactors = self.ecs.write_storage::<InteractorComp>();
                         interactors.remove(client.entity);
                     }
-                    
+
                     {
                         let mut collisions = self.ecs.write_storage::<CollisionsComp>();
                         collisions.remove(client.entity);
                     }
-                    
+
                     {
                         let mut rigid_bodies = self.ecs.write_storage::<RigidBodyComp>();
                         rigid_bodies.remove(client.entity);
                     }
-                    
+
                     {
                         let mut clients = self.ecs.write_storage::<ClientFlag>();
                         clients.remove(client.entity);
@@ -711,13 +712,16 @@ impl World {
                 } else {
                     // If we can't find the interactor, the entity might already be deleted or invalid
                     should_delete_entity = false;
-                    log::warn!("Client entity for {} not found or already removed", client.id);
+                    log::warn!(
+                        "Client entity for {} not found or already removed",
+                        client.id
+                    );
                 }
             }
 
             if should_delete_entity {
                 let entities = self.ecs.entities();
-                
+
                 // Safe deletion with error handling
                 if let Err(e) = entities.delete(client.entity) {
                     log::warn!("Error deleting client entity {}: {:?}", client.id, e);
@@ -1333,7 +1337,10 @@ impl World {
                 .method_handles
                 .contains_key(&method.name.to_lowercase())
             {
-                warn!("`Method` type messages received, but no method handler set.");
+                warn!(
+                    "`Method` type messages received of name {}, but no method handler set.",
+                    method.name
+                );
                 return;
             }
 

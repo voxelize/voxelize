@@ -481,7 +481,10 @@ impl Server {
         info!("{:?}", &action);
 
         if !self.action_handles.contains_key(&action) {
-            warn!("`Action` type messages received, but no action handler set.");
+            warn!(
+                "`Action` type messages received of type {}, but no action handler set.",
+                action
+            );
             return;
         }
 
