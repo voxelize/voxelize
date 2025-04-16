@@ -353,8 +353,6 @@ impl Server {
         for world in self.worlds.values_mut() {
             world.do_send(Prepare);
         }
-
-        self.preload().await;
     }
 
     /// Preload all the worlds.

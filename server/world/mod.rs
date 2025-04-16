@@ -533,8 +533,8 @@ impl World {
     }
 
     pub fn start(mut self) -> Addr<SyncWorld> {
-        self.prepare();
-        self.preload();
+        // self.prepare();
+        // self.preload();
 
         let world = Arc::new(RwLock::new(self));
         let addr = SyncArbiter::start(1, move || SyncWorld(world.clone()));
@@ -1006,6 +1006,11 @@ impl World {
         if etype.starts_with("block::") {
             let voxel_meta = metadata.get::<VoxelComp>("voxel").unwrap_or_default();
             let voxel = voxel_meta.0.clone();
+            if self.chunks_mut().block_entities.contains_key(&voxel) {
+                warn!("Block entity already exists at voxel: {:?}", voxel);
+                self.read_resource::<EntitiesSaver>().remove(id);
+                return None;
+            }
             let entity = self
                 .create_block_entity(id, etype)
                 .with(

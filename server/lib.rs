@@ -99,6 +99,7 @@ impl Voxelize {
     /// takes ownership of the server.
     pub async fn run(mut server: Server) -> std::io::Result<()> {
         server.prepare().await;
+        server.preload().await;
         server.started = true;
 
         let addr = server.addr.to_owned();
