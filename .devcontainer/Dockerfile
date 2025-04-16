@@ -20,4 +20,5 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 # Install additional tools
 RUN apt-get update && apt-get install -y \
     git \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/* 
