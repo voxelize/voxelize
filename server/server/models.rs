@@ -134,6 +134,7 @@ pub struct MessageBuilder {
 
     json: Option<String>,
     text: Option<String>,
+    world_name: Option<String>,
 
     chat: Option<ChatMessageProtocol>,
     method: Option<MethodProtocol>,
@@ -155,6 +156,12 @@ impl MessageBuilder {
     /// Configure the text data of the protocol.
     pub fn text(mut self, text: &str) -> Self {
         self.text = Some(text.to_owned());
+        self
+    }
+
+    /// Configure the world name of the protocol.
+    pub fn world_name(mut self, world_name: &str) -> Self {
+        self.world_name = Some(world_name.to_owned());
         self
     }
 
@@ -209,6 +216,7 @@ impl MessageBuilder {
 
         message.json = self.json.unwrap_or_default();
         message.text = self.text.unwrap_or_default();
+        message.world_name = self.world_name.unwrap_or_default();
 
         if let Some(peers) = self.peers {
             message.peers = peers

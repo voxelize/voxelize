@@ -1,10 +1,11 @@
+use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
     server::encode_message,
-    world::{profiler::Profiler, Clients, MessageQueue},
-    EncodedMessage, EncodedMessageQueue, MessageType, Transports,
+    world::{metadata::WorldMetadata, profiler::Profiler, Clients, MessageQueue},
+    EncodedMessage, EncodedMessageQueue, MessageType, Transports, WorldConfig,
 };
 
 pub struct BroadcastSystem;
@@ -13,15 +14,26 @@ impl<'a> System<'a> for BroadcastSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
+        ReadExpect<'a, WorldMetadata>,
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, Profiler>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, mut queue, mut encoded_queue, mut profiler) = data;
+        let (transports, clients, world_metadata, mut queue, mut encoded_queue, mut profiler) =
+            data;
 
-        encoded_queue.append(queue.drain(..).collect());
+        encoded_queue.append(
+            queue
+                .drain(..)
+                .map(|m| {
+                    let mut message = m.0;
+                    message.world_name = world_metadata.world_name.clone();
+                    (message, m.1)
+                })
+                .collect(),
+        );
         encoded_queue.process();
 
         let done_messages = encoded_queue.receive();

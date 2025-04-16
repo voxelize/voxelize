@@ -8,6 +8,7 @@ mod events;
 mod generators;
 mod interests;
 mod messages;
+mod metadata;
 mod physics;
 mod profiler;
 mod registry;
@@ -25,6 +26,7 @@ use actix::{
 use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
 use log::{info, warn};
+use metadata::WorldMetadata;
 use nanoid::nanoid;
 use profiler::Profiler;
 use serde::{Deserialize, Serialize};
@@ -416,6 +418,10 @@ impl World {
             }
         }
 
+        let world_metadata = WorldMetadata {
+            world_name: name.to_owned(),
+        };
+
         let mut ecs = ECSWorld::new();
 
         ecs.register::<AddrComp>();
@@ -440,6 +446,7 @@ impl World {
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
+        ecs.insert(world_metadata);
 
         ecs.insert(Chunks::new(config));
         ecs.insert(EntitiesSaver::new(&config));
@@ -1451,7 +1458,9 @@ impl World {
                             id, etype
                         );
                         // remove the file
-                        fs::remove_file(path).unwrap();
+                        if let Err(e) = fs::remove_file(path) {
+                            warn!("Failed to remove file {:?}", e);
+                        }
                     }
                 }
             }
@@ -1525,6 +1534,7 @@ impl World {
         drop(metadatas);
 
         Message::new(&MessageType::Init)
+            .world_name(&self.name)
             .json(&serde_json::to_string(&json).unwrap())
             .peers(&peers)
             .entities(&entities)
