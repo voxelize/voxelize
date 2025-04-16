@@ -426,7 +426,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       data: T | null;
     }
   > = new Map();
-  // TODO: fix a bug where if the chunk is not loaded, the block entity will not be updated and will just go stray
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
@@ -2463,40 +2462,57 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
-      this.blockEntityUpdateListeners.forEach((listener) => {
+
+      const runListeners = () => {
+        this.blockEntityUpdateListeners.forEach((listener) => {
+          const chunkCoords = ChunkUtils.mapVoxelToChunk(
+            [vx, vy, vz],
+            this.options.chunkSize
+          );
+          const chunkName = ChunkUtils.getChunkName(chunkCoords);
+          const chunk = this.chunks.loaded.get(chunkName);
+          // very iffy if statement. the intention is to check if chunk is
+          // mesh-initialized.
+          if (!chunk || chunk.meshes.size === 0) {
+            const unbind = this.addChunkInitListener(chunkCoords, () => {
+              listener({
+                id,
+                voxel: [vx, vy, vz],
+                oldValue: (originalData as any)?.data ?? null,
+                newValue: data as T | null,
+                operation,
+                etype: type,
+              });
+              unbind();
+            });
+
+            return;
+          }
+
+          listener({
+            id,
+            voxel: [vx, vy, vz],
+            oldValue: (originalData as any)?.data ?? null,
+            newValue: data as T | null,
+            operation,
+            etype: type,
+          });
+        });
+      };
+
+      const chunk = this.getChunkByPosition(vx, vy, vz);
+      if (!chunk) {
         const chunkCoords = ChunkUtils.mapVoxelToChunk(
           [vx, vy, vz],
           this.options.chunkSize
         );
-        const chunkName = ChunkUtils.getChunkName(chunkCoords);
-        const chunk = this.chunks.loaded.get(chunkName);
-        // very iffy if statement. the intention is to check if chunk is
-        // mesh-initialized.
-        if (!chunk || chunk.meshes.size === 0) {
-          const unbind = this.addChunkInitListener(chunkCoords, () => {
-            listener({
-              id,
-              voxel: [vx, vy, vz],
-              oldValue: (originalData as any)?.data ?? null,
-              newValue: data as T | null,
-              operation,
-              etype: type,
-            });
-            unbind();
-          });
-
-          return;
-        }
-
-        listener({
-          id,
-          voxel: [vx, vy, vz],
-          oldValue: (originalData as any)?.data ?? null,
-          newValue: data as T | null,
-          operation,
-          etype: type,
+        const unbind = this.addChunkInitListener(chunkCoords, () => {
+          runListeners();
+          unbind();
         });
-      });
+      } else {
+        runListeners();
+      }
 
       switch (operation) {
         case "DELETE": {
@@ -2764,11 +2780,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         for (const mesh of meshes) {
           this.buildChunkMesh(x, z, mesh);
         }
-
-        triggerInitListener(chunk);
-      } else {
-        triggerInitListener(chunk);
       }
+
+      triggerInitListener(chunk);
     });
   }
 
