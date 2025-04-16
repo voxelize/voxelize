@@ -426,6 +426,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       data: T | null;
     }
   > = new Map();
+  // TODO: fix a bug where if the chunk is not loaded, the block entity will not be updated and will just go stray
   private blockEntityUpdateListeners = new Set<BlockEntityUpdateListener<T>>();
 
   private blockUpdateListeners = new Set<BlockUpdateListener>();
