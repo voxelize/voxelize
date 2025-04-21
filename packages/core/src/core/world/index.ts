@@ -1328,7 +1328,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const vz = Math.floor(pz);
     const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
 
-    return this.blockEntitiesMap.get(voxelName).data || null;
+    return this.blockEntitiesMap.get(voxelName)?.data || null;
   }
 
   setBlockEntityDataAt(px: number, py: number, pz: number, data: T) {
