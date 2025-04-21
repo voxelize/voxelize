@@ -759,6 +759,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     if (this.body) {
       this.body.setPosition([vx + 0.5, vy + bodyHeight / 2 + 1, vz + 0.5]);
+      this.body.resting = [0, 0, 0];
+      this.body.velocity = [0, 0, 0];
+      this.body.forces = [0, 0, 0];
+      this.body.impulses = [0, 0, 0];
+      this.body.resting = [0, 0, 0];
     }
   };
 
