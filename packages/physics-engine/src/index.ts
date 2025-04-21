@@ -351,9 +351,11 @@ export class Engine {
         if (aabbs.length === 0) {
           continue;
         }
-        const union = aabbs.reduce((acc, aabb) => {
-          return acc.union(aabb);
-        }, aabbs[0]);
+        const union = aabbs.reduce((acc, aabb) => acc.union(aabb), aabbs[0]);
+        if (union.maxY + Engine.EPSILON < footY) continue;
+        const bodyZWidth = box.maxZ - box.minZ;
+        const supportWidthZ = union.maxZ - union.minZ;
+        if (supportWidthZ + Engine.EPSILON < bodyZWidth * 0.7) continue;
         cliffX = isPx ? union.maxX : union.minX;
       }
     }
@@ -379,9 +381,11 @@ export class Engine {
         if (aabbs.length === 0) {
           continue;
         }
-        const union = aabbs.reduce((acc, aabb) => {
-          return acc.union(aabb);
-        }, aabbs[0]);
+        const union = aabbs.reduce((acc, aabb) => acc.union(aabb), aabbs[0]);
+        if (union.maxY + Engine.EPSILON < footY) continue;
+        const bodyXWidth = box.maxX - box.minX;
+        const supportWidthX = union.maxX - union.minX;
+        if (supportWidthX + Engine.EPSILON < bodyXWidth * 0.7) continue;
         cliffZ = isPz ? union.maxZ : union.minZ;
       }
     }
@@ -641,4 +645,3 @@ export class Engine {
 
 export * from "./rigid-body";
 export * from "./sweep";
-
