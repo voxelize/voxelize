@@ -10,11 +10,12 @@ const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-Math.PI / 4, 0, -Math.PI / 8)
 );
-const BLOCK_POSITION = new THREE.Vector3(1.4, -1.8, -2);
+const BLOCK_POSITION = new THREE.Vector3(1.4, -1.4, -2.061);
 const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
   -Math.PI / 4
 );
+const ARM_TRANSITION_DURATION = 0.2; // Duration in seconds for arm transition animation
 
 const SWING_TIMES = [0, 0.05, 0.1, 0.15, 0.2, 0.3];
 
@@ -105,6 +106,17 @@ export class Arm extends THREE.Group {
    */
   private clock = new THREE.Clock();
 
+  // Animation properties for the arm transition
+  private isTransitioning = false;
+  private transitionStartTime = 0;
+  private transitionDuration = ARM_TRANSITION_DURATION;
+  private transitionDirection = 0; // 0: down, 1: up
+  private pendingArmObject: THREE.Object3D | undefined;
+  private pendingCustomType: string | undefined;
+  private initialArmY = 0;
+  private targetArmY = 0;
+  private currentArmObject: THREE.Object3D | null = null;
+
   emitSwingEvent: () => void;
 
   constructor(options: Partial<ArmOptions> = {}) {
@@ -191,7 +203,24 @@ export class Arm extends THREE.Group {
         this.setBlock(object);
       }
     } else {
-      // TODO(balta): Create animation of arm coming down and coming back up
+      // Store the pending object and type
+      this.pendingArmObject = object;
+      this.pendingCustomType = customType;
+
+      // Set initial animation state
+      if (!this.isTransitioning) {
+        this.isTransitioning = true;
+        this.transitionStartTime = this.clock.elapsedTime;
+        this.transitionDirection = 0; // Start by moving down
+
+        // Store the initial Y position to animate from
+        if (this.children.length > 0) {
+          this.currentArmObject = this.children[0] as THREE.Object3D;
+          this.initialArmY = this.currentArmObject.position.y;
+          // Move down by 5 units (out of view)
+          this.targetArmY = this.initialArmY - 5;
+        }
+      }
     }
   };
 
@@ -211,6 +240,7 @@ export class Arm extends THREE.Group {
     this.swingAnimation.clampWhenFinished = true;
 
     this.add(arm);
+    this.currentArmObject = arm;
   };
 
   private setBlock = (object: THREE.Object3D) => {
@@ -227,6 +257,7 @@ export class Arm extends THREE.Group {
     this.swingAnimation.clampWhenFinished = true;
 
     this.add(object);
+    this.currentArmObject = object;
   };
 
   private setCustomObject = (type: string, object: THREE.Object3D) => {
@@ -248,6 +279,7 @@ export class Arm extends THREE.Group {
     this.swingAnimation.clampWhenFinished = true;
 
     this.add(object);
+    this.currentArmObject = object;
   };
 
   /**
@@ -260,6 +292,89 @@ export class Arm extends THREE.Group {
     const delta = Math.min(0.1, this.clock.getDelta());
 
     this.mixer.update(delta);
+
+    // Handle arm object transition animation if active
+    if (this.isTransitioning) {
+      const elapsed = this.clock.elapsedTime - this.transitionStartTime;
+      const progress = Math.min(elapsed / this.transitionDuration, 1);
+
+      // Use more subtle easing functions
+      // easeOutCubic for smooth movement without extreme overshooting
+      const easeOutCubic = (x: number): number => {
+        return 1 - Math.pow(1 - x, 3);
+      };
+
+      // easeInOutQuad for gentle acceleration and deceleration
+      const easeInOutQuad = (x: number): number => {
+        return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+      };
+
+      if (this.transitionDirection === 0) {
+        // Moving down phase - use easeOutCubic for smooth exit
+        if (this.currentArmObject) {
+          const easedProgress = easeOutCubic(progress);
+          const newY = THREE.MathUtils.lerp(
+            this.initialArmY,
+            this.targetArmY,
+            easedProgress
+          );
+          this.currentArmObject.position.y = newY;
+        }
+
+        // When reaching the bottom, switch to the new object
+        if (progress >= 1) {
+          this.clear();
+
+          // Set up the new object
+          if (this.pendingCustomType) {
+            this.setCustomObject(this.pendingCustomType, this.pendingArmObject);
+          } else if (!this.pendingArmObject) {
+            this.setArm();
+          } else {
+            this.setBlock(this.pendingArmObject);
+          }
+
+          // Start with the new object below the view and animate up
+          if (this.children.length > 0) {
+            this.currentArmObject = this.children[0] as THREE.Object3D;
+
+            // Store the final target position (original position)
+            this.targetArmY = this.currentArmObject.position.y;
+
+            // Move the object down first (to start animation from below)
+            this.currentArmObject.position.y -= 5;
+            this.initialArmY = this.currentArmObject.position.y;
+          }
+
+          // Start the up animation
+          this.transitionDirection = 1;
+          this.transitionStartTime = this.clock.elapsedTime;
+        }
+      } else {
+        // Moving up phase - use easeInOutQuad for natural entrance
+        if (this.currentArmObject) {
+          const easedProgress = easeInOutQuad(progress);
+          const newY = THREE.MathUtils.lerp(
+            this.initialArmY,
+            this.targetArmY,
+            easedProgress
+          );
+          this.currentArmObject.position.y = newY;
+        }
+
+        // When finished moving up, end the transition
+        if (progress >= 1) {
+          this.isTransitioning = false;
+          this.pendingArmObject = undefined;
+          this.pendingCustomType = undefined;
+
+          // Ensure the object is exactly at its target position
+          if (this.currentArmObject) {
+            this.currentArmObject.position.y = this.targetArmY;
+          }
+        }
+      }
+    }
   }
 
   /**
