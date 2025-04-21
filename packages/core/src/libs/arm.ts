@@ -10,7 +10,7 @@ const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
   new THREE.Euler(-Math.PI / 4, 0, -Math.PI / 8)
 );
-const BLOCK_POSITION = new THREE.Vector3(1, -1.8, -2);
+const BLOCK_POSITION = new THREE.Vector3(1.4, -1.8, -2);
 const BLOCK_QUATERNION = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
   -Math.PI / 4
