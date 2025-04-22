@@ -624,6 +624,7 @@ import {
 
 import LolImage from "./assets/lol.png";
 import { Map } from "./map";
+import { BOT_HEAD_COLOR, BOT_HEAD_FRONT_COLOR, BOT_SCALE } from "./config/constants";
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
@@ -1027,7 +1028,7 @@ const start = async () => {
   });
 
   gui
-  .add({ world: currentWorldName }, "world", ["terrain", "flat"])
+  .add({ world: currentWorldName }, "world", ["terrain", "flat", "test"])
   .onChange((worldName: string) => {
     localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
     window.location.reload();

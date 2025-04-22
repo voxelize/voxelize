@@ -2,3 +2,16 @@ packages:
   - docs
   - packages/*
   - examples/client
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - '@voxelize/core'
+  - bufferutil
+  - core-js
+  - core-js-pure
+  - es5-ext
+  - esbuild
+  - nx
+  - protobufjs
+  - utf-8-validate
