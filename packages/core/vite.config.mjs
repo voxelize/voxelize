@@ -35,7 +35,9 @@ export default defineConfig({
       entry: path.resolve(__dirname, "src/index.ts"),
       name: "index",
       formats: ["es", "cjs"],
-      fileName: "index",
+      fileName: (format) => {
+        return format === 'es' ? 'index.mjs' : 'index.js';
+      },
     },
     rollupOptions: {},
     emptyOutDir: process.env.NODE_ENV === "production",
