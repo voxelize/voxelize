@@ -1347,15 +1347,20 @@ impl World {
 
         {
             let mut storage = self.write_component::<ChunkRequestsComp>();
-            let requests = storage.get_mut(client_ent).unwrap();
+            
+            // Check for component existence
+            if let Some(requests) = storage.get_mut(client_ent) {
+                chunks.iter().for_each(|coords| {
+                    requests.add(coords);
+                });
 
-            chunks.iter().for_each(|coords| {
-                requests.add(coords);
-            });
-
-            requests.set_center(&json.center);
-            requests.set_direction(&json.direction);
-            requests.sort();
+                requests.set_center(&json.center);
+                requests.set_direction(&json.direction);
+                requests.sort();
+            } else {
+                warn!("Client entity doesn't have ChunkRequestsComp component: {}", client_id);
+                //TODO: We could re-add the component here, server doesn't panic now though
+            }
         }
     }
 
