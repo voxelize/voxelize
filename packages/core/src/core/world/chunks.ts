@@ -1,5 +1,6 @@
 import { ChunkProtocol } from "@voxelize/protocol";
 import { Color, Vector4 } from "three";
+
 import { Coords2 } from "../../types";
 
 import { Chunk } from "./chunk";

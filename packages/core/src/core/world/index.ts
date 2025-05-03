@@ -2764,9 +2764,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         for (const mesh of meshes) {
           this.buildChunkMesh(x, z, mesh);
         }
+      }
 
-        triggerInitListener(chunk);
-      } else {
+      if (chunk.isReady) {
         triggerInitListener(chunk);
       }
     });

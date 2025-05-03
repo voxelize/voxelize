@@ -60,7 +60,10 @@ export class RawChunk {
         lights: this.lights.data.buffer,
         options: this.options,
       },
-      [this.voxels.data.buffer.slice(0), this.lights.data.buffer.slice(0)],
+      [
+        this.voxels.data.buffer.slice(0) as ArrayBuffer,
+        this.lights.data.buffer.slice(0) as ArrayBuffer,
+      ],
     ];
   }
 
