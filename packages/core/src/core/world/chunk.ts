@@ -17,11 +17,6 @@ export class Chunk extends RawChunk {
     super(id, coords, options);
   }
 
-  get isReady() {
-    // could potentially be wrong? but i'm p sure we add per level even if it's empty
-    return super.isReady && this.group.children.length > 0;
-  }
-
   setData(data: ChunkProtocol) {
     const { id, x, z } = data;
 
