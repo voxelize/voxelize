@@ -673,6 +673,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     defaultDimension?: number
   ) {
     const block = this.getBlockAt(...voxel);
+    if (block.id === 0) {
+      const chunk = this.getChunkByPosition(...voxel);
+      console.log(
+        "[ian] applying isolated block texture at",
+        block,
+        chunk.coords
+      );
+      const voxelData = chunk.voxels.data;
+      console.log(
+        "[ian]",
+        voxelData.filter((n) => !!n),
+        voxelData.length
+      );
+    }
     const idOrName = block.id;
     return this.applyBlockTextureAt(
       idOrName,
@@ -1431,10 +1445,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     const name = ChunkUtils.getChunkName(coords);
 
-    if (this.chunks.loaded.has(name)) {
-      listener(this.chunks.loaded.get(name));
-      return;
-    }
+    // if (this.chunks.loaded.has(name)) {
+    //   listener(this.chunks.loaded.get(name));
+    //   return;
+    // }
 
     const listeners = this.chunkInitializeListeners.get(name) || [];
     listeners.push(listener);
@@ -2760,14 +2774,23 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.chunks.loaded.set(name, chunk);
 
-      if (shouldGenerateChunkMeshes) {
-        for (const mesh of meshes) {
-          this.buildChunkMesh(x, z, mesh);
+      const buildMeshes = () => {
+        if (shouldGenerateChunkMeshes) {
+          for (const mesh of meshes) {
+            this.buildChunkMesh(x, z, mesh);
+          }
         }
-      }
+      };
 
       if (chunk.isReady) {
+        buildMeshes();
         triggerInitListener(chunk);
+      } else {
+        let disposer = () => {};
+        disposer = this.addChunkInitListener([x, z], () => {
+          buildMeshes();
+          disposer();
+        });
       }
     });
   }
