@@ -69,6 +69,17 @@ message ChatMessage {
   string body = 3;
 }
 
+message Movements {
+  bool up = 1;
+  bool down = 2;
+  bool left = 3;
+  bool right = 4;
+  bool front = 5;
+  bool back = 6;
+  bool sprint = 7;
+  float angle = 8;
+}
+
 message Message {
   enum Type {
     INIT = 0;
@@ -86,6 +97,7 @@ message Message {
     EVENT = 12;
     ACTION = 13;
     STATS = 14;
+    MOVEMENTS = 15;
   }
 
   Type type = 1;
@@ -102,4 +114,5 @@ message Message {
   repeated Update updates = 10;
 
   string world_name = 11;
+  Movements movements = 12;
 }

@@ -456,6 +456,15 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   public static readonly INPUT_IDENTIFIER = "voxelize-rigid-controls";
 
   /**
+   * --- Soft correction data ---
+   */
+  private correctionActive = false;
+  private correctionStart = 0;
+  private correctionDuration = 100; // ms to finish lerp
+  private correctionStartPos: [number, number, number] = [0, 0, 0];
+  private correctionTargetPos: [number, number, number] = [0, 0, 0];
+
+  /**
    * Construct a Voxelize rigid body based first person controls. This adds a rigid body
    * to the world's physics engine, and applies movement to the camera.
    *
@@ -516,9 +525,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.reset();
   }
 
-  onMessage = (
-    message: MessageProtocol<any, any, any, [number, number, number]>
-  ) => {
+  onMessage = (message: MessageProtocol<any, any, any, any>) => {
     switch (message.type) {
       case "INIT": {
         const { id } = message.json;
@@ -531,7 +538,32 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         for (const event of events) {
           switch (event.name.toLowerCase()) {
             case "vox-builtin:position": {
-              this.body.setPosition(event.payload);
+              // payload expected [x,y,z,timestamp]
+              const [x, y, z, ts] = event.payload as [
+                number,
+                number,
+                number,
+                number?
+              ];
+
+              // If timestamp missing, fallback to immediate set
+              if (ts === undefined) {
+                this.body.setPosition([x, y, z]);
+                this.body.velocity = [0, 0, 0];
+                break;
+              }
+
+              // Initiate soft correction lerp from current body position to target
+              this.correctionStartPos = this.body.getPosition() as [
+                number,
+                number,
+                number
+              ];
+              this.correctionTargetPos = [x, y, z];
+              this.correctionStart = performance.now();
+              this.correctionActive = true;
+
+              // Zero velocity to avoid overshoot
               this.body.velocity = [0, 0, 0];
               break;
             }
@@ -601,6 +633,46 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     this.moveRigidBody();
     this.updateRigidBody(delta);
+
+    // --------------------------------------------------------------
+    // Emit the client's movement state to the server every frame.
+    // --------------------------------------------------------------
+    this.packets.push({
+      type: "MOVEMENTS",
+      movements: {
+        up: this.movements.up,
+        down: this.movements.down,
+        left: this.movements.left,
+        right: this.movements.right,
+        front: this.movements.front,
+        back: this.movements.back,
+        sprint: this.movements.sprint,
+        angle: this.state.heading,
+      },
+    } as any);
+
+    // -----------------------
+    // Soft correction lerp
+    // -----------------------
+    if (this.correctionActive) {
+      const now = performance.now();
+      const t = (now - this.correctionStart) / this.correctionDuration;
+      if (t >= 1) {
+        this.body.setPosition(this.correctionTargetPos);
+        this.correctionActive = false;
+      } else if (t > 0) {
+        const nx =
+          this.correctionStartPos[0] +
+          (this.correctionTargetPos[0] - this.correctionStartPos[0]) * t;
+        const ny =
+          this.correctionStartPos[1] +
+          (this.correctionTargetPos[1] - this.correctionStartPos[1]) * t;
+        const nz =
+          this.correctionStartPos[2] +
+          (this.correctionTargetPos[2] - this.correctionStartPos[2]) * t;
+        this.body.setPosition([nx, ny, nz]);
+      }
+    }
   };
 
   /**

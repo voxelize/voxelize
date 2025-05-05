@@ -40,6 +40,7 @@ use std::f64::consts::E;
 use std::path::PathBuf;
 use std::sync::{Mutex, RwLock};
 use std::{env, sync::Arc};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     fs::{self, File},
     time::Duration,
@@ -156,6 +157,9 @@ pub struct World {
     /// The handler for commands.
     command_handle: Option<Arc<dyn Fn(&mut World, &str, &str) + Send + Sync>>,
 
+    /// Last time we accepted a MOVEMENTS packet from each client (ms since epoch)
+    movements_last_ts: HashMap<String, u128>,
+
     /// A map to spawn and create entities.
     entity_loaders:
         HashMap<String, Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>>,
@@ -232,6 +236,11 @@ pub struct TransportLeaveRequest {
     pub id: String,
 }
 
+/// Adjust the squared position tolerance for all future correction checks.
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct SetTolerance(pub f32);
+
 // Create a new struct that will be the actual actor
 pub struct SyncWorld(Arc<std::sync::RwLock<World>>);
 
@@ -284,6 +293,21 @@ impl Handler<Preload> for SyncWorld {
 
     fn handle(&mut self, _: Preload, _: &mut SyncContext<Self>) {
         self.0.write().unwrap().preload();
+    }
+}
+
+impl Handler<SetTolerance> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetTolerance, _: &mut SyncContext<Self>) {
+        let mut world = self.0.write().unwrap();
+        let world_name = world.name.clone();
+        let mut cfg = world.write_resource::<WorldConfig>();
+        cfg.position_tolerance_sq = msg.0.max(0.0);
+        log::info!(
+            "World {} position_tolerance_sq updated to {}",
+            world_name, cfg.position_tolerance_sq
+        );
     }
 }
 
@@ -347,6 +371,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
+        .with(PositionCorrectionSystem, "position-correct", &["physics"])
         .with(DataSavingSystem, "entities-saving", &["entities-meta"])
         .with(
             EntitiesSendingSystem,
@@ -490,6 +515,7 @@ impl World {
             client_modifier: None,
             transport_handle: None,
             command_handle: None,
+            movements_last_ts: HashMap::new(),
             addr: None,
             server_addr: None,
         };
@@ -911,6 +937,7 @@ impl World {
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
+            MessageType::Movements => self.on_movements(client_id, data),
             MessageType::Transport => {
                 if self.transport_handle.is_none() {
                     warn!("Transport calls are being called, but no transport handlers set!");
@@ -1634,5 +1661,66 @@ impl World {
             .peers(&peers)
             .entities(&entities)
             .build()
+    }
+
+    /// Handler for `Movements` type messages – a lightweight per-frame snapshot of client controls.
+    fn on_movements(&mut self, client_id: &str, data: Message) {
+        // Ensure the message carries movement data.
+        let Some(movements) = data.movements else { return };
+
+        // 1) Finite angle check – discard NaN or infinite
+        if !movements.angle.is_finite() {
+            log::warn!(
+                "Client {} sent MOVEMENTS with non-finite angle ({}). Dropping.",
+                client_id, movements.angle
+            );
+            return;
+        }
+
+        // 2) Simple rate-limit: allow at most 60 MOVEMENTS packets per second (≈16 ms)
+        const MOVEMENTS_MIN_INTERVAL_MS: u128 = 16; // ~60 FPS
+
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+
+        if let Some(last) = self.movements_last_ts.get(client_id) {
+            if now_ms.saturating_sub(*last) < MOVEMENTS_MIN_INTERVAL_MS {
+                return; // ignore spam
+            }
+        }
+        self.movements_last_ts.insert(client_id.to_owned(), now_ms);
+
+        // Get the client entity for component access.
+        let client_ent = if let Some(client) = self.clients().get(client_id) {
+            client.entity
+        } else {
+            return;
+        };
+
+        {
+            use specs::WriteStorage;
+
+            let mut brains: WriteStorage<BrainComp> = self.ecs.write_storage();
+
+            if let Some(brain) = brains.get_mut(client_ent) {
+                brain.state.heading = movements.angle;
+
+                let is_running =
+                    movements.front || movements.back || movements.left || movements.right;
+                if is_running {
+                    brain.walk();
+                } else {
+                    brain.stop();
+                }
+
+                if movements.up {
+                    brain.jump();
+                } else {
+                    brain.stop_jumping();
+                }
+            }
+        }
     }
 }
