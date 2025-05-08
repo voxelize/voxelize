@@ -1,6 +1,6 @@
 use crossbeam_channel::Receiver;
 use hashbrown::HashMap;
-use log::info;
+use log::{debug, info};
 use nalgebra::Vector3;
 use rapier3d::{
     geometry::DefaultBroadPhase,
@@ -14,7 +14,8 @@ use rapier3d::{
 };
 use specs::Entity;
 
-use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
+use crate::world::voxels::chunk::Chunk;
+use crate::{approx_equals, BlockRotation, Vec2, Vec3, VoxelAccess};
 
 use super::{registry::Registry, WorldConfig};
 
@@ -43,6 +44,8 @@ pub struct Physics {
     event_handler: ChannelEventCollector,
     gravity: Vector3<f32>,
     pub entity_to_handlers: HashMap<Entity, (ColliderHandle, RapierBodyHandle)>,
+    /// Static colliders representing terrain chunks when `rapier_chunk_collisions` is enabled.
+    pub chunk_colliders: HashMap<Vec2<i32>, (ColliderHandle, RapierBodyHandle)>,
 }
 
 impl Physics {
@@ -66,6 +69,7 @@ impl Physics {
             event_handler,
             gravity: vector![0.0, 0.0, 0.0],
             entity_to_handlers: HashMap::new(),
+            chunk_colliders: HashMap::new(),
         }
     }
 
@@ -122,6 +126,13 @@ impl Physics {
             self.collider_set
                 .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
 
+        log::debug!(
+            "[Physics] Added chunk collider at coords {:?} (body {:?}, collider {:?})",
+            body.aabb,
+            body_handle,
+            collider_handle
+        );
+
         (body_handle, collider_handle)
     }
 
@@ -139,6 +150,12 @@ impl Physics {
             &mut self.impulse_joint_set,
             &mut self.multibody_joint_set,
             true,
+        );
+
+        log::debug!(
+            "[Physics] Removed chunk collider (body {:?}, collider {:?})",
+            body_handle,
+            collider_handle
         );
     }
 
@@ -563,4 +580,170 @@ impl Physics {
         body.resting[2] = tmp_resting[2];
         body.stepped = true;
     }
+
+    /// Register a static height-field collider for a finished terrain chunk.
+    ///
+    /// Given the chunk's `(cx, cz)` coordinate and its `Chunk` object, this function:
+    /// 1. Builds a `nalgebra::DMatrix<f32>` height map from the chunk's precalculated
+    ///    `height_map` array.
+    /// 2. Creates a Rapier height-field `Collider` (as a fixed rigid-body) scaled so that
+    ///    one voxel corresponds to one Rapier unit in _x_ and _z_.  The resulting collider
+    ///    is translated such that its _x/z_ footprint exactly covers the chunk's world-space
+    ///    AABB and its _y_ origin is at 0 (the chunk base).
+    /// 3. Inserts the rigid-body + collider into the internal Rapier sets and returns their
+    ///    handles.
+    ///
+    /// Debug assertions ensure that the `chunk_coords` argument matches `chunk.coords` and that
+    /// the chunk size is consistent with its options.
+    ///
+    /// The order of the returned tuple is **(body_handle, collider_handle)** to mirror
+    /// `Physics::register` for entities.
+    pub fn register_chunk_collider(
+        &mut self,
+        chunk_coords: &Vec2<i32>,
+        chunk: &Chunk,
+    ) -> (RapierBodyHandle, ColliderHandle) {
+        debug_assert_eq!(
+            *chunk_coords, chunk.coords,
+            "Chunk coords do not match the supplied key when registering collider."
+        );
+
+        use nalgebra::DMatrix;
+
+        let size = chunk.options.size;
+        debug_assert!(size > 0, "Chunk size must be > 0");
+
+        let mut heights = Vec::with_capacity(size * size);
+        for z in 0..size {
+            for x in 0..size {
+                let height = chunk.height_map.get_u32(&[x as usize, z as usize]);
+                heights.push(height as f32);
+            }
+        }
+        let height_matrix = DMatrix::<f32>::from_row_slice(size, size, &heights);
+
+        // One voxel = 1 Rapier unit along X and Z.  Y scale is also 1 (heights already in voxels).
+        let scale = vector![1.0f32, 1.0f32, 1.0f32];
+
+        // Height-field's local origin is at its center on X/Z.  Translate so that the collider
+        // covers `[min, max]` exactly.
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let half_size = size as f32 * 0.5;
+
+        let collider = rapier3d::prelude::ColliderBuilder::heightfield(height_matrix, scale)
+            .translation(vector![
+                min_x as f32 + half_size,
+                0.0,
+                min_z as f32 + half_size
+            ])
+            .build();
+
+        let body = rapier3d::prelude::RigidBodyBuilder::fixed().build();
+        let body_handle = self.body_set.insert(body);
+        let collider_handle =
+            self.collider_set
+                .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
+
+        log::debug!(
+            "[Physics] Added chunk collider at coords {:?} (body {:?}, collider {:?})",
+            chunk_coords,
+            body_handle,
+            collider_handle
+        );
+
+        (body_handle, collider_handle)
+    }
+
+    /// Remove a previously registered chunk collider.
+    ///
+    /// This is the inverse of `register_chunk_collider` and cleans up both the Rapier
+    /// `Collider` and its owning fixed `RigidBody`.
+    pub fn unregister_chunk_collider(
+        &mut self,
+        collider: &ColliderHandle,
+        body: &RapierBodyHandle,
+    ) {
+        self.collider_set.remove(
+            collider.to_owned(),
+            &mut self.island_manager,
+            &mut self.body_set,
+            false,
+        );
+        self.body_set.remove(
+            body.to_owned(),
+            &mut self.island_manager,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            true,
+        );
+
+        log::debug!(
+            "[Physics] Removed chunk collider (body {:?}, collider {:?})",
+            body,
+            collider
+        );
+    }
 }
+
+// ------------------------------ Tests ----------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::voxels::chunk::ChunkOptions;
+
+    fn make_flat_chunk(size: usize, height: u32) -> Chunk {
+        let mut chunk = Chunk::new(
+            "test",
+            0,
+            0,
+            &ChunkOptions {
+                size,
+                max_height: 256,
+                sub_chunks: 8,
+            },
+        );
+
+        for x in 0..size {
+            for z in 0..size {
+                chunk.height_map[&[x, z]] = height;
+            }
+        }
+        chunk.status = crate::ChunkStatus::Ready;
+        chunk
+    }
+
+    #[test]
+    fn collider_translation_and_cleanup() {
+        let size = 16;
+        let chunk = make_flat_chunk(size, 10);
+        let coords = chunk.coords;
+
+        let mut physics = Physics::new();
+
+        let (body, collider) = physics.register_chunk_collider(&coords, &chunk);
+
+        assert!(
+            physics.collider_set.contains(collider),
+            "Collider not registered."
+        );
+
+        let collider_world = &physics.collider_set[collider];
+        let trans = collider_world.translation();
+        let expected = vector![size as f32 * 0.5, 0.0, size as f32 * 0.5];
+        assert!(
+            (trans - expected).norm() < 1e-4,
+            "Translation incorrect: {:?}",
+            trans
+        );
+
+        physics.unregister_chunk_collider(&collider, &body);
+        assert!(
+            !physics.collider_set.contains(collider),
+            "Collider not removed"
+        );
+    }
+}
+
+// End of file

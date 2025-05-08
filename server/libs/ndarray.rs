@@ -80,3 +80,9 @@ impl<T: Num + Clone> IndexMut<&[usize]> for Ndarray<T> {
 pub fn ndarray<T: Num + Clone>(shape: &[usize], default: T) -> Ndarray<T> {
     Ndarray::new(shape, default)
 }
+
+impl Ndarray<u32> {
+    pub fn get_u32(&self, coords: &[usize]) -> u32 {
+        self.data[self.index(coords)]
+    }
+}

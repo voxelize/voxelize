@@ -1,6 +1,6 @@
 mod access;
 mod block;
-mod chunk;
+pub mod chunk;
 mod chunks;
 mod space;
 
