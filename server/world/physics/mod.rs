@@ -110,7 +110,7 @@ impl Physics {
         let rapier_body = RapierBodyBuilder::dynamic()
             .additional_mass(body.mass)
             .translation(vector![px, py, pz])
-            .gravity_scale(0.0)
+            // .gravity_scale(0.0)
             .lock_rotations()
             .build();
         let mut collider = ColliderBuilder::capsule_y(
@@ -122,7 +122,7 @@ impl Physics {
         collider.set_active_events(ActiveEvents::COLLISION_EVENTS);
 
         let body_handle = self.body_set.insert(rapier_body);
-        let collider_handle =
+        let collider_handle: ColliderHandle =
             self.collider_set
                 .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
 
@@ -581,20 +581,27 @@ impl Physics {
         body.stepped = true;
     }
 
-    /// Register a static height-field collider for a finished terrain chunk.
+    // Helper function to create a fallback collider when mesh data is not available
+    fn create_fallback_collider(&self, chunk: &Chunk) -> rapier3d::prelude::Collider {
+        let Vec3(min_x, _, min_z) = chunk.min;
+        let size = chunk.options.size as f32;
+
+        rapier3d::prelude::ColliderBuilder::cuboid(size / 2.0, 0.1, size / 2.0)
+            .translation(vector![
+                min_x as f32 + size / 2.0,
+                0.0,
+                min_z as f32 + size / 2.0
+            ])
+            .build()
+    }
+
+    /// Register a collider for a chunk based on its calculated meshes.
     ///
     /// Given the chunk's `(cx, cz)` coordinate and its `Chunk` object, this function:
-    /// 1. Builds a `nalgebra::DMatrix<f32>` height map from the chunk's precalculated
-    ///    `height_map` array.
-    /// 2. Creates a Rapier height-field `Collider` (as a fixed rigid-body) scaled so that
-    ///    one voxel corresponds to one Rapier unit in _x_ and _z_.  The resulting collider
-    ///    is translated such that its _x/z_ footprint exactly covers the chunk's world-space
-    ///    AABB and its _y_ origin is at 0 (the chunk base).
+    /// 1. Creates a compound collider from the chunk's meshes in the `meshes` field
+    /// 2. Creates a Rapier collider for each mesh level in the chunk
     /// 3. Inserts the rigid-body + collider into the internal Rapier sets and returns their
     ///    handles.
-    ///
-    /// Debug assertions ensure that the `chunk_coords` argument matches `chunk.coords` and that
-    /// the chunk size is consistent with its options.
     ///
     /// The order of the returned tuple is **(body_handle, collider_handle)** to mirror
     /// `Physics::register` for entities.
@@ -608,50 +615,151 @@ impl Physics {
             "Chunk coords do not match the supplied key when registering collider."
         );
 
-        use nalgebra::DMatrix;
-
-        let size = chunk.options.size;
-        debug_assert!(size > 0, "Chunk size must be > 0");
-
-        let mut heights = Vec::with_capacity(size * size);
-        for z in 0..size {
-            for x in 0..size {
-                let height = chunk.height_map.get_u32(&[x as usize, z as usize]);
-                heights.push(height as f32);
-            }
-        }
-        let height_matrix = DMatrix::<f32>::from_row_slice(size, size, &heights);
-
-        // One voxel = 1 Rapier unit along X and Z.  Y scale is also 1 (heights already in voxels).
-        let scale = vector![1.0f32, 1.0f32, 1.0f32];
-
-        // Height-field's local origin is at its center on X/Z.  Translate so that the collider
-        // covers `[min, max]` exactly.
-        let Vec3(min_x, _, min_z) = chunk.min;
-        let half_size = size as f32 * 0.5;
-
-        let collider = rapier3d::prelude::ColliderBuilder::heightfield(height_matrix, scale)
-            .translation(vector![
-                min_x as f32 + half_size,
-                0.0,
-                min_z as f32 + half_size
-            ])
-            .build();
-
+        // Create a fixed rigid body for the chunk
         let body = rapier3d::prelude::RigidBodyBuilder::fixed().build();
         let body_handle = self.body_set.insert(body);
-        let collider_handle =
-            self.collider_set
-                .insert_with_parent(collider, body_handle.clone(), &mut self.body_set);
 
-        log::debug!(
-            "[Physics] Added chunk collider at coords {:?} (body {:?}, collider {:?})",
-            chunk_coords,
-            body_handle,
-            collider_handle
+        // Handle the case where there are no meshes yet
+        if chunk.meshes.is_none() || chunk.meshes.as_ref().unwrap().is_empty() {
+            // Create a simple collider as fallback
+            let Vec3(min_x, _, min_z) = chunk.min;
+            let size = chunk.options.size as f32;
+            let collider = rapier3d::prelude::ColliderBuilder::cuboid(size / 2.0, 0.1, size / 2.0)
+                .translation(vector![
+                    min_x as f32 + size / 2.0,
+                    0.0,
+                    min_z as f32 + size / 2.0
+                ])
+                .build();
+
+            let collider_handle = self.collider_set.insert_with_parent(
+                collider,
+                body_handle.clone(),
+                &mut self.body_set,
+            );
+
+            debug!(
+                "[Physics] Added fallback chunk collider for coords {:?} (no meshes available)",
+                chunk_coords
+            );
+
+            return (body_handle, collider_handle);
+        }
+
+        // Create a compound collider from all mesh levels
+        let meshes = chunk.meshes.as_ref().unwrap();
+
+        // We'll use the first mesh to create the main collider, then add the rest as children
+        let first_mesh_level = *meshes.keys().next().unwrap();
+        let first_mesh = &meshes[&first_mesh_level];
+
+        // Create the main collider (either from mesh or fallback)
+        let main_collider = if !first_mesh.geometries.is_empty() {
+            // Collect all vertices and indices from all geometries in the mesh
+            let mut all_vertices = Vec::new();
+            let mut all_indices = Vec::new();
+            let mut offset: usize = 0;
+
+            for geometry in &first_mesh.geometries {
+                // Add vertices
+                for pos_chunk in geometry.positions.chunks(3) {
+                    all_vertices.push(rapier3d::prelude::Point::new(
+                        pos_chunk[0],
+                        pos_chunk[1],
+                        pos_chunk[2],
+                    ));
+                }
+
+                // Add indices with offset
+                for idx_chunk in geometry.indices.chunks(3) {
+                    all_indices.push([
+                        idx_chunk[0] as u32 + offset as u32,
+                        idx_chunk[1] as u32 + offset as u32,
+                        idx_chunk[2] as u32 + offset as u32,
+                    ]);
+                }
+
+                // Update offset for the next geometry
+                offset += geometry.positions.len() / 3;
+            }
+
+            if !all_vertices.is_empty() && !all_indices.is_empty() {
+                rapier3d::prelude::ColliderBuilder::trimesh(all_vertices, all_indices).build()
+            } else {
+                // Fallback if empty geometries
+                self.create_fallback_collider(chunk)
+            }
+        } else {
+            // Fallback if no geometries
+            self.create_fallback_collider(chunk)
+        };
+
+        let main_collider_handle = self.collider_set.insert_with_parent(
+            main_collider,
+            body_handle.clone(),
+            &mut self.body_set,
         );
 
-        (body_handle, collider_handle)
+        // Process other mesh levels if any
+        for (level, mesh) in meshes.iter() {
+            if *level == first_mesh_level {
+                continue; // Skip the first mesh we already processed
+            }
+
+            // Skip if no geometries
+            if mesh.geometries.is_empty() {
+                continue;
+            }
+
+            // Collect all vertices and indices from all geometries in this mesh level
+            let mut level_vertices = Vec::new();
+            let mut level_indices = Vec::new();
+            let mut offset: usize = 0;
+
+            for geometry in &mesh.geometries {
+                // Add vertices
+                for pos_chunk in geometry.positions.chunks(3) {
+                    level_vertices.push(rapier3d::prelude::Point::new(
+                        pos_chunk[0],
+                        pos_chunk[1],
+                        pos_chunk[2],
+                    ));
+                }
+
+                // Add indices with offset
+                for idx_chunk in geometry.indices.chunks(3) {
+                    level_indices.push([
+                        idx_chunk[0] as u32 + offset as u32,
+                        idx_chunk[1] as u32 + offset as u32,
+                        idx_chunk[2] as u32 + offset as u32,
+                    ]);
+                }
+
+                // Update offset for the next geometry
+                offset += geometry.positions.len() / 3;
+            }
+
+            if level_vertices.is_empty() || level_indices.is_empty() {
+                continue;
+            }
+
+            let level_collider =
+                rapier3d::prelude::ColliderBuilder::trimesh(level_vertices, level_indices).build();
+
+            self.collider_set.insert_with_parent(
+                level_collider,
+                body_handle.clone(),
+                &mut self.body_set,
+            );
+        }
+
+        debug!(
+            "[Physics] Added mesh-based chunk collider at coords {:?} with {} mesh levels",
+            chunk_coords,
+            meshes.len()
+        );
+
+        (body_handle, main_collider_handle)
     }
 
     /// Remove a previously registered chunk collider.

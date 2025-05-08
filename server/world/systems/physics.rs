@@ -102,19 +102,28 @@ impl<'a> System<'a> for PhysicsSystem {
         }
 
         // Tick the voxel physics of all entities (non-clients).
-        (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
-            .par_join()
-            .for_each(|(curr_chunk, body, position, _)| {
-                if !chunks.is_chunk_ready(&curr_chunk.coords) {
-                    return;
-                }
+        // Skip iterate_body if using Rapier chunk physics
+        if !config.rapier_chunk_collisions {
+            (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
+                .par_join()
+                .for_each(|(curr_chunk, body, position, _)| {
+                    if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                        return;
+                    }
 
-                Physics::iterate_body(&mut body.0, stats.delta, chunks.deref(), &registry, &config);
+                    Physics::iterate_body(
+                        &mut body.0,
+                        stats.delta,
+                        chunks.deref(),
+                        &registry,
+                        &config,
+                    );
 
-                let body_pos = body.0.get_position();
-                let Vec3(px, py, pz) = body_pos;
-                position.0.set(px, py, pz);
-            });
+                    let body_pos = body.0.get_position();
+                    let Vec3(px, py, pz) = body_pos;
+                    position.0.set(px, py, pz);
+                });
+        }
 
         // Move the clients' rigid bodies to their positions
         (&entities, &interactors, &positions)
@@ -129,6 +138,17 @@ impl<'a> System<'a> for PhysicsSystem {
         let collision_events = physics.step(stats.delta);
         let mut started_collisions = Vec::new();
         let mut stopped_collisions = Vec::new();
+
+        // Update entity positions from Rapier rigid bodies after physics step
+        if config.rapier_chunk_collisions {
+            (&interactors, &mut positions)
+                .join()
+                .for_each(|(interactor, position)| {
+                    let rapier_body = physics.get(interactor.body_handle());
+                    let translation = rapier_body.translation();
+                    position.0.set(translation.x, translation.y, translation.z);
+                });
+        }
 
         for event in collision_events {
             match event {
