@@ -1,5 +1,5 @@
 {
   "snapshot": "snapshot-20250509-16852e57-d7d3-4ded-a820-8d4d3159ea43",
-  "install": "pnpm install && pnpm run proto && pnpm run build",
+  "install": "pnpm install && pnpm run proto && pnpm run build && echo 'Environment installed successfully'",
   "terminals": []
 }
