@@ -1,0 +1,5 @@
+{
+  "snapshot": "snapshot-20250509-6c01a237-2176-4ad7-9b88-5afe2ba34ae8",
+  "install": "pnpm install && pnpm run proto && pnpm run build",
+  "terminals": []
+}
