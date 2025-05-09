@@ -59,6 +59,12 @@ impl Lights {
         let max_height = *max_height as i32;
         let is_sunlight = *color == LightColor::Sunlight;
 
+        // Re-use an integer based chunk size to avoid the expensive floating-point maths
+        // in `ChunkUtils::map_voxel_to_chunk` that was previously called per neighbour.
+        // `div_euclid` gives us the same behaviour as the original `floor`-based approach
+        // for both positive and negative values.
+        let chunk_size_i32 = config.chunk_size as i32;
+
         while let Some(LightNode { voxel, level }) = queue.pop_front() {
             if level == 0 {
                 continue;
@@ -83,8 +89,9 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
 
-                let Vec2(ncx, ncz) =
-                    ChunkUtils::map_voxel_to_chunk(nvx, nvy, nvz, config.chunk_size);
+                // Fast integer mapping from voxel → chunk coordinate (x & z only).
+                let ncx = nvx.div_euclid(chunk_size_i32);
+                let ncz = nvz.div_euclid(chunk_size_i32);
 
                 // If neighbor is out of this chunk, or if voxel is out of the specified range, continue to next neighbor.
                 if ncx < start_cx
@@ -380,6 +387,7 @@ impl Lights {
     }
 
     /// Check to see if light can go "into" one block, disregarding the source.
+    #[inline(always)]
     pub fn can_enter_into(target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
         if (dx + dy + dz).abs() != 1 {
             panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
@@ -417,6 +425,7 @@ impl Lights {
     }
 
     /// Check to see if light can enter from one block to another.
+    #[inline(always)]
     pub fn can_enter(source: &[bool; 6], target: &[bool; 6], dx: i32, dy: i32, dz: i32) -> bool {
         if (dx + dy + dz).abs() != 1 {
             panic!("This isn't supposed to happen. Light neighboring direction should be on 1 axis only.");
