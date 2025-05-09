@@ -16,4 +16,4 @@ Cargo.lock
 
 yarn-error.log
 
-.pnpm-store
+.pnpm-store/verify-installation.sh
