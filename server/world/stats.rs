@@ -13,6 +13,12 @@ pub struct StatsJson {
     pub tick: u64,
     pub time: f32,
     pub delta: f32,
+
+    // Performance metrics (optional for backward compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_collider_ops_ns: Option<u128>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_collision_count: Option<u64>,
 }
 
 /// A general statistical manager of Voxelize.
@@ -31,6 +37,12 @@ pub struct Stats {
 
     /// The time of the last tick.
     pub prev_time: SystemTime,
+
+    /// Nanoseconds spent registering/unregistering chunk colliders in the last tick.
+    pub chunk_collider_ops_ns: u128,
+
+    /// Number of collisions detected between entities and chunk colliders in the last tick.
+    pub chunk_collision_count: u64,
 
     path: PathBuf,
 
@@ -51,6 +63,8 @@ impl Stats {
             time: default_time,
             path,
             saving,
+            chunk_collider_ops_ns: 0,
+            chunk_collision_count: 0,
         }
     }
 
@@ -64,6 +78,8 @@ impl Stats {
             tick: self.tick,
             time: self.time,
             delta: self.delta,
+            chunk_collider_ops_ns: Some(self.chunk_collider_ops_ns),
+            chunk_collision_count: Some(self.chunk_collision_count),
         }
     }
 
