@@ -758,23 +758,23 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight + 1, vz + 0.5);
 
     if (this.body) {
-      this.body.setPosition([vx + 0.5, vy + bodyHeight / 2 + 1, vz + 0.5]);
       this.body.resting = [0, 0, 0];
       this.body.velocity = [0, 0, 0];
       this.body.forces = [0, 0, 0];
       this.body.impulses = [0, 0, 0];
       this.body.resting = [0, 0, 0];
+      this.body.setPosition([vx + 0.5, vy + bodyHeight / 2 + 1, vz + 0.5]);
     }
   };
 
   /**
    * Teleport the rigid controls to the top of this voxel column.
    */
-  teleportToTop = (vx?: number, vz?: number) => {
+  teleportToTop = (vx?: number, vz?: number, yOffset = 0) => {
     if (vx === undefined || vz === undefined) {
       const { x, z } = this.object.position;
       const maxHeight = this.world.getMaxHeightAt(x, z);
-      this.teleport(Math.floor(x), maxHeight, Math.floor(z));
+      this.teleport(Math.floor(x), maxHeight + yOffset, Math.floor(z));
       return;
     }
 
@@ -782,11 +782,16 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       [vx, 0, vz],
       this.world.options.chunkSize
     );
-    this.teleport(vx, 0, vz);
-    this.world.addChunkInitListener([cx, cz], () => {
+    const chunk = this.world.getChunkByCoords(cx, cz);
+    const teleport = () => {
       const maxHeight = this.world.getMaxHeightAt(vx, vz);
-      this.teleport(Math.floor(vx), maxHeight, Math.floor(vz));
-    });
+      this.teleport(Math.floor(vx), maxHeight + yOffset, Math.floor(vz));
+    };
+    if (chunk.isReady) {
+      teleport();
+    } else {
+      this.world.addChunkInitListener([cx, cz], teleport);
+    }
   };
 
   /**
