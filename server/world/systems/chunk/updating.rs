@@ -215,27 +215,36 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             }
 
             // Second pass: Remove all light from removed light sources
-            for (voxel, light_block) in removed_light_sources {
-                let Vec3(vx, vy, vz) = voxel;
+            let mut red_removals = Vec::new();
+            let mut green_removals = Vec::new();
+            let mut blue_removals = Vec::new();
 
-                // Remove all light from this position
-                if chunks.get_sunlight(vx, vy, vz) != 0 {
-                    Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, &config, &registry);
+            for (voxel, light_block) in &removed_light_sources {
+                if light_block.red_light_level > 0 {
+                    red_removals.push(voxel.clone());
                 }
-                if chunks.get_torch_light(vx, vy, vz, &RED) != 0 || light_block.red_light_level > 0
-                {
-                    Lights::remove_light(&mut *chunks, &voxel, &RED, &config, &registry);
+                if light_block.green_light_level > 0 {
+                    green_removals.push(voxel.clone());
                 }
-                if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0
-                    || light_block.green_light_level > 0
-                {
-                    Lights::remove_light(&mut *chunks, &voxel, &GREEN, &config, &registry);
+                if light_block.blue_light_level > 0 {
+                    blue_removals.push(voxel.clone());
                 }
-                if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0
-                    || light_block.blue_light_level > 0
-                {
-                    Lights::remove_light(&mut *chunks, &voxel, &BLUE, &config, &registry);
+
+                // Remove any residual sunlight directly
+                let Vec3(vx, vy, vz) = voxel;
+                if chunks.get_sunlight(*vx, *vy, *vz) != 0 {
+                    Lights::remove_light(&mut *chunks, voxel, &SUNLIGHT, &config, &registry);
                 }
+            }
+
+            if !red_removals.is_empty() {
+                Lights::remove_lights(&mut *chunks, &red_removals, &RED, &config, &registry);
+            }
+            if !green_removals.is_empty() {
+                Lights::remove_lights(&mut *chunks, &green_removals, &GREEN, &config, &registry);
+            }
+            if !blue_removals.is_empty() {
+                Lights::remove_lights(&mut *chunks, &blue_removals, &BLUE, &config, &registry);
             }
 
             // Third pass: Process light updates for all other changes
