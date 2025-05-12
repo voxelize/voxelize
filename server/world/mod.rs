@@ -347,6 +347,11 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
+        .with(
+            ChunkCollisionEventSystem::default(),
+            "chunk-collision-events",
+            &["physics"],
+        )
         .with(DataSavingSystem, "entities-saving", &["entities-meta"])
         .with(
             EntitiesSendingSystem,
