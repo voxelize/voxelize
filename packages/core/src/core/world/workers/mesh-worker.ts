@@ -401,7 +401,7 @@ onmessage = function (e) {
             // Get first AABB as base if exists
             let selfBounding = aabbs[0] || new AABB(0, 0, 0, 1, 1, 1);
             let nBounding = nBlock.aabbs[0] || new AABB(0, 0, 0, 1, 1, 1);
-          
+
             // Union remaining AABBs
             for (let i = 1; i < aabbs.length; i++) {
               const aabb = aabbs[i];
@@ -414,7 +414,7 @@ onmessage = function (e) {
                 Math.max(selfBounding.maxZ, aabb.maxZ)
               );
             }
-          
+
             for (let i = 1; i < nBlock.aabbs.length; i++) {
               const aabb = nBlock.aabbs[i];
               nBounding = new AABB(
@@ -426,7 +426,7 @@ onmessage = function (e) {
                 Math.max(nBounding.maxZ, aabb.maxZ)
               );
             }
-          
+
             // Create translated bounding box
             const translatedBounding = new AABB(
               nBounding.minX + dir[0],
@@ -436,7 +436,7 @@ onmessage = function (e) {
               nBounding.maxY + dir[1],
               nBounding.maxZ + dir[2]
             );
-          
+
             // Manual intersection check
             const intersects = !(
               translatedBounding.maxX < selfBounding.minX ||
@@ -446,16 +446,16 @@ onmessage = function (e) {
               translatedBounding.maxZ < selfBounding.minZ ||
               translatedBounding.minZ > selfBounding.maxZ
             );
-          
+
             // Manual touching check
-            const touches = 
+            const touches =
               translatedBounding.maxX === selfBounding.minX ||
               translatedBounding.minX === selfBounding.maxX ||
               translatedBounding.maxY === selfBounding.minY ||
               translatedBounding.minY === selfBounding.maxY ||
               translatedBounding.maxZ === selfBounding.minZ ||
               translatedBounding.minZ === selfBounding.maxZ;
-          
+
             if (!(intersects || touches)) {
               seeThroughCheck = true;
             }
