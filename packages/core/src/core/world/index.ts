@@ -2006,6 +2006,90 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Batch remove light from multiple voxels that previously emitted the same light color.
+   * This drastically improves performance when many contiguous light sources are removed at once.
+   */
+  public removeLightsBatch(voxels: Coords3[], color: LightColor) {
+    if (!voxels.length) return;
+
+    const { maxHeight, maxLightLevel } = this.options;
+    const isSunlight = color === "SUNLIGHT";
+
+    const queue: LightNode[] = [];
+    const fill: LightNode[] = [];
+
+    // Initialise the queue with all voxels to be cleared.
+    voxels.forEach(([vx, vy, vz]) => {
+      const level = isSunlight
+        ? this.getSunlightAt(vx, vy, vz)
+        : this.getTorchLightAt(vx, vy, vz, color);
+      if (level === 0) return;
+
+      // Push into queue and immediately clear the light so we don't visit twice.
+      queue.push({ voxel: [vx, vy, vz], level });
+      if (isSunlight) {
+        this.setSunlightAt(vx, vy, vz, 0);
+      } else {
+        this.setTorchLightAt(vx, vy, vz, 0, color);
+      }
+    });
+
+    // BFS similar to removeLight but starting with multiple seeds.
+    while (queue.length) {
+      const { voxel, level } = queue.shift();
+      const [vx, vy, vz] = voxel;
+
+      for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
+        const nvy = vy + oy;
+        if (nvy < 0 || nvy >= maxHeight) continue;
+
+        const nvx = vx + ox;
+        const nvz = vz + oz;
+
+        const nBlock = this.getBlockAt(nvx, nvy, nvz);
+        const rotation = this.getVoxelRotationAt(nvx, nvy, nvz);
+        const nTransparency = BlockUtils.getBlockRotatedTransparency(
+          nBlock,
+          rotation
+        );
+
+        if (
+          !isSunlight &&
+          BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0 &&
+          !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
+        ) {
+          continue;
+        }
+
+        const nl = isSunlight
+          ? this.getSunlightAt(nvx, nvy, nvz)
+          : this.getTorchLightAt(nvx, nvy, nvz, color);
+        if (nl === 0) continue;
+
+        if (
+          nl < level ||
+          (isSunlight &&
+            oy === -1 &&
+            level === maxLightLevel &&
+            nl === maxLightLevel)
+        ) {
+          queue.push({ voxel: [nvx, nvy, nvz], level: nl });
+          if (isSunlight) {
+            this.setSunlightAt(nvx, nvy, nvz, 0);
+          } else {
+            this.setTorchLightAt(nvx, nvy, nvz, 0, color);
+          }
+        } else if (isSunlight && oy === -1 ? nl > level : nl >= level) {
+          fill.push({ voxel: [nvx, nvy, nvz], level: nl });
+        }
+      }
+    }
+
+    // Re-flood remaining valid lights.
+    this.floodLight(fill, color);
+  }
+
+  /**
    * Get a mesh of the model of the given block.
    *
    * @param id The ID of the block.
@@ -3128,24 +3212,42 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
-    const processStartTime = performance.now(); // Timing start for the entire function
+    const processStartTime = performance.now();
 
     const { maxHeight, maxLightLevel, maxLightsUpdateTime } = this.options;
 
-    // Placing a light
-    const redFlood: LightNode[] = [];
-    const greenFlood: LightNode[] = [];
-    const blueFlood: LightNode[] = [];
-    const sunFlood: LightNode[] = [];
+    // Track removed light sources
+    interface RemovedLightSource {
+      voxel: Coords3;
+      block: Block;
+    }
 
-    let processedUpdates = 0; // Track the number of processed updates
+    // Track all updates for later processing
+    interface ProcessedUpdate {
+      voxel: Coords3;
+      oldId: number;
+      newId: number;
+      oldBlock: Block;
+      newBlock: Block;
+      oldRotation: BlockRotation;
+      newRotation: BlockRotation;
+      stage: number;
+    }
 
-    const updatesLoopStartTime = performance.now(); // Timing start for updates loop
+    const removedLightSources: RemovedLightSource[] = [];
+    const processedUpdates: ProcessedUpdate[] = [];
+    let processedCount = 0;
+
+    // First pass: Update all voxels and track light source removals
+    const voxelUpdateStartTime = performance.now();
     for (const update of updates) {
       if (performance.now() - processStartTime > maxLightsUpdateTime) {
-        console.warn(
-          "Approaching max lights update time, adjusting processing."
-        );
+        if (Math.random() < 0.01) {
+          // Log occasionally to avoid spamming console but continue processing for correctness
+          console.warn(
+            "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
+          );
+        }
         break;
       }
 
@@ -3153,49 +3255,130 @@ export class World<T = any> extends Scene implements NetIntercept {
         update: { type, vx, vy, vz, rotation, yRotation, stage },
       } = update;
 
-      const currentBlock = this.getBlockAt(vx, vy, vz);
+      // Store current state
+      const currentId = this.getVoxelAt(vx, vy, vz);
+      const currentBlock = this.getBlockById(currentId);
+      const newBlock = this.getBlockById(type);
       const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
-      const currentTransparency = BlockUtils.getBlockRotatedTransparency(
-        currentBlock,
-        currentRotation
-      );
-      const updatedBlock = this.getBlockById(type);
-      const updatedRotation = BlockRotation.encode(rotation, yRotation);
-      const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
-        updatedBlock,
-        updatedRotation
-      );
-      const currentStage = this.getVoxelStageAt(vx, vy, vz);
+      const newRotation = BlockRotation.encode(rotation, yRotation);
 
+      // Track if this removes a light source
+      if (currentBlock.isLight && !newBlock.isLight) {
+        removedLightSources.push({
+          voxel: [vx, vy, vz],
+          block: currentBlock,
+        });
+      }
+
+      // Store for later light processing
+      processedUpdates.push({
+        voxel: [vx, vy, vz],
+        oldId: currentId,
+        newId: type,
+        oldBlock: currentBlock,
+        newBlock: newBlock,
+        oldRotation: currentRotation,
+        newRotation: newRotation,
+        stage: stage,
+      });
+
+      // Update voxel data
       const newValue = BlockUtils.insertAll(
-        updatedBlock.id,
-        updatedBlock.rotatable || updatedBlock.yRotatable
-          ? updatedRotation
-          : undefined,
-        currentStage !== stage ? stage : undefined
+        newBlock.id,
+        newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
+        stage
       );
       this.attemptBlockCache(vx, vy, vz, newValue);
 
       this.setVoxelAt(vx, vy, vz, type);
       this.setVoxelStageAt(vx, vy, vz, stage);
 
-      if (updatedBlock.rotatable || updatedBlock.yRotatable) {
-        this.setVoxelRotationAt(vx, vy, vz, updatedRotation);
+      if (newBlock.rotatable || newBlock.yRotatable) {
+        this.setVoxelRotationAt(vx, vy, vz, newRotation);
       }
 
-      if (updatedBlock.isOpaque || updatedBlock.lightReduce) {
-        if (this.getSunlightAt(vx, vy, vz) > 0) {
-          this.removeLight([vx, vy, vz], "SUNLIGHT");
-        }
+      processedCount++;
+    }
+    const voxelUpdateEndTime = performance.now();
+    console.log(
+      `Voxel updates (${processedCount}): ${(
+        voxelUpdateEndTime - voxelUpdateStartTime
+      ).toFixed(2)}ms`
+    );
 
-        ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).forEach(
-          (color) => {
-            if (this.getTorchLightAt(vx, vy, vz, color) > 0) {
-              this.removeLight([vx, vy, vz], color);
-            }
-          }
-        );
-      } else {
+    // Second pass: Remove all light from removed light sources
+    const lightRemovalStartTime = performance.now();
+
+    const redRemoval: Coords3[] = [];
+    const greenRemoval: Coords3[] = [];
+    const blueRemoval: Coords3[] = [];
+
+    removedLightSources.forEach(({ voxel, block }) => {
+      const [vx, vy, vz] = voxel;
+
+      // Remove residual sunlight immediately
+      if (this.getSunlightAt(vx, vy, vz) > 0) {
+        this.removeLight(voxel, "SUNLIGHT");
+      }
+
+      if (block.redLightLevel > 0) redRemoval.push(voxel);
+      if (block.greenLightLevel > 0) greenRemoval.push(voxel);
+      if (block.blueLightLevel > 0) blueRemoval.push(voxel);
+    });
+
+    if (redRemoval.length) this.removeLightsBatch(redRemoval, "RED");
+    if (greenRemoval.length) this.removeLightsBatch(greenRemoval, "GREEN");
+    if (blueRemoval.length) this.removeLightsBatch(blueRemoval, "BLUE");
+    const lightRemovalEndTime = performance.now();
+    console.log(
+      `Light removal (${removedLightSources.length} sources): ${(
+        lightRemovalEndTime - lightRemovalStartTime
+      ).toFixed(2)}ms`
+    );
+
+    // Third pass: Process light updates for all changes
+    const lightUpdateStartTime = performance.now();
+    const redFlood: LightNode[] = [];
+    const greenFlood: LightNode[] = [];
+    const blueFlood: LightNode[] = [];
+    const sunFlood: LightNode[] = [];
+
+    for (const update of processedUpdates) {
+      const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
+      const [vx, vy, vz] = voxel;
+
+      // Skip if we already handled this as a removed light source
+      if (oldBlock.isLight && !newBlock.isLight) {
+        continue;
+      }
+
+      const currentTransparency = BlockUtils.getBlockRotatedTransparency(
+        oldBlock,
+        oldRotation
+      );
+      const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
+        newBlock,
+        newRotation
+      );
+
+      // Handle placing opaque blocks
+      if (newBlock.isOpaque || newBlock.lightReduce) {
+        // Only remove lights if not already handled
+        if (this.getSunlightAt(vx, vy, vz) > 0) {
+          this.removeLight(voxel, "SUNLIGHT");
+        }
+        if (this.getTorchLightAt(vx, vy, vz, "RED") > 0) {
+          this.removeLight(voxel, "RED");
+        }
+        if (this.getTorchLightAt(vx, vy, vz, "GREEN") > 0) {
+          this.removeLight(voxel, "GREEN");
+        }
+        if (this.getTorchLightAt(vx, vy, vz, "BLUE") > 0) {
+          this.removeLight(voxel, "BLUE");
+        }
+      }
+      // Handle transparency changes
+      else {
         let removeCount = 0;
 
         const lightData = [
@@ -3215,11 +3398,13 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nvz = vz + oz;
 
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
+          const nRotation = this.getVoxelRotationAt(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
-            currentRotation
+            nRotation
           );
 
+          // Check if light could originally enter but now cannot
           if (
             !(
               LightUtils.canEnter(
@@ -3255,66 +3440,57 @@ export class World<T = any> extends Scene implements NetIntercept {
                 nLevel === maxLightLevel &&
                 sourceLevel === maxLightLevel)
             ) {
-              removeCount += 1;
+              removeCount++;
               this.removeLight([nvx, nvy, nvz], color);
             }
           }
         }
 
+        // If no transparency changes affected neighbors, treat as opaque
         if (removeCount === 0) {
           if (this.getSunlightAt(vx, vy, vz) !== 0) {
-            this.removeLight([vx, vy, vz], "SUNLIGHT");
+            this.removeLight(voxel, "SUNLIGHT");
           }
 
           ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).forEach(
             (color) => {
-              if (
-                this.getTorchLightAt(vx, vy, vz, color) !== 0 &&
-                (color === RED_LIGHT
-                  ? currentBlock.redLightLevel !== 0
-                  : color === GREEN_LIGHT
-                  ? currentBlock.greenLightLevel !== 0
-                  : currentBlock.blueLightLevel !== 0)
-              ) {
-                this.removeLight([vx, vy, vz], color);
+              if (this.getTorchLightAt(vx, vy, vz, color) !== 0) {
+                this.removeLight(voxel, color);
               }
             }
           );
         }
       }
 
-      if (updatedBlock.isLight) {
-        if (updatedBlock.redLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, updatedBlock.redLightLevel, "RED");
+      // Handle placing new light sources
+      if (newBlock.isLight) {
+        if (newBlock.redLightLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, newBlock.redLightLevel, "RED");
           redFlood.push({
-            voxel: [vx, vy, vz],
-            level: updatedBlock.redLightLevel,
+            voxel: voxel,
+            level: newBlock.redLightLevel,
           });
         }
 
-        if (updatedBlock.greenLightLevel > 0) {
-          this.setTorchLightAt(
-            vx,
-            vy,
-            vz,
-            updatedBlock.greenLightLevel,
-            "GREEN"
-          );
+        if (newBlock.greenLightLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, newBlock.greenLightLevel, "GREEN");
           greenFlood.push({
-            voxel: [vx, vy, vz],
-            level: updatedBlock.greenLightLevel,
+            voxel: voxel,
+            level: newBlock.greenLightLevel,
           });
         }
 
-        if (updatedBlock.blueLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, updatedBlock.blueLightLevel, "BLUE");
+        if (newBlock.blueLightLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, newBlock.blueLightLevel, "BLUE");
           blueFlood.push({
-            voxel: [vx, vy, vz],
-            level: updatedBlock.blueLightLevel,
+            voxel: voxel,
+            level: newBlock.blueLightLevel,
           });
         }
-      } else {
-        // Check the six neighbors.
+      }
+      // Handle solid block removal
+      else if (oldBlock.isOpaque && !newBlock.isOpaque) {
+        // Check neighbors for existing light sources
         for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
           const nvy = vy + oy;
 
@@ -3322,9 +3498,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             continue;
           }
 
-          // Sunlight should propagate downwards here.
+          // Sunlight propagation from above
           if (nvy >= maxHeight) {
-            // Light can go downwards into this block.
             if (
               LightUtils.canEnter(
                 [true, true, true, true, true, true],
@@ -3339,7 +3514,6 @@ export class World<T = any> extends Scene implements NetIntercept {
                 level: maxLightLevel,
               });
             }
-
             continue;
           }
 
@@ -3347,113 +3521,93 @@ export class World<T = any> extends Scene implements NetIntercept {
           const nvz = vz + oz;
 
           const nBlock = this.getBlockAt(nvx, nvy, nvz);
+          const nRotation = this.getVoxelRotationAt(nvx, nvy, nvz);
           const nTransparency = BlockUtils.getBlockRotatedTransparency(
             nBlock,
-            this.getVoxelRotationAt(nvx, nvy, nvz)
+            nRotation
           );
 
-          const nVoxel = [nvx, nvy, nvz] as Coords3;
-
-          // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
+          // Only propagate if light can now enter from neighbor
           if (
-            !(
-              nBlock.redLightLevel > 0 ||
-              nBlock.greenLightLevel > 0 ||
-              nBlock.blueLightLevel > 0
+            !LightUtils.canEnter(
+              currentTransparency,
+              nTransparency,
+              ox,
+              oy,
+              oz
             ) &&
-            !(
-              !LightUtils.canEnter(
-                currentTransparency,
-                nTransparency,
-                ox,
-                oy,
-                oz
-              ) &&
-              LightUtils.canEnter(
-                updatedTransparency,
-                nTransparency,
-                ox,
-                oy,
-                oz
-              )
-            )
+            LightUtils.canEnter(updatedTransparency, nTransparency, ox, oy, oz)
           ) {
-            continue;
-          }
+            const level =
+              this.getSunlightAt(nvx, nvy, nvz) -
+              (newBlock.lightReduce ? 1 : 0);
+            if (level > 0) {
+              sunFlood.push({
+                voxel: [nvx, nvy, nvz],
+                level: level,
+              });
+            }
 
-          const level =
-            this.getSunlightAt(nvx, nvy, nvz) -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (level !== 0) {
-            sunFlood.push({
-              voxel: nVoxel,
-              level,
-            });
-          }
+            const redLevel =
+              this.getTorchLightAt(nvx, nvy, nvz, "RED") -
+              (newBlock.lightReduce ? 1 : 0);
+            if (redLevel > 0) {
+              redFlood.push({
+                voxel: [nvx, nvy, nvz],
+                level: redLevel,
+              });
+            }
 
-          const redLevel =
-            this.getTorchLightAt(nvx, nvy, nvz, "RED") -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (redLevel !== 0) {
-            redFlood.push({
-              voxel: nVoxel,
-              level: redLevel,
-            });
-          }
+            const greenLevel =
+              this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
+              (newBlock.lightReduce ? 1 : 0);
+            if (greenLevel > 0) {
+              greenFlood.push({
+                voxel: [nvx, nvy, nvz],
+                level: greenLevel,
+              });
+            }
 
-          const greenLevel =
-            this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (greenLevel !== 0) {
-            greenFlood.push({
-              voxel: nVoxel,
-              level: greenLevel,
-            });
-          }
-
-          const blueLevel =
-            this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
-            (updatedBlock.lightReduce ? 1 : 0);
-          if (blueLevel !== 0) {
-            blueFlood.push({
-              voxel: nVoxel,
-              level: blueLevel,
-            });
+            const blueLevel =
+              this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
+              (newBlock.lightReduce ? 1 : 0);
+            if (blueLevel > 0) {
+              blueFlood.push({
+                voxel: [nvx, nvy, nvz],
+                level: blueLevel,
+              });
+            }
           }
         }
       }
-
-      processedUpdates++; // Increment the count of processed updates
     }
-    const updatesLoopEndTime = performance.now(); // Timing end for updates loop
+    const lightUpdateEndTime = performance.now();
     console.log(
-      `Updates loop processing time: ${
-        updatesLoopEndTime - updatesLoopStartTime
-      }ms`
+      `Light updates processing: ${(
+        lightUpdateEndTime - lightUpdateStartTime
+      ).toFixed(2)}ms`
     );
 
-    // Proceed with flood light process
-    const floodLightStartTime = performance.now(); // Timing start for flood light
+    // Flood all light changes
+    const floodLightStartTime = performance.now();
     this.floodLight(sunFlood, "SUNLIGHT");
     this.floodLight(redFlood, "RED");
     this.floodLight(greenFlood, "GREEN");
     this.floodLight(blueFlood, "BLUE");
-    const floodLightEndTime = performance.now(); // Timing end for flood light
+    const floodLightEndTime = performance.now();
     console.log(
-      `Flood light processing time: ${
-        floodLightEndTime - floodLightStartTime
-      }ms`
+      `Flood light: ${(floodLightEndTime - floodLightStartTime).toFixed(2)}ms`
     );
 
-    const processEndTime = performance.now(); // Timing end for the entire function
+    const processEndTime = performance.now();
     console.log(
-      `Total processLightUpdates function time: ${
-        processEndTime - processStartTime
-      }ms`
+      `Total processLightUpdates: ${(processEndTime - processStartTime).toFixed(
+        2
+      )}ms`
     );
 
-    // Return the remaining updates that were not processed due to time constraint
-    return updates.slice(processedUpdates);
+    // Return remaining updates not processed due to time constraint
+    return updates.slice(processedCount);
   };
 
   private processClientUpdates = () => {

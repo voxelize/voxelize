@@ -453,4 +453,113 @@ impl Lights {
         // Going from NZ of source to PZ of target
         snz && tpz
     }
+
+    pub fn remove_lights(
+        space: &mut dyn VoxelAccess,
+        voxels: &[Vec3<i32>],
+        color: &LightColor,
+        config: &WorldConfig,
+        registry: &Registry,
+    ) {
+        if voxels.is_empty() {
+            return;
+        }
+
+        let max_height = config.max_height as i32;
+        let max_light_level = config.max_light_level;
+
+        let mut fill = VecDeque::<LightNode>::new();
+        let mut queue = VecDeque::<LightNode>::new();
+
+        let is_sunlight = *color == LightColor::Sunlight;
+
+        // Initialize queue with all voxels to remove
+        for &Vec3(vx, vy, vz) in voxels {
+            let level = if is_sunlight {
+                space.get_sunlight(vx, vy, vz)
+            } else {
+                space.get_torch_light(vx, vy, vz, color)
+            };
+            if level == 0 {
+                continue;
+            }
+            queue.push_back(LightNode {
+                voxel: [vx, vy, vz],
+                level,
+            });
+
+            // Clear the light immediately to mark as visited
+            if is_sunlight {
+                space.set_sunlight(vx, vy, vz, 0);
+            } else {
+                space.set_torch_light(vx, vy, vz, 0, color);
+            }
+        }
+
+        while let Some(LightNode { voxel, level }) = queue.pop_front() {
+            let [vx, vy, vz] = voxel;
+
+            for [ox, oy, oz] in &VOXEL_NEIGHBORS {
+                let nvy = vy + oy;
+
+                if nvy < 0 || nvy >= max_height {
+                    continue;
+                }
+
+                let nvx = vx + ox;
+                let nvz = vz + oz;
+                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
+                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
+                let n_transparency = n_block.get_rotated_transparency(&rotation);
+
+                if if is_sunlight {
+                    true
+                } else {
+                    n_block.get_torch_light_level(color) == 0
+                } && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz)
+                {
+                    continue;
+                }
+
+                let nl = if is_sunlight {
+                    space.get_sunlight(nvx, nvy, nvz)
+                } else {
+                    space.get_torch_light(nvx, nvy, nvz, color)
+                };
+
+                if nl == 0 {
+                    continue;
+                }
+
+                if nl < level
+                    || (is_sunlight
+                        && *oy == -1
+                        && level == max_light_level
+                        && nl == max_light_level)
+                {
+                    queue.push_back(LightNode {
+                        voxel: [nvx, nvy, nvz],
+                        level: nl,
+                    });
+
+                    if is_sunlight {
+                        space.set_sunlight(nvx, nvy, nvz, 0);
+                    } else {
+                        space.set_torch_light(nvx, nvy, nvz, 0, color);
+                    }
+                } else if if is_sunlight && *oy == -1 {
+                    nl > level
+                } else {
+                    nl >= level
+                } {
+                    fill.push_back(LightNode {
+                        voxel: [nvx, nvy, nvz],
+                        level: nl,
+                    });
+                }
+            }
+        }
+
+        Lights::flood_light(space, fill, color, registry, config, None, None);
+    }
 }
