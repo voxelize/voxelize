@@ -2340,6 +2340,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         };
       }
 
+      // Guarantee the `isLight` flag is correctly set even if the server did not provide it
+      // A block is considered a light source if any coloured component is non-zero.
+      block.isLight =
+        (block.redLightLevel ?? 0) > 0 ||
+        (block.greenLightLevel ?? 0) > 0 ||
+        (block.blueLightLevel ?? 0) > 0;
+
       this.registry.blocksByName.set(lowerName, block);
       this.registry.blocksById.set(id, block);
       this.registry.nameMap.set(lowerName, id);
@@ -3589,11 +3596,50 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
 
     // Flood all light changes
+    const computeBounds = (queue: LightNode[]): [Coords3, Coords3] | null => {
+      if (!queue.length) return null;
+
+      let minX = queue[0].voxel[0];
+      let minZ = queue[0].voxel[2];
+      let maxX = minX;
+      let maxZ = minZ;
+
+      for (const { voxel } of queue) {
+        const [x, , z] = voxel;
+        if (x < minX) minX = x;
+        if (z < minZ) minZ = z;
+        if (x > maxX) maxX = x;
+        if (z > maxZ) maxZ = z;
+      }
+
+      // Expand by maxLightLevel so the bounding box fully contains propagated area.
+      const expand = this.options.maxLightLevel;
+      minX -= expand;
+      minZ -= expand;
+      maxX += expand;
+      maxZ += expand;
+
+      // floodLight checks nvx >= max[0] / nz >= max[2] (exclusive).
+      // therefore use +1 to make the range inclusive for current max coordinate after expansion.
+      return [
+        [minX, 0, minZ],
+        [maxX + 1, 0, maxZ + 1],
+      ];
+    };
+
     const floodLightStartTime = performance.now();
-    this.floodLight(sunFlood, "SUNLIGHT");
-    this.floodLight(redFlood, "RED");
-    this.floodLight(greenFlood, "GREEN");
-    this.floodLight(blueFlood, "BLUE");
+
+    const sunBounds = computeBounds(sunFlood);
+    this.floodLight(sunFlood, "SUNLIGHT", sunBounds?.[0], sunBounds?.[1]);
+
+    const redBounds = computeBounds(redFlood);
+    this.floodLight(redFlood, "RED", redBounds?.[0], redBounds?.[1]);
+
+    const greenBounds = computeBounds(greenFlood);
+    this.floodLight(greenFlood, "GREEN", greenBounds?.[0], greenBounds?.[1]);
+
+    const blueBounds = computeBounds(blueFlood);
+    this.floodLight(blueFlood, "BLUE", blueBounds?.[0], blueBounds?.[1]);
     const floodLightEndTime = performance.now();
     console.log(
       `Flood light: ${(floodLightEndTime - floodLightStartTime).toFixed(2)}ms`

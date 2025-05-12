@@ -480,51 +480,105 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             }
 
             // Flood all light changes
+            // Helper closure to compute bounding box (min coord and shape) for a queue.
+            let compute_bounds = |queue: &VecDeque<LightNode>| -> Option<(Vec3<i32>, Vec3<usize>)> {
+                if queue.is_empty() {
+                    return None;
+                }
+
+                // Initialise min and max with the first voxel in queue.
+                let mut min_x = queue[0].voxel[0];
+                let mut min_y = queue[0].voxel[1];
+                let mut min_z = queue[0].voxel[2];
+                let mut max_x = min_x;
+                let mut max_y = min_y;
+                let mut max_z = min_z;
+
+                for node in queue.iter() {
+                    let [x, y, z] = node.voxel;
+                    if x < min_x {
+                        min_x = x;
+                    }
+                    if y < min_y {
+                        min_y = y;
+                    }
+                    if z < min_z {
+                        min_z = z;
+                    }
+                    if x > max_x {
+                        max_x = x;
+                    }
+                    if y > max_y {
+                        max_y = y;
+                    }
+                    if z > max_z {
+                        max_z = z;
+                    }
+                }
+
+                // Expand bounds by max light level to ensure full propagation space.
+                let expand = max_light_level as i32;
+                min_x -= expand;
+                min_z -= expand;
+                max_x += expand;
+                max_z += expand;
+
+                let shape_x = (max_x - min_x + 1) as usize;
+                let shape_y = (max_y - min_y + 1) as usize;
+                let shape_z = (max_z - min_z + 1) as usize;
+
+                Some((Vec3(min_x, min_y, min_z), Vec3(shape_x, shape_y, shape_z)))
+            };
+
             if !red_flood.is_empty() {
+                let bounds = compute_bounds(&red_flood);
                 Lights::flood_light(
                     &mut *chunks,
                     red_flood,
                     &RED,
                     &registry,
                     &config,
-                    None,
-                    None,
+                    bounds.as_ref().map(|b| &b.0),
+                    bounds.as_ref().map(|b| &b.1),
                 );
             }
 
             if !green_flood.is_empty() {
+                let bounds = compute_bounds(&green_flood);
                 Lights::flood_light(
                     &mut *chunks,
                     green_flood,
                     &GREEN,
                     &registry,
                     &config,
-                    None,
-                    None,
+                    bounds.as_ref().map(|b| &b.0),
+                    bounds.as_ref().map(|b| &b.1),
                 );
             }
 
             if !blue_flood.is_empty() {
+                let bounds = compute_bounds(&blue_flood);
                 Lights::flood_light(
                     &mut *chunks,
                     blue_flood,
                     &BLUE,
                     &registry,
                     &config,
-                    None,
-                    None,
+                    bounds.as_ref().map(|b| &b.0),
+                    bounds.as_ref().map(|b| &b.1),
                 );
             }
 
             if !sun_flood.is_empty() {
+                let bounds = compute_bounds(&sun_flood);
                 Lights::flood_light(
                     &mut *chunks,
                     sun_flood,
                     &SUNLIGHT,
                     &registry,
                     &config,
-                    None,
-                    None,
+                    bounds.as_ref().map(|b| &b.0),
+                    bounds.as_ref().map(|b| &b.1),
                 );
             }
 
