@@ -62,11 +62,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         let mut results = vec![];
 
-        let mut red_flood = VecDeque::default();
-        let mut green_flood = VecDeque::default();
-        let mut blue_flood = VecDeque::default();
-        let mut sun_flood = VecDeque::default();
-
         if !chunks.updates.is_empty() {
             let mut updates = VecDeque::default();
             let total_updates = chunks.updates.len();
@@ -75,6 +70,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 updates.push_back(chunks.updates.pop_front().unwrap());
             }
 
+            // Collect all light sources that will be removed
+            let mut removed_light_sources = Vec::new();
+
+            // Store all updates for processing light later
+            let mut processed_updates = Vec::new();
+
+            // First pass: Update all voxels and track light source removals
             while let Some((voxel, raw)) = updates.pop_front() {
                 let Vec3(vx, vy, vz) = voxel;
 
@@ -114,11 +116,19 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     continue;
                 }
 
-                // Actually updating the voxel.
-                let height = chunks.get_max_height(vx, vz);
-
+                // Track if this update removes a light source
                 let current_type = registry.get_block_by_id(current_id);
                 let updated_type = registry.get_block_by_id(updated_id);
+
+                if current_type.is_light && !updated_type.is_light {
+                    removed_light_sources.push((voxel.clone(), current_type.clone()));
+                }
+
+                // Store update for later processing
+                processed_updates.push((voxel.clone(), raw, current_id, updated_id));
+
+                // Actually updating the voxel.
+                let height = chunks.get_max_height(vx, vz);
 
                 let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
                 if let Some(existing_entity) = existing_entity {
@@ -154,13 +164,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     lazy.insert(entity, JsonComp::new("{}"));
                 }
 
-                let current_transparency = current_type.get_rotated_transparency(&rotation);
-                let updated_transparency = if updated_type.rotatable || updated_type.y_rotatable {
-                    updated_type.get_rotated_transparency(&rotation)
-                } else {
-                    updated_type.is_transparent
-                };
-
                 chunks.set_voxel(vx, vy, vz, updated_id);
 
                 if stage != 0 {
@@ -195,10 +198,74 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     chunks.set_max_height(vx, vz, vy as u32);
                 }
 
-                // Updating light levels...
+                chunks
+                    .voxel_affected_chunks(vx, vy, vz)
+                    .into_iter()
+                    .for_each(|c| {
+                        chunks.cache.insert(c);
+                    });
 
-                // Straight up updating to a solid opaque block, remove all lights.
+                results.push(UpdateProtocol {
+                    vx,
+                    vy,
+                    vz,
+                    voxel: 0,
+                    light: 0,
+                });
+            }
+
+            // Second pass: Remove all light from removed light sources
+            for (voxel, light_block) in removed_light_sources {
+                let Vec3(vx, vy, vz) = voxel;
+
+                // Remove all light from this position
+                if chunks.get_sunlight(vx, vy, vz) != 0 {
+                    Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, &config, &registry);
+                }
+                if chunks.get_torch_light(vx, vy, vz, &RED) != 0 || light_block.red_light_level > 0
+                {
+                    Lights::remove_light(&mut *chunks, &voxel, &RED, &config, &registry);
+                }
+                if chunks.get_torch_light(vx, vy, vz, &GREEN) != 0
+                    || light_block.green_light_level > 0
+                {
+                    Lights::remove_light(&mut *chunks, &voxel, &GREEN, &config, &registry);
+                }
+                if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0
+                    || light_block.blue_light_level > 0
+                {
+                    Lights::remove_light(&mut *chunks, &voxel, &BLUE, &config, &registry);
+                }
+            }
+
+            // Third pass: Process light updates for all other changes
+            let mut red_flood = VecDeque::default();
+            let mut green_flood = VecDeque::default();
+            let mut blue_flood = VecDeque::default();
+            let mut sun_flood = VecDeque::default();
+
+            for (voxel, raw, current_id, updated_id) in processed_updates {
+                let Vec3(vx, vy, vz) = voxel;
+
+                let current_type = registry.get_block_by_id(current_id);
+                let updated_type = registry.get_block_by_id(updated_id);
+
+                // Skip if we already handled this as a removed light source
+                if current_type.is_light && !updated_type.is_light {
+                    continue;
+                }
+
+                let rotation = BlockUtils::extract_rotation(raw);
+                let current_transparency = current_type.get_rotated_transparency(&rotation);
+                let updated_transparency = if updated_type.rotatable || updated_type.y_rotatable {
+                    updated_type.get_rotated_transparency(&rotation)
+                } else {
+                    updated_type.is_transparent
+                };
+
+                // Handle light changes for non-light-source updates
                 if updated_type.is_opaque || updated_type.light_reduce {
+                    // Only remove lights if this isn't already handled by removed light sources
                     if chunks.get_sunlight(vx, vy, vz) != 0 {
                         Lights::remove_light(&mut *chunks, &voxel, &SUNLIGHT, &config, &registry);
                     }
@@ -211,11 +278,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     if chunks.get_torch_light(vx, vy, vz, &BLUE) != 0 {
                         Lights::remove_light(&mut *chunks, &voxel, &BLUE, &config, &registry);
                     }
-                }
-                // Otherwise, check if light could originally go from source to neighbor, but not in the updated block. Also, check
-                // to see if neighbor light source is not zero and is less than the block itself, or if its sunlight and its going
-                // downwards and both are max light levels.
-                else {
+                } else {
+                    // Check for transparency changes
                     let mut remove_counts = 0;
 
                     let light_data = [
@@ -238,7 +302,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         let n_transparency = n_block
                             .get_rotated_transparency(&chunks.get_voxel_rotation(nvx, nvy, nvz));
 
-                        // See if light could originally go from source to neighbor, but not in the updated block. If not, move on.
+                        // See if light could originally go from source to neighbor, but not in the updated block
                         if !(Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
                             && !Lights::can_enter(
                                 &updated_transparency,
@@ -260,7 +324,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                 chunks.get_torch_light(nvx, nvy, nvz, color)
                             };
 
-                            // See if neighbor level is less than self, or if sunlight is propagating downwards.
+                            // See if neighbor level is less than self
                             if n_level < source_level
                                 || (oy == -1
                                     && is_sunlight
@@ -279,7 +343,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         });
                     });
 
-                    // If nothing happened with this semi-transparent block, treat it as opaque.
+                    // If nothing happened with this semi-transparent block, treat it as opaque
                     if remove_counts == 0 {
                         if chunks.get_sunlight(vx, vy, vz) != 0 {
                             Lights::remove_light(
@@ -302,7 +366,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     }
                 }
 
-                // Placing a light
+                // Handle placing new light sources
                 if updated_type.is_light {
                     if updated_type.red_light_level > 0 {
                         chunks.set_torch_light(vx, vy, vz, updated_type.red_light_level, &RED);
@@ -326,9 +390,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         });
                     }
                 }
-                // Solid block removed.
-                else {
-                    // Check the six neighbors.
+                // Handle solid block removal
+                else if current_type.is_opaque && !updated_type.is_opaque {
+                    // Check the six neighbors for existing light
                     VOXEL_NEIGHBORS.iter().for_each(|&[ox, oy, oz]| {
                         let nvy = vy + oy;
 
@@ -336,9 +400,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             return;
                         }
 
-                        // Sunlight should propagate downwards here.
+                        // Sunlight should propagate downwards here
                         if nvy >= max_height {
-                            // Light can go downwards into this block.
                             if Lights::can_enter(
                                 &ALL_TRANSPARENT,
                                 &updated_transparency,
@@ -351,7 +414,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                     level: max_light_level,
                                 })
                             }
-
                             return;
                         }
 
@@ -364,79 +426,51 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                         let n_voxel = [nvx, nvy, nvz];
 
-                        // See if light couldn't originally go from source to neighbor, but now can in the updated block. If not, move on.
-                        if !(n_block.has_torch_light())
-                            && !(!Lights::can_enter(
-                                &current_transparency,
-                                &n_transparency,
-                                ox,
-                                oy,
-                                oz,
-                            ) && Lights::can_enter(
-                                &updated_transparency,
-                                &n_transparency,
-                                ox,
-                                oy,
-                                oz,
-                            ))
+                        // Only propagate if light can now enter from neighbor
+                        if !Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
+                            && Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz)
                         {
-                            return;
-                        }
+                            let level = chunks.get_sunlight(nvx, nvy, nvz)
+                                - if updated_type.light_reduce { 1 } else { 0 };
+                            if level != 0 {
+                                sun_flood.push_back(LightNode {
+                                    voxel: n_voxel,
+                                    level,
+                                })
+                            }
 
-                        let level = chunks.get_sunlight(nvx, nvy, nvz)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if level != 0 {
-                            sun_flood.push_back(LightNode {
-                                voxel: n_voxel,
-                                level,
-                            })
-                        }
+                            let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
+                                - if updated_type.light_reduce { 1 } else { 0 };
+                            if red_level != 0 {
+                                red_flood.push_back(LightNode {
+                                    voxel: n_voxel,
+                                    level: red_level,
+                                })
+                            }
 
-                        let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if red_level != 0 {
-                            red_flood.push_back(LightNode {
-                                voxel: n_voxel,
-                                level: red_level,
-                            })
-                        }
+                            let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
+                                - if updated_type.light_reduce { 1 } else { 0 };
+                            if green_level != 0 {
+                                green_flood.push_back(LightNode {
+                                    voxel: n_voxel,
+                                    level: green_level,
+                                })
+                            }
 
-                        let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if green_level != 0 {
-                            green_flood.push_back(LightNode {
-                                voxel: n_voxel,
-                                level: green_level,
-                            })
-                        }
-
-                        let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if blue_level != 0 {
-                            blue_flood.push_back(LightNode {
-                                voxel: n_voxel,
-                                level: blue_level,
-                            })
+                            let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
+                                - if updated_type.light_reduce { 1 } else { 0 };
+                            if blue_level != 0 {
+                                blue_flood.push_back(LightNode {
+                                    voxel: n_voxel,
+                                    level: blue_level,
+                                })
+                            }
                         }
                     });
                 }
-
-                chunks
-                    .voxel_affected_chunks(vx, vy, vz)
-                    .into_iter()
-                    .for_each(|c| {
-                        chunks.cache.insert(c);
-                    });
-
-                results.push(UpdateProtocol {
-                    vx,
-                    vy,
-                    vz,
-                    voxel: 0,
-                    light: 0,
-                });
             }
 
+            // Flood all light changes
             if !red_flood.is_empty() {
                 Lights::flood_light(
                     &mut *chunks,
