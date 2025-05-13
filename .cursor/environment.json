@@ -1,4 +1,0 @@
-{
-    "snapshot": "snapshot-20250510-bb0d5b98-8f97-4907-b442-361cd6208783",
-    "install": "pnpm install && pnpm run proto && pnpm run build"
-}
