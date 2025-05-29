@@ -20,6 +20,11 @@ impl<'a> System<'a> for UpdateStatsSystem {
             .as_nanos() as f32
             / 1000000000.0;
 
+        // Clamp delta to a reasonable range to prevent extremely large physics steps.
+        if stats.delta > 0.05 {
+            stats.delta = 0.05; // corresponds to a minimum of ~20 FPS
+        }
+
         if config.does_tick_time {
             stats.prev_time = now;
 

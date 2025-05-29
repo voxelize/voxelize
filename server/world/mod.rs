@@ -1201,6 +1201,17 @@ impl World {
             body.0
                 .set_position(position.0 .0, position.0 .1, position.0 .2);
         }
+
+        // Reset the stats timing to avoid an unusually large delta on the very first tick caused
+        // by world setup and preloading delays. This ensures physics (e.g., rapier) receives a
+        // sensible time step and prevents entities such as boids from being launched away at
+        // server startup.
+        {
+            use std::time::SystemTime;
+            let mut stats = self.stats_mut();
+            stats.prev_time = SystemTime::now();
+            stats.delta = 0.0;
+        }
     }
 
     /// Preload the chunks in the world.
