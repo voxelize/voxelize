@@ -25,7 +25,7 @@ use actix::{
 };
 use actix::{Addr, SyncArbiter};
 use hashbrown::HashMap;
-use log::{info, warn};
+use log::{error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
 use profiler::Profiler;
@@ -1094,6 +1094,32 @@ impl World {
         Some(ent)
     }
 
+    /// Spawn an entity of type with metadata at a location.
+    pub fn spawn_entity_with_metadata(
+        &mut self,
+        etype: &str,
+        position: &Vec3<f32>,
+        metadata: MetadataComp,
+    ) -> Option<Entity> {
+        if !self.entity_loaders.contains_key(&etype.to_lowercase()) {
+            warn!("Tried to spawn unknown entity type: {}", etype);
+            return None;
+        }
+
+        let loader = self
+            .entity_loaders
+            .get(&etype.to_lowercase())
+            .unwrap()
+            .to_owned();
+
+        let ent = loader(self, metadata.clone()).build();
+        self.populate_entity(ent, &nanoid!(), etype, metadata);
+
+        set_position(self.ecs_mut(), ent, position.0, position.1, position.2);
+
+        Some(ent)
+    }
+
     pub fn revive_entity(
         &mut self,
         id: &str,
@@ -1133,10 +1159,22 @@ impl World {
             .unwrap()
             .to_owned();
 
-        let ent = loader(self, metadata.to_owned()).build();
-        self.populate_entity(ent, id, etype, metadata);
-
-        Some(ent)
+        // Wrap entity creation in panic handler to catch any errors
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            loader(self, metadata.to_owned()).build()
+        })) {
+            Ok(ent) => {
+                self.populate_entity(ent, id, etype, metadata);
+                Some(ent)
+            }
+            Err(e) => {
+                error!(
+                    "Panic while creating entity {} of type {}: {:?}",
+                    id, etype, e
+                );
+                None
+            }
+        }
     }
 
     pub fn populate_entity(&mut self, ent: Entity, id: &str, etype: &str, metadata: MetadataComp) {
@@ -1558,9 +1596,10 @@ impl World {
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
                         loaded_entities.insert(id.to_owned(), (etype, ent, metadata));
                     } else {
-                        info!(
-                            "Failed to revive block entity {:?} of type {}, removing...",
-                            id, etype
+                        // Use error! instead of info! for better visibility
+                        error!(
+                            "Failed to revive entity {:?} of type {}. Metadata: {:?}. File will be removed.",
+                            id, etype, metadata
                         );
                         // remove the file
                         if let Err(e) = fs::remove_file(path) {
