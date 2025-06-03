@@ -1166,11 +1166,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           m[2] - this.body.velocity[2],
         ];
         push[1] = 0;
-        const pushLen = Math.sqrt(push[0] ** 2 + push[2] ** 2);
+        const pushLen = Math.sqrt(push[0] ** 2 + push[1] ** 2 + push[2] ** 2);
 
         // Guard against a zero-length vector which would result in NaN / Infinity
         if (pushLen > 0) {
           push[0] /= pushLen;
+          push[1] /= pushLen;
           push[2] /= pushLen;
 
           // No need to normalise the Y-component – it is always zero for planar movement
