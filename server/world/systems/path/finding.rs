@@ -54,6 +54,37 @@ impl<'a> System<'a> for PathFindingSystem {
             true
         };
 
+        // More lenient check for start positions - allows for edge standing and non-full blocks
+        let is_position_supported = |pos: &Vec3<i32>, aabb_width: f32| -> bool {
+            let half_width = (aabb_width / 2.0).ceil() as i32;
+
+            // Check corners and edges of the bot's base
+            let check_points = vec![
+                (-half_width, -half_width),
+                (half_width, -half_width),
+                (-half_width, half_width),
+                (half_width, half_width),
+                (0, -half_width),
+                (0, half_width),
+                (-half_width, 0),
+                (half_width, 0),
+            ];
+
+            for (dx, dz) in check_points {
+                let check_x = pos.0 + dx;
+                let check_z = pos.2 + dz;
+
+                // Check if there's a solid block below this point
+                let below = chunks.get_voxel(check_x, pos.1 - 1, check_z);
+                let block = registry.get_block_by_id(below);
+                if !block.is_passable && !block.is_fluid {
+                    return true;
+                }
+            }
+
+            false
+        };
+
         let get_standable_voxel = |voxel: &Vec3<i32>| -> Vec3<i32> {
             let mut voxel = voxel.clone();
             let min_y = 0; // Ensure this is the absolute minimum Y value in your game world.
@@ -115,7 +146,21 @@ impl<'a> System<'a> for PathFindingSystem {
                         return;
                     }
 
-                    let start = get_standable_voxel(&body_vpos);
+                    // For the start position, check if we're already in a valid state
+                    // (e.g., on an edge or in a non-full block)
+                    let aabb_width = (body.0.aabb.max_x - body.0.aabb.min_x)
+                        .max(body.0.aabb.max_z - body.0.aabb.min_z);
+
+                    let start = if body.0.at_rest_y() < 0
+                        || is_position_supported(&body_vpos, aabb_width)
+                    {
+                        // Bot is on ground (resting) or supported by edges, use current position
+                        body_vpos.clone()
+                    } else {
+                        // Bot might be falling/jumping, try to find standable position
+                        get_standable_voxel(&body_vpos)
+                    };
+
                     let goal = get_standable_voxel(&target_vpos);
 
                     if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
@@ -133,7 +178,9 @@ impl<'a> System<'a> for PathFindingSystem {
                         return;
                     }
 
-                    // Before starting the A* search, check if start and goal positions are valid
+                    // Before starting the A* search, check if goal position is valid
+                    // Note: We don't check the start position here because the bot might be
+                    // in a valid but unconventional position (on edge, in fence, etc.)
                     if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
                         entity_path.path = None;
                         return;
@@ -256,6 +303,11 @@ impl<'a> System<'a> for PathFindingSystem {
                                     .map(|p| Vec3(p.0, p.1, p.2))
                                     .collect::<Vec<_>>(),
                             );
+
+                            // Apply path smoothing to the first few nodes
+                            if let Some(ref mut path_nodes) = entity_path.path {
+                                smooth_path(path_nodes, &chunks, &registry, height);
+                            }
                         }
                     } else {
                         entity_path.path = None;
@@ -271,4 +323,151 @@ impl<'a> System<'a> for PathFindingSystem {
                 }
             });
     }
+}
+
+/// Smooth the path by removing unnecessary intermediate nodes
+/// This checks if we can skip nodes by testing line-of-sight
+fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, height: f32) {
+    if path.len() < 3 {
+        return; // Nothing to smooth
+    }
+
+    // We'll smooth the first 5-7 nodes to make initial movement more natural
+    let nodes_to_check = path.len().min(7);
+    let mut smoothed_path = vec![path[0].clone()];
+    let mut current_index = 0;
+
+    while current_index < nodes_to_check - 1 {
+        let current = &path[current_index];
+        let mut furthest_visible = current_index + 1;
+
+        // Try to find the furthest node we can reach directly
+        // But be conservative - only check up to 3 nodes ahead
+        for check_index in (current_index + 2)..nodes_to_check.min(current_index + 3) {
+            if check_index >= path.len() {
+                break;
+            }
+
+            let target = &path[check_index];
+
+            // Only try to smooth if nodes are relatively close
+            let dist = ((target.0 - current.0).pow(2)
+                + (target.1 - current.1).pow(2)
+                + (target.2 - current.2).pow(2)) as f32;
+
+            // Don't smooth over long distances (more than 3 blocks away)
+            if dist.sqrt() > 3.0 {
+                break;
+            }
+
+            // Check if we can walk directly from current to target
+            if can_walk_directly(current, target, chunks, registry, height) {
+                furthest_visible = check_index;
+            } else {
+                break; // Can't see further, stop checking
+            }
+        }
+
+        // Add the furthest visible node
+        smoothed_path.push(path[furthest_visible].clone());
+        current_index = furthest_visible;
+    }
+
+    // Add remaining nodes that weren't checked
+    for i in nodes_to_check..path.len() {
+        smoothed_path.push(path[i].clone());
+    }
+
+    *path = smoothed_path;
+}
+
+/// Check if we can walk directly between two points
+fn can_walk_directly(
+    from: &Vec3<i32>,
+    to: &Vec3<i32>,
+    chunks: &Chunks,
+    registry: &Registry,
+    height: f32,
+) -> bool {
+    let dx = to.0 - from.0;
+    let dy = to.1 - from.1;
+    let dz = to.2 - from.2;
+
+    // Don't try to smooth if there's significant height change
+    if dy.abs() > 1 {
+        return false;
+    }
+
+    // Use Bresenham-like line algorithm with proper corner checking
+    let steps = dx.abs().max(dz.abs());
+
+    if steps == 0 {
+        return true;
+    }
+
+    let step_x = dx as f32 / steps as f32;
+    let step_z = dz as f32 / steps as f32;
+
+    // Check each position along the line
+    for i in 0..=steps {
+        let x = (from.0 as f32 + step_x * i as f32).round() as i32;
+        let z = (from.2 as f32 + step_z * i as f32).round() as i32;
+        let y = from.1 + ((dy as f32 * i as f32 / steps as f32).round() as i32);
+
+        // Check if position is walkable
+        if !is_position_walkable(x, y, z, chunks, registry, height) {
+            return false;
+        }
+
+        // Also check adjacent positions to avoid corner clipping
+        // This is important when moving diagonally
+        if i > 0 && i < steps {
+            let prev_x = (from.0 as f32 + step_x * (i - 1) as f32).round() as i32;
+            let prev_z = (from.2 as f32 + step_z * (i - 1) as f32).round() as i32;
+
+            // Check the two cells that form the "corner" when moving diagonally
+            if x != prev_x && z != prev_z {
+                // We're moving diagonally, check both adjacent cells
+                if !is_position_walkable(prev_x, y, z, chunks, registry, height)
+                    || !is_position_walkable(x, y, prev_z, chunks, registry, height)
+                {
+                    return false; // Can't cut this corner
+                }
+            }
+        }
+    }
+
+    true
+}
+
+/// Check if a specific position is walkable
+fn is_position_walkable(
+    x: i32,
+    y: i32,
+    z: i32,
+    chunks: &Chunks,
+    registry: &Registry,
+    height: f32,
+) -> bool {
+    // Check ground below
+    let below_voxel = chunks.get_voxel(x, y - 1, z);
+    let below_block = registry.get_block_by_id(below_voxel);
+
+    // Must have solid ground below
+    if below_block.is_passable || below_block.is_fluid {
+        return false;
+    }
+
+    // Check space for bot height
+    for h in 0..(height.ceil() as i32 + 1) {
+        let check_voxel = chunks.get_voxel(x, y + h, z);
+        let check_block = registry.get_block_by_id(check_voxel);
+
+        // Space must be passable
+        if !check_block.is_passable {
+            return false;
+        }
+    }
+
+    true
 }
