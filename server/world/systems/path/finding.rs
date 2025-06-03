@@ -332,8 +332,8 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
         return; // Nothing to smooth
     }
 
-    // We'll smooth the first 5-7 nodes to make initial movement more natural
-    let nodes_to_check = path.len().min(7);
+    // We'll smooth only the first 3-4 nodes to avoid aggressive turns
+    let nodes_to_check = path.len().min(4);
     let mut smoothed_path = vec![path[0].clone()];
     let mut current_index = 0;
 
@@ -342,7 +342,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
         let mut furthest_visible = current_index + 1;
 
         // Try to find the furthest node we can reach directly
-        // But be conservative - only check up to 3 nodes ahead
+        // But be very conservative - only check up to 2 nodes ahead
         for check_index in (current_index + 2)..nodes_to_check.min(current_index + 3) {
             if check_index >= path.len() {
                 break;
@@ -355,9 +355,20 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
                 + (target.1 - current.1).pow(2)
                 + (target.2 - current.2).pow(2)) as f32;
 
-            // Don't smooth over long distances (more than 3 blocks away)
-            if dist.sqrt() > 3.0 {
+            // Don't smooth over long distances (more than 2.5 blocks away)
+            if dist.sqrt() > 2.5 {
                 break;
+            }
+
+            // Check angle change to prevent smoothing over sharp turns
+            if current_index > 0 {
+                let prev = &smoothed_path[smoothed_path.len() - 1];
+                let angle = calculate_angle_change(prev, current, target);
+
+                // Don't smooth if it would create a sharp turn (> 60 degrees)
+                if angle > 60.0 {
+                    break;
+                }
             }
 
             // Check if we can walk directly from current to target
@@ -379,6 +390,40 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
     }
 
     *path = smoothed_path;
+}
+
+/// Calculate the angle change in degrees between three points
+fn calculate_angle_change(p1: &Vec3<i32>, p2: &Vec3<i32>, p3: &Vec3<i32>) -> f32 {
+    // Vector from p1 to p2
+    let v1_x = (p2.0 - p1.0) as f32;
+    let v1_z = (p2.2 - p1.2) as f32;
+
+    // Vector from p2 to p3
+    let v2_x = (p3.0 - p2.0) as f32;
+    let v2_z = (p3.2 - p2.2) as f32;
+
+    // Calculate magnitudes
+    let mag1 = (v1_x * v1_x + v1_z * v1_z).sqrt();
+    let mag2 = (v2_x * v2_x + v2_z * v2_z).sqrt();
+
+    if mag1 == 0.0 || mag2 == 0.0 {
+        return 0.0;
+    }
+
+    // Normalize vectors
+    let v1_x = v1_x / mag1;
+    let v1_z = v1_z / mag1;
+    let v2_x = v2_x / mag2;
+    let v2_z = v2_z / mag2;
+
+    // Calculate dot product
+    let dot = v1_x * v2_x + v1_z * v2_z;
+
+    // Clamp to avoid numerical errors
+    let dot = dot.clamp(-1.0, 1.0);
+
+    // Calculate angle in degrees
+    dot.acos().to_degrees()
 }
 
 /// Check if we can walk directly between two points
