@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -43,12 +44,37 @@ impl Stats {
         let mut path = PathBuf::from(&directory);
         path.push("stats.json");
 
+        // Try to load existing stats if saving is enabled and file exists
+        let (loaded_tick, loaded_time) = if saving && path.exists() {
+            match fs::read_to_string(&path) {
+                Ok(contents) => match serde_json::from_str::<StatsJson>(&contents) {
+                    Ok(stats_json) => {
+                        info!(
+                            "Loaded stats from disk: tick={}, time={}",
+                            stats_json.tick, stats_json.time
+                        );
+                        (stats_json.tick, stats_json.time)
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse stats.json: {}", e);
+                        (0, default_time)
+                    }
+                },
+                Err(e) => {
+                    warn!("Failed to read stats.json: {}", e);
+                    (0, default_time)
+                }
+            }
+        } else {
+            (0, default_time)
+        };
+
         Self {
             delta: 0.0,
-            tick: 0,
+            tick: loaded_tick,
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
-            time: default_time,
+            time: loaded_time,
             path,
             saving,
         }
