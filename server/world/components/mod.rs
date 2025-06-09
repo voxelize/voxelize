@@ -16,6 +16,7 @@ mod position;
 mod rigidbody;
 mod target;
 mod voxel;
+mod last_sent_pos;
 
 pub use addr::AddrComp;
 pub use brain::BrainComp;
@@ -35,3 +36,4 @@ pub use position::PositionComp;
 pub use rigidbody::RigidBodyComp;
 pub use target::*;
 pub use voxel::*;
+pub use last_sent_pos::LastSentPos;
