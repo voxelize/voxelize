@@ -97,6 +97,9 @@ pub struct WorldConfig {
 
     /// Whether entities should be saved. Only applies if `saving` is true.
     pub save_entities: bool,
+
+    /// Whether to create static chunk colliders in Rapier so that entity bodies also collide with terrain.
+    pub rapier_chunk_collisions: bool,
 }
 
 impl Default for WorldConfig {
@@ -179,6 +182,7 @@ pub struct WorldConfigBuilder {
     save_interval: usize,
     command_symbol: String,
     save_entities: bool,
+    rapier_chunk_collisions: bool,
 }
 
 impl WorldConfigBuilder {
@@ -216,6 +220,7 @@ impl WorldConfigBuilder {
             terrain: NoiseOptions::default(),
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
+            rapier_chunk_collisions: false,
         }
     }
 
@@ -382,6 +387,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure whether to create static chunk colliders in Rapier so that entity bodies also collide with terrain.
+    pub fn rapier_chunk_collisions(mut self, rapier_chunk_collisions: bool) -> Self {
+        self.rapier_chunk_collisions = rapier_chunk_collisions;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -429,6 +440,7 @@ impl WorldConfigBuilder {
             save_interval: self.save_interval,
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
+            rapier_chunk_collisions: self.rapier_chunk_collisions,
         }
     }
 }
