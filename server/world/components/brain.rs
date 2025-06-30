@@ -1,8 +1,9 @@
 use specs::{Component, VecStorage};
 
-use serde::{Deserialize, Serialize};
 use crate::{RigidBody, Vec3};
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct BrainState {
     pub heading: f32,
     pub running: bool,
@@ -61,7 +62,7 @@ impl Default for BrainOptions {
     }
 }
 
-#[derive(Default, Component)]
+#[derive(Default, Component, Serialize, Deserialize)]
 #[storage(VecStorage)]
 pub struct BrainComp {
     pub state: BrainState,
