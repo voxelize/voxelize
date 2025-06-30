@@ -1446,6 +1446,9 @@ pub struct BlockConditionalPart {
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub is_transparent: [bool; 6],
+    pub red_light_level: Option<u32>,
+    pub green_light_level: Option<u32>,
+    pub blue_light_level: Option<u32>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1555,6 +1558,31 @@ impl Block {
         self.red_light_level > 0 || self.green_light_level > 0 || self.blue_light_level > 0
     }
 
+    /// Check if block emits light at a specific position (considering dynamic patterns)
+    pub fn is_light_at(&self, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
+        // Check dynamic patterns first
+        if let Some(dynamic_patterns) = &self.dynamic_patterns {
+            for pattern in dynamic_patterns {
+                for part in &pattern.parts {
+                    if Self::evaluate_rule(&part.rule, pos, space) {
+                        // If this part matches and has any light levels defined, it's a light
+                        if part.red_light_level.is_some()
+                            || part.green_light_level.is_some()
+                            || part.blue_light_level.is_some()
+                        {
+                            return part.red_light_level.unwrap_or(0) > 0
+                                || part.green_light_level.unwrap_or(0) > 0
+                                || part.blue_light_level.unwrap_or(0) > 0;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fall back to static check
+        self.is_light
+    }
+
     pub fn get_aabbs(
         &self,
         pos: &Vec3<i32>,
@@ -1608,6 +1636,46 @@ impl Block {
             LightColor::Blue => self.blue_light_level,
             LightColor::Sunlight => 0,
         }
+    }
+
+    /// Get torch light level considering dynamic patterns (if any)
+    pub fn get_torch_light_level_at(
+        &self,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+        color: &LightColor,
+    ) -> u32 {
+        // Check if we have dynamic patterns with light levels
+        if let Some(dynamic_patterns) = &self.dynamic_patterns {
+            for pattern in dynamic_patterns {
+                for part in &pattern.parts {
+                    if Self::evaluate_rule(&part.rule, pos, space) {
+                        // If this part matches and has light levels defined, use them
+                        match *color {
+                            LightColor::Red => {
+                                if let Some(level) = part.red_light_level {
+                                    return level;
+                                }
+                            }
+                            LightColor::Green => {
+                                if let Some(level) = part.green_light_level {
+                                    return level;
+                                }
+                            }
+                            LightColor::Blue => {
+                                if let Some(level) = part.blue_light_level {
+                                    return level;
+                                }
+                            }
+                            LightColor::Sunlight => return 0,
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fall back to static light levels
+        self.get_torch_light_level(color)
     }
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
@@ -1730,6 +1798,7 @@ pub struct BlockBuilder {
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
+                + 'static
                 + Send
                 + Sync,
         >,

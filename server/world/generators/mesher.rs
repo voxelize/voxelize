@@ -32,7 +32,13 @@ fn get_block_by_voxel<'a>(
     neighbors: &Neighbors,
     registry: &'a Registry,
 ) -> &'a Block {
-    registry.get_block_by_id(neighbors.get_voxel(&Vec3(ox, oy, oz)))
+    let voxel_id = neighbors.get_voxel(&Vec3(ox, oy, oz));
+    if registry.has_type(voxel_id) {
+        registry.get_block_by_id(voxel_id)
+    } else {
+        // Return air block for unknown block IDs
+        registry.get_block_by_id(0)
+    }
 }
 
 const RED: LightColor = LightColor::Red;
@@ -265,6 +271,11 @@ impl Mesher {
                 for vy in (min_y..=(max_y - 1).min(height) as i32).rev() {
                     let voxel_id = space.get_voxel(vx, vy, vz);
 
+                    // Skip if block doesn't exist in registry (old/unknown blocks)
+                    if !registry.has_type(voxel_id) {
+                        continue;
+                    }
+
                     let rotation = space.get_voxel_rotation(vx, vy, vz);
                     let block = registry.get_block_by_id(voxel_id);
 
@@ -292,6 +303,11 @@ impl Mesher {
 
                                 let id = space.get_voxel(x, y, z);
 
+                                // Skip if block doesn't exist, treat as non-opaque
+                                if !registry.has_type(id) {
+                                    return true;
+                                }
+
                                 let block = registry.get_block_by_id(id);
 
                                 !block.is_opaque
@@ -303,7 +319,12 @@ impl Mesher {
                     }
 
                     let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
-                    let uv_map = registry.get_uv_map(block);
+
+                    // Build UV map from the actual faces (including dynamic patterns)
+                    let mut uv_map = HashMap::new();
+                    for face in &faces {
+                        uv_map.insert(face.name.clone(), face.range.clone());
+                    }
 
                     faces.iter().enumerate().for_each(|(idx, face)| {
                         let key = if face.isolated {
@@ -419,6 +440,12 @@ impl Mesher {
 
         let neighbor_id = space.get_voxel(nvx, nvy, nvz);
         let n_is_void = !space.contains(nvx, nvy, nvz);
+
+        // Skip if neighbor block doesn't exist in registry
+        if !n_is_void && !registry.has_type(neighbor_id) {
+            return;
+        }
+
         let n_block_type = registry.get_block_by_id(neighbor_id);
 
         // To mesh the face, we need to match these conditions:
@@ -460,7 +487,7 @@ impl Mesher {
                 end_u,
                 start_v,
                 end_v,
-            } = uv_map.get(&face.name).unwrap();
+            } = uv_map.get(&face.name).cloned().unwrap_or_default();
 
             let ndx = (positions.len() as f32 / 3.0).floor() as i32;
             let mut face_aos = vec![];

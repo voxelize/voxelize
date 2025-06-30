@@ -119,8 +119,12 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 // Track if this update removes a light source
                 let current_type = registry.get_block_by_id(current_id);
                 let updated_type = registry.get_block_by_id(updated_id);
+                let voxel_pos = voxel.clone();
 
-                if current_type.is_light && !updated_type.is_light {
+                let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
+                let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
+
+                if current_is_light && !updated_is_light {
                     removed_light_sources.push((voxel.clone(), current_type.clone()));
                 }
 
@@ -166,9 +170,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                 chunks.set_voxel(vx, vy, vz, updated_id);
 
-                if stage != 0 {
-                    chunks.set_voxel_stage(vx, vy, vz, stage);
-                }
+                chunks.set_voxel_stage(vx, vy, vz, stage);
 
                 if updated_type.is_active {
                     let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
@@ -220,13 +222,19 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             let mut blue_removals = Vec::new();
 
             for (voxel, light_block) in &removed_light_sources {
-                if light_block.red_light_level > 0 {
+                let voxel_pos = voxel.clone();
+                let red_level = light_block.get_torch_light_level_at(&voxel_pos, &*chunks, &RED);
+                let green_level =
+                    light_block.get_torch_light_level_at(&voxel_pos, &*chunks, &GREEN);
+                let blue_level = light_block.get_torch_light_level_at(&voxel_pos, &*chunks, &BLUE);
+
+                if red_level > 0 {
                     red_removals.push(voxel.clone());
                 }
-                if light_block.green_light_level > 0 {
+                if green_level > 0 {
                     green_removals.push(voxel.clone());
                 }
-                if light_block.blue_light_level > 0 {
+                if blue_level > 0 {
                     blue_removals.push(voxel.clone());
                 }
 
@@ -258,9 +266,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                 let current_type = registry.get_block_by_id(current_id);
                 let updated_type = registry.get_block_by_id(updated_id);
+                let voxel_pos = voxel.clone();
+
+                let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
+                let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
 
                 // Skip if we already handled this as a removed light source
-                if current_type.is_light && !updated_type.is_light {
+                if current_is_light && !updated_is_light {
                     continue;
                 }
 
@@ -376,26 +388,33 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 }
 
                 // Handle placing new light sources
-                if updated_type.is_light {
-                    if updated_type.red_light_level > 0 {
-                        chunks.set_torch_light(vx, vy, vz, updated_type.red_light_level, &RED);
+                if updated_is_light {
+                    let red_level =
+                        updated_type.get_torch_light_level_at(&voxel_pos, &*chunks, &RED);
+                    let green_level =
+                        updated_type.get_torch_light_level_at(&voxel_pos, &*chunks, &GREEN);
+                    let blue_level =
+                        updated_type.get_torch_light_level_at(&voxel_pos, &*chunks, &BLUE);
+
+                    if red_level > 0 {
+                        chunks.set_torch_light(vx, vy, vz, red_level, &RED);
                         red_flood.push_back(LightNode {
                             voxel: [voxel.0, voxel.1, voxel.2],
-                            level: updated_type.red_light_level,
+                            level: red_level,
                         });
                     }
-                    if updated_type.green_light_level > 0 {
-                        chunks.set_torch_light(vx, vy, vz, updated_type.green_light_level, &GREEN);
+                    if green_level > 0 {
+                        chunks.set_torch_light(vx, vy, vz, green_level, &GREEN);
                         green_flood.push_back(LightNode {
                             voxel: [voxel.0, voxel.1, voxel.2],
-                            level: updated_type.green_light_level,
+                            level: green_level,
                         });
                     }
-                    if updated_type.blue_light_level > 0 {
-                        chunks.set_torch_light(vx, vy, vz, updated_type.blue_light_level, &BLUE);
+                    if blue_level > 0 {
+                        chunks.set_torch_light(vx, vy, vz, blue_level, &BLUE);
                         blue_flood.push_back(LightNode {
                             voxel: [voxel.0, voxel.1, voxel.2],
-                            level: updated_type.blue_light_level,
+                            level: blue_level,
                         });
                     }
                 }

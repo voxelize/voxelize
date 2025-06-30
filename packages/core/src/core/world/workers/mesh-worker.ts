@@ -292,6 +292,10 @@ onmessage = function (e) {
           continue;
         }
 
+        let dynamicRedLight: number | null = null;
+        let dynamicGreenLight: number | null = null;
+        let dynamicBlueLight: number | null = null;
+
         if (dynamicPatterns) {
           faces = [];
           aabbs = [];
@@ -314,6 +318,26 @@ onmessage = function (e) {
                 patternsMatched = true;
                 faces = [...faces, ...part.faces];
                 aabbs = [...aabbs, ...part.aabbs];
+
+                // Extract light levels from the matched part
+                if (
+                  part.redLightLevel !== undefined &&
+                  part.redLightLevel !== null
+                ) {
+                  dynamicRedLight = part.redLightLevel;
+                }
+                if (
+                  part.greenLightLevel !== undefined &&
+                  part.greenLightLevel !== null
+                ) {
+                  dynamicGreenLight = part.greenLightLevel;
+                }
+                if (
+                  part.blueLightLevel !== undefined &&
+                  part.blueLightLevel !== null
+                ) {
+                  dynamicBlueLight = part.blueLightLevel;
+                }
               }
             }
 

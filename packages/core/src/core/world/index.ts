@@ -3270,10 +3270,102 @@ export class World<T = any> extends Scene implements NetIntercept {
       const newRotation = BlockRotation.encode(rotation, yRotation);
 
       // Track if this removes a light source
-      if (currentBlock.isLight && !newBlock.isLight) {
+      // For dynamic pattern blocks, we need to check if the current stage emits light
+      let currentEmitsLight = currentBlock.isLight;
+      let currentRedLevel = currentBlock.redLightLevel;
+      let currentGreenLevel = currentBlock.greenLightLevel;
+      let currentBlueLevel = currentBlock.blueLightLevel;
+
+      if (currentBlock.dynamicPatterns) {
+        // Check if current block with current stage emits light
+        const currentStage = this.getVoxelStageAt(vx, vy, vz);
+        currentEmitsLight = false;
+        currentRedLevel = 0;
+        currentGreenLevel = 0;
+        currentBlueLevel = 0;
+
+        for (const pattern of currentBlock.dynamicPatterns) {
+          for (const part of pattern.parts) {
+            const ruleMatched = BlockUtils.evaluateBlockRule(
+              part.rule,
+              [vx, vy, vz],
+              {
+                getVoxelAt: (x: number, y: number, z: number) =>
+                  this.getVoxelAt(x, y, z),
+                getVoxelRotationAt: (x: number, y: number, z: number) =>
+                  this.getVoxelRotationAt(x, y, z),
+                getVoxelStageAt: (x: number, y: number, z: number) =>
+                  this.getVoxelStageAt(x, y, z),
+              }
+            );
+
+            if (ruleMatched) {
+              if (part.redLightLevel !== undefined)
+                currentRedLevel = part.redLightLevel;
+              if (part.greenLightLevel !== undefined)
+                currentGreenLevel = part.greenLightLevel;
+              if (part.blueLightLevel !== undefined)
+                currentBlueLevel = part.blueLightLevel;
+              currentEmitsLight =
+                currentRedLevel > 0 ||
+                currentGreenLevel > 0 ||
+                currentBlueLevel > 0;
+              break;
+            }
+          }
+        }
+      }
+
+      // Check if new block will emit light
+      let newEmitsLight = newBlock.isLight;
+      if (newBlock.dynamicPatterns && stage !== undefined) {
+        newEmitsLight = false;
+        for (const pattern of newBlock.dynamicPatterns) {
+          for (const part of pattern.parts) {
+            // Create a temporary helper to evaluate rules for the new state
+            const ruleMatched = BlockUtils.evaluateBlockRule(
+              part.rule,
+              [vx, vy, vz],
+              {
+                getVoxelAt: (x: number, y: number, z: number) => {
+                  if (x === vx && y === vy && z === vz) return type;
+                  return this.getVoxelAt(x, y, z);
+                },
+                getVoxelRotationAt: (x: number, y: number, z: number) => {
+                  if (x === vx && y === vy && z === vz) return newRotation;
+                  return this.getVoxelRotationAt(x, y, z);
+                },
+                getVoxelStageAt: (x: number, y: number, z: number) => {
+                  if (x === vx && y === vy && z === vz) return stage || 0;
+                  return this.getVoxelStageAt(x, y, z);
+                },
+              }
+            );
+
+            if (ruleMatched) {
+              const hasLight =
+                (part.redLightLevel || 0) > 0 ||
+                (part.greenLightLevel || 0) > 0 ||
+                (part.blueLightLevel || 0) > 0;
+              if (hasLight) {
+                newEmitsLight = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (currentEmitsLight && !newEmitsLight) {
+        // Store the actual light levels for removal
+        const blockWithLevels = { ...currentBlock };
+        blockWithLevels.redLightLevel = currentRedLevel;
+        blockWithLevels.greenLightLevel = currentGreenLevel;
+        blockWithLevels.blueLightLevel = currentBlueLevel;
+
         removedLightSources.push({
           voxel: [vx, vy, vz],
-          block: currentBlock,
+          block: blockWithLevels,
         });
       }
 
@@ -3355,7 +3447,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [vx, vy, vz] = voxel;
 
       // Skip if we already handled this as a removed light source
-      if (oldBlock.isLight && !newBlock.isLight) {
+      if (
+        removedLightSources.some(
+          ({ voxel: v }) => v[0] === vx && v[1] === vy && v[2] === vz
+        )
+      ) {
         continue;
       }
 
@@ -3471,27 +3567,64 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       // Handle placing new light sources
       if (newBlock.isLight) {
-        if (newBlock.redLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, newBlock.redLightLevel, "RED");
+        // Get light levels from dynamic patterns if available
+        let redLevel = newBlock.redLightLevel;
+        let greenLevel = newBlock.greenLightLevel;
+        let blueLevel = newBlock.blueLightLevel;
+
+        // Check if this block has dynamic patterns with light levels
+        if (newBlock.dynamicPatterns && update.stage !== undefined) {
+          for (const pattern of newBlock.dynamicPatterns) {
+            for (const part of pattern.parts) {
+              // Evaluate the rule to see if this part matches
+              const ruleMatched = BlockUtils.evaluateBlockRule(
+                part.rule,
+                [vx, vy, vz],
+                {
+                  getVoxelAt: (x: number, y: number, z: number) =>
+                    this.getVoxelAt(x, y, z),
+                  getVoxelRotationAt: (x: number, y: number, z: number) =>
+                    this.getVoxelRotationAt(x, y, z),
+                  getVoxelStageAt: (x: number, y: number, z: number) =>
+                    this.getVoxelStageAt(x, y, z),
+                }
+              );
+
+              if (ruleMatched) {
+                // Use the light levels from the matched part
+                if (part.redLightLevel !== undefined)
+                  redLevel = part.redLightLevel;
+                if (part.greenLightLevel !== undefined)
+                  greenLevel = part.greenLightLevel;
+                if (part.blueLightLevel !== undefined)
+                  blueLevel = part.blueLightLevel;
+                break;
+              }
+            }
+          }
+        }
+
+        if (redLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, redLevel, "RED");
           redFlood.push({
             voxel: voxel,
-            level: newBlock.redLightLevel,
+            level: redLevel,
           });
         }
 
-        if (newBlock.greenLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, newBlock.greenLightLevel, "GREEN");
+        if (greenLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, greenLevel, "GREEN");
           greenFlood.push({
             voxel: voxel,
-            level: newBlock.greenLightLevel,
+            level: greenLevel,
           });
         }
 
-        if (newBlock.blueLightLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, newBlock.blueLightLevel, "BLUE");
+        if (blueLevel > 0) {
+          this.setTorchLightAt(vx, vy, vz, blueLevel, "BLUE");
           blueFlood.push({
             voxel: voxel,
-            level: newBlock.blueLightLevel,
+            level: blueLevel,
           });
         }
       }

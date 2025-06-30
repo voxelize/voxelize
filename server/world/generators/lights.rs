@@ -66,12 +66,14 @@ impl Lights {
 
             let [vx, vy, vz] = voxel;
             let source_block = registry.get_block_by_id(space.get_voxel(vx, vy, vz));
-            let source_transparency =
-                if !is_sunlight && source_block.get_torch_light_level(color) > 0 {
-                    ALL_TRANSPARENT
-                } else {
-                    source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
-                };
+            let voxel_pos = Vec3(vx, vy, vz);
+            let source_transparency = if !is_sunlight
+                && source_block.get_torch_light_level_at(&voxel_pos, space, color) > 0
+            {
+                ALL_TRANSPARENT
+            } else {
+                source_block.get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+            };
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
                 let nvy = vy + oy;
@@ -108,8 +110,9 @@ impl Lights {
 
                 let next_voxel = [nvx, nvy, nvz];
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let n_transparency =
-                    n_block.get_rotated_transparency(&space.get_voxel_rotation(nvx, nvy, nvz));
+                let n_voxel_pos = Vec3(nvx, nvy, nvz);
+                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
+                let n_transparency = n_block.get_rotated_transparency(&rotation);
                 let next_level = level
                     - if is_sunlight
                         && !n_block.light_reduce
@@ -192,6 +195,7 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
+                let n_voxel_pos = Vec3(nvx, nvy, nvz);
                 let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
                 let n_transparency = n_block.get_rotated_transparency(&rotation);
 
@@ -199,7 +203,7 @@ impl Lights {
                 if if is_sunlight {
                     true
                 } else {
-                    n_block.get_torch_light_level(color) == 0
+                    n_block.get_torch_light_level_at(&n_voxel_pos, space, color) == 0
                 } && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz)
                 {
                     continue;
@@ -276,18 +280,30 @@ impl Lights {
             for x in 0..shape.0 {
                 for z in 0..shape.2 {
                     let id = space.get_voxel(x + start_x, y, z + start_z);
+                    let block = registry.get_block_by_id(id);
+                    let voxel_pos = Vec3(x + start_x, y, z + start_z);
+
                     let &Block {
                         is_transparent,
                         is_opaque,
                         is_light,
-                        red_light_level,
-                        green_light_level,
-                        blue_light_level,
                         light_reduce,
                         ..
-                    } = registry.get_block_by_id(id);
+                    } = block;
 
-                    if is_light {
+                    // Get dynamic light levels
+                    let red_light_level =
+                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Red);
+                    let green_light_level =
+                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Green);
+                    let blue_light_level =
+                        block.get_torch_light_level_at(&voxel_pos, space, &LightColor::Blue);
+
+                    if is_light
+                        || red_light_level > 0
+                        || green_light_level > 0
+                        || blue_light_level > 0
+                    {
                         if red_light_level > 0 {
                             space.set_red_light(x + start_x, y, z + start_z, red_light_level);
                             red_light_queue.push_back(LightNode {
@@ -509,13 +525,15 @@ impl Lights {
                 let nvx = vx + ox;
                 let nvz = vz + oz;
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
+                let n_voxel_pos = Vec3(nvx, nvy, nvz);
                 let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
                 let n_transparency = n_block.get_rotated_transparency(&rotation);
 
+                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
                 if if is_sunlight {
                     true
                 } else {
-                    n_block.get_torch_light_level(color) == 0
+                    n_block.get_torch_light_level_at(&n_voxel_pos, space, color) == 0
                 } && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz)
                 {
                     continue;

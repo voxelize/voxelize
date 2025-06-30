@@ -28,6 +28,9 @@ export interface BlockConditionalPart {
   faces: Block["faces"];
   aabbs: Block["aabbs"];
   isTransparent: Block["isTransparent"];
+  redLightLevel?: number;
+  greenLightLevel?: number;
+  blueLightLevel?: number;
 }
 
 export interface BlockDynamicPattern {
