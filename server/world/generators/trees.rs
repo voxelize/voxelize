@@ -310,6 +310,9 @@ pub struct Tree {
     /// The id of the trunk block.
     pub trunk_id: u32,
 
+    /// The L-system production rules.
+    pub rules: HashMap<char, String>,
+
     /// The L-system output to use.
     pub system_result: String,
 }
@@ -333,6 +336,7 @@ pub struct TreeBuilder {
     branch_drot_angle: f64,
     leaf_id: u32,
     trunk_id: u32,
+    rules: HashMap<char, String>,
     system: LSystem,
 }
 
@@ -354,6 +358,7 @@ impl TreeBuilder {
             leaf_id,
             trunk_id,
 
+            rules: HashMap::new(),
             system: LSystem::default(),
         }
     }
@@ -423,7 +428,23 @@ impl TreeBuilder {
         self
     }
 
+    pub fn rules(mut self, rules: HashMap<char, String>) -> TreeBuilder {
+        self.rules = rules;
+        self
+    }
+
+    pub fn rule(mut self, key: char, value: &str) -> TreeBuilder {
+        self.rules.insert(key, value.to_owned());
+        self
+    }
+
     pub fn build(self) -> Tree {
+        // Apply rules to the L-system
+        let mut system = self.system;
+        for (key, value) in &self.rules {
+            system.rules.insert(*key, value.clone());
+        }
+
         Tree {
             leaf_radius: self.leaf_radius,
             leaf_height: self.leaf_height,
@@ -437,7 +458,8 @@ impl TreeBuilder {
             branch_drot_angle: self.branch_drot_angle,
             leaf_id: self.leaf_id,
             trunk_id: self.trunk_id,
-            system_result: self.system.generate(),
+            rules: self.rules,
+            system_result: system.generate(),
         }
     }
 }
