@@ -60,15 +60,27 @@ onmessage = function (e) {
     return chunks[index];
   };
 
+  const chunkCache = new Map<string, Chunk | null>();
+
+  const getCachedChunk = (coords: Coords2): Chunk | null => {
+    const key = `${coords[0]},${coords[1]}`;
+    let chunk = chunkCache.get(key);
+    if (chunk === undefined) {
+      chunk = getChunkByCoords(coords);
+      chunkCache.set(key, chunk);
+    }
+    return chunk;
+  };
+
   const getVoxelAt = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
-    const chunk = getChunkByCoords(coords);
+    const chunk = getCachedChunk(coords);
     return chunk?.getVoxel(vx, vy, vz) ?? 0;
   };
 
   const getSunlightAt = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
-    const chunk = getChunkByCoords(coords);
+    const chunk = getCachedChunk(coords);
     return chunk?.getSunlight(vx, vy, vz) ?? 0;
   };
 
@@ -79,7 +91,7 @@ onmessage = function (e) {
     color: LightColor
   ) => {
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
-    const chunk = getChunkByCoords(coords);
+    const chunk = getCachedChunk(coords);
     return chunk?.getTorchLight(vx, vy, vz, color) ?? 0;
   };
 
@@ -104,10 +116,11 @@ onmessage = function (e) {
       };
     }
 
-    const sumSunlights: number[] = [];
-    const sumRedLights: number[] = [];
-    const sumGreenLights: number[] = [];
-    const sumBlueLights: number[] = [];
+    let sumSunlight = 0;
+    let sumRedLight = 0;
+    let sumGreenLight = 0;
+    let sumBlueLight = 0;
+    let count = 0;
 
     // Loop through all 9 neighbors of this vertex
     for (let x = 0; x <= 1; x++) {
@@ -150,35 +163,41 @@ onmessage = function (e) {
             continue;
           }
 
-          const diagonal4 = getBlockAt(
+          const diagonal4Id = getVoxelAt(
             vx + offsetX,
             vy + offsetY,
             vz + offsetZ
           );
+          const diagonal4 = registry.blocksById.get(diagonal4Id);
 
           if (diagonal4.isOpaque) {
             continue;
           }
 
           if (dir[0] * offsetX + dir[1] * offsetY + dir[2] * offsetZ === 0) {
-            const facing = getBlockAt(
+            const facingId = getVoxelAt(
               vx + offsetX * dir[0],
               vy + offsetY * dir[1],
               vz + offsetZ * dir[2]
             );
+            const facing = registry.blocksById.get(facingId);
 
             if (facing.isOpaque) {
               continue;
             }
           }
 
-          // Diagonal light leaking fix
-          if (Math.abs(offsetX) + Math.abs(offsetY) + Math.abs(offsetZ) === 3) {
-            const diagonalYZ = getBlockAt(vx, vy + offsetY, vz + offsetZ);
-            const diagonalXZ = getBlockAt(vx + offsetX, vy, vz + offsetZ);
-            const diagonalXY = getBlockAt(vx + offsetX, vy + offsetY, vz);
+          const absSum =
+            Math.abs(offsetX) + Math.abs(offsetY) + Math.abs(offsetZ);
+          if (absSum === 3) {
+            const diagonalYZId = getVoxelAt(vx, vy + offsetY, vz + offsetZ);
+            const diagonalXZId = getVoxelAt(vx + offsetX, vy, vz + offsetZ);
+            const diagonalXYId = getVoxelAt(vx + offsetX, vy + offsetY, vz);
 
-            // Three corners are blocked
+            const diagonalYZ = registry.blocksById.get(diagonalYZId);
+            const diagonalXZ = registry.blocksById.get(diagonalXZId);
+            const diagonalXY = registry.blocksById.get(diagonalXYId);
+
             if (
               diagonalYZ.isOpaque &&
               diagonalXZ.isOpaque &&
@@ -187,10 +206,11 @@ onmessage = function (e) {
               continue;
             }
 
-            // Two corners are blocked
             if (diagonalXY.isOpaque && diagonalXZ.isOpaque) {
-              const neighborY = getBlockAt(vx, vy + offsetY, vz);
-              const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
+              const neighborYId = getVoxelAt(vx, vy + offsetY, vz);
+              const neighborZId = getVoxelAt(vx, vy, vz + offsetZ);
+              const neighborY = registry.blocksById.get(neighborYId);
+              const neighborZ = registry.blocksById.get(neighborZId);
 
               if (neighborY.isOpaque && neighborZ.isOpaque) {
                 continue;
@@ -198,8 +218,10 @@ onmessage = function (e) {
             }
 
             if (diagonalXY.isOpaque && diagonalYZ.isOpaque) {
-              const neighborX = getBlockAt(vx + offsetX, vy, vz);
-              const neighborZ = getBlockAt(vx, vy, vz + offsetZ);
+              const neighborXId = getVoxelAt(vx + offsetX, vy, vz);
+              const neighborZId = getVoxelAt(vx, vy, vz + offsetZ);
+              const neighborX = registry.blocksById.get(neighborXId);
+              const neighborZ = registry.blocksById.get(neighborZId);
 
               if (neighborX.isOpaque && neighborZ.isOpaque) {
                 continue;
@@ -207,8 +229,10 @@ onmessage = function (e) {
             }
 
             if (diagonalXZ.isOpaque && diagonalYZ.isOpaque) {
-              const neighborX = getBlockAt(vx + offsetX, vy, vz);
-              const neighborY = getBlockAt(vx, vy + offsetY, vz);
+              const neighborXId = getVoxelAt(vx + offsetX, vy, vz);
+              const neighborYId = getVoxelAt(vx, vy + offsetY, vz);
+              const neighborX = registry.blocksById.get(neighborXId);
+              const neighborY = registry.blocksById.get(neighborYId);
 
               if (neighborX.isOpaque && neighborY.isOpaque) {
                 continue;
@@ -216,37 +240,37 @@ onmessage = function (e) {
             }
           }
 
-          sumSunlights.push(localSunlight);
-          sumRedLights.push(localRedLight);
-          sumGreenLights.push(localGreenLight);
-          sumBlueLights.push(localBlueLight);
+          sumSunlight += localSunlight;
+          sumRedLight += localRedLight;
+          sumGreenLight += localGreenLight;
+          sumBlueLight += localBlueLight;
+          count++;
         }
       }
     }
 
+    if (count === 0) {
+      return { sun: 0, red: 0, green: 0, blue: 0 };
+    }
+
     return {
-      sun: sumSunlights.reduce((a, b) => a + b, 0) / sumSunlights.length,
-      red: sumRedLights.reduce((a, b) => a + b, 0) / sumRedLights.length,
-      green: sumGreenLights.reduce((a, b) => a + b, 0) / sumGreenLights.length,
-      blue: sumBlueLights.reduce((a, b) => a + b, 0) / sumBlueLights.length,
+      sun: sumSunlight / count,
+      red: sumRedLight / count,
+      green: sumGreenLight / count,
+      blue: sumBlueLight / count,
     };
   }
 
   const getVoxelRotationAt = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
-    const chunk = getChunkByCoords(coords);
+    const chunk = getCachedChunk(coords);
     return chunk?.getVoxelRotation(vx, vy, vz) ?? new BlockRotation();
   };
 
   const getVoxelStageAt = (vx: number, vy: number, vz: number) => {
     const coords = ChunkUtils.mapVoxelToChunk([vx, vy, vz], chunkSize);
-    const chunk = getChunkByCoords(coords);
+    const chunk = getCachedChunk(coords);
     return chunk?.getVoxelStage(vx, vy, vz) ?? 0;
-  };
-
-  const getBlockAt = (vx: number, vy: number, vz: number) => {
-    const voxelId = getVoxelAt(vx, vy, vz);
-    return registry.blocksById.get(voxelId);
   };
 
   // Start meshing
@@ -292,10 +316,6 @@ onmessage = function (e) {
           continue;
         }
 
-        let dynamicRedLight: number | null = null;
-        let dynamicGreenLight: number | null = null;
-        let dynamicBlueLight: number | null = null;
-
         if (dynamicPatterns) {
           faces = [];
           aabbs = [];
@@ -318,26 +338,6 @@ onmessage = function (e) {
                 patternsMatched = true;
                 faces = [...faces, ...part.faces];
                 aabbs = [...aabbs, ...part.aabbs];
-
-                // Extract light levels from the matched part
-                if (
-                  part.redLightLevel !== undefined &&
-                  part.redLightLevel !== null
-                ) {
-                  dynamicRedLight = part.redLightLevel;
-                }
-                if (
-                  part.greenLightLevel !== undefined &&
-                  part.greenLightLevel !== null
-                ) {
-                  dynamicGreenLight = part.greenLightLevel;
-                }
-                if (
-                  part.blueLightLevel !== undefined &&
-                  part.blueLightLevel !== null
-                ) {
-                  dynamicBlueLight = part.blueLightLevel;
-                }
               }
             }
 
@@ -534,14 +534,15 @@ onmessage = function (e) {
               const unitDy = dy === 0 ? -1 : 1;
               const unitDz = dz === 0 ? -1 : 1;
 
-              const b011 = !getBlockAt(vx + 0, vy + unitDy, vz + unitDz)
-                .isOpaque;
-              const b101 = !getBlockAt(vx + unitDx, vy + 0, vz + unitDz)
-                .isOpaque;
-              const b110 = !getBlockAt(vx + unitDx, vy + unitDy, vz + 0)
-                .isOpaque;
-              const b111 = !getBlockAt(vx + unitDx, vy + unitDy, vz + unitDz)
-                .isOpaque;
+              const b011Id = getVoxelAt(vx + 0, vy + unitDy, vz + unitDz);
+              const b101Id = getVoxelAt(vx + unitDx, vy + 0, vz + unitDz);
+              const b110Id = getVoxelAt(vx + unitDx, vy + unitDy, vz + 0);
+              const b111Id = getVoxelAt(vx + unitDx, vy + unitDy, vz + unitDz);
+
+              const b011 = !registry.blocksById.get(b011Id).isOpaque;
+              const b101 = !registry.blocksById.get(b101Id).isOpaque;
+              const b110 = !registry.blocksById.get(b110Id).isOpaque;
+              const b111 = !registry.blocksById.get(b111Id).isOpaque;
 
               const ao =
                 isSeeThrough || isAllTransparent

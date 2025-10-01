@@ -66,5 +66,19 @@ log = "0.4.21"
 [build-dependencies]
 prost-build = "0.12.4"
 
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "mesher_bench"
+harness = false
+
+[[bench]]
+name = "lights_bench"
+harness = false
+
 [profile.release]
 opt-level = 3
+
+[profile.bench]
+inherits = "release"

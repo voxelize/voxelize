@@ -1,8 +1,7 @@
-use std::{collections::VecDeque, sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
-use log::info;
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
@@ -48,7 +47,7 @@ const BLUE: LightColor = LightColor::Blue;
 /// A meshing helper to mesh chunks.
 pub struct Mesher {
     /// A queue of chunks to be meshed.
-    pub(crate) queue: VecDeque<Vec2<i32>>,
+    pub(crate) queue: std::collections::VecDeque<Vec2<i32>>,
 
     /// A map to keep track of all the chunks that are being meshed.
     pub(crate) map: HashSet<Vec2<i32>>,
@@ -72,7 +71,7 @@ impl Mesher {
         let (sender, receiver) = unbounded();
 
         Self {
-            queue: VecDeque::new(),
+            queue: std::collections::VecDeque::new(),
             map: HashSet::new(),
             skips: HashMap::new(),
             sender: Arc::new(sender),
@@ -161,7 +160,7 @@ impl Mesher {
                         (space.options.max_height / space.options.sub_chunks) as i32;
 
                     if chunk.meshes.is_none() {
-                        let mut light_queues = vec![VecDeque::new(); 4];
+                        let mut light_queues = vec![Vec::new(); 4];
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
@@ -326,7 +325,7 @@ impl Mesher {
                         uv_map.insert(face.name.clone(), face.range.clone());
                     }
 
-                    faces.iter().enumerate().for_each(|(idx, face)| {
+                    faces.iter().for_each(|face| {
                         let key = if face.isolated {
                             format!(
                                 "{}::{}::{}-{}-{}",
@@ -489,13 +488,15 @@ impl Mesher {
                 end_v,
             } = uv_map.get(&face.name).cloned().unwrap_or_default();
 
-            let ndx = (positions.len() as f32 / 3.0).floor() as i32;
-            let mut face_aos = vec![];
+            let ndx = (positions.len() / 3) as i32;
+            let mut face_aos = Vec::with_capacity(4);
 
-            let mut four_sunlights = vec![];
-            let mut four_red_lights = vec![];
-            let mut four_green_lights = vec![];
-            let mut four_blue_lights = vec![];
+            let mut four_sunlights = Vec::with_capacity(4);
+            let mut four_red_lights = Vec::with_capacity(4);
+            let mut four_green_lights = Vec::with_capacity(4);
+            let mut four_blue_lights = Vec::with_capacity(4);
+
+            let neighbors = Neighbors::populate(Vec3(vx, vy, vz), space);
 
             for CornerData { mut pos, uv } in corners.iter() {
                 if rotatable || y_rotatable {
@@ -514,7 +515,6 @@ impl Mesher {
                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                 uvs.push(uv[1] * (end_v - start_v) + start_v);
 
-                // calculating the 8 voxels around this vertex
                 let dx = pos[0].round() as i32;
                 let dy = pos[1].round() as i32;
                 let dz = pos[2].round() as i32;
@@ -523,12 +523,10 @@ impl Mesher {
                 let dy = if dy == 0 { -1 } else { 1 };
                 let dz = if dz == 0 { -1 } else { 1 };
 
-                let mut sum_sunlights = vec![];
-                let mut sum_red_lights = vec![];
-                let mut sum_green_lights = vec![];
-                let mut sum_blue_lights = vec![];
-
-                let neighbors = Neighbors::populate(Vec3(vx, vy, vz), space);
+                let mut sum_sunlights = Vec::with_capacity(8);
+                let mut sum_red_lights = Vec::with_capacity(8);
+                let mut sum_green_lights = Vec::with_capacity(8);
+                let mut sum_blue_lights = Vec::with_capacity(8);
 
                 let b011 = !get_block_by_voxel(0, dy, dz, &neighbors, registry).is_opaque;
                 let b101 = !get_block_by_voxel(dx, 0, dz, &neighbors, registry).is_opaque;
@@ -661,17 +659,20 @@ impl Mesher {
                         }
                     }
 
-                    sunlight = (sum_sunlights.iter().sum::<u32>() as f32
-                        / sum_sunlights.len() as f32) as u32;
-
-                    red_light = (sum_red_lights.iter().sum::<u32>() as f32
-                        / sum_red_lights.len() as f32) as u32;
-
-                    green_light = (sum_green_lights.iter().sum::<u32>() as f32
-                        / sum_green_lights.len() as f32) as u32;
-
-                    blue_light = (sum_blue_lights.iter().sum::<u32>() as f32
-                        / sum_blue_lights.len() as f32) as u32;
+                    let len = sum_sunlights.len();
+                    if len > 0 {
+                        let len_f32 = len as f32;
+                        sunlight = (sum_sunlights.iter().sum::<u32>() as f32 / len_f32) as u32;
+                        red_light = (sum_red_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
+                        green_light =
+                            (sum_green_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
+                        blue_light = (sum_blue_lights.iter().sum::<u32>() as f32 / len_f32) as u32;
+                    } else {
+                        sunlight = 0;
+                        red_light = 0;
+                        green_light = 0;
+                        blue_light = 0;
+                    }
                 }
 
                 let mut light = 0;

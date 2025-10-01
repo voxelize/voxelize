@@ -1815,8 +1815,35 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const isSunlight = color === "SUNLIGHT";
 
+    const blockCache = new Map<string, Block>();
+    const rotationCache = new Map<string, BlockRotation>();
+
+    const getCachedBlock = (vx: number, vy: number, vz: number): Block => {
+      const key = `${vx},${vy},${vz}`;
+      let block = blockCache.get(key);
+      if (!block) {
+        block = this.getBlockAt(vx, vy, vz);
+        blockCache.set(key, block);
+      }
+      return block;
+    };
+
+    const getCachedRotation = (
+      vx: number,
+      vy: number,
+      vz: number
+    ): BlockRotation => {
+      const key = `${vx},${vy},${vz}`;
+      let rotation = rotationCache.get(key);
+      if (!rotation) {
+        rotation = this.getVoxelRotationAt(vx, vy, vz);
+        rotationCache.set(key, rotation);
+      }
+      return rotation;
+    };
+
     while (queue.length) {
-      const node = queue.shift();
+      const node = queue.pop();
       const { voxel, level } = node;
 
       if (level === 0) {
@@ -1824,15 +1851,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const [vx, vy, vz] = voxel;
-      const sourceBlock = this.getBlockAt(vx, vy, vz);
+      const sourceBlock = getCachedBlock(vx, vy, vz);
+      const sourceRotation = getCachedRotation(vx, vy, vz);
       const sourceTransparency =
         !isSunlight &&
         BlockUtils.getBlockTorchLightLevel(sourceBlock, color) > 0
           ? [true, true, true, true, true, true]
-          : BlockUtils.getBlockRotatedTransparency(
-              sourceBlock,
-              this.getVoxelRotationAt(vx, vy, vz)
-            );
+          : BlockUtils.getBlockRotatedTransparency(sourceBlock, sourceRotation);
 
       for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
         const nvy = vy + oy;
@@ -1861,10 +1886,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         const nextVoxel = [nvx, nvy, nvz] as Coords3;
-        const nBlock = this.getBlockAt(nvx, nvy, nvz);
+        const nBlock = getCachedBlock(nvx, nvy, nvz);
+        const nRotation = getCachedRotation(nvx, nvy, nvz);
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
-          this.getVoxelRotationAt(nvx, nvy, nvz)
+          nRotation
         );
         const nextLevel =
           level -
@@ -1922,7 +1948,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     while (queue.length) {
       iterationCount++;
-      const node = queue.shift();
+      const node = queue.pop();
       const { voxel, level } = node;
 
       const [vx, vy, vz] = voxel;
@@ -2034,9 +2060,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     });
 
-    // BFS similar to removeLight but starting with multiple seeds.
+    // DFS (using pop instead of shift for O(1) performance)
     while (queue.length) {
-      const { voxel, level } = queue.shift();
+      const { voxel, level } = queue.pop();
       const [vx, vy, vz] = voxel;
 
       for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
