@@ -65,6 +65,7 @@ import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
+import LightWorker from "./workers/light-worker.ts?worker&inline";
 import MeshWorker from "./workers/mesh-worker.ts?worker&inline";
 
 export * from "./block";
@@ -100,6 +101,73 @@ export type BlockEntityUpdateData<T> = {
 export type BlockEntityUpdateListener<T> = (
   args: BlockEntityUpdateData<T>
 ) => void;
+
+export type VoxelDelta = {
+  coords: Coords3;
+  oldVoxel: number;
+  newVoxel: number;
+  oldRotation?: BlockRotation;
+  newRotation?: BlockRotation;
+  oldStage?: number;
+  newStage?: number;
+  timestamp: number;
+  sequenceId: number;
+};
+
+export type BoundingBox = {
+  min: Coords3;
+  shape: Coords3;
+};
+
+export type LightJob = {
+  jobId: string;
+  color: LightColor;
+  lightOps: {
+    removals: Coords3[];
+    floods: LightNode[];
+  };
+  boundingBox: BoundingBox;
+  startSequenceId: number;
+  retryCount: number;
+};
+
+export type LightOperations = {
+  removals: {
+    sunlight: Coords3[];
+    red: Coords3[];
+    green: Coords3[];
+    blue: Coords3[];
+  };
+  floods: {
+    sunlight: LightNode[];
+    red: LightNode[];
+    green: LightNode[];
+    blue: LightNode[];
+  };
+  hasOperations: boolean;
+};
+
+export type ProcessedUpdate = {
+  voxel: Coords3;
+  oldId: number;
+  newId: number;
+  oldBlock: Block;
+  newBlock: Block;
+  oldRotation: BlockRotation;
+  newRotation: BlockRotation;
+  stage: number;
+};
+
+export type LightWorkerResult = {
+  jobId: string;
+  modifiedChunks: {
+    coords: Coords2;
+    lights: Uint32Array;
+  }[];
+  appliedDeltas: {
+    lastSequenceId: number;
+  };
+};
 
 const VOXEL_NEIGHBORS = [
   [1, 0, 0],
@@ -217,6 +285,26 @@ export type WorldClientOptions = {
   statsSyncInterval: number;
 
   maxLightsUpdateTime: number;
+
+  /**
+   * Whether to use web workers for light calculations. Defaults to true.
+   */
+  useLightWorkers: boolean;
+
+  /**
+   * Maximum concurrent light workers. Defaults to 2.
+   */
+  maxLightWorkers: number;
+
+  /**
+   * Maximum number of retries for stale light jobs before falling back to sync. Defaults to 3.
+   */
+  lightJobRetryLimit: number;
+
+  /**
+   * How long to retain delta history in milliseconds. Defaults to 5000ms.
+   */
+  deltaRetentionTime: number;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -239,6 +327,10 @@ const defaultOptions: WorldClientOptions = {
   sunlightChangeSpan: 0.15,
   timeForceThreshold: 0.1,
   statsSyncInterval: 500,
+  useLightWorkers: true,
+  maxLightWorkers: 2,
+  lightJobRetryLimit: 3,
+  deltaRetentionTime: 5000,
 };
 
 /**
@@ -456,11 +548,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     maxWorker: navigator.hardwareConcurrency ?? 4,
   });
 
+  private lightWorkerPool!: WorkerPool;
+
   private textureLoaderLastMap: Record<string, Date> = {};
 
   private chunksTracker: [Coords2, number][] = [];
 
   private isTrackingChunks = false;
+
+  private voxelDeltas = new Map<string, VoxelDelta[]>();
+  private deltaSequenceCounter = 0;
+  private cleanupDeltasInterval: number | null = null;
+
+  private lightJobQueue: LightJob[] = [];
+  private lightJobIdCounter = 0;
 
   /**
    * Create a new Voxelize world.
@@ -476,8 +577,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     });
 
+    this.lightWorkerPool = new WorkerPool(LightWorker, {
+      maxWorker: this.options.maxLightWorkers,
+    });
+
     this.setupComponents();
     this.setupUniforms();
+    this.startDeltaCleanup();
 
     setWorkerInterval(() => {
       this.packets.push({
@@ -490,7 +596,35 @@ export class World<T = any> extends Scene implements NetIntercept {
     }, statsSyncInterval);
   }
 
+  private startDeltaCleanup() {
+    this.cleanupDeltasInterval = setInterval(() => {
+      const now = performance.now();
+      const cutoff = now - this.options.deltaRetentionTime;
+
+      this.voxelDeltas.forEach((deltas, chunkName) => {
+        const filtered = deltas.filter((d) => d.timestamp > cutoff);
+
+        if (filtered.length === 0) {
+          this.voxelDeltas.delete(chunkName);
+        } else if (filtered.length < deltas.length) {
+          this.voxelDeltas.set(chunkName, filtered);
+        }
+      });
+    }, 1000) as unknown as number;
+  }
+
   async meshChunkLocally(cx: number, cz: number, level: number) {
+    if (
+      this.lightJobQueue.length > 0 ||
+      this.lightWorkerPool.workingCount > 0
+    ) {
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          this.meshChunkLocally(cx, cz, level).then(resolve);
+        }, 10);
+      });
+    }
+
     const neighbors = [
       [-1, -1],
       [0, -1],
@@ -1086,7 +1220,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("set voxel", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
+
+    const oldVoxel = chunk.getVoxel(px, py, pz);
     chunk.setVoxel(px, py, pz, voxel);
+
+    if (oldVoxel !== voxel) {
+      this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel });
+    }
+
     this.trackChunkAt(px, py, pz);
   }
 
@@ -1122,7 +1263,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("set voxel rotation", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
+
+    const oldRotation = chunk.getVoxelRotation(px, py, pz);
     chunk.setVoxelRotation(px, py, pz, rotation);
+
+    if (
+      oldRotation.value !== rotation.value ||
+      oldRotation.yRotation !== rotation.yRotation
+    ) {
+      this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
+    }
+
     this.trackChunkAt(px, py, pz);
   }
 
@@ -1145,7 +1296,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("set voxel stage", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
+
+    const oldStage = chunk.getVoxelStage(px, py, pz);
     chunk.setVoxelStage(px, py, pz, stage);
+
+    if (oldStage !== stage) {
+      this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage });
+    }
+
     this.trackChunkAt(px, py, pz);
   }
 
@@ -2391,6 +2549,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const registryData = this.registry.serialize();
     this.meshWorkerPool.postMessage({ type: "init", registryData });
+    this.lightWorkerPool.postMessage({ type: "init", registryData });
 
     this.isInitialized = true;
 
@@ -2424,7 +2583,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const startOverall = performance.now();
 
     const startMaintainChunks = performance.now();
-    this.maintainChunks(center, direction);
+    this.maintainChunks(center);
     const maintainChunksDuration = performance.now() - startMaintainChunks;
 
     const startRequestChunks = performance.now();
@@ -2912,7 +3071,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
-  private maintainChunks(center: Coords2, direction: Vector3) {
+  private maintainChunks(center: Coords2) {
     const { deleteRadius } = this;
 
     const [centerX, centerZ] = center;
@@ -3244,73 +3403,43 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunks.uniforms.minLightLevel.value = minLightLevel;
   }
 
-  private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
-    const processStartTime = performance.now();
+  private analyzeLightOperations(
+    processedUpdates: ProcessedUpdate[]
+  ): LightOperations {
+    const { maxHeight, maxLightLevel } = this.options;
 
-    const { maxHeight, maxLightLevel, maxLightsUpdateTime } = this.options;
-
-    // Track removed light sources
     interface RemovedLightSource {
       voxel: Coords3;
       block: Block;
     }
 
-    // Track all updates for later processing
-    interface ProcessedUpdate {
-      voxel: Coords3;
-      oldId: number;
-      newId: number;
-      oldBlock: Block;
-      newBlock: Block;
-      oldRotation: BlockRotation;
-      newRotation: BlockRotation;
-      stage: number;
-    }
-
     const removedLightSources: RemovedLightSource[] = [];
-    const processedUpdates: ProcessedUpdate[] = [];
-    let processedCount = 0;
+    const redRemoval: Coords3[] = [];
+    const greenRemoval: Coords3[] = [];
+    const blueRemoval: Coords3[] = [];
+    const sunlightRemoval: Coords3[] = [];
 
-    // First pass: Update all voxels and track light source removals
-    const voxelUpdateStartTime = performance.now();
-    for (const update of updates) {
-      if (performance.now() - processStartTime > maxLightsUpdateTime) {
-        if (Math.random() < 0.01) {
-          // Log occasionally to avoid spamming console but continue processing for correctness
-          console.warn(
-            "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
-          );
-        }
-        break;
-      }
+    const redFlood: LightNode[] = [];
+    const greenFlood: LightNode[] = [];
+    const blueFlood: LightNode[] = [];
+    const sunFlood: LightNode[] = [];
 
-      const {
-        update: { type, vx, vy, vz, rotation, yRotation, stage },
-      } = update;
+    for (const update of processedUpdates) {
+      const { voxel, oldBlock, newBlock, newRotation } = update;
+      const [vx, vy, vz] = voxel;
 
-      // Store current state
-      const currentId = this.getVoxelAt(vx, vy, vz);
-      const currentBlock = this.getBlockById(currentId);
-      const newBlock = this.getBlockById(type);
-      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
-      const newRotation = BlockRotation.encode(rotation, yRotation);
+      let currentEmitsLight = oldBlock.isLight;
+      let currentRedLevel = oldBlock.redLightLevel;
+      let currentGreenLevel = oldBlock.greenLightLevel;
+      let currentBlueLevel = oldBlock.blueLightLevel;
 
-      // Track if this removes a light source
-      // For dynamic pattern blocks, we need to check if the current stage emits light
-      let currentEmitsLight = currentBlock.isLight;
-      let currentRedLevel = currentBlock.redLightLevel;
-      let currentGreenLevel = currentBlock.greenLightLevel;
-      let currentBlueLevel = currentBlock.blueLightLevel;
-
-      if (currentBlock.dynamicPatterns) {
-        // Check if current block with current stage emits light
-        const currentStage = this.getVoxelStageAt(vx, vy, vz);
+      if (oldBlock.dynamicPatterns) {
         currentEmitsLight = false;
         currentRedLevel = 0;
         currentGreenLevel = 0;
         currentBlueLevel = 0;
 
-        for (const pattern of currentBlock.dynamicPatterns) {
+        for (const pattern of oldBlock.dynamicPatterns) {
           for (const part of pattern.parts) {
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
@@ -3342,19 +3471,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
 
-      // Check if new block will emit light
       let newEmitsLight = newBlock.isLight;
-      if (newBlock.dynamicPatterns && stage !== undefined) {
+      if (newBlock.dynamicPatterns && update.stage !== undefined) {
         newEmitsLight = false;
         for (const pattern of newBlock.dynamicPatterns) {
           for (const part of pattern.parts) {
-            // Create a temporary helper to evaluate rules for the new state
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
               [vx, vy, vz],
               {
                 getVoxelAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return type;
+                  if (x === vx && y === vy && z === vz) return update.newId;
                   return this.getVoxelAt(x, y, z);
                 },
                 getVoxelRotationAt: (x: number, y: number, z: number) => {
@@ -3362,7 +3489,8 @@ export class World<T = any> extends Scene implements NetIntercept {
                   return this.getVoxelRotationAt(x, y, z);
                 },
                 getVoxelStageAt: (x: number, y: number, z: number) => {
-                  if (x === vx && y === vy && z === vz) return stage || 0;
+                  if (x === vx && y === vy && z === vz)
+                    return update.stage || 0;
                   return this.getVoxelStageAt(x, y, z);
                 },
               }
@@ -3383,8 +3511,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       if (currentEmitsLight && !newEmitsLight) {
-        // Store the actual light levels for removal
-        const blockWithLevels = { ...currentBlock };
+        const blockWithLevels = { ...oldBlock };
         blockWithLevels.redLightLevel = currentRedLevel;
         blockWithLevels.greenLightLevel = currentGreenLevel;
         blockWithLevels.blueLightLevel = currentBlueLevel;
@@ -3394,56 +3521,13 @@ export class World<T = any> extends Scene implements NetIntercept {
           block: blockWithLevels,
         });
       }
-
-      // Store for later light processing
-      processedUpdates.push({
-        voxel: [vx, vy, vz],
-        oldId: currentId,
-        newId: type,
-        oldBlock: currentBlock,
-        newBlock: newBlock,
-        oldRotation: currentRotation,
-        newRotation: newRotation,
-        stage: stage,
-      });
-
-      // Update voxel data
-      const newValue = BlockUtils.insertAll(
-        newBlock.id,
-        newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
-        stage
-      );
-      this.attemptBlockCache(vx, vy, vz, newValue);
-
-      this.setVoxelAt(vx, vy, vz, type);
-      this.setVoxelStageAt(vx, vy, vz, stage);
-
-      if (newBlock.rotatable || newBlock.yRotatable) {
-        this.setVoxelRotationAt(vx, vy, vz, newRotation);
-      }
-
-      processedCount++;
     }
-    const voxelUpdateEndTime = performance.now();
-    console.log(
-      `Voxel updates (${processedCount}): ${(
-        voxelUpdateEndTime - voxelUpdateStartTime
-      ).toFixed(2)}ms`
-    );
-
-    // Second pass: Remove all light from removed light sources
-    const lightRemovalStartTime = performance.now();
-
-    const redRemoval: Coords3[] = [];
-    const greenRemoval: Coords3[] = [];
-    const blueRemoval: Coords3[] = [];
 
     removedLightSources.forEach(({ voxel, block }) => {
       const [vx, vy, vz] = voxel;
 
-      // Remove residual sunlight immediately
       if (this.getSunlightAt(vx, vy, vz) > 0) {
-        this.removeLight(voxel, "SUNLIGHT");
+        sunlightRemoval.push(voxel);
       }
 
       if (block.redLightLevel > 0) redRemoval.push(voxel);
@@ -3451,28 +3535,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (block.blueLightLevel > 0) blueRemoval.push(voxel);
     });
 
-    if (redRemoval.length) this.removeLightsBatch(redRemoval, "RED");
-    if (greenRemoval.length) this.removeLightsBatch(greenRemoval, "GREEN");
-    if (blueRemoval.length) this.removeLightsBatch(blueRemoval, "BLUE");
-    const lightRemovalEndTime = performance.now();
-    console.log(
-      `Light removal (${removedLightSources.length} sources): ${(
-        lightRemovalEndTime - lightRemovalStartTime
-      ).toFixed(2)}ms`
-    );
-
-    // Third pass: Process light updates for all changes
-    const lightUpdateStartTime = performance.now();
-    const redFlood: LightNode[] = [];
-    const greenFlood: LightNode[] = [];
-    const blueFlood: LightNode[] = [];
-    const sunFlood: LightNode[] = [];
-
     for (const update of processedUpdates) {
       const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
       const [vx, vy, vz] = voxel;
 
-      // Skip if we already handled this as a removed light source
       if (
         removedLightSources.some(
           ({ voxel: v }) => v[0] === vx && v[1] === vy && v[2] === vz
@@ -3490,24 +3556,20 @@ export class World<T = any> extends Scene implements NetIntercept {
         newRotation
       );
 
-      // Handle placing opaque blocks
       if (newBlock.isOpaque || newBlock.lightReduce) {
-        // Only remove lights if not already handled
         if (this.getSunlightAt(vx, vy, vz) > 0) {
-          this.removeLight(voxel, "SUNLIGHT");
+          sunlightRemoval.push(voxel);
         }
         if (this.getTorchLightAt(vx, vy, vz, "RED") > 0) {
-          this.removeLight(voxel, "RED");
+          redRemoval.push(voxel);
         }
         if (this.getTorchLightAt(vx, vy, vz, "GREEN") > 0) {
-          this.removeLight(voxel, "GREEN");
+          greenRemoval.push(voxel);
         }
         if (this.getTorchLightAt(vx, vy, vz, "BLUE") > 0) {
-          this.removeLight(voxel, "BLUE");
+          blueRemoval.push(voxel);
         }
-      }
-      // Handle transparency changes
-      else {
+      } else {
         let removeCount = 0;
 
         const lightData = [
@@ -3533,7 +3595,6 @@ export class World<T = any> extends Scene implements NetIntercept {
             nRotation
           );
 
-          // Check if light could originally enter but now cannot
           if (
             !(
               LightUtils.canEnter(
@@ -3570,39 +3631,43 @@ export class World<T = any> extends Scene implements NetIntercept {
                 sourceLevel === maxLightLevel)
             ) {
               removeCount++;
-              this.removeLight([nvx, nvy, nvz], color);
+              if (isSunlight) {
+                sunlightRemoval.push([nvx, nvy, nvz]);
+              } else if (color === RED_LIGHT) {
+                redRemoval.push([nvx, nvy, nvz]);
+              } else if (color === GREEN_LIGHT) {
+                greenRemoval.push([nvx, nvy, nvz]);
+              } else if (color === BLUE_LIGHT) {
+                blueRemoval.push([nvx, nvy, nvz]);
+              }
             }
           }
         }
 
-        // If no transparency changes affected neighbors, treat as opaque
         if (removeCount === 0) {
           if (this.getSunlightAt(vx, vy, vz) !== 0) {
-            this.removeLight(voxel, "SUNLIGHT");
+            sunlightRemoval.push(voxel);
           }
-
-          ([RED_LIGHT, GREEN_LIGHT, BLUE_LIGHT] as LightColor[]).forEach(
-            (color) => {
-              if (this.getTorchLightAt(vx, vy, vz, color) !== 0) {
-                this.removeLight(voxel, color);
-              }
-            }
-          );
+          if (this.getTorchLightAt(vx, vy, vz, "RED") !== 0) {
+            redRemoval.push(voxel);
+          }
+          if (this.getTorchLightAt(vx, vy, vz, "GREEN") !== 0) {
+            greenRemoval.push(voxel);
+          }
+          if (this.getTorchLightAt(vx, vy, vz, "BLUE") !== 0) {
+            blueRemoval.push(voxel);
+          }
         }
       }
 
-      // Handle placing new light sources
       if (newBlock.isLight) {
-        // Get light levels from dynamic patterns if available
         let redLevel = newBlock.redLightLevel;
         let greenLevel = newBlock.greenLightLevel;
         let blueLevel = newBlock.blueLightLevel;
 
-        // Check if this block has dynamic patterns with light levels
         if (newBlock.dynamicPatterns && update.stage !== undefined) {
           for (const pattern of newBlock.dynamicPatterns) {
             for (const part of pattern.parts) {
-              // Evaluate the rule to see if this part matches
               const ruleMatched = BlockUtils.evaluateBlockRule(
                 part.rule,
                 [vx, vy, vz],
@@ -3617,7 +3682,6 @@ export class World<T = any> extends Scene implements NetIntercept {
               );
 
               if (ruleMatched) {
-                // Use the light levels from the matched part
                 if (part.redLightLevel !== undefined)
                   redLevel = part.redLightLevel;
                 if (part.greenLightLevel !== undefined)
@@ -3631,7 +3695,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (redLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, redLevel, "RED");
           redFlood.push({
             voxel: voxel,
             level: redLevel,
@@ -3639,7 +3702,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (greenLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, greenLevel, "GREEN");
           greenFlood.push({
             voxel: voxel,
             level: greenLevel,
@@ -3647,16 +3709,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (blueLevel > 0) {
-          this.setTorchLightAt(vx, vy, vz, blueLevel, "BLUE");
           blueFlood.push({
             voxel: voxel,
             level: blueLevel,
           });
         }
-      }
-      // Handle solid block removal
-      else if (oldBlock.isOpaque && !newBlock.isOpaque) {
-        // Check neighbors for existing light sources
+      } else if (oldBlock.isOpaque && !newBlock.isOpaque) {
         for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
           const nvy = vy + oy;
 
@@ -3664,7 +3722,6 @@ export class World<T = any> extends Scene implements NetIntercept {
             continue;
           }
 
-          // Sunlight propagation from above
           if (nvy >= maxHeight) {
             if (
               LightUtils.canEnter(
@@ -3693,7 +3750,6 @@ export class World<T = any> extends Scene implements NetIntercept {
             nRotation
           );
 
-          // Only propagate if light can now enter from neighbor
           if (
             !LightUtils.canEnter(
               currentTransparency,
@@ -3747,62 +3803,107 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
-    const lightUpdateEndTime = performance.now();
+
+    const hasOperations =
+      redRemoval.length > 0 ||
+      greenRemoval.length > 0 ||
+      blueRemoval.length > 0 ||
+      sunlightRemoval.length > 0 ||
+      redFlood.length > 0 ||
+      greenFlood.length > 0 ||
+      blueFlood.length > 0 ||
+      sunFlood.length > 0;
+
+    return {
+      removals: {
+        sunlight: sunlightRemoval,
+        red: redRemoval,
+        green: greenRemoval,
+        blue: blueRemoval,
+      },
+      floods: {
+        sunlight: sunFlood,
+        red: redFlood,
+        green: greenFlood,
+        blue: blueFlood,
+      },
+      hasOperations,
+    };
+  }
+
+  private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
+    const processStartTime = performance.now();
+    const startSequenceId = this.deltaSequenceCounter;
+
+    const { maxHeight, maxLightsUpdateTime } = this.options;
+
+    const processedUpdates: ProcessedUpdate[] = [];
+    let processedCount = 0;
+
+    const voxelUpdateStartTime = performance.now();
+    for (const update of updates) {
+      if (performance.now() - processStartTime > maxLightsUpdateTime) {
+        if (Math.random() < 0.01) {
+          console.warn(
+            "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
+          );
+        }
+        break;
+      }
+
+      const {
+        update: { type, vx, vy, vz, rotation, yRotation, stage },
+      } = update;
+
+      if (vy < 0 || vy >= maxHeight) continue;
+
+      const currentId = this.getVoxelAt(vx, vy, vz);
+      const currentBlock = this.getBlockById(currentId);
+      const newBlock = this.getBlockById(type);
+      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
+      const newRotation = BlockRotation.encode(rotation, yRotation);
+
+      const newValue = BlockUtils.insertAll(
+        newBlock.id,
+        newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
+        stage
+      );
+      this.attemptBlockCache(vx, vy, vz, newValue);
+
+      this.setVoxelAt(vx, vy, vz, type);
+      this.setVoxelStageAt(vx, vy, vz, stage);
+
+      if (newBlock.rotatable || newBlock.yRotatable) {
+        this.setVoxelRotationAt(vx, vy, vz, newRotation);
+      }
+
+      processedUpdates.push({
+        voxel: [vx, vy, vz],
+        oldId: currentId,
+        newId: type,
+        oldBlock: currentBlock,
+        newBlock: newBlock,
+        oldRotation: currentRotation,
+        newRotation: this.getVoxelRotationAt(vx, vy, vz),
+        stage: stage,
+      });
+
+      processedCount++;
+    }
+    const voxelUpdateEndTime = performance.now();
     console.log(
-      `Light updates processing: ${(
-        lightUpdateEndTime - lightUpdateStartTime
+      `Voxel updates (${processedCount}): ${(
+        voxelUpdateEndTime - voxelUpdateStartTime
       ).toFixed(2)}ms`
     );
 
-    // Flood all light changes
-    const computeBounds = (queue: LightNode[]): [Coords3, Coords3] | null => {
-      if (!queue.length) return null;
+    const lightOps = this.analyzeLightOperations(processedUpdates);
 
-      let minX = queue[0].voxel[0];
-      let minZ = queue[0].voxel[2];
-      let maxX = minX;
-      let maxZ = minZ;
-
-      for (const { voxel } of queue) {
-        const [x, , z] = voxel;
-        if (x < minX) minX = x;
-        if (z < minZ) minZ = z;
-        if (x > maxX) maxX = x;
-        if (z > maxZ) maxZ = z;
-      }
-
-      // Expand by maxLightLevel so the bounding box fully contains propagated area.
-      const expand = this.options.maxLightLevel;
-      minX -= expand;
-      minZ -= expand;
-      maxX += expand;
-      maxZ += expand;
-
-      // floodLight checks nvx >= max[0] / nz >= max[2] (exclusive).
-      // therefore use +1 to make the range inclusive for current max coordinate after expansion.
-      return [
-        [minX, 0, minZ],
-        [maxX + 1, 0, maxZ + 1],
-      ];
-    };
-
-    const floodLightStartTime = performance.now();
-
-    const sunBounds = computeBounds(sunFlood);
-    this.floodLight(sunFlood, "SUNLIGHT", sunBounds?.[0], sunBounds?.[1]);
-
-    const redBounds = computeBounds(redFlood);
-    this.floodLight(redFlood, "RED", redBounds?.[0], redBounds?.[1]);
-
-    const greenBounds = computeBounds(greenFlood);
-    this.floodLight(greenFlood, "GREEN", greenBounds?.[0], greenBounds?.[1]);
-
-    const blueBounds = computeBounds(blueFlood);
-    this.floodLight(blueFlood, "BLUE", blueBounds?.[0], blueBounds?.[1]);
-    const floodLightEndTime = performance.now();
-    console.log(
-      `Flood light: ${(floodLightEndTime - floodLightStartTime).toFixed(2)}ms`
-    );
+    if (this.options.useLightWorkers && lightOps.hasOperations) {
+      this.scheduleLightJobs(lightOps, startSequenceId);
+    } else if (lightOps.hasOperations) {
+      this.executeLightOperationsSyncAll(lightOps);
+    }
 
     const processEndTime = performance.now();
     console.log(
@@ -3811,7 +3912,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       )}ms`
     );
 
-    // Return remaining updates not processed due to time constraint
     return updates.slice(processedCount);
   };
 
@@ -3871,6 +3971,281 @@ export class World<T = any> extends Scene implements NetIntercept {
       await this.meshChunkLocally(cx, cz, level);
     }
   };
+
+  private scheduleLightJobs(
+    lightOps: LightOperations,
+    startSequenceId: number
+  ) {
+    const { maxLightLevel, chunkSize, minChunk, maxChunk, maxHeight } =
+      this.options;
+
+    const colorData: {
+      color: LightColor;
+      removals: Coords3[];
+      floods: LightNode[];
+    }[] = [
+      {
+        color: "SUNLIGHT",
+        removals: lightOps.removals.sunlight,
+        floods: lightOps.floods.sunlight,
+      },
+      {
+        color: "RED",
+        removals: lightOps.removals.red,
+        floods: lightOps.floods.red,
+      },
+      {
+        color: "GREEN",
+        removals: lightOps.removals.green,
+        floods: lightOps.floods.green,
+      },
+      {
+        color: "BLUE",
+        removals: lightOps.removals.blue,
+        floods: lightOps.floods.blue,
+      },
+    ];
+
+    colorData.forEach(({ color, removals, floods }) => {
+      if (removals.length === 0 && floods.length === 0) return;
+
+      const allVoxels = [...removals, ...floods.map((n) => n.voxel)];
+
+      let minX = allVoxels[0][0];
+      let minY = allVoxels[0][1];
+      let minZ = allVoxels[0][2];
+      let maxX = minX;
+      let maxY = minY;
+      let maxZ = minZ;
+
+      for (const [x, y, z] of allVoxels) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        minZ = Math.min(minZ, z);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        maxZ = Math.max(maxZ, z);
+      }
+
+      minX -= maxLightLevel;
+      minZ -= maxLightLevel;
+      maxX += maxLightLevel;
+      maxZ += maxLightLevel;
+
+      minX = Math.max(minX, minChunk[0] * chunkSize);
+      minZ = Math.max(minZ, minChunk[1] * chunkSize);
+      maxX = Math.min(maxX, (maxChunk[0] + 1) * chunkSize - 1);
+      maxZ = Math.min(maxZ, (maxChunk[1] + 1) * chunkSize - 1);
+      minY = Math.max(minY, 0);
+      maxY = Math.min(maxY, maxHeight - 1);
+
+      const boundingBox: BoundingBox = {
+        min: [minX, minY, minZ],
+        shape: [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1],
+      };
+
+      const jobId = `light-${color}-${this.lightJobIdCounter++}`;
+      this.lightJobQueue.push({
+        jobId,
+        color,
+        lightOps: { removals, floods },
+        boundingBox,
+        startSequenceId,
+        retryCount: 0,
+      });
+    });
+
+    this.processNextLightJob();
+  }
+
+  private processNextLightJob() {
+    if (this.lightJobQueue.length === 0) return;
+    if (this.lightWorkerPool.isBusy) return;
+
+    const job = this.lightJobQueue.shift();
+    if (!job) return;
+
+    this.executeLightJob(job);
+  }
+
+  private executeLightJob(job: LightJob) {
+    const { jobId, boundingBox, lightOps, startSequenceId, color } = job;
+    const { min, shape } = boundingBox;
+
+    const [minX, , minZ] = min;
+    const [width, , depth] = shape;
+    const maxX = minX + width - 1;
+    const maxZ = minZ + depth - 1;
+
+    const { chunkSize } = this.options;
+    const minChunkX = Math.floor(minX / chunkSize);
+    const minChunkZ = Math.floor(minZ / chunkSize);
+    const maxChunkX = Math.floor(maxX / chunkSize);
+    const maxChunkZ = Math.floor(maxZ / chunkSize);
+
+    const chunksInSpace: string[] = [];
+    for (let cx = minChunkX; cx <= maxChunkX; cx++) {
+      for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
+        chunksInSpace.push(ChunkUtils.getChunkName([cx, cz]));
+      }
+    }
+
+    const relevantDeltas: Record<string, VoxelDelta[]> = {};
+    chunksInSpace.forEach((chunkName) => {
+      const allDeltas = this.voxelDeltas.get(chunkName) || [];
+      const recentDeltas = allDeltas.filter(
+        (d) => d.sequenceId > startSequenceId
+      );
+
+      if (recentDeltas.length > 0) {
+        relevantDeltas[chunkName] = recentDeltas;
+      }
+    });
+
+    const chunksData: (object | null)[] = [];
+    const arrayBuffers: ArrayBuffer[] = [];
+
+    for (let cx = minChunkX; cx <= maxChunkX; cx++) {
+      for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
+        const chunk = this.getChunkByCoords(cx, cz);
+
+        if (chunk) {
+          const [data, buffers] = chunk.serialize();
+          chunksData.push(data);
+          arrayBuffers.push(...buffers);
+        } else {
+          chunksData.push(null);
+        }
+      }
+    }
+
+    console.log(`Executing light job ${jobId} for color ${color}`);
+
+    this.lightWorkerPool.addJob({
+      message: {
+        type: "batchOperations",
+        jobId,
+        color,
+        boundingBox,
+        chunksData,
+        chunkGridDimensions: [
+          maxChunkX - minChunkX + 1,
+          maxChunkZ - minChunkZ + 1,
+        ],
+        chunkGridOffset: [minChunkX, minChunkZ],
+        relevantDeltas,
+        lightOps,
+        options: this.options,
+      },
+      buffers: arrayBuffers,
+      resolve: (result) => this.handleLightJobResult(job, result),
+    });
+  }
+
+  private handleLightJobResult(job: LightJob, result: LightWorkerResult) {
+    const { jobId } = job;
+    const { modifiedChunks, appliedDeltas } = result;
+
+    let hasNewDeltas = false;
+    for (const { coords } of modifiedChunks) {
+      const chunkName = ChunkUtils.getChunkName(coords);
+      const allDeltas = this.voxelDeltas.get(chunkName) || [];
+      const latestDelta = allDeltas[allDeltas.length - 1];
+
+      if (
+        latestDelta &&
+        latestDelta.sequenceId > appliedDeltas.lastSequenceId
+      ) {
+        hasNewDeltas = true;
+        break;
+      }
+    }
+
+    if (hasNewDeltas && job.retryCount < this.options.lightJobRetryLimit) {
+      console.log(
+        `Job ${jobId} stale, re-queuing (retry ${job.retryCount + 1}/${
+          this.options.lightJobRetryLimit
+        })`
+      );
+      job.retryCount++;
+      job.startSequenceId = this.deltaSequenceCounter;
+      this.lightJobQueue.unshift(job);
+
+      this.processNextLightJob();
+      return;
+    }
+
+    if (hasNewDeltas) {
+      console.warn(`Job ${jobId} exceeded retry limit, executing sync`);
+      this.executeLightOperationsSync(job.lightOps, job.color);
+    } else {
+      modifiedChunks.forEach(({ coords, lights }) => {
+        const chunk = this.getChunkByCoords(coords[0], coords[1]);
+        if (chunk) {
+          chunk.lights.data = lights;
+          chunk.isDirty = true;
+        }
+      });
+
+      modifiedChunks.forEach(({ coords }) => {
+        this.markChunkForRemesh(coords);
+      });
+    }
+
+    this.processNextLightJob();
+
+    if (
+      this.lightJobQueue.length === 0 &&
+      this.lightWorkerPool.workingCount === 0
+    ) {
+      this.processDirtyChunks();
+    }
+  }
+
+  private executeLightOperationsSync(
+    lightOps: { removals: Coords3[]; floods: LightNode[] },
+    color: LightColor
+  ) {
+    if (lightOps.removals.length > 0) {
+      this.removeLightsBatch(lightOps.removals, color);
+    }
+
+    if (lightOps.floods.length > 0) {
+      this.floodLight(lightOps.floods, color);
+    }
+
+    const allVoxels = [
+      ...lightOps.removals,
+      ...lightOps.floods.map((n) => n.voxel),
+    ];
+
+    const affectedChunks = new Set<string>();
+    allVoxels.forEach((voxel) => {
+      const chunkCoords = ChunkUtils.mapVoxelToChunk(
+        voxel,
+        this.options.chunkSize
+      );
+      affectedChunks.add(ChunkUtils.getChunkName(chunkCoords));
+    });
+
+    affectedChunks.forEach((chunkName) => {
+      const coords = ChunkUtils.parseChunkName(chunkName);
+      this.markChunkForRemesh(coords as Coords2);
+    });
+  }
+
+  private executeLightOperationsSyncAll(lightOps: LightOperations) {
+    const colors: LightColor[] = ["SUNLIGHT", "RED", "GREEN", "BLUE"];
+    colors.forEach((color) => {
+      const key = color.toLowerCase() as "sunlight" | "red" | "green" | "blue";
+      const removals = lightOps.removals[key];
+      const floods = lightOps.floods[key];
+
+      if (removals.length > 0 || floods.length > 0) {
+        this.executeLightOperationsSync({ removals, floods }, color);
+      }
+    });
+  }
 
   /**
    * Scaffold the server updates onto the network, including chunk requests and block updates.
@@ -4074,6 +4449,50 @@ export class World<T = any> extends Scene implements NetIntercept {
           continue;
         }
         this.chunksTracker.push([[cx, cz], level]);
+      }
+    }
+  }
+
+  private recordVoxelDelta(
+    px: number,
+    py: number,
+    pz: number,
+    deltaData: Partial<Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">>
+  ) {
+    const chunkName = ChunkUtils.getChunkName(
+      ChunkUtils.mapVoxelToChunk(
+        [px | 0, py | 0, pz | 0],
+        this.options.chunkSize
+      )
+    );
+
+    const delta: VoxelDelta = {
+      coords: [px | 0, py | 0, pz | 0],
+      oldVoxel: deltaData.oldVoxel ?? 0,
+      newVoxel: deltaData.newVoxel ?? 0,
+      oldRotation: deltaData.oldRotation,
+      newRotation: deltaData.newRotation,
+      oldStage: deltaData.oldStage,
+      newStage: deltaData.newStage,
+      timestamp: performance.now(),
+      sequenceId: this.deltaSequenceCounter++,
+    };
+
+    const deltas = this.voxelDeltas.get(chunkName) || [];
+    deltas.push(delta);
+    this.voxelDeltas.set(chunkName, deltas);
+  }
+
+  private markChunkForRemesh(coords: Coords2) {
+    const { subChunks } = this.options;
+
+    for (let level = 0; level < subChunks; level++) {
+      if (
+        !this.chunksTracker.some(
+          ([c, l]) => c[0] === coords[0] && c[1] === coords[1] && l === level
+        )
+      ) {
+        this.chunksTracker.push([coords, level]);
       }
     }
   }
