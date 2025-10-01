@@ -58,6 +58,7 @@ export type ArmOptions = {
   armObjectOptions: ArmObjectOptions;
   blockObjectOptions?: ArmObjectOptions;
   armColor?: string | THREE.Color;
+  armTexture?: THREE.Texture;
   customObjectOptions?: Record<string, ArmObjectOptions>;
 };
 
@@ -225,8 +226,24 @@ export class Arm extends THREE.Group {
   };
 
   private setArm = () => {
-    const arm = new CanvasBox({ width: 0.3, height: 1, depth: 0.3 });
-    arm.paint("all", new THREE.Color(this.options.armColor));
+    const arm = new CanvasBox({ width: 0.5, height: 1, depth: 0.3 });
+
+    if (this.options.armTexture) {
+      const texture = this.options.armTexture;
+      if (texture.image && (texture.image as HTMLImageElement).complete) {
+        arm.paint("all", texture);
+      } else {
+        arm.paint("all", new THREE.Color(this.options.armColor));
+        if (texture.image) {
+          (texture.image as HTMLImageElement).onload = () => {
+            arm.paint("all", texture);
+          };
+        }
+      }
+    } else {
+      arm.paint("all", new THREE.Color(this.options.armColor));
+    }
+
     arm.position.set(
       this.options.armObjectOptions?.position.x,
       this.options.armObjectOptions?.position.y,
@@ -385,6 +402,29 @@ export class Arm extends THREE.Group {
     if (this.emitSwingEvent) {
       this.emitSwingEvent();
     }
+  };
+
+  /**
+   * Paint the arm with a texture or color. Only works when showing the empty arm (no held object).
+   */
+  public paintArm = (texture: THREE.Texture | THREE.Color) => {
+    this.children.forEach((child) => {
+      if (child instanceof CanvasBox) {
+        child.paint("all", texture);
+
+        child.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach((mat) => {
+                mat.needsUpdate = true;
+              });
+            } else {
+              obj.material.needsUpdate = true;
+            }
+          }
+        });
+      }
+    });
   };
 
   /**
