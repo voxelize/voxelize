@@ -1,14 +1,9 @@
-
 import { Coords3 } from "../../../types";
 import { BlockUtils } from "../../../utils/block-utils";
 import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
 import { Block, BlockRotation } from "../block";
-import type {
-    LightNode,
-    VoxelDelta,
-    WorldOptions
-} from "../index";
+import type { LightNode, VoxelDelta, WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
 import { Registry } from "../registry";
 
@@ -571,7 +566,9 @@ onmessage = function (e) {
         })),
         appliedDeltas: { lastSequenceId },
       },
-      modifiedChunks.map((c) => c.lights.data.buffer)
+      {
+        transfer: modifiedChunks.map((c) => c.lights.data.buffer),
+      }
     );
   }
 };
