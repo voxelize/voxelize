@@ -4098,7 +4098,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
 
       if (recentDeltas.length > 0) {
-        relevantDeltas[chunkName] = recentDeltas;
+        relevantDeltas[chunkName] = recentDeltas.map((delta) => ({
+          ...delta,
+          oldRotation: delta.oldRotation
+            ? JSON.parse(JSON.stringify(delta.oldRotation))
+            : undefined,
+          newRotation: delta.newRotation
+            ? JSON.parse(JSON.stringify(delta.newRotation))
+            : undefined,
+        }));
       }
     });
 

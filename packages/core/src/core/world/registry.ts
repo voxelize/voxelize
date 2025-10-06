@@ -17,10 +17,20 @@ export class Registry {
   }
 
   serialize(): object {
+    const cleanBlock = (block: Block) => {
+      const { dynamicFn, ...rest } = block;
+      return rest;
+    };
+
     return JSON.parse(
       JSON.stringify({
-        blocksByName: Array.from(this.blocksByName.entries()),
-        blocksById: Array.from(this.blocksById.entries()),
+        blocksByName: Array.from(this.blocksByName.entries()).map(
+          ([name, block]) => [name, cleanBlock(block)]
+        ),
+        blocksById: Array.from(this.blocksById.entries()).map(([id, block]) => [
+          id,
+          cleanBlock(block),
+        ]),
         nameMap: Array.from(this.nameMap.entries()),
         idMap: Array.from(this.idMap.entries()),
       })
