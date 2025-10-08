@@ -1,3 +1,5 @@
+import { EventEmitter } from "events";
+
 import { AABB } from "@voxelize/aabb";
 import { Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import {
@@ -77,6 +79,38 @@ export * from "./shaders";
 export * from "./sky";
 export * from "./textures";
 export * from "./uv";
+
+export type ChunkMeshEventData = {
+  chunk: Chunk;
+  coords: Coords2;
+  level: number;
+  meshes: Mesh[];
+};
+
+export type ChunkEventData = {
+  chunk: Chunk;
+  coords: Coords2;
+  allMeshes: Map<number, Mesh[]>;
+};
+
+export type ChunkUpdateReason = "voxel" | "light";
+
+export type ChunkMeshUpdateEventData = ChunkMeshEventData & {
+  reason: ChunkUpdateReason;
+};
+
+export type ChunkUpdateEventData = ChunkEventData & {
+  reason: ChunkUpdateReason;
+};
+
+export type WorldChunkEvents = {
+  "chunk-mesh-loaded": (data: ChunkMeshEventData) => void;
+  "chunk-mesh-unloaded": (data: ChunkMeshEventData) => void;
+  "chunk-mesh-updated": (data: ChunkMeshUpdateEventData) => void;
+  "chunk-loaded": (data: ChunkEventData) => void;
+  "chunk-unloaded": (data: ChunkEventData) => void;
+  "chunk-updated": (data: ChunkUpdateEventData) => void;
+};
 
 export type LightNode = {
   voxel: Coords3;
@@ -494,6 +528,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   public packets: MessageProtocol[] = [];
 
   /**
+   * Internal event emitter for chunk lifecycle events.
+   * @hidden
+   */
+  private chunkEvents = new EventEmitter();
+
+  /**
    * The voxel cache that stores previous values.
    */
   private oldBlocks: Map<string, number[]> = new Map();
@@ -705,6 +745,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     this.buildChunkMesh(cx, cz, mesh);
+
+    const chunk = this.getChunkByCoords(cx, cz);
+    if (chunk) {
+      const meshes = chunk.meshes.get(level) || [];
+      this.emitChunkEvent("chunk-mesh-updated", {
+        chunk,
+        coords: [cx, cz],
+        level,
+        meshes,
+        reason: "voxel",
+      });
+
+      this.emitChunkEvent("chunk-updated", {
+        chunk,
+        coords: [cx, cz],
+        allMeshes: chunk.meshes,
+        reason: "voxel",
+      });
+    }
   }
 
   /**
@@ -1635,6 +1694,62 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.blockEntityUpdateListeners.delete(listener);
     };
   };
+
+  /**
+   * Register a typed event listener for chunk lifecycle events.
+   *
+   * @param event The event name to listen to.
+   * @param listener The callback function to execute when the event is emitted.
+   * @returns The world instance for chaining.
+   */
+  public on<K extends keyof WorldChunkEvents>(
+    event: K,
+    listener: WorldChunkEvents[K]
+  ): this {
+    this.chunkEvents.on(event, listener as any);
+    return this;
+  }
+
+  /**
+   * Unregister a typed event listener for chunk lifecycle events.
+   *
+   * @param event The event name to stop listening to.
+   * @param listener The callback function to remove.
+   * @returns The world instance for chaining.
+   */
+  public off<K extends keyof WorldChunkEvents>(
+    event: K,
+    listener: WorldChunkEvents[K]
+  ): this {
+    this.chunkEvents.off(event, listener as any);
+    return this;
+  }
+
+  /**
+   * Register a one-time typed event listener for chunk lifecycle events.
+   *
+   * @param event The event name to listen to once.
+   * @param listener The callback function to execute when the event is emitted.
+   * @returns The world instance for chaining.
+   */
+  public once<K extends keyof WorldChunkEvents>(
+    event: K,
+    listener: WorldChunkEvents[K]
+  ): this {
+    this.chunkEvents.once(event, listener as any);
+    return this;
+  }
+
+  /**
+   * Emit a typed chunk lifecycle event.
+   * @hidden
+   */
+  private emitChunkEvent<K extends keyof WorldChunkEvents>(
+    event: K,
+    data: Parameters<WorldChunkEvents[K]>[0]
+  ): void {
+    this.chunkEvents.emit(event, data);
+  }
 
   /**
    * Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
@@ -3089,6 +3204,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       // Too far away from center, delete.
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         const chunk = this.chunks.loaded.get(name);
+
+        chunk.meshes.forEach((meshes, level) => {
+          this.emitChunkEvent("chunk-mesh-unloaded", {
+            chunk,
+            coords: chunk.coords,
+            level,
+            meshes,
+          });
+        });
+
+        this.emitChunkEvent("chunk-unloaded", {
+          chunk,
+          coords: chunk.coords,
+          allMeshes: new Map(chunk.meshes),
+        });
+
         chunk.dispose();
 
         this.chunks.loaded.delete(name);
@@ -3344,6 +3475,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     chunk.meshes.get(level)?.push(...meshes);
+
+    this.emitChunkEvent("chunk-mesh-loaded", {
+      chunk,
+      coords: [cx, cz],
+      level,
+      meshes,
+    });
+
+    if (chunk.meshes.size === this.options.subChunks) {
+      this.emitChunkEvent("chunk-loaded", {
+        chunk,
+        coords: [cx, cz],
+        allMeshes: chunk.meshes,
+      });
+    }
   }
 
   private setupComponents() {
