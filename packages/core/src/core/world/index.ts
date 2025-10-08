@@ -310,7 +310,7 @@ export type WorldClientOptions = {
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
   maxProcessesPerUpdate: 1,
-  maxUpdatesPerUpdate: 64,
+  maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 4,
   shouldGenerateChunkMeshes: true,
@@ -562,6 +562,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
+
+  private accumulatedLightOps: LightOperations | null = null;
+  private accumulatedStartSequenceId = 0;
 
   /**
    * Create a new Voxelize world.
@@ -3899,7 +3902,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     const lightOps = this.analyzeLightOperations(processedUpdates);
 
     if (this.options.useLightWorkers && lightOps.hasOperations) {
-      this.scheduleLightJobs(lightOps, startSequenceId);
+      if (!this.accumulatedLightOps) {
+        this.accumulatedLightOps = lightOps;
+        this.accumulatedStartSequenceId = startSequenceId;
+      } else {
+        this.accumulatedLightOps = this.mergeLightOperations(
+          this.accumulatedLightOps,
+          lightOps
+        );
+        this.accumulatedStartSequenceId = Math.min(
+          this.accumulatedStartSequenceId,
+          startSequenceId
+        );
+      }
     } else if (lightOps.hasOperations) {
       this.executeLightOperationsSyncAll(lightOps);
     }
@@ -3944,9 +3959,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             .map(({ update }) => update)
         );
 
-        // Use setTimeout to give the browser a chance to handle other tasks.
         if (this.chunks.toUpdate.length > 0) {
-          requestAnimationFrame(processUpdatesInIdleTime); // 0 ms delay to schedule after any pending tasks
+          requestAnimationFrame(processUpdatesInIdleTime);
           return;
         } else {
           const end = performance.now();
@@ -3954,6 +3968,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
 
+      this.flushAccumulatedLightOps();
       this.isTrackingChunks = false;
       this.processDirtyChunks();
     };
@@ -3970,6 +3985,41 @@ export class World<T = any> extends Scene implements NetIntercept {
       await this.meshChunkLocally(cx, cz, level);
     }
   };
+
+  private mergeLightOperations(
+    existing: LightOperations,
+    newOps: LightOperations
+  ): LightOperations {
+    return {
+      removals: {
+        sunlight: [...existing.removals.sunlight, ...newOps.removals.sunlight],
+        red: [...existing.removals.red, ...newOps.removals.red],
+        green: [...existing.removals.green, ...newOps.removals.green],
+        blue: [...existing.removals.blue, ...newOps.removals.blue],
+      },
+      floods: {
+        sunlight: [...existing.floods.sunlight, ...newOps.floods.sunlight],
+        red: [...existing.floods.red, ...newOps.floods.red],
+        green: [...existing.floods.green, ...newOps.floods.green],
+        blue: [...existing.floods.blue, ...newOps.floods.blue],
+      },
+      hasOperations: true,
+    };
+  }
+
+  private flushAccumulatedLightOps() {
+    if (!this.accumulatedLightOps || !this.accumulatedLightOps.hasOperations) {
+      return;
+    }
+
+    this.scheduleLightJobs(
+      this.accumulatedLightOps,
+      this.accumulatedStartSequenceId
+    );
+
+    this.accumulatedLightOps = null;
+    this.accumulatedStartSequenceId = 0;
+  }
 
   private scheduleLightJobs(
     lightOps: LightOperations,
