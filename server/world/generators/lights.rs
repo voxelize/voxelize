@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::{
     Block, ChunkUtils, LightColor, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
@@ -30,11 +32,11 @@ pub struct Lights;
 // TODO: RIGHT NOW, A TOP SLAB WILL STILL LET LIGHT TRAVEL INTO A BOTTOM SLAB...
 
 impl Lights {
-    /// Propagate a specific queue of `LightNode`s in a depth-first-search fashion. If the propagation
+    /// Propagate a specific queue of `LightNode`s in a breadth-first-search fashion. If the propagation
     /// is for sunlight, light value does not decrease going downwards to simulate sunshine.
     pub fn flood_light(
         space: &mut dyn VoxelAccess,
-        mut queue: Vec<LightNode>,
+        mut queue: VecDeque<LightNode>,
         color: &LightColor,
         registry: &Registry,
         config: &WorldConfig,
@@ -55,7 +57,7 @@ impl Lights {
         let max_height = *max_height as i32;
         let is_sunlight = *color == LightColor::Sunlight;
 
-        while let Some(LightNode { voxel, level }) = queue.pop() {
+        while let Some(LightNode { voxel, level }) = queue.pop_front() {
             if level == 0 {
                 continue;
             }
@@ -138,7 +140,7 @@ impl Lights {
                     space.set_torch_light(nvx, nvy, nvz, next_level, color);
                 }
 
-                queue.push(LightNode {
+                queue.push_back(LightNode {
                     voxel: next_voxel,
                     level: next_level,
                 });
@@ -156,13 +158,13 @@ impl Lights {
         let max_height = config.max_height as i32;
         let max_light_level = config.max_light_level;
 
-        let mut fill = Vec::<LightNode>::new();
-        let mut queue = Vec::<LightNode>::new();
+        let mut fill = VecDeque::<LightNode>::new();
+        let mut queue = VecDeque::<LightNode>::new();
 
         let is_sunlight = *color == LightColor::Sunlight;
         let &Vec3(vx, vy, vz) = voxel;
 
-        queue.push(LightNode {
+        queue.push_back(LightNode {
             voxel: [vx, vy, vz],
             level: if is_sunlight {
                 space.get_sunlight(vx, vy, vz)
@@ -177,7 +179,7 @@ impl Lights {
             space.set_torch_light(vx, vy, vz, 0, color);
         }
 
-        while let Some(LightNode { voxel, level }) = queue.pop() {
+        while let Some(LightNode { voxel, level }) = queue.pop_front() {
             let [vx, vy, vz] = voxel;
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
@@ -215,14 +217,13 @@ impl Lights {
                     continue;
                 }
 
-                // if level is less, or if sunlight is propagating downwards without stopping
                 if nl < level
                     || (is_sunlight
                         && *oy == -1
                         && level == max_light_level
                         && nl == max_light_level)
                 {
-                    queue.push(LightNode {
+                    queue.push_back(LightNode {
                         voxel: n_voxel,
                         level: nl,
                     });
@@ -237,7 +238,7 @@ impl Lights {
                 } else {
                     nl >= level
                 } {
-                    fill.push(LightNode {
+                    fill.push_back(LightNode {
                         voxel: n_voxel,
                         level: nl,
                     })
@@ -254,17 +255,17 @@ impl Lights {
         shape: &Vec3<usize>,
         registry: &Registry,
         config: &WorldConfig,
-    ) -> [Vec<LightNode>; 4] {
+    ) -> [VecDeque<LightNode>; 4] {
         let &WorldConfig {
             max_height,
             max_light_level,
             ..
         } = config;
 
-        let mut red_light_queue = Vec::<LightNode>::new();
-        let mut green_light_queue = Vec::<LightNode>::new();
-        let mut blue_light_queue = Vec::<LightNode>::new();
-        let mut sunlight_queue = Vec::<LightNode>::new();
+        let mut red_light_queue = VecDeque::<LightNode>::new();
+        let mut green_light_queue = VecDeque::<LightNode>::new();
+        let mut blue_light_queue = VecDeque::<LightNode>::new();
+        let mut sunlight_queue = VecDeque::<LightNode>::new();
 
         let Vec3(start_x, _, start_z) = min;
         let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
@@ -299,27 +300,27 @@ impl Lights {
                         || green_light_level > 0
                         || blue_light_level > 0
                     {
-                        if red_light_level > 0 {
-                            space.set_red_light(x + start_x, y, z + start_z, red_light_level);
-                            red_light_queue.push(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: red_light_level,
-                            });
-                        }
-                        if green_light_level > 0 {
-                            space.set_green_light(x + start_x, y, z + start_z, green_light_level);
-                            green_light_queue.push(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: green_light_level,
-                            });
-                        }
-                        if blue_light_level > 0 {
-                            space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
-                            blue_light_queue.push(LightNode {
-                                voxel: [x + start_x, y, z + start_z],
-                                level: blue_light_level,
-                            });
-                        }
+                    if red_light_level > 0 {
+                        space.set_red_light(x + start_x, y, z + start_z, red_light_level);
+                        red_light_queue.push_back(LightNode {
+                            voxel: [x + start_x, y, z + start_z],
+                            level: red_light_level,
+                        });
+                    }
+                    if green_light_level > 0 {
+                        space.set_green_light(x + start_x, y, z + start_z, green_light_level);
+                        green_light_queue.push_back(LightNode {
+                            voxel: [x + start_x, y, z + start_z],
+                            level: green_light_level,
+                        });
+                    }
+                    if blue_light_level > 0 {
+                        space.set_blue_light(x + start_x, y, z + start_z, blue_light_level);
+                        blue_light_queue.push_back(LightNode {
+                            voxel: [x + start_x, y, z + start_z],
+                            level: blue_light_level,
+                        });
+                    }
                     }
 
                     let index = (x + z * shape.2) as usize;
@@ -342,7 +343,7 @@ impl Lights {
                             if mask[index] != 0 {
                                 space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
 
-                                sunlight_queue.push(LightNode {
+                                sunlight_queue.push_back(LightNode {
                                     level: mask[index] - 1,
                                     voxel: [start_x + x, y, start_z + z],
                                 });
@@ -370,7 +371,7 @@ impl Lights {
                                         z + start_z,
                                         max_light_level,
                                     );
-                                    sunlight_queue.push(LightNode {
+                                    sunlight_queue.push_back(LightNode {
                                         level: max_light_level,
                                         voxel: [start_x + x, y, start_z + z],
                                     });
@@ -479,8 +480,8 @@ impl Lights {
         let max_height = config.max_height as i32;
         let max_light_level = config.max_light_level;
 
-        let mut fill = Vec::<LightNode>::new();
-        let mut queue = Vec::<LightNode>::new();
+        let mut fill = VecDeque::<LightNode>::new();
+        let mut queue = VecDeque::<LightNode>::new();
 
         let is_sunlight = *color == LightColor::Sunlight;
 
@@ -494,12 +495,11 @@ impl Lights {
             if level == 0 {
                 continue;
             }
-            queue.push(LightNode {
+            queue.push_back(LightNode {
                 voxel: [vx, vy, vz],
                 level,
             });
 
-            // Clear the light immediately to mark as visited
             if is_sunlight {
                 space.set_sunlight(vx, vy, vz, 0);
             } else {
@@ -507,7 +507,7 @@ impl Lights {
             }
         }
 
-        while let Some(LightNode { voxel, level }) = queue.pop() {
+        while let Some(LightNode { voxel, level }) = queue.pop_front() {
             let [vx, vy, vz] = voxel;
 
             for [ox, oy, oz] in &VOXEL_NEIGHBORS {
@@ -550,7 +550,7 @@ impl Lights {
                         && level == max_light_level
                         && nl == max_light_level)
                 {
-                    queue.push(LightNode {
+                    queue.push_back(LightNode {
                         voxel: [nvx, nvy, nvz],
                         level: nl,
                     });
@@ -565,7 +565,7 @@ impl Lights {
                 } else {
                     nl >= level
                 } {
-                    fill.push(LightNode {
+                    fill.push_back(LightNode {
                         voxel: [nvx, nvy, nvz],
                         level: nl,
                     });

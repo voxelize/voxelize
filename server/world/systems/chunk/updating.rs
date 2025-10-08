@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use log::info;
 use nanoid::nanoid;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -254,10 +256,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             }
 
             // Third pass: Process light updates for all other changes
-            let mut red_flood = Vec::new();
-            let mut green_flood = Vec::new();
-            let mut blue_flood = Vec::new();
-            let mut sun_flood = Vec::new();
+            let mut red_flood = VecDeque::new();
+            let mut green_flood = VecDeque::new();
+            let mut blue_flood = VecDeque::new();
+            let mut sun_flood = VecDeque::new();
 
             for (voxel, raw, current_id, updated_id) in processed_updates {
                 let Vec3(vx, vy, vz) = voxel;
@@ -396,21 +398,21 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                     if red_level > 0 {
                         chunks.set_torch_light(vx, vy, vz, red_level, &RED);
-                        red_flood.push(LightNode {
+                        red_flood.push_back(LightNode {
                             voxel: [voxel.0, voxel.1, voxel.2],
                             level: red_level,
                         });
                     }
                     if green_level > 0 {
                         chunks.set_torch_light(vx, vy, vz, green_level, &GREEN);
-                        green_flood.push(LightNode {
+                        green_flood.push_back(LightNode {
                             voxel: [voxel.0, voxel.1, voxel.2],
                             level: green_level,
                         });
                     }
                     if blue_level > 0 {
                         chunks.set_torch_light(vx, vy, vz, blue_level, &BLUE);
-                        blue_flood.push(LightNode {
+                        blue_flood.push_back(LightNode {
                             voxel: [voxel.0, voxel.1, voxel.2],
                             level: blue_level,
                         });
@@ -435,7 +437,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                 -1,
                                 oz,
                             ) {
-                                sun_flood.push(LightNode {
+                                sun_flood.push_back(LightNode {
                                     voxel: [vx + ox, vy, vz + oz],
                                     level: max_light_level,
                                 })
@@ -459,7 +461,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             let level = chunks.get_sunlight(nvx, nvy, nvz)
                                 - if updated_type.light_reduce { 1 } else { 0 };
                             if level != 0 {
-                                sun_flood.push(LightNode {
+                                sun_flood.push_back(LightNode {
                                     voxel: n_voxel,
                                     level,
                                 })
@@ -468,7 +470,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
                                 - if updated_type.light_reduce { 1 } else { 0 };
                             if red_level != 0 {
-                                red_flood.push(LightNode {
+                                red_flood.push_back(LightNode {
                                     voxel: n_voxel,
                                     level: red_level,
                                 })
@@ -477,7 +479,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
                                 - if updated_type.light_reduce { 1 } else { 0 };
                             if green_level != 0 {
-                                green_flood.push(LightNode {
+                                green_flood.push_back(LightNode {
                                     voxel: n_voxel,
                                     level: green_level,
                                 })
@@ -486,7 +488,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                             let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
                                 - if updated_type.light_reduce { 1 } else { 0 };
                             if blue_level != 0 {
-                                blue_flood.push(LightNode {
+                                blue_flood.push_back(LightNode {
                                     voxel: n_voxel,
                                     level: blue_level,
                                 })
@@ -497,8 +499,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
             }
 
             // Flood all light changes
-            // Helper closure to compute bounding box (min coord and shape) for a queue.
-            let compute_bounds = |queue: &Vec<LightNode>| -> Option<(Vec3<i32>, Vec3<usize>)> {
+            let compute_bounds = |queue: &VecDeque<LightNode>| -> Option<(Vec3<i32>, Vec3<usize>)> {
                 if queue.is_empty() {
                     return None;
                 }

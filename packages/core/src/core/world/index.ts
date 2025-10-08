@@ -2001,7 +2001,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     while (queue.length) {
-      const node = queue.pop();
+      const node = queue.shift();
       const { voxel, level } = node;
 
       if (level === 0) {
@@ -2106,7 +2106,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     while (queue.length) {
       iterationCount++;
-      const node = queue.pop();
+      const node = queue.shift();
       const { voxel, level } = node;
 
       const [vx, vy, vz] = voxel;
@@ -2218,9 +2218,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     });
 
-    // DFS (using pop instead of shift for O(1) performance)
     while (queue.length) {
-      const { voxel, level } = queue.pop();
+      const { voxel, level } = queue.shift();
       const [vx, vy, vz] = voxel;
 
       for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {

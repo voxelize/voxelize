@@ -196,7 +196,7 @@ function floodLight(
   };
 
   while (queue.length) {
-    const node = queue.pop();
+    const node = queue.shift();
     if (!node) break;
 
     const { voxel, level } = node;
@@ -300,7 +300,7 @@ function removeLight(
   }
 
   while (queue.length) {
-    const node = queue.pop();
+    const node = queue.shift();
     if (!node) break;
 
     const { voxel, level } = node;
@@ -395,7 +395,7 @@ function removeLightsBatch(
   });
 
   while (queue.length) {
-    const node = queue.pop();
+    const node = queue.shift();
     if (!node) break;
 
     const { voxel, level } = node;
@@ -417,8 +417,9 @@ function removeLightsBatch(
       );
 
       if (
-        !isSunlight &&
-        BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0 &&
+        (isSunlight
+          ? true
+          : BlockUtils.getBlockTorchLightLevel(nBlock, color) === 0) &&
         !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
       ) {
         continue;

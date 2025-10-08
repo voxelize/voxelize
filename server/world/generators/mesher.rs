@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::{HashMap, HashSet};
@@ -160,7 +160,7 @@ impl Mesher {
                         (space.options.max_height / space.options.sub_chunks) as i32;
 
                     if chunk.meshes.is_none() {
-                        let mut light_queues = vec![Vec::new(); 4];
+                        let mut light_queues = vec![VecDeque::new(); 4];
 
                         for dx in -1..=1 {
                             for dz in -1..=1 {
