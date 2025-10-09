@@ -21,6 +21,7 @@ import { DOMUtils, ThreeUtils } from "../utils";
 export type ItemSlotsOptions = {
   wrapperClass: string;
   wrapperStyles: Partial<CSSStyleDeclaration>;
+  wrapperPadding: number;
 
   slotClass: string;
   slotHoverClass: string;
@@ -28,6 +29,7 @@ export type ItemSlotsOptions = {
   slotSubscriptClass: string;
   slotMargin: number;
   slotPadding: number;
+  slotGap: number;
   slotWidth: number;
   slotHeight: number;
 
@@ -47,13 +49,15 @@ export type ItemSlotsOptions = {
 const defaultOptions: ItemSlotsOptions = {
   wrapperClass: "item-slots",
   wrapperStyles: {},
+  wrapperPadding: 0,
 
   slotClass: "item-slots-slot",
   slotHoverClass: "item-slots-slot-hover",
   slotFocusClass: "item-slots-slot-focus",
   slotSubscriptClass: "item-slots-slot-subscript",
-  slotMargin: 2,
-  slotPadding: 2,
+  slotMargin: 0,
+  slotPadding: 0,
+  slotGap: 4,
   slotWidth: 50,
   slotHeight: 50,
 
@@ -300,10 +304,11 @@ export class ItemSlots<T = number> {
       slotMargin,
       slotWidth,
       slotPadding,
+      slotGap,
     } = (this.options = merge(defaultOptions, options));
 
-    this.slotTotalWidth = slotWidth + slotMargin * 2 + slotPadding * 2;
-    this.slotTotalHeight = slotHeight + slotMargin * 2 + slotPadding * 2;
+    this.slotTotalWidth = slotWidth + slotGap;
+    this.slotTotalHeight = slotHeight + slotGap;
 
     this.generate();
 
@@ -675,12 +680,25 @@ export class ItemSlots<T = number> {
       perspective,
     } = this.options;
 
-    const { slotWidth, slotHeight, slotMargin, slotPadding } = this.options;
+    const {
+      slotWidth,
+      slotHeight,
+      slotMargin,
+      slotPadding,
+      slotGap,
+      wrapperPadding,
+    } = this.options;
 
     const width =
-      (slotWidth + slotMargin * 2 + slotPadding * 2) * horizontalCount;
+      slotWidth * horizontalCount +
+      slotGap * (horizontalCount - 1) +
+      slotMargin * 2 +
+      wrapperPadding * 2;
     const height =
-      (slotHeight + slotMargin * 2 + slotPadding * 2) * verticalCount;
+      slotHeight * verticalCount +
+      slotGap * (verticalCount - 1) +
+      slotMargin * 2 +
+      wrapperPadding * 2;
 
     this.wrapper = document.createElement("div");
     this.wrapper.classList.add(wrapperClass);
@@ -716,10 +734,10 @@ export class ItemSlots<T = number> {
         slot.applyStyles({
           position: "absolute",
           top: `${
-            (slotHeight + slotMargin * 2 + slotPadding * 2) * row + slotMargin
+            wrapperPadding + slotMargin + row * (slotHeight + slotGap)
           }px`,
           left: `${
-            (slotWidth + slotMargin * 2 + slotPadding * 2) * col + slotMargin
+            wrapperPadding + slotMargin + col * (slotWidth + slotGap)
           }px`,
         });
 
