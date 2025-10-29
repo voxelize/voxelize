@@ -6,16 +6,8 @@ import * as THREE from "three";
 
 import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
-const canvas = document.getElementById("main") as HTMLCanvasElement;
-
-/* -------------------------------------------------------------------------- */
-/*                               VOXELIZE WORLD                               */
-/* -------------------------------------------------------------------------- */
-const world = new VOXELIZE.World({
-  textureUnitDimension: 8,
-});
-
 import { setupWorld } from "./world";
+import { fibonacci } from "./utils/fibonacci";
 // actual world setup code handled later after network and world are initialized
 
 /* -------------------------------------------------------------------------- */
