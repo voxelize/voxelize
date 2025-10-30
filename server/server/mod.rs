@@ -223,7 +223,7 @@ impl Server {
         }
 
         info!(
-            "🌎 World created: {} ({})",
+            "World created: {} ({})",
             name,
             if saving {
                 format!("on-disk @ {}", save_dir)

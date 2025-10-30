@@ -97,6 +97,11 @@ export class Peers<
    */
   public ownUsername = "";
 
+  /**
+   * The client's own metadata (device info, etc.). This is set when the client first connects to the server.
+   */
+  public ownMetadata?: Record<string, any>;
+
   public ownPeer?: C;
 
   /**
@@ -176,9 +181,10 @@ export class Peers<
    */
   onMessage = (
     message: MessageProtocol<{ id: string }, T>,
-    { username }: { username: string }
+    { username, metadata }: { username: string; metadata?: Record<string, any> }
   ) => {
     this.ownUsername = username;
+    this.ownMetadata = metadata;
 
     const internalOnJoin = (id: string) => {
       const peer = this.createPeer(id);
@@ -320,6 +326,7 @@ export class Peers<
       id: this.ownID,
       username: this.ownUsername,
       metadata: {
+        ...this.ownMetadata,
         position: [px, py, pz],
         direction: [dx, dy, dz],
       } as any as T,

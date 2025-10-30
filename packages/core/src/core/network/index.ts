@@ -88,9 +88,16 @@ export class Network {
      * Setting this username after connecting to the server will not change anything.
      */
     username: string;
+
+    /**
+     * Metadata about the client that is sent to the server. This can include device info, OS, browser, etc.
+     * This is merged with position/direction data when sending peer updates.
+     */
+    metadata?: Record<string, any>;
   } = {
     id: "",
     username: "",
+    metadata: {},
   };
 
   /**
@@ -467,6 +474,16 @@ export class Network {
    */
   setUsername = (username: string) => {
     this.clientInfo.username = username || " ";
+  };
+
+  /**
+   * Set the client's metadata. This can include device info, OS, browser, etc.
+   * This metadata is sent to the server and merged with position/direction data in peer updates.
+   *
+   * @param metadata An object containing metadata about the client.
+   */
+  setMetadata = (metadata: Record<string, any>) => {
+    this.clientInfo.metadata = metadata || {};
   };
 
   /**

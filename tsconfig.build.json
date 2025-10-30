@@ -10,7 +10,9 @@
     "esModuleInterop": true,
     "strictPropertyInitialization": false,
     "types": [],
-    "jsx": "react"
+    "jsx": "react",
+    "isolatedModules": true,
+    "incremental": true
   },
   "exclude": ["node_modules", "dist"]
 }

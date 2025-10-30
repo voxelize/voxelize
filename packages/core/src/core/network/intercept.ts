@@ -24,6 +24,10 @@ export interface NetIntercept {
        * The client's ID.
        */
       id: string;
+      /**
+       * The client's metadata (device info, etc.).
+       */
+      metadata?: Record<string, any>;
     }
   ) => void;
 

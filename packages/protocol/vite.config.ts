@@ -22,7 +22,11 @@ export default defineConfig({
       formats: ["es", "cjs"],
       fileName: "index",
     },
-    rollupOptions: {},
+    rollupOptions: {
+      output: {
+        exports: "named",
+      },
+    },
     emptyOutDir: process.env.NODE_ENV === "production",
   },
 });

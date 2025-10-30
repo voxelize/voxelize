@@ -97,15 +97,27 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
       if (commandInfo) {
         commandInfo.process(rest.trim());
+
+        this.packets.push({
+          type: "EVENT",
+          events: [
+            {
+              name: "command_executed",
+              payload: JSON.stringify({
+                command: trigger,
+                args: rest.trim(),
+                fullCommand: chat.body,
+              }),
+            },
+          ],
+        });
         return;
       }
 
-      // Call fallback command if set and no matching command found
       if (this.fallbackCommand) {
         this.fallbackCommand(
           chat.body.substring(this._commandSymbol.length).trim()
         );
-        return;
       }
     }
 
