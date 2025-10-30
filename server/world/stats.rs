@@ -48,13 +48,7 @@ impl Stats {
         let (loaded_tick, loaded_time) = if saving && path.exists() {
             match fs::read_to_string(&path) {
                 Ok(contents) => match serde_json::from_str::<StatsJson>(&contents) {
-                    Ok(stats_json) => {
-                        info!(
-                            "Loaded stats from disk: tick={}, time={}",
-                            stats_json.tick, stats_json.time
-                        );
-                        (stats_json.tick, stats_json.time)
-                    }
+                    Ok(stats_json) => (stats_json.tick, stats_json.time),
                     Err(e) => {
                         warn!("Failed to parse stats.json: {}", e);
                         (0, default_time)
