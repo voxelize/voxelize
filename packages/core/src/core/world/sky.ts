@@ -69,7 +69,7 @@ const defaultOptions: SkyOptions = {
  *
  */
 export class Sky extends CanvasBox {
-  declare public options: CanvasBoxOptions & SkyOptions;
+  public declare options: CanvasBoxOptions & SkyOptions;
 
   /**
    * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.
@@ -140,9 +140,9 @@ export class Sky extends CanvasBox {
 
     if (data.length === 1) {
       const { top, middle, bottom } = data[0].color;
-      const topColor = new Color(top).convertLinearToSRGB();
-      const middleColor = new Color(middle).convertLinearToSRGB();
-      const bottomColor = new Color(bottom).convertLinearToSRGB();
+      const topColor = new Color(top);
+      const middleColor = new Color(middle);
+      const bottomColor = new Color(bottom);
 
       this.uTopColor.value.copy(topColor);
       this.uMiddleColor.value.copy(middleColor);
@@ -272,9 +272,9 @@ export class Sky extends CanvasBox {
         color: { top, middle, bottom },
       } = data;
 
-      const topColor = new Color(top).convertLinearToSRGB();
-      const middleColor = new Color(middle).convertLinearToSRGB();
-      const bottomColor = new Color(bottom).convertLinearToSRGB();
+      const topColor = new Color(top);
+      const middleColor = new Color(middle);
+      const bottomColor = new Color(bottom);
 
       topColor.getRGB(emptyRGB);
       weightedTopRGB[0] += emptyRGB.r * weight;
