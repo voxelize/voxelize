@@ -1,10 +1,10 @@
 {
   "extends": "../../tsconfig.build.json",
-  "include": ["src/**/*", "src/protocol.d.ts", "src/protocol.js"],
+  "include": ["src/**/*.ts"],
   "compilerOptions": {
     "outDir": "./dist",
     "baseUrl": ".",
-    "allowJs": false,
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "allowJs": false
   }
 }

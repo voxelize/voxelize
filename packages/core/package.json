@@ -9,7 +9,7 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {
-    "clean": "rimraf ./dist",
+    "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "compile": "vite build",
     "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copy",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
