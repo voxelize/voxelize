@@ -67,6 +67,7 @@ message ChatMessage {
   string type = 1;
   string sender = 2;
   string body = 3;
+  string metadata = 4;
 }
 
 message Message {

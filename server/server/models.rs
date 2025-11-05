@@ -113,6 +113,7 @@ pub struct ChatMessageProtocol {
     pub r#type: String,
     pub sender: String,
     pub body: String,
+    pub metadata: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -310,6 +311,7 @@ impl MessageBuilder {
                 body: chat.body,
                 sender: chat.sender,
                 r#type: chat.r#type,
+                metadata: chat.metadata,
             });
         }
 

@@ -59,6 +59,7 @@ export type ChatProtocol = {
   type: string;
   sender?: string;
   body: string;
+  metadata?: string;
 };
 
 export type MessageProtocol<
