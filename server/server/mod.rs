@@ -356,7 +356,7 @@ impl Server {
     }
 
     /// Preload all the worlds.
-    pub(crate) async fn preload(&mut self) {
+    pub async fn preload(&mut self) {
         let m = MultiProgress::new();
         let sty = ProgressStyle::with_template(
             "[{elapsed_precise}] [{bar:40.cyan/blue}] {msg} {spinner:.green} {percent:>7}%",
