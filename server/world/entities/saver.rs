@@ -45,12 +45,25 @@ impl EntitiesSaver {
         } else {
             etype.to_lowercase()
         };
-        // info!("Saving metadata for entity {}: {:?}", id, metadata);
         map.insert("etype".to_owned(), json!(etype_value));
         map.insert("metadata".to_owned(), json!(metadata));
-        let mut path = self.folder.clone();
-        path.push(format!("{}.json", id));
-        let mut file = File::create(&path).expect("Could not create entity file...");
+
+        let new_filename = format!("{}-{}.json", etype_value.replace("::", "-"), id);
+        let old_filename = format!("{}.json", id);
+
+        let mut new_path = self.folder.clone();
+        new_path.push(&new_filename);
+
+        let mut old_path = self.folder.clone();
+        old_path.push(&old_filename);
+
+        let path_to_use = if old_path.exists() {
+            old_path
+        } else {
+            new_path
+        };
+
+        let mut file = File::create(&path_to_use).expect("Could not create entity file...");
         let j = serde_json::to_string(&json!(map)).unwrap();
         file.write_all(j.as_bytes())
             .expect("Unable to write entity file.");
@@ -61,14 +74,26 @@ impl EntitiesSaver {
             return;
         }
 
-        let mut path = self.folder.clone();
-        path.push(format!("{}.json", id));
-        if let Err(e) = fs::remove_file(&path) {
-            warn!(
-                "Failed to remove entity file: {}. Entity could still be saving?",
-                e
-            );
+        if let Ok(entries) = fs::read_dir(&self.folder) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if let Some(filename) = entry_path.file_name().and_then(|n| n.to_str()) {
+                    if filename.ends_with(&format!("-{}.json", id))
+                        || filename == format!("{}.json", id)
+                    {
+                        if let Err(e) = fs::remove_file(&entry_path) {
+                            warn!(
+                                "Failed to remove entity file: {}. Entity could still be saving?",
+                                e
+                            );
+                        }
+                        return;
+                    }
+                }
+            }
         }
+
+        warn!("Could not find entity file to remove for id: {}", id);
     }
 }
 
