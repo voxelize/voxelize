@@ -1,5 +1,6 @@
 export * from "./chat";
 export * from "./controls";
+export * from "./mobile-controls";
 export * from "./entities";
 export * from "./events";
 export * from "./inputs";
