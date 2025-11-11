@@ -70,7 +70,7 @@ export class MobileRigidControls extends RigidControls {
     if (!this.isLocked) return;
 
     const PI_2 = Math.PI / 2;
-    const sensitivity = (this.options.sensitivity * 0.004) / 100;
+    const sensitivity = (this.options.sensitivity * 0.012) / 100;
 
     this.mobileEuler.setFromQuaternion(this.mobileQuaternion);
     this.mobileEuler.y -= deltaX * sensitivity;

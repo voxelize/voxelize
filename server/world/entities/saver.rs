@@ -48,7 +48,10 @@ impl EntitiesSaver {
         map.insert("etype".to_owned(), json!(etype_value));
         map.insert("metadata".to_owned(), json!(metadata));
 
-        let new_filename = format!("{}-{}.json", etype_value.replace("::", "-"), id);
+        let sanitized_filename = etype_value
+            .replace("::", "-")
+            .replace(' ', "-");
+        let new_filename = format!("{}-{}.json", sanitized_filename, id);
         let old_filename = format!("{}.json", id);
 
         let mut new_path = self.folder.clone();
