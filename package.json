@@ -20,7 +20,9 @@
     "lint": "eslint --fix --ext js,ts,tsx .",
     "docs": "cd docs && pnpm run start",
     "proto": "cd packages/protocol && pnpm run proto",
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "prepare": "husky",
+    "lint-staged": "lint-staged"
   },
   "devDependencies": {
     "@swc/core": "^1.11.11",
@@ -39,6 +41,7 @@
     "eslint-plugin-unused-imports": "^2.0.0",
     "husky": "^8.0.3",
     "lerna": "^6.6.2",
+    "lint-staged": "^15.0.0",
     "mkdirp": "^3.0.1",
     "npm-run-all": "^4.1.5",
     "peer": "^0.6.1",
@@ -51,5 +54,11 @@
     "vite-plugin-glsl": "^1.3.3",
     "vitest": "^1.6.1"
   },
-  "packageManager": "pnpm@10.9.0"
+  "packageManager": "pnpm@10.9.0",
+  "lint-staged": {
+    "**/*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  }
 }
