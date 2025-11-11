@@ -103,7 +103,13 @@ export type ChunkUpdateEventData = ChunkEventData & {
   reason: ChunkUpdateReason;
 };
 
+export type ChunkDataEventData = {
+  chunk: Chunk;
+  coords: Coords2;
+};
+
 export type WorldChunkEvents = {
+  "chunk-data-loaded": (data: ChunkDataEventData) => void;
   "chunk-mesh-loaded": (data: ChunkMeshEventData) => void;
   "chunk-mesh-unloaded": (data: ChunkMeshEventData) => void;
   "chunk-mesh-updated": (data: ChunkMeshUpdateEventData) => void;
@@ -3166,6 +3172,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       chunk.isDirty = false;
 
       this.chunks.loaded.set(name, chunk);
+
+      this.emitChunkEvent("chunk-data-loaded", {
+        chunk,
+        coords: [x, z],
+      });
 
       const buildMeshes = () => {
         if (shouldGenerateChunkMeshes) {
