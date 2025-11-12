@@ -828,12 +828,19 @@ export class Character extends Group {
    */
   private playLegsWalkingAnimation = () => {
     const scale = 100;
-    const amplitude = this.speed * 1;
+    const speed = Math.max(this.speed, this.options.idleArmSwing);
+    const amplitude = speed * 1;
 
-    this.leftLegGroup.rotation.x =
-      -Math.sin((performance.now() * this.speed) / scale) * amplitude;
-    this.rightLegGroup.rotation.x =
-      Math.sin((performance.now() * this.speed) / scale) * amplitude;
+    this.leftLegGroup.rotation.x = MathUtils.lerp(
+      this.leftLegGroup.rotation.x,
+      -Math.sin((performance.now() * speed) / scale) * amplitude,
+      this.options.swingLerp
+    );
+    this.rightLegGroup.rotation.x = MathUtils.lerp(
+      this.rightLegGroup.rotation.x,
+      Math.sin((performance.now() * speed) / scale) * amplitude,
+      this.options.swingLerp
+    );
   };
 
   /**
