@@ -645,3 +645,4 @@ export class Engine {
 
 export * from "./rigid-body";
 export * from "./sweep";
+export * from "./chunk-colliders";

@@ -169,6 +169,19 @@ impl AABB {
         self.min_z = pz;
     }
 
+    /// Set this AABB's center position without changing its dimensions.
+    pub fn set_center(&mut self, cx: f32, cy: f32, cz: f32) {
+        let half_width = self.width() / 2.0;
+        let half_height = self.height() / 2.0;
+        let half_depth = self.depth() / 2.0;
+        self.min_x = cx - half_width;
+        self.min_y = cy - half_height;
+        self.min_z = cz - half_depth;
+        self.max_x = cx + half_width;
+        self.max_y = cy + half_height;
+        self.max_z = cz + half_depth;
+    }
+
     /// Copy the contents of another AABB to self.
     pub fn copy(&mut self, other: &AABB) {
         self.min_x = other.min_x;
