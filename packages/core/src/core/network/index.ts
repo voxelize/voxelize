@@ -266,7 +266,9 @@ export class Network {
           console.log(`waiting for websocket connection...`);
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
-        ws.send(Network.encodeSync(event));
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(Network.encodeSync(event));
+        }
       };
       ws.onopen = () => {
         this.connected = true;
