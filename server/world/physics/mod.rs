@@ -19,11 +19,13 @@ use crate::{approx_equals, BlockRotation, Vec3, VoxelAccess};
 use super::{registry::Registry, WorldConfig};
 
 mod aabb;
+mod chunk_colliders;
 mod raycast;
 mod rigidbody;
 mod sweep;
 
 pub use aabb::*;
+pub use chunk_colliders::*;
 pub use raycast::*;
 pub use rigidbody::*;
 pub use sweep::*;
@@ -43,6 +45,7 @@ pub struct Physics {
     event_handler: ChannelEventCollector,
     gravity: Vector3<f32>,
     pub entity_to_handlers: HashMap<Entity, (ColliderHandle, RapierBodyHandle)>,
+    pub chunk_colliders: ChunkColliderManager,
 }
 
 impl Physics {
@@ -54,7 +57,7 @@ impl Physics {
         Self {
             collision_recv,
             body_set: RapierBodySet::default(),
-            broad_phase: DefaultBroadPhase::new(),
+            broad_phase: DefaultBroadPhase::default(),
             ccd_solver: CCDSolver::default(),
             collider_set: ColliderSet::default(),
             impulse_joint_set: ImpulseJointSet::default(),
@@ -66,6 +69,7 @@ impl Physics {
             event_handler,
             gravity: vector![0.0, 0.0, 0.0],
             entity_to_handlers: HashMap::new(),
+            chunk_colliders: ChunkColliderManager::new(),
         }
     }
 
@@ -562,5 +566,140 @@ impl Physics {
         body.resting[0] = tmp_resting[0];
         body.resting[2] = tmp_resting[2];
         body.stepped = true;
+    }
+
+    /// Update chunk colliders in the Rapier physics world
+    pub fn update_chunk_colliders(
+        &mut self,
+        chunk_coords: &crate::Vec2<i32>,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+        chunk_size: usize,
+        max_height: usize,
+    ) {
+        self.chunk_colliders.update_chunk_collider(
+            chunk_coords,
+            space,
+            registry,
+            &mut self.collider_set,
+            &mut self.island_manager,
+            &mut self.body_set,
+            chunk_size,
+            max_height,
+        );
+    }
+
+    /// Remove chunk colliders from the Rapier physics world
+    pub fn remove_chunk_colliders(&mut self, chunk_coords: &crate::Vec2<i32>) {
+        self.chunk_colliders.remove_chunk_collider(
+            chunk_coords,
+            &mut self.collider_set,
+            &mut self.island_manager,
+            &mut self.body_set,
+        );
+    }
+
+    /// Iterate a rigid body using Rapier physics instead of AABB sweep
+    /// This method integrates the body with Rapier, handles collisions with chunk colliders,
+    /// and applies forces/impulses
+    pub fn iterate_body_rapier(
+        body: &mut RigidBody,
+        rapier_body_handle: &RapierBodyHandle,
+        physics: &mut Physics,
+        dt: f32,
+        config: &WorldConfig,
+    ) {
+        if approx_equals(dt, 0.0) {
+            return;
+        }
+
+        let gravity_mag_sq =
+            config.gravity[0].powf(2.0) + config.gravity[1].powf(2.0) + config.gravity[2].powf(2.0);
+        let no_gravity = approx_equals(0.0, gravity_mag_sq);
+
+        // Reset the flags
+        body.collision = None;
+        body.stepped = false;
+
+        // treat bodies with <= 0 mass as static
+        if body.mass <= 0.0 {
+            body.velocity.set(0.0, 0.0, 0.0);
+            body.forces.set(0.0, 0.0, 0.0);
+            body.impulses.set(0.0, 0.0, 0.0);
+            return;
+        }
+
+        // Get the Rapier rigid body
+        let rapier_body = physics.get_mut(rapier_body_handle);
+
+        // Apply gravity
+        let local_no_grav = no_gravity || approx_equals(body.gravity_multiplier, 0.0);
+        if !local_no_grav {
+            let gravity_force = vector![
+                config.gravity[0] * body.mass * body.gravity_multiplier,
+                config.gravity[1] * body.mass * body.gravity_multiplier,
+                config.gravity[2] * body.mass * body.gravity_multiplier
+            ];
+            rapier_body.add_force(gravity_force, true);
+        }
+
+        // Apply custom forces and impulses
+        if body.forces.len() > 0.0 {
+            rapier_body.add_force(
+                vector![body.forces.0, body.forces.1, body.forces.2],
+                true,
+            );
+        }
+
+        if body.impulses.len() > 0.0 {
+            let impulse = vector![body.impulses.0, body.impulses.1, body.impulses.2];
+            rapier_body.apply_impulse(impulse, true);
+        }
+
+        // Apply air/fluid drag
+        let linvel = rapier_body.linvel();
+        let mut drag = if body.air_drag >= 0.0 {
+            body.air_drag
+        } else {
+            config.air_drag
+        };
+
+        if body.in_fluid {
+            drag = if body.fluid_drag >= 0.0 {
+                body.fluid_drag
+            } else {
+                config.fluid_drag
+            };
+            drag *= 1.0 - (1.0 - body.ratio_in_fluid).powi(2);
+        }
+
+        let mult = (1.0 - (drag * dt) / body.mass).max(0.0);
+        rapier_body.set_linvel(linvel * mult, true);
+
+        // Apply friction (simplified - Rapier handles contact friction)
+        // We'll just zero out small velocities
+        let vel = rapier_body.linvel();
+        if vel.magnitude_squared() < 1e-5 {
+            rapier_body.set_linvel(vector![0.0, 0.0, 0.0], true);
+        }
+
+        // Clear forces and impulses for next timestep
+        body.forces.set(0.0, 0.0, 0.0);
+        body.impulses.set(0.0, 0.0, 0.0);
+
+        // Sync velocity back to our body
+        let final_vel = rapier_body.linvel();
+        body.velocity.set(final_vel.x, final_vel.y, final_vel.z);
+
+        // Sync position back to our body
+        let translation = rapier_body.translation();
+        body.aabb.set_center(translation.x, translation.y, translation.z);
+
+        // Update resting state based on contact normals (simplified)
+        // In a full implementation, we'd query collision events from Rapier
+        body.resting.set(0, 0, 0);
+        if approx_equals(final_vel.y, 0.0) && body.velocity.1.abs() < 0.01 {
+            body.resting[1] = -1; // Assuming on ground
+        }
     }
 }

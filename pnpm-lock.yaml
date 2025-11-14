@@ -250,7 +250,7 @@ importers:
         version: 0.165.0
       webpack:
         specifier: ^5.98.0
-        version: 5.98.0(@swc/core@1.11.11)(esbuild@0.14.54)(webpack-cli@4.10.0)
+        version: 5.98.0(@swc/core@1.11.11)(webpack-cli@4.10.0)
       webpack-cli:
         specifier: ^4.10.0
         version: 4.10.0(webpack-dev-server@4.15.2)(webpack@5.98.0)
@@ -348,6 +348,9 @@ importers:
 
   packages/physics-engine:
     dependencies:
+      '@dimforge/rapier3d-compat':
+        specifier: 0.19.3
+        version: 0.19.3
       '@voxelize/aabb':
         specifier: workspace:*
         version: link:../aabb
@@ -390,7 +393,7 @@ importers:
         version: 3.0.2
       webpack:
         specifier: ^5.98.0
-        version: 5.98.0(@swc/core@1.11.11)(webpack-cli@4.10.0)
+        version: 5.98.0(@swc/core@1.11.11)(esbuild@0.14.54)(webpack-cli@4.10.0)
       webpack-cli:
         specifier: ^4.10.0
         version: 4.10.0(webpack-dev-server@4.15.2)(webpack@5.98.0)
@@ -1395,6 +1398,9 @@ packages:
     peerDependencies:
       postcss: ^8.4
 
+  '@dimforge/rapier3d-compat@0.19.3':
+    resolution: {integrity: sha512-mMVdSj1PRTT108s9Swbu2GQOmHbn8kbJANRV5xfczL3s0T4vkgZAuoMRgvBzQcHanpKusbC0ZJj6z3mC3aj3vg==}
+
   '@discoveryjs/json-ext@0.5.7':
     resolution: {integrity: sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw==}
     engines: {node: '>=10.0.0'}
@@ -1968,6 +1974,7 @@ packages:
   '@lerna/legacy-package-management@6.6.2':
     resolution: {integrity: sha512-0hZxUPKnHwehUO2xC4ldtdX9bW0W1UosxebDIQlZL2STnZnA2IFmIk2lJVUyFW+cmTPQzV93jfS0i69T9Z+teg==}
     engines: {node: ^14.17.0 || >=16.0.0}
+    deprecated: In v9 of lerna, released in September 2025, the `lerna bootstrap`, `lerna add` and `lerna link` commands were finally fully removed after over 2 years of being deprecated. If you are still using these commands, please migrate to using your package manager's long-supported `workspaces` feature. You may find https://lerna.js.org/docs/legacy-package-management useful for this transition.
 
   '@mdx-js/mdx@3.1.0':
     resolution: {integrity: sha512-/QxEhPAvGwbQmy1Px8F899L5Uc2KZ6JtXwlCgJmjSTBedwOZkByYcBG4GceIGPXRDsmfxhHazuS+hlOShRLeDw==}
@@ -10605,6 +10612,8 @@ snapshots:
   '@csstools/utilities@2.0.0(postcss@8.5.3)':
     dependencies:
       postcss: 8.5.3
+
+  '@dimforge/rapier3d-compat@0.19.3': {}
 
   '@discoveryjs/json-ext@0.5.7': {}
 
