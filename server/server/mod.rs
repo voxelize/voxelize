@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use crate::{
     errors::AddWorldError,
-    world::{Registry, World, WorldConfig},
+    world::{Registry, World, WorldConfig, SetTolerance},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo, Mesher,
     MessageQueue, Preload, Prepare, Stats, SyncWorld, Tick, TransportJoinRequest,
     TransportLeaveRequest,
@@ -490,6 +490,27 @@ impl Server {
 
         handle(json.data, self);
     }
+
+    // Register default "/set_tolerance" CLI action helper on Server instance creation
+    pub fn with_default_actions(mut self) -> Self {
+        // Allow runtime adjustment of tolerance across all worlds
+        self.set_action_handle("set_tolerance", |value, server| {
+            let tol: f32 = match serde_json::from_value(value) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::warn!("Invalid /set_tolerance value: {:?}", e);
+                    return;
+                }
+            };
+
+            for world in server.worlds.values() {
+                world.do_send(SetTolerance(tol));
+            }
+            log::info!("All worlds position_tolerance_sq set to {}", tol);
+        });
+
+        self
+    }
 }
 
 /// New chat session is created
@@ -728,5 +749,6 @@ impl ServerBuilder {
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
         }
+        .with_default_actions()
     }
 }

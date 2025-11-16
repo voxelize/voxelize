@@ -74,6 +74,11 @@ pub struct WorldConfig {
     /// The repulsion factor when a collision is detected between entities.
     pub collision_repulsion: f32,
 
+    /// Maximum squared distance (blocks^2) the client's predicted position is
+    /// allowed to deviate from the authoritative server position before a
+    /// corrective packet is sent ("rubber-band").
+    pub position_tolerance_sq: f32,
+
     /// The repulsion factor when a collision is detected between clients and clients.
     pub client_collision_repulsion: f32,
 
@@ -145,6 +150,7 @@ const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
+const DEFAULT_POSITION_TOLERANCE_SQ: f32 = 0.25; // 0.5 blocks deviation
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -179,6 +185,7 @@ pub struct WorldConfigBuilder {
     save_interval: usize,
     command_symbol: String,
     save_entities: bool,
+    position_tolerance_sq: f32,
 }
 
 impl WorldConfigBuilder {
@@ -216,6 +223,7 @@ impl WorldConfigBuilder {
             terrain: NoiseOptions::default(),
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
+            position_tolerance_sq: DEFAULT_POSITION_TOLERANCE_SQ,
         }
     }
 
@@ -382,6 +390,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure the squared position tolerance for client divergence.
+    pub fn position_tolerance_sq(mut self, tolerance: f32) -> Self {
+        self.position_tolerance_sq = tolerance.max(0.0);
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -429,6 +443,7 @@ impl WorldConfigBuilder {
             save_interval: self.save_interval,
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
+            position_tolerance_sq: self.position_tolerance_sq,
         }
     }
 }

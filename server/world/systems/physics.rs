@@ -7,7 +7,7 @@ use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage
 
 use crate::{
     world::{
-        components::{CurrentChunkComp, PositionComp, RigidBodyComp},
+        components::{CurrentChunkComp, PositionComp, RigidBodyComp, BrainComp},
         physics::Physics,
         registry::Registry,
         stats::Stats,
@@ -37,6 +37,7 @@ impl<'a> System<'a> for PhysicsSystem {
         WriteStorage<'a, CollisionsComp>,
         WriteStorage<'a, RigidBodyComp>,
         WriteStorage<'a, PositionComp>,
+        WriteStorage<'a, BrainComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -58,11 +59,35 @@ impl<'a> System<'a> for PhysicsSystem {
             mut collisions,
             mut bodies,
             mut positions,
+            mut brains,
         ) = data;
 
         let mut collision_map = HashMap::new();
 
-        // Tick the voxel physics of all entities (non-clients).
+        // ------------------------------------------------------------------
+        // Step 1: Apply BrainComp logic for client entities
+        // ------------------------------------------------------------------
+        (&curr_chunks, &mut bodies, &mut positions, &mut brains, &client_flag)
+            .par_join()
+            .for_each(|(curr_chunk, body, position, brain, _)| {
+                if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                    return;
+                }
+
+                // Target is the current body position (client-controlled), no pathfinding.
+                let target = body.0.get_position();
+                brain.operate(&target, &mut body.0, stats.delta);
+
+                // Advance physics on this body in voxel space (no rapier yet)
+                Physics::iterate_body(&mut body.0, stats.delta, chunks.deref(), &registry, &config);
+
+                let Vec3(px, py, pz) = body.0.get_position();
+                position.0.set(px, py, pz);
+            });
+
+        // ------------------------------------------------------------------
+        // Step 2: Tick the voxel physics of non-client entities
+        // ------------------------------------------------------------------
         (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
             .par_join()
             .for_each(|(curr_chunk, body, position, _)| {

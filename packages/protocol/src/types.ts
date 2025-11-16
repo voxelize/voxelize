@@ -62,6 +62,17 @@ export type ChatProtocol = {
   metadata?: string;
 };
 
+export type MovementsProtocol = {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+  front: boolean;
+  back: boolean;
+  sprint: boolean;
+  angle: number;
+};
+
 export type MessageProtocol<
   T = any,
   Peer = any,
@@ -84,7 +95,8 @@ export type MessageProtocol<
     | "TRANSPORT"
     | "EVENT"
     | "ACTION"
-    | "STATS";
+    | "STATS"
+    | "MOVEMENTS";
   json?: T;
   text?: string;
 
@@ -96,4 +108,5 @@ export type MessageProtocol<
   chunks?: ChunkProtocol[];
   events?: EventProtocol<Event>[];
   updates?: UpdateProtocol[];
+  movements?: MovementsProtocol;
 };

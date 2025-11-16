@@ -128,6 +128,18 @@ pub struct MethodProtocol {
     pub payload: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct MovementsProtocol {
+    pub up: bool,
+    pub down: bool,
+    pub left: bool,
+    pub right: bool,
+    pub front: bool,
+    pub back: bool,
+    pub sprint: bool,
+    pub angle: f32,
+}
+
 /// Builder for a protocol buffer message.
 #[derive(Default)]
 pub struct MessageBuilder {
@@ -145,6 +157,7 @@ pub struct MessageBuilder {
     events: Option<Vec<EventProtocol>>,
     chunks: Option<Vec<ChunkProtocol>>,
     updates: Option<Vec<UpdateProtocol>>,
+    movements: Option<MovementsProtocol>,
 }
 
 impl MessageBuilder {
@@ -205,6 +218,12 @@ impl MessageBuilder {
     /// Configure the chat data of the protocol.
     pub fn chat(mut self, chat: ChatMessageProtocol) -> Self {
         self.chat = Some(chat);
+        self
+    }
+
+    /// Configure the movement data of the protocol.
+    pub fn movements(mut self, movements: MovementsProtocol) -> Self {
+        self.movements = Some(movements);
         self
     }
 
@@ -312,6 +331,19 @@ impl MessageBuilder {
                 sender: chat.sender,
                 r#type: chat.r#type,
                 metadata: chat.metadata,
+            });
+        }
+
+        if let Some(movements) = self.movements {
+            message.movements = Some(protocols::Movements {
+                up: movements.up,
+                down: movements.down,
+                left: movements.left,
+                right: movements.right,
+                front: movements.front,
+                back: movements.back,
+                sprint: movements.sprint,
+                angle: movements.angle,
             });
         }
 
