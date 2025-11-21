@@ -333,7 +333,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
     }
 
     // We'll smooth only the first 3-4 nodes to avoid aggressive turns
-    let nodes_to_check = path.len().min(4);
+    let nodes_to_check = path.len().min(8);
     let mut smoothed_path = vec![path[0].clone()];
     let mut current_index = 0;
 
@@ -343,7 +343,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
 
         // Try to find the furthest node we can reach directly
         // But be very conservative - only check up to 2 nodes ahead
-        for check_index in (current_index + 2)..nodes_to_check.min(current_index + 3) {
+        for check_index in (current_index + 2)..nodes_to_check.min(current_index + 5) {
             if check_index >= path.len() {
                 break;
             }
@@ -355,8 +355,8 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
                 + (target.1 - current.1).pow(2)
                 + (target.2 - current.2).pow(2)) as f32;
 
-            // Don't smooth over long distances (more than 2.5 blocks away)
-            if dist.sqrt() > 2.5 {
+            // Don't smooth over long distances (more than 4.0 blocks away)
+            if dist.sqrt() > 4.0 {
                 break;
             }
 
@@ -365,8 +365,8 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
                 let prev = &smoothed_path[smoothed_path.len() - 1];
                 let angle = calculate_angle_change(prev, current, target);
 
-                // Don't smooth if it would create a sharp turn (> 60 degrees)
-                if angle > 60.0 {
+                // Don't smooth if it would create a sharp turn (> 100 degrees)
+                if angle > 100.0 {
                     break;
                 }
             }
@@ -472,11 +472,13 @@ fn can_walk_directly(
 
             // Check the two cells that form the "corner" when moving diagonally
             if x != prev_x && z != prev_z {
-                // We're moving diagonally, check both adjacent cells
-                if !is_position_walkable(prev_x, y, z, chunks, registry, height)
-                    || !is_position_walkable(x, y, prev_z, chunks, registry, height)
-                {
-                    return false; // Can't cut this corner
+                // We're moving diagonally, check if we can navigate the corner
+                let corner_clear = is_position_walkable(x, y, z, chunks, registry, height);
+                let side1_clear = is_position_walkable(prev_x, y, z, chunks, registry, height);
+                let side2_clear = is_position_walkable(x, y, prev_z, chunks, registry, height);
+
+                if !corner_clear && !side1_clear && !side2_clear {
+                    return false;
                 }
             }
         }

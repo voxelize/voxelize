@@ -43,7 +43,7 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         let dz = (current_pos.2 - (node.2 as f32 + 0.5)).abs();
 
                         // If we're close enough to this node, target the next one
-                        if dx < 0.8 && dz < 0.8 {
+                        if dx < 1.2 && dz < 1.2 {
                             if index < nodes.len() - 1 {
                                 i = index + 1;
                                 target = nodes[i].clone();
