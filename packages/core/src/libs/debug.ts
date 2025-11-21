@@ -179,6 +179,18 @@ export class Debug extends Group {
   ) => {
     const wrapper = this.makeDataEntry();
 
+    if (title) {
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "debug-label";
+      labelSpan.textContent = `${title}: `;
+
+      const valueSpan = document.createElement("span");
+      valueSpan.className = "debug-value";
+
+      wrapper.appendChild(labelSpan);
+      wrapper.appendChild(valueSpan);
+    }
+
     const newEntry = {
       title,
       element: wrapper,
@@ -193,9 +205,15 @@ export class Debug extends Group {
     if (object.constructor.name === "AsyncFunction") {
       setInterval(() => {
         (object as any)().then((newValue: string) => {
-          wrapper.textContent = `${title ? `${title}: ` : ""}${formatter(
-            newValue
-          )}`;
+          const formattedValue = formatter(newValue);
+          const valueSpan = wrapper.querySelector(".debug-value");
+          if (valueSpan) {
+            valueSpan.textContent = formattedValue;
+          } else {
+            wrapper.textContent = `${
+              title ? `${title}: ` : ""
+            }${formattedValue}`;
+          }
         });
       }, this.options.asyncPeriod);
     }
@@ -276,7 +294,6 @@ export class Debug extends Group {
    */
   update = () => {
     requestAnimationFrame(() => {
-      // loop through all data entries, and update only if the value has changed
       this.dataEntries.forEach(
         ({ element, title, attribute, object, formatter }) => {
           if (object?.constructor?.name === "AsyncFunction") return;
@@ -287,15 +304,31 @@ export class Debug extends Group {
               typeof object === "function" ? object() : object[attribute] ?? "";
           }
           const formattedValue = formatter(newValue);
-          const wholeString = `${title ? `${title}: ` : ""}${formattedValue}`;
-          if (element.textContent !== wholeString) {
-            element.textContent = wholeString;
+
+          if (title) {
+            const labelSpan = element.querySelector(".debug-label");
+            const valueSpan = element.querySelector(".debug-value");
+
+            if (labelSpan && valueSpan) {
+              const newValueText = formattedValue;
+              if (valueSpan.textContent !== newValueText) {
+                valueSpan.textContent = newValueText;
+              }
+            } else {
+              const wholeString = `${title}: ${formattedValue}`;
+              if (element.textContent !== wholeString) {
+                element.textContent = wholeString;
+              }
+            }
+          } else {
+            if (element.textContent !== formattedValue) {
+              element.textContent = formattedValue;
+            }
           }
         }
       );
     });
 
-    // fps update
     this.stats?.update();
   };
   /**
@@ -306,7 +339,7 @@ export class Debug extends Group {
     dataEntry.classList.add(this.options.lineClass);
 
     DOMUtils.applyStyles(dataEntry, {
-      ...(newline ? { height: "16px", ...this.options.newLineStyles } : {}),
+      ...(newline ? { height: "10px", ...this.options.newLineStyles } : {}),
       ...(this.options.lineStyles || {}),
     });
 
@@ -337,7 +370,7 @@ export class Debug extends Group {
         bottom: "unset",
         left: "unset",
         zIndex: "1000000000000",
-        marginTop: "13.333px",
+        marginTop: "8px",
         ...(this.options.statsStyles || {}),
       });
     }
