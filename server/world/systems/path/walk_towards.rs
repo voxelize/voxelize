@@ -72,8 +72,10 @@ impl<'a> System<'a> for WalkTowardsSystem {
                     // jumping
                     if vpos.1 < nodes[i].1 {
                         brain.jump();
+                        brain.sprint();
                     } else {
                         brain.stop_jumping();
+                        brain.stop_sprinting();
                     }
 
                     // Smooth target calculation
@@ -127,13 +129,17 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                         let is_tight_turn = turn_angle > TIGHT_TURN_ANGLE_THRESHOLD;
 
-                        let blend_threshold = if is_tight_turn {
-                            0.6
-                        } else if is_turning {
-                            0.8
-                        } else {
-                            1.2
-                        };
+                        let body_width = body.0.aabb.width();
+                        let body_scale = body_width / 0.5;
+
+                        let blend_threshold = body_scale
+                            * if is_tight_turn {
+                                1.0
+                            } else if is_turning {
+                                1.3
+                            } else {
+                                1.5
+                            };
 
                         let max_blend = if is_tight_turn {
                             CORNER_SLOWDOWN_FACTOR

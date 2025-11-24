@@ -8,6 +8,7 @@ pub struct BrainState {
     pub heading: f32,
     pub running: bool,
     pub jumping: bool,
+    pub sprinting: bool,
 
     pub jump_count: u32,
     pub is_jumping: bool,
@@ -20,6 +21,7 @@ impl Default for BrainState {
             heading: 0.0,
             running: false,
             jumping: false,
+            sprinting: false,
 
             jump_count: 0,
             is_jumping: false,
@@ -42,6 +44,8 @@ pub struct BrainOptions {
     pub jump_force: f32,
     pub jump_time: f32, // ms
     pub air_jumps: u32,
+    pub sprint_speed_mult: f32,
+    pub sprint_force_mult: f32,
 }
 
 impl Default for BrainOptions {
@@ -58,6 +62,8 @@ impl Default for BrainOptions {
             jump_force: 1.0,
             jump_time: 50.0,
             air_jumps: 0,
+            sprint_speed_mult: 1.2,
+            sprint_force_mult: 1.5,
         }
     }
 }
@@ -100,6 +106,16 @@ impl BrainComp {
     /// Mark entity to be calm
     pub fn stop_jumping(&mut self) {
         self.state.jumping = false;
+    }
+
+    /// Mark entity to start sprinting
+    pub fn sprint(&mut self) {
+        self.state.sprinting = true;
+    }
+
+    /// Stop sprinting
+    pub fn stop_sprinting(&mut self) {
+        self.state.sprinting = false;
     }
 
     /// Operate brain state upon a rigid body
@@ -156,10 +172,10 @@ impl BrainComp {
         let m = &mut self.temp_vec;
         let push = &mut self.temp_vec2;
         if self.state.running {
-            let speed = self.options.max_speed;
-            // todo: add crouch/sprint modifiers if needed
-            // if (state.sprint) speed *= state.sprintMoveMult;
-            // if (state.crouch) speed *= state.crouchMoveMult;
+            let mut speed = self.options.max_speed;
+            if self.state.sprinting {
+                speed *= self.options.sprint_speed_mult;
+            }
             m.set(0.0, 0.0, speed);
 
             // rotate move vector to entity's heading
@@ -176,6 +192,9 @@ impl BrainComp {
             if push_len > 0.0 {
                 // pushing force vector
                 let mut can_push = self.options.move_force;
+                if self.state.sprinting {
+                    can_push *= self.options.sprint_force_mult;
+                }
                 if !on_ground {
                     can_push *= self.options.air_move_mult;
                 }

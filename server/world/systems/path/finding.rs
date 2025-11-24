@@ -528,10 +528,11 @@ fn can_walk_directly_with_clearance(
     let perp_x = -dz / mag;
     let perp_z = dx / mag;
 
-    const CLEARANCE: f32 = 0.4;
+    let body_width = height;
+    let clearance = body_width * 1.2;
     let check_offsets = [
-        (perp_x * CLEARANCE, perp_z * CLEARANCE),
-        (-perp_x * CLEARANCE, -perp_z * CLEARANCE),
+        (perp_x * clearance, perp_z * clearance),
+        (-perp_x * clearance, -perp_z * clearance),
     ];
 
     for (offset_x, offset_z) in &check_offsets {
