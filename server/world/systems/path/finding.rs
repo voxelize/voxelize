@@ -6,7 +6,6 @@ use crate::{
     AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
     WorldConfig,
 };
-use log::warn;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct PathFindingSystem;
@@ -25,7 +24,7 @@ impl<'a> System<'a> for PathFindingSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (chunks, registry, config, bodies, targets, mut paths) = data;
+        let (chunks, registry, _config, bodies, targets, mut paths) = data;
 
         let voxel_cache = Arc::new(Mutex::new(HashMap::new()));
 
@@ -85,32 +84,42 @@ impl<'a> System<'a> for PathFindingSystem {
             false
         };
 
-        let get_standable_voxel = |voxel: &Vec3<i32>| -> Vec3<i32> {
-            let mut voxel = voxel.clone();
-            let min_y = 0; // Ensure this is the absolute minimum Y value in your game world.
+        let has_wall_nearby = |vx: i32, vy: i32, vz: i32| -> bool {
+            for dx in -1..=1 {
+                for dz in -1..=1 {
+                    if dx == 0 && dz == 0 {
+                        continue;
+                    }
+                    if !get_is_voxel_passable(vx + dx, vy, vz + dz) {
+                        return true;
+                    }
+                }
+            }
+            false
+        };
 
-            // Ensure we start within the world bounds.
+        let get_standable_voxel = |voxel: &Vec3<i32>, max_drop: i32| -> Vec3<i32> {
+            let mut voxel = voxel.clone();
+            let min_y = 0;
+            let original_y = voxel.1;
+
             if voxel.1 < min_y {
                 voxel.1 = min_y;
             }
 
-            // Edge case for half blocks like slabs
             if !get_is_voxel_passable(voxel.0, voxel.1, voxel.2) {
                 return voxel;
             }
 
-            while voxel.1 > min_y {
+            let min_allowed_y = (original_y - max_drop).max(min_y);
+
+            while voxel.1 > min_allowed_y {
                 if get_is_voxel_passable(voxel.0, voxel.1 - 1, voxel.2) {
-                    // If the voxel below is passable, decrement y to check further below.
                     voxel.1 -= 1;
                 } else {
-                    // Found a non-passable voxel below, indicating solid ground.
                     break;
                 }
             }
-
-            // No need to adjust voxel.1 here as we're now ensuring the loop checks the voxel below for passability,
-            // meaning we're already at the correct height for standing when the loop exits.
 
             voxel
         };
@@ -154,14 +163,12 @@ impl<'a> System<'a> for PathFindingSystem {
                     let start = if body.0.at_rest_y() < 0
                         || is_position_supported(&body_vpos, aabb_width)
                     {
-                        // Bot is on ground (resting) or supported by edges, use current position
                         body_vpos.clone()
                     } else {
-                        // Bot might be falling/jumping, try to find standable position
-                        get_standable_voxel(&body_vpos)
+                        get_standable_voxel(&body_vpos, 3)
                     };
 
-                    let goal = get_standable_voxel(&target_vpos);
+                    let goal = get_standable_voxel(&target_vpos, 2);
 
                     if !get_is_voxel_passable(goal.0, goal.1, goal.2) {
                         entity_path.path = None;
@@ -217,43 +224,84 @@ impl<'a> System<'a> for PathFindingSystem {
 
                             // +X direction
                             if walkable(vx + 1, vy - 1, vz, height) {
-                                successors.push((PathNode(vx + 1, vy, vz), 1));
+                                let mut cost = 1;
+                                if has_wall_nearby(vx + 1, vy, vz) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx + 1, vy, vz), cost));
                             } else if walkable(vx + 1, vy, vz, height) && py {
-                                successors.push((PathNode(vx + 1, vy + 1, vz), 2));
+                                let mut cost = 2;
+                                if has_wall_nearby(vx + 1, vy + 1, vz) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx + 1, vy + 1, vz), cost));
                             } else if walkable(vx + 1, vy - 2, vz, height) && px {
                                 successors.push((PathNode(vx + 1, vy - 1, vz), 2));
                             }
 
                             // -X direction
                             if walkable(vx - 1, vy - 1, vz, height) {
-                                successors.push((PathNode(vx - 1, vy, vz), 1));
+                                let mut cost = 1;
+                                if has_wall_nearby(vx - 1, vy, vz) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx - 1, vy, vz), cost));
                             } else if walkable(vx - 1, vy, vz, height) && py {
-                                successors.push((PathNode(vx - 1, vy + 1, vz), 2));
+                                let mut cost = 2;
+                                if has_wall_nearby(vx - 1, vy + 1, vz) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx - 1, vy + 1, vz), cost));
                             } else if walkable(vx - 1, vy - 2, vz, height) && nx {
                                 successors.push((PathNode(vx - 1, vy - 1, vz), 2));
                             }
 
                             // +Z direction
                             if walkable(vx, vy - 1, vz + 1, height) {
-                                successors.push((PathNode(vx, vy, vz + 1), 1));
+                                let mut cost = 1;
+                                if has_wall_nearby(vx, vy, vz + 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx, vy, vz + 1), cost));
                             } else if walkable(vx, vy, vz + 1, height) && py {
-                                successors.push((PathNode(vx, vy + 1, vz + 1), 2));
+                                let mut cost = 2;
+                                if has_wall_nearby(vx, vy + 1, vz + 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx, vy + 1, vz + 1), cost));
                             } else if walkable(vx, vy - 2, vz + 1, height) && pz {
                                 successors.push((PathNode(vx, vy - 1, vz + 1), 2));
                             }
 
                             // -Z direction
                             if walkable(vx, vy - 1, vz - 1, height) {
-                                successors.push((PathNode(vx, vy, vz - 1), 1));
+                                let mut cost = 1;
+                                if has_wall_nearby(vx, vy, vz - 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx, vy, vz - 1), cost));
                             } else if walkable(vx, vy, vz - 1, height) && py {
-                                successors.push((PathNode(vx, vy + 1, vz - 1), 2));
+                                let mut cost = 2;
+                                if has_wall_nearby(vx, vy + 1, vz - 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx, vy + 1, vz - 1), cost));
                             } else if walkable(vx, vy - 2, vz - 1, height) && nz {
                                 successors.push((PathNode(vx, vy - 1, vz - 1), 2));
                             }
 
                             // +X+Z direction
-                            if walkable(vx + 1, vy - 1, vz + 1, height) && px && pz {
-                                successors.push((PathNode(vx + 1, vy, vz + 1), 2));
+                            if walkable(vx + 1, vy - 1, vz + 1, height)
+                                && px
+                                && pz
+                                && get_is_voxel_passable(vx + 1, vy, vz)
+                                && get_is_voxel_passable(vx, vy, vz + 1)
+                            {
+                                let mut cost = 2;
+                                if has_wall_nearby(vx + 1, vy, vz + 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx + 1, vy, vz + 1), cost));
                             } else if walkable(vx + 1, vy, vz + 1, height) && py && pxpy && pzpy {
                                 successors.push((PathNode(vx + 1, vy + 1, vz + 1), 3));
                             } else if walkable(vx + 1, vy - 2, vz + 1, height) && px && pz {
@@ -261,8 +309,17 @@ impl<'a> System<'a> for PathFindingSystem {
                             }
 
                             // +X-Z direction
-                            if walkable(vx + 1, vy - 1, vz - 1, height) && px && nz {
-                                successors.push((PathNode(vx + 1, vy, vz - 1), 2));
+                            if walkable(vx + 1, vy - 1, vz - 1, height)
+                                && px
+                                && nz
+                                && get_is_voxel_passable(vx + 1, vy, vz)
+                                && get_is_voxel_passable(vx, vy, vz - 1)
+                            {
+                                let mut cost = 2;
+                                if has_wall_nearby(vx + 1, vy, vz - 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx + 1, vy, vz - 1), cost));
                             } else if walkable(vx + 1, vy, vz - 1, height) && py && pxpy && nzpy {
                                 successors.push((PathNode(vx + 1, vy + 1, vz - 1), 3));
                             } else if walkable(vx + 1, vy - 2, vz - 1, height) && px && nz {
@@ -270,8 +327,17 @@ impl<'a> System<'a> for PathFindingSystem {
                             }
 
                             // -X+Z direction
-                            if walkable(vx - 1, vy - 1, vz + 1, height) && nx && pz {
-                                successors.push((PathNode(vx - 1, vy, vz + 1), 2));
+                            if walkable(vx - 1, vy - 1, vz + 1, height)
+                                && nx
+                                && pz
+                                && get_is_voxel_passable(vx - 1, vy, vz)
+                                && get_is_voxel_passable(vx, vy, vz + 1)
+                            {
+                                let mut cost = 2;
+                                if has_wall_nearby(vx - 1, vy, vz + 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx - 1, vy, vz + 1), cost));
                             } else if walkable(vx - 1, vy, vz + 1, height) && py && nxpy && pzpy {
                                 successors.push((PathNode(vx - 1, vy + 1, vz + 1), 3));
                             } else if walkable(vx - 1, vy - 2, vz + 1, height) && nx && pz {
@@ -279,8 +345,17 @@ impl<'a> System<'a> for PathFindingSystem {
                             }
 
                             // -X-Z direction
-                            if walkable(vx - 1, vy - 1, vz - 1, height) && nx && nz {
-                                successors.push((PathNode(vx - 1, vy, vz - 1), 2));
+                            if walkable(vx - 1, vy - 1, vz - 1, height)
+                                && nx
+                                && nz
+                                && get_is_voxel_passable(vx - 1, vy, vz)
+                                && get_is_voxel_passable(vx, vy, vz - 1)
+                            {
+                                let mut cost = 2;
+                                if has_wall_nearby(vx - 1, vy, vz - 1) {
+                                    cost += 1;
+                                }
+                                successors.push((PathNode(vx - 1, vy, vz - 1), cost));
                             } else if walkable(vx - 1, vy, vz - 1, height) && py && nxpy && nzpy {
                                 successors.push((PathNode(vx - 1, vy + 1, vz - 1), 3));
                             } else if walkable(vx - 1, vy - 2, vz - 1, height) && nx && nz {
@@ -325,71 +400,158 @@ impl<'a> System<'a> for PathFindingSystem {
     }
 }
 
-/// Smooth the path by removing unnecessary intermediate nodes
-/// This checks if we can skip nodes by testing line-of-sight
 fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, height: f32) {
     if path.len() < 3 {
-        return; // Nothing to smooth
+        return;
     }
 
-    // We'll smooth only the first 3-4 nodes to avoid aggressive turns
-    let nodes_to_check = path.len().min(8);
-    let mut smoothed_path = vec![path[0].clone()];
-    let mut current_index = 0;
+    const EPSILON: f32 = 0.5;
+    const MAX_TURN_ANGLE: f32 = 75.0;
 
-    while current_index < nodes_to_check - 1 {
-        let current = &path[current_index];
-        let mut furthest_visible = current_index + 1;
+    let mut simplified = rdp_simplify(path, EPSILON);
 
-        // Try to find the furthest node we can reach directly
-        // But be very conservative - only check up to 2 nodes ahead
-        for check_index in (current_index + 2)..nodes_to_check.min(current_index + 5) {
-            if check_index >= path.len() {
-                break;
-            }
+    let mut validated_path = vec![simplified[0].clone()];
 
-            let target = &path[check_index];
+    for i in 1..simplified.len() {
+        let from = validated_path[validated_path.len() - 1].clone();
+        let to = simplified[i].clone();
 
-            // Only try to smooth if nodes are relatively close
-            let dist = ((target.0 - current.0).pow(2)
-                + (target.1 - current.1).pow(2)
-                + (target.2 - current.2).pow(2)) as f32;
+        let turn_angle = if validated_path.len() >= 2 {
+            let prev = validated_path[validated_path.len() - 2].clone();
+            calculate_angle_change(&prev, &from, &to)
+        } else {
+            0.0
+        };
 
-            // Don't smooth over long distances (more than 4.0 blocks away)
-            if dist.sqrt() > 4.0 {
-                break;
-            }
+        if turn_angle > MAX_TURN_ANGLE {
+            let original_idx = path.iter().position(|p| *p == from).unwrap_or(0);
+            let next_original_idx = path.iter().position(|p| *p == to).unwrap_or(path.len() - 1);
 
-            // Check angle change to prevent smoothing over sharp turns
-            if current_index > 0 {
-                let prev = &smoothed_path[smoothed_path.len() - 1];
-                let angle = calculate_angle_change(prev, current, target);
-
-                // Don't smooth if it would create a sharp turn (> 100 degrees)
-                if angle > 100.0 {
-                    break;
+            for idx in (original_idx + 1)..next_original_idx {
+                if idx < path.len() {
+                    validated_path.push(path[idx].clone());
                 }
-            }
-
-            // Check if we can walk directly from current to target
-            if can_walk_directly(current, target, chunks, registry, height) {
-                furthest_visible = check_index;
-            } else {
-                break; // Can't see further, stop checking
             }
         }
 
-        // Add the furthest visible node
-        smoothed_path.push(path[furthest_visible].clone());
-        current_index = furthest_visible;
+        if can_walk_directly_with_clearance(&from, &to, chunks, registry, height) {
+            validated_path.push(to.clone());
+        } else {
+            let original_idx = path.iter().position(|p| *p == from).unwrap_or(0);
+            let next_original_idx = path.iter().position(|p| *p == to).unwrap_or(path.len() - 1);
+
+            for idx in (original_idx + 1)..=next_original_idx {
+                if idx < path.len() {
+                    validated_path.push(path[idx].clone());
+                }
+            }
+        }
     }
 
-    // Add remaining nodes that weren't checked
-    for i in nodes_to_check..path.len() {
-        smoothed_path.push(path[i].clone());
+    if validated_path.len() >= 2 {
+        *path = validated_path;
+    }
+}
+
+fn rdp_simplify(points: &[Vec3<i32>], epsilon: f32) -> Vec<Vec3<i32>> {
+    if points.len() < 3 {
+        return points.to_vec();
     }
 
-    *path = smoothed_path;
+    let mut max_dist = 0.0;
+    let mut max_index = 0;
+    let end = points.len() - 1;
+
+    for i in 1..end {
+        let dist = perpendicular_distance(&points[i], &points[0], &points[end]);
+        if dist > max_dist {
+            max_dist = dist;
+            max_index = i;
+        }
+    }
+
+    if max_dist > epsilon {
+        let left = rdp_simplify(&points[0..=max_index], epsilon);
+        let right = rdp_simplify(&points[max_index..=end], epsilon);
+
+        let mut result = left;
+        result.extend_from_slice(&right[1..]);
+        result
+    } else {
+        vec![points[0].clone(), points[end].clone()]
+    }
+}
+
+fn perpendicular_distance(point: &Vec3<i32>, line_start: &Vec3<i32>, line_end: &Vec3<i32>) -> f32 {
+    let dx = (line_end.0 - line_start.0) as f32;
+    let dz = (line_end.2 - line_start.2) as f32;
+    let mag = (dx * dx + dz * dz).sqrt();
+
+    if mag < 0.001 {
+        let px = (point.0 - line_start.0) as f32;
+        let pz = (point.2 - line_start.2) as f32;
+        return (px * px + pz * pz).sqrt();
+    }
+
+    let u = (((point.0 - line_start.0) as f32 * dx + (point.2 - line_start.2) as f32 * dz)
+        / (mag * mag))
+        .clamp(0.0, 1.0);
+
+    let closest_x = line_start.0 as f32 + u * dx;
+    let closest_z = line_start.2 as f32 + u * dz;
+
+    let dist_x = point.0 as f32 - closest_x;
+    let dist_z = point.2 as f32 - closest_z;
+
+    (dist_x * dist_x + dist_z * dist_z).sqrt()
+}
+
+fn can_walk_directly_with_clearance(
+    from: &Vec3<i32>,
+    to: &Vec3<i32>,
+    chunks: &Chunks,
+    registry: &Registry,
+    height: f32,
+) -> bool {
+    if !can_walk_directly(from, to, chunks, registry, height) {
+        return false;
+    }
+
+    let dx = (to.0 - from.0) as f32;
+    let dz = (to.2 - from.2) as f32;
+    let mag = (dx * dx + dz * dz).sqrt();
+
+    if mag < 0.001 {
+        return true;
+    }
+
+    let perp_x = -dz / mag;
+    let perp_z = dx / mag;
+
+    const CLEARANCE: f32 = 0.4;
+    let check_offsets = [
+        (perp_x * CLEARANCE, perp_z * CLEARANCE),
+        (-perp_x * CLEARANCE, -perp_z * CLEARANCE),
+    ];
+
+    for (offset_x, offset_z) in &check_offsets {
+        let offset_from = Vec3(
+            (from.0 as f32 + offset_x).round() as i32,
+            from.1,
+            (from.2 as f32 + offset_z).round() as i32,
+        );
+        let offset_to = Vec3(
+            (to.0 as f32 + offset_x).round() as i32,
+            to.1,
+            (to.2 as f32 + offset_z).round() as i32,
+        );
+
+        if !can_walk_directly(&offset_from, &offset_to, chunks, registry, height) {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Calculate the angle change in degrees between three points

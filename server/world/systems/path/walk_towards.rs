@@ -1,6 +1,10 @@
 use crate::{BrainComp, PathComp, RigidBodyComp, Stats, Vec3};
-use log::warn;
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
+
+const NODE_ADVANCE_THRESHOLD: f32 = 0.7;
+const FINAL_NODE_THRESHOLD: f32 = 0.3;
+const CORNER_SLOWDOWN_FACTOR: f32 = 0.15;
+const TIGHT_TURN_ANGLE_THRESHOLD: f32 = 100.0;
 
 pub struct WalkTowardsSystem;
 
@@ -38,12 +42,10 @@ impl<'a> System<'a> for WalkTowardsSystem {
 
                     // Find the current and next target nodes
                     for (index, node) in nodes.iter().enumerate() {
-                        // Check if we've passed this node (with some tolerance)
                         let dx = (current_pos.0 - (node.0 as f32 + 0.5)).abs();
                         let dz = (current_pos.2 - (node.2 as f32 + 0.5)).abs();
 
-                        // If we're close enough to this node, target the next one
-                        if dx < 1.2 && dz < 1.2 {
+                        if dx < NODE_ADVANCE_THRESHOLD && dz < NODE_ADVANCE_THRESHOLD {
                             if index < nodes.len() - 1 {
                                 i = index + 1;
                                 target = nodes[i].clone();
@@ -52,18 +54,16 @@ impl<'a> System<'a> for WalkTowardsSystem {
                                 target = node.clone();
                             }
                         } else if index > 0 {
-                            // We haven't reached this node yet
                             i = index;
                             target = node.clone();
                             break;
                         }
                     }
 
-                    // If we've reached the end of the path
                     if i == nodes.len() - 1 {
                         let dx = (current_pos.0 - (target.0 as f32 + 0.5)).abs();
                         let dz = (current_pos.2 - (target.2 as f32 + 0.5)).abs();
-                        if dx < 0.3 && dz < 0.3 {
+                        if dx < FINAL_NODE_THRESHOLD && dz < FINAL_NODE_THRESHOLD {
                             brain.stop();
                             return;
                         }
@@ -84,7 +84,6 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         target.2 as f32 + offset,
                     );
 
-                    // If we have a next node, create a smoother target by interpolating
                     if i < nodes.len() - 1 {
                         let next_node = &nodes[i + 1];
                         let current_target = Vec3(
@@ -98,35 +97,60 @@ impl<'a> System<'a> for WalkTowardsSystem {
                             next_node.2 as f32 + offset,
                         );
 
-                        // Calculate distance to current target
                         let dist_to_current = ((current_pos.0 - current_target.0).powi(2)
                             + (current_pos.2 - current_target.2).powi(2))
                         .sqrt();
 
-                        // Check if we're making a turn (direction change)
-                        let is_turning = if i > 0 {
+                        let (is_turning, turn_angle) = if i > 0 {
                             let prev_node = &nodes[i - 1];
-                            let dir1_x = target.0 - prev_node.0;
-                            let dir1_z = target.2 - prev_node.2;
-                            let dir2_x = next_node.0 - target.0;
-                            let dir2_z = next_node.2 - target.2;
-                            dir1_x != dir2_x || dir1_z != dir2_z
+                            let dir1_x = (target.0 - prev_node.0) as f32;
+                            let dir1_z = (target.2 - prev_node.2) as f32;
+                            let dir2_x = (next_node.0 - target.0) as f32;
+                            let dir2_z = (next_node.2 - target.2) as f32;
+
+                            let is_turn = dir1_x != dir2_x || dir1_z != dir2_z;
+
+                            let mag1 = (dir1_x * dir1_x + dir1_z * dir1_z).sqrt();
+                            let mag2 = (dir2_x * dir2_x + dir2_z * dir2_z).sqrt();
+
+                            let angle = if mag1 > 0.01 && mag2 > 0.01 {
+                                let dot = (dir1_x * dir2_x + dir1_z * dir2_z) / (mag1 * mag2);
+                                dot.clamp(-1.0, 1.0).acos().to_degrees()
+                            } else {
+                                0.0
+                            };
+
+                            (is_turn, angle)
                         } else {
-                            false
+                            (false, 0.0)
                         };
 
-                        // Be more conservative with blending at corners
-                        let blend_threshold = if is_turning { 1.0 } else { 1.5 };
-                        let blend_range = if is_turning { 0.5 } else { 1.0 };
+                        let is_tight_turn = turn_angle > TIGHT_TURN_ANGLE_THRESHOLD;
 
-                        // Start blending when we're close to the current target
+                        let blend_threshold = if is_tight_turn {
+                            0.6
+                        } else if is_turning {
+                            0.8
+                        } else {
+                            1.2
+                        };
+
+                        let max_blend = if is_tight_turn {
+                            CORNER_SLOWDOWN_FACTOR
+                        } else if is_turning {
+                            0.2
+                        } else {
+                            0.3
+                        };
+
                         if dist_to_current < blend_threshold {
-                            let blend_factor =
-                                ((blend_threshold - dist_to_current) / blend_range).min(0.3);
+                            let blend_factor = ((blend_threshold - dist_to_current)
+                                / blend_threshold)
+                                .min(max_blend);
                             smooth_target = Vec3(
                                 current_target.0 * (1.0 - blend_factor)
                                     + next_target.0 * blend_factor,
-                                current_target.1, // Keep Y from current target for jumping logic
+                                current_target.1,
                                 current_target.2 * (1.0 - blend_factor)
                                     + next_target.2 * blend_factor,
                             );
