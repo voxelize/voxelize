@@ -31,7 +31,7 @@ Construct mobile rigid body controls with touch-based input.
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element (not used for pointer lock on mobile). |
 | `world` | [`World`](World.md)\<`any`\> | The world to apply the controls to. |
-| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-30)\> | The options to initialize the controls with. |
+| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-32)\> | The options to initialize the controls with. |
 
 #### Returns
 
@@ -39,7 +39,7 @@ Construct mobile rigid body controls with touch-based input.
 
 #### Overrides
 
-[RigidControls](RigidControls.md).[constructor](RigidControls.md#constructor-30)
+[RigidControls](RigidControls.md).[constructor](RigidControls.md#constructor-32)
 
 ## Properties
 
@@ -48,11 +48,11 @@ Construct mobile rigid body controls with touch-based input.
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [RigidControls.connect](RigidControls.md#connect-30) is called.
+when [RigidControls.connect](RigidControls.md#connect-32) is called.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[INPUT_IDENTIFIER](RigidControls.md#input_identifier-30)
+[RigidControls](RigidControls.md).[INPUT_IDENTIFIER](RigidControls.md#input_identifier-32)
 
 ___
 
@@ -61,12 +61,12 @@ ___
 • `Optional` **arm**: [`Arm`](Arm.md)
 
 A potential link to a [Arm](Arm.md) instance. This can be added by
-calling [RigidControls.attachArm](RigidControls.md#attacharm-30) to add a mesh for the first person
+calling [RigidControls.attachArm](RigidControls.md#attacharm-32) to add a mesh for the first person
 view.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[arm](RigidControls.md#arm-30)
+[RigidControls](RigidControls.md).[arm](RigidControls.md#arm-32)
 
 ___
 
@@ -81,7 +81,7 @@ The physical rigid body of the client, dimensions described by:
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[body](RigidControls.md#body-30)
+[RigidControls](RigidControls.md).[body](RigidControls.md#body-32)
 
 ___
 
@@ -93,7 +93,7 @@ Reference linking to the Voxelize camera instance.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[camera](RigidControls.md#camera-30)
+[RigidControls](RigidControls.md).[camera](RigidControls.md#camera-32)
 
 ___
 
@@ -102,12 +102,12 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-30) to add a mesh for 2nd and 3rd person
+calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-32) to add a mesh for 2nd and 3rd person
 view.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[character](RigidControls.md#character-30)
+[RigidControls](RigidControls.md).[character](RigidControls.md#character-32)
 
 ___
 
@@ -119,7 +119,7 @@ The DOM element that pointerlock controls are applied to.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[domElement](RigidControls.md#domelement-30)
+[RigidControls](RigidControls.md).[domElement](RigidControls.md#domelement-32)
 
 ___
 
@@ -128,11 +128,11 @@ ___
 • `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[RigidControls.connect](RigidControls.md#connect-30), which registers the keyboard inputs for the controls.
+[RigidControls.connect](RigidControls.md#connect-32), which registers the keyboard inputs for the controls.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[inputs](RigidControls.md#inputs-30)
+[RigidControls](RigidControls.md).[inputs](RigidControls.md#inputs-32)
 
 ___
 
@@ -144,7 +144,7 @@ Flag indicating whether pointerlock controls have control over the cursor.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[isLocked](RigidControls.md#islocked-30)
+[RigidControls](RigidControls.md).[isLocked](RigidControls.md#islocked-32)
 
 ___
 
@@ -169,7 +169,7 @@ key is pressed, then "front" would be `true`. Vice versa for "back".
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[movements](RigidControls.md#movements-30)
+[RigidControls](RigidControls.md).[movements](RigidControls.md#movements-32)
 
 ___
 
@@ -181,19 +181,19 @@ A THREE.JS object, parent to the camera for pointerlock controls.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[object](RigidControls.md#object-30)
+[RigidControls](RigidControls.md).[object](RigidControls.md#object-32)
 
 ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-30)
+• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-32)
 
 Parameters to initialize the Voxelize controls.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[options](RigidControls.md#options-30)
+[RigidControls](RigidControls.md).[options](RigidControls.md#options-32)
 
 ___
 
@@ -205,19 +205,19 @@ The client's own peer ID. This is set when the client first connects to the serv
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[ownID](RigidControls.md#ownid-30)
+[RigidControls](RigidControls.md).[ownID](RigidControls.md#ownid-32)
 
 ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-30)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-32)
 
 The state of the control, indicating things like whether or not the client is running.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[state](RigidControls.md#state-30)
+[RigidControls](RigidControls.md).[state](RigidControls.md#state-32)
 
 ___
 
@@ -229,19 +229,19 @@ Reference linking to the Voxelize world instance.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[world](RigidControls.md#world-30)
+[RigidControls](RigidControls.md).[world](RigidControls.md#world-32)
 
 ## Accessors
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-30)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2-32)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-30)
+[`Coords2`](../modules.md#coords2-32)
 
 #### Inherited from
 
@@ -299,14 +299,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-30)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3-32)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-30)
+[`Coords3`](../modules.md#coords3-32)
 
 #### Inherited from
 
@@ -332,7 +332,7 @@ Attach a [Arm](Arm.md) to this controls instance. This can be seen in 1st person
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[attachArm](RigidControls.md#attacharm-30)
+[RigidControls](RigidControls.md).[attachArm](RigidControls.md#attacharm-32)
 
 ___
 
@@ -355,7 +355,7 @@ Attach a [Character](Character.md) to this controls instance. This can be seen i
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[attachCharacter](RigidControls.md#attachcharacter-30)
+[RigidControls](RigidControls.md).[attachCharacter](RigidControls.md#attachcharacter-32)
 
 ___
 
@@ -371,7 +371,7 @@ Sets up all event listeners for controls, including:
 - Control lock/unlock events
 
 This function returns a function that can be called to disconnect the controls.
-Keep in mind that if [Inputs.remap](Inputs.md#remap-30) is used to remap any controls, they will
+Keep in mind that if [Inputs.remap](Inputs.md#remap-32) is used to remap any controls, they will
 not be unbound when the returned function is called.
 
 #### Returns
@@ -394,7 +394,7 @@ namespace The namespace to bind the controls to.
 
 #### Overrides
 
-[RigidControls](RigidControls.md).[connect](RigidControls.md#connect-30)
+[RigidControls](RigidControls.md).[connect](RigidControls.md#connect-32)
 
 ___
 
@@ -410,7 +410,7 @@ Get the direction that the client is looking at.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[getDirection](RigidControls.md#getdirection-30)
+[RigidControls](RigidControls.md).[getDirection](RigidControls.md#getdirection-32)
 
 ___
 
@@ -427,7 +427,7 @@ Needs to be called within a DOM event listener callback!
 
 #### Overrides
 
-[RigidControls](RigidControls.md).[lock](RigidControls.md#lock-30)
+[RigidControls](RigidControls.md).[lock](RigidControls.md#lock-32)
 
 ___
 
@@ -451,7 +451,7 @@ Make the client look at a coordinate.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[lookAt](RigidControls.md#lookat-30)
+[RigidControls](RigidControls.md).[lookAt](RigidControls.md#lookat-32)
 
 ___
 
@@ -473,7 +473,7 @@ Move the client forward/backward by a certain distance.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[moveForward](RigidControls.md#moveforward-30)
+[RigidControls](RigidControls.md).[moveForward](RigidControls.md#moveforward-32)
 
 ___
 
@@ -495,7 +495,7 @@ Move the client left/right by a certain distance.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[moveRight](RigidControls.md#moveright-30)
+[RigidControls](RigidControls.md).[moveRight](RigidControls.md#moveright-32)
 
 ___
 
@@ -523,7 +523,7 @@ The controls instance for chaining.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[on](RigidControls.md#on-30)
+[RigidControls](RigidControls.md).[on](RigidControls.md#on-32)
 
 ___
 
@@ -543,7 +543,7 @@ ___
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[onMessage](RigidControls.md#onmessage-30)
+[RigidControls](RigidControls.md).[onMessage](RigidControls.md#onmessage-32)
 
 ___
 
@@ -559,7 +559,7 @@ Reset the controls instance. This will reset the camera's position and rotation,
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[reset](RigidControls.md#reset-30)
+[RigidControls](RigidControls.md).[reset](RigidControls.md#reset-32)
 
 ___
 
@@ -576,7 +576,7 @@ Useful when exiting play mode or pausing.
 
 #### Overrides
 
-[RigidControls](RigidControls.md).[resetMovements](RigidControls.md#resetmovements-30)
+[RigidControls](RigidControls.md).[resetMovements](RigidControls.md#resetmovements-32)
 
 ___
 
@@ -658,7 +658,7 @@ Teleport this rigid controls to a new voxel coordinate.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[teleport](RigidControls.md#teleport-30)
+[RigidControls](RigidControls.md).[teleport](RigidControls.md#teleport-32)
 
 ___
 
@@ -682,7 +682,7 @@ Teleport the rigid controls to the top of this voxel column.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[teleportToTop](RigidControls.md#teleporttotop-30)
+[RigidControls](RigidControls.md).[teleportToTop](RigidControls.md#teleporttotop-32)
 
 ___
 
@@ -698,7 +698,7 @@ Toggle fly mode. Fly mode is like ghost mode, but the client can't fly through b
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[toggleFly](RigidControls.md#togglefly-30)
+[RigidControls](RigidControls.md).[toggleFly](RigidControls.md#togglefly-32)
 
 ___
 
@@ -714,7 +714,7 @@ Toggle ghost mode. Ghost mode is when a client can fly through blocks.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[toggleGhostMode](RigidControls.md#toggleghostmode-30)
+[RigidControls](RigidControls.md).[toggleGhostMode](RigidControls.md#toggleghostmode-32)
 
 ___
 
@@ -731,7 +731,7 @@ Needs to be called within a DOM event listener callback!
 
 #### Overrides
 
-[RigidControls](RigidControls.md).[unlock](RigidControls.md#unlock-30)
+[RigidControls](RigidControls.md).[unlock](RigidControls.md#unlock-32)
 
 ___
 
@@ -750,4 +750,4 @@ If the arm is attached, then the arm is also updated.
 
 #### Inherited from
 
-[RigidControls](RigidControls.md).[update](RigidControls.md#update-30)
+[RigidControls](RigidControls.md).[update](RigidControls.md#update-32)
