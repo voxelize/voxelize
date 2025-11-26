@@ -4,120 +4,69 @@ sidebar_position: 4
 
 # World Configuration
 
-Before adding chunk generation, let's explore the world configuration options that control how your voxel world behaves.
+Configure world boundaries, time cycles, physics, and performance settings.
 
-## WorldConfig Builder
+## Chunk Boundaries
 
-`WorldConfig` uses the builder pattern to set options:
+Set the world size with chunk coordinates:
 
-```rust title="src/main.rs"
+```rust title="Bounded World"
 let config = WorldConfig::new()
     .min_chunk([-10, -10])
     .max_chunk([10, 10])
     .build();
 ```
 
-## Chunk Boundaries
+This creates a 20x20 chunk world (320x320 blocks with default 16-block chunks).
 
-Define the world's extent with chunk coordinates:
-
-```rust title="World Boundaries"
-let config = WorldConfig::new()
-    .min_chunk([-50, -50])  // Southwest corner
-    .max_chunk([50, 50])    // Northeast corner
-    .build();
-```
-
-This creates a 100x100 chunk world (1600x1600 blocks with default 16-block chunks).
-
-For an infinite world, omit the boundaries:
+For infinite worlds, skip the boundaries:
 
 ```rust title="Infinite World"
-let config = WorldConfig::new().build();  // No boundaries
-```
-
-## Chunk Dimensions
-
-Configure chunk size and height:
-
-```rust title="Chunk Dimensions"
-let config = WorldConfig::new()
-    .chunk_size(16)     // Width/depth in blocks (default: 16)
-    .max_height(256)    // Maximum Y coordinate (default: 256)
-    .sub_chunks(8)      // Vertical divisions for rendering (default: 8)
-    .build();
+let config = WorldConfig::new().build();
 ```
 
 ## Time and Day Cycle
 
-Control the day/night cycle:
-
-```rust title="Time Configuration"
+```rust title="Time Settings"
 let config = WorldConfig::new()
-    .time_per_day(24000)    // Ticks per full day cycle
-    .default_time(6000)     // Starting time (0 = midnight, 12000 = noon)
+    .time_per_day(24000)
+    .default_time(6000)
     .build();
 ```
 
-## Performance Tuning
+- `time_per_day` - Ticks for a full day/night cycle
+- `default_time` - Starting time (0 = midnight, 12000 = noon)
 
-Adjust processing limits per tick:
+## Performance Settings
 
-```rust title="Performance Settings"
+```rust title="Performance Limits"
 let config = WorldConfig::new()
-    .max_chunks_per_tick(4)      // Chunks to generate per tick
-    .max_updates_per_tick(100)   // Voxel updates to process per tick
-    .max_light_level(15)         // Maximum light propagation
+    .max_chunks_per_tick(4)
+    .max_updates_per_tick(100)
+    .max_light_level(15)
     .build();
 ```
 
-## Physics Settings
+## Physics
 
-Configure entity physics:
-
-```rust title="Physics Configuration"
+```rust title="Collision Settings"
 let config = WorldConfig::new()
-    .collision_repulsion(1.0)          // Entity-entity push strength
-    .client_collision_repulsion(0.2)   // Player-entity push strength
+    .collision_repulsion(1.0)
+    .client_collision_repulsion(0.2)
     .build();
 ```
 
 ## Persistence
 
-Enable world saving:
-
-```rust title="Saving Configuration"
+```rust title="Save Configuration"
 let config = WorldConfig::new()
     .saving(true)
     .save_dir("worlds/my-world")
-    .save_interval(1000)  // Ticks between saves
+    .save_interval(1000)
     .build();
 ```
 
-## Preloading
-
-Pre-generate chunks before players join:
-
-```rust title="Preloading"
-let config = WorldConfig::new()
-    .preload(true)
-    .preload_radius(5)  // Chunks to preload from origin
-    .build();
-```
-
-## Chat Commands
-
-Configure the command prefix:
-
-```rust title="Command Symbol"
-let config = WorldConfig::new()
-    .command_symbol("/")  // Messages starting with "/" are commands
-    .build();
-```
-
-## Progress Check
-
-Here's our updated code with configuration:
+## Updated Code
 
 ```rust title="src/main.rs"
 use voxelize::{Block, Registry, Server, Voxelize, World, WorldConfig};
@@ -131,8 +80,6 @@ async fn main() -> std::io::Result<()> {
     let config = WorldConfig::new()
         .min_chunk([-10, -10])
         .max_chunk([10, 10])
-        .time_per_day(24000)
-        .max_chunks_per_tick(4)
         .build();
 
     let mut world = World::new("tutorial", &config);
@@ -140,7 +87,10 @@ async fn main() -> std::io::Result<()> {
     let mut registry = Registry::new();
     registry.register_blocks(&[dirt, stone, grass_block]);
 
-    let mut server = Server::new().port(4000).registry(&registry).build();
+    let mut server = Server::new()
+        .port(4000)
+        .registry(&registry)
+        .build();
 
     server
         .add_world(world)
@@ -149,5 +99,3 @@ async fn main() -> std::io::Result<()> {
     Voxelize::run(server).await
 }
 ```
-
-The world is configured but still empty. In the next chapter, we'll add chunk generation to populate it with terrain.

@@ -20,7 +20,7 @@ const DOCS_CARDS = [
   {
     title: "API Reference",
     description: "Explore the full API documentation for advanced usage",
-    href: "/api/client",
+    href: "/api/client/modules",
   },
 ];
 
