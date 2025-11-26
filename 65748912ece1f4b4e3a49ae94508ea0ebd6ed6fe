@@ -1,0 +1,8 @@
+AI Notes:
+
+docs/docusaurus.config.ts: +127[0] -127[0]
+docs/src/pages/index.tsx: +9-25[0],+27-51[0],+62-66[0],+114[0],+154-158[0],+195[0],+235[0] -18[0],-66[0],-106[0],-143[0]
+
+Conversations:
+
+[0]: bbeab4f6-2efc-4347-9f4b-0b30123994dd; Implement splash screen support for create.town; claude-4.5-opus-high;
