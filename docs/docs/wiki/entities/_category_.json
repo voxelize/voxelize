@@ -1,0 +1,8 @@
+{
+  "label": "Entities",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Custom entities and peer handling."
+  }
+}

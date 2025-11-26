@@ -1,0 +1,3 @@
+[submodule "tutorial"]
+	path = tutorial
+	url = https://github.com/voxelize/voxelize-tutorial.git

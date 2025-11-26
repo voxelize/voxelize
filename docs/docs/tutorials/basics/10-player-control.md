@@ -4,46 +4,125 @@ sidebar_position: 10
 
 # Player Control
 
-Since Voxelize is built with ThreeJS, any camera controller would theoretically work perfectly. Voxelize does provide developers a well-rounded physics-based controller to walk run and jump around the voxel world, which is the `VOXELIZE.RigidControls`. `RigidControls` actually uses the ThreeJS PointerLockControls internally.
+Voxelize provides `RigidControls`, a physics-based controller for walking, running, jumping, and flying around voxel worlds. It wraps ThreeJS's PointerLockControls and adds collision detection.
+
+## Setting Up Controls
 
 ```javascript title="main.js"
 const inputs = new VOXELIZE.Inputs();
 
 const rigidControls = new VOXELIZE.RigidControls(
-    camera,
-    renderer.domElement,
-    world,
-    {
-        initialPosition: [0, 40, 0],
-    },
+  camera,
+  renderer.domElement,
+  world,
+  {
+    initialPosition: [0, 40, 0],
+  }
 );
-rigidControls.connect(inputs); // Register the keybindings
 
-// ...
+rigidControls.connect(inputs);
+```
 
+The `inputs` manager handles keybindings. Calling `connect` registers the default movement keys (WASD, Space, Shift).
+
+## Update Loop
+
+Add the controls update to your animation loop:
+
+```javascript title="main.js"
 function animate() {
-    // ...
+  requestAnimationFrame(animate);
 
-    if (world.isInitialized) {
-        // ...
-        rigidControls.update();
-    }
+  if (world.isInitialized) {
+    rigidControls.update();
+  }
+
+  renderer.render(world, camera);
 }
 ```
 
-With this, you can now navigate around the voxelize world and should see something as below:
+With this, you can navigate the world:
 
 ![](../assets/rigid-controls-basic.png)
 
-All the blocks below are currently still question marks, this is the default texture in Voxelize. We will add texture in the next chapter!
+## Adding Fly and Ghost Mode
 
-## Add Flight Controls
-
-Let's quickly add the ability to toggle fly or ghost mode with `f` or `g` key presses.
+Bind keys to toggle flying and ghost mode (no-clip through blocks):
 
 ```javascript title="main.js"
-inputs.bind('g', rigidControls.toggleGhostMode);
-inputs.bind('f', rigidControls.toggleFly);
+inputs.bind("g", rigidControls.toggleGhostMode);
+inputs.bind("f", rigidControls.toggleFly);
 ```
 
-`input.bind` binds the key press to a given function, which in this case is `rigidControls.toggleGhostMode` and `rigidControls.toggleFly`. Now, try flying out and around. The world should generate the chunks around you on the spot!
+## Full Implementation
+
+Here's the complete player control setup:
+
+```javascript title="main.js"
+import * as VOXELIZE from "@voxelize/core";
+import * as THREE from "three";
+
+const canvas = document.getElementById("canvas");
+
+const world = new VOXELIZE.World({
+  textureUnitDimension: 16,
+});
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  3000
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance",
+  canvas,
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const network = new VOXELIZE.Network();
+network.register(world);
+
+const inputs = new VOXELIZE.Inputs();
+
+const rigidControls = new VOXELIZE.RigidControls(
+  camera,
+  renderer.domElement,
+  world,
+  {
+    initialPosition: [0, 40, 0],
+  }
+);
+
+rigidControls.connect(inputs);
+
+inputs.bind("g", rigidControls.toggleGhostMode);
+inputs.bind("f", rigidControls.toggleFly);
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (world.isInitialized) {
+    rigidControls.update();
+  }
+
+  renderer.render(world, camera);
+}
+
+async function start() {
+  animate();
+
+  await network.connect("http://localhost:4000");
+  await network.join("tutorial");
+
+  await world.initialize();
+}
+
+start();
+```
+
+See `examples/client/src/main.ts` for a more complete example with additional features like perspective switching and voxel interaction.

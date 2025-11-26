@@ -85,6 +85,10 @@ p:has(img[class*="MDX"]) {
 th {
 }
 
+.navbar__link:hover {
+  text-decoration: underline;
+}
+
 .footer .footer__link-item {
   transition: opacity 0.15s ease;
 }

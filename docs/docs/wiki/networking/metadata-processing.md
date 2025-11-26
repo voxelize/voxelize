@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Metadata Processing
 
 In Voxelize, metadata is a way to keep entities and players in sync with the server. Essentially, metadata is a JSON serializable object that contains the individual components that the entity itself possesses. For example, a player entity might have a position component, a rotation component, and a health component. These components are stored in the metadata object, and whenever these individual components are changed, the metadata object is updated and sent to the client.
@@ -22,14 +26,16 @@ let position = metadata.get::<PositionComp>("position").unwrap_or_default();
 
 ## Handling Metadata
 
-Metadata is handled differently for peers and entities. 
+Metadata is handled differently for peers and entities.
 
 For peers, aka players, metadata is by default handled by the `PeersMetaSystem`, which automatically adds in these components to the players' metadata:
+
 - `PositionComp`: This is added as `position` in the metadata
 - `NameComp`: This is added as `username` in the metadata
 - `DirectionComp`: This is added as `direction` in the metadata
 
 For entities, metadata is handled by the `EntitiesMetaSystem`, which automatically adds in these components to the entities' metadata:
+
 - `PositionComp`: This is added as `position` in the metadata
 
 When a new component is defined and should be added to the metadata system, you can define your own system that handles this similar process. For example, if you wanted to add a `HealthComp` to the metadata, you could do something like this:

@@ -1,0 +1,8 @@
+{
+  "label": "Blocks",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "Block registration, texturing, and rendering."
+  }
+}

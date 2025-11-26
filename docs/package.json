@@ -15,12 +15,13 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@docusaurus/core": "^3.7.0",
-    "@docusaurus/module-type-aliases": "^3.7.0",
-    "@docusaurus/plugin-content-docs": "^3.7.0",
-    "@docusaurus/preset-classic": "^3.7.0",
-    "@docusaurus/tsconfig": "^3.7.0",
-    "@docusaurus/types": "^3.7.0",
+    "@docusaurus/core": "3.7.0",
+    "@docusaurus/module-type-aliases": "3.7.0",
+    "@docusaurus/plugin-content-docs": "3.7.0",
+    "@docusaurus/preset-classic": "3.7.0",
+    "@docusaurus/theme-mermaid": "3.7.0",
+    "@docusaurus/tsconfig": "3.7.0",
+    "@docusaurus/types": "3.7.0",
     "@mdx-js/react": "^3.1.0",
     "@voxelize/core": "^0.1.224",
     "clsx": "^1.2.1",
@@ -36,9 +37,9 @@
     "three": "^0.165.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.0.0",
-    "@docusaurus/tsconfig": "3.0.0",
-    "@docusaurus/types": "3.0.0",
+    "@docusaurus/module-type-aliases": "3.7.0",
+    "@docusaurus/tsconfig": "3.7.0",
+    "@docusaurus/types": "3.7.0",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",

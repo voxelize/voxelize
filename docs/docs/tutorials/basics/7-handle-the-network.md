@@ -4,62 +4,126 @@ sidebar_position: 7
 
 # Voxelize Networking
 
-In order to connect our frontend client to the backend Rust server, we need to create a network manager in Voxelize. The network manager handles all the ins and outs of the network packets. For example, the `VOXELIZE.World` requests for chunks on the server side, but you will need the network manager to send/receive these chunk data to and from the server. 
+The network manager connects your client to the Voxelize server over WebSockets. It handles sending and receiving all game data - chunks, player positions, chat messages, and custom events.
 
-```javascript title="main.js" 
+## Creating the Network
+
+```javascript title="main.js"
 const network = new VOXELIZE.Network();
 
 network.register(world);
 ```
 
-## A Word on Network Intecepts
+Registering the world allows it to receive chunk data and world updates from the server.
 
-Such as the Voxelize world, network interceptors allow developers to peep into what network packets are received, and can also send packets out to the server. 
+## Network Interceptors
+
+Anything registered with `network.register()` can intercept messages. An interceptor has two hooks:
 
 ### `onMessage`
 
-The first thing you can implement for anything you `register` onto the network is `onMessage`. What `onMessage` does is that when `network.sync()`  is called, the network "unpacks" all the network packets received in that frame, and passes those messages through each registered network interceptors. (`network.sync()` is called internally for you.)
+Called for every message received when `network.sync()` runs (called automatically each frame):
 
-For example, say I want to print out all the message types whenever I receive any, I could simply do:
-
-```javascript
-const myNetworkDebugger = {
-    onMessage(message) {
-        console.log(message.type);
-    }
+```javascript title="Custom Logger"
+const debugInterceptor = {
+  onMessage(message) {
+    console.log("Received:", message.type);
+  },
 };
 
-network.register(myNetworkDebugger);
+network.register(debugInterceptor);
 ```
-
-Or, like what `VOXELIZE.World` does [here](https://github.com/shaoruu/voxelize/blob/b553674db761537d26ec6f6f5c2d75b341de377d/packages/core/src/core/world/index.ts#L1932-L1996), it listens to the `INIT`, `STATS`, `LOAD`, and `UPDATE` message types to handle chunking data and reflect any changes on the server (such as stats change to change the client's world time).
 
 ### `packets`
 
-The other thing that developers can implement is a property, `packets`, which is simply an array of network packets that will be emptied out and sent on `network.flush()`, which is called for you internally just like `network.sync()`.
+An array of outgoing messages. The network flushes these to the server each frame:
 
-## Connect to the Server
+```javascript title="Custom Packet Sender"
+const customSender = {
+  packets: [],
 
-Now we have a better understanding of the server, let's connect to the server and join our tutorial world.
+  sendCustomData(data) {
+    this.packets.push({
+      type: "TRANSPORT",
+      json: JSON.stringify(data),
+    });
+  },
+};
+
+network.register(customSender);
+```
+
+## Connecting to the Server
 
 ```javascript title="main.js"
-function animate() {
-    requestAnimationFrame(animate);
+async function start() {
+  await network.connect("http://localhost:4000");
+  await network.join("tutorial");
 
-    renderer.render(world, camera);
+  await world.initialize();
+}
+```
+
+The `connect` call establishes a WebSocket connection. The `join` call enters a specific world on the server.
+
+:::tip
+`network.connect` automatically converts the protocol to WebSockets (`ws://` or `wss://`).
+:::
+
+## Full Implementation
+
+Here's the complete networking setup from this tutorial:
+
+```javascript title="main.js"
+import * as VOXELIZE from "@voxelize/core";
+import * as THREE from "three";
+
+const canvas = document.getElementById("canvas");
+
+const world = new VOXELIZE.World({
+  textureUnitDimension: 16,
+});
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  3000
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance",
+  canvas,
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const network = new VOXELIZE.Network();
+network.register(world);
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(world, camera);
 }
 
 async function start() {
-    animate();
+  animate();
 
-    await network.connect('http://localhost:4000');
-    await network.join('tutorial');
+  await network.connect("http://localhost:4000");
+  await network.join("tutorial");
+
+  await world.initialize();
 }
 
 start();
 ```
 
-:::tip
-`network.connect` automatically changes the protocol from anything (http here) to WebSockets (ws). 
-:::
-
+See the full example at `examples/client/src/main.ts` in the Voxelize repository.

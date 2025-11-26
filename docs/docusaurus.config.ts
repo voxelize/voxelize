@@ -35,6 +35,10 @@ const config: Config = {
   favicon: "img/logo/circle-min.png",
   deploymentBranch: "gh-pages",
   trailingSlash: false,
+  markdown: {
+    mermaid: true,
+  },
+  themes: ["@docusaurus/theme-mermaid"],
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -82,7 +86,7 @@ const config: Config = {
           position: "left",
           label: "Tutorial",
         },
-        { to: "/wiki/handling-events", label: "Wiki", position: "left" },
+        { to: "/wiki/blocks/block-registry", label: "Wiki", position: "left" },
         {
           to: "/api/client/modules",
           position: "left",

@@ -20,14 +20,79 @@ API docs are auto-generated from `@voxelize/core` and `@voxelize/protocol` packa
 
 ## Writing Style
 
-Keep it direct and practical:
+Direct and human. No fluff:
 
-- Lead with what something does in one sentence
-- Show code immediately after the explanation
-- Use `title="Description"` on code blocks to label them
-- Keep explanations brief - let the code speak
-- Use contrasts to clarify (e.g., "Unlike events, methods run world-wide")
-- End sections with natural transitions like "Read on to learn about..."
+- One sentence to explain what something does
+- Show code right after
+- Use `title="Description"` on code blocks
+- Keep it short - code speaks louder
+- Use contrasts when helpful (e.g., "Unlike events, methods run world-wide")
+- No AI phrases like "In this section we will..." or "Let's explore..." - just get to the point
+
+### Examples
+
+Every feature needs a real example. No hand-waving.
+
+Structure:
+
+1. **Name it** (e.g., "Example: Discord Bot Bridge")
+2. **What problem does it solve?** One sentence.
+3. **Show the code** - break into steps if needed
+4. **Full implementation** at the end for copy-paste
+
+Bad:
+
+```
+Here's how to use onChat:
+[code block]
+```
+
+Good:
+
+```
+## Example: Discord Bot Bridge
+
+Announces when players chat in your game.
+
+[code showing how to set it up]
+
+### Full Implementation
+[complete, runnable code]
+```
+
+Use sequence diagrams (mermaid) when the flow is complex. Skip them if it's obvious.
+
+### Code References
+
+When showing code blocks, prefer referencing real code from the codebase when possible:
+
+1. **Point to tutorial source code** - If there's a working example in `examples/` or the tutorial project, reference the file path so readers can see full context
+2. **Include "Full Implementation" sections** - After step-by-step breakdowns, show the complete, runnable code
+3. **Link to town project patterns** - When a pattern exists in `client/src/` or `server/src/`, mention it as a real-world reference
+
+Example reference style:
+
+```
+See the full implementation in `examples/client/src/main.ts`.
+```
+
+Or at the end of a tutorial section:
+
+```
+### Full Implementation
+
+Here's the complete code from this section:
+
+\`\`\`ts title="examples/client/src/main.ts"
+// complete runnable code
+\`\`\`
+```
+
+This helps readers:
+
+- Verify the code actually works
+- See surrounding context
+- Copy-paste without missing pieces
 
 ### Code Block Format
 
@@ -135,13 +200,16 @@ One sentence explaining what this feature does and when to use it.
 
 ### For Tutorial Pages
 
-Tutorials are more detailed and guide users step-by-step:
+Tutorials walk through building something real. They should read like you're sitting next to someone showing them how to code:
 
 1. Use frontmatter with `sidebar_position`
-2. Start with "What you'll learn" or "What you'll need"
-3. Break into clear steps
-4. Include screenshots in `static/img/docs/` when helpful
-5. End with a transition to the next tutorial
+2. Jump right in - no "In this tutorial..." preamble
+3. Show what you're building first (screenshot or description)
+4. Walk through it step by step as if you're coding along
+5. Reference the actual tutorial repo code when possible
+6. End naturally - no forced transitions
+
+Tone: "Now add the network setup:" not "Next, we will add the network setup to our application."
 
 ## Common Patterns from Town Project
 
@@ -255,9 +323,26 @@ pnpm start  # Starts dev server on port 3040
 
 ## Checklist Before Submitting
 
-- [ ] Code examples compile and run
+- [ ] Code examples actually work
 - [ ] Imports use `VOXELIZE.*` and `THREE.*` conventions
 - [ ] Code blocks have `title` attributes
-- [ ] No AI-generated filler text ("In this section we will...")
-- [ ] Explains the "why" not just the "what"
-- [ ] Links to related wiki pages where relevant
+- [ ] No AI speak ("In this section...", "Let's explore...", "We will learn...")
+- [ ] Explains why, not just what
+- [ ] Links to related pages when relevant
+
+## Phrases to Avoid
+
+These sound like AI wrote them:
+
+- "In this section, we will..."
+- "Let's explore..."
+- "Now that we have covered..."
+- "It's time to..."
+- "We can now proceed to..."
+- "First, let's start by..."
+
+Just say what to do:
+
+- "Add the network setup:"
+- "The controls need an update loop:"
+- "Create a character:"

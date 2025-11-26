@@ -4,31 +4,36 @@ sidebar_position: 12
 
 # Update Voxels
 
-In order to update voxels, we need to cast a ray from the camera to the voxel world and figure out which voxel the player is looking at. Luckily, there is a very fast algorithm to do so [here](http://www.cse.yorku.ca/~amana/research/grid.pdf).
+To modify voxels, we need to know which block the player is looking at. Voxelize uses a fast ray-voxel intersection algorithm based on [this paper](http://www.cse.yorku.ca/~amana/research/grid.pdf).
 
 ![](../assets/raycast.png)
 
-With this method, we can quickly calculate which voxel we're looking at, and update the voxel type based on our mouse input. For example, left click to break, right click to place. Voxelize has this voxel algorithm built-in in the `VOXELIZE.VoxelInteract` class.
+## Setting Up Voxel Interaction
 
 ```javascript title="main.js"
 const voxelInteract = new VOXELIZE.VoxelInteract(camera, world, {
-    highlightType: 'outline',
+  highlightType: "outline",
 });
-world.add(voxelInteract); // Add the highlighting mesh to the scene
 
-// ...
+world.add(voxelInteract);
+```
 
+Add the update call to your animation loop:
+
+```javascript title="main.js"
 function animate() {
-    if (world.isInitialized) {
-        voxelInteract.update();
-    }
+  if (world.isInitialized) {
+    voxelInteract.update();
+  }
 }
 ```
 
+Add a crosshair to your HTML:
+
 ```html title="index.html"
 <div id="app">
-    <canvas id="canvas"></canvas>
-    <div id="crosshair" />
+  <canvas id="canvas"></canvas>
+  <div id="crosshair"></div>
 </div>
 ```
 
@@ -47,45 +52,136 @@ function animate() {
 
 ![](../assets/voxel-interact.png)
 
-With this, you should be able to see a white outline to wherever we're looking at with a semi-transparent crosshair in the middle.
+## Breaking Blocks
 
-## Break on Right Click
-
-It is really easy too to implement block breaking. We can use the `VOXELIZE.Inputs` that we created earlier to do so.
+Use `world.updateVoxel` to set a voxel to type 0 (air):
 
 ```javascript title="main.js"
-inputs.click('left', () => {
-    if (!voxelInteract.target) return;
+inputs.click("left", () => {
+  if (!voxelInteract.target) return;
 
-    const [x, y, z] = voxelInteract.target;
-    world.updateVoxel(x, y, z, 0);
+  const [x, y, z] = voxelInteract.target;
+  world.updateVoxel(x, y, z, 0);
 });
 ```
 
-As you can see, `world.updateVoxel` is what we need to make server changes. What happens internally is that the world adds a `UPDATE` type packet to it's `packets` array, and it gets sent to the server. The server handles the chunk updates, and sends back the new chunk information back.
+## Placing Blocks
 
-## Place the Blocks
-
-To place the blocks, we can use the [`voxelInteract.potential`](/api/client/classes/VoxelInteract#potential), which is calculated using the target position and the normal of the face hit. 
+Use `voxelInteract.potential` for the position adjacent to the targeted face:
 
 ```javascript title="main.js"
-let holdingBlockType = 1; // Hold dirt by default
+let holdingBlockType = 1;
 
-inputs.click('middle', () => {
-    if (!voxelInteract.target) return;
+inputs.click("middle", () => {
+  if (!voxelInteract.target) return;
 
-    const [x, y, z] = voxelInteract.target;
-    holdingBlockType = world.getVoxelAt(x, y, z);
+  const [x, y, z] = voxelInteract.target;
+  holdingBlockType = world.getVoxelAt(x, y, z);
 });
 
-inputs.click('right', () => {
-    if (!voxelInteract.potential) return;
+inputs.click("right", () => {
+  if (!voxelInteract.potential) return;
 
-    const { voxel } = voxelInteract.potential;
-    world.updateVoxel(...voxel, holdingBlockType);
+  const { voxel } = voxelInteract.potential;
+  world.updateVoxel(...voxel, holdingBlockType);
 });
 ```
 
 ![](../assets/block-placements.png)
 
-Just like that, you can now left click to break, middle click to obtain block, and right click to place!
+Left click breaks, middle click picks the block type, right click places.
+
+## Full Implementation
+
+```javascript title="main.js"
+import * as VOXELIZE from "@voxelize/core";
+import * as THREE from "three";
+
+const canvas = document.getElementById("canvas");
+
+const world = new VOXELIZE.World({
+  textureUnitDimension: 16,
+});
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  3000
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance",
+  canvas,
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const network = new VOXELIZE.Network();
+network.register(world);
+
+const inputs = new VOXELIZE.Inputs();
+
+const rigidControls = new VOXELIZE.RigidControls(
+  camera,
+  renderer.domElement,
+  world,
+  { initialPosition: [0, 40, 0] }
+);
+rigidControls.connect(inputs);
+
+const voxelInteract = new VOXELIZE.VoxelInteract(camera, world, {
+  highlightType: "outline",
+});
+world.add(voxelInteract);
+
+let holdingBlockType = 1;
+
+inputs.click("left", () => {
+  if (!voxelInteract.target) return;
+  const [x, y, z] = voxelInteract.target;
+  world.updateVoxel(x, y, z, 0);
+});
+
+inputs.click("middle", () => {
+  if (!voxelInteract.target) return;
+  const [x, y, z] = voxelInteract.target;
+  holdingBlockType = world.getVoxelAt(x, y, z);
+});
+
+inputs.click("right", () => {
+  if (!voxelInteract.potential) return;
+  const { voxel } = voxelInteract.potential;
+  world.updateVoxel(...voxel, holdingBlockType);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (world.isInitialized) {
+    rigidControls.update();
+    voxelInteract.update();
+    world.update(
+      camera.getWorldPosition(new THREE.Vector3()),
+      camera.getWorldDirection(new THREE.Vector3())
+    );
+  }
+
+  renderer.render(world, camera);
+}
+
+async function start() {
+  animate();
+
+  await network.connect("http://localhost:4000");
+  await network.join("tutorial");
+
+  await world.initialize();
+}
+
+start();
+```
+
+For bulk voxel updates and radius-based operations, see `examples/client/src/main.ts`.

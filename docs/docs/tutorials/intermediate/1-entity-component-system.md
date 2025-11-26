@@ -10,11 +10,11 @@ Voxelize servers run on the [Specs ECS crate](https://specs.amethyst.rs/docs/tut
 
 Essentially, ECS allows Voxelize to decouple in-game objects into separate components. For instance, an entity that simply moves up and down could have a `Position` component and a `Velocity` component. An entity would simply be a holder of a set of components.
 
-By default, Voxelize comes with [these components](https://github.com/voxelize/voxelize/blob/6f372f38b9bac4c454f4106286dc5256df79cb82/server/world/mod.rs#L186-L200) added to the ECS world:
+By default, Voxelize registers these components to the ECS world:
 
 ### Null-storage Flags
 
-These flags take up no space on disk, and is simply used to distinguish clients to non-client entities.
+These flags take up no space on disk, and are used to distinguish clients from non-client entities.
 
 - `ClientFlag`
   - A component indicating if an entity is a client.
@@ -23,16 +23,16 @@ These flags take up no space on disk, and is simply used to distinguish clients 
 
 ### Informational Components
 
-These components adds additional information about an entity, whether a client or not.
+These components add additional information about an entity, whether a client or not.
 
 - `IDComp`
-  - All entities have their Voxelize given ID.
+  - All entities have their Voxelize-given ID.
 - `NameComp`
   - A name given to the entity.
-- `ChunkRequestComp`
+- `ChunkRequestsComp`
   - A list of chunks requested by entity (client).
 - `CurrentChunkComp`
-  - Which chunk the client is in, updated each frame.
+  - Which chunk the entity is in, updated each frame.
 - `PositionComp`
   - A set of 3D coordinates describing the position of an entity.
 - `DirectionComp`
@@ -49,9 +49,29 @@ The components below make an entity physical in the Voxelize world.
 - `RigidBodyComp`
   - A collision box that can collide with voxel blocks.
 - `InteractorComp`
-  - A collision box that can collide with other collision blocks.
+  - A collision box that can collide with other collision boxes.
 - `CollisionsComp`
   - A vector storing all collisions this entity has per frame.
+
+### AI & Pathfinding Components
+
+These components enable AI behaviors and pathfinding for entities.
+
+- `BrainComp`
+  - Controls entity movement behavior including walking, jumping, and sprinting. Contains configurable physics parameters like `max_speed`, `jump_impulse`, and `responsiveness`.
+- `TargetComp`
+  - Allows an entity to scan nearby and track the closest target. Supports filtering by `TargetType::All`, `TargetType::Players`, or `TargetType::Entities`.
+- `PathComp`
+  - Stores a computed A\* path and pathfinding parameters like `max_nodes`, `max_distance`, and `max_pathfinding_time`.
+
+### Block Entity Components
+
+These components are used for entities attached to specific voxel positions (block entities).
+
+- `VoxelComp`
+  - Stores the voxel position an entity is attached to.
+- `JsonComp`
+  - Stores arbitrary JSON data for block entities.
 
 ### Miscellaneous Components
 
@@ -60,7 +80,7 @@ The components below make an entity physical in the Voxelize world.
 
 To register new components to the Voxelize world, we do the following:
 
-```rust
+```rust title="Registering a Custom Component"
 use specs::{Component, VecStorage};
 
 #[derive(Component, Debug)]
@@ -75,15 +95,15 @@ world.ecs().register::<CustomComp>();
 
 We can then create entities with this `CustomComp`:
 
-```rust
+```rust title="Creating an Entity with Custom Component"
 let custom_entity = world
-    .create_entity("Custom Entity")
+    .create_entity("custom-id", "Custom Entity")
     .with(CustomComp { a: 1.0, b: 3.0 })
     .build();
 ```
 
 :::info
-[`world.create_entity(<type name>)`](https://github.com/voxelize/voxelize/blob/6f372f38b9bac4c454f4106286dc5256df79cb82/server/world/mod.rs#L587-L596) calls `world.ecs().create_entity()` internally, and adds these components by default to integrate with Voxelize:
+`world.create_entity(id, etype)` calls `world.ecs().create_entity()` internally, and adds these components by default to integrate with Voxelize:
 
 - `IDComp`
 - `EntityFlag`
@@ -95,7 +115,7 @@ let custom_entity = world
 
 ## Resources
 
-Another building block of a Voxelize world is a set of **resources** built-in. Resources are stateful structs that can be shared across all systems. In Voxelize, a world comes with [these resources](https://github.com/voxelize/voxelize/blob/6f372f38b9bac4c454f4106286dc5256df79cb82/server/world/mod.rs#L202-L218):
+Another building block of a Voxelize world is a set of **resources** built-in. Resources are stateful structs that can be shared across all systems.
 
 ### Informational
 
@@ -103,25 +123,29 @@ These are the static resources that shouldn't be modified.
 
 - `String`
   - A string of the name of the world.
-- [`WorldConfig`](https://docs.rs/voxelize/0.8.7/voxelize/struct.WorldConfig.html)
+- `WorldConfig`
   - The configurations of the world. Can be accessed through `world.config()`.
 
 ### Managers
 
 These are the structs that manage and pass around the data stored in the world.
 
-- [`Chunks`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Chunks.html)
+- `Chunks`
   - The chunking manager of the world.
-- [`Entities`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Entities.html)
+- `EntitiesSaver`
   - A manager that can handle the spawning and saving of entities.
-- [`Pipeline`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Pipeline.html)
+- `Pipeline`
   - The chunking pipeline that takes care of generating chunks in parallel.
-- [`Clients`](https://docs.rs/voxelize/0.8.7/voxelize/type.Clients.html)
-  - A hash map of all clients that has joined this world.
-- [`MessageQueue`](https://docs.rs/voxelize/0.8.7/voxelize/type.MessageQueue.html)
+- `Clients`
+  - A hash map of all clients that have joined this world.
+- `MessageQueue`
   - A list of encoded protobuf messages that gets sent to the client each tick.
-- [`Events`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Events.html)
+- `Events`
   - Managing all events that can be emitted to the clients.
+- `ChunkInterests`
+  - Tracks which clients are interested in which chunks.
+- `EntityIDs`
+  - Maps entity IDs to their ECS entity handles.
 
 The manager resources can be accessed through the world directly. For instance, `world.chunks()` or `world.chunks_mut()` or `world.clients_mut()`.
 
@@ -129,36 +153,38 @@ The manager resources can be accessed through the world directly. For instance, 
 
 These are the utility resources that can be used as helpers.
 
-- [`Stats`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Stats.html)
+- `Stats`
   - The world stats such as delta time.
-- [`Mesher`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Mesher.html)
+- `Mesher`
   - A manager that takes care of all the chunk 3D meshing in parallel.
-- [`Search`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Search.html)
+- `Search`
   - A 3-dimensional tree that has all the clients and entities to search for.
-- [`Terrain`](https://docs.rs/voxelize/0.8.7/voxelize/struct.Terrain.html)
-  - A seeded terrain manager to generate terrain.
-- [`Noise`](https://docs.rs/voxelize/0.8.7/voxelize/struct.SeededNoise.html)
-  - A seeded noise manager to make 2D or 3D noise.
+- `Physics`
+  - Manages the Rapier physics simulation for entity collisions.
+- `KdTree`
+  - A spatial index for fast entity lookups, used by the targeting system.
 
 You can add your own resources to the ECS world in order to be used in an ECS system too by doing so:
 
-```rust
+```rust title="Inserting a Custom Resource"
 struct CustomResource {
     a: f32,
 }
 
-world.ecs().insert(CustomResource { a: 1.0 }});
+world.ecs().insert(CustomResource { a: 1.0 });
 ```
 
 ## Systems
 
 Developers can then write **systems** that operate on specific **components**. An example could be a `PositionUpdateSystem` that operates on all entities with a `Position` and a `Velocity` component, and this system could simply add each entity's `Velocity` to `Position` to move the entity accordingly.
 
-Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/docs/tutorials/03_dispatcher.html) that runs [these set of systems](https://github.com/voxelize/voxelize/blob/02d05e9baf07529df0d7ce5d9d4e4efc600ec6f7/server/world/mod.rs#L132-L171):
+Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/docs/tutorials/03_dispatcher.html) that runs these systems:
+
+### Core Systems
 
 - `UpdateStatsSystem`
   - **Should run at the start of the dispatcher**
-  - Updates the `Stats` resources to the latest delta time which can be used by systems in the `PhysicsSystem`.
+  - Updates the `Stats` resource to the latest delta time which can be used by systems in the `PhysicsSystem`.
 - `EntitiesMetaSystem`
   - **Should run at the start of the dispatcher**
   - Adds the `PositionComp` of all non-client entities into their respective `MetadataComp` to be sent to the client side.
@@ -168,46 +194,103 @@ Voxelize by default comes with a [Specs dispatcher](https://specs.amethyst.rs/do
 - `CurrentChunkSystem`
   - **Should run at the start of the dispatcher**
   - Calculates the current chunks of all entities.
+
+### Chunk Systems
+
 - `ChunkUpdatingSystem`
-  - **Should be dependent on `CurrentChunkSystem`.**
+  - **Depends on:** `CurrentChunkSystem`
   - Handles the voxel updates by updating `config.max_updates_per_tick` of received updates per tick.
 - `ChunkRequestsSystem`
-  - **Should be dependent on `CurrentChunkSystem`.**
-  - Queues all chunks from any `ChunkRequestComp` into the chunk pipeline to be processed.
+  - **Depends on:** `CurrentChunkSystem`
+  - Queues all chunks from any `ChunkRequestsComp` into the chunk pipeline to be processed.
   - Adds any chunks that are ready to `world.chunks().to_send` to be sent to the clients.
-- `ChunkPipeliningSystem`
-  - **Should be dependent on `ChunkRequestsSystem`.**
+- `ChunkGeneratingSystem`
+  - **Depends on:** `ChunkRequestsSystem`
   - Pushes `config.max_chunks_per_tick` of chunks per tick into a list of chunk phases to populate them with chunk data.
-- `ChunkMeshingSystem`
-  - **Should be dependent on `ChunkUpdatingSystem` and `ChunkPipelineSystem`.**
-  - Meshes `config.max_chunks_per_tick` of chunks per tick into `config.sub_chunks` amount of sub chunk 3D meshes.
 - `ChunkSendingSystem`
-  - **Should be dependent on `ChunkMeshingSystem`.**
+  - **Depends on:** `ChunkGeneratingSystem`
   - Packs the chunks from `world.chunks().to_send` along with clients that had requested for those chunks into the `MessageQueue` resource.
 - `ChunkSavingSystem`
-  - **Should be dependent on `ChunkMeshingSystem`**
+  - **Depends on:** `ChunkGeneratingSystem`
   - Every `config.save_interval` ticks, saves the chunk data into `config.save_dir` if `config.saving` is set true.
+
+### Physics & Collision Systems
+
 - `PhysicsSystem`
-  - **Should be dependent on `CurrentChunkSystem` and `UpdateStatsSystem`.**
+  - **Depends on:** `CurrentChunkSystem`, `UpdateStatsSystem`
   - Updates `RigidBodyComp` according to chunk data.
-  - Calculates `CollisionsComp` through `InteractorComp` by calculating the physics collisions through [rapier physics](https://rapier.rs/).
+  - Calculates `CollisionsComp` through `InteractorComp` by calculating the physics collisions through [Rapier physics](https://rapier.rs/).
+
+### AI & Pathfinding Systems
+
+- `EntityTreeSystem`
+  - Builds a KdTree spatial index of all entities and players for fast lookups.
+- `EntityObserveSystem`
+  - Uses the KdTree to find and track the closest target for entities with `TargetComp`.
+- `TargetMetadataSystem`
+  - Syncs `TargetComp` data to the entity's metadata for client-side access.
+- `PathFindingSystem`
+  - **Depends on:** `EntityObserveSystem`
+  - Runs A\* pathfinding for entities with both `PathComp` and `TargetComp`. Computes paths with configurable constraints and path smoothing.
+- `PathMetadataSystem`
+  - Syncs computed paths to the entity's metadata.
+- `WalkTowardsSystem`
+  - **Depends on:** `PathFindingSystem`
+  - Operates the `BrainComp` to make entities walk along their computed paths, handling jumping, cornering, and target approach.
+
+### Network & Persistence Systems
+
 - `DataSavingSystem`
-  - **Should be dependent on `EntitiesMetaSystem` and any non-client metadata systems.**
+  - **Depends on:** `EntitiesMetaSystem`
   - Every `config.save_interval`, saves the entities data into `config.save_dir` if `config.saving` is set true.
 - `EntitiesSendingSystem`
-  - **Should be dependent on `EntitiesMetaSystem` and **any non-client metadata systems**.**
+  - **Depends on:** `EntitiesMetaSystem`
   - If any entities have changed their metadata, the metadata is packed and pushed to the `MessageQueue` resource.
 - `PeersSendingSystem`
-  - **Should be dependent on `PeersMetaSystem` and **any client metadata systems**.**
+  - **Depends on:** `PeersMetaSystem`
   - If any clients have changed their metadata, the metadata is packed and pushed to the `MessageQueue` resource.
 - `BroadcastSystem`
-  - **Should be dependent on `EntitiesSendingSystem`, `PeersSendingSystem`, and `ChunkSendingSystem`.**
+  - **Depends on:** `ChunkSendingSystem`, `EntitiesSendingSystem`, `PeersSendingSystem`
   - Actually sends the packed messages in the `MessageQueue` to the specified clients.
-- `ClearCollisionSystem`
-  - **Should be dependent on `EntitiesSendingSystem` and `PeersSendingSystem`.**
-  - Clears the collisions generated by `PhysicsSystem`.
+- `CleanupSystem`
+  - **Depends on:** `EntitiesSendingSystem`, `PeersSendingSystem`
+  - Clears the collisions generated by `PhysicsSystem` and other per-frame data.
 - `EventsSystem`
-  - **Should be dependent on `BroadcastSystem`.**
-  - Packs all events in the `Events` resource and send them to the specified clients.
+  - **Depends on:** `BroadcastSystem`
+  - Packs all events in the `Events` resource and sends them to the specified clients.
 
 To customize the dispatcher, checkout [this tutorial](./customizing-the-ecs).
+
+## Creating AI Entities
+
+To create an entity with AI behavior, combine the AI components:
+
+```rust title="Creating an Entity with AI"
+use std::time::Duration;
+
+world.set_entity_loader("mob", |world, metadata| {
+    let body = RigidBody::new(&AABB::new().scale_x(0.6).scale_y(1.8).scale_z(0.6).build());
+    let interactor = world.physics_mut().register(&body);
+
+    world
+        .create_entity(&nanoid!(), "mob")
+        .with(PositionComp::default())
+        .with(RigidBodyComp::new(&body))
+        .with(InteractorComp::new(&interactor))
+        .with(BrainComp::new(BrainOptions::default()))
+        .with(TargetComp::players())
+        .with(PathComp::new(
+            100,                           // max_nodes
+            32.0,                          // max_distance
+            10000,                         // max_depth_search
+            Duration::from_millis(50),     // max_pathfinding_time
+        ))
+});
+```
+
+The AI systems will automatically:
+
+1. Build a spatial index of all entities (`EntityTreeSystem`)
+2. Find the closest player (`EntityObserveSystem`)
+3. Compute a path to the target (`PathFindingSystem`)
+4. Move the entity along the path (`WalkTowardsSystem`)

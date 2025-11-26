@@ -35,12 +35,12 @@ const DocsCards = () => {
           <Link
             key={card.href}
             to={card.href}
-            className="group no-underline block p-6 rounded-lg bg-white dark:bg-neutral-800 shadow-sm hover:shadow-md transition-shadow"
+            className="group no-underline hover:no-underline block p-6 rounded-lg bg-white dark:bg-neutral-800 shadow-sm hover:shadow-md transition-shadow"
           >
-            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 m-0 mb-2">
+            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 m-0 mb-2 no-underline">
               {card.title}
             </h3>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 m-0 leading-relaxed">
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 m-0 leading-relaxed no-underline">
               {card.description}
             </p>
           </Link>
