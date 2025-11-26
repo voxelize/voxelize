@@ -6,6 +6,50 @@ import Layout from "@theme/Layout";
 
 const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
 
+const DOCS_CARDS = [
+  {
+    title: "What is Voxelize?",
+    description: "Learn about the voxel game engine and what you can build",
+    href: "/tutorials/intro/what-is-voxelize",
+  },
+  {
+    title: "Quick Start",
+    description: "Get up and running with your first voxel world in minutes",
+    href: "/tutorials/basics/1-create-the-server",
+  },
+  {
+    title: "API Reference",
+    description: "Explore the full API documentation for advanced usage",
+    href: "/api/core",
+  },
+];
+
+const DocsCards = () => {
+  return (
+    <div className="w-full max-w-4xl mx-auto px-4 py-12 md:py-16">
+      <h2 className="text-center text-xl font-semibold text-neutral-900 dark:text-neutral-100 m-0 mb-8">
+        Documentation
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {DOCS_CARDS.map((card) => (
+          <Link
+            key={card.href}
+            to={card.href}
+            className="group no-underline block p-6 rounded-lg bg-white dark:bg-neutral-800 shadow-sm hover:shadow-md transition-shadow"
+          >
+            <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 m-0 mb-2">
+              {card.title}
+            </h3>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 m-0 leading-relaxed">
+              {card.description}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const IframeDemo = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -15,7 +59,11 @@ const IframeDemo = () => {
     const base = IS_DEVELOPMENT
       ? "http://localhost:3000"
       : "https://create.town";
-    return `${base}?cacheBuster=${cacheBuster}`;
+    const splashTitle = encodeURIComponent("Voxelize");
+    const splashSubtitle = encodeURIComponent(
+      "Click to play, scroll to read docs"
+    );
+    return `${base}?cacheBuster=${cacheBuster}&splash_title=${splashTitle}&splash_subtitle=${splashSubtitle}`;
   }, [cacheBuster]);
 
   const handleExpandClick = () => {
@@ -63,7 +111,7 @@ const IframeDemo = () => {
           </button>
         </div>
       </div>
-      <div className="h-10 flex items-center justify-between px-3 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
+      <div className="h-10 flex items-center justify-between px-3 bg-neutral-50 dark:bg-neutral-900 border-y border-solid border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center gap-3">
           <a
             href="https://github.com/voxelize/voxelize"
@@ -103,7 +151,11 @@ const MobileHero = () => {
     const base = IS_DEVELOPMENT
       ? "http://localhost:3000"
       : "https://create.town";
-    return `${base}?cacheBuster=${cacheBuster}&mode=spectator&embedded=true`;
+    const splashTitle = encodeURIComponent("Voxelize");
+    const splashSubtitle = encodeURIComponent(
+      "Click to play, scroll to read docs"
+    );
+    return `${base}?cacheBuster=${cacheBuster}&mode=spectator&embedded=true&splash_title=${splashTitle}&splash_subtitle=${splashSubtitle}`;
   }, [cacheBuster]);
 
   const fullscreenUrl = useMemo(() => {
@@ -140,7 +192,7 @@ const MobileHero = () => {
           to="/tutorials/intro/what-is-voxelize"
           className="no-underline block flex-1"
         >
-          <button className="w-full h-11 text-sm font-semibold rounded-lg bg-white/10 text-[var(--ifm-color-primary)] opacity-70 active:opacity-100 active:scale-[0.98] transition-all duration-150 border-none cursor-pointer">
+          <button className="w-full h-11 text-sm font-semibold rounded-lg bg-neutral-200 dark:bg-white/10 text-neutral-700 dark:text-neutral-300 active:scale-[0.98] transition-all duration-150 border-none cursor-pointer">
             Docs
           </button>
         </Link>
@@ -180,6 +232,7 @@ export default function Home() {
     <Layout>
       <main>
         <HomepageHeader />
+        <DocsCards />
       </main>
     </Layout>
   );
