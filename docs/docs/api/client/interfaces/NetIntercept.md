@@ -25,13 +25,13 @@ packets to the server.
 
 ### onMessage
 
-• `Optional` **onMessage**: (`message`: `MessageProtocol`, `clientInfo`: \{ `id`: `string` ; `username`: `string`  }) => `void`
+• `Optional` **onMessage**: (`message`: `MessageProtocol`, `clientInfo`: \{ `id`: `string` ; `metadata?`: `Record`\<`string`, `any`\> ; `username`: `string`  }) => `void`
+
+A listener to be implemented to handle incoming packets.
 
 #### Type declaration
 
 ▸ (`message`, `clientInfo`): `void`
-
-A listener to be implemented to handle incoming packets.
 
 ##### Parameters
 
@@ -40,6 +40,7 @@ A listener to be implemented to handle incoming packets.
 | `message` | `MessageProtocol` | The message received from the server. |
 | `clientInfo` | `Object` | The client information. |
 | `clientInfo.id` | `string` | The client's ID. |
+| `clientInfo.metadata?` | `Record`\<`string`, `any`\> | The client's metadata (device info, etc.). |
 | `clientInfo.username` | `string` | The client's username. |
 
 ##### Returns

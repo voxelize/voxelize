@@ -76,7 +76,7 @@ ___
 
 ### lights
 
-• **lights**: `NdArray`\<`Uint32Array`\>
+• **lights**: `NdArray`\<`Uint32Array`\<`ArrayBufferLike`\>\>
 
 #### Inherited from
 
@@ -132,7 +132,7 @@ ___
 
 ### voxels
 
-• **voxels**: `NdArray`\<`Uint32Array`\>
+• **voxels**: `NdArray`\<`Uint32Array`\<`ArrayBufferLike`\>\>
 
 #### Inherited from
 

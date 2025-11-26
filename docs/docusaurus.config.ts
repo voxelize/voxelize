@@ -211,10 +211,25 @@ const config: Config = {
       return {
         name: "docusaurus-tailwindcss",
         configurePostCss(postcssOptions) {
-          // Appends TailwindCSS and AutoPrefixer.
           postcssOptions.plugins.push(require("tailwindcss"));
           postcssOptions.plugins.push(require("autoprefixer"));
           return postcssOptions;
+        },
+      };
+    },
+    function webpackPlugin() {
+      return {
+        name: "docusaurus-webpack-esm",
+        configureWebpack() {
+          return {
+            resolve: {
+              alias: {
+                "@voxelize/core": require.resolve(
+                  "@voxelize/core/dist/index.mjs"
+                ),
+              },
+            },
+          };
         },
       };
     },

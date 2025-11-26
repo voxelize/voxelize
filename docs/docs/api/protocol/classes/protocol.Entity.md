@@ -111,7 +111,7 @@ Decodes an Entity message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array` | Reader or buffer to decode from |
+| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -140,7 +140,7 @@ Decodes an Entity message from the specified reader or buffer, length delimited.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array` | Reader or buffer to decode from |
+| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
 
 #### Returns
 

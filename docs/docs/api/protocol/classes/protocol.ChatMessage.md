@@ -45,6 +45,18 @@ ChatMessage body.
 
 ___
 
+### metadata
+
+• **metadata**: `string`
+
+ChatMessage metadata.
+
+#### Implementation of
+
+[IChatMessage](../interfaces/protocol.IChatMessage.md).[metadata](../interfaces/protocol.IChatMessage.md#metadata)
+
+___
+
 ### sender
 
 • **sender**: `string`
@@ -99,7 +111,7 @@ Decodes a ChatMessage message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array` | Reader or buffer to decode from |
+| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -128,7 +140,7 @@ Decodes a ChatMessage message from the specified reader or buffer, length delimi
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array` | Reader or buffer to decode from |
+| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
 
 #### Returns
 

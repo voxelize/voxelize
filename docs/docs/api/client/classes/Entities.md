@@ -39,6 +39,22 @@ network.register(entities);
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
 
+## Constructors
+
+### constructor
+
+• **new Entities**(): [`Entities`](Entities.md)
+
+Creates a new Group.
+
+#### Returns
+
+[`Entities`](Entities.md)
+
+#### Inherited from
+
+Group.constructor
+
 ## Properties
 
 ### map
@@ -49,9 +65,29 @@ ___
 
 ### types
 
-• **types**: `Map`\<`string`, (`id`: `string`) => [`Entity`](Entity.md)\<`any`\>\>
+• **types**: `Map`\<`string`, (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)\<`any`\>\>
 
 ## Methods
+
+### getEntityById
+
+▸ **getEntityById**(`id`): [`Entity`](Entity.md)\<`any`\>
+
+Get an entity instance by its ID.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `id` | `string` | The ID of the entity to get. |
+
+#### Returns
+
+[`Entity`](Entity.md)\<`any`\>
+
+The entity object with the given ID.
+
+___
 
 ### setClass
 
@@ -64,7 +100,7 @@ Set a new entity type to the entities manager.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `type` | `string` | The type of entity to register. |
-| `entity` | (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> | The entity class to register. |
+| `entity` | (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> | The entity class to register. |
 
 #### Returns
 

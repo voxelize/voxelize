@@ -1,66 +1,45 @@
 ---
-id: "RigidControls"
-title: "Class: RigidControls"
-sidebar_label: "RigidControls"
+id: "MobileRigidControls"
+title: "Class: MobileRigidControls"
+sidebar_label: "MobileRigidControls"
 sidebar_position: 0
 custom_edit_url: null
 ---
 
-Inspired by THREE.JS's PointerLockControls, a rigid body based first person controls.
-
-## Example
-```ts
-// Create the controls.
-const controls = new RigidControls(
-  camera,
-  renderer.domElement,
-  world
-);
-
-// Printing the voxel that the client is in.
-console.log(controls.voxel);
-
-// Call the controls update function in the render loop.
-controls.update();
-```
+Mobile-specific rigid body controls for touch-based input.
+Extends RigidControls but removes pointer lock and keyboard bindings,
+instead exposing methods for joystick, jump button, and touch-look input.
 
 ## Hierarchy
 
-- `EventEmitter`
+- [`RigidControls`](RigidControls.md)
 
-  ↳ **`RigidControls`**
-
-  ↳↳ [`MobileRigidControls`](MobileRigidControls.md)
-
-## Implements
-
-- [`NetIntercept`](../interfaces/NetIntercept.md)
+  ↳ **`MobileRigidControls`**
 
 ## Constructors
 
 ### constructor
 
-• **new RigidControls**(`camera`, `domElement`, `world`, `options?`): [`RigidControls`](RigidControls.md)
+• **new MobileRigidControls**(`camera`, `domElement`, `world`, `options?`): [`MobileRigidControls`](MobileRigidControls.md)
 
-Construct a Voxelize rigid body based first person controls. This adds a rigid body
-to the world's physics engine, and applies movement to the camera.
+Construct mobile rigid body controls with touch-based input.
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
-| `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
+| `domElement` | `HTMLElement` | The DOM element (not used for pointer lock on mobile). |
 | `world` | [`World`](World.md)\<`any`\> | The world to apply the controls to. |
 | `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)\> | The options to initialize the controls with. |
 
 #### Returns
 
-[`RigidControls`](RigidControls.md)
+[`MobileRigidControls`](MobileRigidControls.md)
 
 #### Overrides
 
-EventEmitter.constructor
+[RigidControls](RigidControls.md).[constructor](RigidControls.md#constructor)
 
 ## Properties
 
@@ -71,6 +50,10 @@ EventEmitter.constructor
 This is the identifier that is used to bind the rigid controls' keyboard inputs
 when [RigidControls.connect](RigidControls.md#connect) is called.
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[INPUT_IDENTIFIER](RigidControls.md#input_identifier)
+
 ___
 
 ### arm
@@ -80,6 +63,10 @@ ___
 A potential link to a [Arm](Arm.md) instance. This can be added by
 calling [RigidControls.attachArm](RigidControls.md#attacharm) to add a mesh for the first person
 view.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[arm](RigidControls.md#arm)
 
 ___
 
@@ -92,6 +79,10 @@ The physical rigid body of the client, dimensions described by:
 - `options.bodyHeight`
 - `options.bodyDepth`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[body](RigidControls.md#body)
+
 ___
 
 ### camera
@@ -99,6 +90,10 @@ ___
 • **camera**: `PerspectiveCamera`
 
 Reference linking to the Voxelize camera instance.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[camera](RigidControls.md#camera)
 
 ___
 
@@ -110,6 +105,10 @@ A potential link to a [Character](Character.md) instance. This can be added by
 calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter) to add a mesh for 2nd and 3rd person
 view.
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[character](RigidControls.md#character)
+
 ___
 
 ### domElement
@@ -117,6 +116,10 @@ ___
 • **domElement**: `HTMLElement`
 
 The DOM element that pointerlock controls are applied to.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[domElement](RigidControls.md#domelement)
 
 ___
 
@@ -127,6 +130,10 @@ ___
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
 [RigidControls.connect](RigidControls.md#connect), which registers the keyboard inputs for the controls.
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[inputs](RigidControls.md#inputs)
+
 ___
 
 ### isLocked
@@ -134,6 +141,10 @@ ___
 • **isLocked**: `boolean` = `false`
 
 Flag indicating whether pointerlock controls have control over the cursor.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[isLocked](RigidControls.md#islocked)
 
 ___
 
@@ -156,6 +167,10 @@ key is pressed, then "front" would be `true`. Vice versa for "back".
 | `sprint` | `boolean` |
 | `up` | `boolean` |
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[movements](RigidControls.md#movements)
+
 ___
 
 ### object
@@ -163,6 +178,10 @@ ___
 • **object**: `Group`\<`Object3DEventMap`\>
 
 A THREE.JS object, parent to the camera for pointerlock controls.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[object](RigidControls.md#object)
 
 ___
 
@@ -172,6 +191,10 @@ ___
 
 Parameters to initialize the Voxelize controls.
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[options](RigidControls.md#options)
+
 ___
 
 ### ownID
@@ -179,6 +202,10 @@ ___
 • **ownID**: `string` = `""`
 
 The client's own peer ID. This is set when the client first connects to the server.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[ownID](RigidControls.md#ownid)
 
 ___
 
@@ -188,6 +215,10 @@ ___
 
 The state of the control, indicating things like whether or not the client is running.
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[state](RigidControls.md#state)
+
 ___
 
 ### world
@@ -195,6 +226,10 @@ ___
 • **world**: [`World`](World.md)\<`any`\>
 
 Reference linking to the Voxelize world instance.
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[world](RigidControls.md#world)
 
 ## Accessors
 
@@ -208,6 +243,10 @@ The chunk that the client is situated in.
 
 [`Coords2`](../modules.md#coords2)
 
+#### Inherited from
+
+RigidControls.chunk
+
 ___
 
 ### flyMode
@@ -219,6 +258,10 @@ Whether if the client is in fly mode. Fly mode means client can fly but not thro
 #### Returns
 
 `boolean`
+
+#### Inherited from
+
+RigidControls.flyMode
 
 ___
 
@@ -232,6 +275,10 @@ Whether if the client is in ghost mode. Ghost mode means client can fly through 
 
 `boolean`
 
+#### Inherited from
+
+RigidControls.ghostMode
+
 ___
 
 ### position
@@ -243,6 +290,10 @@ The 3D world coordinates that the client is at. This is where the bottom of the 
 #### Returns
 
 `Vector3`
+
+#### Inherited from
+
+RigidControls.position
 
 ___
 
@@ -256,6 +307,10 @@ floored to the voxel coordinate.
 #### Returns
 
 [`Coords3`](../modules.md#coords3)
+
+#### Inherited from
+
+RigidControls.voxel
 
 ## Methods
 
@@ -274,6 +329,10 @@ Attach a [Arm](Arm.md) to this controls instance. This can be seen in 1st person
 #### Returns
 
 `void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[attachArm](RigidControls.md#attacharm)
 
 ___
 
@@ -294,11 +353,15 @@ Attach a [Character](Character.md) to this controls instance. This can be seen i
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[attachCharacter](RigidControls.md#attachcharacter)
+
 ___
 
 ### connect
 
-▸ **connect**(`inputs`, `namespace?`): () => `void`
+▸ **connect**(): () => `void`
 
 Sets up all event listeners for controls, including:
 - Mouse move event
@@ -310,13 +373,6 @@ Sets up all event listeners for controls, including:
 This function returns a function that can be called to disconnect the controls.
 Keep in mind that if [Inputs.remap](Inputs.md#remap) is used to remap any controls, they will
 not be unbound when the returned function is called.
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` |
-| `namespace` | `string` | `"*"` |
 
 #### Returns
 
@@ -336,6 +392,10 @@ inputs [Inputs](Inputs.md) instance to bind the controls to.
 
 namespace The namespace to bind the controls to.
 
+#### Overrides
+
+[RigidControls](RigidControls.md).[connect](RigidControls.md#connect)
+
 ___
 
 ### getDirection
@@ -348,24 +408,26 @@ Get the direction that the client is looking at.
 
 `Vector3`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[getDirection](RigidControls.md#getdirection)
+
 ___
 
 ### lock
 
-▸ **lock**(`callback?`): `void`
+▸ **lock**(): `void`
 
 Lock the cursor to the game, calling `requestPointerLock` on the dom element.
 Needs to be called within a DOM event listener callback!
 
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `callback?` | () => `void` | Callback to be run once done. |
-
 #### Returns
 
 `void`
+
+#### Overrides
+
+[RigidControls](RigidControls.md).[lock](RigidControls.md#lock)
 
 ___
 
@@ -387,6 +449,10 @@ Make the client look at a coordinate.
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[lookAt](RigidControls.md#lookat)
+
 ___
 
 ### moveForward
@@ -404,6 +470,10 @@ Move the client forward/backward by a certain distance.
 #### Returns
 
 `void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[moveForward](RigidControls.md#moveforward)
 
 ___
 
@@ -423,11 +493,15 @@ Move the client left/right by a certain distance.
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[moveRight](RigidControls.md#moveright)
+
 ___
 
 ### on
 
-▸ **on**(`event`, `listener`): [`RigidControls`](RigidControls.md)
+▸ **on**(`event`, `listener`): [`MobileRigidControls`](MobileRigidControls.md)
 
 An event handler for when the pointerlock is locked/unlocked.
 The events supported so far are:
@@ -443,13 +517,13 @@ The events supported so far are:
 
 #### Returns
 
-[`RigidControls`](RigidControls.md)
+[`MobileRigidControls`](MobileRigidControls.md)
 
 The controls instance for chaining.
 
-#### Overrides
+#### Inherited from
 
-EventEmitter.on
+[RigidControls](RigidControls.md).[on](RigidControls.md#on)
 
 ___
 
@@ -467,9 +541,9 @@ ___
 
 `void`
 
-#### Implementation of
+#### Inherited from
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
+[RigidControls](RigidControls.md).[onMessage](RigidControls.md#onmessage)
 
 ___
 
@@ -483,13 +557,80 @@ Reset the controls instance. This will reset the camera's position and rotation,
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[reset](RigidControls.md#reset)
+
 ___
 
 ### resetMovements
 
 ▸ **resetMovements**(): `void`
 
-Reset all of the control's movements.
+Reset all movement flags to false.
+Useful when exiting play mode or pausing.
+
+#### Returns
+
+`void`
+
+#### Overrides
+
+[RigidControls](RigidControls.md).[resetMovements](RigidControls.md#resetmovements)
+
+___
+
+### setJumping
+
+▸ **setJumping**(`pressed`): `void`
+
+Set jump state from button input.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `pressed` | `boolean` | Whether the jump button is currently pressed |
+
+#### Returns
+
+`void`
+
+___
+
+### setLookDirection
+
+▸ **setLookDirection**(`deltaX`, `deltaY`): `void`
+
+Update camera rotation from touch drag input.
+Mimics mouse movement for looking around.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `deltaX` | `number` | Horizontal touch movement in pixels |
+| `deltaY` | `number` | Vertical touch movement in pixels |
+
+#### Returns
+
+`void`
+
+___
+
+### setMovementVector
+
+▸ **setMovementVector**(`x`, `y`): `void`
+
+Set movement direction from joystick input.
+Converts normalized joystick coordinates to movement flags.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `x` | `number` | Horizontal input [-1, 1], where -1 is left, 1 is right |
+| `y` | `number` | Vertical input [-1, 1], where -1 is down/back, 1 is up/front |
 
 #### Returns
 
@@ -515,6 +656,10 @@ Teleport this rigid controls to a new voxel coordinate.
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[teleport](RigidControls.md#teleport)
+
 ___
 
 ### teleportToTop
@@ -535,6 +680,10 @@ Teleport the rigid controls to the top of this voxel column.
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[teleportToTop](RigidControls.md#teleporttotop)
+
 ___
 
 ### toggleFly
@@ -546,6 +695,10 @@ Toggle fly mode. Fly mode is like ghost mode, but the client can't fly through b
 #### Returns
 
 `void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[toggleFly](RigidControls.md#togglefly)
 
 ___
 
@@ -559,24 +712,26 @@ Toggle ghost mode. Ghost mode is when a client can fly through blocks.
 
 `void`
 
+#### Inherited from
+
+[RigidControls](RigidControls.md).[toggleGhostMode](RigidControls.md#toggleghostmode)
+
 ___
 
 ### unlock
 
-▸ **unlock**(`callback?`): `void`
+▸ **unlock**(): `void`
 
 Unlock the cursor from the game, calling `exitPointerLock` on the HTML document.
 Needs to be called within a DOM event listener callback!
 
-#### Parameters
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `callback?` | () => `void` | Callback to be run once done. |
-
 #### Returns
 
 `void`
+
+#### Overrides
+
+[RigidControls](RigidControls.md).[unlock](RigidControls.md#unlock)
 
 ___
 
@@ -592,3 +747,7 @@ If the arm is attached, then the arm is also updated.
 #### Returns
 
 `void`
+
+#### Inherited from
+
+[RigidControls](RigidControls.md).[update](RigidControls.md#update)

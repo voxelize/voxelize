@@ -82,7 +82,7 @@ set the namespace to something else.
 
 ### bind
 
-▸ **bind**(`key`, `callback`, `namespace?`, `specifics?`): () => `void`
+▸ **bind**(`key`, `callback`, `namespaces?`, `specifics?`): () => `void`
 
 Bind a keyboard key to a callback.
 
@@ -91,8 +91,8 @@ Bind a keyboard key to a callback.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `key` | `string` | `undefined` | The key to listen for. This checks the `event.key` or the `event.code` property. |
-| `callback` | (`event`: `KeyboardEvent`) => `void` | `undefined` | The callback to call when the key is pressed. |
-| `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the key to. Defaults to "*", which means that the key will be fired regardless of the namespace. |
+| `callback` | (`event`: `KeyboardEvent`) => `boolean` \| `void` | `undefined` | The callback to call when the key is pressed. |
+| `namespaces` | ``"*"`` \| `T` \| `T`[] | `"*"` | - |
 | `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | `{}` | The specific options of the key to listen for. |
 
 #### Returns
@@ -120,7 +120,7 @@ Add a mouse click event listener.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `type` | [`ClickType`](../modules.md#clicktype) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
-| `callback` | (`event`: `MouseEvent`) => `void` | `undefined` | The callback to call when the click is fired, passing the MouseEvent. |
+| `callback` | (`event`: `MouseEvent`) => `boolean` \| `void` | `undefined` | The callback to call when the click is fired, passing the MouseEvent. |
 | `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace. |
 
 #### Returns
@@ -176,6 +176,7 @@ Remap a key to another key.
 | `oldKey` | `string` | The old key to replace. |
 | `newKey` | `string` | The new key to replace the old key with. |
 | `specifics` | `Object` | The specifics of the keys to replace. |
+| `specifics.checkType?` | ``"code"`` \| ``"key"`` | - |
 | `specifics.identifier?` | `string` | - |
 | `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
 
@@ -207,8 +208,8 @@ Add a scroll event listener.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `up` | (`delta?`: `number`) => `void` | `undefined` | The callback to call when the scroll wheel is scrolled up. |
-| `down` | (`delta?`: `number`) => `void` | `undefined` | The callback to call when the scroll wheel is scrolled down. |
+| `up` | (`delta?`: `number`) => `boolean` \| `void` | `undefined` | The callback to call when the scroll wheel is scrolled up. |
+| `down` | (`delta?`: `number`) => `boolean` \| `void` | `undefined` | The callback to call when the scroll wheel is scrolled down. |
 | `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the scroll to. Defaults to "*", which means that the scroll will be fired regardless of the namespace. |
 
 #### Returns
@@ -256,6 +257,7 @@ Swap two keys with each other.
 | `keyA` | `string` | The first key to swap. |
 | `keyB` | `string` | The second key to swap. |
 | `specifics` | `Object` | The specifics of the keys to swap. |
+| `specifics.checkType?` | ``"code"`` \| ``"key"`` | - |
 | `specifics.identifier?` | `string` | - |
 | `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
 

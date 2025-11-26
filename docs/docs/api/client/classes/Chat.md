@@ -1,6 +1,6 @@
 ---
 id: "Chat"
-title: "Class: Chat"
+title: "Class: Chat<T>"
 sidebar_label: "Chat"
 sidebar_position: 0
 custom_edit_url: null
@@ -31,6 +31,12 @@ network.register(chat);
 
 ![Chat](/img/docs/chat.png)
 
+## Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `ChatProtocol` = `ChatProtocol` |
+
 ## Implements
 
 - [`NetIntercept`](../interfaces/NetIntercept.md)
@@ -39,17 +45,23 @@ network.register(chat);
 
 ### constructor
 
-• **new Chat**(): [`Chat`](Chat.md)
+• **new Chat**\<`T`\>(): [`Chat`](Chat.md)\<`T`\>
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `ChatProtocol` = `ChatProtocol` |
 
 #### Returns
 
-[`Chat`](Chat.md)
+[`Chat`](Chat.md)\<`T`\>
 
 ## Properties
 
 ### onChat
 
-• **onChat**: (`chat`: `ChatProtocol`) => `void`
+• **onChat**: (`chat`: `T`) => `void`
 
 #### Type declaration
 
@@ -59,7 +71,7 @@ network.register(chat);
 
 | Name | Type |
 | :------ | :------ |
-| `chat` | `ChatProtocol` |
+| `chat` | `T` |
 
 ##### Returns
 
@@ -77,25 +89,56 @@ The symbol that is used to trigger commands.
 
 `string`
 
+___
+
+### commandSymbolCode
+
+• `get` **commandSymbolCode**(): `string`
+
+#### Returns
+
+`string`
+
 ## Methods
 
 ### addCommand
 
-▸ **addCommand**(`trigger`, `process`, `aliases?`): `void`
+▸ **addCommand**(`trigger`, `process`, `options?`): () => `void`
 
 Add a command to the chat system. Commands are case sensitive.
 
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `trigger` | `string` | `undefined` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor) | `undefined` | The process run when this command is triggered. |
-| `aliases` | `string`[] | `[]` | - |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `trigger` | `string` | The text to trigger the command, needs to be one single word without spaces. |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor) | The process run when this command is triggered. |
+| `options` | [`CommandOptions`](../modules.md#commandoptions) | Optional configuration for the command (description, category, aliases). |
 
 #### Returns
 
+`fn`
+
+▸ (): `void`
+
+##### Returns
+
 `void`
+
+___
+
+### getAllCommands
+
+▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
+
+Get all registered commands with their documentation.
+This filters out aliases and returns only the primary command triggers.
+
+#### Returns
+
+\{ `aliases`: `string`[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
+
+An array of command triggers with their descriptions, categories, and aliases.
 
 ___
 
@@ -127,7 +170,25 @@ Send a chat to the server.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `chat` | `ChatProtocol` | The chat message to send. |
+| `chat` | `T` | The chat message to send. |
+
+#### Returns
+
+`void`
+
+___
+
+### setFallbackCommand
+
+▸ **setFallbackCommand**(`fallback`): `void`
+
+Set a fallback command to be executed when no matching command is found.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `fallback` | [`CommandProcessor`](../modules.md#commandprocessor) | The fallback command processor. |
 
 #### Returns
 

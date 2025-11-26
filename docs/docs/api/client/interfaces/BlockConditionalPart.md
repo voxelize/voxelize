@@ -14,15 +14,33 @@ custom_edit_url: null
 
 ___
 
+### blueLightLevel
+
+• `Optional` **blueLightLevel**: `number`
+
+___
+
 ### faces
 
 • **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[]
 
 ___
 
+### greenLightLevel
+
+• `Optional` **greenLightLevel**: `number`
+
+___
+
 ### isTransparent
 
 • **isTransparent**: [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`]
+
+___
+
+### redLightLevel
+
+• `Optional` **redLightLevel**: `number`
 
 ___
 

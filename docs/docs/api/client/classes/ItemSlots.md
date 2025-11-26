@@ -60,6 +60,18 @@ ___
 
 ___
 
+### hoveredCol
+
+• **hoveredCol**: `number` = `-1`
+
+___
+
+### hoveredRow
+
+• **hoveredRow**: `number` = `-1`
+
+___
+
 ### onSlotClick
 
 • **onSlotClick**: (`slot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`

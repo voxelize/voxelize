@@ -94,12 +94,12 @@ Group.constructor
 
 • **createPeer**: (`id`: `string`) => `C`
 
+A function called when a new player joins the game. This function should be implemented
+to create and return a new peer object.
+
 #### Type declaration
 
 ▸ (`id`): `C`
-
-A function called when a new player joins the game. This function should be implemented
-to create and return a new peer object.
 
 ##### Parameters
 
@@ -110,6 +110,14 @@ to create and return a new peer object.
 ##### Returns
 
 `C`
+
+___
+
+### map
+
+• **map**: `Map`\<`string`, `C`\>
+
+Maps the peer ID to the peer object.
 
 ___
 
@@ -125,13 +133,13 @@ ___
 
 • **onPeerJoin**: (`id`: `string`, `peer`: `C`) => `void`
 
-#### Type declaration
-
-▸ (`id`, `peer`): `void`
-
 A function called when a player joins the game. By default, the function calls the [Peers.createPeer](Peers.md#createpeer)
 function to create a new peer object and adds it to the peers group. Customize this function to add additional
 behavior.
+
+#### Type declaration
+
+▸ (`id`, `peer`): `void`
 
 ##### Parameters
 
@@ -150,12 +158,12 @@ ___
 
 • **onPeerLeave**: (`id`: `string`, `peer`: `C`) => `void`
 
+A function called when a player leaves the game. Internally, when a player leaves, its object is removed
+from the peers group. Customize this function to add additional behavior.
+
 #### Type declaration
 
 ▸ (`id`, `peer`): `void`
-
-A function called when a player leaves the game. Internally, when a player leaves, its object is removed
-from the peers group. Customize this function to add additional behavior.
 
 ##### Parameters
 
@@ -174,12 +182,12 @@ ___
 
 • **onPeerUpdate**: (`object`: `C`, `data`: `T`, `info`: \{ `id`: `string` ; `username`: `string`  }) => `void`
 
+A function called to update a peer object with new data. This function should be implemented to
+customize the behavior of the peer object.
+
 #### Type declaration
 
 ▸ (`object`, `data`, `info`): `void`
-
-A function called to update a peer object with new data. This function should be implemented to
-customize the behavior of the peer object.
 
 ##### Parameters
 
@@ -213,6 +221,14 @@ The client's own peer ID. This is set when the client first connects to the serv
 
 ___
 
+### ownMetadata
+
+• `Optional` **ownMetadata**: `Record`\<`string`, `any`\>
+
+The client's own metadata (device info, etc.). This is set when the client first connects to the server.
+
+___
+
 ### ownPeer
 
 • `Optional` **ownPeer**: `C`
@@ -231,7 +247,7 @@ The client's own username. This is set when the client first connects to the ser
 
 ▸ **getPeerById**(`id`): `C`
 
-Get a peer instance by its ID. This uses the `getObjectByName` method of the peers group.
+Get a peer instance by its ID using the `map`.
 
 #### Parameters
 

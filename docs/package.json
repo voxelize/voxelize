@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "cross-env TYPEDOC_WATCH=true docusaurus start",
+    "start": "cross-env TYPEDOC_WATCH=true docusaurus start --port 3040",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "cross-env USE_SSH=true docusaurus deploy",

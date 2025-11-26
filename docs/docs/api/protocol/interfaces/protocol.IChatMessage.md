@@ -23,6 +23,14 @@ ChatMessage body
 
 ___
 
+### metadata
+
+• `Optional` **metadata**: `string`
+
+ChatMessage metadata
+
+___
+
 ### sender
 
 • `Optional` **sender**: `string`

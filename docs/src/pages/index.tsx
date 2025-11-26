@@ -60,7 +60,7 @@ const HomepageHeader = () => {
         <BrowserOnly>
           {() => {
             const CharacterView =
-              require("../components/character-view").CharacterView;
+              require("../components/character-view").default;
             return <CharacterView />;
           }}
         </BrowserOnly>
@@ -81,10 +81,7 @@ const Wrapper = styled.div`
 
 export default () => {
   return (
-    <Layout
-      title="Welcome"
-      description="🍄 A well-optimized, highly extensible full-stack library to create immersive multiplayer voxel experiences."
-    >
+    <Layout>
       <Wrapper>
         <HomepageHeader />
       </Wrapper>

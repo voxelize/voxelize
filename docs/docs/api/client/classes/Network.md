@@ -57,6 +57,7 @@ This is also the information passed into `NetIntercept` callbacks.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `id` | `string` | The unique ID of the client. This can be set by `setID` **BEFORE** connecting to the server. If this is set before connection, then the ID will be used and the server will not generate a new ID for this client. |
+| `metadata?` | `Record`\<`string`, `any`\> | Metadata about the client that is sent to the server. This can include device info, OS, browser, etc. This is merged with position/direction data when sending peer updates. |
 | `username` | `string` | The username of the client. This can be set by `setUsername` **BEFORE** connecting to the server. Setting this username after connecting to the server will not change anything. |
 
 ___
@@ -90,11 +91,11 @@ ___
 
 • **onConnect**: () => `void`
 
+A custom event listener that is called when this network instance is connected to a server.
+
 #### Type declaration
 
 ▸ (): `void`
-
-A custom event listener that is called when this network instance is connected to a server.
 
 ##### Returns
 
@@ -106,11 +107,11 @@ ___
 
 • **onDisconnect**: () => `void`
 
+A custom event listener that is called when this network instance is disconnected from a server.
+
 #### Type declaration
 
 ▸ (): `void`
-
-A custom event listener that is called when this network instance is disconnected from a server.
 
 ##### Returns
 
@@ -122,11 +123,11 @@ ___
 
 • **onJoin**: (`world`: `string`) => `void`
 
+A custom event listener that is called when this network instance has joined a world.
+
 #### Type declaration
 
 ▸ (`world`): `void`
-
-A custom event listener that is called when this network instance has joined a world.
 
 ##### Parameters
 
@@ -144,11 +145,11 @@ ___
 
 • **onLeave**: (`world`: `string`) => `void`
 
+A custom event listener that is called when this network instance has left a world.
+
 #### Type declaration
 
 ▸ (`world`): `void`
-
-A custom event listener that is called when this network instance has left a world.
 
 ##### Parameters
 
@@ -330,7 +331,7 @@ ___
 
 ### register
 
-▸ **register**(`...intercepts`): `this`
+▸ **register**(`...intercepts`): [`Network`](Network.md)
 
 Register a network intercept to the network. This is used so that one can define
 the reaction to the network packets received. For instance, one can define a network
@@ -344,7 +345,7 @@ intercept to handle the `EVENT` type messages and perform something based on the
 
 #### Returns
 
-`this`
+[`Network`](Network.md)
 
 The network instance itself for chaining.
 
@@ -388,6 +389,25 @@ otherwise the client will be assigned a server-generated ID.
 
 ___
 
+### setMetadata
+
+▸ **setMetadata**(`metadata`): `void`
+
+Set the client's metadata. This can include device info, OS, browser, etc.
+This metadata is sent to the server and merged with position/direction data in peer updates.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `metadata` | `Record`\<`string`, `any`\> | An object containing metadata about the client. |
+
+#### Returns
+
+`void`
+
+___
+
 ### setUsername
 
 ▸ **setUsername**(`username`): `void`
@@ -419,7 +439,7 @@ ___
 
 ### unregister
 
-▸ **unregister**(`...intercepts`): `this`
+▸ **unregister**(`...intercepts`): [`Network`](Network.md)
 
 Unregister a network intercept from the network.
 
@@ -431,6 +451,6 @@ Unregister a network intercept from the network.
 
 #### Returns
 
-`this`
+[`Network`](Network.md)
 
 The network instance itself for chaining.

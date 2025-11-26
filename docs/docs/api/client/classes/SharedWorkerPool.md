@@ -37,11 +37,11 @@ Create a new worker pool.
 
 • **Proto**: () => `SharedWorker`
 
+The worker class to create.
+
 #### Type declaration
 
 • **new Proto**(): `SharedWorker`
-
-The worker class to create.
 
 ##### Returns
 

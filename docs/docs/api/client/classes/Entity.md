@@ -56,11 +56,11 @@ ___
 
 • **onCreate**: (`data`: `T`) => `void`
 
+Called when the entity is created.
+
 #### Type declaration
 
 ▸ (`data`): `void`
-
-Called when the entity is created.
 
 ##### Parameters
 

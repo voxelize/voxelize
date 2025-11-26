@@ -272,7 +272,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `object` | `Object3D`\<`Object3DEventMap`\> |
+| `object` | `Object3D`\<`Object3DEventMap`\> \| `HTMLImageElement` |
 
 #### Returns
 

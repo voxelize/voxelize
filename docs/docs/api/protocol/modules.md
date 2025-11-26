@@ -6,19 +6,15 @@ sidebar_position: 0.5
 custom_edit_url: null
 ---
 
+## Namespaces
+
+- [protocol](namespaces/protocol.md)
+
 ## References
 
 ### default
 
-• **default**: Reference default
-
-## Namespaces
-
-### protocol
-
-• **protocol**: Namespace protocol
-
-Namespace protocol.
+Renames and re-exports [protocol](namespaces/protocol.md)
 
 ## Type Aliases
 
@@ -30,9 +26,10 @@ Namespace protocol.
 
 | Name | Type |
 | :------ | :------ |
-| `body` | string |
-| `sender?` | string |
-| `type` | string |
+| `body` | `string` |
+| `metadata?` | `string` |
+| `sender?` | `string` |
+| `type` | `string` |
 
 ___
 
@@ -44,24 +41,24 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `id` | string |
-| `lights` | Uint32Array |
-| `meshes` | MeshProtocol[] |
-| `voxels` | Uint32Array |
-| `x` | number |
-| `z` | number |
+| `id` | `string` |
+| `lights` | `Uint32Array` |
+| `meshes` | [`MeshProtocol`](modules.md#meshprotocol)[] |
+| `voxels` | `Uint32Array` |
+| `x` | `number` |
+| `z` | `number` |
 
 ___
 
 ### EntityOperation
 
-Ƭ **EntityOperation**: "CREATE" \| "UPDATE" \| "DELETE"
+Ƭ **EntityOperation**: ``"CREATE"`` \| ``"UPDATE"`` \| ``"DELETE"``
 
 ___
 
 ### EntityProtocol
 
-Ƭ **EntityProtocol**: `Object`
+Ƭ **EntityProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -73,16 +70,16 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `id` | string |
-| `metadata` | T |
-| `operation` | EntityOperation |
-| `type` | string |
+| `id` | `string` |
+| `metadata` | `T` |
+| `operation` | [`EntityOperation`](modules.md#entityoperation) |
+| `type` | `string` |
 
 ___
 
 ### EventProtocol
 
-Ƭ **EventProtocol**: `Object`
+Ƭ **EventProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -94,8 +91,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `name` | string |
-| `payload` | T |
+| `name` | `string` |
+| `payload` | `T` |
 
 ___
 
@@ -107,13 +104,13 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `at?` | [number, number, number] |
-| `faceName?` | string |
-| `indices` | Uint32Array |
-| `lights` | Uint32Array |
-| `positions` | Float32Array |
-| `uvs` | Float32Array |
-| `voxel` | number |
+| `at?` | [`number`, `number`, `number`] |
+| `faceName?` | `string` |
+| `indices` | `Uint32Array` |
+| `lights` | `Uint32Array` |
+| `positions` | `Float32Array` |
+| `uvs` | `Float32Array` |
+| `voxel` | `number` |
 
 ___
 
@@ -125,45 +122,45 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `geometries` | GeometryProtocol[] |
-| `level` | number |
+| `geometries` | [`GeometryProtocol`](modules.md#geometryprotocol)[] |
+| `level` | `number` |
 
 ___
 
 ### MessageProtocol
 
-Ƭ **MessageProtocol**: `Object`
+Ƭ **MessageProtocol**\<`T`, `Peer`, `Entity`, `Event`, `Method`\>: `Object`
 
 #### Type parameters
 
 | Name | Type |
 | :------ | :------ |
-| `T` | any |
-| `Peer` | any |
-| `Entity` | any |
-| `Event` | any |
-| `Method` | any |
+| `T` | `any` |
+| `Peer` | `any` |
+| `Entity` | `any` |
+| `Event` | `any` |
+| `Method` | `any` |
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
-| `chat?` | ChatProtocol |
-| `chunks?` | ChunkProtocol[] |
-| `entities?` | EntityProtocol\<Entity\>[] |
-| `events?` | EventProtocol\<Event\>[] |
-| `json?` | T |
-| `method?` | MethodProtocol\<Method\> |
-| `peers?` | PeerProtocol\<Peer\>[] |
-| `text?` | string |
-| `type` | "INIT" \| "JOIN" \| "LEAVE" \| "ERROR" \| "PEER" \| "ENTITY" \| "LOAD" \| "UNLOAD" \| "UPDATE" \| "METHOD" \| "CHAT" \| "TRANSPORT" \| "EVENT" \| "ACTION" \| "STATS" |
-| `updates?` | UpdateProtocol[] |
+| `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
+| `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
+| `entities?` | [`EntityProtocol`](modules.md#entityprotocol)\<`Entity`\>[] |
+| `events?` | [`EventProtocol`](modules.md#eventprotocol)\<`Event`\>[] |
+| `json?` | `T` |
+| `method?` | [`MethodProtocol`](modules.md#methodprotocol)\<`Method`\> |
+| `peers?` | [`PeerProtocol`](modules.md#peerprotocol)\<`Peer`\>[] |
+| `text?` | `string` |
+| `type` | ``"INIT"`` \| ``"JOIN"`` \| ``"LEAVE"`` \| ``"ERROR"`` \| ``"PEER"`` \| ``"ENTITY"`` \| ``"LOAD"`` \| ``"UNLOAD"`` \| ``"UPDATE"`` \| ``"METHOD"`` \| ``"CHAT"`` \| ``"TRANSPORT"`` \| ``"EVENT"`` \| ``"ACTION"`` \| ``"STATS"`` |
+| `updates?` | [`UpdateProtocol`](modules.md#updateprotocol)[] |
 
 ___
 
 ### MethodProtocol
 
-Ƭ **MethodProtocol**: `Object`
+Ƭ **MethodProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -175,14 +172,14 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `name` | string |
-| `payload` | T |
+| `name` | `string` |
+| `payload` | `T` |
 
 ___
 
 ### PeerProtocol
 
-Ƭ **PeerProtocol**: `Object`
+Ƭ **PeerProtocol**\<`T`\>: `Object`
 
 #### Type parameters
 
@@ -194,9 +191,9 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `id` | string |
-| `metadata` | T |
-| `username` | string |
+| `id` | `string` |
+| `metadata` | `T` |
+| `username` | `string` |
 
 ___
 
@@ -208,8 +205,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `light?` | number |
-| `voxel?` | number |
-| `vx` | number |
-| `vy` | number |
-| `vz` | number |
+| `light?` | `number` |
+| `voxel?` | `number` |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |

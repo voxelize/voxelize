@@ -999,6 +999,87 @@ ___
 
 ___
 
+### off
+
+▸ **off**\<`K`\>(`event`, `listener`): `this`
+
+Unregister a typed event listener for chunk lifecycle events.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `K` | extends keyof [`WorldChunkEvents`](../modules.md#worldchunkevents) |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `event` | `K` | The event name to stop listening to. |
+| `listener` | [`WorldChunkEvents`](../modules.md#worldchunkevents)[`K`] | The callback function to remove. |
+
+#### Returns
+
+`this`
+
+The world instance for chaining.
+
+___
+
+### on
+
+▸ **on**\<`K`\>(`event`, `listener`): `this`
+
+Register a typed event listener for chunk lifecycle events.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `K` | extends keyof [`WorldChunkEvents`](../modules.md#worldchunkevents) |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `event` | `K` | The event name to listen to. |
+| `listener` | [`WorldChunkEvents`](../modules.md#worldchunkevents)[`K`] | The callback function to execute when the event is emitted. |
+
+#### Returns
+
+`this`
+
+The world instance for chaining.
+
+___
+
+### once
+
+▸ **once**\<`K`\>(`event`, `listener`): `this`
+
+Register a one-time typed event listener for chunk lifecycle events.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `K` | extends keyof [`WorldChunkEvents`](../modules.md#worldchunkevents) |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `event` | `K` | The event name to listen to once. |
+| `listener` | [`WorldChunkEvents`](../modules.md#worldchunkevents)[`K`] | The callback function to execute when the event is emitted. |
+
+#### Returns
+
+`this`
+
+The world instance for chaining.
+
+___
+
 ### raycastVoxels
 
 ▸ **raycastVoxels**(`origin`, `direction`, `maxDistance`, `options?`): `Object`
@@ -1039,6 +1120,26 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `voxel` | [`Coords3`](../modules.md#coords3) |
+| `color` | [`LightColor`](../modules.md#lightcolor) |
+
+#### Returns
+
+`void`
+
+___
+
+### removeLightsBatch
+
+▸ **removeLightsBatch**(`voxels`, `color`): `void`
+
+Batch remove light from multiple voxels that previously emitted the same light color.
+This drastically improves performance when many contiguous light sources are removed at once.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxels` | [`Coords3`](../modules.md#coords3)[] |
 | `color` | [`LightColor`](../modules.md#lightcolor) |
 
 #### Returns

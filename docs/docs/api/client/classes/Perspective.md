@@ -76,11 +76,11 @@ ___
 
 • **onChangeState**: (`state`: ``"first"`` \| ``"second"`` \| ``"third"``) => `void`
 
+A method that can be implemented and is called when the perspective's state changes.
+
 #### Type declaration
 
 ▸ (`state`): `void`
-
-A method that can be implemented and is called when the perspective's state changes.
 
 ##### Parameters
 

@@ -100,13 +100,13 @@ The stats.js instance, situated in the top-left corner after the data entries.
 
 ### displayNewline
 
-▸ **displayNewline**(): `this`
+▸ **displayNewline**(): [`Debug`](Debug.md)
 
 Add an empty line to the debug entries for spacing.
 
 #### Returns
 
-`this`
+[`Debug`](Debug.md)
 
 The debug instance for chaining.
 
@@ -114,7 +114,7 @@ ___
 
 ### displayTitle
 
-▸ **displayTitle**(`title`): `this`
+▸ **displayTitle**(`title`): [`Debug`](Debug.md)
 
 Add a static title to the debug entries for grouping.
 
@@ -126,15 +126,25 @@ Add a static title to the debug entries for grouping.
 
 #### Returns
 
-`this`
+[`Debug`](Debug.md)
 
 The debug instance for chaining.
 
 ___
 
+### dispose
+
+▸ **dispose**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
 ### registerDisplay
 
-▸ **registerDisplay**\<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
+▸ **registerDisplay**\<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): [`Debug`](Debug.md)
 
 Register a new object attribute to track. Needs to call [Debug.update](Debug.md#update) in the game loop
 to update the value.
@@ -156,7 +166,7 @@ to update the value.
 
 #### Returns
 
-`this`
+[`Debug`](Debug.md)
 
 The debug instance for chaining.
 

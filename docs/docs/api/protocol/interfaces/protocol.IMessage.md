@@ -92,3 +92,11 @@ ___
 • `Optional` **updates**: [`IUpdate`](protocol.IUpdate.md)[]
 
 Message updates
+
+___
+
+### worldName
+
+• `Optional` **worldName**: `string`
+
+Message worldName

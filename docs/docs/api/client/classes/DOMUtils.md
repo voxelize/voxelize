@@ -31,6 +31,22 @@ The element(s) with the added styles.
 
 ___
 
+### mapKeyToCode
+
+▸ **mapKeyToCode**(`key`): `string`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`string`
+
+___
+
 ### rgba
 
 ▸ **rgba**(`r`, `g`, `b`, `a`): `string`

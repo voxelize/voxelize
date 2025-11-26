@@ -169,11 +169,11 @@ ___
 
 • **onIdle**: () => `void`
 
+A listener called when a character stops moving.
+
 #### Type declaration
 
 ▸ (): `void`
-
-A listener called when a character stops moving.
 
 ##### Returns
 
@@ -185,11 +185,11 @@ ___
 
 • **onMove**: () => `void`
 
+A listener called when a character starts moving.
+
 #### Type declaration
 
 ▸ (): `void`
-
-A listener called when a character starts moving.
 
 ##### Returns
 
@@ -249,13 +249,19 @@ faster depending on the passed-in options.
 
 ### armColor
 
+• `get` **armColor**(): `string` \| `Color`
+
+#### Returns
+
+`string` \| `Color`
+
 • `set` **armColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `color` | `string` |
+| `color` | `string` \| `Color` |
 
 #### Returns
 
@@ -265,13 +271,19 @@ ___
 
 ### bodyColor
 
+• `get` **bodyColor**(): `string` \| `Color`
+
+#### Returns
+
+`string` \| `Color`
+
 • `set` **bodyColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `color` | `string` |
+| `color` | `string` \| `Color` |
 
 #### Returns
 
@@ -293,13 +305,19 @@ ___
 
 ### faceColor
 
+• `get` **faceColor**(): `string` \| `Color`
+
+#### Returns
+
+`string` \| `Color`
+
 • `set` **faceColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `color` | `string` |
+| `color` | `string` \| `Color` |
 
 #### Returns
 
@@ -309,13 +327,19 @@ ___
 
 ### headColor
 
+• `get` **headColor**(): `string` \| `Color`
+
+#### Returns
+
+`string` \| `Color`
+
 • `set` **headColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `color` | `string` |
+| `color` | `string` \| `Color` |
 
 #### Returns
 
@@ -325,13 +349,19 @@ ___
 
 ### legColor
 
+• `get` **legColor**(): `string` \| `Color`
+
+#### Returns
+
+`string` \| `Color`
+
 • `set` **legColor**(`color`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `color` | `string` |
+| `color` | `string` \| `Color` |
 
 #### Returns
 
@@ -378,6 +408,18 @@ Change the content of the user's nametag. If the nametag is empty, nothing will 
 
 ## Methods
 
+### playArmSwingAnimation
+
+▸ **playArmSwingAnimation**(): `void`
+
+Play the "swing" animation.
+
+#### Returns
+
+`void`
+
+___
+
 ### set
 
 ▸ **set**(`position`, `direction`): `void`
@@ -393,6 +435,25 @@ The `update` needs to be called to actually lerp to the new position and rotatio
 | :------ | :------ | :------ |
 | `position` | `number`[] | The new position of the character. |
 | `direction` | `number`[] | The new direction of the character. |
+
+#### Returns
+
+`void`
+
+___
+
+### setArmHoldingObject
+
+▸ **setArmHoldingObject**(`object`, `side?`): `void`
+
+Set the character's arm holding object.
+
+#### Parameters
+
+| Name | Type | Default value | Description |
+| :------ | :------ | :------ | :------ |
+| `object` | `Object3D`\<`Object3DEventMap`\> | `undefined` | The object to set as the arm holding object. |
+| `side` | ``"left"`` \| ``"right"`` | `"right"` | - |
 
 #### Returns
 
