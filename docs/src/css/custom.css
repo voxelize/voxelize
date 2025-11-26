@@ -17,29 +17,35 @@
   padding: 0;
 }
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #4caf50; /* Green */
-  --ifm-color-primary-dark: #388e3c; /* Dark Green */
-  --ifm-color-primary-darker: #2e7d32; /* Darker Green */
-  --ifm-color-primary-darkest: #1b5e20; /* Darkest Green */
-  --ifm-color-primary-light: #66bb6a; /* Light Green */
-  --ifm-color-primary-lighter: #81c784; /* Lighter Green */
-  --ifm-color-primary-lightest: #a5d6a7; /* Lightest Green */
+  --ifm-color-primary: #1a1a1a;
+  --ifm-color-primary-dark: #0d0d0d;
+  --ifm-color-primary-darker: #000000;
+  --ifm-color-primary-darkest: #000000;
+  --ifm-color-primary-light: #333333;
+  --ifm-color-primary-lighter: #4d4d4d;
+  --ifm-color-primary-lightest: #666666;
+  --ifm-background-color: #fafafa;
+  --ifm-background-surface-color: #f5f5f5;
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-navbar-background-color: #fafafa;
+  --ifm-footer-background-color: #1a1a1a;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme="dark"] {
-  --ifm-color-primary: #66bb6a; /* Light Green */
-  --ifm-color-primary-dark: #81c784; /* Lighter Green */
-  --ifm-color-primary-darker: #a5d6a7; /* Lightest Green */
-  --ifm-color-primary-darkest: #4caf50; /* Green */
-  --ifm-color-primary-light: #388e3c; /* Dark Green */
-  --ifm-color-primary-lighter: #2e7d32; /* Darker Green */
-  --ifm-color-primary-lightest: #1b5e20; /* Darkest Green */
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: #ffffff;
+  --ifm-color-primary-dark: #e6e6e6;
+  --ifm-color-primary-darker: #cccccc;
+  --ifm-color-primary-darkest: #999999;
+  --ifm-color-primary-light: #ffffff;
+  --ifm-color-primary-lighter: #ffffff;
+  --ifm-color-primary-lightest: #ffffff;
+  --ifm-background-color: #0a0a0a;
+  --ifm-background-surface-color: #141414;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+  --ifm-navbar-background-color: #0a0a0a;
+  --ifm-footer-background-color: #000000;
 }
 
 .navbar__logo {
@@ -49,6 +55,7 @@
 
 .navbar__title {
   font-family: "ConnectionSerif", sans-serif;
+  margin-top: 2px;
 }
 
 p > img {
@@ -76,4 +83,14 @@ p:has(img[class*="MDX"]) {
 }
 
 th {
+}
+
+.footer .footer__link-item {
+  transition: opacity 0.15s ease;
+}
+
+.footer .footer__link-item:hover {
+  text-decoration: none;
+  opacity: 0.7;
+  color: inherit;
 }
