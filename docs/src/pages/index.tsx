@@ -15,12 +15,12 @@ const DOCS_CARDS = [
   {
     title: "Quick Start",
     description: "Get up and running with your first voxel world in minutes",
-    href: "/tutorials/basics/1-create-the-server",
+    href: "/tutorials/basics/create-the-server",
   },
   {
     title: "API Reference",
     description: "Explore the full API documentation for advanced usage",
-    href: "/api/core",
+    href: "/api/client",
   },
 ];
 

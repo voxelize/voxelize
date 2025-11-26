@@ -4,22 +4,24 @@ sidebar_position: 1
 
 # What is Voxelize?
 
-Voxelize is an **easy-to-use** fullstack library to build **fast, interactive, multiplayer, and creative** voxel experiences **in the browser.**
+Voxelize is a fullstack library for building fast, multiplayer voxel experiences in the browser.
 
 ![](../assets/cool-voxelize.png)
 
 ## What is a voxel?
 
-A voxel is a **3D pixel**. It is a **cube** that can be colored, textured, and manipulated. It is the **smallest unit** of a voxel world.
+A voxel is a 3D pixel - a cube that can be colored, textured, and manipulated. Voxels are the building blocks of a voxel world.
 
-In a voxel world, you can build anything you want. You can build a house, a car, a spaceship, a city, a planet, or even a universe. You can build anything you can imagine.
+Build houses, cities, planets - anything you can imagine with blocks.
 
 ## What can I do with Voxelize?
 
-Voxelize is a fullstack library. It means that you can use it to build both the **client** and the **server** of your voxel experience. It could be a game, a creative tool, or even a VR experience. Basically, you can build anything you want.
+Voxelize handles both client and server. Build games, creative tools, or VR experiences.
 
-In additional to voxel related features, Voxelize also provides a lot of useful features to help you build your voxel experience. For example, you can use it to build a **multiplayer** experience with custom entities and events. You can have animals roaming around, define your own items and recipes, and even design your own UI.
+Beyond voxels, you get:
+- Real-time multiplayer
+- Custom entities and AI
+- Event system for game logic
+- Built-in physics and collision
 
 ![](../assets/cool-landscape.png)
-
-Hop on to the next page and start learning what Voxelize has to offer!

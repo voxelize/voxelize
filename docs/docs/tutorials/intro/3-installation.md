@@ -4,29 +4,44 @@ sidebar_position: 3
 
 # Installation
 
-Once the github repository is cloned, let's try to understand what is going on.
+The tutorial repo is already set up with dependencies. Here's what's included:
 
-## Server Setup
+## Server Dependencies
 
-The Voxelize server runs mainly on the [voxelize](https://crates.io/crates/voxelize) crate. We will also be using:
-- [actix-web](https://crates.io/crates/actix-web) for network/websocket handling.
-- [specs](https://crates.io/crates/specs) for the central Entity Component System.
-
-```toml title="server/Cargo.toml"
-voxelize = "*"
-actix-web = "*"
-specs = {version = "*", features = ["specs-derive", "serde"]}
+```toml title="Cargo.toml"
+voxelize = "1.0.0"
+actix-web = "4.5.1"
+specs = { version = "0.20.0", features = ["specs-derive", "serde"] }
 ```
 
-## Client Setup
+- `voxelize` - Core server library
+- `actix-web` - WebSocket handling
+- `specs` - Entity Component System
 
-The client-side npm package of Voxelize is called [`@voxelize/core`](https://www.npmjs.com/package/@voxelize/core). Voxelize uses [`three.js`](https://www.npmjs.com/package/three) for the 3D rendering. As you can see in the template, they have been added to our project in the `package.json` file.
+## Client Dependencies
 
 ```json title="package.json"
 "dependencies": {
-  "@voxelize/core": "**",
-  "three": "*"
+  "@voxelize/core": "^1.0.0",
+  "three": "^0.165.0"
 }
 ```
 
-Now you're ready to start developing! Remember, the finished version of this tutorial can be find [here](https://github.com/voxelize/voxelize-tutorial/tree/final) if you are stuck.
+- `@voxelize/core` - Client library
+- `three` - 3D rendering
+
+## Running the Tutorial
+
+Start the server:
+```bash
+npm run server
+```
+
+In another terminal, start the client:
+```bash
+npm run dev
+```
+
+The server runs on `http://localhost:4000` and the client on `http://localhost:5173`.
+
+Stuck? Check the [final branch](https://github.com/voxelize/voxelize-tutorial/tree/final) for the completed code.

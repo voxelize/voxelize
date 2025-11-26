@@ -59,6 +59,6 @@ async function start() {
 }
 ```
 
-You should see these two panels once everything is working. For the `world.time` setter, the world calls an internal method to the server `vox-builtin:set-time`. To learn more about methods, check out [the method tutorial](/wiki/calling-methods).
+You should see these two panels once everything is working. For the `world.time` setter, the world calls an internal method to the server `vox-builtin:set-time`. To learn more about methods, check out [the method tutorial](/wiki/networking/calling-methods).
 
 ![](../assets/time-setter.png)

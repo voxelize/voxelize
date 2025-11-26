@@ -4,9 +4,9 @@ sidebar_position: 1
 
 # Create the Server
 
-A Voxelize server is a very **powerful HTTP based web server** that handles most of the heavy-lifting you see in a Voxelize app, such as world terrain generation and meshing. These tasks are done on the server-side in a multi-threaded fashion, so that we can ensure the best user experience on the client-side.
+The Voxelize server handles terrain generation, meshing, and physics in parallel threads. This keeps the client fast.
 
-Go to `src/main.rs`:
+Open `src/main.rs`:
 
 ```rust title="src/main.rs"
 use voxelize::{Server, Voxelize};
@@ -19,12 +19,16 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-In this code snippet, we create a server running at port `4000`. We will be adding more configurations later on.
+This creates a server on port 4000. Run it:
 
-Now, we can run `npm run server` which internally runs `cargo run --release`. This server should now be running on `http://localhost:4000`, and you'll see something like below in the terminal.
+```bash
+npm run server
+```
+
+You should see the server start on `http://localhost:4000`:
 
 ![Server Start](../assets/server-start.png)
 
 :::tip
-The [idiomatic builder pattern](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html) is heavily used in Voxelize!
+Voxelize uses the [builder pattern](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html) throughout.
 :::

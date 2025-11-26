@@ -112,4 +112,4 @@ start();
 | Location-based broadcasting    | Event      |
 | World-wide state changes       | **Method** |
 
-See [Handling Events](/wiki/handling-events) for the event system.
+See [Handling Events](/wiki/networking/handling-events) for the event system.

@@ -138,4 +138,4 @@ function triggerExplosion(position: number[]) {
 | Use case         | Effects, notifications  | Server actions, validation |
 | Default behavior | Auto-broadcast          | Must define handler        |
 
-See [Calling Methods](/wiki/calling-methods) for server-side actions.
+See [Calling Methods](/wiki/networking/calling-methods) for server-side actions.

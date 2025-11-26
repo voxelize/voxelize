@@ -183,4 +183,4 @@ When designing your dispatcher, consider the data flow:
 6. **Network** - Send updates to clients
 7. **Cleanup** - Clear per-frame data
 
-For more details on the default systems, see the [Entity Component System](/docs/tutorials/intermediate/entity-component-system) tutorial.
+For more details on the default systems, see the [Entity Component System](/tutorials/intermediate/entity-component-system) tutorial.
