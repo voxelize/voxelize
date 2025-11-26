@@ -5,5 +5,5 @@ docs/tailwind.config.js: +10[0] -10[0]
 
 Conversations:
 
-[0]: a102297b-a792-41f8-a765-4da625109a16; Check town font for document titles; claude-4.5-opus-high;
-[1]: cf8571ee-ce35-47d0-a813-2e0bded8f7c4; Improve mobile view design feedback; claude-4.5-opus-high;
+[0]: a102297b-a792-41f8-a765-4da625109a16; a102297b; unknown;
+[1]: bbeab4f6-2efc-4347-9f4b-0b30123994dd; Implement splash screen support for create.town; claude-4.5-opus-high;
