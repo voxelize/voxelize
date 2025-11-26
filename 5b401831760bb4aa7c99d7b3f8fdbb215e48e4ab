@@ -1,0 +1,7 @@
+AI Notes:
+
+packages/core/src/core/chat.ts: +19[0],+30[0],+159[0],+246[0],+261[0],+269[0] -246[0],-253[0]
+
+Conversations:
+
+[0]: 6597c6e2-328e-4418-86f4-c21f6e589259; Redundant commands in chat; claude-4.5-opus-high;
