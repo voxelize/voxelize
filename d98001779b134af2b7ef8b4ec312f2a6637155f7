@@ -1,0 +1,13 @@
+AI Notes:
+
+Cargo.toml: +23[0] -23[0]
+packages/aabb/package.json: +3[0] -3[0]
+packages/core/package.json: +3[0] -3[0]
+packages/physics-engine/package.json: +3[0] -3[0]
+packages/protocol/package.json: +3[0] -3[0]
+packages/raycast/package.json: +3[0] -3[0]
+packages/transport/package.json: +3[0] -3[0]
+
+Conversations:
+
+[0]: 1a921aab-b327-4517-af62-c5ce494fe8df; Publish voxelization command; claude-4.5-opus-high;
