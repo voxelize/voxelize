@@ -16,6 +16,7 @@ export type CommandOptions = {
   description?: string;
   category?: string;
   aliases?: string[];
+  flags?: string[];
 };
 
 /**
@@ -26,6 +27,7 @@ export type CommandInfo = {
   description: string;
   category?: string;
   aliases: string[];
+  flags: string[];
 };
 
 /**
@@ -154,6 +156,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       description: options.description || "",
       category: options.category,
       aliases: options.aliases || [],
+      flags: options.flags || [],
     };
 
     this.commands.set(trigger, commandInfo);
@@ -240,22 +243,22 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     description: string;
     category?: string;
     aliases: string[];
+    flags: string[];
   }> {
     const uniqueCommands = new Map<CommandInfo, string>();
 
-    // First pass: collect unique commands with their primary trigger
     this.commands.forEach((commandInfo, trigger) => {
       if (!uniqueCommands.has(commandInfo)) {
         uniqueCommands.set(commandInfo, trigger);
       }
     });
 
-    // Second pass: build the result array
     const result: Array<{
       trigger: string;
       description: string;
       category?: string;
       aliases: string[];
+      flags: string[];
     }> = [];
     uniqueCommands.forEach((primaryTrigger, commandInfo) => {
       result.push({
@@ -263,6 +266,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         description: commandInfo.description,
         category: commandInfo.category,
         aliases: commandInfo.aliases,
+        flags: commandInfo.flags,
       });
     });
 
