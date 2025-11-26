@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/protocol",
-  "version": "1.0.33",
+  "version": "2.0.0",
   "license": "MIT",
   "files": [
     "dist"

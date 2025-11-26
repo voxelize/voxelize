@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/aabb",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "files": [
     "dist"
   ],
@@ -15,7 +15,7 @@
   "scripts": {
     "watch": "cross-env NODE_ENV=development pnpm build --watch",
     "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "start": "webpack serve --config example/webpack.config.js"
   },
   "repository": "https://github.com/shaoruu/voxel-aabb.git",

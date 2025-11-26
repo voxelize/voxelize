@@ -1,6 +1,6 @@
 {
   "name": "@voxelize/core",
-  "version": "0.1.223",
+  "version": "1.0.0",
   "license": "MIT",
   "files": [
     "dist"
