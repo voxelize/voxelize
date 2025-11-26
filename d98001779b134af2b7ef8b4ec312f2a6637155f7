@@ -1,11 +1,11 @@
 AI Notes:
 
 Cargo.toml: +23[0] -23[0]
-packages/aabb/package.json: +3[0] -3[0]
+packages/aabb/package.json: +3[0],+18[0] -3[0],-18[0]
 packages/core/package.json: +3[0] -3[0]
 packages/physics-engine/package.json: +3[0] -3[0]
 packages/protocol/package.json: +3[0] -3[0]
-packages/raycast/package.json: +3[0] -3[0]
+packages/raycast/package.json: +3[0],+18[0] -3[0],-18[0]
 packages/transport/package.json: +3[0] -3[0]
 
 Conversations:
