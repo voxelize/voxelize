@@ -225,15 +225,18 @@ const config: Config = {
       return {
         name: "docusaurus-webpack-esm",
         configureWebpack() {
-          return {
-            resolve: {
-              alias: {
-                "@voxelize/core": require.resolve(
-                  "@voxelize/core/dist/index.mjs"
-                ),
+          try {
+            const corePath = require.resolve("@voxelize/core/dist/index.mjs");
+            return {
+              resolve: {
+                alias: {
+                  "@voxelize/core": corePath,
+                },
               },
-            },
-          };
+            };
+          } catch (e) {
+            return {};
+          }
         },
       };
     },
