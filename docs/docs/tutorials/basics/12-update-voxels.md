@@ -11,10 +11,10 @@ flowchart LR
     C[Camera] -->|raycast| R[Ray]
     R -->|intersects| T[Target Block]
     R -.->|adjacent| P[Potential Position]
-    
+
     T -->|left click| B[Break: set to 0]
     P -->|right click| PL[Place: set to block type]
-    
+
     style T fill:#ef4444,stroke:#dc2626,stroke-width:2px
     style P fill:#10b981,stroke:#059669,stroke-width:2px,stroke-dasharray: 5 5
     style C fill:#4a9eff,stroke:#2563eb

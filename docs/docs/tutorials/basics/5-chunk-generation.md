@@ -84,9 +84,9 @@ flowchart LR
         S4[LightingStage]
         D[Done]
     end
-    
+
     E --> S1 --> S2 --> S3 --> S4 --> D
-    
+
     style E fill:#e5e7eb,stroke:#9ca3af
     style D fill:#10b981,stroke:#059669,stroke-width:2px
     style S1 fill:#fbbf24,stroke:#f59e0b

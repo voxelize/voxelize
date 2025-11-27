@@ -11,12 +11,12 @@ sequenceDiagram
     participant You
     participant Server
     participant OtherPlayer
-    
+
     You->>Server: Position update
     Server->>OtherPlayer: Your position
     OtherPlayer->>Server: Position update
     Server->>You: Other player's position
-    
+
     Note over You,OtherPlayer: Peers automatically sync every frame
 ```
 

@@ -11,7 +11,7 @@ sequenceDiagram
     participant Client
     participant Server
     participant World
-    
+
     Client->>Server: connect("http://localhost:4000")
     Server-->>Client: WebSocket opened
     Client->>Server: join("tutorial")

@@ -14,16 +14,16 @@ flowchart LR
         E[Entities]
         N[Network]
     end
-    
+
     subgraph Server["Voxelize Server"]
         WS[WebSocket]
     end
-    
+
     N -->|register| W
     N -->|register| P
     N -->|register| E
     N <-->|chunks, updates, events| WS
-    
+
     style N fill:#4a9eff,stroke:#2563eb,stroke-width:3px
     style WS fill:#f59e0b,stroke:#d97706,stroke-width:2px
 ```
