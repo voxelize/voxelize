@@ -100,12 +100,12 @@ const IframeDemo = () => {
           allow="fullscreen"
           className="w-full h-full absolute inset-0"
         />
-        <div className="absolute bottom-3 right-3 opacity-60 hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute bottom-3 right-3 opacity-50 hover:opacity-90 transition-opacity duration-200">
           <button
             onClick={handleExpandClick}
-            className="bg-black/70 backdrop-blur-sm p-1.5 rounded text-white hover:bg-black/90 transition-all border-none outline-none cursor-pointer"
+            className="bg-black/50 backdrop-blur-sm p-2 rounded-full text-white/90 hover:bg-black/70 transition-all border-none outline-none cursor-pointer flex items-center justify-center"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M4.5 9.5V4.5H9.5V6H7.06L10.53 9.47L9.47 10.53L6 7.06V9.5H4.5ZM14.5 4.5H19.5V9.5H18V7.06L14.53 10.53L13.47 9.47L16.94 6H14.5V4.5ZM10.53 14.53L7.06 18H9.5V19.5H4.5V14.5H6V16.94L9.47 13.47L10.53 14.53ZM13.47 14.53L14.53 13.47L18 16.94V14.5H19.5V19.5H14.5V18H16.94L13.47 14.53Z" />
             </svg>
           </button>
