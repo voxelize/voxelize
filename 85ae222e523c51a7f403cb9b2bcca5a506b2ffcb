@@ -1,0 +1,8 @@
+AI Notes:
+
+docs/src/css/custom.css: +102-105[0],+107-110[0],+112-114[0],+116-119[0],+121-123[0],+125-127[0],+129-131[0],+133-135[0]
+docs/src/pages/index.tsx: +103[0],+106[0],+108[0] -103[0],-106[0],-108[0]
+
+Conversations:
+
+[0]: b0255114-5d7f-4fc6-94ba-2f283d6c5756; Fullscreen button appearance issue; claude-4.5-opus-high;
