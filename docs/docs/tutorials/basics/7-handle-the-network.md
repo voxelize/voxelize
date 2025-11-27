@@ -2,58 +2,42 @@
 sidebar_position: 7
 ---
 
-# Voxelize Networking
+# Handle the Network
 
-The network manager connects your client to the Voxelize server over WebSockets. It handles sending and receiving all game data - chunks, player positions, chat messages, and custom events.
+The network manager connects to the server over WebSockets and handles all game data.
 
-## Creating the Network
+```mermaid
+flowchart LR
+    subgraph Client["Client"]
+        W[World]
+        P[Peers]
+        E[Entities]
+        N[Network]
+    end
+    
+    subgraph Server["Voxelize Server"]
+        WS[WebSocket]
+    end
+    
+    N -->|register| W
+    N -->|register| P
+    N -->|register| E
+    N <-->|chunks, updates, events| WS
+    
+    style N fill:#4a9eff,stroke:#2563eb,stroke-width:3px
+    style WS fill:#f59e0b,stroke:#d97706,stroke-width:2px
+```
+
+## Create the Network
 
 ```javascript title="main.js"
 const network = new VOXELIZE.Network();
-
 network.register(world);
 ```
 
-Registering the world allows it to receive chunk data and world updates from the server.
+Registering the world lets it receive chunk data and world updates.
 
-## Network Interceptors
-
-Anything registered with `network.register()` can intercept messages. An interceptor has two hooks:
-
-### `onMessage`
-
-Called for every message received when `network.sync()` runs (called automatically each frame):
-
-```javascript title="Custom Logger"
-const debugInterceptor = {
-  onMessage(message) {
-    console.log("Received:", message.type);
-  },
-};
-
-network.register(debugInterceptor);
-```
-
-### `packets`
-
-An array of outgoing messages. The network flushes these to the server each frame:
-
-```javascript title="Custom Packet Sender"
-const customSender = {
-  packets: [],
-
-  sendCustomData(data) {
-    this.packets.push({
-      type: "TRANSPORT",
-      json: JSON.stringify(data),
-    });
-  },
-};
-
-network.register(customSender);
-```
-
-## Connecting to the Server
+## Connect to the Server
 
 ```javascript title="main.js"
 async function start() {
@@ -62,17 +46,38 @@ async function start() {
 
   await world.initialize();
 }
+
+start();
 ```
 
-The `connect` call establishes a WebSocket connection. The `join` call enters a specific world on the server.
+- `connect` - Establishes WebSocket connection
+- `join` - Enters the "tutorial" world
+- `initialize` - Processes world config and starts chunk loading
 
 :::tip
-`network.connect` automatically converts the protocol to WebSockets (`ws://` or `wss://`).
+`network.connect` automatically converts `http://` to `ws://` (or `wss://` for HTTPS).
 :::
 
-## Full Implementation
+## Add the Render Loop
 
-Here's the complete networking setup from this tutorial:
+```javascript title="main.js"
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(world, camera);
+}
+
+async function start() {
+  animate();
+
+  await network.connect("http://localhost:4000");
+  await network.join("tutorial");
+  await world.initialize();
+}
+
+start();
+```
+
+## Full Code So Far
 
 ```javascript title="main.js"
 import * as VOXELIZE from "@voxelize/core";
@@ -126,4 +131,10 @@ async function start() {
 start();
 ```
 
-See the full example at `examples/client/src/main.ts` in the Voxelize repository.
+Run the client:
+
+```bash
+npm run dev
+```
+
+You should see an empty sky with clouds. The world is initialized but we haven't told it what to render yet.

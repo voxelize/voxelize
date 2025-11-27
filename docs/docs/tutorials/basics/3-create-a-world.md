@@ -6,7 +6,31 @@ sidebar_position: 3
 
 A server can have multiple worlds. This tutorial creates one world called "tutorial".
 
-![](../assets/server-vs-client.png)
+```mermaid
+flowchart TB
+    subgraph Client["Client (Browser)"]
+        C[Join World]
+    end
+
+    subgraph Server["Voxelize Server"]
+        R["Registry
+        (shared blocks)"]
+
+        subgraph Worlds
+            W1[World 1]
+            W2[World 2]
+            W3[World 3]
+        end
+    end
+
+    C -->|"join 'tutorial'"| W2
+    R -.->|same blocks| W1
+    R -.->|same blocks| W2
+    R -.->|same blocks| W3
+
+    style W2 fill:#4a9eff,stroke:#2563eb,stroke-width:3px
+    style C fill:#10b981,stroke:#059669,stroke-width:2px
+```
 
 ## What is a World?
 
@@ -23,6 +47,7 @@ The world only generates chunks around players. As players move, new chunks gene
 ![](../assets/chunk-generation.png)
 
 Chunks have 2D coordinates (x, z). Voxels have 3D coordinates (x, y, z). With 16-block chunks:
+
 - Voxel `(1, 1, 1)` is in chunk `(0, 0)`
 - Voxel `(17, 1, 1)` is in chunk `(1, 0)`
 

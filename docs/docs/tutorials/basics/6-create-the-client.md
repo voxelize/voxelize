@@ -4,15 +4,28 @@ sidebar_position: 6
 
 # Create the Client
 
-![](../assets/server-vs-client.png)
-
 The client connects to the server, joins a world, and renders it with ThreeJS.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    participant World
+    
+    Client->>Server: connect("http://localhost:4000")
+    Server-->>Client: WebSocket opened
+    Client->>Server: join("tutorial")
+    Server->>World: Add client to world
+    World-->>Client: INIT (config, registry, chunks)
+    Client->>Client: initialize() + start rendering
+```
 
 ## Voxelize and ThreeJS
 
 Voxelize is built on ThreeJS. The `World` extends `Scene`, and controls move the `Camera`.
 
 Resources to learn ThreeJS:
+
 - [ThreeJS Journey](https://threejs-journey.com/)
 - [Official ThreeJS Docs](https://threejs.org/manual/#en/fundamentals)
 

@@ -33,11 +33,13 @@ specs = { version = "0.20.0", features = ["specs-derive", "serde"] }
 ## Running the Tutorial
 
 Start the server:
+
 ```bash
 npm run server
 ```
 
 In another terminal, start the client:
+
 ```bash
 npm run dev
 ```

@@ -55,6 +55,7 @@ async fn main() -> std::io::Result<()> {
 ```
 
 This creates layers from bottom-up:
+
 - 10 layers of stone
 - 2 layers of dirt
 - 1 layer of grass block
@@ -66,11 +67,33 @@ The curly braces around `pipeline_mut()` drop the pipeline reference automatical
 ## How Chunk Stages Work
 
 Each stage implements the `ChunkStage` trait. The `process` method receives:
+
 - `chunk` - The chunk to populate
 - `resources` - Access to registry and world config
 - `space` - Optional neighboring chunk data
 
 Stages run in parallel across multiple threads.
+
+```mermaid
+flowchart LR
+    subgraph Pipeline["Chunk Pipeline"]
+        E[Empty Chunk]
+        S1[FlatlandStage]
+        S2[BiomeStage]
+        S3[TreeStage]
+        S4[LightingStage]
+        D[Done]
+    end
+    
+    E --> S1 --> S2 --> S3 --> S4 --> D
+    
+    style E fill:#e5e7eb,stroke:#9ca3af
+    style D fill:#10b981,stroke:#059669,stroke-width:2px
+    style S1 fill:#fbbf24,stroke:#f59e0b
+    style S2 fill:#fbbf24,stroke:#f59e0b
+    style S3 fill:#fbbf24,stroke:#f59e0b
+    style S4 fill:#fbbf24,stroke:#f59e0b
+```
 
 ## Custom Stages
 

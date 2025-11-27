@@ -9,6 +9,7 @@ This tutorial builds a multiplayer voxel world from scratch. You'll follow along
 ## Prerequisites
 
 You need:
+
 - [Rust](https://www.rust-lang.org/tools/install) 1.7+
 - [Node.js](https://nodejs.org/) for the client
 - Basic [ThreeJS](https://threejs.org/) knowledge helps
@@ -22,6 +23,7 @@ npm install
 ```
 
 The repo structure:
+
 - `src/main.rs` - Rust server
 - `main.js` - Client code
 - `index.html` - Entry point

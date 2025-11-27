@@ -19,6 +19,7 @@ Build houses, cities, planets - anything you can imagine with blocks.
 Voxelize handles both client and server. Build games, creative tools, or VR experiences.
 
 Beyond voxels, you get:
+
 - Real-time multiplayer
 - Custom entities and AI
 - Event system for game logic

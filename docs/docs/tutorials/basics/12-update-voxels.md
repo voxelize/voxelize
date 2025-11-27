@@ -4,11 +4,27 @@ sidebar_position: 12
 
 # Update Voxels
 
-To modify voxels, we need to know which block the player is looking at. Voxelize uses a fast ray-voxel intersection algorithm based on [this paper](http://www.cse.yorku.ca/~amana/research/grid.pdf).
+Modify voxels by raycasting to find which block the player is looking at.
+
+```mermaid
+flowchart LR
+    C[Camera] -->|raycast| R[Ray]
+    R -->|intersects| T[Target Block]
+    R -.->|adjacent| P[Potential Position]
+    
+    T -->|left click| B[Break: set to 0]
+    P -->|right click| PL[Place: set to block type]
+    
+    style T fill:#ef4444,stroke:#dc2626,stroke-width:2px
+    style P fill:#10b981,stroke:#059669,stroke-width:2px,stroke-dasharray: 5 5
+    style C fill:#4a9eff,stroke:#2563eb
+```
+
+Voxelize uses a fast ray-voxel intersection algorithm based on [this paper](http://www.cse.yorku.ca/~amana/research/grid.pdf).
 
 ![](../assets/raycast.png)
 
-## Setting Up Voxel Interaction
+## Setup Voxel Interaction
 
 ```javascript title="main.js"
 const voxelInteract = new VOXELIZE.VoxelInteract(camera, world, {
@@ -16,19 +32,27 @@ const voxelInteract = new VOXELIZE.VoxelInteract(camera, world, {
 });
 
 world.add(voxelInteract);
-```
 
-Add the update call to your animation loop:
-
-```javascript title="main.js"
 function animate() {
+  requestAnimationFrame(animate);
+
   if (world.isInitialized) {
+    world.update(
+      camera.getWorldPosition(new THREE.Vector3()),
+      camera.getWorldDirection(new THREE.Vector3())
+    );
+
+    rigidControls.update();
     voxelInteract.update();
   }
+
+  renderer.render(world, camera);
 }
 ```
 
-Add a crosshair to your HTML:
+## Add a Crosshair
+
+Update `index.html`:
 
 ```html title="index.html"
 <div id="app">
@@ -36,6 +60,8 @@ Add a crosshair to your HTML:
   <div id="crosshair"></div>
 </div>
 ```
+
+Update `style.css`:
 
 ```css title="style.css"
 #crosshair {
@@ -52,9 +78,7 @@ Add a crosshair to your HTML:
 
 ![](../assets/voxel-interact.png)
 
-## Breaking Blocks
-
-Use `world.updateVoxel` to set a voxel to type 0 (air):
+## Break Blocks
 
 ```javascript title="main.js"
 inputs.click("left", () => {
@@ -65,9 +89,9 @@ inputs.click("left", () => {
 });
 ```
 
-## Placing Blocks
+Block type `0` is air - setting a voxel to 0 removes it.
 
-Use `voxelInteract.potential` for the position adjacent to the targeted face:
+## Place Blocks
 
 ```javascript title="main.js"
 let holdingBlockType = 1;
@@ -86,102 +110,14 @@ inputs.click("right", () => {
   world.updateVoxel(...voxel, holdingBlockType);
 });
 ```
+
+- `voxelInteract.target` - The block you're looking at
+- `voxelInteract.potential` - The adjacent block position (where a new block would be placed)
 
 ![](../assets/block-placements.png)
 
-Left click breaks, middle click picks the block type, right click places.
+Controls:
 
-## Full Implementation
-
-```javascript title="main.js"
-import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
-
-const canvas = document.getElementById("canvas");
-
-const world = new VOXELIZE.World({
-  textureUnitDimension: 16,
-});
-
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  3000
-);
-
-const renderer = new THREE.WebGLRenderer({
-  antialias: true,
-  powerPreference: "high-performance",
-  canvas,
-});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio || 1);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-const network = new VOXELIZE.Network();
-network.register(world);
-
-const inputs = new VOXELIZE.Inputs();
-
-const rigidControls = new VOXELIZE.RigidControls(
-  camera,
-  renderer.domElement,
-  world,
-  { initialPosition: [0, 40, 0] }
-);
-rigidControls.connect(inputs);
-
-const voxelInteract = new VOXELIZE.VoxelInteract(camera, world, {
-  highlightType: "outline",
-});
-world.add(voxelInteract);
-
-let holdingBlockType = 1;
-
-inputs.click("left", () => {
-  if (!voxelInteract.target) return;
-  const [x, y, z] = voxelInteract.target;
-  world.updateVoxel(x, y, z, 0);
-});
-
-inputs.click("middle", () => {
-  if (!voxelInteract.target) return;
-  const [x, y, z] = voxelInteract.target;
-  holdingBlockType = world.getVoxelAt(x, y, z);
-});
-
-inputs.click("right", () => {
-  if (!voxelInteract.potential) return;
-  const { voxel } = voxelInteract.potential;
-  world.updateVoxel(...voxel, holdingBlockType);
-});
-
-function animate() {
-  requestAnimationFrame(animate);
-
-  if (world.isInitialized) {
-    rigidControls.update();
-    voxelInteract.update();
-    world.update(
-      camera.getWorldPosition(new THREE.Vector3()),
-      camera.getWorldDirection(new THREE.Vector3())
-    );
-  }
-
-  renderer.render(world, camera);
-}
-
-async function start() {
-  animate();
-
-  await network.connect("http://localhost:4000");
-  await network.join("tutorial");
-
-  await world.initialize();
-}
-
-start();
-```
-
-For bulk voxel updates and radius-based operations, see `examples/client/src/main.ts`.
+- Left click: Break block
+- Middle click: Pick block type
+- Right click: Place block

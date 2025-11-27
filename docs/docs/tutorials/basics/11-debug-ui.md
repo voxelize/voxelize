@@ -2,63 +2,75 @@
 sidebar_position: 11
 ---
 
-# Debug Voxelize
+# Debug UI
 
-It is fairly easy to use the built-in voxelize debug UI. All you have to do is:
+Voxelize includes a built-in debug panel. For more control, use `lil-gui`.
+
+## Built-in Debug Panel
 
 ```javascript title="main.js"
-import '@voxelize/core/dist/styles.css'; // For any built-in UI in Voxelize
-
-// ...
+import "@voxelize/core/dist/styles.css";
 
 const debug = new VOXELIZE.Debug(document.body);
 
-debug.registerDisplay('Current time', world, 'time', (time) => time.toFixed(2));
+debug.registerDisplay("Current time", world, "time", (time) => time.toFixed(2));
 
-inputs.bind('j', debug.toggle)
-
-// ...
+inputs.bind("j", debug.toggle);
 
 function animate() {
-    // ...
+  requestAnimationFrame(animate);
 
-    if (world.isInitialized) {
-        // ...
+  if (world.isInitialized) {
+    world.update(
+      camera.getWorldPosition(new THREE.Vector3()),
+      camera.getWorldDirection(new THREE.Vector3())
+    );
 
-        debug.update();
-    }
+    rigidControls.update();
+    debug.update();
+  }
+
+  renderer.render(world, camera);
 }
-
-// ...
 ```
 
-I added a debugging element called "Current time", which reads the `time` property from the world every time `debug.update()` is called. The last argument passed in is the **formatter**, which formats the time to 2 decimal places.
+Press `J` to toggle the debug panel. It displays the current world time (and any other properties you register).
 
-Additional to the built-in debug element, I also recommend using the `lil-gui` library to quickly create interactive debugging elements:
+## Adding lil-gui
+
+Install it:
 
 ```bash
 npm install lil-gui
 ```
 
+Add a time slider:
+
 ```javascript title="main.js"
-import { GUI } from 'lil-gui';
+import { GUI } from "lil-gui";
 
 const gui = new GUI();
 gui.domElement.style.top = "10px";
 
 async function start() {
-    // ...
+  animate();
 
-    await world.initialize();
+  await network.connect("http://localhost:4000");
+  await network.join("tutorial");
+  await world.initialize();
 
-    gui
-        .add({ time: world.time }, 'time', 0, world.options.timePerDay, 0.01)
-        .onFinishChange((time) => {
-            world.time = time; // Calls the 'vox-builtin:set-time' method internally
-        });
+  gui
+    .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
+    .onFinishChange((time) => {
+      world.time = time;
+    });
+
+  // ... rest of initialization
 }
 ```
 
-You should see these two panels once everything is working. For the `world.time` setter, the world calls an internal method to the server `vox-builtin:set-time`. To learn more about methods, check out [the method tutorial](/wiki/networking/calling-methods).
+Setting `world.time` calls the built-in `vox-builtin:set-time` method on the server.
 
 ![](../assets/time-setter.png)
+
+For more on methods, see [Calling Methods](/wiki/networking/calling-methods).
