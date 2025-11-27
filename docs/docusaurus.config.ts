@@ -34,7 +34,7 @@ const config: Config = {
   onBrokenMarkdownLinks: "warn",
   favicon: "img/logo/circle-min.png",
   deploymentBranch: "gh-pages",
-  trailingSlash: false,
+  trailingSlash: true,
   markdown: {
     mermaid: true,
   },
