@@ -25,7 +25,7 @@ Create a new worker pool.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `Proto` | () => `SharedWorker` | `undefined` | The worker class to create. |
-| `options` | [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions-154) | `defaultOptions` | The options to create the worker pool. |
+| `options` | [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions-168) | `defaultOptions` | The options to create the worker pool. |
 
 #### Returns
 
@@ -59,7 +59,7 @@ ___
 
 ### options
 
-• **options**: [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions-154) = `defaultOptions`
+• **options**: [`SharedWorkerPoolOptions`](../modules.md#sharedworkerpooloptions-168) = `defaultOptions`
 
 The options to create the worker pool.
 
@@ -67,7 +67,7 @@ ___
 
 ### queue
 
-• **queue**: [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob-154)[] = `[]`
+• **queue**: [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob-168)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
 
@@ -107,7 +107,7 @@ Append a new job to be executed by a worker.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `job` | [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob-154) | The job to queue. |
+| `job` | [`SharedWorkerPoolJob`](../modules.md#sharedworkerpooljob-168) | The job to queue. |
 
 #### Returns
 

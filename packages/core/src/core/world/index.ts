@@ -4004,7 +4004,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
-    const processStartTime = performance.now();
+    const startTime = performance.now();
     const startSequenceId = this.deltaSequenceCounter;
 
     const { maxHeight, maxLightsUpdateTime } = this.options;
@@ -4012,9 +4012,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const processedUpdates: ProcessedUpdate[] = [];
     let processedCount = 0;
 
-    const voxelUpdateStartTime = performance.now();
     for (const update of updates) {
-      if (performance.now() - processStartTime > maxLightsUpdateTime) {
+      if (performance.now() - startTime > maxLightsUpdateTime) {
         if (Math.random() < 0.01) {
           console.warn(
             "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
@@ -4062,13 +4061,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       processedCount++;
     }
-    const voxelUpdateEndTime = performance.now();
-    console.log(
-      `Voxel updates (${processedCount}): ${(
-        voxelUpdateEndTime - voxelUpdateStartTime
-      ).toFixed(2)}ms`
-    );
-
     const lightOps = this.analyzeLightOperations(processedUpdates);
 
     if (this.options.useLightWorkers && lightOps.hasOperations) {
@@ -4088,13 +4080,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     } else if (lightOps.hasOperations) {
       this.executeLightOperationsSyncAll(lightOps);
     }
-
-    const processEndTime = performance.now();
-    console.log(
-      `Total processLightUpdates: ${(processEndTime - processStartTime).toFixed(
-        2
-      )}ms`
-    );
 
     return updates.slice(processedCount);
   };
@@ -4132,9 +4117,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (this.chunks.toUpdate.length > 0) {
           requestAnimationFrame(processUpdatesInIdleTime);
           return;
-        } else {
-          const end = performance.now();
-          console.log(end - start);
         }
       }
 
@@ -4345,8 +4327,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
-
-    console.log(`Executing light job ${jobId} for color ${color}`);
 
     this.lightWorkerPool.addJob({
       message: {
