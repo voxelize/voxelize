@@ -486,7 +486,8 @@ onmessage = function (e) {
           }
 
           if (
-            (nIsVoid && nBlock.isEmpty) ||
+            nIsVoid ||
+            nBlock.isEmpty ||
             (isSeeThrough &&
               !isOpaque &&
               !nBlock.isOpaque &&
