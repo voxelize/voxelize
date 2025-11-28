@@ -11,6 +11,6 @@ server/world/voxels/block.rs: +1490-1491[0],+1785[0],+1872-1875[0],+1876[1],+205
 
 Conversations:
 
-[0]: 4c0f58bb-b82c-41c3-add6-9e8fe5e0ecc9; Implementing ladders in physics engine; claude-4.5-opus-high;
-[1]: 76da367c-a117-4516-a42b-abce8c3737fd; Building glass pane with combination rules; claude-4.5-opus-high;
-[2]: 3cc37844-52ee-45e4-b133-e5f3e9acf883; Modify physics for water floating; claude-4.5-opus-high;
+[0]: 4c0f58bb-b82c-41c3-add6-9e8fe5e0ecc9; 4c0f58bb; unknown;
+[1]: 76da367c-a117-4516-a42b-abce8c3737fd; 76da367c; unknown;
+[2]: 3cc37844-52ee-45e4-b133-e5f3e9acf883; 3cc37844; unknown;
