@@ -6,5 +6,5 @@ packages/core/src/libs/voxel-interact.ts: +157-166[1],+168-172[1],+174-177[1],+1
 
 Conversations:
 
-[0]: 9c25feee-452d-4147-8fef-074bc05dcaf6; Remove mentions of Minecraft from voxelize; claude-4.5-opus-high;
-[1]: 0d73f1f2-4324-44a9-90c9-06b14ad159a2; Issues with rotation calculations in voxel-interact; claude-4.5-opus-high;
+[0]: 9c25feee-452d-4147-8fef-074bc05dcaf6; 9c25feee; unknown;
+[1]: 0d73f1f2-4324-44a9-90c9-06b14ad159a2; 0d73f1f2; unknown;
