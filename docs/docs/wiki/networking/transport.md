@@ -118,3 +118,6 @@ const transport = new Transport(5000); // Retry every 5 seconds
 | Server broadcasts to clients     | [Events](/wiki/networking/handling-events)  |
 
 See [TypeScript Transport Tutorial](/tutorials/intermediate/typescript-transport) for complete implementation examples including Discord bot integration and asset cleanup services.
+
+
+

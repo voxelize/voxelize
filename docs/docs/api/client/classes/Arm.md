@@ -22,7 +22,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`ArmOptions`](../modules.md#armoptions-168)\> |
+| `options` | `Partial`\<[`ArmOptions`](../modules.md#armoptions-232)\> |
 
 #### Returns
 
@@ -50,7 +50,7 @@ ___
 
 ### options
 
-• **options**: [`ArmOptions`](../modules.md#armoptions-168)
+• **options**: [`ArmOptions`](../modules.md#armoptions-232)
 
 ## Methods
 

@@ -264,3 +264,6 @@ impl<'a> System<'a> for DropPickupSystem {
 ```
 
 Read on to learn about the [metadata component](./metadata-component) for syncing entity data to clients.
+
+
+

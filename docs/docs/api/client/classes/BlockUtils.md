@@ -33,8 +33,8 @@ const number = VoxelUtils.insertID(0, 13);
 
 | Name | Type |
 | :------ | :------ |
-| `rule` | [`BlockRule`](../modules.md#blockrule-168) |
-| `voxel` | [`Coords3`](../modules.md#coords3-168) |
+| `rule` | [`BlockRule`](../modules.md#blockrule-232) |
+| `voxel` | [`Coords3`](../modules.md#coords3-232) |
 | `functions` | `Object` |
 | `functions.getVoxelAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
 | `functions.getVoxelRotationAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => [`BlockRotation`](BlockRotation.md) |
@@ -115,7 +115,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `voxel` | [`Coords3`](../modules.md#coords3-168) |
+| `voxel` | [`Coords3`](../modules.md#coords3-232) |
 
 #### Returns
 
@@ -131,7 +131,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-168) |
+| `block` | [`Block`](../modules.md#block-232) |
 | `rotation` | [`BlockRotation`](BlockRotation.md) |
 
 #### Returns
@@ -148,8 +148,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block-168) |
-| `color` | [`LightColor`](../modules.md#lightcolor-168) |
+| `block` | [`Block`](../modules.md#block-232) |
+| `color` | [`LightColor`](../modules.md#lightcolor-232) |
 
 #### Returns
 

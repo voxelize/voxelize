@@ -197,3 +197,6 @@ world.set_command_handle(|world, client_id, command| {
 | Use case         | State changes   | Visual effects, notifications |
 
 Read on to learn about [chat and colored text](./chat-and-colored-text).
+
+
+

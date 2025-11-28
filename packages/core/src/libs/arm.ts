@@ -204,21 +204,25 @@ export class Arm extends THREE.Group {
         this.setBlock(object);
       }
     } else {
-      // Store the pending object and type
       this.pendingArmObject = object;
       this.pendingCustomType = customType;
 
-      // Set initial animation state
       if (!this.isTransitioning) {
         this.isTransitioning = true;
         this.transitionStartTime = this.clock.elapsedTime;
-        this.transitionDirection = 0; // Start by moving down
+        this.transitionDirection = 0;
 
-        // Store the initial Y position to animate from
         if (this.children.length > 0) {
           this.currentArmObject = this.children[0] as THREE.Object3D;
           this.initialArmY = this.currentArmObject.position.y;
-          // Move down by 5 units (out of view)
+          this.targetArmY = this.initialArmY - 5;
+        }
+      } else if (this.transitionDirection === 1) {
+        this.transitionDirection = 0;
+        this.transitionStartTime = this.clock.elapsedTime;
+
+        if (this.currentArmObject) {
+          this.initialArmY = this.currentArmObject.position.y;
           this.targetArmY = this.initialArmY - 5;
         }
       }

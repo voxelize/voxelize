@@ -184,3 +184,6 @@ When sending:
 4. `packets` arrays are cleared
 
 Read on to learn about [collision detection](./collision-detection).
+
+
+

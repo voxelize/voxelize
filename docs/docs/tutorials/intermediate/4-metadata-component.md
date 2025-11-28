@@ -245,3 +245,6 @@ class NPC extends VOXELIZE.Entity<NPCData> {
 ```
 
 Read on to learn about [customizing the ECS dispatcher](./customizing-the-ecs).
+
+
+

@@ -49,6 +49,8 @@ import {
   RED_LIGHT,
   SUNLIGHT,
   ThreeUtils,
+  findSimilar,
+  formatSuggestion,
 } from "../../utils";
 
 import {
@@ -789,11 +791,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const block = this.getBlockOf(idOrName);
 
-    const blockFaces = this.getBlockFacesByFaceNames(block.id, faceNames);
-    if (!blockFaces) {
-      throw new Error(
-        `Face(s) "${faceNames}" does not exist on block "${block.name}"`
-      );
+    const blockFaces = this.getBlockFacesByFaceNames(block.id, faceNames, true);
+    if (!blockFaces || blockFaces.length === 0) {
+      return;
     }
 
     const now = new Date();
@@ -1212,13 +1212,40 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  getBlockFacesByFaceNames(id: number, faceNames: string | string[] | RegExp) {
+  getBlockFacesByFaceNames(
+    id: number,
+    faceNames: string | string[] | RegExp,
+    warnUnknown = false
+  ) {
     const block = this.getBlockOf(id);
+    const allFaces = this.getAllBlockFaces(block);
+
     // Check for '*' wildcard to return all faces
     if (faceNames === "*") {
-      return block.faces;
+      return allFaces;
     }
-    return block.faces.filter((face) => {
+
+    const allAvailableFaceNames = allFaces.map((f) => f.name);
+    const uniqueFaceNames = [...new Set(allAvailableFaceNames)];
+
+    const faceNameArray = Array.isArray(faceNames) ? faceNames : [faceNames];
+
+    if (warnUnknown) {
+      for (const fn of faceNameArray) {
+        if (fn instanceof RegExp) continue;
+        const regex = new RegExp(fn);
+        const hasMatch = uniqueFaceNames.some((name) => regex.test(name));
+        if (!hasMatch) {
+          const suggestions = findSimilar(fn, uniqueFaceNames);
+          const suggestionText = formatSuggestion(suggestions, uniqueFaceNames);
+          console.warn(
+            `[Voxelize] Face "${fn}" not found on block "${block.name}".${suggestionText}`
+          );
+        }
+      }
+    }
+
+    return allFaces.filter((face) => {
       if (typeof faceNames === "string" || faceNames instanceof RegExp) {
         return new RegExp(faceNames).test(face.name);
       } else if (Array.isArray(faceNames)) {
@@ -1226,6 +1253,26 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       return false;
     });
+  }
+
+  private getAllBlockFaces(block: Block): Block["faces"] {
+    const result = [...block.faces];
+    const existingNames = new Set(block.faces.map((f) => f.name));
+
+    if (block.dynamicPatterns) {
+      for (const pattern of block.dynamicPatterns) {
+        for (const part of pattern.parts) {
+          for (const face of part.faces) {
+            if (!existingNames.has(face.name)) {
+              result.push(face);
+              existingNames.add(face.name);
+            }
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   /**

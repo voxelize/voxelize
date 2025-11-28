@@ -545,15 +545,15 @@ impl DiagonalFacesBuilder {
             let mut name = "".to_owned();
             if !prefix.is_empty() {
                 name += &prefix;
-            }
-            if !concat.is_empty() {
-                name += &concat;
+                if !concat.is_empty() {
+                    name += &concat;
+                }
             }
             name += side;
-            if !concat.is_empty() {
-                name += &concat;
-            }
             if !suffix.is_empty() {
+                if !concat.is_empty() {
+                    name += &concat;
+                }
                 name += &suffix;
             }
             name
@@ -980,15 +980,15 @@ impl SixFacesBuilder {
             let mut name = "".to_owned();
             if !prefix.is_empty() {
                 name += &prefix;
-            }
-            if !concat.is_empty() {
-                name += &concat;
+                if !concat.is_empty() {
+                    name += &concat;
+                }
             }
             name += side;
-            if !concat.is_empty() {
-                name += &concat;
-            }
             if !suffix.is_empty() {
+                if !concat.is_empty() {
+                    name += &concat;
+                }
                 name += &suffix;
             }
             name
