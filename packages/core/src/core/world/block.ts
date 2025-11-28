@@ -99,6 +99,11 @@ export type Block = {
   isPassable: boolean;
 
   /**
+   * Whether or not can entities climb this block.
+   */
+  isClimbable: boolean;
+
+  /**
    * Whether or not is this block opaque (not transparent).
    */
   isOpaque: boolean;

@@ -35,6 +35,7 @@ export class Engine {
   constructor(
     private getVoxel: (vx: number, vy: number, vz: number) => AABB[],
     private testFluid: (vx: number, vy: number, vz: number) => boolean,
+    private getClimbableAABBs: (vx: number, vy: number, vz: number) => AABB[],
     public options: EngineOptions
   ) {}
 
@@ -111,16 +112,21 @@ export class Engine {
     // check if under water, if so apply buoyancy and drag forces
     this.applyFluidForces(body);
 
+    // check if on climbable block, if so reduce gravity
+    this.applyClimbableForces(body);
+
     // semi-implicit Euler integration
 
     // a = f/m + gravity*gravityMultiplier
+    // zero gravity when on climbable - controls handle vertical movement
+    const effectiveGravityMult = body.onClimbable ? 0 : body.gravityMultiplier;
     const a = [
       body.forces[0] / body.mass +
-        this.options.gravity[0] * body.gravityMultiplier,
+        this.options.gravity[0] * effectiveGravityMult,
       body.forces[1] / body.mass +
-        this.options.gravity[1] * body.gravityMultiplier,
+        this.options.gravity[1] * effectiveGravityMult,
       body.forces[2] / body.mass +
-        this.options.gravity[2] * body.gravityMultiplier,
+        this.options.gravity[2] * effectiveGravityMult,
     ];
 
     // dv = i/m + a*dt
@@ -403,35 +409,51 @@ export class Engine {
   };
 
   applyFluidForces = (body: RigidBody) => {
-    // First pass at handling fluids. Assumes fluids are settled
-    //   thus, only check at corner of body, and only from bottom up
     const box = body.aabb;
     const cx = Math.floor(box.minX);
     const cz = Math.floor(box.minZ);
     const y0 = Math.floor(box.minY);
     const y1 = Math.floor(box.maxY);
 
-    if (!this.testFluid(cx, y0, cz)) {
+    const feetInFluid = this.testFluid(cx, y0, cz);
+    const headInFluid = this.testFluid(cx, y1, cz);
+
+    if (!feetInFluid && !headInFluid) {
       body.inFluid = false;
       body.ratioInFluid = 0;
       return;
     }
 
-    // body is in a fluid - find out how much of body is submerged
-    let submerged = 1;
-    let cy = y0 + 1;
-    while (cy <= y1 && this.testFluid(cx, cy, cz)) {
-      submerged++;
-      cy++;
+    let ratioInFluid: number;
+
+    if (feetInFluid) {
+      let submerged = 1;
+      let cy = y0 + 1;
+      while (cy <= y1 && this.testFluid(cx, cy, cz)) {
+        submerged++;
+        cy++;
+      }
+      const fluidLevel = y0 + submerged;
+      const heightInFluid = fluidLevel - box.minY;
+      ratioInFluid = heightInFluid / (box.maxY - box.minY);
+      if (ratioInFluid > 1) ratioInFluid = 1;
+    } else {
+      let submergedFromTop = 1;
+      let cy = y1 - 1;
+      while (cy >= y0 && this.testFluid(cx, cy, cz)) {
+        submergedFromTop++;
+        cy--;
+      }
+      const fluidBottom = y1 - submergedFromTop + 1;
+      const heightInFluid = box.maxY - fluidBottom;
+      ratioInFluid = heightInFluid / (box.maxY - box.minY);
+      if (ratioInFluid > 1) ratioInFluid = 1;
+      if (ratioInFluid < 0) ratioInFluid = 0;
     }
-    const fluidLevel = y0 + submerged;
-    const heightInFluid = fluidLevel - box.minY;
-    let ratioInFluid = heightInFluid / (box.maxY - box.minY);
-    if (ratioInFluid > 1) ratioInFluid = 1;
+
     const vol =
       (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
     const displaced = vol * ratioInFluid;
-    // bouyant force = -gravity * fluidDensity * volumeDisplaced
     const scale = -this.options.fluidDensity * displaced;
     const f = [
       this.options.gravity[0] * scale,
@@ -442,6 +464,48 @@ export class Engine {
 
     body.inFluid = true;
     body.ratioInFluid = ratioInFluid;
+  };
+
+  applyClimbableForces = (body: RigidBody) => {
+    const box = body.aabb;
+    const minVx = Math.floor(box.minX);
+    const maxVx = Math.floor(box.maxX);
+    const minVy = Math.floor(box.minY);
+    const maxVy = Math.floor(box.maxY);
+    const minVz = Math.floor(box.minZ);
+    const maxVz = Math.floor(box.maxZ);
+
+    let intersectsClimbable = false;
+
+    for (let vx = minVx; vx <= maxVx && !intersectsClimbable; vx++) {
+      for (let vy = minVy; vy <= maxVy && !intersectsClimbable; vy++) {
+        for (let vz = minVz; vz <= maxVz && !intersectsClimbable; vz++) {
+          const climbableAABBs = this.getClimbableAABBs(vx, vy, vz);
+          for (const climbableAABB of climbableAABBs) {
+            if (box.intersects(climbableAABB)) {
+              intersectsClimbable = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    body.onClimbable = intersectsClimbable;
+
+    let hasClimbableAtFeet = false;
+    if (intersectsClimbable) {
+      const feetY = Math.floor(box.minY + 0.1);
+      for (let vx = minVx; vx <= maxVx && !hasClimbableAtFeet; vx++) {
+        for (let vz = minVz; vz <= maxVz && !hasClimbableAtFeet; vz++) {
+          const climbableAABBs = this.getClimbableAABBs(vx, feetY, vz);
+          if (climbableAABBs.length > 0) {
+            hasClimbableAtFeet = true;
+          }
+        }
+      }
+    }
+    body.climbableAbove = hasClimbableAtFeet;
   };
 
   applyFrictionByAxis = (axis: number, body: RigidBody, dvel: number[]) => {

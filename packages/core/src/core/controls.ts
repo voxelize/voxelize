@@ -1107,6 +1107,36 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     } = this.options;
 
     if (this.body.gravityMultiplier) {
+      // ladder climbing - Minecraft-style controls
+      if (this.body.onClimbable) {
+        const climbSpeed = 4.5;
+        const slowDescentSpeed = 2.0;
+        const ladderDamping = 0.8;
+        const verticalSmoothing = 0.25;
+
+        const pressingIntoLadder =
+          this.body.resting[0] !== 0 || this.body.resting[2] !== 0;
+
+        let targetVelocityY: number;
+        if (this.state.jumping) {
+          targetVelocityY = climbSpeed;
+        } else if (pressingIntoLadder && this.body.climbableAbove) {
+          targetVelocityY = climbSpeed;
+        } else if (this.state.crouching || pressingIntoLadder) {
+          targetVelocityY = 0;
+        } else {
+          targetVelocityY = -slowDescentSpeed;
+        }
+
+        this.body.velocity[1] +=
+          (targetVelocityY - this.body.velocity[1]) * verticalSmoothing;
+
+        if (!this.state.running) {
+          this.body.velocity[0] *= ladderDamping;
+          this.body.velocity[2] *= ladderDamping;
+        }
+      }
+
       // jumping
       const onGround = this.body.atRestY < 0;
       const canjump = onGround || this.state.jumpCount < airJumps;
@@ -1115,8 +1145,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         this.state.jumpCount = 0;
       }
 
-      // process jump input
-      if (this.state.jumping) {
+      // process jump input (skip if on climbable - handled above)
+      if (this.state.jumping && !this.body.onClimbable) {
         if (this.state.isJumping) {
           // continue previous jump
           if (this.state.currentJumpTime > 0) {
@@ -1138,7 +1168,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           // apply impulse to swim
           this.body.applyImpulse([0, fluidPushForce, 0]);
         }
-      } else {
+      } else if (!this.body.onClimbable) {
         this.state.isJumping = false;
       }
 

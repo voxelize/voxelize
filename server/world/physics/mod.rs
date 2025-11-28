@@ -202,13 +202,22 @@ impl Physics {
         // Check if under water, if so apply buoyancy and drag forces
         Physics::apply_fluid_forces(space, registry, config, body);
 
+        // Check if on climbable block
+        Physics::apply_climbable_forces(space, registry, body);
+
         // semi-implicit Euler integration
 
         // a = f/m + gravity * gravity_multiplier
+        // zero gravity when on climbable - controls handle vertical movement
+        let effective_gravity_mult = if body.on_climbable {
+            0.0
+        } else {
+            body.gravity_multiplier
+        };
         let a = body
             .forces
             .scale(1.0 / body.mass)
-            .scale_and_add(&Vec3::from(&config.gravity), body.gravity_multiplier);
+            .scale_and_add(&Vec3::from(&config.gravity), effective_gravity_mult);
 
         // dv = i/m + a*dt
         // v1 = v0 + dv
@@ -396,6 +405,43 @@ impl Physics {
             config.gravity[1] * scalar,
             config.gravity[2] * scalar,
         );
+    }
+
+    fn apply_climbable_forces(space: &dyn VoxelAccess, registry: &Registry, body: &mut RigidBody) {
+        let aabb = &body.aabb;
+        let min_vx = aabb.min_x.floor() as i32;
+        let max_vx = aabb.max_x.floor() as i32;
+        let min_vy = aabb.min_y.floor() as i32;
+        let max_vy = aabb.max_y.floor() as i32;
+        let min_vz = aabb.min_z.floor() as i32;
+        let max_vz = aabb.max_z.floor() as i32;
+
+        let mut intersects_climbable = false;
+
+        'outer: for vx in min_vx..=max_vx {
+            for vy in min_vy..=max_vy {
+                for vz in min_vz..=max_vz {
+                    let id = space.get_voxel(vx, vy, vz);
+                    let block = registry.get_block_by_id(id);
+
+                    if !block.is_climbable {
+                        continue;
+                    }
+
+                    let rotation: BlockRotation = space.get_voxel_rotation(vx, vy, vz);
+                    for block_aabb in &block.aabbs {
+                        let mut rotated = rotation.rotate_aabb(block_aabb, true, false);
+                        rotated.translate(vx as f32, vy as f32, vz as f32);
+                        if aabb.intersects(&rotated) {
+                            intersects_climbable = true;
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+        }
+
+        body.on_climbable = intersects_climbable;
     }
 
     fn apply_friction_by_axis(axis: usize, body: &mut RigidBody, dvel: &Vec3<f32>) {

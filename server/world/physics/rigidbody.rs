@@ -23,6 +23,9 @@ pub struct RigidBody {
     /// Ratio of body this body is in fluid.
     pub ratio_in_fluid: f32,
 
+    /// Whether or not this body is on a climbable block.
+    pub on_climbable: bool,
+
     /// Velocity vector of the rigid body.
     pub velocity: Vec3<f32>,
 
@@ -209,6 +212,7 @@ impl RigidBodyBuilder {
             velocity: Vec3::default(),
             in_fluid: false,
             ratio_in_fluid: 0.0,
+            on_climbable: false,
             forces: Vec3::default(),
             impulses: Vec3::default(),
             sleep_frame_count: 10 | 0,

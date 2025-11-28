@@ -10,6 +10,8 @@ class RigidBody {
   public velocity = [0, 0, 0];
   public inFluid = false;
   public ratioInFluid = 0;
+  public onClimbable = false;
+  public climbableAbove = false;
   public forces = [0, 0, 0];
   public impulses = [0, 0, 0];
   public sleepFrameCount = 10 | 0;

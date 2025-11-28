@@ -1487,6 +1487,9 @@ pub struct Block {
     /// Can this block be passed through?
     pub is_passable: bool,
 
+    /// Can entities climb this block?
+    pub is_climbable: bool,
+
     /// Is the block opaque?
     pub is_opaque: bool,
 
@@ -1779,6 +1782,7 @@ pub struct BlockBuilder {
     is_empty: bool,
     is_fluid: bool,
     is_passable: bool,
+    is_climbable: bool,
     red_light_level: u32,
     green_light_level: u32,
     blue_light_level: u32,
@@ -1862,6 +1866,12 @@ impl BlockBuilder {
     /// Configure whether or not this block can be passed through. Default is false.
     pub fn is_passable(mut self, is_plant: bool) -> Self {
         self.is_passable = is_plant;
+        self
+    }
+
+    /// Configure whether or not this block can be climbed. Default is false.
+    pub fn is_climbable(mut self, is_climbable: bool) -> Self {
+        self.is_climbable = is_climbable;
         self
     }
 
@@ -2040,6 +2050,7 @@ impl BlockBuilder {
                 || self.green_light_level > 0
                 || self.blue_light_level > 0,
             is_passable: self.is_passable,
+            is_climbable: self.is_climbable,
             is_opaque: !self.is_px_transparent
                 && !self.is_py_transparent
                 && !self.is_pz_transparent
