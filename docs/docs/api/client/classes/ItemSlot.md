@@ -288,7 +288,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective) |
+| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective-4) |
 
 #### Returns
 
