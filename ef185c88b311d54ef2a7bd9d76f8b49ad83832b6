@@ -7,10 +7,11 @@ packages/physics-engine/src/index.ts: +38[0],+115-116[0],+121-122[0],+125[0],+12
 packages/physics-engine/src/rigid-body.ts: +13-14[0]
 server/world/physics/mod.rs: +205-206[0],+211-216[0],+220[0],+410-417[0],+419[0],+421-425[0],+427-429[0],+431-442[0],+444-445[0] -211[0]
 server/world/physics/rigidbody.rs: +26-27[0],+215[0]
-server/world/voxels/block.rs: +1490-1491[0],+1785[0],+1872-1875[0],+1876[1],+2053[0]
+server/world/voxels/block.rs: +1490-1491[0],+1785[0],+1872-1875[0],+1876[3],+2053[0]
 
 Conversations:
 
 [0]: 4c0f58bb-b82c-41c3-add6-9e8fe5e0ecc9; 4c0f58bb; unknown;
-[1]: 76da367c-a117-4516-a42b-abce8c3737fd; 76da367c; unknown;
+[1]: f42d7633-229d-47b5-b373-c07efb09385e; Issues with glass pane meshing; claude-4.5-opus-high;
 [2]: 3cc37844-52ee-45e4-b133-e5f3e9acf883; 3cc37844; unknown;
+[3]: 76da367c-a117-4516-a42b-abce8c3737fd; 76da367c; unknown;
