@@ -1107,7 +1107,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     } = this.options;
 
     if (this.body.gravityMultiplier) {
-      // ladder climbing - Minecraft-style controls
+      // ladder climbing
       if (this.body.onClimbable) {
         const climbSpeed = 4.5;
         const slowDescentSpeed = 2.0;

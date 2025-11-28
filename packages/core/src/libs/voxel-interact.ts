@@ -153,12 +153,52 @@ export class VoxelInteract extends Group {
     yRotation: number;
     yRotation8: number;
     yRotation4: number;
+
+    /**
+     * Additional placement hints derived from the raycast hit point and player position.
+     * Useful for blocks like slabs (top/bottom) and signs (facing player).
+     */
+    placement: {
+      /**
+       * Whether the hit point is in the top or bottom half of the target voxel space.
+       * Useful for determining slab placement (top slab vs bottom slab).
+       */
+      verticalHalf: "top" | "bottom";
+
+      /**
+       * The rotation value that would make the block face toward the player.
+       * Useful for signs, paintings, and other wall-mounted blocks.
+       */
+      facingPlayerRotation: number;
+
+      /**
+       * The Y-rotation value (16 segments) that would make the block face toward the player.
+       */
+      facingPlayerYRotation: number;
+
+      /**
+       * The Y-rotation value (8 segments) that would make the block face toward the player.
+       */
+      facingPlayerYRotation8: number;
+
+      /**
+       * The Y-rotation value (4 segments) that would make the block face toward the player.
+       */
+      facingPlayerYRotation4: number;
+    };
   } | null = {
     voxel: [0, 0, 0],
     rotation: PY_ROTATION,
     yRotation: 0,
     yRotation4: 0,
     yRotation8: 0,
+    placement: {
+      verticalHalf: "bottom",
+      facingPlayerRotation: PZ_ROTATION,
+      facingPlayerYRotation: 0,
+      facingPlayerYRotation8: 0,
+      facingPlayerYRotation4: 0,
+    },
   };
 
   /**
@@ -288,7 +328,7 @@ export class VoxelInteract extends Group {
       return;
     }
 
-    const { voxel, normal } = result;
+    const { voxel, normal, point } = result;
 
     const [nx, ny, nz] = normal;
     const newTarget = ChunkUtils.mapWorldToVoxel(<Coords3>voxel);
@@ -449,12 +489,90 @@ export class VoxelInteract extends Group {
     const eightYRotation = calculateYRotation(8);
     const fourYRotation = calculateYRotation(4);
 
+    const verticalHalf: "top" | "bottom" =
+      ((point[1] % 1) + 1) % 1 >= 0.5 ? "top" : "bottom";
+
+    const calculateFacingPlayerRotation = (): {
+      rotation: number;
+      yRotation: number;
+      yRotation8: number;
+      yRotation4: number;
+    } => {
+      const [px, py, pz] = [objPos.x, objPos.y, objPos.z];
+      const [tx, ty, tz] = [
+        targetVoxel[0] + 0.5,
+        targetVoxel[1] + 0.5,
+        targetVoxel[2] + 0.5,
+      ];
+
+      const dx = px - tx;
+      const dy = py - ty;
+      const dz = pz - tz;
+
+      const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+      const verticalAngle = Math.atan2(Math.abs(dy), horizontalDist);
+
+      let facingRotation: number;
+      if (verticalAngle > Math.PI / 4) {
+        facingRotation = dy > 0 ? PY_ROTATION : NY_ROTATION;
+      } else {
+        const absX = Math.abs(dx);
+        const absZ = Math.abs(dz);
+
+        if (absX > absZ) {
+          facingRotation = dx > 0 ? PX_ROTATION : NX_ROTATION;
+        } else {
+          facingRotation = dz > 0 ? PZ_ROTATION : NZ_ROTATION;
+        }
+      }
+
+      const angle = Math.atan2(dx, dz);
+      const normalized = MathUtils.normalizeAngle(angle);
+
+      const findClosestYRotation = (segmentCount: 4 | 8 | 16): number => {
+        const rotMap =
+          segmentCount === 4
+            ? Y_ROT_MAP_FOUR
+            : segmentCount === 8
+            ? Y_ROT_MAP_EIGHT
+            : Y_ROT_MAP;
+
+        let min = Infinity;
+        let closest = 0;
+
+        rotMap.forEach(([a, yRot]) => {
+          if (Math.abs(normalized - a) < min) {
+            min = Math.abs(normalized - a);
+            closest = yRot;
+          }
+        });
+
+        return closest;
+      };
+
+      return {
+        rotation: facingRotation,
+        yRotation: findClosestYRotation(16),
+        yRotation8: findClosestYRotation(8),
+        yRotation4: findClosestYRotation(4),
+      };
+    };
+
+    const facingPlayer = calculateFacingPlayerRotation();
+
     this.potential = {
       voxel: targetVoxel,
       rotation: rotation,
       yRotation,
       yRotation4: fourYRotation,
       yRotation8: eightYRotation,
+      placement: {
+        verticalHalf,
+        facingPlayerRotation: facingPlayer.rotation,
+        facingPlayerYRotation: facingPlayer.yRotation,
+        facingPlayerYRotation8: facingPlayer.yRotation8,
+        facingPlayerYRotation4: facingPlayer.yRotation4,
+      },
     };
 
     if (this.potential) {

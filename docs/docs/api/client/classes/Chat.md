@@ -112,8 +112,8 @@ Add a command to the chat system. Commands are case sensitive.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `trigger` | `string` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor-124) | The process run when this command is triggered. |
-| `options` | [`CommandOptions`](../modules.md#commandoptions-124) | Optional configuration for the command (description, category, aliases). |
+| `process` | [`CommandProcessor`](../modules.md#commandprocessor-154) | The process run when this command is triggered. |
+| `options` | [`CommandOptions`](../modules.md#commandoptions-154) | Optional configuration for the command (description, category, aliases). |
 
 #### Returns
 
@@ -188,7 +188,7 @@ Set a fallback command to be executed when no matching command is found.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `fallback` | [`CommandProcessor`](../modules.md#commandprocessor-124) | The fallback command processor. |
+| `fallback` | [`CommandProcessor`](../modules.md#commandprocessor-154) | The fallback command processor. |
 
 #### Returns
 

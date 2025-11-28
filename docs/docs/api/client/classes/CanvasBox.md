@@ -42,7 +42,7 @@ Create a new canvas box.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`CanvasBoxOptions`](../modules.md#canvasboxoptions-124)\> | The options for creating a canvas box. |
+| `options` | `Partial`\<[`CanvasBoxOptions`](../modules.md#canvasboxoptions-154)\> | The options for creating a canvas box. |
 
 #### Returns
 
@@ -80,7 +80,7 @@ ___
 
 ### options
 
-• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions-124)
+• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions-154)
 
 Parameters for creating a canvas box.
 
@@ -116,8 +116,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-124) \| [`BoxSides`](../modules.md#boxsides-124)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-124) | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides-154) \| [`BoxSides`](../modules.md#boxsides-154)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-154) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
