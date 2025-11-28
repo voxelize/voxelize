@@ -2867,6 +2867,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           const type = BlockUtils.extractID(voxel);
           const rotation = BlockUtils.extractRotation(voxel);
+          const [rotationValue, yRotationValue] =
+            BlockRotation.decode(rotation);
           const stage = BlockUtils.extractStage(voxel);
           const localRotation = this.getVoxelRotationAt(vx, vy, vz);
           const localStage = this.getVoxelStageAt(vx, vy, vz);
@@ -2878,8 +2880,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             localStage !== stage
           ) {
             this.updateVoxel(vx, vy, vz, type, {
-              rotation: rotation.value,
-              yRotation: rotation.yRotation,
+              rotation: rotationValue,
+              yRotation: yRotationValue,
               stage,
               source: "server",
             });
