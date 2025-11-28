@@ -4,7 +4,7 @@ packages/core/src/core/world/index.ts: +52-53[0],+794-796[0],+1215-1219[0],+1221
 packages/core/src/libs/arm.ts: +213[2],+218-222[2],+224-225[2] -207[2],-211[2],-215[2],-217[2],-221[2]
 packages/core/src/utils/index.ts: +7[3]
 packages/core/src/utils/string-utils.ts: +1-3[3],+5-11[3],+13-15[3],+17-19[3],+21-28[3],+30[3],+32-33[3],+35-40[3],+42-44[3],+46-51[3],+53-55[3],+57-60[3]
-server/world/voxels/block.rs: +548-550[0],+554-556[0],+983-985[0],+989-991[0] -548-550[0],-553-555[0],-983-985[0],-988-990[0]
+server/world/voxels/block.rs: +548-550[0],+554-556[0],+983-985[0],+989-991[0] -548[4],-549-550[0],-553-554[0],-555[4],-983[4],-984-985[0],-988-989[0],-990[4]
 
 Conversations:
 
@@ -12,3 +12,4 @@ Conversations:
 [1]: 92d03989-4631-4201-8aa2-c11c7eaed06e; Investigate texture issues in project files; claude-4.5-opus-high;
 [2]: 85c936c7-6b9f-46d4-9ebf-673d9813e9fa; 85c936c7; unknown;
 [3]: afc10fd0-491b-481c-b287-e3f02b8433fa; afc10fd0; unknown;
+[4]: b9922333-aebd-4c5a-aefe-43aff8e03ece; Discrepancy in mesh rotation handling; claude-4.5-opus-high;
