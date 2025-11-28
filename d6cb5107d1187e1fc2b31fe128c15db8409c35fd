@@ -1,0 +1,10 @@
+AI Notes:
+
+docs/docs/api/protocol/none: +41[0] -41[0]
+packages/core/src/core/controls.ts: +1110[0] -1110[0]
+packages/core/src/libs/voxel-interact.ts: +157-166[1],+168-172[1],+174-177[1],+179-182[1],+184-188[1],+195-201[1],+331[1],+492-493[1],+495-506[1],+508-510[1],+512-513[1],+515-520[1],+522-527[1],+529-530[1],+532-538[1],+540-541[1],+543-548[1],+550-551[1],+553-559[1],+561[1],+569-575[1] -291[1]
+
+Conversations:
+
+[0]: 9c25feee-452d-4147-8fef-074bc05dcaf6; Remove mentions of Minecraft from voxelize; claude-4.5-opus-high;
+[1]: 0d73f1f2-4324-44a9-90c9-06b14ad159a2; Issues with rotation calculations in voxel-interact; claude-4.5-opus-high;
