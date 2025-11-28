@@ -5,6 +5,7 @@ export * from "./arrow";
 export * from "./canvas-box";
 export * from "./character";
 export * from "./color-text";
+export * from "./creature";
 export * from "./cull";
 export * from "./debug";
 export * from "./effects";
