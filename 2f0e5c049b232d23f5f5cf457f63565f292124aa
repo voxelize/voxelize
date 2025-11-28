@@ -1,7 +1,8 @@
 AI Notes:
 
-packages/core/src/core/world/index.ts: +4007[0],+4016[0] -4007[0],-4015[0],-4017[0],-4065-4070[0],-4092-4097[0],-4135-4137[0],-4349[0]
+packages/core/src/core/world/index.ts: +4007[0],+4016[0] -4007[0],-4015[0],-4017[0],-4065-4069[0],-4070[1],-4092-4096[0],-4097[1],-4135-4137[0],-4349[0]
 
 Conversations:
 
 [0]: 4129632b-9b1e-4377-926c-79c363344514; Remove logs request; claude-4.5-opus-high;
+[1]: 76da367c-a117-4516-a42b-abce8c3737fd; Building glass pane with combination rules; claude-4.5-opus-high;
