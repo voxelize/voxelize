@@ -5,5 +5,5 @@ packages/core/src/libs/index.ts: +8[0]
 
 Conversations:
 
-[0]: 71cc685e-78a1-4cb8-9f7b-8e7f0cfe2d29; Add turtle entity with four legs; claude-4.5-opus-high;
-[1]: 41fc3c9a-921d-4c34-aa18-8c818b11331b; Leg placement and animation issues; claude-4.5-opus-high;
+[0]: 71cc685e-78a1-4cb8-9f7b-8e7f0cfe2d29; 71cc685e; unknown;
+[1]: 41fc3c9a-921d-4c34-aa18-8c818b11331b; 41fc3c9a; unknown;
