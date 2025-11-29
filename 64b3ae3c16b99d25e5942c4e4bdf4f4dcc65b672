@@ -7,6 +7,6 @@ server/world/generators/mesher.rs: +500[1],+519-533[1] -518-520[1],-522-524[1]
 
 Conversations:
 
-[0]: f42d7633-229d-47b5-b373-c07efb09385e; Issues with glass pane meshing; claude-4.5-opus-high;
-[1]: 7bb1ae05-b748-4e1b-a422-89d7fdace8fb; Improve lighting for partial blocks; claude-4.5-opus-high;
-[2]: 2d8c33e8-6771-43fc-8a55-ff528ab16eaf; Bug with slab placement in Editing.tsx; claude-4.5-opus-high;
+[0]: f42d7633-229d-47b5-b373-c07efb09385e; f42d7633; unknown;
+[1]: 7bb1ae05-b748-4e1b-a422-89d7fdace8fb; 7bb1ae05; unknown;
+[2]: 2d8c33e8-6771-43fc-8a55-ff528ab16eaf; 2d8c33e8; unknown;
