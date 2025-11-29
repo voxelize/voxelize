@@ -5,5 +5,5 @@ server/world/voxels/block.rs: +123-124[1] -123-131[1]
 
 Conversations:
 
-[0]: 74b01580-edbd-4241-b363-93bd146260da; Identify discrepancies in mesh-worker and mesher; claude-4.5-opus-high;
-[1]: b9922333-aebd-4c5a-aefe-43aff8e03ece; Discrepancy in mesh rotation handling; claude-4.5-opus-high;
+[0]: 74b01580-edbd-4241-b363-93bd146260da; 74b01580; unknown;
+[1]: b9922333-aebd-4c5a-aefe-43aff8e03ece; b9922333; unknown;
