@@ -4,4 +4,4 @@ packages/core/src/core/world/index.ts: +2870-2871[0],+2883-2884[0] -2881-2882[0]
 
 Conversations:
 
-[0]: a42cbd8f-9a3c-4d83-b7e2-a27447f69f27; Move function affects block rotation; claude-4.5-opus-high;
+[0]: a42cbd8f-9a3c-4d83-b7e2-a27447f69f27; a42cbd8f; unknown;
