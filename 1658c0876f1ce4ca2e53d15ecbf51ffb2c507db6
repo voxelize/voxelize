@@ -1,0 +1,9 @@
+AI Notes:
+
+packages/core/src/core/world/index.ts: +2023[0],+2026-2027[0],+2029-2031[0],+2038-2039[0],+2043-2045[0],+2048[0],+3666[0]
+server/world/voxels/block.rs: +1414[1],+1417[1],+1435[1],+1438[1],+1440[1],+1442[1],+1444[1],+1446-1448[1],+1450[1],+1452[1] -1414[1],-1434[1]
+
+Conversations:
+
+[0]: f42d7633-229d-47b5-b373-c07efb09385e; Issues with glass pane meshing; claude-4.5-opus-high;
+[1]: d718b962-f943-41e6-ae38-1fcb0203a0ec; Implement doors with block stages; claude-4.5-opus-high;
