@@ -9,8 +9,8 @@ server/world/voxels/block.rs: +548-550[0],+554-556[0],+983-985[0],+989-991[0] -5
 Conversations:
 
 [0]: 76da367c-a117-4516-a42b-abce8c3737fd; 76da367c; unknown;
-[1]: 92d03989-4631-4201-8aa2-c11c7eaed06e; Investigate texture issues in project files; claude-4.5-opus-high;
-[2]: f42d7633-229d-47b5-b373-c07efb09385e; Issues with glass pane meshing; claude-4.5-opus-high;
+[1]: 92d03989-4631-4201-8aa2-c11c7eaed06e; 92d03989; unknown;
+[2]: f42d7633-229d-47b5-b373-c07efb09385e; f42d7633; unknown;
 [3]: 85c936c7-6b9f-46d4-9ebf-673d9813e9fa; 85c936c7; unknown;
 [4]: afc10fd0-491b-481c-b287-e3f02b8433fa; afc10fd0; unknown;
-[5]: b9922333-aebd-4c5a-aefe-43aff8e03ece; Discrepancy in mesh rotation handling; claude-4.5-opus-high;
+[5]: b9922333-aebd-4c5a-aefe-43aff8e03ece; b9922333; unknown;
