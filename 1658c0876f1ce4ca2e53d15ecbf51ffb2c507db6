@@ -5,5 +5,5 @@ server/world/voxels/block.rs: +1414[1],+1417[1],+1435[1],+1438[1],+1440[1],+1442
 
 Conversations:
 
-[0]: f42d7633-229d-47b5-b373-c07efb09385e; Issues with glass pane meshing; claude-4.5-opus-high;
-[1]: d718b962-f943-41e6-ae38-1fcb0203a0ec; Implement doors with block stages; claude-4.5-opus-high;
+[0]: f42d7633-229d-47b5-b373-c07efb09385e; f42d7633; unknown;
+[1]: d718b962-f943-41e6-ae38-1fcb0203a0ec; d718b962; unknown;
