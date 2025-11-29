@@ -1411,9 +1411,10 @@ pub struct BlockSimpleRule {
     pub stage: Option<u32>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum BlockRule {
+    #[default]
     None,
     Simple(BlockSimpleRule),
     Combination {
@@ -1431,15 +1432,24 @@ pub enum BlockRuleLogic {
     // Extend with other logic types as needed
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BlockConditionalPart {
+    #[serde(default)]
     pub rule: BlockRule,
+    #[serde(default)]
     pub faces: Vec<BlockFace>,
+    #[serde(default)]
     pub aabbs: Vec<AABB>,
+    #[serde(default)]
     pub is_transparent: [bool; 6],
+    #[serde(default)]
+    pub is_passable: Option<bool>,
+    #[serde(default)]
     pub red_light_level: Option<u32>,
+    #[serde(default)]
     pub green_light_level: Option<u32>,
+    #[serde(default)]
     pub blue_light_level: Option<u32>,
 }
 

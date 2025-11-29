@@ -28,6 +28,7 @@ export interface BlockConditionalPart {
   faces: Block["faces"];
   aabbs: Block["aabbs"];
   isTransparent: Block["isTransparent"];
+  isPassable?: boolean;
   redLightLevel?: number;
   greenLightLevel?: number;
   blueLightLevel?: number;

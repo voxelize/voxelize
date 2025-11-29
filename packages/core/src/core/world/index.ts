@@ -2016,6 +2016,37 @@ export class World<T = any> extends Scene implements NetIntercept {
     return [];
   };
 
+  getBlockPassableForDynamicPatterns = (
+    vx: number,
+    vy: number,
+    vz: number,
+    dynamicPatterns: BlockDynamicPattern[],
+    defaultPassable: boolean
+  ): boolean => {
+    for (const dynamicPattern of dynamicPatterns) {
+      for (const part of dynamicPattern.parts) {
+        const patternsMatched = BlockUtils.evaluateBlockRule(
+          part.rule,
+          [vx, vy, vz],
+          {
+            getVoxelAt: (vx: number, vy: number, vz: number) =>
+              this.getVoxelAt(vx, vy, vz),
+            getVoxelRotationAt: (vx: number, vy: number, vz: number) =>
+              this.getVoxelRotationAt(vx, vy, vz),
+            getVoxelStageAt: (vx: number, vy: number, vz: number) =>
+              this.getVoxelStageAt(vx, vy, vz),
+          }
+        );
+
+        if (patternsMatched && part.isPassable !== undefined) {
+          return part.isPassable;
+        }
+      }
+    }
+
+    return defaultPassable;
+  };
+
   getBlockFacesForDynamicPatterns = (
     blockId: number,
     dynamicPatterns: BlockDynamicPattern[]
@@ -3625,9 +3656,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { aabbs, isPassable, isFluid, dynamicPatterns } =
           this.getBlockById(id);
 
-        if (isPassable || isFluid) return [];
-
         if (dynamicPatterns && dynamicPatterns.length > 0) {
+          const passable = this.getBlockPassableForDynamicPatterns(
+            vx,
+            vy,
+            vz,
+            dynamicPatterns,
+            isPassable
+          );
+          if (passable || isFluid) return [];
+
           return this.getBlockAABBsForDynamicPatterns(
             vx,
             vy,
@@ -3635,6 +3673,8 @@ export class World<T = any> extends Scene implements NetIntercept {
             dynamicPatterns
           ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
         }
+
+        if (isPassable || isFluid) return [];
 
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
