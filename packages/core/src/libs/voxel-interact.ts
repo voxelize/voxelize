@@ -490,7 +490,13 @@ export class VoxelInteract extends Group {
     const fourYRotation = calculateYRotation(4);
 
     const verticalHalf: "top" | "bottom" =
-      ((point[1] % 1) + 1) % 1 >= 0.5 ? "top" : "bottom";
+      ny === 1
+        ? "bottom"
+        : ny === -1
+        ? "top"
+        : ((point[1] % 1) + 1) % 1 >= 0.5
+        ? "top"
+        : "bottom";
 
     const calculateFacingPlayerRotation = (): {
       rotation: number;

@@ -126,9 +126,9 @@ onmessage = function (e) {
     for (let x = 0; x <= 1; x++) {
       for (let y = 0; y <= 1; y++) {
         for (let z = 0; z <= 1; z++) {
-          const offsetX = x * (dx === 0 ? -1 : 1);
-          const offsetY = y * (dy === 0 ? -1 : 1);
-          const offsetZ = z * (dz === 0 ? -1 : 1);
+          const offsetX = x * dx;
+          const offsetY = y * dy;
+          const offsetZ = z * dz;
 
           const localSunlight = getSunlightAt(
             vx + offsetX,
@@ -504,6 +504,8 @@ onmessage = function (e) {
             const faceAOs: number[] = [];
             const fourLights: number[][] = [[], [], [], []];
 
+            const blockAabb = AABB.union(aabbs);
+
             for (const { pos: cornerPos, uv } of corners) {
               const pos = [...cornerPos] as Coords3;
 
@@ -527,13 +529,9 @@ onmessage = function (e) {
                 uv[1] * (endV - startV) + startV
               );
 
-              const dx = Math.round(pos[0]);
-              const dy = Math.round(pos[1]);
-              const dz = Math.round(pos[2]);
-
-              const unitDx = dx === 0 ? -1 : 1;
-              const unitDy = dy === 0 ? -1 : 1;
-              const unitDz = dz === 0 ? -1 : 1;
+              const unitDx = pos[0] <= blockAabb.minX + 0.01 ? -1 : 1;
+              const unitDy = pos[1] <= blockAabb.minY + 0.01 ? -1 : 1;
+              const unitDz = pos[2] <= blockAabb.minZ + 0.01 ? -1 : 1;
 
               const b011Id = getVoxelAt(vx + 0, vy + unitDy, vz + unitDz);
               const b101Id = getVoxelAt(vx + unitDx, vy + 0, vz + unitDz);
@@ -558,9 +556,9 @@ onmessage = function (e) {
                 vx,
                 vy,
                 vz,
-                dx,
-                dy,
-                dz,
+                unitDx,
+                unitDy,
+                unitDz,
                 dir,
                 isSeeThrough,
                 isAllTransparent

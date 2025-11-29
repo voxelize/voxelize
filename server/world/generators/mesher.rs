@@ -497,6 +497,7 @@ impl Mesher {
             let mut four_blue_lights = Vec::with_capacity(4);
 
             let neighbors = Neighbors::populate(Vec3(vx, vy, vz), space);
+            let block_aabb = AABB::union(&block.aabbs);
 
             for CornerData { mut pos, uv } in corners.iter() {
                 if rotatable || y_rotatable {
@@ -515,13 +516,21 @@ impl Mesher {
                 uvs.push(uv[0] * (end_u - start_u) + start_u);
                 uvs.push(uv[1] * (end_v - start_v) + start_v);
 
-                let dx = pos[0].round() as i32;
-                let dy = pos[1].round() as i32;
-                let dz = pos[2].round() as i32;
-
-                let dx = if dx == 0 { -1 } else { 1 };
-                let dy = if dy == 0 { -1 } else { 1 };
-                let dz = if dz == 0 { -1 } else { 1 };
+                let dx = if pos[0] <= block_aabb.min_x + 0.01 {
+                    -1
+                } else {
+                    1
+                };
+                let dy = if pos[1] <= block_aabb.min_y + 0.01 {
+                    -1
+                } else {
+                    1
+                };
+                let dz = if pos[2] <= block_aabb.min_z + 0.01 {
+                    -1
+                } else {
+                    1
+                };
 
                 let mut sum_sunlights = Vec::with_capacity(8);
                 let mut sum_red_lights = Vec::with_capacity(8);

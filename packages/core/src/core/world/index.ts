@@ -2016,6 +2016,48 @@ export class World<T = any> extends Scene implements NetIntercept {
     return [];
   };
 
+  getBlockFacesForDynamicPatterns = (
+    blockId: number,
+    dynamicPatterns: BlockDynamicPattern[]
+  ): Block["faces"] => {
+    const vx = 0,
+      vy = 0,
+      vz = 0;
+
+    const simulatedGetVoxelAt = () => blockId;
+
+    const simulatedGetVoxelRotationAt = () => new BlockRotation();
+    const simulatedGetVoxelStageAt = () => 0;
+
+    for (const dynamicPattern of dynamicPatterns) {
+      const faces: Block["faces"] = [];
+      let patternsMatched = false;
+
+      for (const part of dynamicPattern.parts) {
+        const partMatched = BlockUtils.evaluateBlockRule(
+          part.rule,
+          [vx, vy, vz],
+          {
+            getVoxelAt: simulatedGetVoxelAt,
+            getVoxelRotationAt: simulatedGetVoxelRotationAt,
+            getVoxelStageAt: simulatedGetVoxelStageAt,
+          }
+        );
+
+        if (partMatched) {
+          patternsMatched = true;
+          faces.push(...part.faces);
+        }
+      }
+
+      if (patternsMatched && faces.length > 0) {
+        return faces;
+      }
+    }
+
+    return [];
+  };
+
   /**
    * This sends a block update to the server and updates across the network. Block updates are queued to
    * {@link World.chunks | World.chunks.toUpdate} and scaffolded to the server {@link WorldClientOptions | WorldClientOptions.maxUpdatesPerUpdate} times
@@ -2477,7 +2519,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     };
 
-    const { faces, isSeeThrough } = block;
+    let { faces } = block;
+    const { isSeeThrough, dynamicPatterns } = block;
+
+    if (dynamicPatterns && dynamicPatterns.length > 0) {
+      faces = this.getBlockFacesForDynamicPatterns(block.id, dynamicPatterns);
+    }
 
     const geometries = new Map<
       string,
