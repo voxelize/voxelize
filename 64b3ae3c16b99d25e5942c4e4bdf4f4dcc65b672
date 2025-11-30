@@ -8,6 +8,6 @@ server/world/generators/mesher.rs: +500[2],+519-533[2] -518-520[2],-522-524[2]
 Conversations:
 
 [0]: f42d7633-229d-47b5-b373-c07efb09385e; f42d7633; unknown;
-[1]: 85bf4777-3505-4578-aed8-c2d7e55a52c8; Use block mesh for debug visuals; claude-4.5-opus-high;
+[1]: 85bf4777-3505-4578-aed8-c2d7e55a52c8; 85bf4777; unknown;
 [2]: 7bb1ae05-b748-4e1b-a422-89d7fdace8fb; 7bb1ae05; unknown;
 [3]: 2d8c33e8-6771-43fc-8a55-ff528ab16eaf; 2d8c33e8; unknown;
