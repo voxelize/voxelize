@@ -9,3 +9,8 @@ pub struct EntityFlag;
 #[derive(Default, Component)]
 #[storage(NullStorage)]
 pub struct ClientFlag;
+
+/// A flag to prevent an entity from being persisted to disk.
+#[derive(Default, Component)]
+#[storage(NullStorage)]
+pub struct DoNotPersistComp;

@@ -2524,6 +2524,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param options.material The type of material to use for this generated mesh.
    * @param options.separateFaces: Whether or not to separate the faces of the block into different meshes.
    * @param options.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
+   * @param options.centered: Whether or not to center the geometry vertices around origin (default: false).
    * @returns A 3D mesh (group) of the block model.
    */
   makeBlockMesh = (
@@ -2532,6 +2533,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       separateFaces: boolean;
       crumbs: boolean;
       material: "basic" | "standard";
+      centered: boolean;
     }> = {}
   ) => {
     this.checkIsInitialized("make block mesh", false);
@@ -2543,10 +2545,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     const block = this.getBlockOf(idOrName);
     if (!block) return null;
 
-    const { separateFaces, crumbs, material } = {
+    const { separateFaces, crumbs, material, centered } = {
       separateFaces: false,
       crumbs: false,
       material: "basic",
+      centered: false,
       ...options,
     };
 
@@ -2624,7 +2627,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       corners.forEach(({ uv, pos }) => {
-        positions.push(...pos.map((p) => p * faceScale));
+        const offset = centered ? 0.5 : 0;
+        positions.push(...pos.map((p) => p * faceScale - offset));
         uvs.push(
           uv[0] * (endU - startU) + startU,
           uv[1] * (endV - startV) + startV
@@ -2654,9 +2658,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     group.name = block.name;
 
-    group.position.x -= 0.5;
-    group.position.y -= 0.5;
-    group.position.z -= 0.5;
+    if (!centered) {
+      group.position.x -= 0.5;
+      group.position.y -= 0.5;
+      group.position.z -= 0.5;
+    }
 
     return group;
   };

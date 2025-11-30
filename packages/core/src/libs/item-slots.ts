@@ -145,6 +145,7 @@ export class ItemSlot<T = number> {
 
     if (ThreeUtils.isObject3D(object)) {
       this.object = object;
+      this.setPerspective(this.itemSlots.options.perspective);
       this.scene.add(object);
     } else {
       const geometry = new PlaneGeometry(2, 2);

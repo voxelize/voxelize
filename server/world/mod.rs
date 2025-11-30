@@ -445,6 +445,7 @@ impl World {
         ecs.register::<RigidBodyComp>();
         ecs.register::<TargetComp>();
         ecs.register::<VoxelComp>();
+        ecs.register::<DoNotPersistComp>();
 
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());

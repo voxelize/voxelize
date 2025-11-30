@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig};
+use crate::{DoNotPersistComp, ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig};
 
 pub struct DataSavingSystem;
 
@@ -13,6 +13,7 @@ impl<'a> System<'a> for DataSavingSystem {
         ReadExpect<'a, EntitiesSaver>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
+        ReadStorage<'a, DoNotPersistComp>,
         WriteStorage<'a, MetadataComp>,
     );
 
@@ -20,7 +21,7 @@ impl<'a> System<'a> for DataSavingSystem {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, config, entities_saver, ids, etypes, mut metadatas) = data;
+        let (stats, config, entities_saver, ids, etypes, do_not_persist, mut metadatas) = data;
 
         if !config.saving {
             return;
@@ -30,13 +31,12 @@ impl<'a> System<'a> for DataSavingSystem {
             return;
         }
 
-        // Only save entities if save_entities is true
         if config.save_entities {
             let entities_saver = Arc::new(entities_saver);
 
-            (&ids, &etypes, &mut metadatas)
+            (&ids, &etypes, !&do_not_persist, &mut metadatas)
                 .par_join()
-                .for_each(|(id, etype, metadata)| {
+                .for_each(|(id, etype, _, metadata)| {
                     entities_saver.save(&id.0, &etype.0, etype.1, &metadata);
                 });
         }

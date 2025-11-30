@@ -24,7 +24,7 @@ pub use collisions::*;
 pub use current_chunk::CurrentChunkComp;
 pub use direction::DirectionComp;
 pub use etype::ETypeComp;
-pub use flags::*;
+pub use flags::{ClientFlag, DoNotPersistComp, EntityFlag};
 pub use id::IDComp;
 pub use interactor::InteractorComp;
 pub use json::*;
