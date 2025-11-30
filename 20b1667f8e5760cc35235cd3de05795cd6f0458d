@@ -1,0 +1,14 @@
+AI Notes:
+
+packages/core/src/core/world/index.ts: +2527[0],+2536[0],+2548[0],+2552[0],+2630-2631[0],+2661-2665[0] -2546[0],-2627[0],-2657-2659[0]
+packages/core/src/libs/item-slots.ts: +148[1]
+server/world/components/flags.rs: +13-16[2]
+server/world/components/mod.rs: +27[2] -27[2]
+server/world/mod.rs: +448[2]
+server/world/systems/saving.rs: +5[2],+16[2],+24[2],+37[2],+39[2] -5[2],-23[2],-33[2],-37[2],-39[2]
+
+Conversations:
+
+[0]: 85bf4777-3505-4578-aed8-c2d7e55a52c8; Use block mesh for debug visuals; claude-4.5-opus-high;
+[1]: 0e5df82d-0439-4330-a84e-62592b10cb31; Sword disappears after server restart; claude-4.5-opus-high;
+[2]: 700f2073-b32b-4699-8339-adb990e20ca8; Pathfinding bot persistence after restart; claude-4.5-opus-high;
