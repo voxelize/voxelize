@@ -1,11 +1,10 @@
 use hashbrown::{HashMap, HashSet};
-use log::{info, trace};
 use specs::{Entities, Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    Bookkeeping, ClientFilter, ETypeComp, EntitiesSaver, EntityFlag, EntityOperation,
+    Bookkeeping, ClientFilter, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs, EntityOperation,
     EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType, MetadataComp,
-    Physics, Stats,
+    Physics,
 };
 
 pub struct EntitiesSendingSystem;
@@ -17,6 +16,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, Bookkeeping>,
         WriteExpect<'a, Physics>,
+        WriteExpect<'a, EntityIDs>,
         ReadStorage<'a, EntityFlag>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
@@ -31,6 +31,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             mut queue,
             mut bookkeeping,
             mut physics,
+            mut entity_ids,
             flags,
             ids,
             etypes,
@@ -69,35 +70,34 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let old_entity_handlers = physics.entity_to_handlers.clone();
 
-        old_entities
-            .iter()
-            .for_each(|(id, (etype, ent, metadata))| {
-                let mut found = false;
+        for (id, (etype, ent, metadata)) in old_entities.iter() {
+            let mut found = false;
 
-                for (new_id, _) in &updated_entities {
-                    if new_id == id {
-                        found = true;
-                        break;
-                    }
+            for (new_id, _) in &updated_entities {
+                if new_id == id {
+                    found = true;
+                    break;
                 }
+            }
 
-                if found {
-                    return;
-                }
+            if found {
+                continue;
+            }
 
-                entities_saver.remove(id);
+            entities_saver.remove(id);
+            entity_ids.remove(id);
 
-                if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
-                    physics.unregister(body_handle, collider_handle);
-                }
+            if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
+                physics.unregister(body_handle, collider_handle);
+            }
 
-                entity_updates.push(EntityProtocol {
-                    operation: EntityOperation::Delete,
-                    id: id.to_owned(),
-                    r#type: etype.to_owned(),
-                    metadata: Some(metadata.to_string()),
-                });
+            entity_updates.push(EntityProtocol {
+                operation: EntityOperation::Delete,
+                id: id.to_owned(),
+                r#type: etype.to_owned(),
+                metadata: Some(metadata.to_string()),
             });
+        }
 
         physics.entity_to_handlers = new_entity_handlers;
 
