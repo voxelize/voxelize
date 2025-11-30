@@ -1,0 +1,9 @@
+AI Notes:
+
+packages/physics-engine/src/index.ts: +540-552[0] -539-540[0]
+server/world/physics/mod.rs: +481-493[0] -481-482[0]
+server/world/systems/path/walk_towards.rs: +166-168[0],+170-172[0],+174[0],+176-183[0]
+
+Conversations:
+
+[0]: 8c81cd4a-bbed-4524-8dcf-2f2cb86e91f8; Fix bot pathfinding and jumping issues; claude-4.5-opus-high;
