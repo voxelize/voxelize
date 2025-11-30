@@ -163,6 +163,25 @@ impl<'a> System<'a> for WalkTowardsSystem {
                         }
                     }
 
+                    if i > 0 && i < nodes.len() {
+                        let prev_node = &nodes[i - 1];
+                        let curr_node = &nodes[i];
+
+                        let dy = curr_node.1 - prev_node.1;
+                        let dx = (curr_node.0 - prev_node.0).abs();
+                        let dz = (curr_node.2 - prev_node.2).abs();
+
+                        let is_jump_up = dy > 0 && (dx > 0 || dz > 0);
+
+                        if is_jump_up && vpos.1 < curr_node.1 {
+                            smooth_target = Vec3(
+                                curr_node.0 as f32 + offset,
+                                curr_node.1 as f32,
+                                curr_node.2 as f32 + offset,
+                            );
+                        }
+                    }
+
                     brain.walk();
                     brain.operate(&smooth_target, &mut body.0, delta);
                 } else {

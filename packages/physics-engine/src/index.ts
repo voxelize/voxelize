@@ -536,8 +536,20 @@ export class Engine {
 
     // decrease lateral vel by dvMax (or clamp to zero)
     const scalar = vCurr > dvMax ? (vCurr - dvMax) / vCurr : 0;
-    body.velocity[(axis + 1) % 3] *= scalar;
-    body.velocity[(axis + 2) % 3] *= scalar;
+
+    // For horizontal wall collisions (X or Z axis), only apply friction to horizontal movement
+    // Don't reduce Y velocity when sliding against walls - this allows proper jumping
+    if (axis === 0) {
+      // X collision: only reduce Z velocity, not Y
+      body.velocity[2] *= scalar;
+    } else if (axis === 2) {
+      // Z collision: only reduce X velocity, not Y
+      body.velocity[0] *= scalar;
+    } else {
+      // Y collision (floor/ceiling): reduce both X and Z
+      body.velocity[0] *= scalar;
+      body.velocity[2] *= scalar;
+    }
   };
 
   processCollisions = (
