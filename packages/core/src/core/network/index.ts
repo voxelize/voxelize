@@ -3,11 +3,15 @@ import DOMUrl from "domurl";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { SharedWorkerPool } from "../../libs/shared-worker-pool";
+import { WorkerPool } from "../../libs/worker-pool";
 
 import { NetIntercept } from "./intercept";
-import DecodeWorker from "./workers/decode-worker.ts?sharedworker&inline";
+import DecodeWorker from "./workers/decode-worker-fallback.ts?worker&inline";
+import DecodeSharedWorker from "./workers/decode-worker.ts?sharedworker&inline";
 
 export * from "./intercept";
+
+const supportsSharedWorker = typeof SharedWorker !== "undefined";
 
 const { Message } = protocol;
 
@@ -164,9 +168,13 @@ export class Network {
   /**
    * The worker pool for decoding network packets.
    */
-  private pool = new SharedWorkerPool(DecodeWorker, {
-    maxWorker: window.navigator.hardwareConcurrency || 4,
-  });
+  private pool: SharedWorkerPool | WorkerPool = supportsSharedWorker
+    ? new SharedWorkerPool(DecodeSharedWorker, {
+        maxWorker: window.navigator.hardwareConcurrency || 4,
+      })
+    : new WorkerPool(DecodeWorker, {
+        maxWorker: window.navigator.hardwareConcurrency || 4,
+      });
 
   /**
    * To keep track of the reconnection.

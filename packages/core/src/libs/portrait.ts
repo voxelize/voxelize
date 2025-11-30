@@ -77,13 +77,17 @@ const defaultOptions: PortraitOptions = {
  * ```
  */
 export class Portrait {
-  /**
-   * The shared THREE.js webgl renderer. This is shared because there is a limit to
-   * how many webgl contexts can be created.
-   */
-  public static renderer: WebGLRenderer = new WebGLRenderer({
-    antialias: false,
-  });
+  private static _renderer: WebGLRenderer | null = null;
+
+  public static get renderer(): WebGLRenderer {
+    if (!Portrait._renderer) {
+      Portrait._renderer = new WebGLRenderer({
+        antialias: false,
+        failIfMajorPerformanceCaveat: false,
+      });
+    }
+    return Portrait._renderer;
+  }
 
   /**
    * Parameters to create this portrait with.
