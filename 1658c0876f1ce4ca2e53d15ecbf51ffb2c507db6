@@ -6,5 +6,5 @@ server/world/voxels/block.rs: +1414[2],+1417[2],+1435[2],+1438[2],+1440[2],+1442
 Conversations:
 
 [0]: f42d7633-229d-47b5-b373-c07efb09385e; f42d7633; unknown;
-[1]: 85bf4777-3505-4578-aed8-c2d7e55a52c8; Use block mesh for debug visuals; claude-4.5-opus-high;
+[1]: 85bf4777-3505-4578-aed8-c2d7e55a52c8; 85bf4777; unknown;
 [2]: d718b962-f943-41e6-ae38-1fcb0203a0ec; d718b962; unknown;
