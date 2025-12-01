@@ -6,4 +6,4 @@ packages/core/src/libs/portrait.ts: +80[0],+82-90[0] -80-86[0]
 
 Conversations:
 
-[0]: 30e50499-3aca-410f-9469-a1c3572bfc72; WebGL issues on Android devices; claude-4.5-opus-high;
+[0]: 30e50499-3aca-410f-9469-a1c3572bfc72; 30e50499; unknown;
