@@ -370,7 +370,7 @@ const defaultOptions: WorldClientOptions = {
   timeForceThreshold: 0.1,
   statsSyncInterval: 500,
   useLightWorkers: true,
-  maxLightWorkers: 2,
+  maxLightWorkers: 4,
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
 };
@@ -2244,8 +2244,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       return rotation;
     };
 
-    while (queue.length) {
-      const node = queue.shift();
+    let head = 0;
+    while (head < queue.length) {
+      const node = queue[head++];
       const { voxel, level } = node;
 
       if (level === 0) {
@@ -2348,9 +2349,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     let iterationCount = 0;
     const startTime = performance.now();
 
-    while (queue.length) {
+    let head = 0;
+    while (head < queue.length) {
       iterationCount++;
-      const node = queue.shift();
+      const node = queue[head++];
       const { voxel, level } = node;
 
       const [vx, vy, vz] = voxel;
@@ -2462,8 +2464,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     });
 
-    while (queue.length) {
-      const { voxel, level } = queue.shift();
+    let head = 0;
+    while (head < queue.length) {
+      const { voxel, level } = queue[head++];
       const [vx, vy, vz] = voxel;
 
       for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
@@ -4228,8 +4231,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.isTrackingChunks = true;
 
-    const start = performance.now();
-
     const processUpdatesInIdleTime = () => {
       if (this.chunks.toUpdate.length > 0) {
         const updates = this.chunks.toUpdate.splice(
@@ -4397,7 +4398,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private processNextLightJob() {
     if (this.lightJobQueue.length === 0) return;
-    if (this.lightWorkerPool.isBusy) return;
+    if (this.lightWorkerPool.workingCount > 0) return;
 
     const job = this.lightJobQueue.shift();
     if (!job) return;
@@ -4486,54 +4487,19 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private handleLightJobResult(job: LightJob, result: LightWorkerResult) {
-    const { jobId } = job;
-    const { modifiedChunks, appliedDeltas } = result;
+    const { modifiedChunks } = result;
 
-    let hasNewDeltas = false;
-    for (const { coords } of modifiedChunks) {
-      const chunkName = ChunkUtils.getChunkName(coords);
-      const allDeltas = this.voxelDeltas.get(chunkName) || [];
-      const latestDelta = allDeltas[allDeltas.length - 1];
-
-      if (
-        latestDelta &&
-        latestDelta.sequenceId > appliedDeltas.lastSequenceId
-      ) {
-        hasNewDeltas = true;
-        break;
+    modifiedChunks.forEach(({ coords, lights }) => {
+      const chunk = this.getChunkByCoords(coords[0], coords[1]);
+      if (chunk) {
+        chunk.lights.data = lights;
+        chunk.isDirty = true;
       }
-    }
+    });
 
-    if (hasNewDeltas && job.retryCount < this.options.lightJobRetryLimit) {
-      console.log(
-        `Job ${jobId} stale, re-queuing (retry ${job.retryCount + 1}/${
-          this.options.lightJobRetryLimit
-        })`
-      );
-      job.retryCount++;
-      job.startSequenceId = this.deltaSequenceCounter;
-      this.lightJobQueue.unshift(job);
-
-      this.processNextLightJob();
-      return;
-    }
-
-    if (hasNewDeltas) {
-      console.warn(`Job ${jobId} exceeded retry limit, executing sync`);
-      this.executeLightOperationsSync(job.lightOps, job.color);
-    } else {
-      modifiedChunks.forEach(({ coords, lights }) => {
-        const chunk = this.getChunkByCoords(coords[0], coords[1]);
-        if (chunk) {
-          chunk.lights.data = lights;
-          chunk.isDirty = true;
-        }
-      });
-
-      modifiedChunks.forEach(({ coords }) => {
-        this.markChunkForRemesh(coords);
-      });
-    }
+    modifiedChunks.forEach(({ coords }) => {
+      this.markChunkForRemesh(coords);
+    });
 
     this.processNextLightJob();
 
