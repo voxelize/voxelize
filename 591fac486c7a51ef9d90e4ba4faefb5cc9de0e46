@@ -1,0 +1,11 @@
+AI Notes:
+
+packages/core/src/core/network/workers/decode-worker.ts: +37-39
+packages/core/src/core/world/index.ts: +3003 -3003-3009
+packages/core/src/libs/shared-worker-pool.ts: +116[0]
+packages/core/src/libs/worker-pool.ts: +120[1] -120[1]
+
+Conversations:
+
+[0]: d219ce14-34bb-4c59-85dc-1d9aa4b15e3c; Tab Request d219ce14; unknown;
+[1]: 3c3ce846-67db-41eb-b2ef-158c8e47efb3; Tab Request 3c3ce846; unknown;
