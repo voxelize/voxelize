@@ -52,35 +52,23 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         }
 
         let mut updated_entities = vec![];
+        let mut updated_ids: HashSet<&String> = HashSet::new();
 
         for (id, ent, _) in (&ids, &entities, &flags).join() {
+            updated_ids.insert(&id.0);
             updated_entities.push((id.0.to_owned(), ent));
         }
 
-        let old_entities = bookkeeping
-            .entities
-            .to_owned()
-            .drain()
-            .map(|(id, ent)| (id, ent))
-            .collect::<Vec<_>>();
+        let old_entities = std::mem::take(&mut bookkeeping.entities);
+        let old_ids: HashSet<&String> = old_entities.keys().collect();
 
-        // Differentiating the entities to see which entities are freshly created.
         let mut entity_updates = Vec::with_capacity(updated_entities.len());
-        let mut new_entity_ids = HashSet::new();
+        let mut new_entity_ids: HashSet<String> = HashSet::new();
 
-        let old_entity_handlers = physics.entity_to_handlers.clone();
+        let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
         for (id, (etype, ent, metadata)) in old_entities.iter() {
-            let mut found = false;
-
-            for (new_id, _) in &updated_entities {
-                if new_id == id {
-                    found = true;
-                    break;
-                }
-            }
-
-            if found {
+            if updated_ids.contains(id) {
                 continue;
             }
 
@@ -101,23 +89,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         physics.entity_to_handlers = new_entity_handlers;
 
-        updated_entities
-            .iter()
-            .filter(|(id, _)| {
-                let mut found = false;
-
-                for (old_id, _) in &old_entities {
-                    if old_id == id {
-                        found = true;
-                        break;
-                    }
-                }
-
-                !found
-            })
-            .for_each(|(id, _)| {
+        for (id, _) in &updated_entities {
+            if !old_ids.contains(id) {
                 new_entity_ids.insert(id.to_owned());
-            });
+            }
+        }
 
         let mut new_bookkeeping_records = HashMap::new();
 

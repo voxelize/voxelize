@@ -369,21 +369,36 @@ export class Network {
   };
 
   sync = () => {
-    if (!this.connected || !this.packetQueue.length || this.pool.isBusy) {
+    if (!this.connected || !this.packetQueue.length) {
       return;
     }
 
-    this.decode(
-      this.packetQueue
-        .splice(
-          0,
-          Math.min(this.options.maxPacketsPerTick, this.packetQueue.length)
-        )
-        .map((buffer) => new Uint8Array(buffer))
-    ).then(async (messages) => {
-      messages.forEach((message) => {
-        this.onMessage(message);
-      });
+    const backlogFactor = Math.min(4, Math.ceil(this.packetQueue.length / 50));
+    const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
+
+    const packets = this.packetQueue
+      .splice(0, Math.min(packetsToProcess, this.packetQueue.length))
+      .map((buffer) => new Uint8Array(buffer));
+
+    const availableWorkers = Math.max(1, this.pool.availableCount);
+    const perWorker = Math.ceil(packets.length / availableWorkers);
+
+    const batches: Uint8Array[][] = [];
+    for (let i = 0; i < packets.length; i += perWorker) {
+      batches.push(packets.slice(i, i + perWorker));
+    }
+
+    Promise.all(
+      batches.map((batch, idx) =>
+        this.decode(batch).then((msgs) => ({ idx, msgs }))
+      )
+    ).then((results) => {
+      results.sort((a, b) => a.idx - b.idx);
+      for (const { msgs } of results) {
+        for (const message of msgs) {
+          this.onMessage(message);
+        }
+      }
     });
   };
 

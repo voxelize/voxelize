@@ -138,4 +138,11 @@ export class WorkerPool {
   get workingCount() {
     return this.workers.length - this.available.length;
   }
+
+  /**
+   * The number of workers that are available to take jobs.
+   */
+  get availableCount() {
+    return this.available.length;
+  }
 }
