@@ -3000,13 +3000,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [vx, vy, vz] = [Math.floor(px), Math.floor(py), Math.floor(pz)];
       const voxelId = ChunkUtils.getVoxelName([vx, vy, vz]);
 
-      let data: T | null;
-      try {
-        data = JSON.parse(metadata.json);
-      } catch (error) {
-        console.error("Error parsing block entity JSON:", error);
-        data = null;
-      }
+      const data: T | null = metadata.json ?? null;
 
       const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
       this.blockEntityUpdateListeners.forEach((listener) => {

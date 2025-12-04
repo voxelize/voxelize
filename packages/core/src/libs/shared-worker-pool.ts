@@ -113,7 +113,7 @@ export class SharedWorkerPool {
         this.available.push(index);
         resolve(data);
         if (this.queue.length !== 0 && this.available.length > 0) {
-          setTimeout(this.process, 0);
+          queueMicrotask(this.process);
         }
       };
 

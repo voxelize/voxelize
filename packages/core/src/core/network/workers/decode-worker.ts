@@ -34,6 +34,9 @@ onconnect = (e) => {
         message.entities.forEach((entity) => {
           if (entity.metadata) {
             entity.metadata = JSON.parse(entity.metadata);
+            if (entity.metadata.json) {
+              entity.metadata.json = JSON.parse(entity.metadata.json);
+            }
           }
 
           entity.operation = Entity.Operation[entity.operation];

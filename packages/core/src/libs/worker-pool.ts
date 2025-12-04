@@ -117,7 +117,7 @@ export class WorkerPool {
         this.available.unshift(index);
         resolve(data);
         if (this.queue.length > 0) {
-          setTimeout(this.process, 0);
+          queueMicrotask(this.process);
         }
       };
 
