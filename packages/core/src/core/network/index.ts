@@ -279,6 +279,7 @@ export class Network {
         }
       };
       ws.onopen = () => {
+        console.log("[NETWORK] WebSocket opened");
         this.connected = true;
         this.onConnect?.();
 
@@ -286,11 +287,22 @@ export class Network {
 
         resolve(this);
       };
-      ws.onerror = console.error;
+      ws.onerror = (err) => {
+        console.error("[NETWORK] WebSocket error:", err);
+      };
       ws.onmessage = ({ data }) => {
+        if (!this.joined && this.packetQueue.length === 0) {
+          console.log("[NETWORK] First packet received while joining");
+        }
         this.packetQueue.push(data);
       };
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        console.log(
+          "[NETWORK] WebSocket closed, code:",
+          event.code,
+          "reason:",
+          event.reason
+        );
         this.connected = false;
         this.onDisconnect?.();
 
@@ -319,6 +331,13 @@ export class Network {
 
     this.joined = true;
     this.world = world;
+
+    console.log(
+      "[NETWORK] Sending JOIN message for world:",
+      world,
+      "username:",
+      this.clientInfo.username
+    );
 
     this.send({
       type: "JOIN",
@@ -373,12 +392,19 @@ export class Network {
       return;
     }
 
-    const backlogFactor = Math.min(4, Math.ceil(this.packetQueue.length / 50));
+    const queueLength = this.packetQueue.length;
+    const backlogFactor = Math.min(4, Math.ceil(queueLength / 50));
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
 
     const packets = this.packetQueue
       .splice(0, Math.min(packetsToProcess, this.packetQueue.length))
       .map((buffer) => new Uint8Array(buffer));
+
+    if (!this.joined) {
+      console.log(
+        `[NETWORK] sync() processing ${packets.length} packets (queue had ${queueLength}, workers available: ${this.pool.availableCount})`
+      );
+    }
 
     const availableWorkers = Math.max(1, this.pool.availableCount);
     const perWorker = Math.ceil(packets.length / availableWorkers);
@@ -534,12 +560,14 @@ export class Network {
 
     if (type === "ERROR") {
       const { text } = message;
+      console.error("[NETWORK] Received ERROR:", text);
       this.disconnect();
       this.joinReject(text);
       return;
     }
 
     if (type === "INIT") {
+      console.log("[NETWORK] Received INIT packet");
       const { id } = message.json;
 
       if (id) {
@@ -550,6 +578,7 @@ export class Network {
         }
 
         this.clientInfo.id = id;
+        console.log("[NETWORK] Client ID set to:", id);
       }
     }
 
@@ -562,6 +591,7 @@ export class Network {
         throw new Error("Something went wrong with joining worlds...");
       }
 
+      console.log("[NETWORK] Resolving join promise");
       this.joinResolve(this);
       this.onJoin?.(this.world);
     }
