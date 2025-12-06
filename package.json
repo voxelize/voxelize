@@ -5,7 +5,7 @@
   "scripts": {
     "watch": "pnpm -r --parallel --filter \"@voxelize/*\" watch",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
-    "build": "cd packages && pnpm -r --filter \"@voxelize/*\" --filter \"!@voxelize/core\" build && cd core && pnpm build",
+    "build": "cd packages && pnpm -r --workspace-concurrency=1 --filter \"@voxelize/*\" --filter \"!@voxelize/core\" build && cd core && pnpm build",
     "demo:ts": "cd examples/client && pnpm demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --release --example demo\"",
     "test-dev": "vitest",
