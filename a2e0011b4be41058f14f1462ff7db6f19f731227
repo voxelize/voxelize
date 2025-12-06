@@ -1,0 +1,7 @@
+AI Notes:
+
+packages/core/src/core/network/index.ts: +282[0],+290-292[0],+294-296[0],+299-305[0],+335-341[0],+395-396[0],+403-408[0],+563[0],+570[0],+581[0],+594[0] -289[0],-293[0],-376[0]
+
+Conversations:
+
+[0]: 4c009bdc-6bdc-4600-9b6f-4c38368d24cc; Investigate "joining world" bug; claude-4.5-opus-high;
