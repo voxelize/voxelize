@@ -291,17 +291,11 @@ export class Network {
         console.error("[NETWORK] WebSocket error:", err);
       };
       ws.onmessage = ({ data }) => {
-        const arrivalTime = performance.now();
         const arrayBuffer = data as ArrayBuffer;
 
         if (this.waitingForInit) {
-          const elapsed = (arrivalTime - this.joinStartTime).toFixed(1);
-          console.log(
-            `[NETWORK] Packet arrived ${elapsed}ms after join request, queue: ${this.packetQueue.length}, workers available: ${this.pool.availableCount}`
-          );
-
           const bufferCopy = new Uint8Array(arrayBuffer.slice(0));
-          this.decodePriority(bufferCopy, arrayBuffer, arrivalTime);
+          this.decodePriority(bufferCopy, arrayBuffer);
           return;
         }
 
@@ -336,6 +330,20 @@ export class Network {
    * @returns A promise that resolves when the client has joined the world.
    */
   join = async (world: string) => {
+    if (this.waitingForInit) {
+      console.warn(
+        "[NETWORK] Already waiting for INIT, ignoring duplicate join request"
+      );
+      return new Promise<Network>((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (!this.waitingForInit) {
+            clearInterval(checkInterval);
+            resolve(this);
+          }
+        }, 100);
+      });
+    }
+
     if (this.joined) {
       this.leave();
     }
@@ -344,15 +352,6 @@ export class Network {
     this.world = world;
     this.waitingForInit = true;
     this.joinStartTime = performance.now();
-
-    console.log(
-      "[NETWORK] Sending JOIN message for world:",
-      world,
-      "username:",
-      this.clientInfo.username,
-      "at time:",
-      this.joinStartTime.toFixed(1)
-    );
 
     this.send({
       type: "JOIN",
@@ -407,7 +406,6 @@ export class Network {
       return;
     }
 
-    const syncStart = performance.now();
     const queueLength = this.packetQueue.length;
     const backlogFactor = Math.min(4, Math.ceil(queueLength / 50));
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
@@ -415,13 +413,6 @@ export class Network {
     const packets = this.packetQueue
       .splice(0, Math.min(packetsToProcess, this.packetQueue.length))
       .map((buffer) => new Uint8Array(buffer));
-
-    if (this.waitingForInit) {
-      const elapsed = (syncStart - this.joinStartTime).toFixed(1);
-      console.log(
-        `[NETWORK] sync() called ${elapsed}ms after join, processing ${packets.length} packets (queue had ${queueLength}, workers: ${this.pool.availableCount}/${this.pool.workingCount})`
-      );
-    }
 
     const availableWorkers = Math.max(1, this.pool.availableCount);
     const perWorker = Math.ceil(packets.length / availableWorkers);
@@ -436,10 +427,6 @@ export class Network {
         this.decode(batch).then((msgs) => ({ idx, msgs }))
       )
     ).then((results) => {
-      if (this.waitingForInit) {
-        const decodeTime = (performance.now() - syncStart).toFixed(1);
-        console.log(`[NETWORK] Worker decode completed in ${decodeTime}ms`);
-      }
       results.sort((a, b) => a.idx - b.idx);
       for (const { msgs } of results) {
         for (const message of msgs) {
@@ -589,10 +576,6 @@ export class Network {
     }
 
     if (type === "INIT") {
-      const totalTime = (performance.now() - this.joinStartTime).toFixed(1);
-      console.log(
-        `[NETWORK] Processing INIT packet, total time from join request: ${totalTime}ms`
-      );
       const { id } = message.json;
 
       if (id) {
@@ -603,7 +586,6 @@ export class Network {
         }
 
         this.clientInfo.id = id;
-        console.log("[NETWORK] Client ID set to:", id);
       }
     }
 
@@ -617,7 +599,6 @@ export class Network {
       }
 
       this.waitingForInit = false;
-      console.log("[NETWORK] Resolving join promise");
       this.joinResolve(this);
       this.onJoin?.(this.world);
     }
@@ -644,29 +625,16 @@ export class Network {
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
-  private decodePriority = (
-    buffer: Uint8Array,
-    originalData: ArrayBuffer,
-    arrivalTime: number
-  ) => {
+  private decodePriority = (buffer: Uint8Array, originalData: ArrayBuffer) => {
     const handler = (e: MessageEvent) => {
       this.priorityWorker.removeEventListener("message", handler);
 
       const messages = e.data as MessageProtocol[];
       const decoded = messages[0];
 
-      if (decoded.type === "INIT") {
-        const decodeTime = performance.now() - arrivalTime;
-        console.log(
-          `[NETWORK] INIT packet decoded via priority worker in ${decodeTime.toFixed(
-            1
-          )}ms`
-        );
+      if (decoded.type === "INIT" && this.waitingForInit) {
         this.onMessage(decoded);
       } else {
-        console.log(
-          `[NETWORK] Non-INIT packet (type: ${decoded.type}) decoded, queuing for normal processing`
-        );
         this.packetQueue.push(originalData);
       }
     };
