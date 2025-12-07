@@ -6,4 +6,4 @@ packages/core/src/core/network/workers/decode-worker.ts: +1[0],+4[0],+7[0],+13-1
 
 Conversations:
 
-[0]: 52b51e44-f166-47c2-9d25-1a2de2741401; Debugging voxelize init packet error; claude-4.5-opus-high;
+[0]: 52b51e44-f166-47c2-9d25-1a2de2741401; 52b51e44; unknown;
