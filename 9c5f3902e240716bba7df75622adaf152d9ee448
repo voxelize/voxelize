@@ -1,9 +1,10 @@
 AI Notes:
 
-packages/core/src/core/network/workers/decode-utils.ts: +1-117[0]
+packages/core/src/core/network/workers/decode-utils.ts: +1-11[0],+12-13[1],+14-20[0],+21-22[1],+23-34[0],+35-36[1],+37[0],+38-39[1],+40[0],+41-43[1],+44-47[0],+48-51[1],+52-60[0],+61-62[1],+63-65[0],+66-69[1],+70-76[0],+77[1],+78[0],+79-81[1],+82-90[0],+91[1],+92[0],+93[1],+94-96[0],+97[1],+98-100[0],+101[1],+102[0],+103[1],+104-106[0],+107-115[1],+116[0],+117[1]
 packages/core/src/core/network/workers/decode-worker-fallback.ts: +1[0],+3[0],+9-12[0] -1-2[0],-4-6[0],-8[0],-13-139[0]
 packages/core/src/core/network/workers/decode-worker.ts: +1[0],+4[0],+7[0],+13-16[0] -1-4[0],-7[0],-10[0],-12[0],-17-111[0]
 
 Conversations:
 
 [0]: 52b51e44-f166-47c2-9d25-1a2de2741401; 52b51e44; unknown;
+[1]: cec22af0-6c69-45ca-8ffa-49d90437b882; Profiling broke chunk loading; claude-4.5-opus-high;
