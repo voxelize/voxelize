@@ -1,0 +1,9 @@
+AI Notes:
+
+packages/core/src/core/network/workers/decode-utils.ts: +1-117[0]
+packages/core/src/core/network/workers/decode-worker-fallback.ts: +1[0],+3[0],+9-12[0] -1-2[0],-4-6[0],-8[0],-13-139[0]
+packages/core/src/core/network/workers/decode-worker.ts: +1[0],+4[0],+7[0],+13-16[0] -1-4[0],-7[0],-10[0],-12[0],-17-111[0]
+
+Conversations:
+
+[0]: 52b51e44-f166-47c2-9d25-1a2de2741401; Debugging voxelize init packet error; claude-4.5-opus-high;
