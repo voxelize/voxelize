@@ -1,0 +1,7 @@
+AI Notes:
+
+packages/core/src/core/network/index.ts: +333[0],+336[0],+342[0],+344-345[0] -301,-352[0],-355,-423,-424[0],-442[0],-595,-664,-669
+
+Conversations:
+
+[0]: fbe9edd3-8ae4-43b5-b5e6-8e49ac873de2; Investigate slow INIT package delivery; claude-4.5-opus-high;
