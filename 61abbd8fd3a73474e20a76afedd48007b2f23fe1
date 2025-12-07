@@ -1,6 +1,6 @@
 AI Notes:
 
-packages/core/src/core/network/index.ts: +372,+376-388,+389-390[0],+391-393,+394[0],+395-399,+400-401[0] -372,-376-386
+packages/core/src/core/network/index.ts: +372,+376-388,+389-390[0],+391-393,+394[0],+395-399,+400-401[0] -372,-376-380,-381[0],-382-386
 packages/core/src/libs/shared-worker-pool.ts: +138-143
 packages/core/src/libs/worker-pool.ts: +142-147
 server/world/systems/entity/sending.rs: +55,+58,+62-63,+66,+68,+71,+92-93,+95-96 -60-65,-67,-69,-71,-74-83,-104-118,-120
