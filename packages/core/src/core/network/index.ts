@@ -1,6 +1,5 @@
 import { MessageProtocol, protocol } from "@voxelize/protocol";
 import DOMUrl from "domurl";
-import * as fflate from "fflate";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { SharedWorkerPool } from "../../libs/shared-worker-pool";
@@ -14,7 +13,7 @@ export * from "./intercept";
 
 const supportsSharedWorker = typeof SharedWorker !== "undefined";
 
-const { Message, Entity } = protocol;
+const { Message } = protocol;
 
 /**
  * A custom WebSocket type that supports protocol buffer sending.
@@ -166,9 +165,6 @@ export class Network {
    */
   public onDisconnect: () => void;
 
-  /**
-   * The worker pool for decoding network packets.
-   */
   private pool: SharedWorkerPool | WorkerPool = supportsSharedWorker
     ? new SharedWorkerPool(DecodeSharedWorker, {
         maxWorker: window.navigator.hardwareConcurrency || 4,
@@ -176,6 +172,8 @@ export class Network {
     : new WorkerPool(DecodeWorker, {
         maxWorker: window.navigator.hardwareConcurrency || 4,
       });
+
+  private priorityWorker: Worker = new DecodeWorker();
 
   /**
    * To keep track of the reconnection.
@@ -294,6 +292,7 @@ export class Network {
       };
       ws.onmessage = ({ data }) => {
         const arrivalTime = performance.now();
+        const arrayBuffer = data as ArrayBuffer;
 
         if (this.waitingForInit) {
           const elapsed = (arrivalTime - this.joinStartTime).toFixed(1);
@@ -301,26 +300,12 @@ export class Network {
             `[NETWORK] Packet arrived ${elapsed}ms after join request, queue: ${this.packetQueue.length}, workers available: ${this.pool.availableCount}`
           );
 
-          const buffer = new Uint8Array(data as ArrayBuffer);
-          const decoded = Network.decodeSync(buffer);
-
-          if (decoded.type === "INIT") {
-            const decodeTime = performance.now() - arrivalTime;
-            console.log(
-              `[NETWORK] INIT packet detected and decoded synchronously in ${decodeTime.toFixed(
-                1
-              )}ms`
-            );
-            this.onMessage(decoded);
-            return;
-          }
-
-          console.log(
-            `[NETWORK] Non-INIT packet (type: ${decoded.type}) queued while waiting for INIT`
-          );
+          const bufferCopy = new Uint8Array(arrayBuffer.slice(0));
+          this.decodePriority(bufferCopy, arrayBuffer, arrivalTime);
+          return;
         }
 
-        this.packetQueue.push(data as ArrayBuffer);
+        this.packetQueue.push(arrayBuffer);
       };
       ws.onclose = (event) => {
         console.log(
@@ -659,61 +644,36 @@ export class Network {
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
-  private static decodeSync(buffer: Uint8Array): MessageProtocol {
-    if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-      buffer = fflate.unzlibSync(buffer);
-    }
+  private decodePriority = (
+    buffer: Uint8Array,
+    originalData: ArrayBuffer,
+    arrivalTime: number
+  ) => {
+    const handler = (e: MessageEvent) => {
+      this.priorityWorker.removeEventListener("message", handler);
 
-    const message = Message.toObject(Message.decode(buffer), {
-      defaults: true,
-    }) as Record<string, unknown>;
-    message.type = Message.Type[message.type as number];
+      const messages = e.data as MessageProtocol[];
+      const decoded = messages[0];
 
-    if (message.json) {
-      message.json = JSON.parse(message.json as string);
-    }
+      if (decoded.type === "INIT") {
+        const decodeTime = performance.now() - arrivalTime;
+        console.log(
+          `[NETWORK] INIT packet decoded via priority worker in ${decodeTime.toFixed(
+            1
+          )}ms`
+        );
+        this.onMessage(decoded);
+      } else {
+        console.log(
+          `[NETWORK] Non-INIT packet (type: ${decoded.type}) decoded, queuing for normal processing`
+        );
+        this.packetQueue.push(originalData);
+      }
+    };
 
-    if (message.entities) {
-      (message.entities as Array<Record<string, unknown>>).forEach((entity) => {
-        if (entity.metadata) {
-          entity.metadata = JSON.parse(entity.metadata as string);
-          const metadataObj = entity.metadata as Record<string, unknown>;
-          if (metadataObj.json && typeof metadataObj.json === "string") {
-            metadataObj.json = JSON.parse(metadataObj.json as string);
-          }
-        }
-        entity.operation = Entity.Operation[entity.operation as number];
-      });
-    }
-
-    if (message.peers) {
-      (message.peers as Array<Record<string, unknown>>).forEach((peer) => {
-        if (peer.metadata) {
-          peer.metadata = JSON.parse(peer.metadata as string);
-        }
-      });
-    }
-
-    if (message.events) {
-      (message.events as Array<Record<string, unknown>>).forEach((event) => {
-        try {
-          let parsedPayload = event.payload;
-          for (let i = 0; i < 5; i++) {
-            try {
-              parsedPayload = JSON.parse(parsedPayload as string);
-            } catch {
-              break;
-            }
-          }
-          event.payload = parsedPayload;
-        } catch (e) {
-          console.log(e);
-        }
-      });
-    }
-
-    return message as MessageProtocol;
-  }
+    this.priorityWorker.addEventListener("message", handler);
+    this.priorityWorker.postMessage([buffer], [buffer.buffer]);
+  };
 
   private decode = (data: Uint8Array[]): Promise<MessageProtocol[]> => {
     return new Promise<MessageProtocol[]>((resolve) => {
