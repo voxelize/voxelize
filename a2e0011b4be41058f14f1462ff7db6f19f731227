@@ -5,4 +5,4 @@ packages/core/src/core/network/index.ts: +282[0],+290-291[0],+292[1],+294-295[0]
 Conversations:
 
 [0]: 4c009bdc-6bdc-4600-9b6f-4c38368d24cc; 4c009bdc; unknown;
-[1]: fbe9edd3-8ae4-43b5-b5e6-8e49ac873de2; Investigate slow INIT package delivery; claude-4.5-opus-high;
+[1]: fbe9edd3-8ae4-43b5-b5e6-8e49ac873de2; fbe9edd3; unknown;
