@@ -1,5 +1,46 @@
 use pprof::ProfilerGuard;
+use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+#[derive(Serialize)]
+pub struct FlameNode {
+    name: String,
+    value: isize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    children: Vec<FlameNode>,
+}
+
+impl FlameNode {
+    fn new(name: String) -> Self {
+        Self {
+            name,
+            value: 0,
+            children: Vec::new(),
+        }
+    }
+
+    fn add_stack(&mut self, stack: &[String], count: isize) {
+        if stack.is_empty() {
+            self.value += count;
+            return;
+        }
+
+        let name = &stack[0];
+        let rest = &stack[1..];
+
+        let idx = self.children.iter().position(|c| &c.name == name);
+        let child_idx = match idx {
+            Some(i) => i,
+            None => {
+                self.children.push(FlameNode::new(name.clone()));
+                self.children.len() - 1
+            }
+        };
+
+        self.children[child_idx].add_stack(rest, count);
+    }
+}
 
 pub struct CpuProfiler {
     guard: Option<ProfilerGuard<'static>>,
@@ -34,16 +75,26 @@ impl CpuProfiler {
         Ok(())
     }
 
-    pub fn stop_svg(&mut self) -> Result<Vec<u8>, String> {
+    pub fn stop_json(&mut self) -> Result<FlameNode, String> {
         let guard = self.guard.take().ok_or("Not profiling")?;
         let report = guard.report().build().map_err(|e| e.to_string())?;
 
-        let mut svg_data = Vec::new();
-        report
-            .flamegraph(&mut svg_data)
-            .map_err(|e| e.to_string())?;
+        let mut root = FlameNode::new("root".to_string());
 
-        Ok(svg_data)
+        for (frames, count) in report.data.iter() {
+            let mut stack: Vec<String> = Vec::new();
+            stack.push(frames.thread_name_or_id());
+
+            for frame in frames.frames.iter().rev() {
+                for symbol in frame.iter().rev() {
+                    stack.push(symbol.name());
+                }
+            }
+
+            root.add_stack(&stack, *count);
+        }
+
+        Ok(root)
     }
 }
 
@@ -55,8 +106,8 @@ pub fn start_profiling(frequency: i32) -> Result<(), String> {
     GLOBAL_CPU_PROFILER.lock().unwrap().start(frequency)
 }
 
-pub fn stop_profiling_svg() -> Result<Vec<u8>, String> {
-    GLOBAL_CPU_PROFILER.lock().unwrap().stop_svg()
+pub fn stop_profiling_json() -> Result<FlameNode, String> {
+    GLOBAL_CPU_PROFILER.lock().unwrap().stop_json()
 }
 
 pub fn is_profiling() -> bool {
