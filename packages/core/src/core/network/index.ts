@@ -1,5 +1,6 @@
 import { MessageProtocol, protocol } from "@voxelize/protocol";
 import DOMUrl from "domurl";
+import * as fflate from "fflate";
 
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { SharedWorkerPool } from "../../libs/shared-worker-pool";
@@ -13,7 +14,7 @@ export * from "./intercept";
 
 const supportsSharedWorker = typeof SharedWorker !== "undefined";
 
-const { Message } = protocol;
+const { Message, Entity } = protocol;
 
 /**
  * A custom WebSocket type that supports protocol buffer sending.
@@ -192,11 +193,12 @@ export class Network {
    */
   private joinReject: (reason: string) => void = null;
 
-  private packetQueue: any[] = [];
+  private packetQueue: ArrayBuffer[] = [];
 
-  /**
-   * Create a new network instance.
-   */
+  private joinStartTime = 0;
+
+  private waitingForInit = false;
+
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
       ...defaultOptions,
@@ -291,10 +293,34 @@ export class Network {
         console.error("[NETWORK] WebSocket error:", err);
       };
       ws.onmessage = ({ data }) => {
-        if (!this.joined && this.packetQueue.length === 0) {
-          console.log("[NETWORK] First packet received while joining");
+        const arrivalTime = performance.now();
+
+        if (this.waitingForInit) {
+          const elapsed = (arrivalTime - this.joinStartTime).toFixed(1);
+          console.log(
+            `[NETWORK] Packet arrived ${elapsed}ms after join request, queue: ${this.packetQueue.length}, workers available: ${this.pool.availableCount}`
+          );
+
+          const buffer = new Uint8Array(data as ArrayBuffer);
+          const decoded = Network.decodeSync(buffer);
+
+          if (decoded.type === "INIT") {
+            const decodeTime = performance.now() - arrivalTime;
+            console.log(
+              `[NETWORK] INIT packet detected and decoded synchronously in ${decodeTime.toFixed(
+                1
+              )}ms`
+            );
+            this.onMessage(decoded);
+            return;
+          }
+
+          console.log(
+            `[NETWORK] Non-INIT packet (type: ${decoded.type}) queued while waiting for INIT`
+          );
         }
-        this.packetQueue.push(data);
+
+        this.packetQueue.push(data as ArrayBuffer);
       };
       ws.onclose = (event) => {
         console.log(
@@ -331,12 +357,16 @@ export class Network {
 
     this.joined = true;
     this.world = world;
+    this.waitingForInit = true;
+    this.joinStartTime = performance.now();
 
     console.log(
       "[NETWORK] Sending JOIN message for world:",
       world,
       "username:",
-      this.clientInfo.username
+      this.clientInfo.username,
+      "at time:",
+      this.joinStartTime.toFixed(1)
     );
 
     this.send({
@@ -392,6 +422,7 @@ export class Network {
       return;
     }
 
+    const syncStart = performance.now();
     const queueLength = this.packetQueue.length;
     const backlogFactor = Math.min(4, Math.ceil(queueLength / 50));
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
@@ -400,9 +431,10 @@ export class Network {
       .splice(0, Math.min(packetsToProcess, this.packetQueue.length))
       .map((buffer) => new Uint8Array(buffer));
 
-    if (!this.joined) {
+    if (this.waitingForInit) {
+      const elapsed = (syncStart - this.joinStartTime).toFixed(1);
       console.log(
-        `[NETWORK] sync() processing ${packets.length} packets (queue had ${queueLength}, workers available: ${this.pool.availableCount})`
+        `[NETWORK] sync() called ${elapsed}ms after join, processing ${packets.length} packets (queue had ${queueLength}, workers: ${this.pool.availableCount}/${this.pool.workingCount})`
       );
     }
 
@@ -419,6 +451,10 @@ export class Network {
         this.decode(batch).then((msgs) => ({ idx, msgs }))
       )
     ).then((results) => {
+      if (this.waitingForInit) {
+        const decodeTime = (performance.now() - syncStart).toFixed(1);
+        console.log(`[NETWORK] Worker decode completed in ${decodeTime}ms`);
+      }
       results.sort((a, b) => a.idx - b.idx);
       for (const { msgs } of results) {
         for (const message of msgs) {
@@ -555,19 +591,23 @@ export class Network {
    * The listener to protocol buffer events. Basically sends the event packets into
    * the network intercepts.
    */
-  private onMessage = async (message: MessageProtocol) => {
+  private onMessage = (message: MessageProtocol) => {
     const { type } = message;
 
     if (type === "ERROR") {
       const { text } = message;
       console.error("[NETWORK] Received ERROR:", text);
       this.disconnect();
+      this.waitingForInit = false;
       this.joinReject(text);
       return;
     }
 
     if (type === "INIT") {
-      console.log("[NETWORK] Received INIT packet");
+      const totalTime = (performance.now() - this.joinStartTime).toFixed(1);
+      console.log(
+        `[NETWORK] Processing INIT packet, total time from join request: ${totalTime}ms`
+      );
       const { id } = message.json;
 
       if (id) {
@@ -591,6 +631,7 @@ export class Network {
         throw new Error("Something went wrong with joining worlds...");
       }
 
+      this.waitingForInit = false;
       console.log("[NETWORK] Resolving join promise");
       this.joinResolve(this);
       this.onJoin?.(this.world);
@@ -600,29 +641,82 @@ export class Network {
   /**
    * Encode a message synchronously using the protocol buffer.
    */
-  private static encodeSync(message: any) {
+  private static encodeSync(message: Record<string, unknown>) {
     if (message.json) {
       message.json = JSON.stringify(message.json);
     }
-    message.type = Message.Type[message.type];
+    message.type = Message.Type[message.type as string];
     if (message.entities) {
-      message.entities.forEach(
+      (message.entities as Array<Record<string, unknown>>).forEach(
         (entity) => (entity.metadata = JSON.stringify(entity.metadata))
       );
     }
     if (message.peers) {
-      message.peers.forEach(
+      (message.peers as Array<Record<string, unknown>>).forEach(
         (peer) => (peer.metadata = JSON.stringify(peer.metadata))
       );
     }
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
-  /**
-   * Decode a message asynchronously by giving it to the web worker pool.
-   */
-  private decode = async (data: Uint8Array[]) => {
-    return new Promise<any>((resolve) => {
+  private static decodeSync(buffer: Uint8Array): MessageProtocol {
+    if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
+      buffer = fflate.unzlibSync(buffer);
+    }
+
+    const message = Message.toObject(Message.decode(buffer), {
+      defaults: true,
+    }) as Record<string, unknown>;
+    message.type = Message.Type[message.type as number];
+
+    if (message.json) {
+      message.json = JSON.parse(message.json as string);
+    }
+
+    if (message.entities) {
+      (message.entities as Array<Record<string, unknown>>).forEach((entity) => {
+        if (entity.metadata) {
+          entity.metadata = JSON.parse(entity.metadata as string);
+          const metadataObj = entity.metadata as Record<string, unknown>;
+          if (metadataObj.json && typeof metadataObj.json === "string") {
+            metadataObj.json = JSON.parse(metadataObj.json as string);
+          }
+        }
+        entity.operation = Entity.Operation[entity.operation as number];
+      });
+    }
+
+    if (message.peers) {
+      (message.peers as Array<Record<string, unknown>>).forEach((peer) => {
+        if (peer.metadata) {
+          peer.metadata = JSON.parse(peer.metadata as string);
+        }
+      });
+    }
+
+    if (message.events) {
+      (message.events as Array<Record<string, unknown>>).forEach((event) => {
+        try {
+          let parsedPayload = event.payload;
+          for (let i = 0; i < 5; i++) {
+            try {
+              parsedPayload = JSON.parse(parsedPayload as string);
+            } catch {
+              break;
+            }
+          }
+          event.payload = parsedPayload;
+        } catch (e) {
+          console.log(e);
+        }
+      });
+    }
+
+    return message as MessageProtocol;
+  }
+
+  private decode = (data: Uint8Array[]): Promise<MessageProtocol[]> => {
+    return new Promise<MessageProtocol[]>((resolve) => {
       this.pool.addJob({
         message: data,
         buffers: data.map((d) => d.buffer),
