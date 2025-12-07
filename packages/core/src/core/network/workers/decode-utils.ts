@@ -75,7 +75,9 @@ export function decodeMessage(
           chunkRecord[key] = new Uint32Array(
             chunkRecord[key] as ArrayLike<number>
           );
-          transferables.push((chunkRecord[key] as Uint32Array).buffer);
+          transferables.push(
+            (chunkRecord[key] as Uint32Array).buffer as ArrayBuffer
+          );
         }
       });
 
@@ -89,21 +91,29 @@ export function decodeMessage(
                   geo.indices = new Uint16Array(
                     geo.indices as ArrayLike<number>
                   );
-                  transferables.push((geo.indices as Uint16Array).buffer);
+                  transferables.push(
+                    (geo.indices as Uint16Array).buffer as ArrayBuffer
+                  );
                 }
                 if (geo.lights) {
                   geo.lights = new Int32Array(geo.lights as ArrayLike<number>);
-                  transferables.push((geo.lights as Int32Array).buffer);
+                  transferables.push(
+                    (geo.lights as Int32Array).buffer as ArrayBuffer
+                  );
                 }
                 if (geo.positions) {
                   geo.positions = new Float32Array(
                     geo.positions as ArrayLike<number>
                   );
-                  transferables.push((geo.positions as Float32Array).buffer);
+                  transferables.push(
+                    (geo.positions as Float32Array).buffer as ArrayBuffer
+                  );
                 }
                 if (geo.uvs) {
                   geo.uvs = new Float32Array(geo.uvs as ArrayLike<number>);
-                  transferables.push((geo.uvs as Float32Array).buffer);
+                  transferables.push(
+                    (geo.uvs as Float32Array).buffer as ArrayBuffer
+                  );
                 }
               }
             }

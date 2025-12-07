@@ -15,7 +15,9 @@ onconnect = (e: MessageEvent) => {
       decodeMessage(buffer, transferables)
     );
 
-    // @ts-ignore
-    port.postMessage(messages, transferables);
+    queueMicrotask(() => {
+      // @ts-ignore
+      port.postMessage(messages, transferables);
+    });
   };
 };
