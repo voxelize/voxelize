@@ -1,114 +1,19 @@
-import { protocol } from "@voxelize/protocol";
-import * as fflate from "fflate";
-
-const { Message, Entity } = protocol;
+import { decodeMessage } from "./decode-utils";
 
 // @ts-ignore
-onconnect = (e) => {
+onconnect = (e: MessageEvent) => {
   const port = e.ports[0];
 
-  port.onmessage = (e) => {
+  port.onmessage = (e: MessageEvent) => {
     let { data: buffers } = e;
-
     if (!Array.isArray(buffers)) {
       buffers = [buffers];
     }
 
-    const transferables = [];
-
-    const messages = buffers.map((buffer) => {
-      if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
-        buffer = fflate.unzlibSync(buffer);
-      }
-
-      const message = Message.toObject(Message.decode(buffer), {
-        defaults: true,
-      });
-      message.type = Message.Type[message.type];
-
-      if (message.json) {
-        message.json = JSON.parse(message.json);
-      }
-
-      if (message.entities) {
-        message.entities.forEach((entity) => {
-          if (entity.metadata) {
-            entity.metadata = JSON.parse(entity.metadata);
-            if (entity.metadata.json) {
-              entity.metadata.json = JSON.parse(entity.metadata.json);
-            }
-          }
-
-          entity.operation = Entity.Operation[entity.operation];
-        });
-      }
-
-      if (message.peers) {
-        message.peers.forEach((peer) => {
-          if (peer.metadata) {
-            peer.metadata = JSON.parse(peer.metadata);
-          }
-        });
-      }
-
-      if (message.events) {
-        message.events.forEach((event) => {
-          try {
-            let parsedPayload = event.payload;
-            for (let i = 0; i < 5; i++) {
-              try {
-                parsedPayload = JSON.parse(parsedPayload);
-              } catch {
-                break;
-              }
-            }
-            event.payload = parsedPayload;
-          } catch (e) {
-            console.log(e);
-          }
-        });
-      }
-
-      if (message.chunks) {
-        message.chunks.forEach((chunk) => {
-          ["lights", "voxels"].forEach((key) => {
-            if (chunk[key]) {
-              chunk[key] = new Uint32Array(chunk[key]);
-              transferables.push(chunk[key].buffer);
-            }
-          });
-
-          if (chunk.meshes) {
-            chunk.meshes.forEach((mesh) => {
-              mesh.geometries.forEach((geometry) => {
-                ["indices"].forEach((key) => {
-                  if (geometry && geometry[key]) {
-                    geometry[key] = new Uint16Array(geometry[key]);
-                    transferables.push(geometry[key].buffer);
-                  }
-                });
-
-                ["lights"].forEach((key) => {
-                  if (geometry && geometry[key]) {
-                    geometry[key] = new Int32Array(geometry[key]);
-                    transferables.push(geometry[key].buffer);
-                  }
-                });
-
-                ["positions", "uvs"].forEach((key) => {
-                  if (geometry && geometry[key]) {
-                    geometry[key] = new Float32Array(geometry[key]);
-                    transferables.push(geometry[key].buffer);
-                  }
-                });
-              });
-            });
-          }
-        });
-      }
-
-      return message;
-    });
+    const transferables: ArrayBuffer[] = [];
+    const messages = buffers.map((buffer: Uint8Array) =>
+      decodeMessage(buffer, transferables)
+    );
 
     // @ts-ignore
     port.postMessage(messages, transferables);
