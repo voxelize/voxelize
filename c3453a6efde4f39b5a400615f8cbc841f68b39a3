@@ -1,0 +1,9 @@
+AI Notes:
+
+packages/core/src/core/network/workers/decode-utils.ts: +78-80[0],+94-96[0],+100-102[0],+108-110[0],+114-116[0] -78[0],-92[0],-96[0],-102[0],-106[0]
+packages/core/src/core/network/workers/decode-worker-fallback.ts: +14-16[0] -14[0]
+packages/core/src/core/network/workers/decode-worker.ts: +18-21[0] -18-19[0]
+
+Conversations:
+
+[0]: cec22af0-6c69-45ca-8ffa-49d90437b882; Profiling broke chunk loading; claude-4.5-opus-high;
