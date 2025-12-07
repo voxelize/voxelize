@@ -23,7 +23,7 @@ custom_edit_url: null
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `coords` | [`Coords2`](../modules.md#coords2-232) |
+| `coords` | [`Coords2`](../modules.md#coords2) |
 | `options` | `RawChunkOptions` |
 
 #### Returns
@@ -44,7 +44,7 @@ ___
 
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2-232)
+• **coords**: [`Coords2`](../modules.md#coords2)
 
 #### Inherited from
 
@@ -86,7 +86,7 @@ ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3-232)
+• **max**: [`Coords3`](../modules.md#coords3)
 
 #### Inherited from
 
@@ -102,7 +102,7 @@ ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3-232)
+• **min**: [`Coords3`](../modules.md#coords3)
 
 #### Inherited from
 
@@ -356,7 +356,7 @@ Get the colored torch light level at a given voxel coordinate.
 | `vx` | `number` | The x voxel coordinate |
 | `vy` | `number` | The y voxel coordinate |
 | `vz` | `number` | The z voxel coordinate |
-| `color` | [`LightColor`](../modules.md#lightcolor-232) | The color of the light to get at the given voxel coordinate. |
+| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the light to get at the given voxel coordinate. |
 
 #### Returns
 
@@ -672,7 +672,7 @@ Note: This method is purely client-side and does not affect the actual values on
 | `vy` | `number` | The y voxel coordinate |
 | `vz` | `number` | The z voxel coordinate |
 | `level` | `number` | The light level to set at the given voxel coordinate. |
-| `color` | [`LightColor`](../modules.md#lightcolor-232) | The color of the light to set at the given voxel coordinate. |
+| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the light to set at the given voxel coordinate. |
 
 #### Returns
 

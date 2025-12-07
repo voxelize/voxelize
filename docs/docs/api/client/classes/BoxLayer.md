@@ -111,8 +111,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides-232) \| [`BoxSides`](../modules.md#boxsides-232)[] | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction-232) | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture` \| [`ArtFunction`](../modules.md#artfunction) | The art or art function to draw on the box layer's side. |
 
 #### Returns
 

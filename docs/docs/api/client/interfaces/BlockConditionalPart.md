@@ -22,13 +22,19 @@ ___
 
 ### faces
 
-• **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv-232)  }[]
+• **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[]
 
 ___
 
 ### greenLightLevel
 
 • `Optional` **greenLightLevel**: `number`
+
+___
+
+### isPassable
+
+• `Optional` **isPassable**: `boolean`
 
 ___
 
@@ -46,4 +52,4 @@ ___
 
 ### rule
 
-• **rule**: [`BlockRule`](../modules.md#blockrule-232)
+• **rule**: [`BlockRule`](../modules.md#blockrule)

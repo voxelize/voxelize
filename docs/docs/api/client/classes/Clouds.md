@@ -10,7 +10,7 @@ A class that generates and manages clouds. Clouds are essentially a 2D grid of c
 cloud blocks. This 2D grid move altogether in the `+x` direction, and is generated at the start asynchronously using
 web workers using simplex noise.
 
-When using [Clouds.update](Clouds.md#update-232), new clouds will be generated if the center of the grid
+When using [Clouds.update](Clouds.md#update), new clouds will be generated if the center of the grid
 does not match the passed in position.
 
 ![Clouds](/img/docs/clouds.png)
@@ -33,7 +33,7 @@ Create a new [Clouds](Clouds.md) instance, initializing it asynchronously automa
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`CloudsOptions`](../modules.md#cloudsoptions-232)\> | Parameters used to create a new [Clouds](Clouds.md) instance. |
+| `options` | `Partial`\<[`CloudsOptions`](../modules.md#cloudsoptions)\> | Parameters used to create a new [Clouds](Clouds.md) instance. |
 
 #### Returns
 
@@ -55,7 +55,7 @@ ___
 
 ### locatedCell
 
-• **locatedCell**: [`Coords2`](../modules.md#coords2-232)
+• **locatedCell**: [`Coords2`](../modules.md#coords2)
 
 The cell that this cloud is currently centered around.
 
@@ -79,7 +79,7 @@ ___
 
 ### options
 
-• **options**: [`CloudsOptions`](../modules.md#cloudsoptions-232)
+• **options**: [`CloudsOptions`](../modules.md#cloudsoptions)
 
 Parameters used to create a new [Clouds](Clouds.md) instance.
 
@@ -90,7 +90,7 @@ ___
 • **xOffset**: `number` = `0`
 
 The x-offset of the clouds since initialization. This is determined by diffing the `locatedCell` and the
-position passed into [Clouds.update](Clouds.md#update-232).
+position passed into [Clouds.update](Clouds.md#update).
 
 ___
 
@@ -99,7 +99,7 @@ ___
 • **zOffset**: `number` = `0`
 
 The z-offset of the clouds since initialization. This is determined by diffing the `locatedCell` and the
-position passed into [Clouds.update](Clouds.md#update-232).
+position passed into [Clouds.update](Clouds.md#update).
 
 ## Methods
 

@@ -20,7 +20,7 @@ Create a new face animation. This holds the data and will be used to draw on the
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `range` | [`UV`](../modules.md#uv-232) | `undefined` | The range of the texture atlas that this animation uses. |
+| `range` | [`UV`](../modules.md#uv) | `undefined` | The range of the texture atlas that this animation uses. |
 | `keyframes` | [`number`, `Color` \| `HTMLImageElement`][] | `undefined` | The keyframes of the animation. This will be queried and drawn to the texture atlas. |
 | `fadeFrames` | `number` | `0` | The fading duration between each keyframe in milliseconds. |
 
@@ -49,6 +49,6 @@ ___
 
 ### range
 
-• **range**: [`UV`](../modules.md#uv-232)
+• **range**: [`UV`](../modules.md#uv)
 
 The range of the texture atlas that this animation uses.

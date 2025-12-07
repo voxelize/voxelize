@@ -18,7 +18,7 @@ requires inputs to be bound:
 - [RigidControls.connect](/api/client/classes/RigidControls#connect): <kbd>WASD</kbd> and <kbd>Space</kbd> for movement, <kbd>Shift</kbd> for going down and <kbd>R</kbd> for sprinting.
 - [Perspective.connect](/api/client/classes/Perspective#connect): <kbd>C</kbd> for switching between perspectives.
 
-You can change the above bindings by calling [Inputs.remap](Inputs.md#remap-232) with the corresponding input identifiers, namely
+You can change the above bindings by calling [Inputs.remap](Inputs.md#remap) with the corresponding input identifiers, namely
 `RigidControls.INPUT_IDENTIFIER` and `Perspectives.INPUT_IDENTIFIER`.
 
 ## Example
@@ -93,7 +93,7 @@ Bind a keyboard key to a callback.
 | `key` | `string` | `undefined` | The key to listen for. This checks the `event.key` or the `event.code` property. |
 | `callback` | (`event`: `KeyboardEvent`) => `boolean` \| `void` | `undefined` | The callback to call when the key is pressed. |
 | `namespaces` | ``"*"`` \| `T` \| `T`[] | `"*"` | - |
-| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics-232) | `{}` | The specific options of the key to listen for. |
+| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | `{}` | The specific options of the key to listen for. |
 
 #### Returns
 
@@ -119,7 +119,7 @@ Add a mouse click event listener.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype-232) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
+| `type` | [`ClickType`](../modules.md#clicktype) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
 | `callback` | (`event`: `MouseEvent`) => `boolean` \| `void` | `undefined` | The callback to call when the click is fired, passing the MouseEvent. |
 | `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace. |
 
@@ -178,7 +178,7 @@ Remap a key to another key.
 | `specifics` | `Object` | The specifics of the keys to replace. |
 | `specifics.checkType?` | ``"code"`` \| ``"key"`` | - |
 | `specifics.identifier?` | `string` | - |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-232) | - |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
 
 #### Returns
 
@@ -259,7 +259,7 @@ Swap two keys with each other.
 | `specifics` | `Object` | The specifics of the keys to swap. |
 | `specifics.checkType?` | ``"code"`` \| ``"key"`` | - |
 | `specifics.identifier?` | `string` | - |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion-232) | - |
+| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
 
 #### Returns
 
@@ -278,7 +278,7 @@ Unbind a keyboard key.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `key` | `string` | The key to unbind. |
-| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics-232) | The specifics of the key to unbind. |
+| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | The specifics of the key to unbind. |
 
 #### Returns
 

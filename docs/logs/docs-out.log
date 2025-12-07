@@ -1,0 +1,36 @@
+2025-12-07T00:56:04: 
+2025-12-07T00:56:04: > docs@0.0.0 serve /root/town/voxelize/docs
+2025-12-07T00:56:04: > docusaurus serve --build --port 3040 --host 0.0.0.0
+2025-12-07T00:56:04: 
+2025-12-07T00:56:05: [INFO] [en] Creating an optimized production build...
+2025-12-07T00:56:06: [info] Loaded plugin typedoc-plugin-markdown
+2025-12-07T00:56:06: [info] Loaded plugin typedoc-plugin-markdown
+2025-12-07T00:56:06: [info] Loaded plugin typedoc-plugin-no-inherit
+2025-12-07T00:56:06: [info] Loaded plugin typedoc-plugin-no-inherit
+2025-12-07T00:56:12: [info] Documentation generated at ./docs/api/protocol
+2025-12-07T00:56:12: [info] Documentation generated at ./docs/api/client
+2025-12-07T00:56:13: [info] [webpackbar] Compiling Client
+2025-12-07T00:56:13: [info] [webpackbar] Compiling Server
+2025-12-07T00:56:20: [success] [webpackbar] Server: Compiled successfully in 6.82s
+2025-12-07T00:56:20: [success] [webpackbar] Client: Compiled successfully in 7.05s
+2025-12-07T00:56:27: [SUCCESS] Generated static files in "build".
+2025-12-07T00:56:27: [INFO] Use `npm run serve` command to test your build locally.
+2025-12-07T00:56:27: [SUCCESS] Serving "build" directory at: http://0.0.0.0:3040/
+2025-12-07T00:57:05: 
+2025-12-07T00:57:05: > docs@0.0.0 serve /root/town/voxelize/docs
+2025-12-07T00:57:05: > docusaurus serve --build --port 3040 --host 0.0.0.0
+2025-12-07T00:57:05: 
+2025-12-07T00:57:08: [INFO] [en] Creating an optimized production build...
+2025-12-07T00:57:08: [info] Loaded plugin typedoc-plugin-markdown
+2025-12-07T00:57:08: [info] Loaded plugin typedoc-plugin-markdown
+2025-12-07T00:57:08: [info] Loaded plugin typedoc-plugin-no-inherit
+2025-12-07T00:57:08: [info] Loaded plugin typedoc-plugin-no-inherit
+2025-12-07T00:57:11: [info] Documentation generated at ./docs/api/protocol
+2025-12-07T00:57:11: [info] Documentation generated at ./docs/api/client
+2025-12-07T00:57:12: [info] [webpackbar] Compiling Client
+2025-12-07T00:57:12: [info] [webpackbar] Compiling Server
+2025-12-07T00:57:15: [success] [webpackbar] Server: Compiled successfully in 3.63s
+2025-12-07T00:57:16: [success] [webpackbar] Client: Compiled successfully in 3.76s
+2025-12-07T00:57:20: [SUCCESS] Generated static files in "build".
+2025-12-07T00:57:20: [INFO] Use `npm run serve` command to test your build locally.
+2025-12-07T00:57:20: [SUCCESS] Serving "build" directory at: http://0.0.0.0:3040/

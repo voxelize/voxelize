@@ -35,7 +35,7 @@ Create a new portrait. This automatically starts a render loop.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `object` | `Object3D`\<`Object3DEventMap`\> | The object to render to the canvas. |
-| `options` | `Partial`\<[`PortraitOptions`](../modules.md#portraitoptions-232)\> | The options to create this portrait with. |
+| `options` | `Partial`\<[`PortraitOptions`](../modules.md#portraitoptions)\> | The options to create this portrait with. |
 
 #### Returns
 
@@ -69,18 +69,9 @@ ___
 
 ### options
 
-• **options**: [`PortraitOptions`](../modules.md#portraitoptions-232)
+• **options**: [`PortraitOptions`](../modules.md#portraitoptions)
 
 Parameters to create this portrait with.
-
-___
-
-### renderer
-
-▪ `Static` **renderer**: `WebGLRenderer`
-
-The shared THREE.js webgl renderer. This is shared because there is a limit to
-how many webgl contexts can be created.
 
 ___
 
@@ -89,6 +80,16 @@ ___
 • **scene**: `Scene`
 
 The THREE.js scene to use for rendering this portrait.
+
+## Accessors
+
+### renderer
+
+• `get` **renderer**(): `WebGLRenderer`
+
+#### Returns
+
+`WebGLRenderer`
 
 ## Methods
 

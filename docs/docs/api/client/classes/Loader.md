@@ -7,7 +7,7 @@ custom_edit_url: null
 ---
 
 An asset loader that can load textures and audio files. This class is used internally by the world
-and can be accessed via [World.loader](World.md#loader-232).
+and can be accessed via [World.loader](World.md#loader).
 
 ## Properties
 

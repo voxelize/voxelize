@@ -1,0 +1,88 @@
+2025-12-07T00:56:06: [warning] You are running with an unsupported TypeScript version! If TypeDoc crashes, this is why. TypeDoc supports 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4
+2025-12-07T00:56:07: [warning] You are running with an unsupported TypeScript version! If TypeDoc crashes, this is why. TypeDoc supports 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4
+2025-12-07T00:56:12: [warning] The signature Sky.constructor has an @param with name "dimension", which was not used.
+2025-12-07T00:56:12: [warning] The signature Sky.constructor has an @param with name "lerpFactor", which was not used.
+2025-12-07T00:56:12: [warning] The signature artFunctions.__type.drawSun.__type has an @param with name "context", which was not used.
+2025-12-07T00:56:12: [warning] The signature artFunctions.__type.drawSun.__type has an @param with name "canvas", which was not used.
+2025-12-07T00:56:12: [warning] The signature Inputs.bind has an @param with name "namespace", which was not used.
+2025-12-07T00:56:12: [warning] The signature World.makeBlockMesh has an @param with name "id", which was not used.
+2025-12-07T00:56:12: [warning] The signature World.makeBlockMesh has an @param with name "options.material", which was not used.
+2025-12-07T00:56:12: [warning] The signature World.makeBlockMesh has an @param with name "options.separateFaces:", which was not used.
+2025-12-07T00:56:12: [warning] The signature World.makeBlockMesh has an @param with name "options.crumbs:", which was not used.
+2025-12-07T00:56:12: [warning] The signature World.makeBlockMesh has an @param with name "options.centered:", which was not used.
+2025-12-07T00:56:12: [warning] The signature Chunk.setRawValue has an @param with name "value", which was not used.
+2025-12-07T00:56:12: [warning] The signature AtlasTexture.constructor has an @param with name "textureMap", which was not used.
+2025-12-07T00:56:12: [warning] The signature AtlasTexture.constructor has an @param with name "ranges", which was not used.
+2025-12-07T00:56:12: [warning] The signature AtlasTexture.constructor has an @param with name "options", which was not used.
+2025-12-07T00:56:12: [WARNING] Some blog authors used in "2019-05-28-first-blog-post.md" are not defined in "authors.yml":
+2025-12-07T00:56:12: - {"name":"Gao Wei","title":"Docusaurus Core Team","url":"https://github.com/wgao19","image_url":"https://github.com/wgao19.png","imageURL":"https://github.com/wgao19.png","socials":{},"key":null,"page":null}
+2025-12-07T00:56:12: 
+2025-12-07T00:56:12: Note that we recommend to declare authors once in a "authors.yml" file and reference them by key in blog posts front matter to avoid author info duplication.
+2025-12-07T00:56:12: But if you want to allow inline blog authors, you can disable this message by setting onInlineAuthors: 'ignore' in your blog plugin options.
+2025-12-07T00:56:12: More info at https://docusaurus.io/docs/blog
+2025-12-07T00:56:12: 
+2025-12-07T00:56:12: [WARNING] Docusaurus found blog posts without truncation markers:
+2025-12-07T00:56:12: - "blog/2021-08-26-welcome/index.md"
+2025-12-07T00:56:12: - "blog/2021-08-01-mdx-blog-post.mdx"
+2025-12-07T00:56:12: - "blog/2019-05-28-first-blog-post.md"
+2025-12-07T00:56:12: 
+2025-12-07T00:56:12: We recommend using truncation markers (`<!-- truncate -->` or `{/* truncate */}`) in blog posts to create shorter previews on blog paginated lists.
+2025-12-07T00:56:12: Tip: turn this security off with the `onUntruncatedBlogPosts: 'ignore'` blog plugin option.
+2025-12-07T00:56:13: Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+2025-12-07T00:56:13:   npx update-browserslist-db@latest
+2025-12-07T00:56:13:   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+2025-12-07T00:56:27: [WARNING] Docusaurus found broken anchors!
+2025-12-07T00:56:27: 
+2025-12-07T00:56:27: Please check the pages of your site in the list below, and make sure you don't reference any anchor that does not exist.
+2025-12-07T00:56:27: Note: it's possible to ignore broken anchors with the 'onBrokenAnchors' Docusaurus configuration, and let the build pass.
+2025-12-07T00:56:27: 
+2025-12-07T00:56:27: Exhaustive list of all broken anchors found:
+2025-12-07T00:56:27: - Broken anchor on source page path = /api/client/classes/Hud:
+2025-12-07T00:56:27:    -> linking to /api/client/modules#hudoptions
+2025-12-07T00:56:27: - Broken anchor on source page path = /wiki/blocks/block-registry:
+2025-12-07T00:56:27:    -> linking to /wiki/blocks/block-textures#per-instance-textures-isolated-faces
+2025-12-07T00:56:27: 
+2025-12-07T00:57:08: [warning] You are running with an unsupported TypeScript version! If TypeDoc crashes, this is why. TypeDoc supports 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4
+2025-12-07T00:57:09: [warning] You are running with an unsupported TypeScript version! If TypeDoc crashes, this is why. TypeDoc supports 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4
+2025-12-07T00:57:11: [warning] The signature Sky.constructor has an @param with name "dimension", which was not used.
+2025-12-07T00:57:11: [warning] The signature Sky.constructor has an @param with name "lerpFactor", which was not used.
+2025-12-07T00:57:11: [warning] The signature artFunctions.__type.drawSun.__type has an @param with name "context", which was not used.
+2025-12-07T00:57:11: [warning] The signature artFunctions.__type.drawSun.__type has an @param with name "canvas", which was not used.
+2025-12-07T00:57:11: [warning] The signature Inputs.bind has an @param with name "namespace", which was not used.
+2025-12-07T00:57:11: [warning] The signature World.makeBlockMesh has an @param with name "id", which was not used.
+2025-12-07T00:57:11: [warning] The signature World.makeBlockMesh has an @param with name "options.material", which was not used.
+2025-12-07T00:57:11: [warning] The signature World.makeBlockMesh has an @param with name "options.separateFaces:", which was not used.
+2025-12-07T00:57:11: [warning] The signature World.makeBlockMesh has an @param with name "options.crumbs:", which was not used.
+2025-12-07T00:57:11: [warning] The signature World.makeBlockMesh has an @param with name "options.centered:", which was not used.
+2025-12-07T00:57:11: [warning] The signature Chunk.setRawValue has an @param with name "value", which was not used.
+2025-12-07T00:57:11: [warning] The signature AtlasTexture.constructor has an @param with name "textureMap", which was not used.
+2025-12-07T00:57:11: [warning] The signature AtlasTexture.constructor has an @param with name "ranges", which was not used.
+2025-12-07T00:57:11: [warning] The signature AtlasTexture.constructor has an @param with name "options", which was not used.
+2025-12-07T00:57:11: [WARNING] Some blog authors used in "2019-05-28-first-blog-post.md" are not defined in "authors.yml":
+2025-12-07T00:57:11: - {"name":"Gao Wei","title":"Docusaurus Core Team","url":"https://github.com/wgao19","image_url":"https://github.com/wgao19.png","imageURL":"https://github.com/wgao19.png","socials":{},"key":null,"page":null}
+2025-12-07T00:57:11: 
+2025-12-07T00:57:11: Note that we recommend to declare authors once in a "authors.yml" file and reference them by key in blog posts front matter to avoid author info duplication.
+2025-12-07T00:57:11: But if you want to allow inline blog authors, you can disable this message by setting onInlineAuthors: 'ignore' in your blog plugin options.
+2025-12-07T00:57:11: More info at https://docusaurus.io/docs/blog
+2025-12-07T00:57:11: 
+2025-12-07T00:57:11: [WARNING] Docusaurus found blog posts without truncation markers:
+2025-12-07T00:57:11: - "blog/2021-08-26-welcome/index.md"
+2025-12-07T00:57:11: - "blog/2021-08-01-mdx-blog-post.mdx"
+2025-12-07T00:57:11: - "blog/2019-05-28-first-blog-post.md"
+2025-12-07T00:57:11: 
+2025-12-07T00:57:11: We recommend using truncation markers (`<!-- truncate -->` or `{/* truncate */}`) in blog posts to create shorter previews on blog paginated lists.
+2025-12-07T00:57:11: Tip: turn this security off with the `onUntruncatedBlogPosts: 'ignore'` blog plugin option.
+2025-12-07T00:57:12: Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+2025-12-07T00:57:12:   npx update-browserslist-db@latest
+2025-12-07T00:57:12:   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+2025-12-07T00:57:20: [WARNING] Docusaurus found broken anchors!
+2025-12-07T00:57:20: 
+2025-12-07T00:57:20: Please check the pages of your site in the list below, and make sure you don't reference any anchor that does not exist.
+2025-12-07T00:57:20: Note: it's possible to ignore broken anchors with the 'onBrokenAnchors' Docusaurus configuration, and let the build pass.
+2025-12-07T00:57:20: 
+2025-12-07T00:57:20: Exhaustive list of all broken anchors found:
+2025-12-07T00:57:20: - Broken anchor on source page path = /api/client/classes/Hud:
+2025-12-07T00:57:20:    -> linking to /api/client/modules#hudoptions
+2025-12-07T00:57:20: - Broken anchor on source page path = /wiki/blocks/block-registry:
+2025-12-07T00:57:20:    -> linking to /wiki/blocks/block-textures#per-instance-textures-isolated-faces
+2025-12-07T00:57:20: 

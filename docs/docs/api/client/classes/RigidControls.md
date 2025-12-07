@@ -52,7 +52,7 @@ to the world's physics engine, and applies movement to the camera.
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
 | `world` | [`World`](World.md)\<`any`\> | The world to apply the controls to. |
-| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-232)\> | The options to initialize the controls with. |
+| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)\> | The options to initialize the controls with. |
 
 #### Returns
 
@@ -69,7 +69,7 @@ EventEmitter.constructor
 ▪ `Static` `Readonly` **INPUT\_IDENTIFIER**: ``"voxelize-rigid-controls"``
 
 This is the identifier that is used to bind the rigid controls' keyboard inputs
-when [RigidControls.connect](RigidControls.md#connect-232) is called.
+when [RigidControls.connect](RigidControls.md#connect) is called.
 
 ___
 
@@ -78,7 +78,7 @@ ___
 • `Optional` **arm**: [`Arm`](Arm.md)
 
 A potential link to a [Arm](Arm.md) instance. This can be added by
-calling [RigidControls.attachArm](RigidControls.md#attacharm-232) to add a mesh for the first person
+calling [RigidControls.attachArm](RigidControls.md#attacharm) to add a mesh for the first person
 view.
 
 ___
@@ -107,7 +107,7 @@ ___
 • `Optional` **character**: [`Character`](Character.md)
 
 A potential link to a [Character](Character.md) instance. This can be added by
-calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter-232) to add a mesh for 2nd and 3rd person
+calling [RigidControls.attachCharacter](RigidControls.md#attachcharacter) to add a mesh for 2nd and 3rd person
 view.
 
 ___
@@ -125,7 +125,7 @@ ___
 • `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
-[RigidControls.connect](RigidControls.md#connect-232), which registers the keyboard inputs for the controls.
+[RigidControls.connect](RigidControls.md#connect), which registers the keyboard inputs for the controls.
 
 ___
 
@@ -168,7 +168,7 @@ ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions-232)
+• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)
 
 Parameters to initialize the Voxelize controls.
 
@@ -184,7 +184,7 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate-232)
+• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
 
 The state of the control, indicating things like whether or not the client is running.
 
@@ -200,13 +200,13 @@ Reference linking to the Voxelize world instance.
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2-232)
+• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-232)
+[`Coords2`](../modules.md#coords2)
 
 ___
 
@@ -248,14 +248,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3-232)
+• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-232)
+[`Coords3`](../modules.md#coords3)
 
 ## Methods
 
@@ -308,7 +308,7 @@ Sets up all event listeners for controls, including:
 - Control lock/unlock events
 
 This function returns a function that can be called to disconnect the controls.
-Keep in mind that if [Inputs.remap](Inputs.md#remap-232) is used to remap any controls, they will
+Keep in mind that if [Inputs.remap](Inputs.md#remap) is used to remap any controls, they will
 not be unbound when the returned function is called.
 
 #### Parameters
@@ -469,7 +469,7 @@ ___
 
 #### Implementation of
 
-[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage-232)
+[NetIntercept](../interfaces/NetIntercept.md).[onMessage](../interfaces/NetIntercept.md#onmessage)
 
 ___
 

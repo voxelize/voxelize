@@ -26,7 +26,7 @@ Convert a 2D chunk coordinate to a string representation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2-232) | `undefined` | The coordinates to convert. |
+| `coords` | [`Coords2`](../modules.md#coords2) | `undefined` | The coordinates to convert. |
 | `concat` | `string` | `"|"` | The concatenation string to use. |
 
 #### Returns
@@ -47,7 +47,7 @@ Convert a 3D voxel coordinate to a string representation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `coords` | [`Coords3`](../modules.md#coords3-232) | `undefined` | The coordinates to convert. |
+| `coords` | [`Coords3`](../modules.md#coords3) | `undefined` | The coordinates to convert. |
 | `concat` | `string` | `"|"` | The concatenation string to use. |
 
 #### Returns
@@ -60,7 +60,7 @@ ___
 
 ### mapChunkToVoxel
 
-▸ **mapChunkToVoxel**(`chunkPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-232)
+▸ **mapChunkToVoxel**(`chunkPos`, `chunkSize`): [`Coords3`](../modules.md#coords3)
 
 Map a 2D chunk coordinate to the 3D voxel coordinate.
 
@@ -68,12 +68,12 @@ Map a 2D chunk coordinate to the 3D voxel coordinate.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `chunkPos` | [`Coords2`](../modules.md#coords2-232) | The chunk coordinate to map. |
+| `chunkPos` | [`Coords2`](../modules.md#coords2) | The chunk coordinate to map. |
 | `chunkSize` | `number` | The horizontal dimension of a chunk. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-232)
+[`Coords3`](../modules.md#coords3)
 
 The mapped coordinate.
 
@@ -81,7 +81,7 @@ ___
 
 ### mapVoxelToChunk
 
-▸ **mapVoxelToChunk**(`voxelPos`, `chunkSize`): [`Coords2`](../modules.md#coords2-232)
+▸ **mapVoxelToChunk**(`voxelPos`, `chunkSize`): [`Coords2`](../modules.md#coords2)
 
 Map a 3D voxel coordinate to the 2D chunk coordinate.
 
@@ -89,12 +89,12 @@ Map a 3D voxel coordinate to the 2D chunk coordinate.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxelPos` | [`Coords3`](../modules.md#coords3-232) | The voxel coordinate to map. |
+| `voxelPos` | [`Coords3`](../modules.md#coords3) | The voxel coordinate to map. |
 | `chunkSize` | `number` | The horizontal dimension of a chunk. |
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2-232)
+[`Coords2`](../modules.md#coords2)
 
 The mapped coordinate.
 
@@ -102,7 +102,7 @@ ___
 
 ### mapVoxelToChunkLocal
 
-▸ **mapVoxelToChunkLocal**(`voxelPos`, `chunkSize`): [`Coords3`](../modules.md#coords3-232)
+▸ **mapVoxelToChunkLocal**(`voxelPos`, `chunkSize`): [`Coords3`](../modules.md#coords3)
 
 Map a 3D voxel coordinate to the local 3D voxel coordinate in the situated chunk.
 
@@ -110,12 +110,12 @@ Map a 3D voxel coordinate to the local 3D voxel coordinate in the situated chunk
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `voxelPos` | [`Coords3`](../modules.md#coords3-232) | The voxel coordinate to map. |
+| `voxelPos` | [`Coords3`](../modules.md#coords3) | The voxel coordinate to map. |
 | `chunkSize` | `number` | The horizontal dimension of a chunk. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-232)
+[`Coords3`](../modules.md#coords3)
 
 The mapped coordinate.
 
@@ -123,7 +123,7 @@ ___
 
 ### mapWorldToVoxel
 
-▸ **mapWorldToVoxel**(`worldPos`): [`Coords3`](../modules.md#coords3-232)
+▸ **mapWorldToVoxel**(`worldPos`): [`Coords3`](../modules.md#coords3)
 
 Map a 3D world coordinate to the 3D voxel coordinate. Since a voxel is
 exactly 1 unit in size, this is just a floor operation.
@@ -132,11 +132,11 @@ exactly 1 unit in size, this is just a floor operation.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `worldPos` | [`Coords3`](../modules.md#coords3-232) | The world coordinate to map. |
+| `worldPos` | [`Coords3`](../modules.md#coords3) | The world coordinate to map. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-232)
+[`Coords3`](../modules.md#coords3)
 
 The mapped coordinate.
 
@@ -165,7 +165,7 @@ ___
 
 ### scaleCoordsF
 
-▸ **scaleCoordsF**(`coords`, `factor`): [`Coords3`](../modules.md#coords3-232)
+▸ **scaleCoordsF**(`coords`, `factor`): [`Coords3`](../modules.md#coords3)
 
 Scale and floor a 3D coordinate.
 
@@ -173,11 +173,11 @@ Scale and floor a 3D coordinate.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `coords` | [`Coords3`](../modules.md#coords3-232) | The coordinates to scale and floor. |
+| `coords` | [`Coords3`](../modules.md#coords3) | The coordinates to scale and floor. |
 | `factor` | `number` | The factor to scale by. |
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3-232)
+[`Coords3`](../modules.md#coords3)
 
 The scaled and floored coordinates.

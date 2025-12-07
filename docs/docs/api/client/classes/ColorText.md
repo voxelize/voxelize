@@ -57,7 +57,7 @@ The symbol used to separate a text into a colored text object array.
 
 ▸ **split**(`text`, `defaultColor?`): \{ `color`: `string` ; `text`: `string`  }[]
 
-Split a text into a colored text object array by [ColorText.SPLITTER](ColorText.md#splitter-232).
+Split a text into a colored text object array by [ColorText.SPLITTER](ColorText.md#splitter).
 
 #### Parameters
 

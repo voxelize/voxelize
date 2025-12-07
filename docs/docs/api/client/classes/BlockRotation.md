@@ -123,7 +123,7 @@ Rotate a 3D coordinate by this block rotation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3-232) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `node` | [`Coords3`](../modules.md#coords3) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
 | `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
 | `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 
