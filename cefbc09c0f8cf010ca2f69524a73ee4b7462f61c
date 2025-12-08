@@ -7,4 +7,4 @@ packages/core/src/libs/worker-pool.ts: +122-123[0] -111-112[0]
 
 Conversations:
 
-[0]: bdde9717-cb81-4f5c-87a0-0968375f4cba; Investigate world loading issue; claude-4.5-opus-high;
+[0]: bdde9717-cb81-4f5c-87a0-0968375f4cba; bdde9717; unknown;
