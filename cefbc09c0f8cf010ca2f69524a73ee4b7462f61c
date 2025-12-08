@@ -1,0 +1,10 @@
+AI Notes:
+
+packages/core/src/core/network/workers/decode-worker.ts: +18-19[0] -18-21[0]
+packages/core/src/core/world/index.ts: +3530[0] -3536[0]
+packages/core/src/libs/shared-worker-pool.ts: +118-119[0] -107-108[0]
+packages/core/src/libs/worker-pool.ts: +122-123[0] -111-112[0]
+
+Conversations:
+
+[0]: bdde9717-cb81-4f5c-87a0-0968375f4cba; Investigate world loading issue; claude-4.5-opus-high;
