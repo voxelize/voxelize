@@ -1,0 +1,9 @@
+AI Notes:
+
+Cargo.toml: +51[0],+68-70[0] -51[0]
+server/world/cpu_profiler.rs: +129[1],+134[1],+137[1],+139[1]
+
+Conversations:
+
+[0]: 0eb11377-1817-4ec7-a95a-ddd07f66febc; Disable dev features to save compute; claude-4.5-opus-high;
+[1]: 6c0a5b9f-77cd-46ee-91ce-91e2a8aee6c2; Debugging town-core high cpu; claude-4.5-opus-high;
