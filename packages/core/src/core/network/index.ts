@@ -400,7 +400,6 @@ export class Network {
       },
     });
   };
-
   sync = () => {
     if (!this.connected || !this.packetQueue.length) {
       return;
@@ -558,14 +557,12 @@ export class Network {
   get packetQueueLength() {
     return this.packetQueue.length;
   }
-
   /**
    * The listener to protocol buffer events. Basically sends the event packets into
    * the network intercepts.
    */
   private onMessage = (message: MessageProtocol) => {
     const { type } = message;
-
     if (type === "ERROR") {
       const { text } = message;
       console.error("[NETWORK] Received ERROR:", text);
@@ -642,7 +639,6 @@ export class Network {
     this.priorityWorker.addEventListener("message", handler);
     this.priorityWorker.postMessage([buffer], [buffer.buffer]);
   };
-
   private decode = (data: Uint8Array[]): Promise<MessageProtocol[]> => {
     return new Promise<MessageProtocol[]>((resolve) => {
       this.pool.addJob({

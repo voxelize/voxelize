@@ -2809,7 +2809,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.lightWorkerPool.postMessage({ type: "init", registryData });
 
     this.isInitialized = true;
-
     this.renderRadius = this.options.defaultRenderRadius;
 
     if (this.initialEntities) {
@@ -2817,7 +2816,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.initialEntities = null;
     }
   }
-
   update(
     position: Vector3 = new Vector3(),
     direction: Vector3 = new Vector3()
@@ -2832,7 +2830,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       position.toArray() as Coords3,
       this.options.chunkSize
     );
-
     if (this.options.doesTickTime) {
       this._time = (this.time + delta) % this.options.timePerDay;
     }
@@ -2932,7 +2929,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       case "LOAD": {
         const { chunks } = message;
-
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
           const name = ChunkUtils.getChunkName([x, z]);
@@ -3228,7 +3224,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     // > 6 chunks: 2
 
     const toRequest = toRequestArray.slice(0, maxChunkRequestsPerUpdate);
-
     if (toRequest.length) {
       this.packets.push({
         type: "LOAD",
@@ -3315,7 +3310,6 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
         }
       };
-
       if (chunk.isReady) {
         buildMeshes();
         triggerInitListener(chunk);
@@ -3533,7 +3527,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
-    if (!chunk) return; // May be already maintained and deleted.
+    if (!chunk) return;
 
     const { maxHeight, subChunks, chunkSize } = this.options;
     const { level, geometries } = data;

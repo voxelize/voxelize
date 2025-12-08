@@ -108,9 +108,6 @@ export class WorkerPool {
 
       const { message, buffers, resolve } = this.queue.shift() as WorkerPoolJob;
 
-      worker.postMessage(message, buffers);
-      WorkerPool.WORKING_COUNT++;
-
       const workerCallback = ({ data }: any) => {
         WorkerPool.WORKING_COUNT--;
         worker.removeEventListener("message", workerCallback);
@@ -122,6 +119,8 @@ export class WorkerPool {
       };
 
       worker.addEventListener("message", workerCallback);
+      worker.postMessage(message, buffers);
+      WorkerPool.WORKING_COUNT++;
     }
   };
 

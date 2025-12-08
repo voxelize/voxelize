@@ -104,9 +104,6 @@ export class SharedWorkerPool {
       const { message, buffers, resolve } =
         this.queue.shift() as SharedWorkerPoolJob;
 
-      worker.port.postMessage(message, buffers || []);
-      SharedWorkerPool.WORKING_COUNT++;
-
       const workerCallback = ({ data }: any) => {
         SharedWorkerPool.WORKING_COUNT--;
         worker.port.removeEventListener("message", workerCallback);
@@ -118,6 +115,8 @@ export class SharedWorkerPool {
       };
 
       worker.port.addEventListener("message", workerCallback);
+      worker.port.postMessage(message, buffers || []);
+      SharedWorkerPool.WORKING_COUNT++;
     }
   };
 
