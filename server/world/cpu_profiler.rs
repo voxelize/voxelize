@@ -1,6 +1,7 @@
+#[cfg(feature = "profiling")]
 use pprof::ProfilerGuard;
 use serde::Serialize;
-use std::collections::HashMap;
+#[cfg(feature = "profiling")]
 use std::sync::{Arc, Mutex};
 
 #[derive(Serialize)]
@@ -11,6 +12,7 @@ pub struct FlameNode {
     children: Vec<FlameNode>,
 }
 
+#[cfg(feature = "profiling")]
 impl FlameNode {
     fn new(name: String) -> Self {
         Self {
@@ -42,16 +44,19 @@ impl FlameNode {
     }
 }
 
+#[cfg(feature = "profiling")]
 pub struct CpuProfiler {
     guard: Option<ProfilerGuard<'static>>,
 }
 
+#[cfg(feature = "profiling")]
 impl Default for CpuProfiler {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "profiling")]
 impl CpuProfiler {
     pub fn new() -> Self {
         Self { guard: None }
@@ -98,18 +103,37 @@ impl CpuProfiler {
     }
 }
 
+#[cfg(feature = "profiling")]
 lazy_static::lazy_static! {
     pub static ref GLOBAL_CPU_PROFILER: Arc<Mutex<CpuProfiler>> = Arc::new(Mutex::new(CpuProfiler::new()));
 }
 
+#[cfg(feature = "profiling")]
 pub fn start_profiling(frequency: i32) -> Result<(), String> {
     GLOBAL_CPU_PROFILER.lock().unwrap().start(frequency)
 }
 
+#[cfg(feature = "profiling")]
 pub fn stop_profiling_json() -> Result<FlameNode, String> {
     GLOBAL_CPU_PROFILER.lock().unwrap().stop_json()
 }
 
+#[cfg(feature = "profiling")]
 pub fn is_profiling() -> bool {
     GLOBAL_CPU_PROFILER.lock().unwrap().is_profiling()
+}
+
+#[cfg(not(feature = "profiling"))]
+pub fn start_profiling(_frequency: i32) -> Result<(), String> {
+    Err("Profiling not available (compiled without 'profiling' feature)".into())
+}
+
+#[cfg(not(feature = "profiling"))]
+pub fn stop_profiling_json() -> Result<FlameNode, String> {
+    Err("Profiling not available (compiled without 'profiling' feature)".into())
+}
+
+#[cfg(not(feature = "profiling"))]
+pub fn is_profiling() -> bool {
+    false
 }

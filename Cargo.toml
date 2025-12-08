@@ -48,7 +48,7 @@ nalgebra = "0.33.0"
 nanoid = "0.4.0"
 noise = "0.9.0"
 num = "0.4.2"
-pprof = { version = "0.14", features = ["flamegraph"] }
+pprof = { version = "0.14", features = ["flamegraph"], optional = true }
 prost = "0.12.4"
 rapier3d = { version = "0.21.0", features = ["simd-stable"] }
 rayon = "1.10.0"
@@ -64,6 +64,10 @@ chrono = "0.4.19"
 fern = { version = "0.6.2", features = ["colored"] }
 lazy_static = "1.4"
 log = "0.4.21"
+
+[features]
+default = []
+profiling = ["pprof"]
 
 [build-dependencies]
 prost-build = "0.12.4"
