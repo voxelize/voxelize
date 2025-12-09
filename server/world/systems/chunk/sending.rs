@@ -1,10 +1,10 @@
-use log::info;
-use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect};
+use hashbrown::HashMap;
+use specs::{ReadExpect, System, WriteExpect};
 use std::collections::VecDeque;
 
 use crate::{
-    ChunkInterests, ChunkRequestsComp, Chunks, ClientFilter, IDComp, Message, MessageQueue,
-    MessageType, WorldConfig,
+    ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueue, MessageType,
+    WorldConfig,
 };
 
 #[derive(Default)]
@@ -22,12 +22,10 @@ impl<'a> System<'a> for ChunkSendingSystem {
         ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, MessageQueue>,
-        ReadStorage<'a, IDComp>,
-        ReadStorage<'a, ChunkRequestsComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, interests, mut chunks, mut queue, ids, requests) = data;
+        let (config, interests, mut chunks, mut queue) = data;
 
         if chunks.to_send.is_empty() {
             return;
@@ -36,51 +34,109 @@ impl<'a> System<'a> for ChunkSendingSystem {
         let mut to_send = VecDeque::new();
         std::mem::swap(&mut chunks.to_send, &mut to_send);
 
-        while let Some((coords, r#type)) = to_send.pop_front() {
-            if let Some(chunk) = chunks.get_mut(&coords) {
-                for [mesh, data] in [[true, false], [false, true]] {
-                    let mut messages = vec![];
+        let mut client_load_mesh: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut client_load_data: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut client_update_mesh: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
+        let mut client_update_data: HashMap<String, Vec<ChunkProtocol>> = HashMap::new();
 
-                    if r#type == MessageType::Load {
-                        messages.push(
-                            Message::new(&r#type)
-                                .chunks(&[chunk.to_model(
-                                    mesh,
-                                    data,
-                                    0..(config.sub_chunks as u32),
-                                )])
-                                .build(),
-                        );
-                    } else if mesh {
-                        let updated_levels = chunk.updated_levels.drain().collect::<Vec<_>>();
-                        for level in updated_levels {
-                            messages.push(
-                                Message::new(&r#type)
-                                    .chunks(&[chunk.to_model(mesh, data, {
-                                        let level = level as u32;
-                                        level..(level + 1)
-                                    })])
-                                    .build(),
-                            );
-                        }
-                    } else {
-                        messages.push(
-                            Message::new(&r#type)
-                                .chunks(&[chunk.to_model(false, true, 0..0)])
-                                .build(),
-                        );
-                    }
+        while let Some((coords, msg_type)) = to_send.pop_front() {
+            let chunk = match chunks.get_mut(&coords) {
+                Some(c) => c,
+                None => panic!("Something went wrong with sending chunks..."),
+            };
 
-                    if let Some(chunk_interests) = interests.get_interests(&coords) {
-                        for id in chunk_interests {
-                            for message in &messages {
-                                queue.push((message.clone(), ClientFilter::Direct(id.to_owned())));
-                            }
-                        }
-                    }
+            let interested_clients: Vec<String> = interests
+                .get_interests(&coords)
+                .map(|set| set.iter().cloned().collect())
+                .unwrap_or_default();
+
+            if interested_clients.is_empty() {
+                continue;
+            }
+
+            if msg_type == MessageType::Load {
+                let mesh_model =
+                    chunk.to_model(true, false, 0..(config.sub_chunks as u32));
+                let data_model =
+                    chunk.to_model(false, true, 0..(config.sub_chunks as u32));
+
+                for client_id in &interested_clients {
+                    client_load_mesh
+                        .entry(client_id.clone())
+                        .or_default()
+                        .push(mesh_model.clone());
+                    client_load_data
+                        .entry(client_id.clone())
+                        .or_default()
+                        .push(data_model.clone());
                 }
             } else {
-                panic!("Something went wrong with sending chunks...");
+                let updated_levels: Vec<u32> = chunk.updated_levels.drain().collect();
+
+                if !updated_levels.is_empty() {
+                    let min_level = *updated_levels.iter().min().unwrap();
+                    let max_level = *updated_levels.iter().max().unwrap();
+                    let mesh_model = chunk.to_model(true, false, min_level..(max_level + 1));
+
+                    for client_id in &interested_clients {
+                        client_update_mesh
+                            .entry(client_id.clone())
+                            .or_default()
+                            .push(mesh_model.clone());
+                    }
+                }
+
+                let data_model = chunk.to_model(false, true, 0..0);
+                for client_id in &interested_clients {
+                    client_update_data
+                        .entry(client_id.clone())
+                        .or_default()
+                        .push(data_model.clone());
+                }
+            }
+        }
+
+        for (client_id, chunk_models) in client_load_mesh {
+            if !chunk_models.is_empty() {
+                queue.push((
+                    Message::new(&MessageType::Load)
+                        .chunks(&chunk_models)
+                        .build(),
+                    ClientFilter::Direct(client_id),
+                ));
+            }
+        }
+
+        for (client_id, chunk_models) in client_load_data {
+            if !chunk_models.is_empty() {
+                queue.push((
+                    Message::new(&MessageType::Load)
+                        .chunks(&chunk_models)
+                        .build(),
+                    ClientFilter::Direct(client_id),
+                ));
+            }
+        }
+
+        for (client_id, chunk_models) in client_update_mesh {
+            if !chunk_models.is_empty() {
+                queue.push((
+                    Message::new(&MessageType::Update)
+                        .chunks(&chunk_models)
+                        .build(),
+                    ClientFilter::Direct(client_id),
+                ));
+            }
+        }
+
+        for (client_id, chunk_models) in client_update_data {
+            if !chunk_models.is_empty() {
+                queue.push((
+                    Message::new(&MessageType::Update)
+                        .chunks(&chunk_models)
+                        .build(),
+                    ClientFilter::Direct(client_id),
+                ));
             }
         }
     }
