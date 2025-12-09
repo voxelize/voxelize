@@ -1,0 +1,8 @@
+AI Notes:
+
+server/world/config.rs: -130[0]
+server/world/systems/chunk/sending.rs: +1-2[0],+6-7[0],+28[0],+37-40[0],+42-71[0],+74-139[0] -1-2[0],-6-7[0],-25-26[0],-30[0],-39-72[0],-74-80[0],-83[0]
+
+Conversations:
+
+[0]: 792856ab-3a21-428e-87c8-c63a90e87cb9; Client entity update batching; claude-4.5-opus-high;
