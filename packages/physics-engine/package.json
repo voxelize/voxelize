@@ -24,6 +24,7 @@
   "author": "Ian Huang <ian1314159@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "@dimforge/rapier3d-compat": "0.19.3",
     "@voxelize/aabb": "workspace:*",
     "@voxelize/raycast": "workspace:*",
     "tsup": "^5.12.9",

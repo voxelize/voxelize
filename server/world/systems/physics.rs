@@ -62,10 +62,48 @@ impl<'a> System<'a> for PhysicsSystem {
 
         let mut collision_map = HashMap::new();
 
-        // Tick the voxel physics of all entities (non-clients).
-        (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
+        // Update chunk colliders for loaded chunks
+        // Note: This is a simplified version - in production you'd want to track which chunks
+        // have been processed and only update when chunks change
+        for (chunk_coords, chunk) in chunks.map.iter() {
+            if chunk.status == crate::ChunkStatus::Ready {
+                physics.update_chunk_colliders(
+                    chunk_coords,
+                    chunks.deref(),
+                    &registry,
+                    config.chunk_size,
+                    config.max_height,
+                );
+            }
+        }
+
+        // Tick the physics of all entities using Rapier
+        // For non-client entities with interactors, use Rapier physics
+        (&curr_chunks, &mut bodies, &mut positions, &interactors, !&client_flag)
+            .join()
+            .for_each(|(curr_chunk, body, position, interactor, _)| {
+                if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                    return;
+                }
+
+                // Use Rapier-based physics for chunk collisions
+                Physics::iterate_body_rapier(
+                    &mut body.0,
+                    interactor.body_handle(),
+                    &mut *physics,
+                    stats.delta,
+                    &config,
+                );
+
+                let body_pos = body.0.get_position();
+                let Vec3(px, py, pz) = body_pos;
+                position.0.set(px, py, pz);
+            });
+
+        // For entities without interactors (old code path), use AABB physics
+        (&curr_chunks, &mut bodies, &mut positions, !&interactors, !&client_flag)
             .par_join()
-            .for_each(|(curr_chunk, body, position, _)| {
+            .for_each(|(curr_chunk, body, position, _, _)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
                     return;
                 }
