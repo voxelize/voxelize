@@ -5,4 +5,4 @@ server/world/systems/chunk/sending.rs: +1-2[0],+6-7[0],+28[0],+37-40[0],+42-71[0
 
 Conversations:
 
-[0]: 792856ab-3a21-428e-87c8-c63a90e87cb9; Client entity update batching; claude-4.5-opus-high;
+[0]: 792856ab-3a21-428e-87c8-c63a90e87cb9; 792856ab; unknown;
