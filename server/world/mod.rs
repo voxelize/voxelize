@@ -1566,7 +1566,9 @@ impl World {
         if self.config().saving {
             // TODO: THIS FEELS HACKY
 
-            let paths = fs::read_dir(self.read_resource::<EntitiesSaver>().folder.clone()).unwrap();
+            let folder = self.read_resource::<EntitiesSaver>().folder.clone();
+            fs::create_dir_all(&folder).ok();
+            let paths = fs::read_dir(folder).unwrap();
             let mut loaded_entities = HashMap::new();
 
             for path in paths {

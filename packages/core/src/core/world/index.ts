@@ -3643,13 +3643,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.add(this.sky, this.clouds);
 
-    // initialize the physics engine with server provided options.
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
-        if (!this.getChunkByPosition(vx, vy, vz)) return [];
+        const chunk = this.getChunkByPosition(vx, vy, vz);
+        if (!chunk) return [];
 
-        const id = this.getVoxelAt(vx, vy, vz);
-        const rotation = this.getVoxelRotationAt(vx, vy, vz);
+        const id = chunk.getVoxel(vx, vy, vz);
         const { aabbs, isPassable, isFluid, dynamicPatterns } =
           this.getBlockById(id);
 
@@ -3663,6 +3662,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           );
           if (passable || isFluid) return [];
 
+          const rotation = chunk.getVoxelRotation(vx, vy, vz);
           return this.getBlockAABBsForDynamicPatterns(
             vx,
             vy,
@@ -3673,27 +3673,30 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (isPassable || isFluid) return [];
 
+        const rotation = chunk.getVoxelRotation(vx, vy, vz);
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
         );
       },
       (vx: number, vy: number, vz: number) => {
-        if (!this.getChunkByPosition(vx, vy, vz)) return false;
+        const chunk = this.getChunkByPosition(vx, vy, vz);
+        if (!chunk) return false;
 
-        const id = this.getVoxelAt(vx, vy, vz);
+        const id = chunk.getVoxel(vx, vy, vz);
         const { isFluid } = this.getBlockById(id);
 
         return isFluid;
       },
       (vx: number, vy: number, vz: number) => {
-        if (!this.getChunkByPosition(vx, vy, vz)) return [];
+        const chunk = this.getChunkByPosition(vx, vy, vz);
+        if (!chunk) return [];
 
-        const id = this.getVoxelAt(vx, vy, vz);
-        const rotation = this.getVoxelRotationAt(vx, vy, vz);
+        const id = chunk.getVoxel(vx, vy, vz);
         const { aabbs, isClimbable } = this.getBlockById(id);
 
         if (!isClimbable) return [];
 
+        const rotation = chunk.getVoxelRotation(vx, vy, vz);
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
         );

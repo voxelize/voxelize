@@ -402,6 +402,10 @@ export class BlockRotation {
    * @returns A new axis aligned bounding box.
    */
   public rotateAABB = (aabb: AABB, yRotate = true, translate = true) => {
+    if (this.value === PY_ROTATION && (this.yRotation === 0 || !yRotate)) {
+      return aabb.clone();
+    }
+
     const min = [aabb.minX, aabb.minY, aabb.minZ] as Coords3;
     const max = [aabb.maxX, aabb.maxY, aabb.maxZ] as Coords3;
 

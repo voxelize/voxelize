@@ -197,6 +197,8 @@ export class Network {
 
   private waitingForInit = false;
 
+  private initPacketReceived = false;
+
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
       ...defaultOptions,
@@ -294,8 +296,13 @@ export class Network {
         const arrayBuffer = data as ArrayBuffer;
 
         if (this.waitingForInit) {
-          const bufferCopy = new Uint8Array(arrayBuffer.slice(0));
-          this.decodePriority(bufferCopy, arrayBuffer);
+          if (!this.initPacketReceived) {
+            this.initPacketReceived = true;
+            const bufferCopy = new Uint8Array(arrayBuffer.slice(0));
+            this.decodePriority(bufferCopy, arrayBuffer);
+          } else {
+            this.packetQueue.push(arrayBuffer);
+          }
           return;
         }
 
@@ -351,6 +358,7 @@ export class Network {
     this.joined = true;
     this.world = world;
     this.waitingForInit = true;
+    this.initPacketReceived = false;
     this.joinStartTime = performance.now();
 
     this.send({
