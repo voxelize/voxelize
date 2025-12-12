@@ -1,0 +1,12 @@
+AI Notes:
+
+packages/core/src/core/network/index.ts: +200-201[0],+299-305[0],+361[0] -297-298[0]
+packages/core/src/core/world/block.ts: +405-407[1]
+packages/core/src/core/world/index.ts: +3648-3649[1],+3651[1],+3665[1],+3676[1],+3682-3683[1],+3685[1],+3691-3692[1],+3694[1],+3699[1] -3646[1],-3649[1],-3651-3652[1],-3681[1],-3683[1],-3689[1],-3691-3692[1]
+server/world/mod.rs: +1569-1571[2] -1569[2]
+
+Conversations:
+
+[0]: f2b699f6-6f0c-449a-8213-0c3c8f8b1fb3; Rust code INIT packet delay; claude-4.5-opus-high;
+[1]: 177b570b-4f8d-4e3d-a6ef-ba52eb8df89b; 177b570b; unknown;
+[2]: 2484ecd8-f3a3-4a64-bdac-66b0e9d9a378; 2484ecd8; unknown;
