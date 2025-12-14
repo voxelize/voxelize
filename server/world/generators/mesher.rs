@@ -169,7 +169,7 @@ impl Mesher {
                                         - if dx == 0 && dz == 0 { 1 } else { 0 },
                                     0,
                                     (coords.1 + dz) * chunk_size
-                                        - if dz == 0 && dz == 0 { 1 } else { 0 },
+                                        - if dx == 0 && dz == 0 { 1 } else { 0 },
                                 );
                                 let shape = Vec3(
                                     chunk_size as usize + if dx == 0 && dz == 0 { 2 } else { 0 },
