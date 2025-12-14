@@ -238,9 +238,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                     blue_removals.push(voxel.clone());
                 }
 
-                // Remove any residual sunlight directly
                 let Vec3(vx, vy, vz) = voxel;
-                if chunks.get_sunlight(*vx, *vy, *vz) != 0 {
+                if light_block.is_opaque && chunks.get_sunlight(*vx, *vy, *vz) != 0 {
                     Lights::remove_light(&mut *chunks, voxel, &SUNLIGHT, &config, &registry);
                 }
             }
@@ -270,9 +269,9 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
                 let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
                 let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
+                let is_removed_light_source = current_is_light && !updated_is_light;
 
-                // Skip if we already handled this as a removed light source
-                if current_is_light && !updated_is_light {
+                if is_removed_light_source && !current_type.is_opaque {
                     continue;
                 }
 
@@ -467,31 +466,33 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                                 })
                             }
 
-                            let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
-                                - if updated_type.light_reduce { 1 } else { 0 };
-                            if red_level != 0 {
-                                red_flood.push_back(LightNode {
-                                    voxel: n_voxel,
-                                    level: red_level,
-                                })
-                            }
+                            if !is_removed_light_source {
+                                let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
+                                    - if updated_type.light_reduce { 1 } else { 0 };
+                                if red_level != 0 {
+                                    red_flood.push_back(LightNode {
+                                        voxel: n_voxel,
+                                        level: red_level,
+                                    })
+                                }
 
-                            let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
-                                - if updated_type.light_reduce { 1 } else { 0 };
-                            if green_level != 0 {
-                                green_flood.push_back(LightNode {
-                                    voxel: n_voxel,
-                                    level: green_level,
-                                })
-                            }
+                                let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
+                                    - if updated_type.light_reduce { 1 } else { 0 };
+                                if green_level != 0 {
+                                    green_flood.push_back(LightNode {
+                                        voxel: n_voxel,
+                                        level: green_level,
+                                    })
+                                }
 
-                            let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
-                                - if updated_type.light_reduce { 1 } else { 0 };
-                            if blue_level != 0 {
-                                blue_flood.push_back(LightNode {
-                                    voxel: n_voxel,
-                                    level: blue_level,
-                                })
+                                let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
+                                    - if updated_type.light_reduce { 1 } else { 0 };
+                                if blue_level != 0 {
+                                    blue_flood.push_back(LightNode {
+                                        voxel: n_voxel,
+                                        level: blue_level,
+                                    })
+                                }
                             }
                         }
                     });

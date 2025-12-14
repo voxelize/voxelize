@@ -3847,11 +3847,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
       const [vx, vy, vz] = voxel;
 
-      if (
-        removedLightSources.some(
-          ({ voxel: v }) => v[0] === vx && v[1] === vy && v[2] === vz
-        )
-      ) {
+      const isRemovedLightSource = removedLightSources.some(
+        ({ voxel: v }) => v[0] === vx && v[1] === vy && v[2] === vz
+      );
+
+      if (isRemovedLightSource && !oldBlock.isOpaque) {
         continue;
       }
 
@@ -4078,34 +4078,36 @@ export class World<T = any> extends Scene implements NetIntercept {
               });
             }
 
-            const redLevel =
-              this.getTorchLightAt(nvx, nvy, nvz, "RED") -
-              (newBlock.lightReduce ? 1 : 0);
-            if (redLevel > 0) {
-              redFlood.push({
-                voxel: [nvx, nvy, nvz],
-                level: redLevel,
-              });
-            }
+            if (!isRemovedLightSource) {
+              const redLevel =
+                this.getTorchLightAt(nvx, nvy, nvz, "RED") -
+                (newBlock.lightReduce ? 1 : 0);
+              if (redLevel > 0) {
+                redFlood.push({
+                  voxel: [nvx, nvy, nvz],
+                  level: redLevel,
+                });
+              }
 
-            const greenLevel =
-              this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
-              (newBlock.lightReduce ? 1 : 0);
-            if (greenLevel > 0) {
-              greenFlood.push({
-                voxel: [nvx, nvy, nvz],
-                level: greenLevel,
-              });
-            }
+              const greenLevel =
+                this.getTorchLightAt(nvx, nvy, nvz, "GREEN") -
+                (newBlock.lightReduce ? 1 : 0);
+              if (greenLevel > 0) {
+                greenFlood.push({
+                  voxel: [nvx, nvy, nvz],
+                  level: greenLevel,
+                });
+              }
 
-            const blueLevel =
-              this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
-              (newBlock.lightReduce ? 1 : 0);
-            if (blueLevel > 0) {
-              blueFlood.push({
-                voxel: [nvx, nvy, nvz],
-                level: blueLevel,
-              });
+              const blueLevel =
+                this.getTorchLightAt(nvx, nvy, nvz, "BLUE") -
+                (newBlock.lightReduce ? 1 : 0);
+              if (blueLevel > 0) {
+                blueFlood.push({
+                  voxel: [nvx, nvy, nvz],
+                  level: blueLevel,
+                });
+              }
             }
           }
         }

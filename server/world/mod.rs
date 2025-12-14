@@ -1315,16 +1315,6 @@ impl World {
                                 self.mesher_mut().add_chunk(&coords, false);
                             }
                         }
-
-                        // drop(chunks);
-
-                        // let is_in_pipeline = self.pipeline().has_chunk(&coords);
-                        // let is_in_mesher = self.mesher().map.contains(&coords);
-
-                        // info!(
-                        //     "Chunk {:?} is not ready. In pipeline: {}, in mesher: {}, status: {:?}",
-                        //     coords, is_in_pipeline, is_in_mesher, status
-                        // );
                     }
                 }
             }

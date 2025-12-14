@@ -147,7 +147,6 @@ impl Chunks {
         Some(chunk)
     }
 
-    // Save a certain chunk.
     pub fn save(&self, coords: &Vec2<i32>) -> bool {
         if !self.config.saving {
             panic!("Calling `chunks.save` when saving mode is not on.");
@@ -160,7 +159,7 @@ impl Chunks {
         };
 
         let path = self.get_chunk_file_path(&chunk.name);
-        let mut file = File::create(&path).expect("Could not create chunk file.");
+        let tmp_path = path.with_extension("json.tmp");
 
         let to_base_64 = |data: &Vec<u32>| {
             let mut bytes = vec![0; data.len() * 4];
@@ -178,10 +177,32 @@ impl Chunks {
             height_map: to_base_64(&chunk.height_map.data),
         };
 
-        let j = serde_json::to_string(&data).unwrap();
+        let j = match serde_json::to_string(&data) {
+            Ok(j) => j,
+            Err(_) => return false,
+        };
 
-        file.write_all(j.as_bytes())
-            .expect("Unable to write to chunk file.");
+        let mut file = match File::create(&tmp_path) {
+            Ok(f) => f,
+            Err(_) => return false,
+        };
+
+        if file.write_all(j.as_bytes()).is_err() {
+            let _ = fs::remove_file(&tmp_path);
+            return false;
+        }
+
+        if file.sync_all().is_err() {
+            let _ = fs::remove_file(&tmp_path);
+            return false;
+        }
+
+        drop(file);
+
+        if fs::rename(&tmp_path, &path).is_err() {
+            let _ = fs::remove_file(&tmp_path);
+            return false;
+        }
 
         true
     }
