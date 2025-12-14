@@ -216,6 +216,7 @@ export class BoxLayer extends Mesh {
 
     this.material = materials;
 
+    // NOTE FOR AGENT: This 90-degree Y rotation means the "depth" dimension extends along the X-axis, not "width"
     this.rotation.y = Math.PI / 2;
   }
 
@@ -352,6 +353,11 @@ export class BoxLayer extends Mesh {
  * ```
  *
  * ![Bobby from King of the Hill](/img/docs/bobby-canvas-box.png)
+ *
+ * # Rotation Conventions
+ * - `rotation.x`: Positive tilts backward (front face goes up), negative tilts forward
+ * - `rotation.y`: Positive rotates left (counter-clockwise from above), negative rotates right
+ * - `rotation.z`: Positive rolls counter-clockwise (from front view), negative rolls clockwise
  *
  * @noInheritDoc
  */
