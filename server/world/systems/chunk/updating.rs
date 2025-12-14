@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use hashbrown::HashMap;
 use log::info;
 use nanoid::nanoid;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
@@ -63,157 +64,160 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         let mut results = vec![];
 
         if !chunks.updates.is_empty() {
-            let mut updates = Vec::new();
             let total_updates = chunks.updates.len();
+            let num_to_process = max_updates_per_tick.min(total_updates);
 
-            for _ in 0..max_updates_per_tick.min(total_updates) {
-                updates.push(chunks.updates.pop_front().unwrap());
-            }
+            let mut updates_by_chunk: HashMap<Vec2<i32>, Vec<(Vec3<i32>, u32)>> = HashMap::new();
 
-            // Collect all light sources that will be removed
-            let mut removed_light_sources = Vec::new();
-
-            // Store all updates for processing light later
-            let mut processed_updates = Vec::new();
-
-            // First pass: Update all voxels and track light source removals
-            while let Some((voxel, raw)) = updates.pop() {
+            for _ in 0..num_to_process {
+                let (voxel, raw) = chunks.updates.pop_front().unwrap();
                 let Vec3(vx, vy, vz) = voxel;
 
                 let updated_id = BlockUtils::extract_id(raw);
-                let rotation = BlockUtils::extract_rotation(raw);
-                let stage = BlockUtils::extract_stage(raw);
-                let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
-
                 if vy < 0 || vy >= config.max_height as i32 || !registry.has_type(updated_id) {
                     continue;
                 }
 
+                let coords = ChunkUtils::map_voxel_to_chunk(vx, vy, vz, config.chunk_size);
+                updates_by_chunk
+                    .entry(coords)
+                    .or_insert_with(Vec::new)
+                    .push((voxel, raw));
+            }
+
+            let mut removed_light_sources = Vec::new();
+            let mut processed_updates = Vec::new();
+
+            for (coords, chunk_updates) in updates_by_chunk {
                 if !chunks.is_chunk_ready(&coords) {
+                    for (voxel, raw) in chunk_updates.into_iter().rev() {
+                        chunks.updates.push_front((voxel, raw));
+                    }
                     continue;
                 }
 
                 if mesher.map.contains(&coords) {
-                    chunks.update_voxel(&voxel, raw);
-                    continue;
-                }
-
-                let mut ready = true;
-
-                for neighbor in chunks.light_traversed_chunks(&coords) {
-                    if ready && !chunks.is_chunk_ready(&neighbor) {
-                        ready = false;
+                    for (voxel, raw) in chunk_updates.into_iter().rev() {
+                        chunks.updates.push_front((voxel, raw));
                     }
-                }
-
-                if !ready {
-                    chunks.update_voxel(&voxel, raw);
                     continue;
                 }
 
-                let current_id = chunks.get_voxel(vx, vy, vz);
-                if registry.is_air(updated_id) && registry.is_air(current_id) {
+                let neighbors_ready = chunks
+                    .light_traversed_chunks(&coords)
+                    .iter()
+                    .all(|n| chunks.is_chunk_ready(n));
+
+                if !neighbors_ready {
+                    for (voxel, raw) in chunk_updates.into_iter().rev() {
+                        chunks.updates.push_front((voxel, raw));
+                    }
                     continue;
                 }
 
-                // Track if this update removes a light source
-                let current_type = registry.get_block_by_id(current_id);
-                let updated_type = registry.get_block_by_id(updated_id);
-                let voxel_pos = voxel.clone();
+                for (voxel, raw) in chunk_updates {
+                    let Vec3(vx, vy, vz) = voxel;
+                    let updated_id = BlockUtils::extract_id(raw);
+                    let current_id = chunks.get_voxel(vx, vy, vz);
 
-                let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
-                let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
+                    if registry.is_air(updated_id) && registry.is_air(current_id) {
+                        continue;
+                    }
 
-                if current_is_light && !updated_is_light {
-                    removed_light_sources.push((voxel.clone(), current_type.clone()));
-                }
+                    let current_type = registry.get_block_by_id(current_id);
+                    let updated_type = registry.get_block_by_id(updated_id);
+                    let voxel_pos = voxel.clone();
 
-                // Store update for later processing
-                processed_updates.push((voxel.clone(), raw, current_id, updated_id));
+                    let current_is_light = current_type.is_light_at(&voxel_pos, &*chunks);
+                    let updated_is_light = updated_type.is_light_at(&voxel_pos, &*chunks);
 
-                // Actually updating the voxel.
-                let height = chunks.get_max_height(vx, vz);
+                    if current_is_light && !updated_is_light {
+                        removed_light_sources.push((voxel.clone(), current_type.clone()));
+                    }
 
-                let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
-                if let Some(existing_entity) = existing_entity {
-                    lazy.exec_mut(move |world| {
-                        world
-                            .delete_entity(existing_entity)
-                            .expect("Failed to delete entity");
-                    });
-                }
+                    processed_updates.push((voxel.clone(), raw, current_id, updated_id));
 
-                // need to add an entity
-                if updated_type.is_entity {
-                    let entity = entities.create();
-                    chunks.block_entities.insert(voxel.clone(), entity);
-                    lazy.insert(entity, IDComp::new(&nanoid!()));
-                    lazy.insert(entity, EntityFlag::default());
-                    lazy.insert(
-                        entity,
-                        ETypeComp::new(
-                            &format!(
-                                "block::{}",
-                                &updated_type
-                                    .name
-                                    .to_lowercase()
-                                    .trim_start_matches("block::")
+                    let rotation = BlockUtils::extract_rotation(raw);
+                    let stage = BlockUtils::extract_stage(raw);
+                    let height = chunks.get_max_height(vx, vz);
+
+                    let existing_entity = chunks.block_entities.remove(&Vec3(vx, vy, vz));
+                    if let Some(existing_entity) = existing_entity {
+                        lazy.exec_mut(move |world| {
+                            world
+                                .delete_entity(existing_entity)
+                                .expect("Failed to delete entity");
+                        });
+                    }
+
+                    if updated_type.is_entity {
+                        let entity = entities.create();
+                        chunks.block_entities.insert(voxel.clone(), entity);
+                        lazy.insert(entity, IDComp::new(&nanoid!()));
+                        lazy.insert(entity, EntityFlag::default());
+                        lazy.insert(
+                            entity,
+                            ETypeComp::new(
+                                &format!(
+                                    "block::{}",
+                                    &updated_type
+                                        .name
+                                        .to_lowercase()
+                                        .trim_start_matches("block::")
+                                ),
+                                true,
                             ),
-                            true,
-                        ),
-                    );
-                    lazy.insert(entity, MetadataComp::new());
-                    lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
-                    lazy.insert(entity, CurrentChunkComp::default());
-                    lazy.insert(entity, JsonComp::new("{}"));
-                }
+                        );
+                        lazy.insert(entity, MetadataComp::new());
+                        lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
+                        lazy.insert(entity, CurrentChunkComp::default());
+                        lazy.insert(entity, JsonComp::new("{}"));
+                    }
 
-                chunks.set_voxel(vx, vy, vz, updated_id);
+                    chunks.set_voxel(vx, vy, vz, updated_id);
+                    chunks.set_voxel_stage(vx, vy, vz, stage);
 
-                chunks.set_voxel_stage(vx, vy, vz, stage);
+                    if updated_type.is_active {
+                        let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
+                            Vec3(vx, vy, vz),
+                            &*chunks,
+                            &registry,
+                        );
+                        chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
+                    }
 
-                if updated_type.is_active {
-                    let ticks = (&updated_type.active_ticker.as_ref().unwrap())(
-                        Vec3(vx, vy, vz),
-                        &*chunks,
-                        &registry,
-                    );
-                    chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
-                }
+                    if updated_type.rotatable || updated_type.y_rotatable {
+                        chunks.set_voxel_rotation(vx, vy, vz, &rotation);
+                    }
 
-                if updated_type.rotatable || updated_type.y_rotatable {
-                    chunks.set_voxel_rotation(vx, vy, vz, &rotation);
-                }
-
-                // updating the height map
-                if registry.is_air(updated_id) {
-                    if vy == height as i32 {
-                        // on max height, should set max height to lower
-                        for y in (0..vy).rev() {
-                            if y == 0 || registry.check_height(chunks.get_voxel(vx, y, vz)) {
-                                chunks.set_max_height(vx, vz, y as u32);
-                                break;
+                    if registry.is_air(updated_id) {
+                        if vy == height as i32 {
+                            for y in (0..vy).rev() {
+                                if y == 0 || registry.check_height(chunks.get_voxel(vx, y, vz)) {
+                                    chunks.set_max_height(vx, vz, y as u32);
+                                    break;
+                                }
                             }
                         }
+                    } else if height < vy as u32 {
+                        chunks.set_max_height(vx, vz, vy as u32);
                     }
-                } else if height < vy as u32 {
-                    chunks.set_max_height(vx, vz, vy as u32);
-                }
 
-                chunks
-                    .voxel_affected_chunks(vx, vy, vz)
-                    .into_iter()
-                    .for_each(|c| {
-                        chunks.cache.insert(c);
+                    chunks
+                        .voxel_affected_chunks(vx, vy, vz)
+                        .into_iter()
+                        .for_each(|c| {
+                            chunks.cache.insert(c);
+                        });
+
+                    results.push(UpdateProtocol {
+                        vx,
+                        vy,
+                        vz,
+                        voxel: 0,
+                        light: 0,
                     });
-
-                results.push(UpdateProtocol {
-                    vx,
-                    vy,
-                    vz,
-                    voxel: 0,
-                    light: 0,
-                });
+                }
             }
 
             // Second pass: Remove all light from removed light sources
