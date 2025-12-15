@@ -15,10 +15,10 @@ impl Default for FluidConfig {
     fn default() -> Self {
         Self {
             max_stage: 7,
-            tick_rate: 100,
+            tick_rate: 25,
             infinite_source: true,
             infinite_source_count: 2,
-            flows_down_as_source: true,
+            flows_down_as_source: false,
         }
     }
 }
@@ -96,6 +96,35 @@ fn has_valid_source_path(
     false
 }
 
+fn is_at_fluid_edge(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &dyn VoxelAccess,
+    fluid_id: u32,
+    max_stage: u32,
+) -> bool {
+    let curr_stage = space.get_voxel_stage(vx, vy, vz);
+    if curr_stage >= max_stage {
+        return true;
+    }
+
+    for [dx, dz] in HORIZONTAL_NEIGHBORS {
+        let nx = vx + dx;
+        let nz = vz + dz;
+        let neighbor_id = space.get_voxel(nx, vy, nz);
+        if neighbor_id != fluid_id {
+            return true;
+        }
+        let neighbor_stage = space.get_voxel_stage(nx, vy, nz);
+        if neighbor_stage > curr_stage {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub type FluidTicker = Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>;
 pub type FluidUpdater =
     Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<(Vec3<i32>, u32)> + Send + Sync>;
@@ -106,51 +135,51 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
 
     let ticker: FluidTicker = Arc::new(move |_pos, _space, _registry| tick_rate);
 
-    let updater: FluidUpdater =
-        Arc::new(
-            move |pos: Vec3<i32>, space: &dyn VoxelAccess, _registry: &Registry| {
-                let Vec3(vx, vy, vz) = pos;
-                let curr_stage = space.get_voxel_stage(vx, vy, vz);
+    let updater: FluidUpdater = Arc::new(
+        move |pos: Vec3<i32>, space: &dyn VoxelAccess, _registry: &Registry| {
+            let Vec3(vx, vy, vz) = pos;
+            let curr_stage = space.get_voxel_stage(vx, vy, vz);
 
-                if config_clone.infinite_source && curr_stage > 0 {
-                    let source_count =
-                        count_horizontal_source_neighbors(vx, vy, vz, space, fluid_id);
-                    if source_count >= config_clone.infinite_source_count {
-                        return vec![(
-                            Vec3(vx, vy, vz),
-                            VoxelPacker::new().with_id(fluid_id).with_stage(0).pack(),
-                        )];
-                    }
-                }
-
-                if space.get_voxel(vx, vy + 1, vz) == fluid_id && curr_stage > 0 {
+            if config_clone.infinite_source && curr_stage > 0 {
+                let source_count = count_horizontal_source_neighbors(vx, vy, vz, space, fluid_id);
+                if source_count >= config_clone.infinite_source_count {
                     return vec![(
                         Vec3(vx, vy, vz),
                         VoxelPacker::new().with_id(fluid_id).with_stage(0).pack(),
                     )];
                 }
+            }
 
-                if space.get_voxel(vx, vy - 1, vz) == 0 {
-                    let new_stage = if config_clone.flows_down_as_source {
-                        0
-                    } else {
-                        curr_stage
-                    };
-                    return vec![(
-                        Vec3(vx, vy - 1, vz),
-                        VoxelPacker::new()
-                            .with_id(fluid_id)
-                            .with_stage(new_stage)
-                            .pack(),
-                    )];
-                }
+            if space.get_voxel(vx, vy + 1, vz) == fluid_id && curr_stage > 0 {
+                return vec![(
+                    Vec3(vx, vy, vz),
+                    VoxelPacker::new().with_id(fluid_id).with_stage(0).pack(),
+                )];
+            }
 
-                if curr_stage < config_clone.max_stage {
-                    let mut updates = vec![];
-                    for [dx, dz] in HORIZONTAL_NEIGHBORS {
-                        let nx = vx + dx;
-                        let nz = vz + dz;
-                        if space.get_voxel(nx, vy, nz) == 0 {
+            if space.get_voxel(vx, vy - 1, vz) == 0 {
+                let new_stage = if config_clone.flows_down_as_source {
+                    0
+                } else {
+                    curr_stage
+                };
+                return vec![(
+                    Vec3(vx, vy - 1, vz),
+                    VoxelPacker::new()
+                        .with_id(fluid_id)
+                        .with_stage(new_stage)
+                        .pack(),
+                )];
+            }
+
+            if curr_stage < config_clone.max_stage {
+                let mut updates = vec![];
+                for [dx, dz] in HORIZONTAL_NEIGHBORS {
+                    let nx = vx + dx;
+                    let nz = vz + dz;
+                    if space.get_voxel(nx, vy, nz) == 0 {
+                        let below = space.get_voxel(nx, vy - 1, nz);
+                        if below != 0 {
                             updates.push((
                                 Vec3(nx, vy, nz),
                                 VoxelPacker::new()
@@ -160,20 +189,32 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                             ));
                         }
                     }
-                    if !updates.is_empty() {
-                        return updates;
-                    }
                 }
+                if !updates.is_empty() {
+                    return updates;
+                }
+            }
 
-                if curr_stage > 0
-                    && !has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id)
-                {
+            if curr_stage > 0
+                && !has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id)
+                && is_at_fluid_edge(vx, vy, vz, space, fluid_id, config_clone.max_stage)
+            {
+                if curr_stage >= config_clone.max_stage {
                     return vec![(Vec3(vx, vy, vz), 0)];
+                } else {
+                    return vec![(
+                        Vec3(vx, vy, vz),
+                        VoxelPacker::new()
+                            .with_id(fluid_id)
+                            .with_stage(curr_stage + 1)
+                            .pack(),
+                    )];
                 }
+            }
 
-                vec![]
-            },
-        );
+            vec![]
+        },
+    );
 
     (ticker, updater)
 }

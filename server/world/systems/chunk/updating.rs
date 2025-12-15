@@ -186,6 +186,24 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                         chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
                     }
 
+                    for [ox, oy, oz] in VOXEL_NEIGHBORS {
+                        let nx = vx + ox;
+                        let ny = vy + oy;
+                        let nz = vz + oz;
+
+                        let neighbor_id = chunks.get_voxel(nx, ny, nz);
+                        let neighbor_block = registry.get_block_by_id(neighbor_id);
+
+                        if neighbor_block.is_fluid && neighbor_block.is_active {
+                            let ticks = (&neighbor_block.active_ticker.as_ref().unwrap())(
+                                Vec3(nx, ny, nz),
+                                &*chunks,
+                                &registry,
+                            );
+                            chunks.mark_voxel_active(&Vec3(nx, ny, nz), ticks + current_tick);
+                        }
+                    }
+
                     if updated_type.rotatable || updated_type.y_rotatable {
                         chunks.set_voxel_rotation(vx, vy, vz, &rotation);
                     }
