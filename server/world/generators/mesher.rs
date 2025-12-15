@@ -44,6 +44,171 @@ const RED: LightColor = LightColor::Red;
 const GREEN: LightColor = LightColor::Green;
 const BLUE: LightColor = LightColor::Blue;
 
+const FLUID_BASE_HEIGHT: f32 = 0.875;
+const FLUID_STAGE_DROPOFF: f32 = 0.1;
+
+fn get_fluid_effective_height(stage: u32) -> f32 {
+    (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
+}
+
+fn has_fluid_above(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &dyn VoxelAccess) -> bool {
+    space.get_voxel(vx, vy + 1, vz) == fluid_id
+}
+
+fn get_fluid_height_at(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &dyn VoxelAccess) -> Option<f32> {
+    if space.get_voxel(vx, vy, vz) == fluid_id {
+        let stage = space.get_voxel_stage(vx, vy, vz);
+        Some(get_fluid_effective_height(stage))
+    } else {
+        None
+    }
+}
+
+fn calculate_fluid_corner_height(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    corner_offsets: &[[i32; 2]; 3],
+    fluid_id: u32,
+    space: &dyn VoxelAccess,
+) -> f32 {
+    if has_fluid_above(vx, vy, vz, fluid_id, space) {
+        return 1.0;
+    }
+
+    let self_stage = space.get_voxel_stage(vx, vy, vz);
+    let self_height = get_fluid_effective_height(self_stage);
+
+    let mut total_height = self_height;
+    let mut count = 1.0;
+
+    for [dx, dz] in corner_offsets {
+        let nx = vx + dx;
+        let nz = vz + dz;
+
+        if has_fluid_above(nx, vy, nz, fluid_id, space) {
+            total_height += 1.0;
+            count += 1.0;
+        } else if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, space) {
+            total_height += h;
+            count += 1.0;
+        }
+    }
+
+    total_height / count
+}
+
+fn create_fluid_faces(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    fluid_id: u32,
+    space: &dyn VoxelAccess,
+    original_faces: &[BlockFace],
+) -> (Vec<BlockFace>, AABB) {
+    let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
+    let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
+    let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
+    let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
+
+    let h_nxnz = calculate_fluid_corner_height(vx, vy, vz, &corner_nxnz, fluid_id, space);
+    let h_pxnz = calculate_fluid_corner_height(vx, vy, vz, &corner_pxnz, fluid_id, space);
+    let h_nxpz = calculate_fluid_corner_height(vx, vy, vz, &corner_nxpz, fluid_id, space);
+    let h_pxpz = calculate_fluid_corner_height(vx, vy, vz, &corner_pxpz, fluid_id, space);
+
+    let mut uv_map: HashMap<String, UV> = HashMap::new();
+    for face in original_faces {
+        uv_map.insert(face.name.clone(), face.range.clone());
+    }
+    let get_range = |name: &str| uv_map.get(name).cloned().unwrap_or_default();
+
+    let faces = vec![
+        BlockFace {
+            name: "py".to_string(),
+            dir: [0, 1, 0],
+            independent: true,
+            isolated: false,
+            range: get_range("py"),
+            corners: [
+                CornerData { pos: [0.0, h_nxpz, 1.0], uv: [1.0, 1.0] },
+                CornerData { pos: [1.0, h_pxpz, 1.0], uv: [0.0, 1.0] },
+                CornerData { pos: [0.0, h_nxnz, 0.0], uv: [1.0, 0.0] },
+                CornerData { pos: [1.0, h_pxnz, 0.0], uv: [0.0, 0.0] },
+            ],
+        },
+        BlockFace {
+            name: "ny".to_string(),
+            dir: [0, -1, 0],
+            independent: false,
+            isolated: false,
+            range: get_range("ny"),
+            corners: [
+                CornerData { pos: [1.0, 0.0, 1.0], uv: [1.0, 0.0] },
+                CornerData { pos: [0.0, 0.0, 1.0], uv: [0.0, 0.0] },
+                CornerData { pos: [1.0, 0.0, 0.0], uv: [1.0, 1.0] },
+                CornerData { pos: [0.0, 0.0, 0.0], uv: [0.0, 1.0] },
+            ],
+        },
+        BlockFace {
+            name: "px".to_string(),
+            dir: [1, 0, 0],
+            independent: true,
+            isolated: false,
+            range: get_range("px"),
+            corners: [
+                CornerData { pos: [1.0, h_pxpz, 1.0], uv: [0.0, h_pxpz] },
+                CornerData { pos: [1.0, 0.0, 1.0], uv: [0.0, 0.0] },
+                CornerData { pos: [1.0, h_pxnz, 0.0], uv: [1.0, h_pxnz] },
+                CornerData { pos: [1.0, 0.0, 0.0], uv: [1.0, 0.0] },
+            ],
+        },
+        BlockFace {
+            name: "nx".to_string(),
+            dir: [-1, 0, 0],
+            independent: true,
+            isolated: false,
+            range: get_range("nx"),
+            corners: [
+                CornerData { pos: [0.0, h_nxnz, 0.0], uv: [0.0, h_nxnz] },
+                CornerData { pos: [0.0, 0.0, 0.0], uv: [0.0, 0.0] },
+                CornerData { pos: [0.0, h_nxpz, 1.0], uv: [1.0, h_nxpz] },
+                CornerData { pos: [0.0, 0.0, 1.0], uv: [1.0, 0.0] },
+            ],
+        },
+        BlockFace {
+            name: "pz".to_string(),
+            dir: [0, 0, 1],
+            independent: true,
+            isolated: false,
+            range: get_range("pz"),
+            corners: [
+                CornerData { pos: [0.0, 0.0, 1.0], uv: [0.0, 0.0] },
+                CornerData { pos: [1.0, 0.0, 1.0], uv: [1.0, 0.0] },
+                CornerData { pos: [0.0, h_nxpz, 1.0], uv: [0.0, h_nxpz] },
+                CornerData { pos: [1.0, h_pxpz, 1.0], uv: [1.0, h_pxpz] },
+            ],
+        },
+        BlockFace {
+            name: "nz".to_string(),
+            dir: [0, 0, -1],
+            independent: true,
+            isolated: false,
+            range: get_range("nz"),
+            corners: [
+                CornerData { pos: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
+                CornerData { pos: [0.0, 0.0, 0.0], uv: [1.0, 0.0] },
+                CornerData { pos: [1.0, h_pxnz, 0.0], uv: [0.0, h_pxnz] },
+                CornerData { pos: [0.0, h_nxnz, 0.0], uv: [1.0, h_nxnz] },
+            ],
+        },
+    ];
+
+    let max_height = h_nxnz.max(h_pxnz).max(h_nxpz).max(h_pxpz);
+    let aabb = AABB::new().scale_y(max_height).build();
+
+    (faces, aabb)
+}
+
 /// A meshing helper to mesh chunks.
 pub struct Mesher {
     /// A queue of chunks to be meshed.
@@ -283,6 +448,7 @@ impl Mesher {
                         is_see_through,
                         is_empty,
                         is_opaque,
+                        is_fluid,
                         name,
                         ..
                     } = block.to_owned();
@@ -317,7 +483,12 @@ impl Mesher {
                         }
                     }
 
-                    let faces = block.get_faces(&Vec3(vx, vy, vz), space, registry);
+                    let faces = if is_fluid {
+                        let (fluid_faces, _) = create_fluid_faces(vx, vy, vz, id, space, &block.faces);
+                        fluid_faces
+                    } else {
+                        block.get_faces(&Vec3(vx, vy, vz), space, registry)
+                    };
 
                     // Build UV map from the actual faces (including dynamic patterns)
                     let mut uv_map = HashMap::new();

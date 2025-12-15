@@ -273,6 +273,208 @@ onmessage = function (e) {
     return chunk?.getVoxelStage(vx, vy, vz) ?? 0;
   };
 
+  const FLUID_BASE_HEIGHT = 0.875;
+  const FLUID_STAGE_DROPOFF = 0.1;
+
+  const getFluidEffectiveHeight = (stage: number) => {
+    return Math.max(FLUID_BASE_HEIGHT - stage * FLUID_STAGE_DROPOFF, 0.1);
+  };
+
+  const hasFluidAbove = (
+    vx: number,
+    vy: number,
+    vz: number,
+    fluidId: number
+  ) => {
+    return getVoxelAt(vx, vy + 1, vz) === fluidId;
+  };
+
+  const getFluidHeightAt = (
+    vx: number,
+    vy: number,
+    vz: number,
+    fluidId: number
+  ): number | null => {
+    if (getVoxelAt(vx, vy, vz) === fluidId) {
+      const stage = getVoxelStageAt(vx, vy, vz);
+      return getFluidEffectiveHeight(stage);
+    }
+    return null;
+  };
+
+  const calculateFluidCornerHeight = (
+    vx: number,
+    vy: number,
+    vz: number,
+    cornerOffsets: [number, number][],
+    fluidId: number
+  ): number => {
+    if (hasFluidAbove(vx, vy, vz, fluidId)) {
+      return 1.0;
+    }
+
+    const selfStage = getVoxelStageAt(vx, vy, vz);
+    const selfHeight = getFluidEffectiveHeight(selfStage);
+
+    let totalHeight = selfHeight;
+    let count = 1;
+
+    for (const [dx, dz] of cornerOffsets) {
+      const nx = vx + dx;
+      const nz = vz + dz;
+
+      if (hasFluidAbove(nx, vy, nz, fluidId)) {
+        totalHeight += 1.0;
+        count += 1;
+      } else {
+        const h = getFluidHeightAt(nx, vy, nz, fluidId);
+        if (h !== null) {
+          totalHeight += h;
+          count += 1;
+        }
+      }
+    }
+
+    return totalHeight / count;
+  };
+
+  type FluidFace = {
+    name: string;
+    dir: [number, number, number];
+    independent: boolean;
+    isolated: boolean;
+    corners: { pos: [number, number, number]; uv: [number, number] }[];
+    range: { startU: number; endU: number; startV: number; endV: number };
+  };
+
+  const createFluidFaces = (
+    vx: number,
+    vy: number,
+    vz: number,
+    fluidId: number,
+    originalFaces: {
+      name: string;
+      range: { startU: number; endU: number; startV: number; endV: number };
+    }[]
+  ): FluidFace[] => {
+    const cornerNxNz: [number, number][] = [
+      [-1, 0],
+      [0, -1],
+      [-1, -1],
+    ];
+    const cornerPxNz: [number, number][] = [
+      [1, 0],
+      [0, -1],
+      [1, -1],
+    ];
+    const cornerNxPz: [number, number][] = [
+      [-1, 0],
+      [0, 1],
+      [-1, 1],
+    ];
+    const cornerPxPz: [number, number][] = [
+      [1, 0],
+      [0, 1],
+      [1, 1],
+    ];
+
+    const hNxNz = calculateFluidCornerHeight(vx, vy, vz, cornerNxNz, fluidId);
+    const hPxNz = calculateFluidCornerHeight(vx, vy, vz, cornerPxNz, fluidId);
+    const hNxPz = calculateFluidCornerHeight(vx, vy, vz, cornerNxPz, fluidId);
+    const hPxPz = calculateFluidCornerHeight(vx, vy, vz, cornerPxPz, fluidId);
+
+    const uvRangeMap: Record<
+      string,
+      { startU: number; endU: number; startV: number; endV: number }
+    > = {};
+    for (const face of originalFaces) {
+      uvRangeMap[face.name] = face.range;
+    }
+    const defaultRange = { startU: 0, endU: 1, startV: 0, endV: 1 };
+    const getRange = (name: string) => uvRangeMap[name] ?? defaultRange;
+
+    return [
+      {
+        name: "py",
+        dir: [0, 1, 0],
+        independent: true,
+        isolated: false,
+        range: getRange("py"),
+        corners: [
+          { pos: [0, hNxPz, 1], uv: [1, 1] },
+          { pos: [1, hPxPz, 1], uv: [0, 1] },
+          { pos: [0, hNxNz, 0], uv: [1, 0] },
+          { pos: [1, hPxNz, 0], uv: [0, 0] },
+        ],
+      },
+      {
+        name: "ny",
+        dir: [0, -1, 0],
+        independent: false,
+        isolated: false,
+        range: getRange("ny"),
+        corners: [
+          { pos: [1, 0, 1], uv: [1, 0] },
+          { pos: [0, 0, 1], uv: [0, 0] },
+          { pos: [1, 0, 0], uv: [1, 1] },
+          { pos: [0, 0, 0], uv: [0, 1] },
+        ],
+      },
+      {
+        name: "px",
+        dir: [1, 0, 0],
+        independent: true,
+        isolated: false,
+        range: getRange("px"),
+        corners: [
+          { pos: [1, hPxPz, 1], uv: [0, hPxPz] },
+          { pos: [1, 0, 1], uv: [0, 0] },
+          { pos: [1, hPxNz, 0], uv: [1, hPxNz] },
+          { pos: [1, 0, 0], uv: [1, 0] },
+        ],
+      },
+      {
+        name: "nx",
+        dir: [-1, 0, 0],
+        independent: true,
+        isolated: false,
+        range: getRange("nx"),
+        corners: [
+          { pos: [0, hNxNz, 0], uv: [0, hNxNz] },
+          { pos: [0, 0, 0], uv: [0, 0] },
+          { pos: [0, hNxPz, 1], uv: [1, hNxPz] },
+          { pos: [0, 0, 1], uv: [1, 0] },
+        ],
+      },
+      {
+        name: "pz",
+        dir: [0, 0, 1],
+        independent: true,
+        isolated: false,
+        range: getRange("pz"),
+        corners: [
+          { pos: [0, 0, 1], uv: [0, 0] },
+          { pos: [1, 0, 1], uv: [1, 0] },
+          { pos: [0, hNxPz, 1], uv: [0, hNxPz] },
+          { pos: [1, hPxPz, 1], uv: [1, hPxPz] },
+        ],
+      },
+      {
+        name: "nz",
+        dir: [0, 0, -1],
+        independent: true,
+        isolated: false,
+        range: getRange("nz"),
+        corners: [
+          { pos: [1, 0, 0], uv: [0, 0] },
+          { pos: [0, 0, 0], uv: [1, 0] },
+          { pos: [1, hPxNz, 0], uv: [0, hPxNz] },
+          { pos: [0, hNxNz, 0], uv: [1, hNxNz] },
+        ],
+      },
+    ];
+  };
+
   // Start meshing
   const [minX, minY, minZ] = min;
   const [maxX, maxY, maxZ] = max;
@@ -301,6 +503,7 @@ onmessage = function (e) {
           isSeeThrough,
           isEmpty,
           isOpaque,
+          isFluid,
           name,
           rotatable,
           yRotatable,
@@ -312,11 +515,18 @@ onmessage = function (e) {
         let aabbs = block.aabbs;
         let faces = block.faces;
 
-        if ((isDynamic && !dynamicPatterns) || isEmpty || faces.length === 0) {
+        if (isEmpty || faces.length === 0) {
           continue;
         }
 
-        if (dynamicPatterns) {
+        if (isFluid) {
+          const fluidFaces = createFluidFaces(vx, vy, vz, id, block.faces);
+          const maxHeight = Math.max(
+            ...fluidFaces[0].corners.map((c) => c.pos[1])
+          );
+          faces = fluidFaces as typeof faces;
+          aabbs = [new AABB(0, 0, 0, 1, maxHeight, 1)];
+        } else if (dynamicPatterns) {
           faces = [];
           aabbs = [];
 

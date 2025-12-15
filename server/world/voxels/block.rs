@@ -9,8 +9,11 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BlockUtils, LightColor, LightUtils, Registry, Vec2, Vec3, VoxelAccess, VoxelUpdate, AABB, UV,
+    BlockUtils, FluidConfig, LightColor, LightUtils, Registry, Vec2, Vec3, VoxelAccess,
+    VoxelUpdate, AABB, UV,
 };
+
+use super::fluids::create_fluid_active_fn;
 
 /// Base class to extract voxel data from a single u32
 ///
@@ -2035,6 +2038,16 @@ impl BlockBuilder {
 
     pub fn is_entity(mut self, is_entity: bool) -> Self {
         self.is_entity = is_entity;
+        self
+    }
+
+    pub fn fluid_simulation(mut self, config: FluidConfig) -> Self {
+        let fluid_id = self.id;
+        let (ticker, updater) = create_fluid_active_fn(fluid_id, config);
+
+        self.is_fluid = true;
+        self.active_ticker = Some(Arc::new(move |pos, space, reg| ticker(pos, space, reg)));
+        self.active_updater = Some(Arc::new(move |pos, space, reg| updater(pos, space, reg)));
         self
     }
 
