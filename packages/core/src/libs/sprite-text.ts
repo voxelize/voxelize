@@ -432,6 +432,11 @@ export class SpriteText extends Sprite {
       ctx.strokeStyle = this.strokeColor;
     }
 
+    ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = this.fontSize * 0.02;
+    ctx.shadowBlur = this.fontSize * 0.04;
+
     lines.forEach((line, index) => {
       const splitted = ColorText.split(line, this.strokeColor);
 
