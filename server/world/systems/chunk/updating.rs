@@ -563,21 +563,24 @@ fn process_pending_updates(
             chunks.add_chunk_to_save(coords, true);
         });
 
-        let processes = cache
-            .into_iter()
-            .filter(|coords| chunks.is_chunk_ready(coords))
-            .map(|coords| {
-                let space = chunks
-                    .make_space(&coords, config.max_light_level as usize)
-                    .needs_height_maps()
-                    .needs_voxels()
-                    .needs_lights()
-                    .build();
-                let chunk = chunks.raw(&coords).unwrap().to_owned();
-
-                (chunk, space)
-            })
-            .collect::<Vec<_>>();
+        let mut processes = Vec::new();
+        for coords in cache {
+            if !chunks.is_chunk_ready(&coords) {
+                continue;
+            }
+            if mesher.has_chunk(&coords) {
+                mesher.mark_for_remesh(&coords);
+                continue;
+            }
+            let space = chunks
+                .make_space(&coords, config.max_light_level as usize)
+                .needs_height_maps()
+                .needs_voxels()
+                .needs_lights()
+                .build();
+            let chunk = chunks.raw(&coords).unwrap().to_owned();
+            processes.push((chunk, space));
+        }
 
         mesher.process(processes, &MessageType::Update, registry, config);
     }

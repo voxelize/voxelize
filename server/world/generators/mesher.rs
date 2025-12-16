@@ -324,6 +324,9 @@ pub struct Mesher {
     /// A map to keep track of all the chunks that are being meshed.
     pub(crate) map: HashSet<Vec2<i32>>,
 
+    /// Chunks that received updates while being meshed - need remeshing after current mesh completes.
+    pub(crate) pending_remesh: HashSet<Vec2<i32>>,
+
     /// Sender of processed chunks from other threads to the main thread.
     sender: Arc<Sender<(Chunk, MessageType)>>,
 
@@ -342,6 +345,7 @@ impl Mesher {
         Self {
             queue: std::collections::VecDeque::new(),
             map: HashSet::new(),
+            pending_remesh: HashSet::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()
@@ -380,6 +384,16 @@ impl Mesher {
     /// Pop the first chunk coordinate in the queue.
     pub fn get(&mut self) -> Option<Vec2<i32>> {
         self.queue.pop_front()
+    }
+
+    pub fn mark_for_remesh(&mut self, coords: &Vec2<i32>) {
+        if self.map.contains(coords) {
+            self.pending_remesh.insert(coords.to_owned());
+        }
+    }
+
+    pub fn drain_pending_remesh(&mut self) -> Vec<Vec2<i32>> {
+        self.pending_remesh.drain().collect()
     }
 
     /// Mesh a set of chunks.

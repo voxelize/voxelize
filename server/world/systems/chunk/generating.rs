@@ -298,6 +298,32 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             chunks.renew(chunk, is_updating);
         }
 
+        let pending_remesh_coords = mesher.drain_pending_remesh();
+        if !pending_remesh_coords.is_empty() {
+            let mut remesh_processes = Vec::new();
+            for coords in pending_remesh_coords {
+                if !chunks.is_chunk_ready(&coords) {
+                    continue;
+                }
+                if mesher.has_chunk(&coords) {
+                    mesher.mark_for_remesh(&coords);
+                    continue;
+                }
+                let space = chunks
+                    .make_space(&coords, config.max_light_level as usize)
+                    .needs_height_maps()
+                    .needs_voxels()
+                    .needs_lights()
+                    .build();
+                let chunk = chunks.raw(&coords).unwrap().to_owned();
+                chunks.add_chunk_to_save(&coords, true);
+                remesh_processes.push((chunk, space));
+            }
+            if !remesh_processes.is_empty() {
+                mesher.process(remesh_processes, &MessageType::Update, &registry, &config);
+            }
+        }
+
         /* -------------------------------------------------------------------------- */
         /*                         PUSHING CHUNKS TO BE MESHED                        */
         /* -------------------------------------------------------------------------- */
