@@ -452,6 +452,9 @@ impl Chunks {
         r#type: &MessageType,
         prioritized: bool,
     ) {
+        if self.to_send.iter().any(|(c, _)| c == coords) {
+            return;
+        }
         if prioritized {
             self.to_send.push_front((coords.to_owned(), r#type.clone()));
         } else {

@@ -195,11 +195,8 @@ function floodLight(
     return rotation;
   };
 
-  while (queue.length) {
-    const node = queue.shift();
-    if (!node) break;
-
-    const { voxel, level } = node;
+  for (let i = 0; i < queue.length; i++) {
+    const { voxel, level } = queue[i];
 
     if (level === 0) {
       continue;
@@ -299,11 +296,8 @@ function removeLight(
     space.setTorchLightAt(vx, vy, vz, 0, color);
   }
 
-  while (queue.length) {
-    const node = queue.shift();
-    if (!node) break;
-
-    const { voxel, level } = node;
+  for (let i = 0; i < queue.length; i++) {
+    const { voxel, level } = queue[i];
     const [vx, vy, vz] = voxel;
 
     for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {
@@ -394,11 +388,8 @@ function removeLightsBatch(
     }
   });
 
-  while (queue.length) {
-    const node = queue.shift();
-    if (!node) break;
-
-    const { voxel, level } = node;
+  for (let i = 0; i < queue.length; i++) {
+    const { voxel, level } = queue[i];
     const [vx, vy, vz] = voxel;
 
     for (const [ox, oy, oz] of VOXEL_NEIGHBORS) {

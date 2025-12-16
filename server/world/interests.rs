@@ -74,4 +74,11 @@ impl ChunkInterests {
             self.remove(client_id, coord);
         }
     }
+
+    pub fn remove_client(&mut self, client_id: &str) {
+        self.map.retain(|_, clients| {
+            clients.remove(client_id);
+            !clients.is_empty()
+        });
+    }
 }

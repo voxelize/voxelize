@@ -218,6 +218,9 @@ pub struct Pipeline {
     /// A map of leftover changes from processing chunk stages.
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
 
+    /// Chunks that received requests while being processed - need regeneration after current processing completes.
+    pub(crate) pending_regenerate: HashSet<Vec2<i32>>,
+
     /// Sender of processed chunks from other threads to main thread.
     sender: Arc<Sender<(Chunk, Vec<VoxelUpdate>)>>,
 
@@ -242,14 +245,26 @@ impl Pipeline {
                 .unwrap(),
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
+            pending_regenerate: HashSet::new(),
             queue: VecDeque::new(),
             stages: Vec::new(),
         }
     }
 
+    pub fn mark_for_regenerate(&mut self, coords: &Vec2<i32>) {
+        if self.chunks.contains(coords) {
+            self.pending_regenerate.insert(coords.to_owned());
+        }
+    }
+
+    pub fn drain_pending_regenerate(&mut self) -> Vec<Vec2<i32>> {
+        self.pending_regenerate.drain().collect()
+    }
+
     /// Add a chunk coordinate to the pipeline to be processed.
     pub fn add_chunk(&mut self, coords: &Vec2<i32>, prioritized: bool) {
         if self.has_chunk(coords) {
+            self.mark_for_regenerate(coords);
             return;
         }
 

@@ -348,7 +348,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         )
         .with(ChunkSendingSystem, "chunk-sending", &["chunk-generation"])
         .with(ChunkSavingSystem, "chunk-saving", &["chunk-generation"])
-        .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
+        .with(PhysicsSystem, "physics", &["current-chunk", "update-stats", "chunk-updating"])
         .with(DataSavingSystem, "entities-saving", &["entities-meta"])
         .with(
             EntitiesSendingSystem,
@@ -765,6 +765,7 @@ impl World {
     pub(crate) fn remove_client(&mut self, id: &str) {
         let removed = self.clients_mut().remove(id);
         self.entity_ids_mut().remove(id);
+        self.chunk_interest_mut().remove_client(id);
 
         if let Some(client) = removed {
             // Use a flag to track if we need to delete the entity

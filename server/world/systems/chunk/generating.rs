@@ -135,6 +135,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             }
         }
 
+        for coords in pipeline.drain_pending_regenerate() {
+            pipeline.add_chunk(&coords, true);
+        }
+
         /* -------------------------------------------------------------------------- */
         /*                       PUSHING CHUNKS TO BE PROCESSED                       */
         /* -------------------------------------------------------------------------- */
