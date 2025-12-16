@@ -175,6 +175,17 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 )];
             }
 
+            if curr_stage > 0 {
+                let has_source = has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id);
+                if !has_source {
+                    let at_edge = is_at_fluid_edge(vx, vy, vz, space, fluid_id, config_clone.max_stage);
+                    if at_edge {
+                        return vec![(Vec3(vx, vy, vz), 0)];
+                    }
+                    return vec![];
+                }
+            }
+
             let below_id = space.get_voxel(vx, vy - 1, vz);
             let self_supported = below_id != 0 && below_id != fluid_id;
 
@@ -196,13 +207,6 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 if !updates.is_empty() {
                     return updates;
                 }
-            }
-
-            if curr_stage > 0
-                && !has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id)
-                && is_at_fluid_edge(vx, vy, vz, space, fluid_id, config_clone.max_stage)
-            {
-                return vec![(Vec3(vx, vy, vz), 0)];
             }
 
             vec![]
