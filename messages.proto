@@ -63,6 +63,14 @@ message Update {
   uint32 light = 5;
 }
 
+message BulkUpdate {
+  repeated int32 vx = 1 [packed = true];
+  repeated int32 vy = 2 [packed = true];
+  repeated int32 vz = 3 [packed = true];
+  repeated uint32 voxels = 4 [packed = true];
+  repeated uint32 lights = 5 [packed = true];
+}
+
 message ChatMessage {
   string type = 1;
   string sender = 2;
@@ -103,4 +111,6 @@ message Message {
   repeated Update updates = 10;
 
   string world_name = 11;
+
+  BulkUpdate bulk_update = 15;
 }

@@ -1,20 +1,19 @@
 mod models;
-mod session;
 
 use std::time::{Duration, Instant};
 
 use actix::{
-    Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult, Recipient,
+    Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use hashbrown::HashMap;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{info, warn};
 use nanoid::nanoid;
-use rayon::ThreadPool;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 use crate::{
     errors::AddWorldError,
@@ -25,7 +24,8 @@ use crate::{
 };
 
 pub use models::*;
-pub use session::*;
+
+pub type WsSender = mpsc::UnboundedSender<Vec<u8>>;
 
 #[derive(Serialize, Deserialize)]
 pub struct OnJoinRequest {
@@ -185,14 +185,14 @@ pub struct Server {
     /// Registry of the server.
     pub registry: Registry,
 
-    /// Session IDs and addresses who haven't connected to a world.
-    pub lost_sessions: HashMap<String, Recipient<EncodedMessage>>,
+    /// Session IDs and senders who haven't connected to a world.
+    pub lost_sessions: HashMap<String, WsSender>,
 
-    /// Transport sessions, not connect to any particular world.
-    pub transport_sessions: HashMap<String, Recipient<EncodedMessage>>,
+    /// Transport sessions, not connected to any particular world.
+    pub transport_sessions: HashMap<String, WsSender>,
 
     /// What world each client ID is connected to, client ID <-> world ID.
-    pub connections: HashMap<String, (Recipient<EncodedMessage>, String)>,
+    pub connections: HashMap<String, (WsSender, String)>,
 
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
@@ -277,13 +277,13 @@ impl Server {
             }
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
-                if let Some(addr) = self.lost_sessions.remove(id) {
+                if let Some(sender) = self.lost_sessions.remove(id) {
                     world.do_send(ClientJoinRequest {
                         id: id.to_owned(),
                         username: json.username,
-                        addr: addr.clone(),
+                        sender: sender.clone(),
                     });
-                    self.connections.insert(id.to_owned(), (addr, json.world));
+                    self.connections.insert(id.to_owned(), (sender, json.world));
                     return None;
                 }
 
@@ -296,8 +296,8 @@ impl Server {
             ));
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
-                if let Some((addr, _)) = self.connections.remove(id) {
-                    self.lost_sessions.insert(id.to_owned(), addr);
+                if let Some((sender, _)) = self.connections.remove(id) {
+                    self.lost_sessions.insert(id.to_owned(), sender);
 
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
@@ -498,12 +498,8 @@ impl Server {
 pub struct Connect {
     pub id: Option<String>,
     pub is_transport: bool,
-    pub addr: Recipient<EncodedMessage>,
+    pub sender: WsSender,
 }
-
-#[derive(ActixMessage, Clone)]
-#[rtype(result = "()")]
-pub struct EncodedMessage(pub Vec<u8>);
 
 /// Session is disconnected
 #[derive(ActixMessage)]
@@ -550,10 +546,6 @@ impl Handler<Connect> for Server {
     type Result = MessageResult<Connect>;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        // notify all users in same room
-        // self.send_message("Main", "Someone joined", 0);
-
-        // register session with random id
         let id = if msg.id.is_none() {
             nanoid!()
         } else {
@@ -561,15 +553,14 @@ impl Handler<Connect> for Server {
         };
 
         if msg.is_transport {
-            // Send init messages of the worlds to the transport.
             self.worlds.values_mut().for_each(|world| {
                 world.do_send(TransportJoinRequest {
                     id: id.clone(),
-                    addr: msg.addr.clone(),
+                    sender: msg.sender.clone(),
                 })
             });
 
-            self.transport_sessions.insert(id.to_owned(), msg.addr);
+            self.transport_sessions.insert(id.to_owned(), msg.sender);
 
             return MessageResult(id);
         }
@@ -578,9 +569,8 @@ impl Handler<Connect> for Server {
             return MessageResult(nanoid!());
         }
 
-        self.lost_sessions.insert(id.to_owned(), msg.addr);
+        self.lost_sessions.insert(id.to_owned(), msg.sender);
 
-        // send id back
         MessageResult(id)
     }
 }

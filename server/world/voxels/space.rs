@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hashbrown::{HashMap, HashSet};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -61,14 +63,14 @@ pub struct Space {
     /// A set of sub-chunks that have been updated.
     pub updated_levels: HashSet<u32>,
 
-    /// A map of voxels, chunk coordinates -> n-dims array of voxels.
-    voxels: HashMap<Vec2<i32>, Ndarray<u32>>,
+    /// A map of voxels, chunk coordinates -> n-dims array of voxels (Arc for cheap cloning).
+    voxels: HashMap<Vec2<i32>, Arc<Ndarray<u32>>>,
 
-    /// A map of lights, chunk coordinates -> n-dims array of lights.
+    /// A map of lights, chunk coordinates -> n-dims array of lights (owned for mutation during light propagation).
     lights: HashMap<Vec2<i32>, Ndarray<u32>>,
 
-    /// A map of height maps, chunk coordinates -> n-dims array of height maps.
-    height_maps: HashMap<Vec2<i32>, Ndarray<u32>>,
+    /// A map of height maps, chunk coordinates -> n-dims array of height maps (Arc for cheap cloning).
+    height_maps: HashMap<Vec2<i32>, Arc<Ndarray<u32>>>,
 }
 
 impl Space {
@@ -157,19 +159,19 @@ impl SpaceBuilder<'_> {
 
                 if let Some(chunk) = self.chunks.raw(&n_coords) {
                     let voxels = if self.needs_voxels {
-                        Some((n_coords.clone(), chunk.voxels.clone()))
+                        Some((n_coords.clone(), Arc::clone(&chunk.voxels)))
                     } else {
                         None
                     };
 
                     let lights = if self.needs_lights {
-                        Some((n_coords.clone(), chunk.lights.clone()))
+                        Some((n_coords.clone(), (*chunk.lights).clone()))
                     } else {
                         Some((n_coords.clone(), ndarray(&chunk.lights.shape, 0)))
                     };
 
                     let height_maps = if self.needs_height_maps {
-                        Some((n_coords.clone(), chunk.height_map.clone()))
+                        Some((n_coords.clone(), Arc::clone(&chunk.height_map)))
                     } else {
                         None
                     };

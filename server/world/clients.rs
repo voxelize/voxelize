@@ -1,12 +1,11 @@
-use actix::Recipient;
 use hashbrown::HashMap;
 
 use specs::Entity;
 
-use crate::EncodedMessage;
+use crate::server::WsSender;
 
 /// A client of the server.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Client {
     /// The client's ID on the voxelize server.
     pub id: String,
@@ -17,8 +16,8 @@ pub struct Client {
     /// The entity that represents this client in the ECS world.
     pub entity: Entity,
 
-    /// Address to the client
-    pub addr: Recipient<EncodedMessage>,
+    /// WebSocket sender to the client.
+    pub sender: WsSender,
 }
 
 pub type Clients = HashMap<String, Client>;

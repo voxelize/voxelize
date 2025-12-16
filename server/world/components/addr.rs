@@ -1,16 +1,14 @@
-use actix::Recipient;
 use specs::{Component, VecStorage};
 
-use crate::EncodedMessage;
+use crate::server::WsSender;
 
-/// An endpoint to a client's connection.
+/// WebSocket sender component for a client's connection.
 #[derive(Component)]
 #[storage(VecStorage)]
-pub struct AddrComp(pub Recipient<EncodedMessage>);
+pub struct AddrComp(pub WsSender);
 
 impl AddrComp {
-    /// Create a component of an endpoint to a client's connection.
-    pub fn new(addr: &Recipient<EncodedMessage>) -> Self {
-        Self(addr.to_owned())
+    pub fn new(sender: &WsSender) -> Self {
+        Self(sender.clone())
     }
 }

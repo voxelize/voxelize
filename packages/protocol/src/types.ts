@@ -55,6 +55,14 @@ export type UpdateProtocol = {
   light?: number;
 };
 
+export type BulkUpdateProtocol = {
+  vx: number[];
+  vy: number[];
+  vz: number[];
+  voxels: number[];
+  lights: number[];
+};
+
 export type ChatProtocol = {
   type: string;
   sender?: string;
@@ -96,4 +104,5 @@ export type MessageProtocol<
   chunks?: ChunkProtocol[];
   events?: EventProtocol<Event>[];
   updates?: UpdateProtocol[];
+  bulkUpdate?: BulkUpdateProtocol;
 };

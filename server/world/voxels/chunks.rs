@@ -5,6 +5,7 @@ use libflate::zlib::{Decoder, Encoder};
 use log::info;
 use serde::{Deserialize, Serialize};
 use specs::Entity;
+use std::sync::Arc;
 use std::{
     cmp::Reverse,
     collections::{BinaryHeap, VecDeque},
@@ -154,10 +155,10 @@ impl Chunks {
             },
         );
 
-        chunk.voxels.data = voxels;
+        Arc::make_mut(&mut chunk.voxels).data = voxels;
 
         if height_map.len() > 0 {
-            chunk.height_map.data = height_map;
+            Arc::make_mut(&mut chunk.height_map).data = height_map;
         } else {
             chunk.calculate_max_height(registry);
         }

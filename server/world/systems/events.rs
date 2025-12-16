@@ -3,8 +3,8 @@ use serde_json::Value;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    encode_message, ChunkInterests, ChunkRequestsComp, ClientFilter, Clients, EncodedMessage,
-    Event, EventProtocol, Events, IDComp, Message, MessageType, Transports, Vec2,
+    encode_message, ChunkInterests, ChunkRequestsComp, ClientFilter, Clients, Event, EventProtocol,
+    Events, IDComp, Message, MessageType, Transports, Vec2,
 };
 
 pub struct EventsSystem;
@@ -133,17 +133,19 @@ impl<'a> System<'a> for EventsSystem {
 
             let client = client.unwrap();
             let message = Message::new(&MessageType::Event).events(&events).build();
-            let encoded = EncodedMessage(encode_message(&message));
+            let encoded = encode_message(&message);
 
-            client.addr.do_send(encoded);
+            let _ = client.sender.send(encoded);
         });
 
         if !transports.is_empty() {
             let message = Message::new(&MessageType::Event)
                 .events(&transports_map)
                 .build();
-            let encoded = EncodedMessage(encode_message(&message));
-            transports.values().for_each(|r| r.do_send(encoded.clone()));
+            let encoded = encode_message(&message);
+            transports.values().for_each(|sender| {
+                let _ = sender.send(encoded.clone());
+            });
         }
     }
 }

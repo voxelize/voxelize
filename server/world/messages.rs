@@ -3,7 +3,10 @@ use std::sync::Arc;
 use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{common::ClientFilter, encode_message, server::Message, EncodedMessage};
+use crate::{common::ClientFilter, encode_message, server::Message};
+
+#[derive(Clone)]
+pub struct EncodedMessage(pub Vec<u8>);
 
 pub type MessageQueue = Vec<(Message, ClientFilter)>;
 

@@ -4568,35 +4568,43 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.options.maxUpdatesPerUpdate
     );
 
+    const processedUpdates = updates.map((update) => {
+      const { type, rotation, yRotation, stage } = update;
+
+      const block = this.getBlockById(type);
+
+      let raw = 0;
+      raw = BlockUtils.insertID(raw, type);
+
+      if (
+        (block.rotatable || block.yRotatable) &&
+        (!isNaN(rotation) || !isNaN(yRotation))
+      ) {
+        raw = BlockUtils.insertRotation(
+          raw,
+          BlockRotation.encode(rotation, yRotation)
+        );
+      }
+
+      if (stage !== undefined) {
+        raw = BlockUtils.insertStage(raw, stage);
+      }
+
+      return {
+        ...update,
+        voxel: raw,
+      };
+    });
+
     this.packets.push({
       type: "UPDATE",
-      updates: updates.map((update) => {
-        const { type, rotation, yRotation, stage } = update;
-
-        const block = this.getBlockById(type);
-
-        let raw = 0;
-        raw = BlockUtils.insertID(raw, type);
-
-        if (
-          (block.rotatable || block.yRotatable) &&
-          (!isNaN(rotation) || !isNaN(yRotation))
-        ) {
-          raw = BlockUtils.insertRotation(
-            raw,
-            BlockRotation.encode(rotation, yRotation)
-          );
-        }
-
-        if (stage !== undefined) {
-          raw = BlockUtils.insertStage(raw, stage);
-        }
-
-        return {
-          ...update,
-          voxel: raw,
-        };
-      }),
+      bulkUpdate: {
+        vx: processedUpdates.map((u) => u.vx),
+        vy: processedUpdates.map((u) => u.vy),
+        vz: processedUpdates.map((u) => u.vz),
+        voxels: processedUpdates.map((u) => u.voxel),
+        lights: processedUpdates.map(() => 0),
+      },
     });
   };
 

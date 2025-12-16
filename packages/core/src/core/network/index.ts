@@ -277,7 +277,8 @@ export class Network {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(Network.encodeSync(event));
+          const encoded = Network.encodeSync(event);
+          ws.send(encoded);
         }
       };
       ws.onopen = () => {
@@ -289,8 +290,16 @@ export class Network {
 
         resolve(this);
       };
-      ws.onerror = (err) => {
-        console.error("[NETWORK] WebSocket error:", err);
+      ws.onerror = (err: Event) => {
+        console.error(
+          `[NETWORK] WebSocket error\n` +
+            `  Type: ${err.type}\n` +
+            `  Connected: ${this.connected}\n` +
+            `  ReadyState: ${ws.readyState} (${
+              ["CONNECTING", "OPEN", "CLOSING", "CLOSED"][ws.readyState]
+            })\n` +
+            `  Pending packets: ${this.packetQueue.length}`
+        );
       };
       ws.onmessage = ({ data }) => {
         const arrayBuffer = data as ArrayBuffer;
@@ -310,15 +319,14 @@ export class Network {
       };
       ws.onclose = (event) => {
         console.log(
-          "[NETWORK] WebSocket closed, code:",
-          event.code,
-          "reason:",
-          event.reason
+          `[NETWORK] WebSocket closed, code: ${event.code} reason: ${
+            event.reason || "(none)"
+          }`
         );
+
         this.connected = false;
         this.onDisconnect?.();
 
-        // fire reconnection every "reconnectTimeout" ms
         if (options.reconnectTimeout) {
           this.reconnection = setTimeout(() => {
             this.connect(serverURL, options);
