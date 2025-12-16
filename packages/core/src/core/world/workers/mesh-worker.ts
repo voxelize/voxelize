@@ -329,6 +329,7 @@ onmessage = function (e) {
 
     let totalHeight = selfHeight;
     let count = 1;
+    let hasAirNeighbor = false;
 
     for (const [dx, dz] of cornerOffsets) {
       const nx = vx + dx;
@@ -342,10 +343,19 @@ onmessage = function (e) {
         if (h !== null) {
           totalHeight += h;
           count += 1;
+        } else {
+          const neighborId = getVoxelAt(nx, vy, nz);
+          const neighborBlock = registry.blocksById.get(neighborId);
+          if (neighborBlock?.isEmpty) {
+            hasAirNeighbor = true;
+          }
         }
       }
     }
 
+    if (count === 1 && hasAirNeighbor) {
+      return 0.1;
+    }
     return totalHeight / count;
   };
 
@@ -749,7 +759,8 @@ onmessage = function (e) {
                 nBlock.transparentStandalone) ||
                 (neighborId != id && (isSeeThrough || nBlock.isSeeThrough)) ||
                 seeThroughCheck)) ||
-            (!isSeeThrough && (!isOpaque || !nBlock.isOpaque))
+            (!isSeeThrough && (!isOpaque || !nBlock.isOpaque)) ||
+            (isFluid && nBlock.isOpaque && !nBlock.isFluid)
           ) {
             const { startU, startV, endU, endV } = uvMap[face.name];
             const ndx = Math.floor(geometry.positions.length / 3);

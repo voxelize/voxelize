@@ -55,7 +55,13 @@ fn has_fluid_above(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &dyn VoxelAc
     space.get_voxel(vx, vy + 1, vz) == fluid_id
 }
 
-fn get_fluid_height_at(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &dyn VoxelAccess) -> Option<f32> {
+fn get_fluid_height_at(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    fluid_id: u32,
+    space: &dyn VoxelAccess,
+) -> Option<f32> {
     if space.get_voxel(vx, vy, vz) == fluid_id {
         let stage = space.get_voxel_stage(vx, vy, vz);
         Some(get_fluid_effective_height(stage))
@@ -73,6 +79,7 @@ fn calculate_fluid_corner_height(
     corner_offsets: &[[i32; 2]; 3],
     fluid_id: u32,
     space: &dyn VoxelAccess,
+    registry: &Registry,
 ) -> f32 {
     let upper_check_offsets: [[i32; 2]; 4] = [
         [corner_x - 1, corner_z - 1],
@@ -92,6 +99,7 @@ fn calculate_fluid_corner_height(
 
     let mut total_height = self_height;
     let mut count = 1.0;
+    let mut has_air_neighbor = false;
 
     for [dx, dz] in corner_offsets {
         let nx = vx + dx;
@@ -103,9 +111,20 @@ fn calculate_fluid_corner_height(
         } else if let Some(h) = get_fluid_height_at(nx, vy, nz, fluid_id, space) {
             total_height += h;
             count += 1.0;
+        } else {
+            let neighbor_id = space.get_voxel(nx, vy, nz);
+            if registry.has_type(neighbor_id) {
+                let neighbor_block = registry.get_block_by_id(neighbor_id);
+                if neighbor_block.is_empty {
+                    has_air_neighbor = true;
+                }
+            }
         }
     }
 
+    if count == 1.0 && has_air_neighbor {
+        return 0.1;
+    }
     total_height / count
 }
 
@@ -116,16 +135,21 @@ fn create_fluid_faces(
     fluid_id: u32,
     space: &dyn VoxelAccess,
     original_faces: &[BlockFace],
+    registry: &Registry,
 ) -> (Vec<BlockFace>, AABB) {
     let corner_nxnz: [[i32; 2]; 3] = [[-1, 0], [0, -1], [-1, -1]];
     let corner_pxnz: [[i32; 2]; 3] = [[1, 0], [0, -1], [1, -1]];
     let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
     let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
 
-    let h_nxnz = calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space);
-    let h_pxnz = calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space);
-    let h_nxpz = calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space);
-    let h_pxpz = calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space);
+    let h_nxnz =
+        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space, registry);
+    let h_pxnz =
+        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space, registry);
+    let h_nxpz =
+        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space, registry);
+    let h_pxpz =
+        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry);
 
     let mut uv_map: HashMap<String, UV> = HashMap::new();
     for face in original_faces {
@@ -141,10 +165,22 @@ fn create_fluid_faces(
             isolated: false,
             range: get_range("py"),
             corners: [
-                CornerData { pos: [0.0, h_nxpz, 1.0], uv: [1.0, 1.0] },
-                CornerData { pos: [1.0, h_pxpz, 1.0], uv: [0.0, 1.0] },
-                CornerData { pos: [0.0, h_nxnz, 0.0], uv: [1.0, 0.0] },
-                CornerData { pos: [1.0, h_pxnz, 0.0], uv: [0.0, 0.0] },
+                CornerData {
+                    pos: [0.0, h_nxpz, 1.0],
+                    uv: [1.0, 1.0],
+                },
+                CornerData {
+                    pos: [1.0, h_pxpz, 1.0],
+                    uv: [0.0, 1.0],
+                },
+                CornerData {
+                    pos: [0.0, h_nxnz, 0.0],
+                    uv: [1.0, 0.0],
+                },
+                CornerData {
+                    pos: [1.0, h_pxnz, 0.0],
+                    uv: [0.0, 0.0],
+                },
             ],
         },
         BlockFace {
@@ -154,10 +190,22 @@ fn create_fluid_faces(
             isolated: false,
             range: get_range("ny"),
             corners: [
-                CornerData { pos: [1.0, 0.0, 1.0], uv: [1.0, 0.0] },
-                CornerData { pos: [0.0, 0.0, 1.0], uv: [0.0, 0.0] },
-                CornerData { pos: [1.0, 0.0, 0.0], uv: [1.0, 1.0] },
-                CornerData { pos: [0.0, 0.0, 0.0], uv: [0.0, 1.0] },
+                CornerData {
+                    pos: [1.0, 0.0, 1.0],
+                    uv: [1.0, 0.0],
+                },
+                CornerData {
+                    pos: [0.0, 0.0, 1.0],
+                    uv: [0.0, 0.0],
+                },
+                CornerData {
+                    pos: [1.0, 0.0, 0.0],
+                    uv: [1.0, 1.0],
+                },
+                CornerData {
+                    pos: [0.0, 0.0, 0.0],
+                    uv: [0.0, 1.0],
+                },
             ],
         },
         BlockFace {
@@ -167,10 +215,22 @@ fn create_fluid_faces(
             isolated: false,
             range: get_range("px"),
             corners: [
-                CornerData { pos: [1.0, h_pxpz, 1.0], uv: [0.0, h_pxpz] },
-                CornerData { pos: [1.0, 0.0, 1.0], uv: [0.0, 0.0] },
-                CornerData { pos: [1.0, h_pxnz, 0.0], uv: [1.0, h_pxnz] },
-                CornerData { pos: [1.0, 0.0, 0.0], uv: [1.0, 0.0] },
+                CornerData {
+                    pos: [1.0, h_pxpz, 1.0],
+                    uv: [0.0, h_pxpz],
+                },
+                CornerData {
+                    pos: [1.0, 0.0, 1.0],
+                    uv: [0.0, 0.0],
+                },
+                CornerData {
+                    pos: [1.0, h_pxnz, 0.0],
+                    uv: [1.0, h_pxnz],
+                },
+                CornerData {
+                    pos: [1.0, 0.0, 0.0],
+                    uv: [1.0, 0.0],
+                },
             ],
         },
         BlockFace {
@@ -180,10 +240,22 @@ fn create_fluid_faces(
             isolated: false,
             range: get_range("nx"),
             corners: [
-                CornerData { pos: [0.0, h_nxnz, 0.0], uv: [0.0, h_nxnz] },
-                CornerData { pos: [0.0, 0.0, 0.0], uv: [0.0, 0.0] },
-                CornerData { pos: [0.0, h_nxpz, 1.0], uv: [1.0, h_nxpz] },
-                CornerData { pos: [0.0, 0.0, 1.0], uv: [1.0, 0.0] },
+                CornerData {
+                    pos: [0.0, h_nxnz, 0.0],
+                    uv: [0.0, h_nxnz],
+                },
+                CornerData {
+                    pos: [0.0, 0.0, 0.0],
+                    uv: [0.0, 0.0],
+                },
+                CornerData {
+                    pos: [0.0, h_nxpz, 1.0],
+                    uv: [1.0, h_nxpz],
+                },
+                CornerData {
+                    pos: [0.0, 0.0, 1.0],
+                    uv: [1.0, 0.0],
+                },
             ],
         },
         BlockFace {
@@ -193,10 +265,22 @@ fn create_fluid_faces(
             isolated: false,
             range: get_range("pz"),
             corners: [
-                CornerData { pos: [0.0, 0.0, 1.0], uv: [0.0, 0.0] },
-                CornerData { pos: [1.0, 0.0, 1.0], uv: [1.0, 0.0] },
-                CornerData { pos: [0.0, h_nxpz, 1.0], uv: [0.0, h_nxpz] },
-                CornerData { pos: [1.0, h_pxpz, 1.0], uv: [1.0, h_pxpz] },
+                CornerData {
+                    pos: [0.0, 0.0, 1.0],
+                    uv: [0.0, 0.0],
+                },
+                CornerData {
+                    pos: [1.0, 0.0, 1.0],
+                    uv: [1.0, 0.0],
+                },
+                CornerData {
+                    pos: [0.0, h_nxpz, 1.0],
+                    uv: [0.0, h_nxpz],
+                },
+                CornerData {
+                    pos: [1.0, h_pxpz, 1.0],
+                    uv: [1.0, h_pxpz],
+                },
             ],
         },
         BlockFace {
@@ -206,10 +290,22 @@ fn create_fluid_faces(
             isolated: false,
             range: get_range("nz"),
             corners: [
-                CornerData { pos: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
-                CornerData { pos: [0.0, 0.0, 0.0], uv: [1.0, 0.0] },
-                CornerData { pos: [1.0, h_pxnz, 0.0], uv: [0.0, h_pxnz] },
-                CornerData { pos: [0.0, h_nxnz, 0.0], uv: [1.0, h_nxnz] },
+                CornerData {
+                    pos: [1.0, 0.0, 0.0],
+                    uv: [0.0, 0.0],
+                },
+                CornerData {
+                    pos: [0.0, 0.0, 0.0],
+                    uv: [1.0, 0.0],
+                },
+                CornerData {
+                    pos: [1.0, h_pxnz, 0.0],
+                    uv: [0.0, h_pxnz],
+                },
+                CornerData {
+                    pos: [0.0, h_nxnz, 0.0],
+                    uv: [1.0, h_nxnz],
+                },
             ],
         },
     ];
@@ -489,7 +585,8 @@ impl Mesher {
                     }
 
                     let faces = if is_fluid {
-                        let (fluid_faces, _) = create_fluid_faces(vx, vy, vz, id, space, &block.faces);
+                        let (fluid_faces, _) =
+                            create_fluid_faces(vx, vy, vz, id, space, &block.faces, registry);
                         fluid_faces
                     } else {
                         block.get_faces(&Vec3(vx, vy, vz), space, registry)
@@ -636,6 +733,8 @@ impl Mesher {
         // c. opaque mode
         //    1. ignore all see-through blocks (see_through)
         //    2. if one of them is not opaque, mesh.
+        // d. fluid mode
+        //    1. fluids render faces against opaque blocks (but not against same fluid)
         if (n_is_void || n_block_type.is_empty)
             || (see_through
                 && !is_opaque
@@ -658,6 +757,7 @@ impl Mesher {
                         }
                     })))
             || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+            || (is_fluid && n_block_type.is_opaque && !n_block_type.is_fluid)
         {
             let UV {
                 start_u,
