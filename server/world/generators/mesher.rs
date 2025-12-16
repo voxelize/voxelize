@@ -757,7 +757,10 @@ impl Mesher {
                         }
                     })))
             || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-            || (is_fluid && n_block_type.is_opaque && !n_block_type.is_fluid)
+            || (is_fluid
+                && n_block_type.is_opaque
+                && !n_block_type.is_fluid
+                && !has_fluid_above(vx, vy, vz, voxel_id, space))
         {
             let UV {
                 start_u,

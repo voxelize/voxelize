@@ -760,7 +760,10 @@ onmessage = function (e) {
                 (neighborId != id && (isSeeThrough || nBlock.isSeeThrough)) ||
                 seeThroughCheck)) ||
             (!isSeeThrough && (!isOpaque || !nBlock.isOpaque)) ||
-            (isFluid && nBlock.isOpaque && !nBlock.isFluid)
+            (isFluid &&
+              nBlock.isOpaque &&
+              !nBlock.isFluid &&
+              !hasFluidAbove(vx, vy, vz, id))
           ) {
             const { startU, startV, endU, endV } = uvMap[face.name];
             const ndx = Math.floor(geometry.positions.length / 3);
