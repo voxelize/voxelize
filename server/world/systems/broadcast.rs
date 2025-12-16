@@ -1,11 +1,9 @@
-use log::info;
 use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
-    server::encode_message,
     world::{metadata::WorldMetadata, profiler::Profiler, Clients, MessageQueue},
-    EncodedMessage, EncodedMessageQueue, MessageType, Transports, WorldConfig,
+    EncodedMessageQueue, Transports,
 };
 
 pub struct BroadcastSystem;
@@ -21,8 +19,7 @@ impl<'a> System<'a> for BroadcastSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, world_metadata, mut queue, mut encoded_queue, mut profiler) =
-            data;
+        let (transports, clients, world_metadata, mut queue, mut encoded_queue, _profiler) = data;
 
         encoded_queue.append(
             queue
@@ -43,13 +40,13 @@ impl<'a> System<'a> for BroadcastSystem {
         }
 
         for (encoded, filter) in done_messages {
-            transports.values().for_each(|recipient| {
-                recipient.do_send(encoded.to_owned());
+            transports.values().for_each(|sender| {
+                let _ = sender.send(encoded.0.clone());
             });
 
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
-                    client.addr.do_send(encoded);
+                    let _ = client.sender.send(encoded.0);
                 }
 
                 continue;
@@ -71,7 +68,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     _ => {}
                 };
 
-                client.addr.do_send(encoded.to_owned());
+                let _ = client.sender.send(encoded.0.clone());
             })
         }
     }

@@ -12,9 +12,11 @@ use actix_web::{
     web::{self, Query},
     App, Error, HttpRequest, HttpResponse, HttpServer, Result,
 };
-use actix_web_actors::ws;
+use actix_ws::AggregatedMessage;
+use futures_util::StreamExt;
 use hashbrown::HashMap;
 use log::{info, warn};
+use tokio::sync::mpsc;
 
 pub use common::*;
 pub use libs::*;
@@ -26,10 +28,9 @@ struct Config {
     serve: String,
 }
 
-/// Entry point for our websocket route
 async fn ws_route(
     req: HttpRequest,
-    stream: web::Payload,
+    body: web::Payload,
     srv: web::Data<Addr<Server>>,
     secret: web::Data<Option<String>>,
     options: Query<HashMap<String, String>>,
@@ -64,22 +65,116 @@ async fn ws_route(
         info!("A new transport server has connected.");
     }
 
-    info!("[WS] New connection with 16MB frame limit");
+    info!("[WS] New connection with 16MB continuation limit");
 
-    let codec = actix_http::ws::Codec::new().max_size(16 * 1024 * 1024);
+    let (response, session, stream) = actix_ws::handle(&req, body)?;
 
-    ws::WsResponseBuilder::new(
-        server::WsSession {
-            id,
-            name: None,
-            is_transport,
-            addr: srv.get_ref().clone(),
-        },
-        &req,
+    let stream = stream
+        .max_frame_size(16 * 1024 * 1024)
+        .aggregate_continuations()
+        .max_continuation_size(16 * 1024 * 1024);
+
+    actix_web::rt::spawn(handle_ws_connection(
+        id,
+        is_transport,
+        session,
         stream,
-    )
-    .codec(codec)
-    .start()
+        srv.get_ref().clone(),
+    ));
+
+    Ok(response)
+}
+
+async fn handle_ws_connection(
+    initial_id: String,
+    is_transport: bool,
+    mut session: actix_ws::Session,
+    mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
+    server: Addr<Server>,
+) {
+    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+
+    let session_id = match server
+        .send(Connect {
+            id: if initial_id.is_empty() {
+                None
+            } else {
+                Some(initial_id)
+            },
+            is_transport,
+            sender: tx.clone(),
+        })
+        .await
+    {
+        Ok(id) => id,
+        Err(e) => {
+            warn!("[WS] Failed to register session: {:?}", e);
+            let _ = session.close(None).await;
+            return;
+        }
+    };
+
+    loop {
+        tokio::select! {
+            Some(msg) = rx.recv() => {
+                if session.binary(msg).await.is_err() {
+                    break;
+                }
+            }
+            msg = stream.next() => {
+                match msg {
+                    Some(Ok(AggregatedMessage::Binary(bytes))) => {
+                        let size_kb = bytes.len() as f64 / 1024.0;
+                        if size_kb > 50.0 {
+                            info!("[WS] Received large binary message: {:.2}KB", size_kb);
+                        }
+
+                        let message = match decode_message(&bytes.to_vec()) {
+                            Ok(m) => m,
+                            Err(e) => {
+                                warn!("[WS] Failed to decode message: {:?}", e);
+                                continue;
+                            }
+                        };
+
+                        match server.send(ClientMessage {
+                            id: session_id.clone(),
+                            data: message,
+                        }).await {
+                            Ok(Some(error_msg)) => {
+                                warn!("[WS] ClientMessage error: {}", error_msg);
+                                let error_response = encode_message(
+                                    &Message::new(&MessageType::Error).text(&error_msg).build(),
+                                );
+                                let _ = session.binary(error_response).await;
+                                break;
+                            }
+                            Ok(None) => {}
+                            Err(e) => {
+                                warn!("[WS] Actor mailbox error: {:?}", e);
+                                break;
+                            }
+                        }
+                    }
+                    Some(Ok(AggregatedMessage::Close(_))) => {
+                        break;
+                    }
+                    Some(Ok(AggregatedMessage::Ping(data))) => {
+                        let _ = session.pong(&data).await;
+                    }
+                    Some(Ok(_)) => {}
+                    Some(Err(e)) => {
+                        warn!("[WS] Protocol error: {:?}", e);
+                        break;
+                    }
+                    None => break,
+                }
+            }
+        }
+    }
+
+    server.do_send(Disconnect { id: session_id });
+    let _ = session.close(None).await;
 }
 
 /// Main website path, serving statically built index.html
