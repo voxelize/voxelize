@@ -9,6 +9,7 @@ mod saving;
 mod search;
 mod stats;
 mod path;
+mod collision;
 
 pub use broadcast::*;
 pub use chunk::*;
@@ -21,3 +22,4 @@ pub use saving::*;
 pub use search::SearchSystem;
 pub use stats::*;
 pub use path::*;
+pub use collision::*;
