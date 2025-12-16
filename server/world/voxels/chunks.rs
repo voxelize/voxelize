@@ -6,7 +6,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::{
-    collections::VecDeque,
+    cmp::Reverse,
+    collections::{BinaryHeap, VecDeque},
     fs::{self, File},
     io::{BufReader, Read, Write},
     path::PathBuf,
@@ -22,6 +23,24 @@ use super::{
     chunk::Chunk,
     space::{SpaceBuilder, SpaceOptions},
 };
+
+#[derive(Eq, PartialEq, Clone)]
+pub struct ActiveVoxel {
+    pub tick: u64,
+    pub voxel: Vec3<i32>,
+}
+
+impl Ord for ActiveVoxel {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.tick.cmp(&other.tick)
+    }
+}
+
+impl PartialOrd for ActiveVoxel {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 /// Prototype for chunk's internal data used to send to client
 #[derive(Serialize, Deserialize)]
@@ -47,7 +66,8 @@ pub struct Chunks {
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<Vec2<i32>>,
 
-    pub(crate) active_voxels: Vec<(u64, Vec3<i32>)>,
+    pub(crate) active_voxel_heap: BinaryHeap<Reverse<ActiveVoxel>>,
+    pub(crate) active_voxel_set: HashMap<Vec3<i32>, u64>,
 
     /// A listener for when a chunk is done generating or meshing.
     pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
@@ -404,12 +424,14 @@ impl Chunks {
     }
 
     pub fn mark_voxel_active(&mut self, voxel: &Vec3<i32>, active_at: u64) {
-        if let Some(_) = self.active_voxels.iter().find(|(_, v)| v == voxel) {
-            self.active_voxels
-                .retain(|(_, v)| !(v.0 == voxel.0 && v.1 == voxel.1 && v.2 == voxel.2));
+        if self.active_voxel_set.contains_key(voxel) {
+            return;
         }
-
-        self.active_voxels.push((active_at, voxel.to_owned()));
+        self.active_voxel_set.insert(voxel.clone(), active_at);
+        self.active_voxel_heap.push(Reverse(ActiveVoxel {
+            tick: active_at,
+            voxel: voxel.clone(),
+        }));
     }
 
     /// Add a chunk to be saved.

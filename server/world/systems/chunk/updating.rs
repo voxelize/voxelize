@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{cmp::Reverse, collections::VecDeque};
 
 use hashbrown::HashMap;
 use log::info;
@@ -61,6 +61,43 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
         chunks.clear_cache();
 
+        // Process active voxels FIRST so their updates get included in this tick's message
+        let mut due_voxels = Vec::new();
+        while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
+            if active.tick > current_tick {
+                break;
+            }
+            let Reverse(active) = chunks.active_voxel_heap.pop().unwrap();
+            if chunks.active_voxel_set.remove(&active.voxel).is_some() {
+                due_voxels.push(active.voxel);
+            }
+        }
+
+        let active_results: Vec<Vec<VoxelUpdate>> = due_voxels
+            .into_par_iter()
+            .filter_map(|voxel| {
+                let Vec3(vx, vy, vz) = voxel;
+                let id = chunks.get_voxel(vx, vy, vz);
+                let block = registry.get_block_by_id(id);
+                block
+                    .active_updater
+                    .as_ref()
+                    .map(|updater| updater(Vec3(vx, vy, vz), &*chunks, &registry))
+            })
+            .collect();
+
+        // Deduplicate by target position - last write wins
+        let mut deduped: HashMap<Vec3<i32>, u32> = HashMap::new();
+        for updates in active_results {
+            for (pos, val) in updates {
+                deduped.insert(pos, val);
+            }
+        }
+
+        for (pos, val) in deduped {
+            chunks.update_voxel(&pos, val);
+        }
+
         let mut results = vec![];
 
         if !chunks.updates.is_empty() {
@@ -90,13 +127,6 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
 
             for (coords, chunk_updates) in updates_by_chunk {
                 if !chunks.is_chunk_ready(&coords) {
-                    for (voxel, raw) in chunk_updates.into_iter().rev() {
-                        chunks.updates.push_front((voxel, raw));
-                    }
-                    continue;
-                }
-
-                if mesher.map.contains(&coords) {
                     for (voxel, raw) in chunk_updates.into_iter().rev() {
                         chunks.updates.push_front((voxel, raw));
                     }
@@ -663,49 +693,5 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
                 message_queue.push((new_message, ClientFilter::All));
             }
         }
-
-        let active_voxels = chunks.active_voxels.clone();
-
-        let active_voxels: Vec<(Option<(u64, Vec3<i32>)>, Vec<VoxelUpdate>)> = active_voxels
-            .into_par_iter()
-            .map(|(active_at, voxel)| {
-                if active_at > current_tick {
-                    return (Some((active_at, voxel)), vec![]);
-                }
-
-                let Vec3(vx, vy, vz) = voxel;
-                let id = chunks.get_voxel(vx, vy, vz);
-                let block = registry.get_block_by_id(id);
-
-                if block.active_updater.is_none() {
-                    return (None, vec![]);
-                }
-
-                let updates = (&block.active_updater.as_ref().unwrap())(
-                    Vec3(vx, vy, vz),
-                    &*chunks,
-                    &registry,
-                );
-
-                (None, updates)
-            })
-            .collect();
-
-        let active_voxels: Vec<(u64, Vec3<i32>)> = active_voxels
-            .into_iter()
-            .filter_map(|(active_at, updates)| {
-                if !updates.is_empty() {
-                    chunks.update_voxels(&updates);
-                }
-
-                if let Some((active_at, voxel)) = active_at {
-                    return Some((active_at, voxel));
-                }
-
-                None
-            })
-            .collect();
-
-        chunks.active_voxels = active_voxels;
     }
 }

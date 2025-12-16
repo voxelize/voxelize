@@ -68,12 +68,23 @@ fn calculate_fluid_corner_height(
     vx: i32,
     vy: i32,
     vz: i32,
+    corner_x: i32,
+    corner_z: i32,
     corner_offsets: &[[i32; 2]; 3],
     fluid_id: u32,
     space: &dyn VoxelAccess,
 ) -> f32 {
-    if has_fluid_above(vx, vy, vz, fluid_id, space) {
-        return 1.0;
+    let upper_check_offsets: [[i32; 2]; 4] = [
+        [corner_x - 1, corner_z - 1],
+        [corner_x - 1, corner_z],
+        [corner_x, corner_z - 1],
+        [corner_x, corner_z],
+    ];
+
+    for [dx, dz] in upper_check_offsets {
+        if space.get_voxel(vx + dx, vy + 1, vz + dz) == fluid_id {
+            return 1.0;
+        }
     }
 
     let self_stage = space.get_voxel_stage(vx, vy, vz);
@@ -111,10 +122,10 @@ fn create_fluid_faces(
     let corner_nxpz: [[i32; 2]; 3] = [[-1, 0], [0, 1], [-1, 1]];
     let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
 
-    let h_nxnz = calculate_fluid_corner_height(vx, vy, vz, &corner_nxnz, fluid_id, space);
-    let h_pxnz = calculate_fluid_corner_height(vx, vy, vz, &corner_pxnz, fluid_id, space);
-    let h_nxpz = calculate_fluid_corner_height(vx, vy, vz, &corner_nxpz, fluid_id, space);
-    let h_pxpz = calculate_fluid_corner_height(vx, vy, vz, &corner_pxpz, fluid_id, space);
+    let h_nxnz = calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space);
+    let h_pxnz = calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space);
+    let h_nxpz = calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space);
+    let h_pxpz = calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space);
 
     let mut uv_map: HashMap<String, UV> = HashMap::new();
     for face in original_faces {
@@ -217,9 +228,6 @@ pub struct Mesher {
     /// A map to keep track of all the chunks that are being meshed.
     pub(crate) map: HashSet<Vec2<i32>>,
 
-    /// A map to keep track of the processes that should be skipped.
-    pub(crate) skips: HashMap<Vec2<i32>, usize>,
-
     /// Sender of processed chunks from other threads to the main thread.
     sender: Arc<Sender<(Chunk, MessageType)>>,
 
@@ -238,7 +246,6 @@ impl Mesher {
         Self {
             queue: std::collections::VecDeque::new(),
             map: HashSet::new(),
-            skips: HashMap::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()
@@ -267,7 +274,6 @@ impl Mesher {
     /// Remove a chunk coordinate from the pipeline.
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.map.remove(coords);
-        self.skips.remove(coords);
         self.queue.retain(|c| c != coords);
     }
 
@@ -288,14 +294,21 @@ impl Mesher {
         registry: &Registry,
         config: &WorldConfig,
     ) {
-        processes.iter().for_each(|(chunk, _)| {
-            if self.map.contains(&chunk.coords) {
-                let curr_count = self.skips.remove(&chunk.coords).unwrap_or(0);
-                self.skips.insert(chunk.coords.to_owned(), curr_count + 1);
-            }
+        let processes: Vec<(Chunk, Space)> = processes
+            .into_iter()
+            .filter(|(chunk, _)| {
+                if self.map.contains(&chunk.coords) {
+                    false
+                } else {
+                    self.map.insert(chunk.coords.to_owned());
+                    true
+                }
+            })
+            .collect();
 
-            self.map.insert(chunk.coords.to_owned());
-        });
+        if processes.is_empty() {
+            return;
+        }
 
         let sender = Arc::clone(&self.sender);
         let r#type = r#type.clone();
@@ -389,20 +402,12 @@ impl Mesher {
         });
     }
 
-    /// Attempt to retrieve the results from `mesher.process`
     pub fn results(&mut self) -> Vec<(Chunk, MessageType)> {
         let mut results = Vec::new();
 
         while let Ok(result) = self.receiver.try_recv() {
             if !self.map.contains(&result.0.coords) {
                 continue;
-            }
-
-            if let Some(count) = self.skips.remove(&result.0.coords) {
-                if count > 0 {
-                    self.skips.insert(result.0.coords.to_owned(), count - 1);
-                    continue;
-                }
             }
 
             self.remove_chunk(&result.0.coords);

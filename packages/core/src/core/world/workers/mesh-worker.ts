@@ -306,11 +306,22 @@ onmessage = function (e) {
     vx: number,
     vy: number,
     vz: number,
+    cornerX: number,
+    cornerZ: number,
     cornerOffsets: [number, number][],
     fluidId: number
   ): number => {
-    if (hasFluidAbove(vx, vy, vz, fluidId)) {
-      return 1.0;
+    const upperCheckOffsets = [
+      [cornerX - 1, cornerZ - 1],
+      [cornerX - 1, cornerZ],
+      [cornerX, cornerZ - 1],
+      [cornerX, cornerZ],
+    ];
+
+    for (const [dx, dz] of upperCheckOffsets) {
+      if (getVoxelAt(vx + dx, vy + 1, vz + dz) === fluidId) {
+        return 1.0;
+      }
     }
 
     const selfStage = getVoxelStageAt(vx, vy, vz);
@@ -378,10 +389,42 @@ onmessage = function (e) {
       [1, 1],
     ];
 
-    const hNxNz = calculateFluidCornerHeight(vx, vy, vz, cornerNxNz, fluidId);
-    const hPxNz = calculateFluidCornerHeight(vx, vy, vz, cornerPxNz, fluidId);
-    const hNxPz = calculateFluidCornerHeight(vx, vy, vz, cornerNxPz, fluidId);
-    const hPxPz = calculateFluidCornerHeight(vx, vy, vz, cornerPxPz, fluidId);
+    const hNxNz = calculateFluidCornerHeight(
+      vx,
+      vy,
+      vz,
+      0,
+      0,
+      cornerNxNz,
+      fluidId
+    );
+    const hPxNz = calculateFluidCornerHeight(
+      vx,
+      vy,
+      vz,
+      1,
+      0,
+      cornerPxNz,
+      fluidId
+    );
+    const hNxPz = calculateFluidCornerHeight(
+      vx,
+      vy,
+      vz,
+      0,
+      1,
+      cornerNxPz,
+      fluidId
+    );
+    const hPxPz = calculateFluidCornerHeight(
+      vx,
+      vy,
+      vz,
+      1,
+      1,
+      cornerPxPz,
+      fluidId
+    );
 
     const uvRangeMap: Record<
       string,

@@ -293,9 +293,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             chunk.status = ChunkStatus::Ready;
             let is_updating = r#type == MessageType::Update;
 
-            if !is_updating {
-                chunks.add_chunk_to_send(&chunk.coords, &r#type, false);
-            }
+            chunks.add_chunk_to_send(&chunk.coords, &r#type, false);
 
             chunks.renew(chunk, is_updating);
         }

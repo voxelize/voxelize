@@ -15,7 +15,7 @@ impl Default for FluidConfig {
     fn default() -> Self {
         Self {
             max_stage: 7,
-            tick_rate: 25,
+            tick_rate: 15,
             infinite_source: true,
             infinite_source_count: 2,
             flows_down_as_source: false,
@@ -150,7 +150,10 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 }
             }
 
-            if space.get_voxel(vx, vy + 1, vz) == fluid_id && curr_stage > 0 {
+            let above_id = space.get_voxel(vx, vy + 1, vz);
+            let above_is_source =
+                above_id == fluid_id && space.get_voxel_stage(vx, vy + 1, vz) == 0;
+            if above_is_source && curr_stage > 0 {
                 return vec![(
                     Vec3(vx, vy, vz),
                     VoxelPacker::new().with_id(fluid_id).with_stage(0).pack(),
@@ -161,7 +164,7 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 let new_stage = if config_clone.flows_down_as_source {
                     0
                 } else {
-                    curr_stage
+                    1.max(curr_stage)
                 };
                 return vec![(
                     Vec3(vx, vy - 1, vz),
@@ -172,14 +175,18 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 )];
             }
 
-            if curr_stage < config_clone.max_stage {
+            if curr_stage < config_clone.max_stage
+                && (curr_stage == 0
+                    || has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id))
+            {
                 let mut updates = vec![];
                 for [dx, dz] in HORIZONTAL_NEIGHBORS {
                     let nx = vx + dx;
                     let nz = vz + dz;
                     if space.get_voxel(nx, vy, nz) == 0 {
-                        let below = space.get_voxel(nx, vy - 1, nz);
-                        if below != 0 {
+                        let below_target = space.get_voxel(nx, vy - 1, nz);
+                        let target_supported = below_target != 0;
+                        if curr_stage == 0 || target_supported {
                             updates.push((
                                 Vec3(nx, vy, nz),
                                 VoxelPacker::new()
@@ -199,17 +206,7 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 && !has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id)
                 && is_at_fluid_edge(vx, vy, vz, space, fluid_id, config_clone.max_stage)
             {
-                if curr_stage >= config_clone.max_stage {
-                    return vec![(Vec3(vx, vy, vz), 0)];
-                } else {
-                    return vec![(
-                        Vec3(vx, vy, vz),
-                        VoxelPacker::new()
-                            .with_id(fluid_id)
-                            .with_stage(curr_stage + 1)
-                            .pack(),
-                    )];
-                }
+                return vec![(Vec3(vx, vy, vz), 0)];
             }
 
             vec![]
