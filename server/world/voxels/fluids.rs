@@ -175,26 +175,22 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 )];
             }
 
-            if curr_stage < config_clone.max_stage
-                && (curr_stage == 0
-                    || has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id))
-            {
+            let below_id = space.get_voxel(vx, vy - 1, vz);
+            let self_supported = below_id != 0 && below_id != fluid_id;
+
+            if self_supported && curr_stage < config_clone.max_stage {
                 let mut updates = vec![];
                 for [dx, dz] in HORIZONTAL_NEIGHBORS {
                     let nx = vx + dx;
                     let nz = vz + dz;
                     if space.get_voxel(nx, vy, nz) == 0 {
-                        let below_target = space.get_voxel(nx, vy - 1, nz);
-                        let target_supported = below_target != 0;
-                        if curr_stage == 0 || target_supported {
-                            updates.push((
-                                Vec3(nx, vy, nz),
-                                VoxelPacker::new()
-                                    .with_id(fluid_id)
-                                    .with_stage(curr_stage + 1)
-                                    .pack(),
-                            ));
-                        }
+                        updates.push((
+                            Vec3(nx, vy, nz),
+                            VoxelPacker::new()
+                                .with_id(fluid_id)
+                                .with_stage(curr_stage + 1)
+                                .pack(),
+                        ));
                     }
                 }
                 if !updates.is_empty() {

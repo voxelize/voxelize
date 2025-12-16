@@ -541,6 +541,7 @@ impl Mesher {
                             &registry,
                             space,
                             is_see_through,
+                            is_fluid,
                             &mut geometry.positions,
                             &mut geometry.indices,
                             &mut geometry.uvs,
@@ -573,6 +574,7 @@ impl Mesher {
         registry: &Registry,
         space: &dyn VoxelAccess,
         see_through: bool,
+        is_fluid: bool,
         positions: &mut Vec<f32>,
         indices: &mut Vec<i32>,
         uvs: &mut Vec<f32>,
@@ -865,7 +867,8 @@ impl Mesher {
                 light = LightUtils::insert_green_light(light, green_light);
                 light = LightUtils::insert_blue_light(light, blue_light);
                 light = LightUtils::insert_sunlight(light, sunlight);
-                lights.push(light as i32 | ao << 16);
+                let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
+                lights.push(light as i32 | ao << 16 | fluid_bit);
 
                 four_sunlights.push(sunlight);
                 four_red_lights.push(red_light);

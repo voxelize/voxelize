@@ -822,7 +822,8 @@ onmessage = function (e) {
               light = LightUtils.insertGreenLight(light, lightValues.green);
               light = LightUtils.insertBlueLight(light, lightValues.blue);
               light = LightUtils.insertSunlight(light, lightValues.sun);
-              geometry.lights.push(Math.floor(light) | (ao << 16));
+              const fluidBit = isFluid ? 1 << 18 : 0;
+              geometry.lights.push(Math.floor(light) | (ao << 16) | fluidBit);
 
               fourLights[0].push(lightValues.sun);
               fourLights[1].push(lightValues.red);

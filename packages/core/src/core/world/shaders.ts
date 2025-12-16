@@ -11,6 +11,7 @@ export const DEFAULT_CHUNK_SHADERS = {
 attribute int light;
 
 varying float vAO;
+varying float vIsFluid;
 varying vec4 vLight;
 varying vec4 vWorldPosition;
 uniform vec4 uAOTable;
@@ -34,9 +35,11 @@ vec4 unpackLight(int l) {
       `
 #include <color_vertex>
 
-int ao = light >> 16;
+int ao = (light >> 16) & 0x3;
+int isFluid = (light >> 18) & 0x1;
 
 vAO = uAOTable[ao] / 255.0;
+vIsFluid = float(isFluid);
 
 vLight = unpackLight(light & 0xFFFF);
 `
@@ -64,6 +67,7 @@ uniform float uMinLightLevel;
 uniform float uLightIntensityAdjustment;
 uniform float uTime;
 varying float vAO;
+varying float vIsFluid;
 varying vec4 vLight; 
 varying vec4 vWorldPosition;
 
@@ -82,7 +86,10 @@ s -= s * exp(-s) * 0.02; // Optimized smoothing with adjusted intensity
 
 // Applying adjusted light intensity
 outgoingLight.rgb *= s + pow(vLight.rgb * uLightIntensityAdjustment, vec3(scale));
-outgoingLight *= vAO;
+
+// Apply AO with reduced impact for fluids
+float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
+outgoingLight *= aoFactor;
 `
     )
     .replace(
