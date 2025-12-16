@@ -86,7 +86,8 @@ impl Handler<Disconnect> for WsSession {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
-            Err(_) => {
+            Err(e) => {
+                warn!("[WS] Protocol error: {:?}", e);
                 ctx.stop();
                 return;
             }
@@ -95,7 +96,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
 
         match msg {
             ws::Message::Binary(bytes) => {
-                let message = models::decode_message(&bytes.to_vec()).unwrap();
+                let size_kb = bytes.len() as f64 / 1024.0;
+                if size_kb > 50.0 {
+                    log::info!("[WS] Received large binary message: {:.2}KB", size_kb);
+                }
+                let message = match models::decode_message(&bytes.to_vec()) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        warn!("[WS] Failed to decode message: {:?}", e);
+                        return;
+                    }
+                };
                 self.addr
                     .send(ClientMessage {
                         id: self.id.to_owned(),
@@ -106,14 +117,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
                         match res {
                             Ok(res) => {
                                 if let Some(error_msg) = res {
-                                    warn!("Error: {}", error_msg);
+                                    warn!("[WS] ClientMessage error: {}", error_msg);
                                     ctx.binary(models::encode_message(
                                         &Message::new(&MessageType::Error).text(&error_msg).build(),
                                     ));
                                     ctx.stop();
                                 }
                             }
-                            _ => ctx.stop(),
+                            Err(e) => {
+                                warn!("[WS] Actor mailbox error: {:?}", e);
+                                ctx.stop();
+                            }
                         }
                         fut::ready(())
                     })
@@ -124,7 +138,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsSession {
                 ctx.stop();
             }
             ws::Message::Continuation(_) => {
-                ctx.stop();
+                warn!("[WS] Received continuation frame - message may be fragmented");
             }
             _ => (),
         }

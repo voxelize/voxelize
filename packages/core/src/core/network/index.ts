@@ -72,6 +72,14 @@ export type NetworkConnectionOptions = {
 export class Network {
   public options: NetworkOptions;
 
+  // #region agent log
+  private _lastSentMsgInfo: {
+    type: string;
+    sizeKB: number;
+    timestamp: number;
+  } | null = null;
+  // #endregion
+
   /**
    * Information about the client that is sent to the server on connection. Initialize the username
    * through `setUsername` and the id through `setID`. If nothing is set, then the information will
@@ -277,7 +285,57 @@ export class Network {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
         if (ws.readyState === WebSocket.OPEN) {
-          ws.send(Network.encodeSync(event));
+          const encoded = Network.encodeSync(event);
+          const sizeKB = encoded.byteLength / 1024;
+          const bufferedKB = ws.bufferedAmount / 1024;
+
+          // #region agent log
+          this._lastSentMsgInfo = {
+            type: event.type,
+            sizeKB,
+            timestamp: Date.now(),
+          };
+          if (sizeKB > 50) {
+            fetch(
+              "http://127.0.0.1:7242/ingest/8ae579de-fe86-4b58-ba03-5d1959a224d9",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  location: "network/index.ts:sendEvent",
+                  message: "outbound_msg",
+                  data: {
+                    type: event.type,
+                    sizeKB: sizeKB.toFixed(2),
+                    bufferedKB: bufferedKB.toFixed(2),
+                    updatesCount: event.updates?.length,
+                  },
+                  timestamp: Date.now(),
+                  sessionId: "debug-session",
+                  hypothesisId: "H2,H3",
+                }),
+              }
+            ).catch(() => {});
+          }
+          // #endregion
+
+          if (sizeKB > 100) {
+            console.warn(
+              `[NETWORK] Sending large message: ${sizeKB.toFixed(1)}KB, type: ${
+                event.type
+              }, buffered: ${bufferedKB.toFixed(1)}KB`
+            );
+          }
+
+          if (bufferedKB > 1024) {
+            console.warn(
+              `[NETWORK] High buffer pressure: ${bufferedKB.toFixed(
+                1
+              )}KB buffered`
+            );
+          }
+
+          ws.send(encoded);
         }
       };
       ws.onopen = () => {
@@ -289,11 +347,43 @@ export class Network {
 
         resolve(this);
       };
-      ws.onerror = (err) => {
-        console.error("[NETWORK] WebSocket error:", err);
+      ws.onerror = (err: Event) => {
+        console.error(
+          `[NETWORK] WebSocket error\n` +
+            `  Type: ${err.type}\n` +
+            `  Connected: ${this.connected}\n` +
+            `  ReadyState: ${ws.readyState} (${
+              ["CONNECTING", "OPEN", "CLOSING", "CLOSED"][ws.readyState]
+            })\n` +
+            `  Pending packets: ${this.packetQueue.length}`
+        );
       };
       ws.onmessage = ({ data }) => {
         const arrayBuffer = data as ArrayBuffer;
+        const inboundSizeKB = arrayBuffer.byteLength / 1024;
+
+        // #region agent log
+        if (inboundSizeKB > 100) {
+          fetch(
+            "http://127.0.0.1:7242/ingest/8ae579de-fe86-4b58-ba03-5d1959a224d9",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: "network/index.ts:onmessage",
+                message: "large_inbound_msg",
+                data: {
+                  sizeKB: inboundSizeKB.toFixed(2),
+                  queueLen: this.packetQueue.length,
+                },
+                timestamp: Date.now(),
+                sessionId: "debug-session",
+                hypothesisId: "H1",
+              }),
+            }
+          ).catch(() => {});
+        }
+        // #endregion
 
         if (this.waitingForInit) {
           if (!this.initPacketReceived) {
@@ -309,16 +399,63 @@ export class Network {
         this.packetQueue.push(arrayBuffer);
       };
       ws.onclose = (event) => {
+        const codeDescriptions: Record<number, string> = {
+          1000: "Normal closure",
+          1001: "Going away (page navigated/server shutting down)",
+          1002: "Protocol error",
+          1003: "Unsupported data type",
+          1005: "No status code present",
+          1006: "Abnormal closure (no close frame received - server crash/network issue/message too large)",
+          1007: "Invalid frame payload data",
+          1008: "Policy violation",
+          1009: "Message too big",
+          1010: "Missing extension",
+          1011: "Internal server error",
+          1012: "Service restart",
+          1013: "Try again later",
+          1014: "Bad gateway",
+          1015: "TLS handshake failure",
+        };
+
+        const description = codeDescriptions[event.code] || "Unknown";
+
+        // #region agent log
+        fetch(
+          "http://127.0.0.1:7242/ingest/8ae579de-fe86-4b58-ba03-5d1959a224d9",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: "network/index.ts:onclose",
+              message: "ws_closed",
+              data: {
+                code: event.code,
+                description,
+                reason: event.reason,
+                wasClean: event.wasClean,
+                pendingPackets: this.packetQueue.length,
+                bufferedKB: (ws.bufferedAmount / 1024).toFixed(2),
+                lastSentMsg: this._lastSentMsgInfo,
+              },
+              timestamp: Date.now(),
+              sessionId: "debug-session",
+              hypothesisId: "H1,H2,H3",
+            }),
+          }
+        ).catch(() => {});
+        // #endregion
+
         console.log(
-          "[NETWORK] WebSocket closed, code:",
-          event.code,
-          "reason:",
-          event.reason
+          `[NETWORK] WebSocket closed\n` +
+            `  Code: ${event.code} (${description})\n` +
+            `  Reason: ${event.reason || "(none)"}\n` +
+            `  Clean: ${event.wasClean}\n` +
+            `  Pending packets: ${this.packetQueue.length}`
         );
+
         this.connected = false;
         this.onDisconnect?.();
 
-        // fire reconnection every "reconnectTimeout" ms
         if (options.reconnectTimeout) {
           this.reconnection = setTimeout(() => {
             this.connect(serverURL, options);

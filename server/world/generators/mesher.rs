@@ -490,7 +490,7 @@ impl Mesher {
                             }
                         }
 
-                        chunk.lights = space.get_lights(coords.0, coords.1).unwrap().clone();
+                        chunk.lights = Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
                     for level in sub_chunks {

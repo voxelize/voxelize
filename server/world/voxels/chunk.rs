@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::sync::Arc;
 
 use hashbrown::{HashMap, HashSet};
 
@@ -36,9 +37,9 @@ pub struct Chunk {
 
     pub status: ChunkStatus,
 
-    pub voxels: Ndarray<u32>,
-    pub lights: Ndarray<u32>,
-    pub height_map: Ndarray<u32>,
+    pub voxels: Arc<Ndarray<u32>>,
+    pub lights: Arc<Ndarray<u32>>,
+    pub height_map: Arc<Ndarray<u32>>,
 
     pub meshes: Option<HashMap<u32, MeshProtocol>>,
 
@@ -59,9 +60,9 @@ impl Chunk {
             sub_chunks,
         } = *options;
 
-        let voxels = Ndarray::new(&[size, max_height, size], 0);
-        let lights = Ndarray::new(&[size, max_height, size], 0);
-        let height_map = Ndarray::new(&[size, size], 0);
+        let voxels = Arc::new(Ndarray::new(&[size, max_height, size], 0));
+        let lights = Arc::new(Ndarray::new(&[size, max_height, size], 0));
+        let height_map = Arc::new(Ndarray::new(&[size, size], 0));
 
         let min = Vec3(cx * size as i32, 0, cz * size as i32);
         let max = Vec3(
@@ -130,12 +131,12 @@ impl Chunk {
             id: self.id.clone(),
             meshes,
             voxels: if data {
-                Some(self.voxels.to_owned())
+                Some((*self.voxels).clone())
             } else {
                 None
             },
             lights: if data {
-                Some(self.lights.to_owned())
+                Some((*self.lights).clone())
             } else {
                 None
             },
@@ -195,7 +196,7 @@ impl VoxelAccess for Chunk {
         self.add_updated_level(vy);
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.voxels[&[lx, ly, lz]] = val;
+        Arc::make_mut(&mut self.voxels)[&[lx, ly, lz]] = val;
 
         true
     }
@@ -223,7 +224,7 @@ impl VoxelAccess for Chunk {
         self.add_updated_level(vy);
 
         let Vec3(lx, ly, lz) = self.to_local(vx, vy, vz);
-        self.lights[&[lx, ly, lz]] = level;
+        Arc::make_mut(&mut self.lights)[&[lx, ly, lz]] = level;
 
         true
     }
@@ -249,7 +250,7 @@ impl VoxelAccess for Chunk {
         }
 
         let Vec3(lx, _, lz) = self.to_local(vx, 0, vz);
-        self.height_map[&[lx as usize, lz as usize]] = height;
+        Arc::make_mut(&mut self.height_map)[&[lx as usize, lz as usize]] = height;
 
         true
     }

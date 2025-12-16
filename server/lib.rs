@@ -64,7 +64,11 @@ async fn ws_route(
         info!("A new transport server has connected.");
     }
 
-    ws::start(
+    info!("[WS] New connection with 16MB frame limit");
+
+    let codec = actix_http::ws::Codec::new().max_size(16 * 1024 * 1024);
+
+    ws::WsResponseBuilder::new(
         server::WsSession {
             id,
             name: None,
@@ -74,6 +78,8 @@ async fn ws_route(
         &req,
         stream,
     )
+    .codec(codec)
+    .start()
 }
 
 /// Main website path, serving statically built index.html
