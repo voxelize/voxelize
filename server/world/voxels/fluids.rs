@@ -150,16 +150,6 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 }
             }
 
-            let above_id = space.get_voxel(vx, vy + 1, vz);
-            let above_is_source =
-                above_id == fluid_id && space.get_voxel_stage(vx, vy + 1, vz) == 0;
-            if above_is_source && curr_stage > 0 {
-                return vec![(
-                    Vec3(vx, vy, vz),
-                    VoxelPacker::new().with_id(fluid_id).with_stage(0).pack(),
-                )];
-            }
-
             if space.get_voxel(vx, vy - 1, vz) == 0 {
                 let new_stage = if config_clone.flows_down_as_source {
                     0
@@ -178,7 +168,8 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
             if curr_stage > 0 {
                 let has_source = has_valid_source_path(vx, vy, vz, curr_stage, space, fluid_id);
                 if !has_source {
-                    let at_edge = is_at_fluid_edge(vx, vy, vz, space, fluid_id, config_clone.max_stage);
+                    let at_edge =
+                        is_at_fluid_edge(vx, vy, vz, space, fluid_id, config_clone.max_stage);
                     if at_edge {
                         return vec![(Vec3(vx, vy, vz), 0)];
                     }
