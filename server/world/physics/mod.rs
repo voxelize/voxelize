@@ -609,8 +609,8 @@ impl Physics {
         // }
 
         // if the new position is below the old position, then the new position is invalid
-        // since we trying to step upwards
-        if old_aabb.min_y < body.aabb.min_y {
+        // since we're trying to step upwards
+        if old_aabb.min_y > body.aabb.min_y {
             return;
         }
 

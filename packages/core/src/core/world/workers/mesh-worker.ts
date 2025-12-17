@@ -170,7 +170,7 @@ onmessage = function (e) {
           );
           const diagonal4 = registry.blocksById.get(diagonal4Id);
 
-          if (diagonal4.isOpaque) {
+          if (!diagonal4 || diagonal4.isOpaque) {
             continue;
           }
 
@@ -182,7 +182,7 @@ onmessage = function (e) {
             );
             const facing = registry.blocksById.get(facingId);
 
-            if (facing.isOpaque) {
+            if (!facing || facing.isOpaque) {
               continue;
             }
           }
@@ -198,6 +198,10 @@ onmessage = function (e) {
             const diagonalXZ = registry.blocksById.get(diagonalXZId);
             const diagonalXY = registry.blocksById.get(diagonalXYId);
 
+            if (!diagonalYZ || !diagonalXZ || !diagonalXY) {
+              continue;
+            }
+
             if (
               diagonalYZ.isOpaque &&
               diagonalXZ.isOpaque &&
@@ -212,7 +216,7 @@ onmessage = function (e) {
               const neighborY = registry.blocksById.get(neighborYId);
               const neighborZ = registry.blocksById.get(neighborZId);
 
-              if (neighborY.isOpaque && neighborZ.isOpaque) {
+              if (neighborY?.isOpaque && neighborZ?.isOpaque) {
                 continue;
               }
             }
@@ -223,7 +227,7 @@ onmessage = function (e) {
               const neighborX = registry.blocksById.get(neighborXId);
               const neighborZ = registry.blocksById.get(neighborZId);
 
-              if (neighborX.isOpaque && neighborZ.isOpaque) {
+              if (neighborX?.isOpaque && neighborZ?.isOpaque) {
                 continue;
               }
             }
@@ -234,7 +238,7 @@ onmessage = function (e) {
               const neighborX = registry.blocksById.get(neighborXId);
               const neighborY = registry.blocksById.get(neighborYId);
 
-              if (neighborX.isOpaque && neighborY.isOpaque) {
+              if (neighborX?.isOpaque && neighborY?.isOpaque) {
                 continue;
               }
             }
@@ -551,6 +555,10 @@ onmessage = function (e) {
         const rotation = getVoxelRotationAt(vx, vy, vz);
         const block = registry.blocksById.get(voxel);
 
+        if (!block) {
+          continue;
+        }
+
         const {
           id,
           isSeeThrough,
@@ -682,6 +690,10 @@ onmessage = function (e) {
           const nIsVoid = !getChunkByCoords(nCoords);
           const nBlock = registry.blocksById.get(neighborId);
 
+          if (!nBlock) {
+            continue;
+          }
+
           let seeThroughCheck = false;
 
           if (isSeeThrough && !isOpaque && nBlock.isOpaque) {
@@ -805,10 +817,10 @@ onmessage = function (e) {
               const b110Id = getVoxelAt(vx + unitDx, vy + unitDy, vz + 0);
               const b111Id = getVoxelAt(vx + unitDx, vy + unitDy, vz + unitDz);
 
-              const b011 = !registry.blocksById.get(b011Id).isOpaque;
-              const b101 = !registry.blocksById.get(b101Id).isOpaque;
-              const b110 = !registry.blocksById.get(b110Id).isOpaque;
-              const b111 = !registry.blocksById.get(b111Id).isOpaque;
+              const b011 = !registry.blocksById.get(b011Id)?.isOpaque;
+              const b101 = !registry.blocksById.get(b101Id)?.isOpaque;
+              const b110 = !registry.blocksById.get(b110Id)?.isOpaque;
+              const b111 = !registry.blocksById.get(b111Id)?.isOpaque;
 
               const ao =
                 isSeeThrough || isAllTransparent

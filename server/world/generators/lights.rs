@@ -323,7 +323,7 @@ impl Lights {
                     }
                     }
 
-                    let index = (x + z * shape.2) as usize;
+                    let index = (x + z * shape.0) as usize;
 
                     let [px, py, pz, nx, ny, nz] = space
                         .get_voxel_rotation(x + start_x, y, z + start_z)

@@ -536,6 +536,8 @@ export class RawChunk {
     const { size, maxHeight } = this.options;
     const [lx, ly, lz] = this.toLocal(vx, vy, vz);
 
-    return lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size;
+    return (
+      lx >= 0 && lx < size && ly >= 0 && ly < maxHeight && lz >= 0 && lz < size
+    );
   }
 }
