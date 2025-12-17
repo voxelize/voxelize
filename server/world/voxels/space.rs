@@ -385,3 +385,54 @@ impl VoxelAccess for Space {
                 || self.height_maps.contains_key(&coords))
     }
 }
+
+impl voxelize_mesher::VoxelAccess for Space {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_voxel(self, vx, vy, vz)
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_raw_voxel(self, vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> voxelize_mesher::BlockRotation {
+        let rotation = VoxelAccess::get_voxel_rotation(self, vx, vy, vz);
+        let (rot, y_rot) = BlockRotation::decode(&rotation);
+        voxelize_mesher::BlockRotation::encode(rot, y_rot)
+    }
+
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_voxel_stage(self, vx, vy, vz)
+    }
+
+    fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        VoxelAccess::get_sunlight(self, vx, vy, vz)
+    }
+
+    fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: voxelize_mesher::LightColor) -> u32 {
+        let server_color = match color {
+            voxelize_mesher::LightColor::Red => crate::LightColor::Red,
+            voxelize_mesher::LightColor::Green => crate::LightColor::Green,
+            voxelize_mesher::LightColor::Blue => crate::LightColor::Blue,
+        };
+        VoxelAccess::get_torch_light(self, vx, vy, vz, &server_color)
+    }
+
+    fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
+        let raw = VoxelAccess::get_raw_light(self, vx, vy, vz);
+        (
+            LightUtils::extract_sunlight(raw),
+            LightUtils::extract_red_light(raw),
+            LightUtils::extract_green_light(raw),
+            LightUtils::extract_blue_light(raw),
+        )
+    }
+
+    fn get_max_height(&self, vx: i32, vz: i32) -> u32 {
+        VoxelAccess::get_max_height(self, vx, vz)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        VoxelAccess::contains(self, vx, vy, vz)
+    }
+}

@@ -346,6 +346,28 @@ impl BlockFace {
     pub fn into_isolated(&mut self) {
         self.isolated = true;
     }
+
+    pub fn to_mesher_face(&self) -> voxelize_mesher::BlockFace {
+        voxelize_mesher::BlockFace {
+            name: self.name.clone(),
+            name_lower: self.name.to_lowercase(),
+            independent: self.independent,
+            isolated: self.isolated,
+            dir: self.dir,
+            corners: [
+                voxelize_mesher::CornerData { pos: self.corners[0].pos, uv: self.corners[0].uv },
+                voxelize_mesher::CornerData { pos: self.corners[1].pos, uv: self.corners[1].uv },
+                voxelize_mesher::CornerData { pos: self.corners[2].pos, uv: self.corners[2].uv },
+                voxelize_mesher::CornerData { pos: self.corners[3].pos, uv: self.corners[3].uv },
+            ],
+            range: voxelize_mesher::UV {
+                start_u: self.range.start_u,
+                end_u: self.range.end_u,
+                start_v: self.range.start_v,
+                end_v: self.range.end_v,
+            },
+        }
+    }
 }
 
 pub const SIX_FACES_PX: usize = 0;
@@ -1467,6 +1489,52 @@ pub struct BlockDynamicPattern {
     pub parts: Vec<BlockConditionalPart>,
 }
 
+impl BlockDynamicPattern {
+    pub fn to_mesher_pattern(&self) -> voxelize_mesher::BlockDynamicPattern {
+        voxelize_mesher::BlockDynamicPattern {
+            parts: self.parts.iter().map(|p| p.to_mesher_part()).collect(),
+        }
+    }
+}
+
+impl BlockConditionalPart {
+    pub fn to_mesher_part(&self) -> voxelize_mesher::BlockConditionalPart {
+        voxelize_mesher::BlockConditionalPart {
+            rule: self.rule.to_mesher_rule(),
+            faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
+            aabbs: self.aabbs.iter().map(|a| a.to_mesher_aabb()).collect(),
+            is_transparent: self.is_transparent,
+        }
+    }
+}
+
+impl BlockRule {
+    pub fn to_mesher_rule(&self) -> voxelize_mesher::BlockRule {
+        match self {
+            BlockRule::None => voxelize_mesher::BlockRule::None,
+            BlockRule::Simple(simple) => {
+                voxelize_mesher::BlockRule::Simple(voxelize_mesher::BlockSimpleRule {
+                    offset: [simple.offset.0, simple.offset.1, simple.offset.2],
+                    id: simple.id,
+                    rotation: simple.rotation.as_ref().map(|r| {
+                        let (rot, y_rot) = BlockRotation::decode(r);
+                        voxelize_mesher::BlockRotation::encode(rot, y_rot)
+                    }),
+                    stage: simple.stage,
+                })
+            }
+            BlockRule::Combination { logic, rules } => voxelize_mesher::BlockRule::Combination {
+                logic: match logic {
+                    BlockRuleLogic::And => voxelize_mesher::BlockRuleLogic::And,
+                    BlockRuleLogic::Or => voxelize_mesher::BlockRuleLogic::Or,
+                    BlockRuleLogic::Not => voxelize_mesher::BlockRuleLogic::Not,
+                },
+                rules: rules.iter().map(|r| r.to_mesher_rule()).collect(),
+            },
+        }
+    }
+}
+
 /// Serializable struct representing block data.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1766,6 +1834,27 @@ impl Block {
         space: &dyn VoxelAccess,
     ) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6]) {
         Self::evaluate_dynamic_pattern(&pattern, pos, space)
+    }
+
+    pub fn to_mesher_block(&self) -> voxelize_mesher::Block {
+        voxelize_mesher::Block {
+            id: self.id,
+            name: self.name.clone(),
+            name_lower: self.name.to_lowercase(),
+            rotatable: self.rotatable,
+            y_rotatable: self.y_rotatable,
+            is_empty: self.is_empty,
+            is_fluid: self.is_fluid,
+            is_opaque: self.is_opaque,
+            is_see_through: self.is_see_through,
+            is_transparent: self.is_transparent,
+            transparent_standalone: self.transparent_standalone,
+            faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
+            aabbs: self.aabbs.iter().map(|a| a.to_mesher_aabb()).collect(),
+            dynamic_patterns: self.dynamic_patterns.as_ref().map(|patterns| {
+                patterns.iter().map(|p| p.to_mesher_pattern()).collect()
+            }),
+        }
     }
 }
 

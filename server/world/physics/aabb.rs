@@ -220,6 +220,17 @@ impl AABB {
         }
         true
     }
+
+    pub fn to_mesher_aabb(&self) -> voxelize_mesher::AABB {
+        voxelize_mesher::AABB {
+            min_x: self.min_x,
+            min_y: self.min_y,
+            min_z: self.min_z,
+            max_x: self.max_x,
+            max_y: self.max_y,
+            max_z: self.max_z,
+        }
+    }
 }
 
 pub struct AABBBuilder {

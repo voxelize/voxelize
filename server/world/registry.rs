@@ -351,4 +351,14 @@ impl Registry {
             self.textures.insert((*id, idx, side.independent));
         }
     }
+
+    pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {
+        let blocks_by_id: Vec<(u32, voxelize_mesher::Block)> = self
+            .blocks_by_id
+            .iter()
+            .map(|(id, block)| (*id, block.to_mesher_block()))
+            .collect();
+
+        voxelize_mesher::Registry::new(blocks_by_id)
+    }
 }

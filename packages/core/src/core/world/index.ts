@@ -70,7 +70,7 @@ import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import LightWorker from "./workers/light-worker.ts?worker&inline";
-import MeshWorker from "./workers/mesh-worker.ts?worker&inline";
+import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
 export * from "./chunk";
@@ -709,7 +709,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const subChunkMin = [min[0], heightPerSubChunk * level, min[2]];
     const subChunkMax = [max[0], heightPerSubChunk * (level + 1), max[2]];
 
-    const chunksData: any[] = [];
+    const chunksData: unknown[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (const chunk of chunks) {
@@ -731,7 +731,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       max: subChunkMax,
     };
 
-    // Make sure it's not already processed by the server
     const name = ChunkUtils.getChunkName([cx, cz]);
     if (this.chunks.toProcessSet.has(name)) {
       return;
@@ -747,7 +746,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
     });
 
-    // Make sure it's not already processed by the server
     if (this.chunks.toProcessSet.has(name)) {
       return;
     }
@@ -880,20 +878,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     defaultDimension?: number
   ) {
     const block = this.getBlockAt(...voxel);
-    if (block.id === 0) {
-      const chunk = this.getChunkByPosition(...voxel);
-      console.log(
-        "[ian] applying isolated block texture at",
-        block,
-        chunk.coords
-      );
-      const voxelData = chunk.voxels.data;
-      console.log(
-        "[ian]",
-        voxelData.filter((n) => !!n),
-        voxelData.length
-      );
-    }
     const idOrName = block.id;
     return this.applyBlockTextureAt(
       idOrName,
@@ -902,6 +886,22 @@ export class World<T = any> extends Scene implements NetIntercept {
         defaultDimension ?? this.options.textureUnitDimension
       ),
       voxel
+    );
+  }
+
+  private getOrCreateIsolatedBlockMaterial(
+    blockId: number,
+    position: Coords3,
+    faceName: string,
+    defaultDimension?: number
+  ) {
+    return this.applyBlockTextureAt(
+      blockId,
+      faceName,
+      AtlasTexture.makeUnknownTexture(
+        defaultDimension ?? this.options.textureUnitDimension
+      ),
+      position
     );
   }
 
@@ -3575,16 +3575,11 @@ export class World<T = any> extends Scene implements NetIntercept {
           }
 
           try {
-            const isolatedMaterial = this.getIsolatedBlockMaterialAt(
+            const isolatedMaterial = this.getOrCreateIsolatedBlockMaterial(
+              voxel,
               at,
               faceName
             );
-            // test draw some random color
-            if (isolatedMaterial.map instanceof AtlasTexture) {
-              // isolatedMaterial.map.paintColor(
-              //   new Color(Math.random(), Math.random(), Math.random())
-              // );
-            }
             material = isolatedMaterial;
           } catch (e) {
             console.error(e);
@@ -4278,10 +4273,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   private processDirtyChunks = async () => {
     const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
 
-    for (const [coords, level] of dirtyChunks) {
+    const meshPromises = dirtyChunks.map(([coords, level]) => {
       const [cx, cz] = coords;
-      await this.meshChunkLocally(cx, cz, level);
-    }
+      return this.meshChunkLocally(cx, cz, level);
+    });
+    await Promise.all(meshPromises);
   };
 
   private mergeLightOperations(
@@ -4497,6 +4493,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private handleLightJobResult(job: LightJob, result: LightWorkerResult) {
     const { modifiedChunks } = result;
+    const { boundingBox } = job;
+    const { maxHeight, subChunks, maxLightLevel } = this.options;
+    const subChunkHeight = maxHeight / subChunks;
+
+    const minY = Math.max(0, boundingBox.min[1] - maxLightLevel);
+    const maxY = Math.min(
+      maxHeight - 1,
+      boundingBox.min[1] + boundingBox.shape[1] - 1 + maxLightLevel
+    );
+    const minLevel = Math.floor(minY / subChunkHeight);
+    const maxLevel = Math.min(subChunks - 1, Math.floor(maxY / subChunkHeight));
 
     modifiedChunks.forEach(({ coords, lights }) => {
       const chunk = this.getChunkByCoords(coords[0], coords[1]);
@@ -4507,7 +4514,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     modifiedChunks.forEach(({ coords }) => {
-      this.markChunkForRemesh(coords);
+      this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
     });
 
     this.processNextLightJob();
@@ -4815,8 +4822,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private markChunkForRemesh(coords: Coords2) {
     const { subChunks } = this.options;
+    this.markChunkForRemeshLevels(coords, 0, subChunks - 1);
+  }
 
-    for (let level = 0; level < subChunks; level++) {
+  private markChunkForRemeshLevels(
+    coords: Coords2,
+    minLevel: number,
+    maxLevel: number
+  ) {
+    for (let level = minLevel; level <= maxLevel; level++) {
       if (
         !this.chunksTracker.some(
           ([c, l]) => c[0] === coords[0] && c[1] === coords[1] && l === level

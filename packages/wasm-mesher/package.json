@@ -1,0 +1,17 @@
+{
+  "name": "@voxelize/wasm-mesher",
+  "version": "1.0.0",
+  "description": "WebAssembly mesher for Voxelize",
+  "main": "./pkg/voxelize_wasm_mesher.js",
+  "module": "./pkg/voxelize_wasm_mesher.js",
+  "types": "./pkg/voxelize_wasm_mesher.d.ts",
+  "files": [
+    "pkg"
+  ],
+  "scripts": {
+    "build": "wasm-pack build --target web",
+    "build:dev": "wasm-pack build --target web --dev",
+    "build:release": "wasm-pack build --target web --release"
+  },
+  "license": "MIT"
+}

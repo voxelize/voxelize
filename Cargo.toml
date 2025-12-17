@@ -31,6 +31,7 @@ name = "demo"
 path = "examples/server/main.rs"
 
 [dependencies]
+voxelize-mesher = { path = "packages/mesher" }
 actix = "0.13.3"
 actix-cors = "0.7.0"
 actix-files = "0.6.5"
