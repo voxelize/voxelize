@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -194,7 +195,7 @@ impl<'a> System<'a> for PathFindingSystem {
                     }
 
                     let start_time = Instant::now();
-                    let count = Arc::new(Mutex::new(0));
+                    let count = AtomicI32::new(0);
 
                     let path = AStar::calculate(
                         &start,
@@ -202,10 +203,9 @@ impl<'a> System<'a> for PathFindingSystem {
                         &|node| {
                             let &PathNode(vx, vy, vz) = node;
                             let mut successors = vec![];
-                            let mut locked_count = count.lock().unwrap();
+                            let current_count = count.fetch_add(1, Ordering::Relaxed);
 
-                            *locked_count += 1;
-                            if *locked_count >= entity_path.max_depth_search
+                            if current_count >= entity_path.max_depth_search
                                 || start_time.elapsed() > entity_path.max_pathfinding_time
                             {
                                 return successors;
