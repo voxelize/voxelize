@@ -3552,6 +3552,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
+        geometry.computeVertexNormals();
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -3709,6 +3710,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { minLightLevel } = this.options;
 
     this.chunks.uniforms.minLightLevel.value = minLightLevel;
+  }
+
+  setShowGreedyDebug(show: boolean) {
+    this.chunks.uniforms.showGreedyDebug.value = show ? 1.0 : 0.0;
   }
 
   private analyzeLightOperations(
@@ -4635,6 +4640,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         uFogFar: chunksUniforms.fogFar,
         uFogColor: chunksUniforms.fogColor,
         uTime: chunksUniforms.time,
+        uAtlasSize: chunksUniforms.atlasSize,
+        uShowGreedyDebug: chunksUniforms.showGreedyDebug,
         ...uniforms,
       },
     }) as CustomChunkShaderMaterial;
@@ -4693,6 +4700,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const countPerSide = perSide(totalFaces);
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
+
+    this.chunks.uniforms.atlasSize.value = countPerSide;
 
     blocks.forEach((block) => {
       const mat = make(block.isSeeThrough, atlas);

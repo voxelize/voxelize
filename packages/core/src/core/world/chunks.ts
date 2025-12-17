@@ -96,6 +96,18 @@ export class Chunks {
        */
       value: number;
     };
+    atlasSize: {
+      /**
+       * The size of the texture atlas (number of cells per side). Used for UV tiling in greedy meshing.
+       */
+      value: number;
+    };
+    showGreedyDebug: {
+      /**
+       * Whether to show greedy meshing debug visualization (green=greedy, red=non-greedy).
+       */
+      value: number;
+    };
   } = {
     fogColor: {
       value: new Color("#B1CCFD"),
@@ -120,6 +132,12 @@ export class Chunks {
     },
     lightIntensityAdjustment: {
       value: 0.8,
+    },
+    atlasSize: {
+      value: 16,
+    },
+    showGreedyDebug: {
+      value: 0,
     },
   };
 
