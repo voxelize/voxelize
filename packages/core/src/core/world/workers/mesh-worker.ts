@@ -1026,7 +1026,9 @@ onmessage = function (e) {
       ((isSeeThrough &&
         neighborId === voxelId &&
         nBlock.transparentStandalone) ||
-        (neighborId !== voxelId && (isSeeThrough || nBlock.isSeeThrough)))
+        (neighborId !== voxelId &&
+          (isSeeThrough || nBlock.isSeeThrough) &&
+          !(isFluid && nBlock.isOpaque && isFullCubeBlock(nBlock))))
     ) {
       return true;
     }
@@ -1447,7 +1449,8 @@ onmessage = function (e) {
                 neighborId === voxelId &&
                 nBlock.transparentStandalone) ||
                 (neighborId !== voxelId &&
-                  (isSeeThrough || nBlock.isSeeThrough)) ||
+                  (isSeeThrough || nBlock.isSeeThrough) &&
+                  !(isFluid && nBlock.isOpaque && isFullCubeBlock(nBlock))) ||
                 seeThroughCheck)) ||
             (!isSeeThrough && (!block.isOpaque || !nBlock.isOpaque)) ||
             (isFluid &&
@@ -1841,7 +1844,9 @@ onmessage = function (e) {
                 ((isSeeThrough &&
                   neighborId == id &&
                   nBlock.transparentStandalone) ||
-                  (neighborId != id && (isSeeThrough || nBlock.isSeeThrough)) ||
+                  (neighborId != id &&
+                    (isSeeThrough || nBlock.isSeeThrough) &&
+                    !(isFluid && nBlock.isOpaque && isFullCubeBlock(nBlock))) ||
                   seeThroughCheck)) ||
               (!isSeeThrough && (!isOpaque || !nBlock.isOpaque)) ||
               (isFluid &&
