@@ -408,7 +408,7 @@ fn smooth_path(path: &mut Vec<Vec3<i32>>, chunks: &Chunks, registry: &Registry, 
     const EPSILON: f32 = 0.5;
     const MAX_TURN_ANGLE: f32 = 75.0;
 
-    let mut simplified = rdp_simplify(path, EPSILON);
+    let simplified = rdp_simplify(path, EPSILON);
 
     let mut validated_path = vec![simplified[0].clone()];
 
