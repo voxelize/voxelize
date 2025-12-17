@@ -6,7 +6,6 @@ mod events;
 mod peers;
 mod physics;
 mod saving;
-mod search;
 mod stats;
 mod path;
 
@@ -18,6 +17,5 @@ pub use events::*;
 pub use peers::*;
 pub use physics::PhysicsSystem;
 pub use saving::*;
-pub use search::SearchSystem;
 pub use stats::*;
 pub use path::*;

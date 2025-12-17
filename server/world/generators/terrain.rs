@@ -1,7 +1,6 @@
-use kdtree::{distance::squared_euclidean, KdTree};
-use log::info;
+use kiddo::float::kdtree::KdTree as KiddoTree;
+use kiddo::SquaredEuclidean;
 use serde::Serialize;
-use splines::interpolate::Interpolator;
 
 use crate::WorldConfig;
 
@@ -25,52 +24,85 @@ impl Biome {
     }
 }
 
-/// A seeded layered terrain for Voxelize world generation.
+const MAX_BIOME_LAYERS: usize = 8;
+
+#[derive(Clone)]
+struct BiomeTree {
+    tree: KiddoTree<f64, usize, MAX_BIOME_LAYERS, 32, u16>,
+    biomes: Vec<Biome>,
+    dimensions: usize,
+}
+
+impl BiomeTree {
+    fn new(dimensions: usize) -> Self {
+        Self {
+            tree: KiddoTree::new(),
+            biomes: Vec::new(),
+            dimensions,
+        }
+    }
+
+    fn add(&mut self, point: &[f64], biome: Biome) {
+        let idx = self.biomes.len();
+        self.biomes.push(biome);
+        let mut padded = [0.0f64; MAX_BIOME_LAYERS];
+        for (i, &v) in point.iter().take(self.dimensions).enumerate() {
+            padded[i] = v;
+        }
+        self.tree.add(&padded, idx);
+    }
+
+    fn nearest(&self, point: &[f64]) -> Option<&Biome> {
+        if self.tree.size() == 0 {
+            return None;
+        }
+        let mut padded = [0.0f64; MAX_BIOME_LAYERS];
+        for (i, &v) in point.iter().take(self.dimensions).enumerate() {
+            padded[i] = v;
+        }
+        let result = self.tree.nearest_one::<SquaredEuclidean>(&padded);
+        self.biomes.get(result.item)
+    }
+
+    fn size(&self) -> usize {
+        self.tree.size()
+    }
+}
+
 #[derive(Clone)]
 pub struct Terrain {
     config: WorldConfig,
     noise: SeededNoise,
-    biome_tree: KdTree<f64, Biome, Vec<f64>>,
+    biome_tree: BiomeTree,
     pub layers: Vec<(TerrainLayer, f64)>,
     pub noise_layers: Vec<(TerrainLayer, f64)>,
 }
 
 impl Terrain {
-    /// Create a new instance of the seeded terrain.
     pub fn new(config: &WorldConfig) -> Self {
         Self {
             config: config.to_owned(),
             noise: SeededNoise::new(config.seed, &config.terrain),
-            biome_tree: KdTree::new(2),
+            biome_tree: BiomeTree::new(2),
             layers: vec![],
             noise_layers: vec![],
         }
     }
 
-    /// Add a terrain layer to the voxelize terrain.
     pub fn add_layer(&mut self, layer: &TerrainLayer, weight: f64) -> &mut Self {
-        // Map the last layer's bias and offset to -1 to 1.
-        // if !self.layers.is_empty() {
-        //     let (mut last_layer, last_weight) = self.layers.pop().unwrap();
-        //     last_layer.normalize();
-        //     self.layers.push((last_layer, last_weight));
-        // }
-
         if self.biome_tree.size() > 0 {
             panic!("Terrain layers must be added before biomes.");
         }
 
         let mut layer = layer.to_owned();
         layer.set_seed(self.config.seed);
-        // layer.normalize();
         self.layers.push((layer, weight));
 
-        self.biome_tree = KdTree::new(self.layers.len());
+        self.biome_tree = BiomeTree::new(self.layers.len());
 
         self
     }
 
-    /// Add a noise layer to the voxelize terrain.
     pub fn add_noise_layer(&mut self, layer: &TerrainLayer, weight: f64) -> &mut Self {
         let mut layer = layer.to_owned();
         layer.set_seed(self.config.seed);
@@ -80,15 +112,13 @@ impl Terrain {
     }
 
     pub fn add_biome(&mut self, point: &[f64], biome: Biome) -> &mut Self {
-        let point_vec = point.to_vec();
-        let point_vec = point_vec[..self.layers.len()]
-            .into_iter()
+        let point_vec: Vec<f64> = point[..self.layers.len()]
+            .iter()
             .enumerate()
             .map(|(idx, val)| self.layers[idx].1 * val)
-            .collect::<Vec<f64>>()
-            .to_owned();
+            .collect();
 
-        self.biome_tree.add(point_vec, biome).unwrap();
+        self.biome_tree.add(&point_vec, biome);
         self
     }
 
@@ -140,7 +170,7 @@ impl Terrain {
     }
 
     pub fn get_biome_at(&self, vx: i32, vy: i32, vz: i32) -> &Biome {
-        let values = self
+        let values: Vec<f64> = self
             .layers
             .iter()
             .map(|(layer, weight)| {
@@ -150,14 +180,11 @@ impl Terrain {
                     layer.noise.get3d(vx, vy, vz)
                 }) * weight
             })
-            .collect::<Vec<f64>>();
+            .collect();
 
-        let result = self
-            .biome_tree
-            .nearest(&values, 1, &squared_euclidean)
-            .unwrap()[0];
-
-        result.1
+        self.biome_tree
+            .nearest(&values)
+            .expect("No biomes registered")
     }
 }
 

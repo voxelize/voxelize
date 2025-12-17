@@ -13,7 +13,6 @@ mod metadata;
 mod physics;
 mod profiler;
 mod registry;
-mod search;
 mod stats;
 mod systems;
 mod types;
@@ -67,7 +66,6 @@ pub use interests::*;
 pub use messages::*;
 pub use physics::*;
 pub use registry::*;
-pub use search::*;
 pub use stats::*;
 pub use systems::*;
 pub use types::*;
@@ -459,7 +457,6 @@ impl World {
             &config.save_dir,
             config.default_time,
         ));
-        ecs.insert(Search::new());
 
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
@@ -1006,16 +1003,6 @@ impl World {
     /// Access the mutable events queue in the ECS world.
     pub fn events_mut(&mut self) -> FetchMut<Events> {
         self.write_resource::<Events>()
-    }
-
-    /// Access the search tree in the ECS world.
-    pub fn search(&self) -> Fetch<Search> {
-        self.read_resource::<Search>()
-    }
-
-    /// Access the mutable search tree in the ECS world.
-    pub fn search_mut(&mut self) -> FetchMut<Search> {
-        self.write_resource::<Search>()
     }
 
     /// Access the stats manager in the ECS world.
