@@ -75,16 +75,33 @@ onmessage = function (e) {
       rotatable: boolean;
       yRotatable: boolean;
       dynamicPatterns: { parts: { rule: object }[] }[] | null;
+      aabbs: {
+        minX: number;
+        minY: number;
+        minZ: number;
+        maxX: number;
+        maxY: number;
+        maxZ: number;
+      }[];
     },
     rotation: BlockRotation
   ): boolean {
     const isIdentityRotation = rotation.value === 0 && rotation.yRotation === 0;
+    const isFullCube =
+      block.aabbs.length === 1 &&
+      Math.abs(block.aabbs[0].minX) < 0.0001 &&
+      Math.abs(block.aabbs[0].minY) < 0.0001 &&
+      Math.abs(block.aabbs[0].minZ) < 0.0001 &&
+      Math.abs(block.aabbs[0].maxX - 1) < 0.0001 &&
+      Math.abs(block.aabbs[0].maxY - 1) < 0.0001 &&
+      Math.abs(block.aabbs[0].maxZ - 1) < 0.0001;
     return (
       !block.isFluid &&
       !block.rotatable &&
       !block.yRotatable &&
       !block.dynamicPatterns &&
-      isIdentityRotation
+      isIdentityRotation &&
+      isFullCube
     );
   }
 

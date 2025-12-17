@@ -624,11 +624,20 @@ fn compute_face_ao_and_light(
 }
 
 fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
+    let is_full_cube = block.aabbs.len() == 1
+        && (block.aabbs[0].min_x - 0.0).abs() < f32::EPSILON
+        && (block.aabbs[0].min_y - 0.0).abs() < f32::EPSILON
+        && (block.aabbs[0].min_z - 0.0).abs() < f32::EPSILON
+        && (block.aabbs[0].max_x - 1.0).abs() < f32::EPSILON
+        && (block.aabbs[0].max_y - 1.0).abs() < f32::EPSILON
+        && (block.aabbs[0].max_z - 1.0).abs() < f32::EPSILON;
+
     !block.is_fluid
         && !block.rotatable
         && !block.y_rotatable
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
+        && is_full_cube
 }
 
 fn extract_greedy_quads(
