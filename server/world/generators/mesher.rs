@@ -398,7 +398,7 @@ fn should_render_face(
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
             && !has_fluid_above(vx, vy, vz, voxel_id, space)
-            && dir[1] != -1)
+            && !is_full_cube_block(n_block_type))
 }
 
 fn compute_face_ao_and_light(
@@ -624,21 +624,23 @@ fn compute_face_ao_and_light(
     (aos, lights)
 }
 
-fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
-    let is_full_cube = block.aabbs.len() == 1
+fn is_full_cube_block(block: &Block) -> bool {
+    block.aabbs.len() == 1
         && (block.aabbs[0].min_x - 0.0).abs() < f32::EPSILON
         && (block.aabbs[0].min_y - 0.0).abs() < f32::EPSILON
         && (block.aabbs[0].min_z - 0.0).abs() < f32::EPSILON
         && (block.aabbs[0].max_x - 1.0).abs() < f32::EPSILON
         && (block.aabbs[0].max_y - 1.0).abs() < f32::EPSILON
-        && (block.aabbs[0].max_z - 1.0).abs() < f32::EPSILON;
+        && (block.aabbs[0].max_z - 1.0).abs() < f32::EPSILON
+}
 
+fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
     !block.is_fluid
         && !block.rotatable
         && !block.y_rotatable
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
-        && is_full_cube
+        && is_full_cube_block(block)
 }
 
 fn extract_greedy_quads(
@@ -1622,7 +1624,7 @@ impl Mesher {
                 && n_block_type.is_opaque
                 && !n_block_type.is_fluid
                 && !has_fluid_above(vx, vy, vz, voxel_id, space)
-                && dir[1] != -1)
+                && !is_full_cube_block(n_block_type))
         {
             let UV {
                 start_u,

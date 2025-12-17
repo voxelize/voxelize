@@ -69,6 +69,27 @@ onmessage = function (e) {
     return 3 - (numS1 + numS2 + numC);
   }
 
+  function isFullCubeBlock(block: {
+    aabbs: {
+      minX: number;
+      minY: number;
+      minZ: number;
+      maxX: number;
+      maxY: number;
+      maxZ: number;
+    }[];
+  }): boolean {
+    return (
+      block.aabbs.length === 1 &&
+      Math.abs(block.aabbs[0].minX) < 0.0001 &&
+      Math.abs(block.aabbs[0].minY) < 0.0001 &&
+      Math.abs(block.aabbs[0].minZ) < 0.0001 &&
+      Math.abs(block.aabbs[0].maxX - 1) < 0.0001 &&
+      Math.abs(block.aabbs[0].maxY - 1) < 0.0001 &&
+      Math.abs(block.aabbs[0].maxZ - 1) < 0.0001
+    );
+  }
+
   function canGreedyMeshBlock(
     block: {
       isFluid: boolean;
@@ -87,21 +108,13 @@ onmessage = function (e) {
     rotation: BlockRotation
   ): boolean {
     const isIdentityRotation = rotation.value === 0 && rotation.yRotation === 0;
-    const isFullCube =
-      block.aabbs.length === 1 &&
-      Math.abs(block.aabbs[0].minX) < 0.0001 &&
-      Math.abs(block.aabbs[0].minY) < 0.0001 &&
-      Math.abs(block.aabbs[0].minZ) < 0.0001 &&
-      Math.abs(block.aabbs[0].maxX - 1) < 0.0001 &&
-      Math.abs(block.aabbs[0].maxY - 1) < 0.0001 &&
-      Math.abs(block.aabbs[0].maxZ - 1) < 0.0001;
     return (
       !block.isFluid &&
       !block.rotatable &&
       !block.yRotatable &&
       !block.dynamicPatterns &&
       isIdentityRotation &&
-      isFullCube
+      isFullCubeBlock(block)
     );
   }
 
@@ -1027,7 +1040,7 @@ onmessage = function (e) {
       nBlock.isOpaque &&
       !nBlock.isFluid &&
       !hasFluidAbove(vx, vy, vz, voxelId) &&
-      dir[1] !== -1
+      !isFullCubeBlock(nBlock)
     ) {
       return true;
     }
@@ -1441,7 +1454,7 @@ onmessage = function (e) {
               nBlock.isOpaque &&
               !nBlock.isFluid &&
               !hasFluidAbove(vx, vy, vz, voxelId) &&
-              fDir[1] !== -1)
+              !isFullCubeBlock(nBlock))
           ) {
             const { startU, startV, endU, endV } = uvRange;
             const ndx = Math.floor(geometry.positions.length / 3);
@@ -1835,7 +1848,7 @@ onmessage = function (e) {
                 nBlock.isOpaque &&
                 !nBlock.isFluid &&
                 !hasFluidAbove(vx, vy, vz, id) &&
-                dir[1] !== -1)
+                !isFullCubeBlock(nBlock))
             ) {
               const { startU, startV, endU, endV } = uvMap[face.name];
               const ndx = Math.floor(geometry.positions.length / 3);
