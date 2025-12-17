@@ -5,7 +5,6 @@ use std::{
     sync::Arc,
 };
 
-use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -1349,57 +1348,63 @@ impl std::ops::AddAssign<&Self> for BlockFaces {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Neighbors {
     pub center: Vec3<i32>,
-    map: HashMap<Vec3<i32>, [u32; 2]>,
+    data: [[u32; 2]; 27],
 }
 
 impl Neighbors {
+    #[inline]
+    fn offset_to_index(x: i32, y: i32, z: i32) -> usize {
+        ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
+    }
+
     pub fn populate(center: Vec3<i32>, space: &dyn VoxelAccess) -> Self {
-        let mut map = HashMap::new();
-        let Vec3(vx, vy, vz) = center.clone();
+        let mut data = [[0u32; 2]; 27];
+        let Vec3(vx, vy, vz) = center;
 
         for x in -1..=1 {
             for y in -1..=1 {
                 for z in -1..=1 {
-                    let voxel = space.get_raw_voxel(vx + x, vy + y, vz + z);
-                    let light = space.get_raw_light(vx + x, vy + y, vz + z);
-                    map.insert(Vec3(x, y, z), [voxel, light]);
+                    let idx = Self::offset_to_index(x, y, z);
+                    data[idx][0] = space.get_raw_voxel(vx + x, vy + y, vz + z);
+                    data[idx][1] = space.get_raw_light(vx + x, vy + y, vz + z);
                 }
             }
         }
 
-        Self { map, center }
+        Self { data, center }
+    }
+
+    #[inline]
+    fn get_data(&self, offset: &Vec3<i32>) -> [u32; 2] {
+        let idx = Self::offset_to_index(offset.0, offset.1, offset.2);
+        self.data[idx]
     }
 
     pub fn get_voxel(&self, offset: &Vec3<i32>) -> u32 {
-        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
-        BlockUtils::extract_id(value[0])
+        BlockUtils::extract_id(self.get_data(offset)[0])
     }
 
     pub fn get_rotation(&self, offset: &Vec3<i32>) -> BlockRotation {
-        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
-        BlockUtils::extract_rotation(value[0])
+        BlockUtils::extract_rotation(self.get_data(offset)[0])
     }
 
     pub fn get_stage(&self, offset: &Vec3<i32>) -> u32 {
-        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
-        BlockUtils::extract_stage(value[0])
+        BlockUtils::extract_stage(self.get_data(offset)[0])
     }
 
     pub fn get_sunlight(&self, offset: &Vec3<i32>) -> u32 {
-        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
-        LightUtils::extract_sunlight(value[1])
+        LightUtils::extract_sunlight(self.get_data(offset)[1])
     }
 
     pub fn get_torch_light(&self, offset: &Vec3<i32>, color: &LightColor) -> u32 {
-        let value = *self.map.get(offset).unwrap_or(&[0, 0]);
-
+        let light = self.get_data(offset)[1];
         match *color {
-            LightColor::Red => LightUtils::extract_red_light(value[1]),
-            LightColor::Green => LightUtils::extract_green_light(value[1]),
-            LightColor::Blue => LightUtils::extract_blue_light(value[1]),
+            LightColor::Red => LightUtils::extract_red_light(light),
+            LightColor::Green => LightUtils::extract_green_light(light),
+            LightColor::Blue => LightUtils::extract_blue_light(light),
             LightColor::Sunlight => panic!("Getting torch light of Sunlight!"),
         }
     }
