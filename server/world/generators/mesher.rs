@@ -350,7 +350,11 @@ impl Mesher {
             receiver: Arc::new(receiver),
             pool: ThreadPoolBuilder::new()
                 .thread_name(|index| format!("chunk-meshing-{index}"))
-                .num_threads(64)
+                .num_threads(
+                    std::thread::available_parallelism()
+                        .map(|p| p.get())
+                        .unwrap_or(4),
+                )
                 .build()
                 .unwrap(),
         }
@@ -490,7 +494,8 @@ impl Mesher {
                             }
                         }
 
-                        chunk.lights = Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
+                        chunk.lights =
+                            Arc::new(space.get_lights(coords.0, coords.1).unwrap().clone());
                     }
 
                     for level in sub_chunks {

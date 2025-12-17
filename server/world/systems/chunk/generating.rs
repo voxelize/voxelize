@@ -1,7 +1,4 @@
-use std::time::Instant;
-use std::{cmp::Ordering, collections::VecDeque};
-
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use log::info;
 use nanoid::nanoid;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -146,9 +143,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         let mut processes = vec![];
 
         if !pipeline.queue.is_empty() {
-            let mut queue: Vec<Vec2<i32>> = pipeline.queue.iter().cloned().collect();
-            queue.sort_by(|a, b| interests.compare(a, b));
-            pipeline.queue = VecDeque::from(queue);
+            pipeline
+                .queue
+                .make_contiguous()
+                .sort_by(|a, b| interests.compare(a, b));
         }
 
         let mut to_load = vec![];
@@ -333,9 +331,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
 
         if !mesher.queue.is_empty() {
-            let mut queue: Vec<Vec2<i32>> = mesher.queue.iter().cloned().collect();
-            queue.sort_by(|a, b| interests.compare(a, b));
-            mesher.queue = VecDeque::from(queue);
+            mesher
+                .queue
+                .make_contiguous()
+                .sort_by(|a, b| interests.compare(a, b));
         }
 
         let mut ready_chunks = vec![];
