@@ -315,7 +315,7 @@ onmessage = function (e) {
   }
 
   const { chunksData, min, max } = e.data;
-  const { chunkSize, greedyMeshing } = e.data.options as WorldOptions;
+  const { chunkSize, greedyMeshing = true } = e.data.options as WorldOptions;
 
   const chunks: (Chunk | null)[] = chunksData.map((chunkData: any) =>
     chunkData ? RawChunk.deserialize(chunkData) : null
