@@ -3,9 +3,9 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "watch": "pnpm build:wasm:dev && npm-run-all --parallel watch:ts watch:wasm",
+    "watch": "pnpm build:wasm:release && npm-run-all --parallel watch:ts watch:wasm",
     "watch:ts": "pnpm -r --parallel --filter \"@voxelize/*\" watch",
-    "watch:wasm": "cargo watch -w crates/wasm-mesher/src -w crates/mesher/src -w crates/core/src -s 'pnpm build:wasm:dev'",
+    "watch:wasm": "cargo watch -w crates/wasm-mesher/src -w crates/mesher/src -w crates/core/src -s 'pnpm build:wasm:release'",
     "demo": "npm-run-all --parallel \"demo:ts\" \"demo:rs\"",
     "build:wasm": "cd crates/wasm-mesher && wasm-pack build --target web",
     "build:wasm:dev": "cd crates/wasm-mesher && wasm-pack build --target web --dev",

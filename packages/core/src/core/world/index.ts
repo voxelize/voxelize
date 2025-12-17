@@ -606,6 +606,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private textureLoaderLastMap: Record<string, Date> = {};
 
   private chunksTracker: [Coords2, number][] = [];
+  private meshingInProgress = new Set<string>();
 
   private isTrackingChunks = false;
 
@@ -615,6 +616,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
+  private lightJobsCompleteResolvers: (() => void)[] = [];
 
   private accumulatedLightOps: LightOperations | null = null;
   private accumulatedStartSequenceId = 0;
@@ -674,11 +676,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.lightJobQueue.length > 0 ||
       this.lightWorkerPool.workingCount > 0
     ) {
-      return new Promise<void>((resolve) => {
-        setTimeout(() => {
-          this.meshChunkLocally(cx, cz, level).then(resolve);
-        }, 10);
-      });
+      await this.waitForLightJobsComplete();
     }
 
     const neighbors = [
@@ -4273,9 +4271,23 @@ export class World<T = any> extends Scene implements NetIntercept {
   private processDirtyChunks = async () => {
     const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
 
-    const meshPromises = dirtyChunks.map(([coords, level]) => {
+    const chunksToMesh = dirtyChunks.filter(([coords, level]) => {
+      const key = `${coords[0]},${coords[1]}:${level}`;
+      if (this.meshingInProgress.has(key)) {
+        return false;
+      }
+      this.meshingInProgress.add(key);
+      return true;
+    });
+
+    const meshPromises = chunksToMesh.map(async ([coords, level]) => {
       const [cx, cz] = coords;
-      return this.meshChunkLocally(cx, cz, level);
+      const key = `${cx},${cz}:${level}`;
+      try {
+        await this.meshChunkLocally(cx, cz, level);
+      } finally {
+        this.meshingInProgress.delete(key);
+      }
     });
     await Promise.all(meshPromises);
   };
@@ -4523,8 +4535,22 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.lightJobQueue.length === 0 &&
       this.lightWorkerPool.workingCount === 0
     ) {
+      const resolvers = this.lightJobsCompleteResolvers.splice(0);
+      resolvers.forEach((resolve) => resolve());
       this.processDirtyChunks();
     }
+  }
+
+  private waitForLightJobsComplete(): Promise<void> {
+    if (
+      this.lightJobQueue.length === 0 &&
+      this.lightWorkerPool.workingCount === 0
+    ) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.lightJobsCompleteResolvers.push(resolve);
+    });
   }
 
   private executeLightOperationsSync(
@@ -4831,7 +4857,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     maxLevel: number
   ) {
     for (let level = minLevel; level <= maxLevel; level++) {
+      const key = `${coords[0]},${coords[1]}:${level}`;
       if (
+        !this.meshingInProgress.has(key) &&
         !this.chunksTracker.some(
           ([c, l]) => c[0] === coords[0] && c[1] === coords[1] && l === level
         )
