@@ -93,6 +93,8 @@ importers:
         specifier: ^1.6.1
         version: 1.6.1(@types/node@22.13.10)(terser@5.39.0)
 
+  crates/wasm-mesher: {}
+
   docs:
     dependencies:
       '@docusaurus/core':
@@ -280,7 +282,7 @@ importers:
         version: link:../raycast
       '@voxelize/wasm-mesher':
         specifier: workspace:*
-        version: link:../wasm-mesher
+        version: link:../../crates/wasm-mesher
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
@@ -505,8 +507,6 @@ importers:
       protobufjs-cli:
         specifier: ^1.1.3
         version: 1.1.3(protobufjs@7.4.0)
-
-  packages/wasm-mesher: {}
 
 packages:
 

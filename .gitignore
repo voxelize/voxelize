@@ -3,12 +3,13 @@ node_modules
 *.tsbuildinfo
 **/.swc
 .yarn
-/target
+**/target
 
 /data
 
 client/protocol/index.*
 Cargo.lock
+**/Cargo.lock
 .vscode
 **/*/.DS_Store
 
@@ -17,3 +18,6 @@ Cargo.lock
 yarn-error.log
 
 .pnpm-store
+
+# WASM build output
+**/pkg

@@ -1,6 +1,7 @@
 packages:
   - docs
   - packages/*
+  - crates/wasm-mesher
   - examples/client
 
 onlyBuiltDependencies:
