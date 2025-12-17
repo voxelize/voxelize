@@ -148,7 +148,7 @@ const DEFAULT_SAVING: bool = false;
 const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
-const DEFAULT_GREEDY_MESHING: bool = false;
+const DEFAULT_GREEDY_MESHING: bool = true;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {

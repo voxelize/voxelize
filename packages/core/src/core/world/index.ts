@@ -440,6 +440,11 @@ export type WorldServerOptions = {
    * The time per day in seconds.
    */
   timePerDay: number;
+
+  /**
+   * Whether greedy meshing is enabled for this world.
+   */
+  greedyMeshing: boolean;
 };
 
 /**

@@ -96,11 +96,23 @@ varying vec3 vWorldNormal;
     vec3 absNormal = abs(vWorldNormal);
     vec2 localUv;
     if (absNormal.y > 0.5) {
-      localUv = fract(vWorldPosition.xz);
+      if (vWorldNormal.y > 0.0) {
+        localUv = vec2(1.0 - fract(vWorldPosition.x), fract(vWorldPosition.z));
+      } else {
+        localUv = vec2(fract(vWorldPosition.x), 1.0 - fract(vWorldPosition.z));
+      }
     } else if (absNormal.x > 0.5) {
-      localUv = fract(vWorldPosition.zy);
+      if (vWorldNormal.x > 0.0) {
+        localUv = vec2(1.0 - fract(vWorldPosition.z), fract(vWorldPosition.y));
+      } else {
+        localUv = vec2(fract(vWorldPosition.z), fract(vWorldPosition.y));
+      }
     } else {
-      localUv = fract(vWorldPosition.xy);
+      if (vWorldNormal.z > 0.0) {
+        localUv = vec2(fract(vWorldPosition.x), fract(vWorldPosition.y));
+      } else {
+        localUv = vec2(1.0 - fract(vWorldPosition.x), fract(vWorldPosition.y));
+      }
     }
     
     vec2 cellMin = floor(vMapUv / cellSize) * cellSize;
