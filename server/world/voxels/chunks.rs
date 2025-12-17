@@ -61,6 +61,9 @@ pub struct Chunks {
     /// Voxel updates waiting to be processed.
     pub(crate) updates: VecDeque<VoxelUpdate>,
 
+    /// Staging area for new voxel updates (deduplicates before flushing to queue).
+    pub(crate) updates_staging: HashMap<Vec3<i32>, u32>,
+
     /// A list of chunks that are done meshing and ready to be sent.
     pub(crate) to_send: VecDeque<(Vec2<i32>, MessageType)>,
 
@@ -412,10 +415,21 @@ impl Chunks {
     /// and sending the chunk to the interested clients. This process is not instant, and will
     /// be done in the background.
     pub fn update_voxel(&mut self, voxel: &Vec3<i32>, val: u32) {
-        self.updates
-            .retain(|(v, _)| !(v.0 == voxel.0 && v.1 == voxel.1 && v.2 == voxel.2));
+        self.updates_staging.insert(voxel.to_owned(), val);
+    }
 
-        self.updates.push_back((voxel.to_owned(), val));
+    /// Flush staged updates into the processing queue. Called before processing updates.
+    pub fn flush_staged_updates(&mut self) {
+        if self.updates_staging.is_empty() {
+            return;
+        }
+
+        self.updates
+            .retain(|(v, _)| !self.updates_staging.contains_key(v));
+
+        for (voxel, val) in self.updates_staging.drain() {
+            self.updates.push_back((voxel, val));
+        }
     }
 
     pub fn update_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {

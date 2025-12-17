@@ -39,6 +39,8 @@ fn process_pending_updates(
     let max_height = config.max_height as i32;
     let max_light_level = config.max_light_level;
 
+    chunks.flush_staged_updates();
+
     if chunks.updates.is_empty() {
         return results;
     }
