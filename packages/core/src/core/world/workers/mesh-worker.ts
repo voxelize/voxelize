@@ -1026,7 +1026,8 @@ onmessage = function (e) {
       isFluid &&
       nBlock.isOpaque &&
       !nBlock.isFluid &&
-      !hasFluidAbove(vx, vy, vz, voxelId)
+      !hasFluidAbove(vx, vy, vz, voxelId) &&
+      dir[1] !== -1
     ) {
       return true;
     }
@@ -1439,7 +1440,8 @@ onmessage = function (e) {
             (isFluid &&
               nBlock.isOpaque &&
               !nBlock.isFluid &&
-              !hasFluidAbove(vx, vy, vz, voxelId))
+              !hasFluidAbove(vx, vy, vz, voxelId) &&
+              fDir[1] !== -1)
           ) {
             const { startU, startV, endU, endV } = uvRange;
             const ndx = Math.floor(geometry.positions.length / 3);
@@ -1832,7 +1834,8 @@ onmessage = function (e) {
               (isFluid &&
                 nBlock.isOpaque &&
                 !nBlock.isFluid &&
-                !hasFluidAbove(vx, vy, vz, id))
+                !hasFluidAbove(vx, vy, vz, id) &&
+                dir[1] !== -1)
             ) {
               const { startU, startV, endU, endV } = uvMap[face.name];
               const ndx = Math.floor(geometry.positions.length / 3);

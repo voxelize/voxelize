@@ -397,7 +397,8 @@ fn should_render_face(
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space))
+            && !has_fluid_above(vx, vy, vz, voxel_id, space)
+            && dir[1] != -1)
 }
 
 fn compute_face_ao_and_light(
@@ -1620,7 +1621,8 @@ impl Mesher {
             || (is_fluid
                 && n_block_type.is_opaque
                 && !n_block_type.is_fluid
-                && !has_fluid_above(vx, vy, vz, voxel_id, space))
+                && !has_fluid_above(vx, vy, vz, voxel_id, space)
+                && dir[1] != -1)
         {
             let UV {
                 start_u,
