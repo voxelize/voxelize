@@ -57,6 +57,7 @@
     "socket.io-client": "^4.8.1",
     "stats.js": "^0.17.0",
     "uuid": "^8.3.2",
-    "vite-plugin-copy": "^0.1.6"
+    "vite-plugin-copy": "^0.1.6",
+    "zod": "^3.23.8"
   }
 }
