@@ -1,6 +1,5 @@
-import fs from "fs";
+import { createRequire } from "module";
 import path from "path";
-import { fileURLToPath } from "url";
 
 import { defineConfig } from "vite";
 import { copy } from "vite-plugin-copy";
@@ -10,9 +9,8 @@ import stringReplace from "vite-plugin-string-replace";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "./package.json"), "utf-8"));
-const version = pkg.version;
+const require = createRequire(import.meta.url);
+const { version } = require("./package.json");
 
 export default defineConfig({
   plugins: [
