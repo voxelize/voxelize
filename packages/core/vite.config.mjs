@@ -1,5 +1,6 @@
 import { createRequire } from "module";
 import path from "path";
+import { fileURLToPath } from "url";
 
 import { defineConfig } from "vite";
 import { copy } from "vite-plugin-copy";
@@ -9,6 +10,8 @@ import stringReplace from "vite-plugin-string-replace";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const { version } = require("./package.json");
 
