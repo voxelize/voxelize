@@ -25,6 +25,7 @@ type WasmBlock = {
     name: string;
     independent: boolean;
     isolated: boolean;
+    textureGroup: string | null;
     dir: [number, number, number];
     corners: { pos: [number, number, number]; uv: [number, number] }[];
     range: { startU: number; endU: number; startV: number; endV: number };
@@ -45,6 +46,7 @@ type WasmBlock = {
             name: string;
             independent: boolean;
             isolated: boolean;
+            textureGroup: string | null;
             dir: [number, number, number];
             corners: { pos: [number, number, number]; uv: [number, number] }[];
             range: {
@@ -223,6 +225,7 @@ function convertFaces(faces: Record<string, unknown>[]): WasmBlock["faces"] {
     name: face.name as string,
     independent: face.independent as boolean,
     isolated: face.isolated as boolean,
+    textureGroup: (face.textureGroup as string) ?? null,
     dir: face.dir as [number, number, number],
     corners: (face.corners as Record<string, unknown>[]).map((corner) => ({
       pos: corner.pos as [number, number, number],

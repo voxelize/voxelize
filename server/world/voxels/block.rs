@@ -25,6 +25,7 @@ pub struct BlockFace {
     pub name: String,
     pub independent: bool,
     pub isolated: bool,
+    pub texture_group: Option<String>,
     pub dir: [i32; 3],
     pub corners: [CornerData; 4],
     pub range: UV,
@@ -42,6 +43,7 @@ impl BlockFace {
             name,
             independent,
             isolated,
+            texture_group: None,
             dir,
             corners,
             range: UV::default(),
@@ -56,12 +58,17 @@ impl BlockFace {
         self.isolated = true;
     }
 
+    pub fn set_texture_group(&mut self, group: &str) {
+        self.texture_group = Some(group.to_string());
+    }
+
     pub fn to_mesher_face(&self) -> voxelize_mesher::BlockFace {
         voxelize_mesher::BlockFace {
             name: self.name.clone(),
             name_lower: self.name.to_lowercase(),
             independent: self.independent,
             isolated: self.isolated,
+            texture_group: self.texture_group.clone(),
             dir: self.dir,
             corners: [
                 voxelize_mesher::CornerData { pos: self.corners[0].pos, uv: self.corners[0].uv },
@@ -181,6 +188,7 @@ pub struct DiagonalFacesBuilder {
     suffix: String,
     concat: String,
     to_four: bool,
+    texture_group: Option<String>,
 }
 
 impl DiagonalFacesBuilder {
@@ -196,6 +204,7 @@ impl DiagonalFacesBuilder {
             suffix: "".to_string(),
             concat: "".to_string(),
             to_four: false,
+            texture_group: None,
         }
     }
 
@@ -252,6 +261,11 @@ impl DiagonalFacesBuilder {
         self
     }
 
+    pub fn texture_group(mut self, group: &str) -> Self {
+        self.texture_group = Some(group.to_string());
+        self
+    }
+
     /// Build the diagonal faces.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -264,6 +278,7 @@ impl DiagonalFacesBuilder {
             suffix,
             concat,
             to_four,
+            texture_group,
         } = self;
 
         let make_name = |side: &str| {
@@ -294,6 +309,7 @@ impl DiagonalFacesBuilder {
                     dir: [0, 0, 0],
                     independent: false,
                     isolated: false,
+                    texture_group: texture_group.clone(),
                     range: UV::default(),
                     corners: [
                         CornerData {
@@ -331,6 +347,7 @@ impl DiagonalFacesBuilder {
                     dir: [0, 0, 0],
                     independent: false,
                     isolated: false,
+                    texture_group: texture_group.clone(),
                     range: UV::default(),
                     corners: [
                         CornerData {
@@ -368,6 +385,7 @@ impl DiagonalFacesBuilder {
                     dir: [0, 0, 0],
                     independent: false,
                     isolated: false,
+                    texture_group: texture_group.clone(),
                     range: UV::default(),
                     corners: [
                         CornerData {
@@ -405,6 +423,7 @@ impl DiagonalFacesBuilder {
                     dir: [0, 0, 0],
                     independent: false,
                     isolated: false,
+                    texture_group: texture_group.clone(),
                     range: UV::default(),
                     corners: [
                         CornerData {
@@ -445,6 +464,7 @@ impl DiagonalFacesBuilder {
                     dir: [0, 0, 0],
                     independent: false,
                     isolated: false,
+                    texture_group: texture_group.clone(),
                     range: UV::default(),
                     corners: [
                         CornerData {
@@ -478,6 +498,7 @@ impl DiagonalFacesBuilder {
                     dir: [0, 0, 0],
                     independent: false,
                     isolated: false,
+                    texture_group,
                     range: UV::default(),
                     corners: [
                         CornerData {
@@ -529,6 +550,7 @@ pub struct SixFacesBuilder {
     concat: String,
     independence: [bool; 6],
     isolation: [bool; 6],
+    texture_groups: [Option<String>; 6],
     auto_uv_offset: bool,
     rotation: Option<BlockRotation>,
 }
@@ -554,6 +576,7 @@ impl SixFacesBuilder {
             concat: "".to_owned(),
             independence: [false, false, false, false, false, false],
             isolation: [false, false, false, false, false, false],
+            texture_groups: [None, None, None, None, None, None],
             auto_uv_offset: false,
             rotation: None,
         }
@@ -677,6 +700,28 @@ impl SixFacesBuilder {
         self
     }
 
+    pub fn texture_group(mut self, group: &str) -> Self {
+        let group = Some(group.to_string());
+        self.texture_groups = [
+            group.clone(),
+            group.clone(),
+            group.clone(),
+            group.clone(),
+            group.clone(),
+            group,
+        ];
+        self
+    }
+
+    pub fn texture_group_at(mut self, index: usize, group: &str) -> Self {
+        if index >= self.texture_groups.len() {
+            return self;
+        }
+
+        self.texture_groups[index] = Some(group.to_string());
+        self
+    }
+
     /// Create the six faces of a block.
     pub fn build(self) -> BlockFaces {
         let Self {
@@ -699,6 +744,7 @@ impl SixFacesBuilder {
             rotation,
             independence,
             isolation,
+            texture_groups,
         } = self;
 
         let make_name = |side: &str| {
@@ -752,12 +798,15 @@ impl SixFacesBuilder {
         let is_pz_isolated = isolation[SIX_FACES_PZ];
         let is_nz_isolated = isolation[SIX_FACES_NZ];
 
+        let [px_group, py_group, pz_group, nx_group, ny_group, nz_group] = texture_groups;
+
         let mut results = BlockFaces::from_faces(vec![
             BlockFace {
                 name: make_name("px"),
                 dir: [1, 0, 0],
                 independent: is_px_independent,
                 isolated: is_px_isolated,
+                texture_group: px_group,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -806,6 +855,7 @@ impl SixFacesBuilder {
                 dir: [0, 1, 0],
                 independent: is_py_independent,
                 isolated: is_py_isolated,
+                texture_group: py_group,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -854,6 +904,7 @@ impl SixFacesBuilder {
                 dir: [0, 0, 1],
                 independent: is_pz_independent,
                 isolated: is_pz_isolated,
+                texture_group: pz_group,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -902,6 +953,7 @@ impl SixFacesBuilder {
                 dir: [-1, 0, 0],
                 independent: is_nx_independent,
                 isolated: is_nx_isolated,
+                texture_group: nx_group,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -946,6 +998,7 @@ impl SixFacesBuilder {
                 dir: [0, -1, 0],
                 independent: is_ny_independent,
                 isolated: is_ny_isolated,
+                texture_group: ny_group,
                 range: UV::default(),
                 corners: [
                     CornerData {
@@ -990,6 +1043,7 @@ impl SixFacesBuilder {
                 dir: [0, 0, -1],
                 independent: is_nz_independent,
                 isolated: is_nz_isolated,
+                texture_group: nz_group,
                 range: UV::default(),
                 corners: [
                     CornerData {

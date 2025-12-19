@@ -130,6 +130,7 @@ export type Block = {
     dir: [number, number, number];
     independent: boolean;
     isolated: boolean;
+    textureGroup: string | null;
     range: UV;
     name: string;
   }[];

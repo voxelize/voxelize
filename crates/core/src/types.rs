@@ -240,6 +240,8 @@ pub struct BlockFace {
     pub independent: bool,
     pub isolated: bool,
     #[serde(default)]
+    pub texture_group: Option<String>,
+    #[serde(default)]
     pub dir: [i32; 3],
     #[serde(default = "default_corners")]
     pub corners: [CornerData; 4],
@@ -269,6 +271,7 @@ impl BlockFace {
             name_lower: name.to_lowercase(),
             independent,
             isolated,
+            texture_group: None,
             dir,
             corners,
             range: UV::default(),

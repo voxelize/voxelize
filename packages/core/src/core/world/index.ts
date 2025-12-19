@@ -70,6 +70,7 @@ import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
+import { UV } from "./uv";
 import LightWorker from "./workers/light-worker.ts?worker&inline";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 
@@ -82,6 +83,16 @@ export * from "./shaders";
 export * from "./sky";
 export * from "./textures";
 export * from "./uv";
+
+export type TextureInfo = {
+  blockId: number;
+  blockName: string;
+  faceName: string;
+  type: "shared" | "independent" | "isolated";
+  canvas: HTMLCanvasElement | null;
+  range: UV | null;
+  materialKey: string;
+};
 
 export type ChunkMeshEventData = {
   chunk: Chunk;
@@ -786,6 +797,10 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Apply a texture to a face or faces of a block. This will automatically load the image from the source
    * and draw it onto the block's texture atlas.
    *
+   * @deprecated When applying the same texture to multiple faces, use texture groups instead
+   * for better atlas efficiency. Define texture_group on the server-side block faces and use
+   * {@link applyTextureGroup} or {@link applyTextureGroups} on the client.
+   *
    * @param idOrName The ID or name of the block.
    * @param faceNames The face names to apply the texture to.
    * @param source The source of the texture.
@@ -1008,6 +1023,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Apply multiple block textures at once. See {@link applyBlockTexture} for more information.
    *
+   * @deprecated When applying the same texture to multiple faces, use texture groups instead
+   * for better atlas efficiency. Define texture_group on the server-side block faces and use
+   * {@link applyTextureGroup} or {@link applyTextureGroups} on the client.
+   *
    * @param data The data to apply the block textures.
    * @returns A promise that resolves when all the textures are applied.
    */
@@ -1021,6 +1040,63 @@ export class World<T = any> extends Scene implements NetIntercept {
     return Promise.all(
       data.map(({ idOrName, faceNames, source }) =>
         this.applyBlockTexture(idOrName, faceNames, source)
+      )
+    );
+  }
+
+  async applyTextureGroup(
+    groupName: string,
+    source: string | Color | HTMLImageElement | Texture
+  ) {
+    this.checkIsInitialized("apply texture group", false);
+
+    const facesInGroup: { blockId: number; face: Block["faces"][0] }[] = [];
+
+    for (const [id, block] of this.registry.blocksById) {
+      for (const face of block.faces) {
+        if (face.textureGroup === groupName) {
+          facesInGroup.push({ blockId: id, face });
+        }
+      }
+    }
+
+    if (facesInGroup.length === 0) {
+      console.warn(`No faces found with texture group "${groupName}"`);
+      return;
+    }
+
+    if (typeof source === "string") {
+      const data = await this.loader.loadImage(source);
+      return this.applyTextureGroup(groupName, data);
+    }
+
+    const firstEntry = facesInGroup[0];
+    const mat = this.getBlockFaceMaterial(
+      firstEntry.blockId,
+      firstEntry.face.name
+    );
+
+    if (!mat) {
+      console.warn(
+        `No material found for texture group "${groupName}" (block ${firstEntry.blockId}, face ${firstEntry.face.name})`
+      );
+      return;
+    }
+
+    const atlas = mat.map as AtlasTexture;
+    atlas.drawImageToRange(firstEntry.face.range, source);
+    mat.map.needsUpdate = true;
+  }
+
+  async applyTextureGroups(
+    data: {
+      groupName: string;
+      source: string | Color | HTMLImageElement | Texture;
+    }[]
+  ) {
+    return Promise.all(
+      data.map(({ groupName, source }) =>
+        this.applyTextureGroup(groupName, source)
       )
     );
   }
@@ -1715,13 +1791,67 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.chunks.materials.get(this.makeChunkMaterialKey(block.id));
   }
 
-  /**
-   * Add a listener to a chunk. This listener will be called when this chunk is loaded and ready to be rendered.
-   * This is useful for, for example, teleporting the player to the top of the chunk when the player just joined.
-   *
-   * @param coords The chunk coordinates to listen to.
-   * @param listener The listener to add.
-   */
+  getTextureInfo(): {
+    sharedAtlas: { canvas: HTMLCanvasElement; countPerSide: number } | null;
+    textures: TextureInfo[];
+  } {
+    this.checkIsInitialized("get texture info", false);
+
+    const textures: TextureInfo[] = [];
+
+    let sharedAtlas: {
+      canvas: HTMLCanvasElement;
+      countPerSide: number;
+    } | null = null;
+
+    for (const [id, block] of this.registry.blocksById) {
+      for (const face of block.faces) {
+        const isIsolated = face.isolated;
+        const isIndependent = face.independent && !face.isolated;
+
+        const materialKey = this.makeChunkMaterialKey(
+          id,
+          isIndependent || isIsolated ? face.name : undefined
+        );
+        const mat = this.chunks.materials.get(materialKey);
+
+        if (!mat) continue;
+
+        const isAtlas = mat.map instanceof AtlasTexture;
+
+        if (!isIndependent && !isIsolated && isAtlas && !sharedAtlas) {
+          sharedAtlas = {
+            canvas: (mat.map as AtlasTexture).canvas,
+            countPerSide: (mat.map as AtlasTexture).countPerSide,
+          };
+        }
+
+        let canvas: HTMLCanvasElement | null = null;
+        if (isAtlas) {
+          canvas = (mat.map as AtlasTexture).canvas;
+        } else if (mat.map?.image instanceof HTMLCanvasElement) {
+          canvas = mat.map.image;
+        }
+
+        textures.push({
+          blockId: id,
+          blockName: block.name,
+          faceName: face.name,
+          type: isIsolated
+            ? "isolated"
+            : isIndependent
+            ? "independent"
+            : "shared",
+          canvas,
+          range: face.range,
+          materialKey,
+        });
+      }
+    }
+
+    return { sharedAtlas, textures };
+  }
+
   addChunkInitListener = (
     coords: Coords2,
     listener: (chunk: Chunk) => void
@@ -4824,15 +4954,20 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const blocks = Array.from(this.registry.blocksById.values());
 
-    const totalFaces = blocks.reduce((acc, block) => {
-      const independentFacesCount = block.faces.filter(
-        (f) => f.independent
-      ).length;
-      const isolatedFaces = block.faces.filter((f) => f.isolated).length;
-      return acc + (block.faces.length - independentFacesCount - isolatedFaces);
-    }, 0);
-
-    const countPerSide = perSide(totalFaces);
+    const textureGroups = new Set<string>();
+    let ungroupedFaces = 0;
+    for (const block of blocks) {
+      for (const face of block.faces) {
+        if (face.independent || face.isolated) continue;
+        if (face.textureGroup) {
+          textureGroups.add(face.textureGroup);
+        } else {
+          ungroupedFaces++;
+        }
+      }
+    }
+    const totalSlots = textureGroups.size + ungroupedFaces;
+    const countPerSide = perSide(totalSlots);
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
 
     this.chunks.uniforms.atlasSize.value = countPerSide;

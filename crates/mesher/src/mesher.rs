@@ -566,6 +566,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             dir: [0, 1, 0],
             independent: true,
             isolated: false,
+            texture_group: None,
             range: get_range("py"),
             corners: [
                 CornerData {
@@ -592,6 +593,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             dir: [0, -1, 0],
             independent: false,
             isolated: false,
+            texture_group: None,
             range: get_range("ny"),
             corners: [
                 CornerData {
@@ -618,6 +620,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             dir: [1, 0, 0],
             independent: true,
             isolated: false,
+            texture_group: None,
             range: get_range("px"),
             corners: [
                 CornerData {
@@ -644,6 +647,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             dir: [-1, 0, 0],
             independent: true,
             isolated: false,
+            texture_group: None,
             range: get_range("nx"),
             corners: [
                 CornerData {
@@ -670,6 +674,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             dir: [0, 0, 1],
             independent: true,
             isolated: false,
+            texture_group: None,
             range: get_range("pz"),
             corners: [
                 CornerData {
@@ -696,6 +701,7 @@ fn create_fluid_faces<S: VoxelAccess>(
             dir: [0, 0, -1],
             independent: true,
             isolated: false,
+            texture_group: None,
             range: get_range("nz"),
             corners: [
                 CornerData {
