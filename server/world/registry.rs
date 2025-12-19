@@ -238,11 +238,11 @@ impl Registry {
             .unwrap_or_else(|| panic!("Block name not found: {name}",))
     }
 
-    /// Get a block reference by block ID.
+    /// Get a block reference by block ID. Returns Air if block ID not found.
     pub fn get_block_by_id(&self, id: u32) -> &Block {
         self.blocks_by_id
             .get(&id)
-            .unwrap_or_else(|| panic!("Block id not found: {id}"))
+            .unwrap_or_else(|| self.blocks_by_id.get(&0).expect("Air block must exist"))
     }
 
     /// Get a block id by block name.
