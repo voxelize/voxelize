@@ -348,7 +348,7 @@ fn dispatcher() -> DispatcherBuilder<'static, 'static> {
         .with(PhysicsSystem, "physics", &["current-chunk", "update-stats", "chunk-updating"])
         .with(DataSavingSystem, "entities-saving", &["entities-meta"])
         .with(
-            EntitiesSendingSystem,
+            EntitiesSendingSystem::default(),
             "entities-sending",
             &["entities-meta"],
         )

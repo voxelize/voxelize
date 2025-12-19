@@ -2657,6 +2657,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
       geometry.setIndex(indices);
       geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
       group.add(mesh);
@@ -3556,6 +3557,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
         geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
 
         let material = this.getBlockFaceMaterial(
           voxel,

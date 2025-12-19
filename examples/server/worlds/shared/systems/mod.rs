@@ -55,7 +55,7 @@ pub fn setup_dispatcher(world: &mut World) {
             .with(PhysicsSystem, "physics", &["current-chunk", "update-stats"])
             .with(DataSavingSystem, "entities-saving", &["entities-meta"])
             .with(
-                EntitiesSendingSystem,
+                EntitiesSendingSystem::default(),
                 "entities-sending",
                 &["entities-meta"],
             )

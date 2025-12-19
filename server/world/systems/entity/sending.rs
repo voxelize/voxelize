@@ -1,5 +1,5 @@
 use hashbrown::{HashMap, HashSet};
-use specs::{Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     Bookkeeping, ClientFilter, DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs,
@@ -7,7 +7,12 @@ use crate::{
     MetadataComp, Physics,
 };
 
-pub struct EntitiesSendingSystem;
+#[derive(Default)]
+pub struct EntitiesSendingSystem {
+    updated_entities_buffer: Vec<(String, Entity)>,
+    entity_updates_buffer: Vec<EntityProtocol>,
+    new_entity_ids_buffer: HashSet<String>,
+}
 
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
@@ -41,6 +46,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             mut metadatas,
         ) = data;
 
+        self.updated_entities_buffer.clear();
+        self.entity_updates_buffer.clear();
+        self.new_entity_ids_buffer.clear();
+
         let mut new_entity_handlers = HashMap::new();
 
         for (ent, interactor) in (&entities, &interactors).join() {
@@ -53,19 +62,15 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             );
         }
 
-        let mut updated_entities = vec![];
         let mut updated_ids: HashSet<&String> = HashSet::new();
 
         for (id, ent, _) in (&ids, &entities, &flags).join() {
             updated_ids.insert(&id.0);
-            updated_entities.push((id.0.to_owned(), ent));
+            self.updated_entities_buffer.push((id.0.to_owned(), ent));
         }
 
         let old_entities = std::mem::take(&mut bookkeeping.entities);
         let old_ids: HashSet<&String> = old_entities.keys().collect();
-
-        let mut entity_updates = Vec::with_capacity(updated_entities.len());
-        let mut new_entity_ids: HashSet<String> = HashSet::new();
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
@@ -83,7 +88,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 physics.unregister(body_handle, collider_handle);
             }
 
-            entity_updates.push(EntityProtocol {
+            self.entity_updates_buffer.push(EntityProtocol {
                 operation: EntityOperation::Delete,
                 id: id.to_owned(),
                 r#type: etype.to_owned(),
@@ -93,9 +98,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         physics.entity_to_handlers = new_entity_handlers;
 
-        for (id, _) in &updated_entities {
+        for (id, _) in &self.updated_entities_buffer {
             if !old_ids.contains(id) {
-                new_entity_ids.insert(id.to_owned());
+                self.new_entity_ids_buffer.insert(id.to_owned());
             }
         }
 
@@ -115,8 +120,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 (etype.0.to_owned(), ent, metadata.to_owned(), persisted),
             );
 
-            if new_entity_ids.contains(&id.0) {
-                entity_updates.push(EntityProtocol {
+            if self.new_entity_ids_buffer.contains(&id.0) {
+                self.entity_updates_buffer.push(EntityProtocol {
                     operation: EntityOperation::Create,
                     id: id.0.to_owned(),
                     r#type: etype.0.to_owned(),
@@ -132,7 +137,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 continue;
             }
 
-            entity_updates.push(EntityProtocol {
+            self.entity_updates_buffer.push(EntityProtocol {
                 operation: EntityOperation::Update,
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
@@ -144,10 +149,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         bookkeeping.entities = new_bookkeeping_records;
 
-        if !entity_updates.is_empty() {
+        if !self.entity_updates_buffer.is_empty() {
             queue.push((
                 Message::new(&MessageType::Entity)
-                    .entities(&entity_updates)
+                    .entities(&self.entity_updates_buffer)
                     .build(),
                 ClientFilter::All,
             ));

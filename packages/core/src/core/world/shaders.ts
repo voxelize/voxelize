@@ -162,9 +162,8 @@ outgoingLight *= aoFactor;
     .replace(
       "#include <fog_fragment>",
       `
-    vec3 fogOrigin = cameraPosition;
-
-    float depth = sqrt(pow(vWorldPosition.x - fogOrigin.x, 2.0) + pow(vWorldPosition.z - fogOrigin.z, 2.0));
+    vec2 fogDiff = vWorldPosition.xz - cameraPosition.xz;
+    float depth = sqrt(dot(fogDiff, fogDiff));
     float fogFactor = smoothstep(uFogNear, uFogFar, depth);
 
     gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
