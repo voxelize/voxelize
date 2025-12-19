@@ -5,8 +5,8 @@ use crate::MetadataComp;
 
 #[derive(Default)]
 pub struct Bookkeeping {
-    //  id -> (etype, entity, metadata)
-    pub(crate) entities: HashMap<String, (String, Entity, MetadataComp)>,
+    // id -> (etype, entity, metadata, persisted)
+    pub(crate) entities: HashMap<String, (String, Entity, MetadataComp, bool)>,
 }
 
 impl Bookkeeping {

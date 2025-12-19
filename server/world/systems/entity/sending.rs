@@ -1,10 +1,10 @@
 use hashbrown::{HashMap, HashSet};
-use specs::{Entities, Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{Entities, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    Bookkeeping, ClientFilter, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs, EntityOperation,
-    EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType, MetadataComp,
-    Physics,
+    Bookkeeping, ClientFilter, DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs,
+    EntityOperation, EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType,
+    MetadataComp, Physics,
 };
 
 pub struct EntitiesSendingSystem;
@@ -21,6 +21,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
         ReadStorage<'a, InteractorComp>,
+        ReadStorage<'a, DoNotPersistComp>,
         WriteStorage<'a, MetadataComp>,
     );
 
@@ -36,6 +37,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             ids,
             etypes,
             interactors,
+            do_not_persist,
             mut metadatas,
         ) = data;
 
@@ -67,12 +69,14 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let old_entity_handlers = std::mem::take(&mut physics.entity_to_handlers);
 
-        for (id, (etype, ent, metadata)) in old_entities.iter() {
+        for (id, (etype, ent, metadata, persisted)) in old_entities.iter() {
             if updated_ids.contains(id) {
                 continue;
             }
 
-            entities_saver.remove(id);
+            if *persisted {
+                entities_saver.remove(id);
+            }
             entity_ids.remove(id);
 
             if let Some((collider_handle, body_handle)) = old_entity_handlers.get(ent) {
@@ -97,17 +101,18 @@ impl<'a> System<'a> for EntitiesSendingSystem {
 
         let mut new_bookkeeping_records = HashMap::new();
 
-        for (ent, id, metadata, etype, _) in
-            (&entities, &ids, &mut metadatas, &etypes, &flags).join()
+        for (ent, id, metadata, etype, _, do_not_persist) in
+            (&entities, &ids, &mut metadatas, &etypes, &flags, do_not_persist.maybe()).join()
         {
             if metadata.is_empty() {
                 continue;
             }
 
-            // Make sure metadata is not empty before recording it.
+            let persisted = do_not_persist.is_none();
+
             new_bookkeeping_records.insert(
                 id.0.to_owned(),
-                (etype.0.to_owned(), ent, metadata.to_owned()),
+                (etype.0.to_owned(), ent, metadata.to_owned(), persisted),
             );
 
             if new_entity_ids.contains(&id.0) {
