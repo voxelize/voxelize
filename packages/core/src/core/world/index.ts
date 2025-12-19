@@ -34,6 +34,7 @@ import {
   Vector2,
   Vector3,
 } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { NetIntercept } from "../../core/network";
 import { WorkerPool } from "../../libs";
@@ -347,6 +348,11 @@ export type WorldClientOptions = {
    * How long to retain delta history in milliseconds. Defaults to 5000ms.
    */
   deltaRetentionTime: number;
+
+  /**
+   * Whether to merge chunk geometries to reduce draw calls. Useful for mobile. Defaults to false.
+   */
+  mergeChunkGeometries: boolean;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -373,6 +379,7 @@ const defaultOptions: WorldClientOptions = {
   maxLightWorkers: 4,
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
+  mergeChunkGeometries: false,
 };
 
 /**
@@ -3533,7 +3540,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) return;
 
-    const { maxHeight, subChunks, chunkSize } = this.options;
+    const { maxHeight, subChunks, chunkSize, mergeChunkGeometries } =
+      this.options;
     const { level, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
@@ -3547,8 +3555,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (geometries.length === 0) return;
 
-    const meshes = geometries
-      .map((geo) => {
+    let meshes: Mesh[];
+
+    if (mergeChunkGeometries) {
+      const materialToGeometries = new Map<
+        string,
+        { geometry: BufferGeometry; material: CustomChunkShaderMaterial }[]
+      >();
+
+      for (const geo of geometries) {
         const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
         const geometry = new BufferGeometry();
 
@@ -3557,7 +3572,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
         geometry.computeVertexNormals();
-        geometry.computeBoundingSphere();
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -3567,26 +3581,52 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!material) {
           const block = this.getBlockById(voxel);
           const face = block.faces.find((face) => face.name === faceName);
-
-          // if not even isolated, we don't want to care about it
-          if (!face.isolated || !at) {
-            console.warn("Unlikely situation happened..."); // todo: better console log
-            return;
-          }
-
+          if (!face.isolated || !at) continue;
           try {
-            const isolatedMaterial = this.getOrCreateIsolatedBlockMaterial(
+            material = this.getOrCreateIsolatedBlockMaterial(
               voxel,
               at,
               faceName
             );
-            material = isolatedMaterial;
-          } catch (e) {
-            console.error(e);
+          } catch {
+            continue;
           }
         }
 
-        const mesh = new Mesh(geometry, material);
+        const matKey = this.makeChunkMaterialKey(
+          voxel,
+          faceName,
+          at && at.length ? at : undefined
+        );
+        if (!materialToGeometries.has(matKey)) {
+          materialToGeometries.set(matKey, []);
+        }
+        materialToGeometries.get(matKey)!.push({ geometry, material });
+      }
+
+      meshes = [];
+      for (const [, geoMats] of materialToGeometries) {
+        if (geoMats.length === 0) continue;
+
+        const geos = geoMats.map((gm) => gm.geometry);
+        const material = geoMats[0].material;
+
+        let finalGeometry: BufferGeometry;
+        if (geos.length === 1) {
+          finalGeometry = geos[0];
+        } else {
+          const merged = mergeGeometries(geos, false);
+          if (!merged) {
+            geos.forEach((g) => g.dispose());
+            continue;
+          }
+          geos.forEach((g) => g.dispose());
+          finalGeometry = merged;
+        }
+
+        finalGeometry.computeBoundingSphere();
+
+        const mesh = new Mesh(finalGeometry, material);
         mesh.position.set(
           cx * chunkSize,
           level * heightPerSubChunk,
@@ -3595,12 +3635,66 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
         mesh.matrixWorldAutoUpdate = false;
-        mesh.userData = { isChunk: true, voxel };
+        mesh.userData = { isChunk: true, merged: true };
 
         chunk.group.add(mesh);
-        return mesh;
-      })
-      .filter((m) => !!m);
+        meshes.push(mesh);
+      }
+    } else {
+      meshes = geometries
+        .map((geo) => {
+          const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+          const geometry = new BufferGeometry();
+
+          geometry.setAttribute("position", new BufferAttribute(positions, 3));
+          geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+          geometry.setAttribute("light", new BufferAttribute(lights, 1));
+          geometry.setIndex(new BufferAttribute(indices, 1));
+          geometry.computeVertexNormals();
+          geometry.computeBoundingSphere();
+
+          let material = this.getBlockFaceMaterial(
+            voxel,
+            faceName,
+            at && at.length ? at : undefined
+          );
+          if (!material) {
+            const block = this.getBlockById(voxel);
+            const face = block.faces.find((face) => face.name === faceName);
+
+            if (!face.isolated || !at) {
+              console.warn("Unlikely situation happened...");
+              return;
+            }
+
+            try {
+              const isolatedMaterial = this.getOrCreateIsolatedBlockMaterial(
+                voxel,
+                at,
+                faceName
+              );
+              material = isolatedMaterial;
+            } catch (e) {
+              console.error(e);
+            }
+          }
+
+          const mesh = new Mesh(geometry, material);
+          mesh.position.set(
+            cx * chunkSize,
+            level * heightPerSubChunk,
+            cz * chunkSize
+          );
+          mesh.updateMatrix();
+          mesh.matrixAutoUpdate = false;
+          mesh.matrixWorldAutoUpdate = false;
+          mesh.userData = { isChunk: true, voxel };
+
+          chunk.group.add(mesh);
+          return mesh;
+        })
+        .filter((m) => !!m);
+    }
 
     if (!this.children.includes(chunk.group)) {
       this.add(chunk.group);
