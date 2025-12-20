@@ -167,7 +167,7 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 }
             }
 
-            if space.get_voxel(vx, vy - 1, vz) == 0 {
+            if vy > 0 && space.get_voxel(vx, vy - 1, vz) == 0 {
                 let new_stage = if config_clone.flows_down_as_source {
                     0
                 } else {
