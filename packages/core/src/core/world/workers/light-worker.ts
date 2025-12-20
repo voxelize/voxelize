@@ -248,14 +248,19 @@ function floodLight(
         nBlock,
         nRotation
       );
-      const nextLevel =
-        level -
-        (isSunlight &&
+      const reduce =
+        isSunlight &&
         !nBlock.lightReduce &&
         oy === -1 &&
         level === maxLightLevel
           ? 0
-          : 1);
+          : 1;
+
+      if (level <= reduce) {
+        continue;
+      }
+
+      const nextLevel = level - reduce;
 
       if (
         !LightUtils.canEnter(sourceTransparency, nTransparency, ox, oy, oz) ||
