@@ -363,8 +363,8 @@ impl Physics {
         body: &mut RigidBody,
     ) {
         let aabb = &body.aabb;
-        let cx = aabb.min_x.floor() as i32;
-        let cz = aabb.min_z.floor() as i32;
+        let center_x = ((aabb.min_x + aabb.max_x) / 2.0).floor() as i32;
+        let center_z = ((aabb.min_z + aabb.max_z) / 2.0).floor() as i32;
         let y0 = aabb.min_y.floor() as i32;
         let y1 = aabb.max_y.floor() as i32;
 
@@ -374,17 +374,19 @@ impl Physics {
             block.is_fluid
         };
 
-        if !test_fluid(cx, y0, cz) {
+        if !test_fluid(center_x, y0, center_z) {
             body.in_fluid = false;
             body.ratio_in_fluid = 0.0;
             return;
         }
 
+        body.in_fluid = true;
+
         // body is in fluid - find out how much body is submerged
         let mut submerged = 1;
         let mut cy = y0 + 1;
 
-        while cy <= y1 && test_fluid(cx, cy, cz) {
+        while cy <= y1 && test_fluid(center_x, cy, center_z) {
             submerged += 1;
             cy += 1;
         }
@@ -395,6 +397,9 @@ impl Physics {
         if ratio_in_fluid > 1.0 {
             ratio_in_fluid = 1.0;
         }
+
+        body.ratio_in_fluid = ratio_in_fluid;
+
         let vol = aabb.width() * aabb.height() * aabb.depth();
         let displaced = vol * ratio_in_fluid;
 
