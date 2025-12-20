@@ -179,10 +179,6 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     });
   }
 
-  /**
-   * Parse raw command arguments string into typed object using Zod schema.
-   * Special case: if schema has a single "rest" field, pass the entire raw string.
-   */
   private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
     raw: string,
     schema: T
@@ -196,12 +192,32 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
     const words = raw.split(" ").filter(Boolean);
     const rawObj: Record<string, string> = {};
+    const keySet = new Set(keys);
+    const assignedKeys = new Set<string>();
+    const positionalValues: string[] = [];
 
-    keys.forEach((key, i) => {
-      if (words[i] !== undefined) {
-        rawObj[key] = words[i];
+    for (const word of words) {
+      const eqIndex = word.indexOf("=");
+      if (eqIndex > 0) {
+        const key = word.substring(0, eqIndex);
+        const value = word.substring(eqIndex + 1);
+        if (keySet.has(key)) {
+          rawObj[key] = value;
+          assignedKeys.add(key);
+          continue;
+        }
       }
-    });
+      positionalValues.push(word);
+    }
+
+    let posIndex = 0;
+    for (const key of keys) {
+      if (assignedKeys.has(key)) continue;
+      if (posIndex < positionalValues.length) {
+        rawObj[key] = positionalValues[posIndex];
+        posIndex++;
+      }
+    }
 
     return schema.parse(rawObj);
   }

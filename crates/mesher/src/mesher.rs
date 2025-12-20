@@ -17,6 +17,7 @@ pub struct Block {
     pub y_rotatable: bool,
     pub is_empty: bool,
     pub is_fluid: bool,
+    pub is_waterlogged: bool,
     pub is_opaque: bool,
     pub is_see_through: bool,
     pub is_transparent: [bool; 6],
@@ -530,6 +531,18 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     total_height / count
 }
 
+fn has_standard_six_faces(faces: &[BlockFace]) -> bool {
+    faces.iter().any(|f| {
+        let name_lower = f.name.to_lowercase();
+        name_lower == "py"
+            || name_lower == "ny"
+            || name_lower == "px"
+            || name_lower == "nx"
+            || name_lower == "pz"
+            || name_lower == "nz"
+    })
+}
+
 fn create_fluid_faces<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -764,6 +777,10 @@ fn should_render_face<S: VoxelAccess>(
 
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
+
+    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
+        return false;
+    }
 
     (n_is_void || n_block_type.is_empty)
         || (see_through
@@ -1358,7 +1375,11 @@ fn process_face<S: VoxelAccess>(
         Some(b) => b,
         None => return,
     };
-    
+
+    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
+        return;
+    }
+
     let n_is_empty = n_is_void || n_block_type.is_empty;
 
     let should_mesh = n_is_empty
@@ -1777,7 +1798,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
-                    let faces = if is_fluid {
+                    let faces = if is_fluid && has_standard_six_faces(&block.faces) {
                         create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                     } else if block.dynamic_patterns.is_some() {
                         get_dynamic_faces(block, [vx, vy, vz], space)
@@ -2042,7 +2063,7 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let faces = if is_fluid {
+                let faces = if is_fluid && has_standard_six_faces(&block.faces) {
                     create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
                 } else if block.dynamic_patterns.is_some() {
                     get_dynamic_faces(block, [vx, vy, vz], space)

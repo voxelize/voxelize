@@ -150,6 +150,23 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
                 }
             }
 
+            if config_clone.infinite_source && curr_stage == 0 {
+                for [dx, dz] in HORIZONTAL_NEIGHBORS {
+                    let nx = vx + dx;
+                    let nz = vz + dz;
+                    if space.get_voxel(nx, vy, nz) == 0 {
+                        let source_count =
+                            count_horizontal_source_neighbors(nx, vy, nz, space, fluid_id);
+                        if source_count >= config_clone.infinite_source_count {
+                            return vec![(
+                                Vec3(nx, vy, nz),
+                                VoxelPacker::new().with_id(fluid_id).with_stage(0).pack(),
+                            )];
+                        }
+                    }
+                }
+            }
+
             if space.get_voxel(vx, vy - 1, vz) == 0 {
                 let new_stage = if config_clone.flows_down_as_source {
                     0

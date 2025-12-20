@@ -1322,6 +1322,9 @@ pub struct Block {
     /// Is the block a fluid?
     pub is_fluid: bool,
 
+    /// Is this block waterlogged (exists inside water)?
+    pub is_waterlogged: bool,
+
     /// Does the block emit light?
     pub is_light: bool,
 
@@ -1608,6 +1611,7 @@ impl Block {
             y_rotatable: self.y_rotatable,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
+            is_waterlogged: self.is_waterlogged,
             is_opaque: self.is_opaque,
             is_see_through: self.is_see_through,
             is_transparent: self.is_transparent,
@@ -1643,6 +1647,7 @@ pub struct BlockBuilder {
     y_rotatable_segments: YRotatableSegments,
     is_empty: bool,
     is_fluid: bool,
+    is_waterlogged: bool,
     is_passable: bool,
     is_climbable: bool,
     red_light_level: u32,
@@ -1722,6 +1727,12 @@ impl BlockBuilder {
     /// Configure whether or not this is a fluid. Default is false.
     pub fn is_fluid(mut self, is_fluid: bool) -> Self {
         self.is_fluid = is_fluid;
+        self
+    }
+
+    /// Configure whether or not this block is waterlogged (exists inside water). Default is false.
+    pub fn is_waterlogged(mut self, is_waterlogged: bool) -> Self {
+        self.is_waterlogged = is_waterlogged;
         self
     }
 
@@ -1918,6 +1929,7 @@ impl BlockBuilder {
             y_rotatable_segments: self.y_rotatable_segments,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
+            is_waterlogged: self.is_waterlogged,
             is_light: self.red_light_level > 0
                 || self.green_light_level > 0
                 || self.blue_light_level > 0,

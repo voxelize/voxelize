@@ -36,6 +36,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { TRANSPARENT_RENDER_ORDER } from "../../common";
 import { NetIntercept } from "../../core/network";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
@@ -1692,6 +1693,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     return block;
   }
 
+  getBlockByIdSafe(id: number) {
+    return this.registry.blocksById.get(id) ?? null;
+  }
+
   /**
    * Get the block type data by a block name.
    *
@@ -2046,6 +2051,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const {
           id,
           isFluid,
+          isWaterlogged,
           isPassable,
           isSeeThrough,
           aabbs,
@@ -2065,7 +2071,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (
-          (isFluid && ignoreFluids) ||
+          (isFluid && ignoreFluids && !isWaterlogged) ||
           (isPassable && ignorePassables) ||
           (isSeeThrough && ignoreSeeThrough)
         ) {
@@ -3781,6 +3787,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.matrixAutoUpdate = false;
         mesh.matrixWorldAutoUpdate = false;
         mesh.userData = { isChunk: true, merged: true };
+        if (material.transparent) {
+          mesh.renderOrder = TRANSPARENT_RENDER_ORDER;
+        }
 
         chunk.group.add(mesh);
         meshes.push(mesh);
@@ -3834,6 +3843,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           mesh.matrixAutoUpdate = false;
           mesh.matrixWorldAutoUpdate = false;
           mesh.userData = { isChunk: true, voxel };
+          if (material.transparent) {
+            mesh.renderOrder = TRANSPARENT_RENDER_ORDER;
+          }
 
           chunk.group.add(mesh);
           return mesh;
@@ -3889,8 +3901,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!chunk) return [];
 
         const id = chunk.getVoxel(vx, vy, vz);
-        const { aabbs, isPassable, isFluid, dynamicPatterns } =
-          this.getBlockById(id);
+        const block = this.getBlockByIdSafe(id);
+        if (!block) return [];
+
+        const { aabbs, isPassable, isFluid, dynamicPatterns } = block;
 
         if (dynamicPatterns && dynamicPatterns.length > 0) {
           const passable = this.getBlockPassableForDynamicPatterns(
@@ -3923,16 +3937,19 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!chunk) return false;
 
         const id = chunk.getVoxel(vx, vy, vz);
-        const { isFluid } = this.getBlockById(id);
+        const block = this.getBlockByIdSafe(id);
 
-        return isFluid;
+        return block?.isFluid ?? false;
       },
       (vx: number, vy: number, vz: number) => {
         const chunk = this.getChunkByPosition(vx, vy, vz);
         if (!chunk) return [];
 
         const id = chunk.getVoxel(vx, vy, vz);
-        const { aabbs, isClimbable } = this.getBlockById(id);
+        const block = this.getBlockByIdSafe(id);
+        if (!block) return [];
+
+        const { aabbs, isClimbable } = block;
 
         if (!isClimbable) return [];
 
@@ -5104,6 +5121,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       mat.side = transparent ? DoubleSide : FrontSide;
       mat.transparent = transparent;
+      if (transparent) {
+        mat.depthWrite = false;
+        mat.alphaTest = 0.1;
+      }
       mat.map = map;
       mat.uniforms.map.value = map;
 

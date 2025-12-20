@@ -90,6 +90,11 @@ export type Block = {
   isFluid: boolean;
 
   /**
+   * Whether or not is the block waterlogged (exists inside water).
+   */
+  isWaterlogged: boolean;
+
+  /**
    * Whether or not is this block a light source.
    */
   isLight: boolean;
