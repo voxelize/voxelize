@@ -195,9 +195,14 @@ pub fn create_fluid_active_fn(fluid_id: u32, config: FluidConfig) -> (FluidTicke
             }
 
             let below_id = space.get_voxel(vx, vy - 1, vz);
-            let self_supported = below_id != 0 && below_id != fluid_id;
+            let on_solid_ground = below_id != 0 && below_id != fluid_id;
+            let can_spread = if curr_stage == 0 {
+                below_id != 0
+            } else {
+                on_solid_ground
+            };
 
-            if self_supported && curr_stage < config_clone.max_stage {
+            if can_spread && curr_stage < config_clone.max_stage {
                 let mut updates = vec![];
                 for [dx, dz] in HORIZONTAL_NEIGHBORS {
                     let nx = vx + dx;
