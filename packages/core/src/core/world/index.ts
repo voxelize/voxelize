@@ -183,6 +183,22 @@ export type LightJob = {
   boundingBox: BoundingBox;
   startSequenceId: number;
   retryCount: number;
+  batchId: number;
+};
+
+export type LightBatchResult = {
+  color: LightColor;
+  modifiedChunks: { coords: Coords2; lights: Uint32Array }[];
+  boundingBox: BoundingBox;
+};
+
+export type LightBatch = {
+  batchId: number;
+  startSequenceId: number;
+  totalJobs: number;
+  completedJobs: number;
+  results: LightBatchResult[];
+  jobs: LightJob[];
 };
 
 export type LightOperations = {
@@ -634,7 +650,9 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
+  private lightBatchIdCounter = 0;
   private lightJobsCompleteResolvers: (() => void)[] = [];
+  private activeLightBatch: LightBatch | null = null;
 
   private accumulatedLightOps: LightOperations | null = null;
   private accumulatedStartSequenceId = 0;
@@ -690,10 +708,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   async meshChunkLocally(cx: number, cz: number, level: number) {
-    if (
-      this.lightJobQueue.length > 0 ||
-      this.lightWorkerPool.workingCount > 0
-    ) {
+    if (this.lightJobQueue.length > 0 || this.activeLightBatch !== null) {
       await this.waitForLightJobsComplete();
     }
 
@@ -4587,6 +4602,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     ];
 
+    const batchId = this.lightBatchIdCounter++;
+    const jobsForBatch: LightJob[] = [];
+
     colorData.forEach(({ color, removals, floods }) => {
       if (removals.length === 0 && floods.length === 0) return;
 
@@ -4626,27 +4644,50 @@ export class World<T = any> extends Scene implements NetIntercept {
       };
 
       const jobId = `light-${color}-${this.lightJobIdCounter++}`;
-      this.lightJobQueue.push({
+      jobsForBatch.push({
         jobId,
         color,
         lightOps: { removals, floods },
         boundingBox,
         startSequenceId,
         retryCount: 0,
+        batchId,
       });
     });
 
-    this.processNextLightJob();
+    if (jobsForBatch.length === 0) return;
+
+    this.lightJobQueue.push(...jobsForBatch);
+    this.processNextLightBatch();
   }
 
-  private processNextLightJob() {
+  private processNextLightBatch() {
     if (this.lightJobQueue.length === 0) return;
-    if (this.lightWorkerPool.workingCount > 0) return;
+    if (this.activeLightBatch !== null) return;
 
-    const job = this.lightJobQueue.shift();
-    if (!job) return;
+    const firstJob = this.lightJobQueue[0];
+    const batchId = firstJob.batchId;
 
-    this.executeLightJob(job);
+    const batchJobs: LightJob[] = [];
+    while (
+      this.lightJobQueue.length > 0 &&
+      this.lightJobQueue[0].batchId === batchId
+    ) {
+      batchJobs.push(this.lightJobQueue.shift()!);
+    }
+
+    this.activeLightBatch = {
+      batchId,
+      startSequenceId: firstJob.startSequenceId,
+      totalJobs: batchJobs.length,
+      completedJobs: 0,
+      results: [],
+      jobs: batchJobs,
+    };
+
+    for (const job of batchJobs) {
+      this.executeLightJob(job);
+    }
   }
 
   private executeLightJob(job: LightJob) {
@@ -4730,48 +4771,165 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private handleLightJobResult(job: LightJob, result: LightWorkerResult) {
-    const { modifiedChunks } = result;
-    const { boundingBox } = job;
-    const { maxHeight, subChunks, maxLightLevel } = this.options;
-    const subChunkHeight = maxHeight / subChunks;
-
-    const minY = Math.max(0, boundingBox.min[1] - maxLightLevel);
-    const maxY = Math.min(
-      maxHeight - 1,
-      boundingBox.min[1] + boundingBox.shape[1] - 1 + maxLightLevel
-    );
-    const minLevel = Math.floor(minY / subChunkHeight);
-    const maxLevel = Math.min(subChunks - 1, Math.floor(maxY / subChunkHeight));
-
-    modifiedChunks.forEach(({ coords, lights }) => {
-      const chunk = this.getChunkByCoords(coords[0], coords[1]);
-      if (chunk) {
-        chunk.lights.data = lights;
-        chunk.isDirty = true;
-      }
-    });
-
-    modifiedChunks.forEach(({ coords }) => {
-      this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
-    });
-
-    this.processNextLightJob();
-
     if (
-      this.lightJobQueue.length === 0 &&
-      this.lightWorkerPool.workingCount === 0
+      !this.activeLightBatch ||
+      this.activeLightBatch.batchId !== job.batchId
     ) {
+      return;
+    }
+
+    const batch = this.activeLightBatch;
+    batch.results.push({
+      color: job.color,
+      modifiedChunks: result.modifiedChunks,
+      boundingBox: job.boundingBox,
+    });
+    batch.completedJobs++;
+
+    if (batch.completedJobs < batch.totalJobs) {
+      return;
+    }
+
+    this.applyBatchResults(batch);
+    this.activeLightBatch = null;
+    this.processNextLightBatch();
+
+    if (this.lightJobQueue.length === 0 && this.activeLightBatch === null) {
       const resolvers = this.lightJobsCompleteResolvers.splice(0);
       resolvers.forEach((resolve) => resolve());
       this.processDirtyChunks();
     }
   }
 
+  private applyBatchResults(batch: LightBatch) {
+    const { maxHeight, subChunks, maxLightLevel } = this.options;
+    const subChunkHeight = maxHeight / subChunks;
+
+    const chunkResultsByColor = new Map<string, Map<LightColor, Uint32Array>>();
+    const allChunkCoords = new Map<string, Coords2>();
+
+    let globalMinY = maxHeight;
+    let globalMaxY = 0;
+
+    for (const result of batch.results) {
+      const minY = Math.max(0, result.boundingBox.min[1] - maxLightLevel);
+      const maxY = Math.min(
+        maxHeight - 1,
+        result.boundingBox.min[1] +
+          result.boundingBox.shape[1] -
+          1 +
+          maxLightLevel
+      );
+      globalMinY = Math.min(globalMinY, minY);
+      globalMaxY = Math.max(globalMaxY, maxY);
+
+      for (const { coords, lights } of result.modifiedChunks) {
+        const key = `${coords[0]},${coords[1]}`;
+        allChunkCoords.set(key, coords);
+
+        let colorMap = chunkResultsByColor.get(key);
+        if (!colorMap) {
+          colorMap = new Map();
+          chunkResultsByColor.set(key, colorMap);
+        }
+        colorMap.set(result.color, lights);
+      }
+    }
+
+    const minLevel = Math.floor(globalMinY / subChunkHeight);
+    const maxLevel = Math.min(
+      subChunks - 1,
+      Math.floor(globalMaxY / subChunkHeight)
+    );
+
+    for (const [key, colorMap] of chunkResultsByColor) {
+      const coords = allChunkCoords.get(key)!;
+      const chunk = this.getChunkByCoords(coords[0], coords[1]);
+      if (!chunk) continue;
+
+      if (colorMap.size === 1) {
+        const [color, lights] = colorMap.entries().next().value;
+        this.mergeSingleColorResult(chunk, lights, color);
+      } else {
+        this.mergeMultiColorResults(chunk, colorMap);
+      }
+
+      chunk.isDirty = true;
+      this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
+    }
+  }
+
+  private mergeSingleColorResult(
+    chunk: Chunk,
+    lights: Uint32Array,
+    color: LightColor
+  ) {
+    const currentLights = chunk.lights.data;
+    const mask = this.getLightColorMask(color);
+    const inverseMask = ~mask >>> 0;
+
+    for (let i = 0; i < currentLights.length; i++) {
+      currentLights[i] = (currentLights[i] & inverseMask) | (lights[i] & mask);
+    }
+  }
+
+  private mergeMultiColorResults(
+    chunk: Chunk,
+    colorMap: Map<LightColor, Uint32Array>
+  ) {
+    const currentLights = chunk.lights.data;
+    const anyResult = colorMap.values().next().value;
+
+    for (let i = 0; i < currentLights.length; i++) {
+      let value = 0;
+
+      const sunlightSource = colorMap.get("SUNLIGHT");
+      if (sunlightSource) {
+        value |= sunlightSource[i] & 0xf000;
+      } else {
+        value |= anyResult[i] & 0xf000;
+      }
+
+      const redSource = colorMap.get("RED");
+      if (redSource) {
+        value |= redSource[i] & 0x0f00;
+      } else {
+        value |= anyResult[i] & 0x0f00;
+      }
+
+      const greenSource = colorMap.get("GREEN");
+      if (greenSource) {
+        value |= greenSource[i] & 0x00f0;
+      } else {
+        value |= anyResult[i] & 0x00f0;
+      }
+
+      const blueSource = colorMap.get("BLUE");
+      if (blueSource) {
+        value |= blueSource[i] & 0x000f;
+      } else {
+        value |= anyResult[i] & 0x000f;
+      }
+
+      currentLights[i] = value;
+    }
+  }
+
+  private getLightColorMask(color: LightColor): number {
+    switch (color) {
+      case "SUNLIGHT":
+        return 0xf000;
+      case "RED":
+        return 0x0f00;
+      case "GREEN":
+        return 0x00f0;
+      case "BLUE":
+        return 0x000f;
+    }
+  }
+
   private waitForLightJobsComplete(): Promise<void> {
-    if (
-      this.lightJobQueue.length === 0 &&
-      this.lightWorkerPool.workingCount === 0
-    ) {
+    if (this.lightJobQueue.length === 0 && this.activeLightBatch === null) {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
