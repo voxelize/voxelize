@@ -108,16 +108,16 @@ impl Lights {
                 let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
                 let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
                 let n_transparency = n_block.get_rotated_transparency(&rotation);
-                let next_level = level
-                    - if is_sunlight
-                        && !n_block.light_reduce
-                        && *oy == -1
-                        && level == *max_light_level
-                    {
-                        0
-                    } else {
-                        1
-                    };
+                let reduce = if is_sunlight
+                    && !n_block.light_reduce
+                    && *oy == -1
+                    && level == *max_light_level
+                {
+                    0
+                } else {
+                    1
+                };
+                let next_level = level.saturating_sub(reduce);
 
                 // To not continue:
                 // (1) Light cannot be flooded from source block to neighbor.

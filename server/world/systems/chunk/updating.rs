@@ -417,40 +417,37 @@ fn process_pending_updates(
                 if !Lights::can_enter(&current_transparency, &n_transparency, ox, oy, oz)
                     && Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz)
                 {
-                    let level = chunks.get_sunlight(nvx, nvy, nvz)
-                        - if updated_type.light_reduce { 1 } else { 0 };
-                    if level != 0 {
+                    let reduce = if updated_type.light_reduce { 1 } else { 0 };
+                    let sun_val = chunks.get_sunlight(nvx, nvy, nvz);
+                    if sun_val > reduce {
                         sun_flood.push_back(LightNode {
                             voxel: n_voxel,
-                            level,
+                            level: sun_val - reduce,
                         })
                     }
 
                     if !is_removed_light_source {
-                        let red_level = chunks.get_torch_light(nvx, nvy, nvz, &RED)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if red_level != 0 {
+                        let red_val = chunks.get_torch_light(nvx, nvy, nvz, &RED);
+                        if red_val > reduce {
                             red_flood.push_back(LightNode {
                                 voxel: n_voxel,
-                                level: red_level,
+                                level: red_val - reduce,
                             })
                         }
 
-                        let green_level = chunks.get_torch_light(nvx, nvy, nvz, &GREEN)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if green_level != 0 {
+                        let green_val = chunks.get_torch_light(nvx, nvy, nvz, &GREEN);
+                        if green_val > reduce {
                             green_flood.push_back(LightNode {
                                 voxel: n_voxel,
-                                level: green_level,
+                                level: green_val - reduce,
                             })
                         }
 
-                        let blue_level = chunks.get_torch_light(nvx, nvy, nvz, &BLUE)
-                            - if updated_type.light_reduce { 1 } else { 0 };
-                        if blue_level != 0 {
+                        let blue_val = chunks.get_torch_light(nvx, nvy, nvz, &BLUE);
+                        if blue_val > reduce {
                             blue_flood.push_back(LightNode {
                                 voxel: n_voxel,
-                                level: blue_level,
+                                level: blue_val - reduce,
                             })
                         }
                     }
@@ -641,8 +638,8 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // This is required for correct cellular automaton behavior (e.g., water removal cascades).
         let mut all_results = Vec::new();
 
-        for voxel in due_voxels {
-            let Vec3(vx, vy, vz) = voxel;
+        for voxel in due_voxels.iter() {
+            let Vec3(vx, vy, vz) = *voxel;
             let id = chunks.get_voxel(vx, vy, vz);
             let block = registry.get_block_by_id(id);
 
