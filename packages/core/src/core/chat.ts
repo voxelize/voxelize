@@ -1,12 +1,5 @@
 import { ChatProtocol, MessageProtocol } from "@voxelize/protocol";
-import {
-  z,
-  ZodError,
-  ZodNumber,
-  ZodObject,
-  ZodOptional,
-  ZodTypeAny,
-} from "zod";
+import { z, ZodError, ZodObject, ZodOptional, ZodTypeAny } from "zod";
 
 import { DOMUtils } from "../utils/dom-utils";
 
@@ -48,10 +41,10 @@ export type CommandInfo<
  */
 export type ArgMetadata = {
   name: string;
-  type: "string" | "number" | "enum";
+  type: "string" | "number" | "enum" | "boolean";
   required: boolean;
   options?: string[];
-  defaultValue?: string | number;
+  defaultValue?: string | number | boolean;
 };
 
 /**
@@ -196,6 +189,17 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const assignedKeys = new Set<string>();
     const positionalValues: string[] = [];
 
+    const booleanKeys = new Set<string>();
+    for (const key of keys) {
+      let innerType = shape[key] as ZodTypeAny;
+      if (this.isOptionalSchema(innerType)) {
+        innerType = innerType.unwrap();
+      }
+      if (this.isBooleanSchema(innerType)) {
+        booleanKeys.add(key);
+      }
+    }
+
     for (const word of words) {
       const eqIndex = word.indexOf("=");
       if (eqIndex > 0) {
@@ -207,12 +211,20 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           continue;
         }
       }
+
+      if (booleanKeys.has(word)) {
+        rawObj[word] = "true";
+        assignedKeys.add(word);
+        continue;
+      }
+
       positionalValues.push(word);
     }
 
     let posIndex = 0;
     for (const key of keys) {
       if (assignedKeys.has(key)) continue;
+      if (booleanKeys.has(key)) continue;
       if (posIndex < positionalValues.length) {
         rawObj[key] = positionalValues[posIndex];
         posIndex++;
@@ -229,7 +241,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   ): string {
     const argMetadata = this.extractArgMetadata(commandInfo.args);
     const usageArgs = argMetadata
-      .map((arg) => (arg.required ? `<${arg.name}>` : `[${arg.name}]`))
+      .map((arg) => {
+        if (arg.type === "boolean") {
+          return `[${arg.name}]`;
+        }
+        return arg.required ? `<${arg.name}=>` : `[${arg.name}=]`;
+      })
       .join(" ");
     const usage = `Usage: ${this._commandSymbol}${trigger}${
       usageArgs ? ` ${usageArgs}` : ""
@@ -408,6 +425,14 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     return !stringResult.success;
   }
 
+  private isBooleanSchema(schema: ZodTypeAny): boolean {
+    const trueResult = schema.safeParse(true);
+    const falseResult = schema.safeParse(false);
+    if (!trueResult.success || !falseResult.success) return false;
+    const stringResult = schema.safeParse("not_a_boolean_string_xyz");
+    return !stringResult.success;
+  }
+
   private hasDefault(schema: ZodTypeAny): boolean {
     const def = schema._def as unknown as Record<string, unknown> | undefined;
     return def !== undefined && "defaultValue" in def;
@@ -465,6 +490,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           options: innerType.options as string[],
           defaultValue,
         });
+      } else if (this.isBooleanSchema(innerType)) {
+        result.push({ name, type: "boolean", required, defaultValue });
       } else if (this.isNumberSchema(innerType)) {
         result.push({ name, type: "number", required, defaultValue });
       } else {

@@ -327,22 +327,25 @@ export class AtlasTexture extends CanvasTexture {
 
   static makeUnknownImage(
     dimension: number,
-    color1 = "#0A2647",
-    color2 = "#E1D7C6"
+    color1 = "#FF00FF",
+    color2 = "#000000"
   ) {
-    const canvas = document.createElement("canvas") as HTMLCanvasElement;
+    const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
 
     context.imageSmoothingEnabled = false;
     context.canvas.width = dimension;
     context.canvas.height = dimension;
 
-    context.fillStyle = color2;
-    context.fillRect(0, 0, dimension, dimension);
+    const halfDim = dimension / 2;
+
     context.fillStyle = color1;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText("?", dimension / 2, dimension / 2, dimension);
+    context.fillRect(0, 0, halfDim, halfDim);
+    context.fillRect(halfDim, halfDim, halfDim, halfDim);
+
+    context.fillStyle = color2;
+    context.fillRect(halfDim, 0, halfDim, halfDim);
+    context.fillRect(0, halfDim, halfDim, halfDim);
 
     return canvas;
   }
