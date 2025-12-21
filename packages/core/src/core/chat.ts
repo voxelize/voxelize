@@ -429,6 +429,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     const trueResult = schema.safeParse(true);
     const falseResult = schema.safeParse(false);
     if (!trueResult.success || !falseResult.success) return false;
+    if (trueResult.data !== true || falseResult.data !== false) return false;
     const stringResult = schema.safeParse("not_a_boolean_string_xyz");
     return !stringResult.success;
   }
