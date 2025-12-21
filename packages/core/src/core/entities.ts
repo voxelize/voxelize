@@ -1,5 +1,5 @@
 import { MessageProtocol } from "@voxelize/protocol";
-import { Group } from "three";
+import { Group, Vector3 } from "three";
 
 import { NetIntercept } from "./network";
 
@@ -12,9 +12,6 @@ export class Entity<T = any> extends Group {
     this.entId = id;
   }
 
-  /**
-   * Called when the entity is created.
-   */
   onCreate: (data: T) => void;
 
   onUpdate: (data: T) => void;
@@ -58,12 +55,10 @@ export class Entities extends Group implements NetIntercept {
     (new (id: string) => Entity) | ((id: string) => Entity)
   > = new Map();
 
-  /**
-   * Set a new entity type to the entities manager.
-   *
-   * @param type The type of entity to register.
-   * @param entity The entity class to register.
-   */
+  public cameraPosition: Vector3 | null = null;
+
+  private frameCount = 0;
+
   setClass = (
     type: string,
     entity: (new (id: string) => Entity) | ((id: string) => Entity)
@@ -141,8 +136,29 @@ export class Entities extends Group implements NetIntercept {
   getEntityById = (id: string) => this.map.get(id);
 
   update = () => {
+    this.frameCount++;
+    const camPos = this.cameraPosition;
+
     this.map.forEach((entity) => {
-      entity.update?.();
+      if (!entity.update) return;
+
+      if (!camPos) {
+        entity.update();
+        return;
+      }
+
+      const dx = entity.position.x - camPos.x;
+      const dy = entity.position.y - camPos.y;
+      const dz = entity.position.z - camPos.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      if (distSq < 2500) {
+        entity.update();
+      } else if (distSq < 10000) {
+        if (this.frameCount % 2 === 0) entity.update();
+      } else if (this.frameCount % 4 === 0) {
+        entity.update();
+      }
     });
   };
 

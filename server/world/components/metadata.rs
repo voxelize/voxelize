@@ -35,12 +35,20 @@ impl MetadataComp {
         }
     }
 
-    /// Set a component's metadata
+    /// Set a component's metadata (dynamic - sent every update)
     pub fn set<T: Component + Serialize>(&mut self, component: &str, data: &T) {
         let value = json!(data);
         self.map.insert(component.to_owned(), value);
-        // Invalidate caches when data changes
         self.cached_json = None;
+    }
+
+    /// Set static metadata only if it doesn't already exist (sent on CREATE, not every UPDATE)
+    pub fn set_once<T: Component + Serialize>(&mut self, component: &str, data: &T) {
+        if !self.map.contains_key(component) {
+            let value = json!(data);
+            self.map.insert(component.to_owned(), value);
+            self.cached_json = None;
+        }
     }
 
     /// Get a component's metadata

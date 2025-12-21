@@ -27,10 +27,12 @@ export type ProtocolWS = WebSocket & {
 
 export type NetworkOptions = {
   maxPacketsPerTick: number;
+  maxBacklogFactor: number;
 };
 
 const defaultOptions: NetworkOptions = {
-  maxPacketsPerTick: 8,
+  maxPacketsPerTick: 16,
+  maxBacklogFactor: 8,
 };
 
 /**
@@ -422,7 +424,10 @@ export class Network {
     }
 
     const queueLength = this.packetQueue.length;
-    const backlogFactor = Math.min(4, Math.ceil(queueLength / 50));
+    const backlogFactor = Math.min(
+      this.options.maxBacklogFactor,
+      Math.ceil(queueLength / 25)
+    );
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
 
     const packets = this.packetQueue

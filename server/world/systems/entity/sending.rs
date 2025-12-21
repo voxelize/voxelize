@@ -143,8 +143,6 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 r#type: etype.0.to_owned(),
                 metadata: Some(json_str),
             });
-
-            metadata.reset();
         }
 
         bookkeeping.entities = new_bookkeeping_records;
