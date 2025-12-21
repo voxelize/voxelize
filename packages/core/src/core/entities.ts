@@ -1,5 +1,5 @@
 import { MessageProtocol } from "@voxelize/protocol";
-import { Group, Vector3 } from "three";
+import { Group } from "three";
 
 import { NetIntercept } from "./network";
 
@@ -54,10 +54,6 @@ export class Entities extends Group implements NetIntercept {
     string,
     (new (id: string) => Entity) | ((id: string) => Entity)
   > = new Map();
-
-  public cameraPosition: Vector3 | null = null;
-
-  private frameCount = 0;
 
   setClass = (
     type: string,
@@ -136,29 +132,8 @@ export class Entities extends Group implements NetIntercept {
   getEntityById = (id: string) => this.map.get(id);
 
   update = () => {
-    this.frameCount++;
-    const camPos = this.cameraPosition;
-
     this.map.forEach((entity) => {
-      if (!entity.update) return;
-
-      if (!camPos) {
-        entity.update();
-        return;
-      }
-
-      const dx = entity.position.x - camPos.x;
-      const dy = entity.position.y - camPos.y;
-      const dz = entity.position.z - camPos.z;
-      const distSq = dx * dx + dy * dy + dz * dz;
-
-      if (distSq < 2500) {
-        entity.update();
-      } else if (distSq < 10000) {
-        if (this.frameCount % 2 === 0) entity.update();
-      } else if (this.frameCount % 4 === 0) {
-        entity.update();
-      }
+      entity.update?.();
     });
   };
 
