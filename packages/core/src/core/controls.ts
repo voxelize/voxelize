@@ -1223,9 +1223,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         // different friction when not moving
         // idea from Sonic: http://info.sonicretro.org/SPG:Running
-        this.body.friction = runningFriction;
+        // reduce friction when in fluid to allow water current to push
+        const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
+        this.body.friction = runningFriction * fluidFrictionMult;
       } else {
-        this.body.friction = standingFriction;
+        const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
+        this.body.friction = standingFriction * fluidFrictionMult;
       }
     } else {
       this.body.velocity[0] -= this.body.velocity[0] * flyInertia * dt;
@@ -1286,9 +1289,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
         // different friction when not moving
         // idea from Sonic: http://info.sonicretro.org/SPG:Running
-        this.body.friction = runningFriction;
+        // reduce friction when in fluid to allow water current to push
+        const fluidFrictionMultFly = this.body.inFluid ? 0.1 : 1.0;
+        this.body.friction = runningFriction * fluidFrictionMultFly;
       } else {
-        this.body.friction = standingFriction;
+        const fluidFrictionMultFly = this.body.inFluid ? 0.1 : 1.0;
+        this.body.friction = standingFriction * fluidFrictionMultFly;
       }
     }
 

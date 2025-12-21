@@ -496,7 +496,8 @@ export class Engine {
       if (flowLen > 0) {
         flowDirX /= flowLen;
         flowDirZ /= flowLen;
-        const forceMag = fluidFlowForce * ratioInFluid;
+        const effectiveRatio = Math.max(ratioInFluid, 0.3);
+        const forceMag = fluidFlowForce * effectiveRatio;
         body.applyForce([flowDirX * forceMag, 0, flowDirZ * forceMag]);
       }
     }

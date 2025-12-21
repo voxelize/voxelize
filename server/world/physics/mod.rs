@@ -439,7 +439,8 @@ impl Physics {
             if flow_len > 0.0 {
                 flow_dir_x /= flow_len;
                 flow_dir_z /= flow_len;
-                let force_mag = fluid_flow_force * ratio_in_fluid;
+                let effective_ratio = ratio_in_fluid.max(0.3);
+                let force_mag = fluid_flow_force * effective_ratio;
                 body.apply_force(flow_dir_x * force_mag, 0.0, flow_dir_z * force_mag);
             }
         }
@@ -507,7 +508,9 @@ impl Physics {
         //        dvF = dt * Ff / m
         //            = dt * (u * m * dvnormal / dt) / m
         //            = u * dvnormal
-        let dv_max = (body.friction * v_normal).abs();
+        // reduce friction when in fluid to allow water current to push
+        let fluid_friction_mult = if body.in_fluid { 0.1 } else { 1.0 };
+        let dv_max = (body.friction * fluid_friction_mult * v_normal).abs();
 
         // decrease lateral vel by dv_max (or clamp to zero)
         let scalar = if v_curr > dv_max {
