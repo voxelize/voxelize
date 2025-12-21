@@ -346,7 +346,11 @@ export class ItemSlots<T = number> {
     cancelAnimationFrame(this.animationFrame);
   };
 
-  setObject = (row: number, col: number, object: Object3D) => {
+  setObject = (
+    row: number,
+    col: number,
+    object: Object3D | HTMLImageElement | undefined
+  ) => {
     if (!this.slots[row] || !this.slots[row][col]) {
       return;
     }

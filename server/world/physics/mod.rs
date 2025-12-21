@@ -405,10 +405,11 @@ impl Physics {
 
         // buoyant force = -gravity * fluid_density * volume_displaced
         let scalar = config.fluid_density * displaced;
+
         body.apply_force(
-            config.gravity[0] * scalar,
-            config.gravity[1] * scalar,
-            config.gravity[2] * scalar,
+            -config.gravity[0] * scalar,
+            -config.gravity[1] * scalar,
+            -config.gravity[2] * scalar,
         );
 
         let fluid_id = space.get_voxel(center_x, y0, center_z);
