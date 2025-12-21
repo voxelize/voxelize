@@ -3,7 +3,9 @@ use serde_json::Value;
 use specs::{Entity, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::{
-    encode_message, ChunkInterests, ChunkRequestsComp, ClientFilter, Clients, Event, EventProtocol,
+    encode_message,
+    world::metadata::WorldMetadata,
+    ChunkInterests, ChunkRequestsComp, ClientFilter, Clients, Event, EventProtocol,
     Events, IDComp, Message, MessageType, Transports, Vec2,
 };
 
@@ -14,13 +16,14 @@ impl<'a> System<'a> for EventsSystem {
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, ChunkInterests>,
+        ReadExpect<'a, WorldMetadata>,
         WriteExpect<'a, Events>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ChunkRequestsComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, interests, mut events, ids, requests) = data;
+        let (transports, clients, interests, world_metadata, mut events, ids, requests) = data;
 
         if events.queue.is_empty() {
             return;
@@ -140,6 +143,7 @@ impl<'a> System<'a> for EventsSystem {
 
         if !transports.is_empty() {
             let message = Message::new(&MessageType::Event)
+                .world_name(&world_metadata.world_name)
                 .events(&transports_map)
                 .build();
             let encoded = encode_message(&message);
