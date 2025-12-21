@@ -36,6 +36,8 @@ export class Engine {
     private getVoxel: (vx: number, vy: number, vz: number) => AABB[],
     private testFluid: (vx: number, vy: number, vz: number) => boolean,
     private getClimbableAABBs: (vx: number, vy: number, vz: number) => AABB[],
+    private getVoxelStage: (vx: number, vy: number, vz: number) => number,
+    private getFluidFlowForce: (vx: number, vy: number, vz: number) => number,
     public options: EngineOptions
   ) {}
 
@@ -464,6 +466,40 @@ export class Engine {
 
     body.inFluid = true;
     body.ratioInFluid = ratioInFluid;
+
+    const fluidFlowForce = this.getFluidFlowForce(cx, y0, cz);
+    if (fluidFlowForce > 0) {
+      const currentStage = this.getVoxelStage(cx, y0, cz);
+      let flowDirX = 0;
+      let flowDirZ = 0;
+
+      const neighbors = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ];
+
+      for (const [dx, dz] of neighbors) {
+        const nx = cx + dx;
+        const nz = cz + dz;
+        if (this.testFluid(nx, y0, nz)) {
+          const neighborStage = this.getVoxelStage(nx, y0, nz);
+          if (neighborStage > currentStage) {
+            flowDirX += dx;
+            flowDirZ += dz;
+          }
+        }
+      }
+
+      const flowLen = Math.sqrt(flowDirX * flowDirX + flowDirZ * flowDirZ);
+      if (flowLen > 0) {
+        flowDirX /= flowLen;
+        flowDirZ /= flowLen;
+        const forceMag = fluidFlowForce * ratioInFluid;
+        body.applyForce([flowDirX * forceMag, 0, flowDirZ * forceMag]);
+      }
+    }
   };
 
   applyClimbableForces = (body: RigidBody) => {

@@ -410,6 +410,38 @@ impl Physics {
             config.gravity[1] * scalar,
             config.gravity[2] * scalar,
         );
+
+        let fluid_id = space.get_voxel(center_x, y0, center_z);
+        let fluid_block = registry.get_block_by_id(fluid_id);
+        let fluid_flow_force = fluid_block.fluid_flow_force;
+
+        if fluid_flow_force > 0.0 {
+            let current_stage = space.get_voxel_stage(center_x, y0, center_z);
+            let mut flow_dir_x = 0.0_f32;
+            let mut flow_dir_z = 0.0_f32;
+
+            let neighbors: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+
+            for (dx, dz) in neighbors {
+                let nx = center_x + dx;
+                let nz = center_z + dz;
+                if test_fluid(nx, y0, nz) {
+                    let neighbor_stage = space.get_voxel_stage(nx, y0, nz);
+                    if neighbor_stage > current_stage {
+                        flow_dir_x += dx as f32;
+                        flow_dir_z += dz as f32;
+                    }
+                }
+            }
+
+            let flow_len = (flow_dir_x * flow_dir_x + flow_dir_z * flow_dir_z).sqrt();
+            if flow_len > 0.0 {
+                flow_dir_x /= flow_len;
+                flow_dir_z /= flow_len;
+                let force_mag = fluid_flow_force * ratio_in_fluid;
+                body.apply_force(flow_dir_x * force_mag, 0.0, flow_dir_z * force_mag);
+            }
+        }
     }
 
     fn apply_climbable_forces(space: &dyn VoxelAccess, registry: &Registry, body: &mut RigidBody) {

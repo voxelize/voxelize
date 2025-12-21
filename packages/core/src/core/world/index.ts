@@ -3963,6 +3963,17 @@ export class World<T = any> extends Scene implements NetIntercept {
           rotation.rotateAABB(aabb).translate([vx, vy, vz])
         );
       },
+      (vx: number, vy: number, vz: number) => {
+        const chunk = this.getChunkByPosition(vx, vy, vz);
+        return chunk?.getVoxelStage(vx, vy, vz) ?? 0;
+      },
+      (vx: number, vy: number, vz: number) => {
+        const chunk = this.getChunkByPosition(vx, vy, vz);
+        if (!chunk) return 0;
+        const id = chunk.getVoxel(vx, vy, vz);
+        const block = this.getBlockByIdSafe(id);
+        return block?.fluidFlowForce ?? 0;
+      },
       this.options
     );
   }

@@ -90,6 +90,11 @@ export type Block = {
   isFluid: boolean;
 
   /**
+   * The force applied to entities in this fluid, pushing them in the flow direction.
+   */
+  fluidFlowForce: number;
+
+  /**
    * Whether or not is the block waterlogged (exists inside water).
    */
   isWaterlogged: boolean;

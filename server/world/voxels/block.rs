@@ -1322,6 +1322,9 @@ pub struct Block {
     /// Is the block a fluid?
     pub is_fluid: bool,
 
+    /// The force applied to entities in this fluid, pushing them in the flow direction.
+    pub fluid_flow_force: f32,
+
     /// Is this block waterlogged (exists inside water)?
     pub is_waterlogged: bool,
 
@@ -1647,6 +1650,7 @@ pub struct BlockBuilder {
     y_rotatable_segments: YRotatableSegments,
     is_empty: bool,
     is_fluid: bool,
+    fluid_flow_force: f32,
     is_waterlogged: bool,
     is_passable: bool,
     is_climbable: bool,
@@ -1727,6 +1731,12 @@ impl BlockBuilder {
     /// Configure whether or not this is a fluid. Default is false.
     pub fn is_fluid(mut self, is_fluid: bool) -> Self {
         self.is_fluid = is_fluid;
+        self
+    }
+
+    /// Configure the flow force for this fluid block. Default is 0.0.
+    pub fn fluid_flow_force(mut self, fluid_flow_force: f32) -> Self {
+        self.fluid_flow_force = fluid_flow_force;
         self
     }
 
@@ -1929,6 +1939,7 @@ impl BlockBuilder {
             y_rotatable_segments: self.y_rotatable_segments,
             is_empty: self.is_empty,
             is_fluid: self.is_fluid,
+            fluid_flow_force: self.fluid_flow_force,
             is_waterlogged: self.is_waterlogged,
             is_light: self.red_light_level > 0
                 || self.green_light_level > 0
