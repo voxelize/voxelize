@@ -8,6 +8,7 @@ import {
   GeometryProtocol,
   MeshProtocol,
   MessageProtocol,
+  UpdateProtocol,
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
 import {
@@ -2360,6 +2361,66 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.processClientUpdates();
   };
 
+  private applyServerUpdatesImmediately(updates: UpdateProtocol[]) {
+    const blockUpdates: BlockUpdateWithSource[] = [];
+
+    for (const update of updates) {
+      const { vx, vy, vz, voxel } = update;
+
+      if (vy < 0 || vy >= this.options.maxHeight) continue;
+
+      const type = BlockUtils.extractID(voxel);
+      const rotation = BlockUtils.extractRotation(voxel);
+      const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
+      const stage = BlockUtils.extractStage(voxel);
+
+      const currentType = this.getVoxelAt(vx, vy, vz);
+      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
+      const currentStage = this.getVoxelStageAt(vx, vy, vz);
+
+      const needsUpdate =
+        currentType !== type ||
+        currentRotation.value !== rotation.value ||
+        currentRotation.yRotation !== rotation.yRotation ||
+        currentStage !== stage;
+
+      if (needsUpdate) {
+        blockUpdates.push({
+          source: "server",
+          update: {
+            vx,
+            vy,
+            vz,
+            type,
+            rotation: rotationValue,
+            yRotation: yRotationValue,
+            stage,
+          },
+        });
+      }
+    }
+
+    if (blockUpdates.length === 0) return;
+
+    this.isTrackingChunks = true;
+
+    let remaining = blockUpdates;
+    while (remaining.length > 0) {
+      remaining = this.processLightUpdates(remaining);
+    }
+
+    this.flushAccumulatedLightOps();
+    this.isTrackingChunks = false;
+
+    if (this.options.useLightWorkers) {
+      if (this.lightJobQueue.length === 0 && this.activeLightBatch === null) {
+        this.processDirtyChunks();
+      }
+    } else {
+      this.processDirtyChunks();
+    }
+  }
+
   floodLight(
     queue: LightNode[],
     color: LightColor,
@@ -3111,32 +3172,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       case "UPDATE": {
         const { updates } = message;
 
-        // TODO: figure out how to do block cache
-        updates.forEach((update) => {
-          const { vx, vy, vz, voxel } = update;
-
-          const type = BlockUtils.extractID(voxel);
-          const rotation = BlockUtils.extractRotation(voxel);
-          const [rotationValue, yRotationValue] =
-            BlockRotation.decode(rotation);
-          const stage = BlockUtils.extractStage(voxel);
-          const localRotation = this.getVoxelRotationAt(vx, vy, vz);
-          const localStage = this.getVoxelStageAt(vx, vy, vz);
-
-          if (
-            this.getVoxelAt(vx, vy, vz) !== type ||
-            localRotation.value !== rotation.value ||
-            localRotation.yRotation !== rotation.yRotation ||
-            localStage !== stage
-          ) {
-            this.updateVoxel(vx, vy, vz, type, {
-              rotation: rotationValue,
-              yRotation: yRotationValue,
-              stage,
-              source: "server",
-            });
-          }
-        });
+        if (updates && updates.length > 0) {
+          this.applyServerUpdatesImmediately(updates);
+        }
 
         break;
       }
@@ -4500,7 +4538,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private processClientUpdates = () => {
-    // Update server voxels
     if (this.chunks.toUpdate.length === 0 || this.isTrackingChunks) {
       return;
     }
@@ -4513,6 +4550,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           0,
           this.options.maxUpdatesPerUpdate
         );
+
         const remainingUpdates = this.processLightUpdates(updates);
 
         this.chunks.toUpdate.push(...remainingUpdates);
@@ -4538,7 +4576,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.processDirtyChunks();
     };
 
-    // Execute the first frame immediately, subsequent frames in timeout
     processUpdatesInIdleTime();
   };
 

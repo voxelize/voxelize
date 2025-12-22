@@ -272,7 +272,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                          HANDLING MESHING RESULTS                          */
         /* -------------------------------------------------------------------------- */
 
-        for (mut chunk, r#type) in mesher.results() {
+        let mesher_results = mesher.results();
+
+        for (mut chunk, r#type) in mesher_results {
             if r#type == MessageType::Load {
                 if let Some(listeners) = chunks.listeners.remove(&chunk.coords) {
                     for n_coords in listeners {
