@@ -113,6 +113,8 @@ export class Creature extends Group {
 
   public nametag: NameTag;
   public speed = 0;
+  public manualSpeed = false;
+  public positionLerpOverride: number | null = null;
   public newPosition = new Vector3();
   public newDirection = new Quaternion();
   public extraData: unknown = null;
@@ -311,6 +313,8 @@ export class Creature extends Group {
   };
 
   private calculateDelta = () => {
+    if (this.manualSpeed) return;
+
     const p1 = this.position.clone();
     const p2 = this.newPosition.clone();
     p1.y = p2.y = 0;
@@ -326,7 +330,9 @@ export class Creature extends Group {
 
   private lerpAll = () => {
     if (this.newPosition.length() !== 0) {
-      this.position.lerp(this.newPosition, this.options.positionLerp ?? 0.7);
+      const posLerp =
+        this.positionLerpOverride ?? this.options.positionLerp ?? 0.7;
+      this.position.lerp(this.newPosition, posLerp);
     }
     if (this.newDirection.length() !== 0) {
       this.quaternion.slerp(

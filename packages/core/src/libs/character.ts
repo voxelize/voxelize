@@ -396,6 +396,11 @@ export class Character extends Group {
   public extraData: any = null;
 
   /**
+   * Whether the character is in a sitting pose.
+   */
+  private _isSitting = false;
+
+  /**
    * A listener called when a character starts moving.
    */
   onMove: () => void;
@@ -627,6 +632,25 @@ export class Character extends Group {
     return this.options.head.faceColor;
   }
 
+  get isSitting() {
+    return this._isSitting;
+  }
+
+  setSitting(sitting: boolean) {
+    this._isSitting = sitting;
+    if (sitting) {
+      this.leftLegGroup.rotation.x = Math.PI / 2.2;
+      this.rightLegGroup.rotation.x = Math.PI / 2.2;
+      this.leftArmGroup.rotation.x = Math.PI / 8;
+      this.rightArmGroup.rotation.x = Math.PI / 8;
+    } else {
+      this.leftLegGroup.rotation.x = 0;
+      this.rightLegGroup.rotation.x = 0;
+      this.leftArmGroup.rotation.x = 0;
+      this.rightArmGroup.rotation.x = 0;
+    }
+  }
+
   /**
    * Create the character's model programmatically.
    */
@@ -794,6 +818,8 @@ export class Character extends Group {
    * Play the walking animation for the character, in other words the arm movements.
    */
   private playArmsWalkingAnimation = () => {
+    if (this._isSitting) return;
+
     const scale = 100;
     const speed = Math.max(this.speed, this.options.idleArmSwing);
     const amplitude = speed * 1;
@@ -827,6 +853,8 @@ export class Character extends Group {
    * Play the walking animation for the character, in other words the leg movements.
    */
   private playLegsWalkingAnimation = () => {
+    if (this._isSitting) return;
+
     const scale = 100;
     const speed = Math.max(this.speed, this.options.idleArmSwing);
     const amplitude = speed * 1;
