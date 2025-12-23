@@ -1383,6 +1383,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * When the pointer is unlocked, this will be called.
    */
   private onUnlock = () => {
+    this.resetMovements();
     this.emit("unlock");
     this.justUnlocked = true;
   };
