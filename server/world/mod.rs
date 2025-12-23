@@ -761,6 +761,7 @@ impl World {
         let removed = self.clients_mut().remove(id);
         self.entity_ids_mut().remove(id);
         self.chunk_interest_mut().remove_client(id);
+        self.bookkeeping_mut().remove_client(id);
 
         if let Some(client) = removed {
             // Use a flag to track if we need to delete the entity
@@ -997,6 +998,16 @@ impl World {
     /// Access the mutable chunk interest manager in the ECS world.
     pub fn chunk_interest_mut(&mut self) -> FetchMut<ChunkInterests> {
         self.write_resource::<ChunkInterests>()
+    }
+
+    /// Access the bookkeeping in the ECS world.
+    pub fn bookkeeping(&self) -> Fetch<Bookkeeping> {
+        self.read_resource::<Bookkeeping>()
+    }
+
+    /// Access the mutable bookkeeping in the ECS world.
+    pub fn bookkeeping_mut(&mut self) -> FetchMut<Bookkeeping> {
+        self.write_resource::<Bookkeeping>()
     }
 
     /// Access the event queue in the ECS world.

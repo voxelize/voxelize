@@ -8,6 +8,7 @@ use specs::{Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage
 use crate::{
     world::{
         components::{CurrentChunkComp, PositionComp, RigidBodyComp},
+        interests::ChunkInterests,
         physics::Physics,
         registry::Registry,
         stats::Stats,
@@ -28,6 +29,7 @@ impl<'a> System<'a> for PhysicsSystem {
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Chunks>,
+        ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, Physics>,
         WriteExpect<'a, Events>,
         ReadStorage<'a, IDComp>,
@@ -49,6 +51,7 @@ impl<'a> System<'a> for PhysicsSystem {
             registry,
             config,
             chunks,
+            interests,
             mut physics,
             mut events,
             ids,
@@ -63,10 +66,15 @@ impl<'a> System<'a> for PhysicsSystem {
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).
+        // Skip entities in chunks with no interested players.
         (&curr_chunks, &mut bodies, &mut positions, !&client_flag)
             .par_join()
             .for_each(|(curr_chunk, body, position, _)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                    return;
+                }
+
+                if !interests.has_interests_in_region(&curr_chunk.coords) {
                     return;
                 }
 

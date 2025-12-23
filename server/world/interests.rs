@@ -47,6 +47,31 @@ impl ChunkInterests {
         self.map.contains_key(coords)
     }
 
+    pub fn has_interests_in_region(&self, center: &Vec2<i32>) -> bool {
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                let coords = Vec2(center.0 + dx, center.1 + dz);
+                if self.has_interests(&coords) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn get_interested_clients_in_region(&self, center: &Vec2<i32>) -> HashSet<String> {
+        let mut clients = HashSet::new();
+        for dx in -1..=1 {
+            for dz in -1..=1 {
+                let coords = Vec2(center.0 + dx, center.1 + dz);
+                if let Some(interested) = self.get_interests(&coords) {
+                    clients.extend(interested.iter().cloned());
+                }
+            }
+        }
+        clients
+    }
+
     pub fn add(&mut self, client_id: &str, coords: &Vec2<i32>) {
         let mut clients = self.map.remove(coords).unwrap_or_default();
         clients.insert(client_id.to_owned());
