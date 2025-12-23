@@ -9,47 +9,52 @@ const _localCamPos = new Vector3();
 const _camWorldPos = new Vector3();
 
 export const TRANSPARENT_SORT = (object: Object3D) => (a: any, b: any) => {
-  if (
-    a.object &&
-    a.object.isMesh &&
-    a.object.userData.isChunk &&
-    b.object &&
-    b.object.isMesh &&
-    b.object.userData.isChunk
-  ) {
+  const aObj = a.object;
+  const bObj = b.object;
+
+  if (aObj?.isMesh && bObj?.isMesh) {
     const aClosest = new Vector3();
     const bClosest = new Vector3();
 
-    const { object: aObj } = a;
-    const { object: bObj } = b;
-
-    const { geometry: aGeo } = aObj;
-    const { geometry: bGeo } = bObj;
-
-    if (!aGeo.boundingBox) {
-      aGeo.computeBoundingBox();
-    }
-
-    if (!bGeo.boundingBox) {
-      bGeo.computeBoundingBox();
-    }
+    const aGeo = aObj.geometry;
+    const bGeo = bObj.geometry;
 
     object.getWorldPosition(_camWorldPos);
 
-    if (aGeo && aGeo.boundingBox) {
+    if (aGeo?.boundingBox) {
       aObj.getWorldPosition(_worldPos);
       _localCamPos.copy(_camWorldPos).sub(_worldPos);
       aGeo.boundingBox.clampPoint(_localCamPos, aClosest);
       aClosest.add(_worldPos);
+    } else if (aGeo) {
+      if (!aGeo.boundingBox) aGeo.computeBoundingBox();
+      if (aGeo.boundingBox) {
+        aObj.getWorldPosition(_worldPos);
+        _localCamPos.copy(_camWorldPos).sub(_worldPos);
+        aGeo.boundingBox.clampPoint(_localCamPos, aClosest);
+        aClosest.add(_worldPos);
+      } else {
+        aObj.getWorldPosition(aClosest);
+      }
     } else {
       aObj.getWorldPosition(aClosest);
     }
 
-    if (bGeo && bGeo.boundingBox) {
+    if (bGeo?.boundingBox) {
       bObj.getWorldPosition(_worldPos);
       _localCamPos.copy(_camWorldPos).sub(_worldPos);
       bGeo.boundingBox.clampPoint(_localCamPos, bClosest);
       bClosest.add(_worldPos);
+    } else if (bGeo) {
+      if (!bGeo.boundingBox) bGeo.computeBoundingBox();
+      if (bGeo.boundingBox) {
+        bObj.getWorldPosition(_worldPos);
+        _localCamPos.copy(_camWorldPos).sub(_worldPos);
+        bGeo.boundingBox.clampPoint(_localCamPos, bClosest);
+        bClosest.add(_worldPos);
+      } else {
+        bObj.getWorldPosition(bClosest);
+      }
     } else {
       bObj.getWorldPosition(bClosest);
     }
