@@ -6,6 +6,7 @@ use actix::{
     Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult,
 };
 use fern::colors::{Color, ColoredLevelConfig};
+use futures_util::future::join_all;
 use hashbrown::HashMap;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{info, warn};
@@ -364,11 +365,14 @@ impl Server {
         .unwrap()
         .progress_chars("#>-");
 
+        let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
+            .await
+            .into_iter()
+            .map(|r| r.unwrap())
+            .collect();
+
         let mut bars = vec![];
-
-        for world in self.worlds.values_mut() {
-            let info = world.send(GetInfo).await.unwrap();
-
+        for (world, info) in self.worlds.values().zip(infos.iter()) {
             if !info.config.preload {
                 bars.push(None);
                 continue;
@@ -386,11 +390,15 @@ impl Server {
         let start = Instant::now();
 
         loop {
+            let infos: Vec<_> = join_all(self.worlds.values().map(|world| world.send(GetInfo)))
+                .await
+                .into_iter()
+                .map(|r| r.unwrap())
+                .collect();
+
             let mut done = true;
 
-            for (i, world) in self.worlds.values_mut().enumerate() {
-                let info = world.send(GetInfo).await.unwrap();
-
+            for (i, (world, info)) in self.worlds.values().zip(infos.iter()).enumerate() {
                 if bars[i].is_none() || !info.config.preload {
                     continue;
                 }
@@ -416,13 +424,7 @@ impl Server {
             }
         }
 
-        let mut preload_len = 0;
-        for world in self.worlds.values() {
-            let info = world.send(GetInfo).await.unwrap();
-            if info.config.preload {
-                preload_len += 1;
-            }
-        }
+        let preload_len = infos.iter().filter(|info| info.config.preload).count();
 
         info!(
             "✅ Total of {} world{} preloaded in {}s",

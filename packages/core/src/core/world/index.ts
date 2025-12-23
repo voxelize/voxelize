@@ -1071,6 +1071,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const [id, block] of this.registry.blocksById) {
       for (const face of block.faces) {
+        if (face.isolated) continue;
         if (face.textureGroup === groupName) {
           facesInGroup.push({ blockId: id, face });
         }
