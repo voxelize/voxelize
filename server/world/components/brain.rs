@@ -74,8 +74,11 @@ pub struct BrainComp {
     pub state: BrainState,
     pub options: BrainOptions,
 
+    #[serde(skip)]
     zero_vec: Vec3<f32>,
+    #[serde(skip)]
     temp_vec: Vec3<f32>,
+    #[serde(skip)]
     temp_vec2: Vec3<f32>,
 }
 

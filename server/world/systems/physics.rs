@@ -63,6 +63,10 @@ impl<'a> System<'a> for PhysicsSystem {
             mut positions,
         ) = data;
 
+        if stats.preloading {
+            return;
+        }
+
         let mut collision_map = HashMap::new();
 
         // Tick the voxel physics of all entities (non-clients).

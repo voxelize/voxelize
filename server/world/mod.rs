@@ -1323,6 +1323,8 @@ impl World {
             }
         }
 
+        self.stats_mut().preloading = self.preloading;
+
         let mut dispatcher = (self.dispatcher)().build();
         dispatcher.dispatch(&self.ecs);
 

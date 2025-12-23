@@ -33,6 +33,9 @@ pub struct Stats {
     /// The time of the last tick.
     pub prev_time: SystemTime,
 
+    /// Whether the world is currently preloading chunks.
+    pub preloading: bool,
+
     path: PathBuf,
 
     saving: bool,
@@ -69,6 +72,7 @@ impl Stats {
             start_time: Instant::now(),
             prev_time: SystemTime::now(),
             time: loaded_time,
+            preloading: false,
             path,
             saving,
         }
