@@ -103,7 +103,9 @@ impl Registry {
         if let Some(cache) = &self.lookup_cache {
             cache.contains_key(&id)
         } else {
-            self.blocks_by_id.iter().any(|(block_id, _)| *block_id == id)
+            self.blocks_by_id
+                .iter()
+                .any(|(block_id, _)| *block_id == id)
         }
     }
 }
@@ -147,6 +149,7 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
 
 const FLUID_BASE_HEIGHT: f32 = 0.875;
 const FLUID_STAGE_DROPOFF: f32 = 0.1;
+const FLUID_SURFACE_OFFSET: f32 = 0.005;
 
 struct NeighborCache {
     data: [[u32; 2]; 27],
@@ -465,7 +468,13 @@ fn has_fluid_above<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, spa
     space.get_voxel(vx, vy + 1, vz) == fluid_id
 }
 
-fn get_fluid_height_at<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, fluid_id: u32, space: &S) -> Option<f32> {
+fn get_fluid_height_at<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    fluid_id: u32,
+    space: &S,
+) -> Option<f32> {
     if space.get_voxel(vx, vy, vz) == fluid_id {
         let stage = space.get_voxel_stage(vx, vy, vz);
         Some(get_fluid_effective_height(stage))
@@ -558,13 +567,17 @@ fn create_fluid_faces<S: VoxelAccess>(
     let corner_pxpz: [[i32; 2]; 3] = [[1, 0], [0, 1], [1, 1]];
 
     let h_nxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space, registry);
+        calculate_fluid_corner_height(vx, vy, vz, 0, 0, &corner_nxnz, fluid_id, space, registry)
+            - FLUID_SURFACE_OFFSET;
     let h_pxnz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space, registry);
+        calculate_fluid_corner_height(vx, vy, vz, 1, 0, &corner_pxnz, fluid_id, space, registry)
+            - FLUID_SURFACE_OFFSET;
     let h_nxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space, registry);
+        calculate_fluid_corner_height(vx, vy, vz, 0, 1, &corner_nxpz, fluid_id, space, registry)
+            - FLUID_SURFACE_OFFSET;
     let h_pxpz =
-        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry);
+        calculate_fluid_corner_height(vx, vy, vz, 1, 1, &corner_pxpz, fluid_id, space, registry)
+            - FLUID_SURFACE_OFFSET;
 
     let mut uv_map: HashMap<String, UV> = HashMap::new();
     for face in original_faces {
@@ -944,7 +957,8 @@ fn compute_face_ao_and_light(
                         }
 
                         if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id = neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
+                            let facing_id =
+                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
                             let facing_opaque = registry
                                 .get_block_by_id(facing_id)
                                 .map(|b| b.is_opaque)
@@ -1241,11 +1255,7 @@ fn process_greedy_quad(
     }
 }
 
-fn evaluate_block_rule<S: VoxelAccess>(
-    rule: &BlockRule,
-    pos: [i32; 3],
-    space: &S,
-) -> bool {
+fn evaluate_block_rule<S: VoxelAccess>(rule: &BlockRule, pos: [i32; 3], space: &S) -> bool {
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
@@ -1386,7 +1396,9 @@ fn process_face<S: VoxelAccess>(
         || (see_through
             && !is_opaque
             && !n_block_type.is_opaque
-            && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
+            && ((is_see_through
+                && neighbor_id == voxel_id
+                && n_block_type.transparent_standalone)
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {
@@ -1531,7 +1543,8 @@ fn process_face<S: VoxelAccess>(
                         }
 
                         if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id = neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
+                            let facing_id =
+                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
                             let facing_opaque = registry
                                 .get_block_by_id(facing_id)
                                 .map(|b| b.is_opaque)
@@ -1722,8 +1735,20 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
     ];
 
     let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
-    let mut greedy_mask: HashMap<(i32, i32), FaceData> = HashMap::with_capacity(slice_size * slice_size);
-    let mut non_greedy_faces: Vec<(i32, i32, i32, u32, BlockRotation, Block, BlockFace, UV, bool, bool)> = Vec::new();
+    let mut greedy_mask: HashMap<(i32, i32), FaceData> =
+        HashMap::with_capacity(slice_size * slice_size);
+    let mut non_greedy_faces: Vec<(
+        i32,
+        i32,
+        i32,
+        u32,
+        BlockRotation,
+        Block,
+        BlockFace,
+        UV,
+        bool,
+        bool,
+    )> = Vec::new();
 
     for (dx, dy, dz) in directions {
         let dir = [dx, dy, dz];
@@ -1835,8 +1860,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let matching_faces: Vec<_> = faces
                         .iter()
                         .filter(|f| {
-                            let mut face_dir =
-                                [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
+                            let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
                             if block.rotatable || block.y_rotatable {
                                 rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
                             }
@@ -1960,11 +1984,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         vz
                     )
                 } else if face.independent {
-                    format!(
-                        "{}::{}",
-                        block.get_name_lower(),
-                        face.get_name_lower()
-                    )
+                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
                 } else {
                     block.get_name_lower().to_string()
                 };

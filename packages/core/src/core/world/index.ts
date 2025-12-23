@@ -37,8 +37,16 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { TRANSPARENT_RENDER_ORDER } from "../../common";
+import {
+  TRANSPARENT_FLUID_RENDER_ORDER,
+  TRANSPARENT_RENDER_ORDER,
+} from "../../common";
 import { NetIntercept } from "../../core/network";
+import {
+  TransparentMeshData,
+  prepareTransparentMesh,
+  sortTransparentMesh,
+} from "../../core/transparent-sorter";
 import { WorkerPool } from "../../libs";
 import { setWorkerInterval } from "../../libs/setWorkerInterval";
 import { Coords2, Coords3 } from "../../types";
@@ -3833,6 +3841,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.userData = { isChunk: true, merged: true };
         if (material.transparent) {
           mesh.renderOrder = TRANSPARENT_RENDER_ORDER;
+          const sortData = prepareTransparentMesh(mesh);
+          if (sortData) {
+            mesh.userData.transparentSortData = sortData;
+            mesh.onBeforeRender = (_renderer, _scene, camera) => {
+              sortTransparentMesh(
+                mesh,
+                mesh.userData.transparentSortData as TransparentMeshData,
+                camera
+              );
+            };
+          }
         }
 
         chunk.group.add(mesh);
@@ -3888,7 +3907,21 @@ export class World<T = any> extends Scene implements NetIntercept {
           mesh.matrixWorldAutoUpdate = false;
           mesh.userData = { isChunk: true, voxel };
           if (material.transparent) {
-            mesh.renderOrder = TRANSPARENT_RENDER_ORDER;
+            const block = this.getBlockByIdSafe(voxel);
+            mesh.renderOrder = block?.isFluid
+              ? TRANSPARENT_FLUID_RENDER_ORDER
+              : TRANSPARENT_RENDER_ORDER;
+            const sortData = prepareTransparentMesh(mesh);
+            if (sortData) {
+              mesh.userData.transparentSortData = sortData;
+              mesh.onBeforeRender = (_renderer, _scene, camera) => {
+                sortTransparentMesh(
+                  mesh,
+                  mesh.userData.transparentSortData as TransparentMeshData,
+                  camera
+                );
+              };
+            }
           }
 
           chunk.group.add(mesh);

@@ -1,0 +1,144 @@
+import { Camera, Group, Mesh, Object3D, Vector3 } from "three";
+
+const _worldPos = new Vector3();
+const _camPos = new Vector3();
+const _camWorldPos = new Vector3();
+
+export interface TransparentMeshData {
+  centroids: Float32Array;
+  faceCount: number;
+  originalIndices: Uint32Array;
+  sortedIndices: Uint32Array;
+  distances: Float32Array;
+  faceOrder: Uint32Array;
+  lastCameraPos: Vector3;
+}
+
+const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
+
+export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
+  const geometry = mesh.geometry;
+  if (!geometry.index) return null;
+
+  const positions = geometry.getAttribute("position").array as Float32Array;
+  const indices = geometry.index.array;
+  const faceCount = Math.floor(indices.length / 6);
+
+  if (faceCount === 0) return null;
+
+  const centroids = new Float32Array(faceCount * 3);
+
+  for (let f = 0; f < faceCount; f++) {
+    const i0 = indices[f * 6] * 3;
+    const i1 = indices[f * 6 + 1] * 3;
+    const i2 = indices[f * 6 + 2] * 3;
+
+    centroids[f * 3] = (positions[i0] + positions[i1] + positions[i2]) / 3;
+    centroids[f * 3 + 1] =
+      (positions[i0 + 1] + positions[i1 + 1] + positions[i2 + 1]) / 3;
+    centroids[f * 3 + 2] =
+      (positions[i0 + 2] + positions[i1 + 2] + positions[i2 + 2]) / 3;
+  }
+
+  return {
+    centroids,
+    faceCount,
+    originalIndices: new Uint32Array(indices),
+    sortedIndices: new Uint32Array(indices.length),
+    distances: new Float32Array(faceCount),
+    faceOrder: new Uint32Array(faceCount),
+    lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
+  };
+}
+
+export function setupTransparentSorting(object: Object3D): void {
+  object.traverse((child) => {
+    if (!(child instanceof Mesh)) return;
+    if (!child.geometry?.index) return;
+
+    const material = child.material;
+    const isTransparent = Array.isArray(material)
+      ? material.some((m) => m.transparent)
+      : material?.transparent;
+
+    if (!isTransparent) return;
+
+    const sortData = prepareTransparentMesh(child);
+    if (!sortData) return;
+
+    child.userData.transparentSortData = sortData;
+    child.onBeforeRender = (_renderer, _scene, camera) => {
+      sortTransparentMesh(
+        child,
+        child.userData.transparentSortData as TransparentMeshData,
+        camera
+      );
+    };
+  });
+}
+
+export function sortTransparentMesh(
+  mesh: Mesh,
+  data: TransparentMeshData,
+  camera: Camera
+): void {
+  mesh.getWorldPosition(_worldPos);
+  camera.getWorldPosition(_camWorldPos);
+  _camPos.copy(_camWorldPos).sub(_worldPos);
+
+  const isFirstSort =
+    data.lastCameraPos.x === Infinity &&
+    data.lastCameraPos.y === Infinity &&
+    data.lastCameraPos.z === Infinity;
+
+  if (
+    !isFirstSort &&
+    _camPos.distanceToSquared(data.lastCameraPos) < CAMERA_MOVE_THRESHOLD_SQ
+  ) {
+    return;
+  }
+  data.lastCameraPos.copy(_camPos);
+
+  const { centroids, faceCount, distances, faceOrder } = data;
+
+  for (let f = 0; f < faceCount; f++) {
+    const cx = centroids[f * 3] - _camPos.x;
+    const cy = centroids[f * 3 + 1] - _camPos.y;
+    const cz = centroids[f * 3 + 2] - _camPos.z;
+    distances[f] = cx * cx + cy * cy + cz * cz;
+    faceOrder[f] = f;
+  }
+
+  for (let i = 1; i < faceCount; i++) {
+    const idx = faceOrder[i];
+    const dist = distances[idx];
+    let j = i - 1;
+
+    while (j >= 0 && distances[faceOrder[j]] < dist) {
+      faceOrder[j + 1] = faceOrder[j];
+      j--;
+    }
+    faceOrder[j + 1] = idx;
+  }
+
+  const { originalIndices, sortedIndices } = data;
+  for (let i = 0; i < faceCount; i++) {
+    const srcFace = faceOrder[i];
+    const srcOffset = srcFace * 6;
+    const dstOffset = i * 6;
+
+    sortedIndices[dstOffset] = originalIndices[srcOffset];
+    sortedIndices[dstOffset + 1] = originalIndices[srcOffset + 1];
+    sortedIndices[dstOffset + 2] = originalIndices[srcOffset + 2];
+    sortedIndices[dstOffset + 3] = originalIndices[srcOffset + 3];
+    sortedIndices[dstOffset + 4] = originalIndices[srcOffset + 4];
+    sortedIndices[dstOffset + 5] = originalIndices[srcOffset + 5];
+  }
+
+  const indexAttr = mesh.geometry.index!;
+  const targetArray = indexAttr.array;
+  for (let i = 0; i < sortedIndices.length; i++) {
+    targetArray[i] = sortedIndices[i];
+  }
+  indexAttr.needsUpdate = true;
+}
