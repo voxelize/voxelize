@@ -79,6 +79,8 @@ impl<'a> System<'a> for PhysicsSystem {
                 }
 
                 if !interests.has_interests_in_region(&curr_chunk.coords) {
+                    body.0.forces.set(0.0, 0.0, 0.0);
+                    body.0.impulses.set(0.0, 0.0, 0.0);
                     return;
                 }
 
