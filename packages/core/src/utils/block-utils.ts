@@ -1,11 +1,10 @@
-import { Coords3 } from "../types";
-
 import {
   Block,
   BlockRotation,
   BlockRule,
   BlockRuleLogic,
 } from "../core/world/block";
+import { Coords3 } from "../types";
 
 import { LightColor } from "./light-utils";
 

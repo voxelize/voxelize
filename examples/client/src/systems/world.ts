@@ -1,8 +1,9 @@
 import * as VOXELIZE from "@voxelize/core";
-import { defaultWorldSettings } from "../config/settings";
-import { VOXELIZE_LOCALSTORAGE_KEY } from "../config/constants";
 
-export const currentWorldName = 
+import { VOXELIZE_LOCALSTORAGE_KEY } from "../config/constants";
+import { defaultWorldSettings } from "../config/settings";
+
+export const currentWorldName =
   localStorage.getItem(VOXELIZE_LOCALSTORAGE_KEY) ?? "terrain";
 
 export const createWorld = () => {

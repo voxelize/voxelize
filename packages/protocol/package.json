@@ -20,6 +20,7 @@
     "compile": "vite build",
     "build": "pnpm run clean && pnpm run compile && pnpm run types && pnpm run copyproto",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration",
+    "typecheck": "tsc --noEmit",
     "copyproto": "cp ./src/protocol.* ./dist",
     "prepublishOnly": "pnpm run build",
     "proto:ts": "pbts -o ./src/protocol.d.ts ./src/protocol.js",

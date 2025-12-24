@@ -19,6 +19,7 @@
     "compile": "vite build",
     "build": "pnpm run clean && pnpm run compile && pnpm run types",
     "types": "tsc --emitDeclarationOnly --outDir ./dist -p ./tsconfig.json --declaration --allowJs",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build",
     "demo": "node example/index.js",
     "preinstall": "npx only-allow pnpm"

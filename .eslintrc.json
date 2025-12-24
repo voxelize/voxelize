@@ -1,22 +1,21 @@
 {
   "root": true,
   "parser": "@typescript-eslint/parser",
-  "plugins": [
-    "@typescript-eslint",
-    "import",
-    "unused-imports",
-    "eslint-plugin-tsdoc"
-  ],
+  "plugins": ["@typescript-eslint", "import", "unused-imports", "eslint-plugin-tsdoc"],
   "env": {
     "node": true,
-    "browser": true
+    "browser": true,
+    "es2020": true
   },
   "extends": [
     "eslint:recommended",
-    "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
     "plugin:prettier/recommended"
   ],
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "module"
+  },
   "rules": {
     "import/order": [
       "error",
@@ -37,14 +36,25 @@
         "pathGroupsExcludedImportTypes": ["builtin"]
       }
     ],
-    // "unused-imports/no-unused-imports-ts": "warn",
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/ban-ts-comment": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-empty-function": "off",
+    "@typescript-eslint/no-unused-vars": "off",
+    "@typescript-eslint/no-require-imports": "off",
     "no-constant-condition": "off",
     "no-prototype-builtins": "off",
     "prefer-const": "error",
     "prefer-template": "error"
-  }
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    "*.d.ts",
+    "docs/.docusaurus",
+    "docs/build",
+    "crates"
+  ]
 }

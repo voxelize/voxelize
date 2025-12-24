@@ -18,6 +18,7 @@
     "watch:compile": "pnpm compile --watch",
     "copy": "cp ./src/styles.css ./dist",
     "test": "vitest --run",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build",
     "preinstall": "npx only-allow pnpm"
   },
