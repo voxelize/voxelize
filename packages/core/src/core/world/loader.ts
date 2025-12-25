@@ -135,14 +135,29 @@ class Loader {
   loadImage = (
     source: string,
     onLoaded?: (image: HTMLImageElement) => void
-  ) => {
+  ): Promise<HTMLImageElement> => {
+    const cached = this.images.get(source);
+    if (cached && !Array.isArray(cached)) {
+      onLoaded?.(cached);
+      return Promise.resolve(cached);
+    }
+
+    const existing = this.assetPromises.get(source);
+    if (existing) {
+      return existing.then((img: HTMLImageElement) => {
+        onLoaded?.(img);
+        return img;
+      });
+    }
+
     const promise = new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
-      image.crossOrigin = "anonymous"; // Fix cross origin
+      image.crossOrigin = "anonymous";
       image.src = source;
 
       image.onerror = reject;
       image.onload = () => {
+        this.images.set(source, image);
         this.assetPromises.delete(source);
 
         onLoaded?.(image);
