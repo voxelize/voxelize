@@ -103,7 +103,7 @@ impl AABB {
         Self::default()
     }
 
-    pub fn union(all: &[AABB]) -> AABB {
+    pub fn union_all(all: &[AABB]) -> AABB {
         if all.is_empty() {
             return AABB::empty();
         }
@@ -143,6 +143,17 @@ impl AABB {
             max_x,
             max_y,
             max_z,
+        }
+    }
+
+    pub fn union(&self, other: &AABB) -> AABB {
+        AABB {
+            min_x: self.min_x.min(other.min_x),
+            min_y: self.min_y.min(other.min_y),
+            min_z: self.min_z.min(other.min_z),
+            max_x: self.max_x.max(other.max_x),
+            max_y: self.max_y.max(other.max_y),
+            max_z: self.max_z.max(other.max_z),
         }
     }
 
@@ -576,6 +587,8 @@ pub struct BlockConditionalPart {
     pub aabbs: Vec<AABB>,
     #[serde(default)]
     pub is_transparent: [bool; 6],
+    #[serde(default)]
+    pub world_space: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -594,7 +607,7 @@ mod tests {
             AABB::create(0.0, 0.0, 0.0, 1.0, 1.0, 1.0),
             AABB::create(0.5, 0.5, 0.5, 2.0, 2.0, 2.0),
         ];
-        let union = AABB::union(&aabbs);
+        let union = AABB::union_all(&aabbs);
         assert_eq!(union.min_x, 0.0);
         assert_eq!(union.min_y, 0.0);
         assert_eq!(union.min_z, 0.0);

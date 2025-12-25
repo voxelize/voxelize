@@ -2103,13 +2103,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         const vz = Math.floor(wz);
 
         if (dynamicPatterns && dynamicPatterns.length > 0) {
-          const aabbs = this.getBlockAABBsForDynamicPatterns(
+          const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
             wx,
             wy,
             wz,
             dynamicPatterns
-          ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
-          return aabbs;
+          );
+          return aabbsWithFlags.map(({ aabb, worldSpace }) =>
+            worldSpace
+              ? aabb.translate([vx, vy, vz])
+              : rotation.rotateAABB(aabb).translate([vx, vy, vz])
+          );
         }
 
         return (
@@ -2138,7 +2142,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         vy,
         vz,
         block.dynamicPatterns
-      );
+      ).map(({ aabb }) => aabb);
     }
 
     return block.aabbs;
@@ -2154,9 +2158,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     vy: number,
     vz: number,
     dynamicPatterns: BlockDynamicPattern[]
-  ) => {
+  ): { aabb: AABB; worldSpace: boolean }[] => {
     for (const dynamicPattern of dynamicPatterns) {
-      const aabbs: AABB[] = [];
+      const aabbsWithFlags: { aabb: AABB; worldSpace: boolean }[] = [];
 
       for (const part of dynamicPattern.parts) {
         const patternsMatched = BlockUtils.evaluateBlockRule(
@@ -2173,23 +2177,27 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
 
         if (patternsMatched) {
-          aabbs.push(...part.aabbs);
+          const worldSpace =
+            (part as { worldSpace?: boolean }).worldSpace ?? false;
+          for (const aabb of part.aabbs) {
+            const resolvedAabb =
+              aabb instanceof AABB
+                ? aabb
+                : new AABB(
+                    (aabb as AABB).minX,
+                    (aabb as AABB).minY,
+                    (aabb as AABB).minZ,
+                    (aabb as AABB).maxX,
+                    (aabb as AABB).maxY,
+                    (aabb as AABB).maxZ
+                  );
+            aabbsWithFlags.push({ aabb: resolvedAabb, worldSpace });
+          }
         }
       }
 
-      if (aabbs.length > 0) {
-        return aabbs.map((aabb) =>
-          aabb instanceof AABB
-            ? aabb
-            : new AABB(
-                (aabb as AABB).minX,
-                (aabb as AABB).minY,
-                (aabb as AABB).minZ,
-                (aabb as AABB).maxX,
-                (aabb as AABB).maxY,
-                (aabb as AABB).maxZ
-              )
-        );
+      if (aabbsWithFlags.length > 0) {
+        return aabbsWithFlags;
       }
     }
 
@@ -4011,12 +4019,17 @@ export class World<T = any> extends Scene implements NetIntercept {
           if (passable || isFluid) return [];
 
           const rotation = chunk.getVoxelRotation(vx, vy, vz);
-          return this.getBlockAABBsForDynamicPatterns(
+          const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
             vx,
             vy,
             vz,
             dynamicPatterns
-          ).map((aabb) => rotation.rotateAABB(aabb).translate([vx, vy, vz]));
+          );
+          return aabbsWithFlags.map(({ aabb, worldSpace }) =>
+            worldSpace
+              ? aabb.translate([vx, vy, vz])
+              : rotation.rotateAABB(aabb).translate([vx, vy, vz])
+          );
         }
 
         if (isPassable || isFluid) return [];

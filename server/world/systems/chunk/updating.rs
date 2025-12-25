@@ -168,7 +168,10 @@ fn process_pending_updates(
                 let neighbor_id = chunks.get_voxel(nx, ny, nz);
                 let neighbor_block = registry.get_block_by_id(neighbor_id);
 
-                if neighbor_block.is_fluid && neighbor_block.is_active {
+                let should_activate = neighbor_block.is_active
+                    && (neighbor_block.is_fluid || !registry.is_air(neighbor_id));
+
+                if should_activate {
                     let ticks = (&neighbor_block.active_ticker.as_ref().unwrap())(
                         Vec3(nx, ny, nz),
                         &*chunks,

@@ -1244,6 +1244,8 @@ pub struct BlockConditionalPart {
     pub green_light_level: Option<u32>,
     #[serde(default)]
     pub blue_light_level: Option<u32>,
+    #[serde(default)]
+    pub world_space: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1267,6 +1269,7 @@ impl BlockConditionalPart {
             faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
             aabbs: self.aabbs.clone(),
             is_transparent: self.is_transparent,
+            world_space: self.world_space,
         }
     }
 }

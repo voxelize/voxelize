@@ -350,7 +350,7 @@ export class VoxelInteract extends Group {
     if (lookingAt && this.target) {
       const { isDynamic, dynamicFn, dynamicPatterns } = lookingAt;
 
-      const aabbs = dynamicPatterns
+      const aabbsWithFlags = dynamicPatterns
         ? this.world.getBlockAABBsForDynamicPatterns(
             voxel[0],
             voxel[1],
@@ -358,19 +358,23 @@ export class VoxelInteract extends Group {
             dynamicPatterns
           )
         : isDynamic
-        ? dynamicFn(voxel as Coords3).aabbs
-        : lookingAt.aabbs;
+        ? dynamicFn(voxel as Coords3).aabbs.map((aabb: AABB) => ({
+            aabb,
+            worldSpace: false,
+          }))
+        : lookingAt.aabbs.map((aabb: AABB) => ({ aabb, worldSpace: false }));
 
-      if (!aabbs.length) return;
+      if (!aabbsWithFlags.length) return;
 
       const rotation = this.world.getVoxelRotationAt(...this.target);
 
-      let union: AABB = rotation.rotateAABB(aabbs[0]);
-
-      for (let i = 1; i < aabbs.length; i++) {
-        const aabb = rotation.rotateAABB(aabbs[i]);
-        union = union.union(aabb);
+      let union: AABB | null = null;
+      for (const { aabb, worldSpace } of aabbsWithFlags) {
+        const rotatedAabb = worldSpace ? aabb : rotation.rotateAABB(aabb);
+        union = union ? union.union(rotatedAabb) : rotatedAabb;
       }
+
+      if (!union) return;
 
       union.translate(this.target);
 

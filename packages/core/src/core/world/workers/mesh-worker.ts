@@ -66,6 +66,7 @@ type WasmBlock = {
             maxZ: number;
           }[];
           isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
+          worldSpace: boolean;
         }[];
       }[]
     | null;
@@ -271,6 +272,7 @@ function convertDynamicPatterns(
         boolean,
         boolean
       ]) ?? [false, false, false, false, false, false],
+      worldSpace: (part.worldSpace as boolean) ?? false,
     })),
   }));
 }

@@ -803,8 +803,8 @@ fn should_render_face<S: VoxelAccess>(
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union(&block.aabbs);
-                        let mut n_bounding = AABB::union(&n_block_type.aabbs);
+                        let self_bounding = AABB::union_all(&block.aabbs);
+                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
                         n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
                         !(self_bounding.intersects(&n_bounding)
                             || self_bounding.touches(&n_bounding))
@@ -826,7 +826,7 @@ fn compute_face_ao_and_light(
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let block_aabb = AABB::union(&block.aabbs);
+    let block_aabb = AABB::union_all(&block.aabbs);
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_transparent[0]
@@ -1255,14 +1255,51 @@ fn process_greedy_quad(
     }
 }
 
-fn evaluate_block_rule<S: VoxelAccess>(rule: &BlockRule, pos: [i32; 3], space: &S) -> bool {
+fn rotate_offset_y(offset: &mut [f32; 3], rotation: &BlockRotation) {
+    let rot = match rotation {
+        BlockRotation::PX(rot) => *rot,
+        BlockRotation::NX(rot) => *rot,
+        BlockRotation::PY(rot) => *rot,
+        BlockRotation::NY(rot) => *rot,
+        BlockRotation::PZ(rot) => *rot,
+        BlockRotation::NZ(rot) => *rot,
+    };
+
+    if rot.abs() > f32::EPSILON {
+        let cos_rot = rot.cos();
+        let sin_rot = rot.sin();
+        let x = offset[0];
+        let z = offset[2];
+        offset[0] = x * cos_rot - z * sin_rot;
+        offset[2] = x * sin_rot + z * cos_rot;
+    }
+}
+
+fn evaluate_block_rule<S: VoxelAccess>(
+    rule: &BlockRule,
+    pos: [i32; 3],
+    space: &S,
+    rotation: &BlockRotation,
+    y_rotatable: bool,
+    world_space: bool,
+) -> bool {
     match rule {
         BlockRule::None => true,
         BlockRule::Simple(simple) => {
+            let mut offset = [
+                simple.offset[0] as f32,
+                simple.offset[1] as f32,
+                simple.offset[2] as f32,
+            ];
+
+            if y_rotatable && !world_space {
+                rotate_offset_y(&mut offset, rotation);
+            }
+
             let check_pos = [
-                pos[0] + simple.offset[0],
-                pos[1] + simple.offset[1],
-                pos[2] + simple.offset[2],
+                pos[0] + offset[0].round() as i32,
+                pos[1] + offset[1].round() as i32,
+                pos[2] + offset[2].round() as i32,
             ];
 
             if let Some(expected_id) = simple.id {
@@ -1289,11 +1326,15 @@ fn evaluate_block_rule<S: VoxelAccess>(rule: &BlockRule, pos: [i32; 3], space: &
             true
         }
         BlockRule::Combination { logic, rules } => match logic {
-            BlockRuleLogic::And => rules.iter().all(|r| evaluate_block_rule(r, pos, space)),
-            BlockRuleLogic::Or => rules.iter().any(|r| evaluate_block_rule(r, pos, space)),
+            BlockRuleLogic::And => rules
+                .iter()
+                .all(|r| evaluate_block_rule(r, pos, space, rotation, y_rotatable, world_space)),
+            BlockRuleLogic::Or => rules
+                .iter()
+                .any(|r| evaluate_block_rule(r, pos, space, rotation, y_rotatable, world_space)),
             BlockRuleLogic::Not => {
                 if let Some(first) = rules.first() {
-                    !evaluate_block_rule(first, pos, space)
+                    !evaluate_block_rule(first, pos, space, rotation, y_rotatable, world_space)
                 } else {
                     true
                 }
@@ -1302,16 +1343,22 @@ fn evaluate_block_rule<S: VoxelAccess>(rule: &BlockRule, pos: [i32; 3], space: &
     }
 }
 
-fn get_dynamic_faces<S: VoxelAccess>(block: &Block, pos: [i32; 3], space: &S) -> Vec<BlockFace> {
+fn get_dynamic_faces<S: VoxelAccess>(
+    block: &Block,
+    pos: [i32; 3],
+    space: &S,
+    rotation: &BlockRotation,
+) -> Vec<(BlockFace, bool)> {
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
-            let mut matched_faces = Vec::new();
+            let mut matched_faces: Vec<(BlockFace, bool)> = Vec::new();
             let mut any_matched = false;
 
             for part in &pattern.parts {
-                if evaluate_block_rule(&part.rule, pos, space) {
+                let rule_result = evaluate_block_rule(&part.rule, pos, space, rotation, block.y_rotatable, part.world_space);
+                if rule_result {
                     any_matched = true;
-                    matched_faces.extend(part.faces.clone());
+                    matched_faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
                 }
             }
 
@@ -1321,7 +1368,7 @@ fn get_dynamic_faces<S: VoxelAccess>(block: &Block, pos: [i32; 3], space: &S) ->
         }
     }
 
-    block.faces.clone()
+    block.faces.iter().cloned().map(|f| (f, false)).collect()
 }
 
 fn process_face<S: VoxelAccess>(
@@ -1343,6 +1390,7 @@ fn process_face<S: VoxelAccess>(
     uvs: &mut Vec<f32>,
     lights: &mut Vec<i32>,
     min: &[i32; 3],
+    world_space: bool,
 ) {
     let [min_x, min_y, min_z] = *min;
 
@@ -1360,7 +1408,7 @@ fn process_face<S: VoxelAccess>(
         && is_transparent[4]
         && is_transparent[5];
 
-    if rotatable || y_rotatable {
+    if (rotatable || y_rotatable) && !world_space {
         rotation.rotate_node(&mut dir, y_rotatable, false);
     }
 
@@ -1402,8 +1450,8 @@ fn process_face<S: VoxelAccess>(
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
                 || ({
                     if is_see_through && !is_opaque && n_block_type.is_opaque {
-                        let self_bounding = AABB::union(&block.aabbs);
-                        let mut n_bounding = AABB::union(&n_block_type.aabbs);
+                        let self_bounding = AABB::union_all(&block.aabbs);
+                        let mut n_bounding = AABB::union_all(&n_block_type.aabbs);
                         n_bounding.translate(dir[0] as f32, dir[1] as f32, dir[2] as f32);
                         !(self_bounding.intersects(&n_bounding)
                             || self_bounding.touches(&n_bounding))
@@ -1437,12 +1485,12 @@ fn process_face<S: VoxelAccess>(
     let mut four_green_lights = Vec::with_capacity(4);
     let mut four_blue_lights = Vec::with_capacity(4);
 
-    let block_aabb = AABB::union(&block.aabbs);
+    let block_aabb = AABB::union_all(&block.aabbs);
 
     for corner in face.corners.iter() {
         let mut pos = corner.pos;
 
-        if rotatable || y_rotatable {
+        if (rotatable || y_rotatable) && !world_space {
             rotation.rotate_node(&mut pos, y_rotatable, true);
         }
 
@@ -1748,6 +1796,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         UV,
         bool,
         bool,
+        bool,
     )> = Vec::new();
 
     for (dx, dy, dz) in directions {
@@ -1823,12 +1872,15 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
-                    let faces = if is_fluid && has_standard_six_faces(&block.faces) {
+                    let faces: Vec<(BlockFace, bool)> = if is_fluid && has_standard_six_faces(&block.faces) {
                         create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                            .into_iter()
+                            .map(|f| (f, false))
+                            .collect()
                     } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space)
+                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
                     } else {
-                        block.faces.clone()
+                        block.faces.iter().cloned().map(|f| (f, false)).collect()
                     };
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
@@ -1839,7 +1891,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         }
                         processed_non_greedy.insert((vx, vy, vz));
 
-                        for face in faces.iter() {
+                        for (face, world_space) in faces.iter() {
                             let uv_range = face.range.clone();
                             non_greedy_faces.push((
                                 vx,
@@ -1852,6 +1904,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 uv_range,
                                 is_see_through,
                                 is_fluid,
+                                *world_space,
                             ));
                         }
                         continue;
@@ -1859,9 +1912,9 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
                     let matching_faces: Vec<_> = faces
                         .iter()
-                        .filter(|f| {
+                        .filter(|(f, world_space)| {
                             let mut face_dir = [f.dir[0] as f32, f.dir[1] as f32, f.dir[2] as f32];
-                            if block.rotatable || block.y_rotatable {
+                            if (block.rotatable || block.y_rotatable) && !*world_space {
                                 rotation.rotate_node(&mut face_dir, block.y_rotatable, false);
                             }
                             let effective_dir = [
@@ -1894,7 +1947,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         continue;
                     }
 
-                    for face in matching_faces {
+                    for (face, world_space) in matching_faces {
                         let uv_range = face.range.clone();
 
                         if face.isolated {
@@ -1909,6 +1962,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                                 uv_range,
                                 is_see_through,
                                 is_fluid,
+                                *world_space,
                             ));
                             continue;
                         }
@@ -1971,7 +2025,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
             }
 
-            for (vx, vy, vz, voxel_id, rotation, block, face, uv_range, is_see_through, is_fluid) in
+            for (vx, vy, vz, voxel_id, rotation, block, face, uv_range, is_see_through, is_fluid, world_space) in
                 non_greedy_faces.drain(..)
             {
                 let geo_key = if face.isolated {
@@ -2024,6 +2078,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     &mut geometry.uvs,
                     &mut geometry.lights,
                     min,
+                    world_space,
                 );
             }
         }
@@ -2083,22 +2138,25 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let faces = if is_fluid && has_standard_six_faces(&block.faces) {
+                let faces: Vec<(BlockFace, bool)> = if is_fluid && has_standard_six_faces(&block.faces) {
                     create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                        .into_iter()
+                        .map(|f| (f, false))
+                        .collect()
                 } else if block.dynamic_patterns.is_some() {
-                    get_dynamic_faces(block, [vx, vy, vz], space)
+                    get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
                 } else {
-                    block.faces.clone()
+                    block.faces.iter().cloned().map(|f| (f, false)).collect()
                 };
 
                 let mut uv_map = HashMap::new();
-                for face in &faces {
+                for (face, _) in &faces {
                     uv_map.insert(face.name.clone(), face.range.clone());
                 }
 
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
 
-                for face in faces.iter() {
+                for (face, world_space) in faces.iter() {
                     let key = if face.isolated {
                         format!(
                             "{}::{}::{}-{}-{}",
@@ -2145,6 +2203,7 @@ pub fn mesh_space<S: VoxelAccess>(
                         &mut geometry.uvs,
                         &mut geometry.lights,
                         min,
+                        *world_space,
                     );
 
                     map.insert(key, geometry);
