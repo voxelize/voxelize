@@ -6,10 +6,8 @@ import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
 
 const position = new Vector3();
+const tempColor = new Color();
 
-/**
- * Parameters to create a light shine effect.
- */
 export type LightShinedOptions = {
   /**
    * The lerping factor of the brightness of each mesh. Defaults to `0.1`.
@@ -241,9 +239,6 @@ export class LightShined {
     obj.userData.justChanged = false;
   };
 
-  /**
-   * Recursively update an object and its children's brightness.
-   */
   private recursiveUpdate = (obj: Object3D, color: Color | null = null) => {
     if (!obj.parent) return;
 
@@ -255,14 +250,28 @@ export class LightShined {
       obj.getWorldPosition(position);
 
       const voxel = ChunkUtils.mapWorldToVoxel(position.toArray());
-      const chunk = this.world.getChunkByPosition(...voxel);
+      const lightValues = this.world.getLightValuesAt(...voxel);
+      if (!lightValues) return;
 
-      if (!chunk) return;
+      const { sunlight, red, green, blue } = lightValues;
+      const { sunlightIntensity, minLightLevel } = this.world.chunks.uniforms;
+      const maxLightLevel = this.world.options.maxLightLevel;
 
-      color = this.world.getLightColorAt(...voxel);
+      const s = Math.min(
+        (sunlight / maxLightLevel) ** 2 *
+          sunlightIntensity.value *
+          (1 - minLightLevel.value) +
+          minLightLevel.value,
+        1
+      );
+
+      color = tempColor.setRGB(
+        s + (red / maxLightLevel) ** 2,
+        s + (green / maxLightLevel) ** 2,
+        s + (blue / maxLightLevel) ** 2
+      );
     }
 
-    this.updateObject(obj, color);
     obj.traverse((child) => {
       this.updateObject(child, color);
     });

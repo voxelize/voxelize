@@ -1587,6 +1587,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.trackChunkAt(px, py, pz);
   }
 
+  getLightValuesAt(vx: number, vy: number, vz: number) {
+    this.checkIsInitialized("get light values", false);
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (chunk === undefined) return null;
+    return {
+      sunlight: chunk.getSunlight(vx, vy, vz),
+      red: chunk.getTorchLight(vx, vy, vz, "RED"),
+      green: chunk.getTorchLight(vx, vy, vz, "GREEN"),
+      blue: chunk.getTorchLight(vx, vy, vz, "BLUE"),
+    };
+  }
+
   /**
    * Get a color instance that represents what an object would be like
    * if it were rendered at the given 3D voxel coordinate. This is useful
@@ -1599,13 +1611,10 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @returns The voxel's light color at the given coordinate.
    */
   getLightColorAt(vx: number, vy: number, vz: number) {
-    this.checkIsInitialized("get light color", false);
+    const lightValues = this.getLightValuesAt(vx, vy, vz);
+    if (!lightValues) return new Color(1, 1, 1);
 
-    const sunlight = this.getSunlightAt(vx, vy, vz);
-    const redLight = this.getTorchLightAt(vx, vy, vz, "RED");
-    const greenLight = this.getTorchLightAt(vx, vy, vz, "GREEN");
-    const blueLight = this.getTorchLightAt(vx, vy, vz, "BLUE");
-
+    const { sunlight, red, green, blue } = lightValues;
     const { sunlightIntensity, minLightLevel } = this.chunks.uniforms;
 
     const s = Math.min(
@@ -1617,9 +1626,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
 
     return new Color(
-      s + Math.pow(redLight / this.options.maxLightLevel, 2),
-      s + Math.pow(greenLight / this.options.maxLightLevel, 2),
-      s + Math.pow(blueLight / this.options.maxLightLevel, 2)
+      s + Math.pow(red / this.options.maxLightLevel, 2),
+      s + Math.pow(green / this.options.maxLightLevel, 2),
+      s + Math.pow(blue / this.options.maxLightLevel, 2)
     );
   }
 
