@@ -3772,7 +3772,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (mergeChunkGeometries) {
       const materialToGeometries = new Map<
         string,
-        { geometry: BufferGeometry; material: CustomChunkShaderMaterial }[]
+        {
+          geometry: BufferGeometry;
+          material: CustomChunkShaderMaterial;
+          voxel: number;
+        }[]
       >();
 
       for (const geo of geometries) {
@@ -3813,7 +3817,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (!materialToGeometries.has(matKey)) {
           materialToGeometries.set(matKey, []);
         }
-        materialToGeometries.get(matKey)!.push({ geometry, material });
+        materialToGeometries.get(matKey)!.push({ geometry, material, voxel });
       }
 
       meshes = [];
@@ -3822,6 +3826,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const geos = geoMats.map((gm) => gm.geometry);
         const material = geoMats[0].material;
+        const voxel = geoMats[0].voxel;
 
         let finalGeometry: BufferGeometry;
         if (geos.length === 1) {
@@ -3847,9 +3852,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
         mesh.matrixWorldAutoUpdate = false;
-        mesh.userData = { isChunk: true, merged: true };
+        mesh.userData = { isChunk: true, merged: true, voxel };
         if (material.transparent) {
-          mesh.renderOrder = TRANSPARENT_RENDER_ORDER;
+          const block = this.getBlockByIdSafe(voxel);
+          mesh.renderOrder = block?.isFluid
+            ? TRANSPARENT_FLUID_RENDER_ORDER
+            : TRANSPARENT_RENDER_ORDER;
           const sortData = prepareTransparentMesh(mesh);
           if (sortData) {
             mesh.userData.transparentSortData = sortData;

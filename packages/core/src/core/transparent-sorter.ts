@@ -3,7 +3,6 @@ import { Camera, Mesh, Object3D, Vector3 } from "three";
 const _worldPos = new Vector3();
 const _camPos = new Vector3();
 const _camWorldPos = new Vector3();
-const _camDir = new Vector3();
 
 export interface TransparentMeshData {
   centroids: Float32Array;
@@ -13,15 +12,9 @@ export interface TransparentMeshData {
   distances: Float32Array;
   faceOrder: Uint32Array;
   lastCameraPos: Vector3;
-  lastCameraDir: Vector3;
-  bucketCounts: Uint32Array;
-  bucketOffsets: Uint32Array;
-  tempOrder: Uint32Array;
 }
 
-const CAMERA_MOVE_THRESHOLD_SQ = 1.0;
-const CAMERA_DIR_THRESHOLD = 0.02;
-const BUCKET_COUNT = 256;
+const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
 
 export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
   const geometry = mesh.geometry;
@@ -55,10 +48,6 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     distances: new Float32Array(faceCount),
     faceOrder: new Uint32Array(faceCount),
     lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
-    lastCameraDir: new Vector3(Infinity, Infinity, Infinity),
-    bucketCounts: new Uint32Array(BUCKET_COUNT),
-    bucketOffsets: new Uint32Array(BUCKET_COUNT),
-    tempOrder: new Uint32Array(faceCount),
   };
 }
 
@@ -97,78 +86,39 @@ export function sortTransparentMesh(
   camera.getWorldPosition(_camWorldPos);
   _camPos.copy(_camWorldPos).sub(_worldPos);
 
-  camera.getWorldDirection(_camDir);
-
   const isFirstSort =
     data.lastCameraPos.x === Infinity &&
     data.lastCameraPos.y === Infinity &&
     data.lastCameraPos.z === Infinity;
 
-  if (!isFirstSort) {
-    const posMoved =
-      _camPos.distanceToSquared(data.lastCameraPos) >= CAMERA_MOVE_THRESHOLD_SQ;
-
-    const dx = _camDir.x - data.lastCameraDir.x;
-    const dy = _camDir.y - data.lastCameraDir.y;
-    const dz = _camDir.z - data.lastCameraDir.z;
-    const dirChanged = dx * dx + dy * dy + dz * dz >= CAMERA_DIR_THRESHOLD;
-
-    if (!posMoved && !dirChanged) {
-      return;
-    }
+  if (
+    !isFirstSort &&
+    _camPos.distanceToSquared(data.lastCameraPos) < CAMERA_MOVE_THRESHOLD_SQ
+  ) {
+    return;
   }
-
   data.lastCameraPos.copy(_camPos);
-  data.lastCameraDir.copy(_camDir);
 
   const { centroids, faceCount, distances, faceOrder } = data;
-
-  let minDist = Infinity;
-  let maxDist = 0;
 
   for (let f = 0; f < faceCount; f++) {
     const cx = centroids[f * 3] - _camPos.x;
     const cy = centroids[f * 3 + 1] - _camPos.y;
     const cz = centroids[f * 3 + 2] - _camPos.z;
-    const d = cx * cx + cy * cy + cz * cz;
-    distances[f] = d;
-    if (d < minDist) minDist = d;
-    if (d > maxDist) maxDist = d;
+    distances[f] = cx * cx + cy * cy + cz * cz;
+    faceOrder[f] = f;
   }
 
-  const range = maxDist - minDist;
-  if (range < 0.0001) {
-    for (let f = 0; f < faceCount; f++) {
-      faceOrder[f] = f;
+  for (let i = 1; i < faceCount; i++) {
+    const idx = faceOrder[i];
+    const dist = distances[idx];
+    let j = i - 1;
+
+    while (j >= 0 && distances[faceOrder[j]] < dist) {
+      faceOrder[j + 1] = faceOrder[j];
+      j--;
     }
-  } else {
-    const { bucketCounts, bucketOffsets, tempOrder } = data;
-    const scale = (BUCKET_COUNT - 1) / range;
-
-    bucketCounts.fill(0);
-
-    for (let f = 0; f < faceCount; f++) {
-      const bucket = (BUCKET_COUNT - 1 - (distances[f] - minDist) * scale) | 0;
-      bucketCounts[bucket]++;
-    }
-
-    bucketOffsets[0] = 0;
-    for (let i = 1; i < BUCKET_COUNT; i++) {
-      bucketOffsets[i] = bucketOffsets[i - 1] + bucketCounts[i - 1];
-    }
-
-    bucketCounts.fill(0);
-
-    for (let f = 0; f < faceCount; f++) {
-      const bucket = (BUCKET_COUNT - 1 - (distances[f] - minDist) * scale) | 0;
-      const idx = bucketOffsets[bucket] + bucketCounts[bucket];
-      tempOrder[idx] = f;
-      bucketCounts[bucket]++;
-    }
-
-    for (let f = 0; f < faceCount; f++) {
-      faceOrder[f] = tempOrder[f];
-    }
+    faceOrder[j + 1] = idx;
   }
 
   const { originalIndices, sortedIndices } = data;
