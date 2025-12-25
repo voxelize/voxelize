@@ -130,6 +130,11 @@ export class Sky extends CanvasBox {
     this.frustumCulled = false;
     this.renderOrder = -1;
 
+    this.boxLayers.forEach((layer) => {
+      layer.renderOrder = -1;
+      layer.frustumCulled = false;
+    });
+
     this.createSkyShading();
   }
 
@@ -368,6 +373,8 @@ export class Sky extends CanvasBox {
       side: BackSide,
     });
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
+    shadingMesh.renderOrder = -1;
+    shadingMesh.frustumCulled = false;
 
     // We use attach here so that the sky shading is not affected by the box's rotation.
     this.attach(shadingMesh);
