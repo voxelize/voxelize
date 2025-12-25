@@ -184,9 +184,9 @@ export class Engine {
 
     this.tryCliffHanging(body, tmpBox, dx);
 
-    // if autostep, and on ground, run collisions again with stepped up aabb
     if (body.stepHeight > 0) {
-      this.tryAutoStepping(body, tmpBox, dx);
+      const autoStepBox = body.aabb.clone();
+      this.tryAutoStepping(body, autoStepBox, dx);
     }
 
     // Collision impacts. b.resting shows which axes had collisions:
@@ -227,8 +227,8 @@ export class Engine {
     if (vsq > 1e-5) body.markActive();
   };
 
-  tryCliffHanging = (body: RigidBody, oldBox: AABB, dx: number[]) => {
-    if (!body.isCliffHanging || !body.resting[1]) return;
+  tryCliffHanging = (body: RigidBody, oldBox: AABB, dx: number[]): boolean => {
+    if (!body.isCliffHanging || !body.resting[1]) return false;
 
     const walls: AABB[] = [];
 
@@ -241,17 +241,17 @@ export class Engine {
     const nxpz = [oldBox.minX, footY, oldBox.maxZ];
     const nxnz = [oldBox.minX, footY, oldBox.minZ];
 
-    const isEmptyUnderNxPz = this.isRaycastEmpty(nxpz, [0, -1, 0]);
-    const isEmptyUnderNxNz = this.isRaycastEmpty(nxnz, [0, -1, 0]);
-    const isEmptyUnderPxPz = this.isRaycastEmpty(pxpz, [0, -1, 0]);
-    const isEmptyUnderPxNz = this.isRaycastEmpty(pxnz, [0, -1, 0]);
+    const stepHeight = body.stepHeight > 0 ? body.stepHeight : 0.5;
+    const isDangerousDropNxPz = this.isDangerousDrop(nxpz, stepHeight);
+    const isDangerousDropNxNz = this.isDangerousDrop(nxnz, stepHeight);
+    const isDangerousDropPxPz = this.isDangerousDrop(pxpz, stepHeight);
+    const isDangerousDropPxNz = this.isDangerousDrop(pxnz, stepHeight);
 
     const bodyXWidth = oldBox.maxX - oldBox.minX;
     const bodyZWidth = oldBox.maxZ - oldBox.minZ;
     const clingingFactorInVoxel = 0.2; // 0.2 voxels of clinging
 
-    // px direction
-    if (dx[0] > 0 && (isEmptyUnderPxPz || isEmptyUnderPxNz)) {
+    if (dx[0] > 0 && (isDangerousDropPxPz || isDangerousDropPxNz)) {
       const foundX = this.findCliffX(oldBox, footY, true);
       if (foundX !== null) {
         const minClingFactor = Math.min(
@@ -269,9 +269,7 @@ export class Engine {
           )
         );
       }
-    }
-    // nx direction
-    else if (dx[0] < 0 && (isEmptyUnderNxPz || isEmptyUnderNxNz)) {
+    } else if (dx[0] < 0 && (isDangerousDropNxPz || isDangerousDropNxNz)) {
       const foundX = this.findCliffX(oldBox, footY, false);
       if (foundX !== null) {
         const minClingFactor = Math.min(
@@ -291,8 +289,7 @@ export class Engine {
       }
     }
 
-    // pz direction
-    if (dx[2] > 0 && (isEmptyUnderPxPz || isEmptyUnderNxPz)) {
+    if (dx[2] > 0 && (isDangerousDropPxPz || isDangerousDropNxPz)) {
       const foundZ = this.findCliffVz(oldBox, footY, true);
       if (foundZ !== null) {
         const minClingFactor = Math.min(
@@ -310,9 +307,7 @@ export class Engine {
           )
         );
       }
-    }
-    // nz direction
-    else if (dx[2] < 0 && (isEmptyUnderPxNz || isEmptyUnderNxNz)) {
+    } else if (dx[2] < 0 && (isDangerousDropPxNz || isDangerousDropNxNz)) {
       const foundZ = this.findCliffVz(oldBox, footY, false);
       if (foundZ !== null) {
         const minClingFactor = Math.min(
@@ -337,7 +332,9 @@ export class Engine {
       const tmpResting = [0, 0, 0];
       this.processCollisions(oldBox, [dx[0], 0, dx[2]], tmpResting, walls);
       body.aabb = oldBox;
+      return true;
     }
+    return false;
   };
 
   // Helper method to find ground in X direction
@@ -361,9 +358,6 @@ export class Engine {
         }
         const union = aabbs.reduce((acc, aabb) => acc.union(aabb), aabbs[0]);
         if (union.maxY + Engine.EPSILON < footY) continue;
-        const bodyZWidth = box.maxZ - box.minZ;
-        const supportWidthZ = union.maxZ - union.minZ;
-        if (supportWidthZ + Engine.EPSILON < bodyZWidth * 0.7) continue;
         cliffX = isPx ? union.maxX : union.minX;
       }
     }
@@ -391,9 +385,6 @@ export class Engine {
         }
         const union = aabbs.reduce((acc, aabb) => acc.union(aabb), aabbs[0]);
         if (union.maxY + Engine.EPSILON < footY) continue;
-        const bodyXWidth = box.maxX - box.minX;
-        const supportWidthX = union.maxX - union.minX;
-        if (supportWidthX + Engine.EPSILON < bodyXWidth * 0.7) continue;
         cliffZ = isPz ? union.maxZ : union.minZ;
       }
     }
@@ -402,6 +393,12 @@ export class Engine {
 
   isRaycastEmpty = (voxel: number[], direction: number[]) => {
     const result = raycast(this.getVoxel, voxel, direction, Engine.EPSILON * 3);
+    return !result;
+  };
+
+  isDangerousDrop = (position: number[], stepHeight: number): boolean => {
+    const checkDistance = stepHeight + 0.1;
+    const result = raycast(this.getVoxel, position, [0, -1, 0], checkDistance);
     return !result;
   };
 
