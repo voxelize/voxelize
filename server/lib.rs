@@ -3,10 +3,7 @@ mod errors;
 mod libs;
 mod server;
 mod types;
-pub mod webrtc;
 mod world;
-
-use std::sync::Arc;
 
 use actix::{Actor, Addr};
 use actix_cors::Cors;
@@ -19,15 +16,12 @@ use actix_ws::AggregatedMessage;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
 use log::{info, warn};
-use tokio::sync::{mpsc, Mutex};
-
-use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
+use tokio::sync::mpsc;
 
 pub use common::*;
 pub use libs::*;
 pub use server::*;
 pub use types::*;
-pub use webrtc::*;
 pub use world::*;
 
 struct Config {
@@ -183,7 +177,6 @@ async fn handle_ws_connection(
     let _ = session.close(None).await;
 }
 
-/// Main website path, serving statically built index.html
 async fn index(path: web::Data<Config>) -> Result<NamedFile> {
     let path = path.serve.to_owned();
     Ok(NamedFile::open(if path.ends_with("/") {
@@ -201,9 +194,6 @@ async fn info(server: web::Data<Addr<Server>>) -> Result<HttpResponse> {
 pub struct Voxelize;
 
 impl Voxelize {
-    /// Run a voxelize server instance. This blocks the main thread, as the game loop is essentially a while loop
-    /// running indefinitely. Keep in mind that the server instance passed in isn't a borrow, so `Voxelize::run`
-    /// takes ownership of the server.
     pub async fn run(mut server: Server) -> std::io::Result<()> {
         server.prepare().await;
         server.preload().await;
@@ -220,9 +210,6 @@ impl Voxelize {
             info!("Attempting to serve static folder: {}", serve);
         }
 
-        let webrtc_api = webrtc::create_webrtc_api();
-        let webrtc_peers: WebRTCPeers = Arc::new(Mutex::new(HashMap::new()));
-
         let srv = HttpServer::new(move || {
             let serve = serve.to_owned();
             let secret = secret.to_owned();
@@ -235,13 +222,9 @@ impl Voxelize {
                 .app_data(web::Data::new(Config {
                     serve: serve.to_owned(),
                 }))
-                .app_data(web::Data::new(webrtc_api.clone()))
-                .app_data(web::Data::new(webrtc_peers.clone()))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
-                .route("/info", web::get().to(info))
-                .route("/rtc/offer", web::post().to(rtc_offer))
-                .route("/rtc/candidate", web::post().to(rtc_candidate));
+                .route("/info", web::get().to(info));
 
             if serve.is_empty() {
                 app
@@ -251,7 +234,7 @@ impl Voxelize {
         })
         .bind((addr.to_owned(), port.to_owned()))?;
 
-        info!("🍄  Voxelize backend running on http://{}:{}", addr, port);
+        info!("Voxelize backend running on http://{}:{}", addr, port);
 
         srv.run().await
     }
