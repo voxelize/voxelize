@@ -11,7 +11,7 @@ use webrtc::data_channel::RTCDataChannel;
 use crate::server::{ClientMessage, Server};
 use crate::decode_message;
 
-const MAX_FRAGMENT_SIZE: usize = 32000;
+const MAX_FRAGMENT_SIZE: usize = 16000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 const FRAGMENT_MARKER: u8 = 0xFF;
 

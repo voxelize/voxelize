@@ -5,7 +5,7 @@ export interface WebRTCConnectionOptions {
 
 const FRAGMENT_MARKER = 0xff;
 const FRAGMENT_HEADER_SIZE = 9;
-const MAX_FRAGMENT_SIZE = 32000;
+const MAX_FRAGMENT_SIZE = 16000;
 const MAX_PAYLOAD_SIZE = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 
 interface FragmentBuffer {
