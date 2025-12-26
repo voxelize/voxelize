@@ -86,22 +86,47 @@ pub async fn rtc_offer(
         let rtc_rx_opt = rtc_rx_opt.clone();
 
         Box::pin(async move {
-            info!("[WebRTC] DataChannel '{}' opened for {}", dc.label(), client_id);
+            info!(
+                "[WebRTC] Received DataChannel '{}' for {}, state: {:?}",
+                dc.label(),
+                client_id,
+                dc.ready_state()
+            );
 
-            rtc_senders.lock().await.insert(client_id.clone(), rtc_tx);
+            let dc_for_open = dc.clone();
+            let rtc_senders_open = rtc_senders.clone();
+            let client_id_open = client_id.clone();
+            let rtc_tx_open = rtc_tx.clone();
+            let rtc_rx_opt_open = rtc_rx_opt.clone();
 
-            if let Some(mut rtc_rx) = rtc_rx_opt.lock().await.take() {
-                let dc_send = dc.clone();
-                tokio::spawn(async move {
-                    while let Some(data) = rtc_rx.recv().await {
-                        for fragment in fragment_message(&data) {
-                            if dc_send.send(&Bytes::from(fragment)).await.is_err() {
-                                break;
+            dc.on_open(Box::new(move || {
+                let dc = dc_for_open.clone();
+                let rtc_senders = rtc_senders_open.clone();
+                let client_id = client_id_open.clone();
+                let rtc_tx = rtc_tx_open.clone();
+                let rtc_rx_opt = rtc_rx_opt_open.clone();
+
+                Box::pin(async move {
+                    info!("[WebRTC] DataChannel now OPEN for {}", client_id);
+
+                    rtc_senders.lock().await.insert(client_id.clone(), rtc_tx);
+
+                    if let Some(mut rtc_rx) = rtc_rx_opt.lock().await.take() {
+                        let dc_send = dc.clone();
+                        let client_id_send = client_id.clone();
+                        tokio::spawn(async move {
+                            while let Some(data) = rtc_rx.recv().await {
+                                for fragment in fragment_message(&data) {
+                                    if dc_send.send(&Bytes::from(fragment)).await.is_err() {
+                                        info!("[WebRTC] Send failed for {}, closing", client_id_send);
+                                        break;
+                                    }
+                                }
                             }
-                        }
+                        });
                     }
-                });
-            }
+                })
+            }));
 
             let assembler = Arc::new(Mutex::new(FragmentAssembler::new()));
             dc.on_message(Box::new(move |msg| {

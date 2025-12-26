@@ -20,21 +20,41 @@ export class WebRTCConnection {
     });
 
     this.dc = this.pc.createDataChannel("voxelize", {
-      ordered: false,
-      maxRetransmits: 0,
+      ordered: true,
+      maxRetransmits: 3,
     });
     this.dc.binaryType = "arraybuffer";
 
     this.dc.onopen = () => {
+      console.log(
+        "[WebRTC] DataChannel opened, readyState:",
+        this.dc?.readyState
+      );
       this.onOpen?.();
     };
 
     this.dc.onclose = () => {
+      console.log("[WebRTC] DataChannel closed");
       this.onClose?.();
+    };
+
+    this.dc.onerror = (event) => {
+      console.error("[WebRTC] DataChannel error:", event);
     };
 
     this.dc.onmessage = (event: MessageEvent) => {
       this.handleMessage(event.data as ArrayBuffer);
+    };
+
+    this.pc.oniceconnectionstatechange = () => {
+      console.log(
+        "[WebRTC] ICE connection state:",
+        this.pc?.iceConnectionState
+      );
+    };
+
+    this.pc.onconnectionstatechange = () => {
+      console.log("[WebRTC] Connection state:", this.pc?.connectionState);
     };
 
     const offer = await this.pc.createOffer();

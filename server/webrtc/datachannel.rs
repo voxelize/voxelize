@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-const MAX_FRAGMENT_SIZE: usize = 16000;
+const MAX_FRAGMENT_SIZE: usize = 16384;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 
