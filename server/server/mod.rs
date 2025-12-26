@@ -20,7 +20,7 @@ use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo, Mesher,
-    MessageQueue, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick, TransportJoinRequest,
+    MessageQueue, Preload, Prepare, Stats, SyncWorld, Tick, TransportJoinRequest,
     TransportLeaveRequest,
 };
 
@@ -200,25 +200,12 @@ pub struct Server {
 
     /// The handler for `Action`s.
     action_handles: HashMap<String, Arc<dyn Fn(Value, &mut Server)>>,
-
-    /// WebRTC senders for hybrid networking.
-    rtc_senders: Option<RtcSenders>,
 }
 
 impl Server {
     /// Create a new Voxelize server instance used to host all the worlds.
     pub fn new() -> ServerBuilder {
         ServerBuilder::new()
-    }
-
-    /// Set the RTC senders for hybrid WebSocket/WebRTC networking.
-    pub fn set_rtc_senders(&mut self, rtc_senders: RtcSenders) {
-        self.rtc_senders = Some(rtc_senders);
-    }
-
-    /// Get the RTC senders reference.
-    pub fn rtc_senders(&self) -> Option<&RtcSenders> {
-        self.rtc_senders.as_ref()
     }
 
     /// Add a world instance to the server. Different worlds have different configurations, and can hold
@@ -229,10 +216,6 @@ impl Server {
         let saving = world.config().saving;
         let save_dir = world.config().save_dir.clone();
         world.ecs_mut().insert(self.registry.clone());
-
-        if let Some(rtc_senders) = &self.rtc_senders {
-            world.ecs_mut().insert(rtc_senders.clone());
-        }
 
         let addr = world.start();
 
@@ -474,14 +457,6 @@ impl Server {
             })
             .level(log::LevelFilter::Debug)
             .level_for("tungstenite", log::LevelFilter::Info)
-            .level_for("webrtc", log::LevelFilter::Warn)
-            .level_for("webrtc_sctp", log::LevelFilter::Warn)
-            .level_for("webrtc_dtls", log::LevelFilter::Warn)
-            .level_for("webrtc_ice", log::LevelFilter::Warn)
-            .level_for("webrtc_mdns", log::LevelFilter::Warn)
-            .level_for("webrtc_srtp", log::LevelFilter::Warn)
-            .level_for("webrtc_util", log::LevelFilter::Warn)
-            .level_for("webrtc_data", log::LevelFilter::Warn)
             .chain(std::io::stdout())
             .apply()
             .expect("Fern did not run successfully");
@@ -744,7 +719,6 @@ impl ServerBuilder {
             worlds: HashMap::default(),
             info_handle: default_info_handle,
             action_handles: HashMap::default(),
-            rtc_senders: None,
         }
     }
 }

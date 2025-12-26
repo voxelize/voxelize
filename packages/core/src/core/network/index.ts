@@ -6,12 +6,10 @@ import { SharedWorkerPool } from "../../libs/shared-worker-pool";
 import { WorkerPool } from "../../libs/worker-pool";
 
 import { NetIntercept } from "./intercept";
-import { WebRTCConnection } from "./webrtc";
 import DecodeWorker from "./workers/decode-worker-fallback.ts?worker&inline";
 import DecodeSharedWorker from "./workers/decode-worker.ts?sharedworker&inline";
 
 export * from "./intercept";
-export { WebRTCConnection } from "./webrtc";
 
 const supportsSharedWorker = typeof SharedWorker !== "undefined";
 
@@ -34,7 +32,6 @@ const defaultOptions: NetworkOptions = {
 export type NetworkConnectionOptions = {
   reconnectTimeout?: number;
   secret?: string;
-  useWebRTC?: boolean;
 };
 
 export class Network {
@@ -98,10 +95,6 @@ export class Network {
 
   private initPacketReceived = false;
 
-  private rtc: WebRTCConnection | null = null;
-
-  private useWebRTC = false;
-
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
       ...defaultOptions,
@@ -134,8 +127,6 @@ export class Network {
       throw new Error("Server URL must be a string.");
     }
 
-    this.useWebRTC = options.useWebRTC ?? false;
-
     this.url = new DOMUrl(serverURL);
     this.url.protocol = this.url.protocol.replace(/ws/, "http");
     this.url.hash = "";
@@ -159,11 +150,6 @@ export class Network {
       if (this.reconnection) {
         clearTimeout(this.reconnection);
       }
-    }
-
-    if (this.rtc) {
-      this.rtc.close();
-      this.rtc = null;
     }
 
     return new Promise<Network>((resolve) => {
@@ -234,40 +220,6 @@ export class Network {
 
       this.ws = ws;
     });
-  };
-
-  connectWebRTC = async (): Promise<void> => {
-    if (!this.useWebRTC) {
-      return;
-    }
-
-    if (!this.clientInfo.id) {
-      console.warn("[NETWORK] Cannot connect WebRTC without client ID");
-      return;
-    }
-
-    try {
-      this.rtc = new WebRTCConnection();
-
-      this.rtc.onMessage = (data: ArrayBuffer) => {
-        this.packetQueue.push(data);
-      };
-
-      this.rtc.onOpen = () => {
-        console.log("[NETWORK] WebRTC DataChannel opened");
-      };
-
-      this.rtc.onClose = () => {
-        console.log("[NETWORK] WebRTC DataChannel closed");
-        this.rtc = null;
-      };
-
-      await this.rtc.connect(this.url.toString(), this.clientInfo.id);
-      console.log("[NETWORK] WebRTC connected");
-    } catch (e) {
-      console.warn("[NETWORK] WebRTC connection failed:", e);
-      this.rtc = null;
-    }
   };
 
   join = async (world: string) => {
@@ -413,11 +365,6 @@ export class Network {
       this.ws.close();
     }
 
-    if (this.rtc) {
-      this.rtc.close();
-      this.rtc = null;
-    }
-
     if (this.reconnection) {
       clearTimeout(this.reconnection);
     }
@@ -445,10 +392,6 @@ export class Network {
 
   get packetQueueLength() {
     return this.packetQueue.length;
-  }
-
-  get rtcConnected() {
-    return this.rtc?.isConnected ?? false;
   }
 
   private onMessage = (message: MessageProtocol) => {
@@ -488,20 +431,6 @@ export class Network {
       this.waitingForInit = false;
       this.joinResolve(this);
       this.onJoin?.(this.world);
-
-      if (this.useWebRTC && !this.rtc) {
-        console.log("[NETWORK] Starting WebRTC connection...");
-        this.connectWebRTC().catch((e) => {
-          console.warn("[NETWORK] WebRTC connection failed after INIT:", e);
-        });
-      } else {
-        console.log(
-          "[NETWORK] WebRTC disabled or already connected, useWebRTC:",
-          this.useWebRTC,
-          "rtc:",
-          !!this.rtc
-        );
-      }
     }
   };
 
