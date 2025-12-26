@@ -64,7 +64,10 @@ export class WebRTCConnection {
       "Content-Type": "application/json",
     };
 
-    const httpUrl = serverUrl.replace(/^ws/, "http");
+    const httpUrl = serverUrl
+      .replace(/^wss:/, "https:")
+      .replace(/^ws:/, "http:");
+    console.log("[WebRTC] Sending offer to:", `${httpUrl}/rtc/offer`);
 
     const response = await fetch(`${httpUrl}/rtc/offer`, {
       method: "POST",
@@ -76,15 +79,18 @@ export class WebRTCConnection {
     });
 
     if (!response.ok) {
-      throw new Error(`RTC offer failed: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`RTC offer failed: ${response.status} - ${text}`);
     }
 
     const { sdp: answerSdp } = await response.json();
+    console.log("[WebRTC] Received answer SDP");
 
     await this.pc.setRemoteDescription({
       type: "answer",
       sdp: answerSdp,
     });
+    console.log("[WebRTC] Remote description set, waiting for ICE...");
   }
 
   close(): void {

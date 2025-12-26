@@ -490,9 +490,17 @@ export class Network {
       this.onJoin?.(this.world);
 
       if (this.useWebRTC && !this.rtc) {
+        console.log("[NETWORK] Starting WebRTC connection...");
         this.connectWebRTC().catch((e) => {
           console.warn("[NETWORK] WebRTC connection failed after INIT:", e);
         });
+      } else {
+        console.log(
+          "[NETWORK] WebRTC disabled or already connected, useWebRTC:",
+          this.useWebRTC,
+          "rtc:",
+          !!this.rtc
+        );
       }
     }
   };
