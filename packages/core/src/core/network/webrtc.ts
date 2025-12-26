@@ -66,7 +66,8 @@ export class WebRTCConnection {
 
     const httpUrl = serverUrl
       .replace(/^wss:/, "https:")
-      .replace(/^ws:/, "http:");
+      .replace(/^ws:/, "http:")
+      .replace(/\/+$/, "");
     console.log("[WebRTC] Sending offer to:", `${httpUrl}/rtc/offer`);
 
     const response = await fetch(`${httpUrl}/rtc/offer`, {
