@@ -365,7 +365,7 @@ impl Physics {
         let aabb = &body.aabb;
         let center_x = ((aabb.min_x + aabb.max_x) / 2.0).floor() as i32;
         let center_z = ((aabb.min_z + aabb.max_z) / 2.0).floor() as i32;
-        let y0 = aabb.min_y.floor() as i32;
+        let y0 = (aabb.min_y + 0.01).floor() as i32;
         let y1 = aabb.max_y.floor() as i32;
 
         let test_fluid = |vx: i32, vy: i32, vz: i32| -> bool {
