@@ -72,21 +72,15 @@ pub async fn setup_datachannel_handlers(
     tokio::spawn(async move {
         let mut message_id_counter: u32 = 0;
 
-        info!("[WebRTC] Send loop started for client {}, waiting for DataChannel to open...", client_id_for_send);
-        
         loop {
             let state = dc_send.ready_state();
-            info!("[WebRTC] DataChannel state for {}: {:?}", client_id_for_send, state);
             if state == webrtc::data_channel::data_channel_state::RTCDataChannelState::Open {
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
-        
-        info!("[WebRTC] DataChannel ready for {}, starting message processing", client_id_for_send);
-        
+
         while let Some(bytes) = rx.recv().await {
-            info!("[WebRTC] Sending {} bytes to client {}", bytes.len(), client_id_for_send);
             if bytes.len() <= MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE {
                 if let Err(e) = dc_send.send(&Bytes::from(bytes)).await {
                     warn!("[WebRTC] Failed to send via DataChannel for {}: {:?}", client_id_for_send, e);

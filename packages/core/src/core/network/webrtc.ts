@@ -57,8 +57,7 @@ export class WebRTCConnection {
 
   async connect(clientId?: string): Promise<string> {
     this.dc = this.pc.createDataChannel("voxelize", {
-      ordered: false,
-      maxRetransmits: 0,
+      ordered: true,
     });
 
     this.dc.binaryType = "arraybuffer";
