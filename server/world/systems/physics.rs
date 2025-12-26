@@ -12,6 +12,7 @@ use crate::{
         physics::Physics,
         registry::Registry,
         stats::Stats,
+        system_profiler::SystemTimer,
         voxels::Chunks,
         WorldConfig,
     },
@@ -42,6 +43,7 @@ impl<'a> System<'a> for PhysicsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
+        let _t = SystemTimer::new("physics");
         use rayon::prelude::*;
         use specs::{Join, ParJoin};
 

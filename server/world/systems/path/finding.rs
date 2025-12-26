@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use crate::{
-    AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, TargetComp, Vec3, VoxelAccess,
-    WorldConfig,
+    AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, SystemTimer, TargetComp, Vec3,
+    VoxelAccess, WorldConfig,
 };
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
@@ -22,6 +22,7 @@ impl<'a> System<'a> for PathFindingSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
+        let _t = SystemTimer::new("path-finding");
         use rayon::prelude::*;
         use specs::ParJoin;
 

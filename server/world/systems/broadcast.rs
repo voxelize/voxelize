@@ -5,7 +5,7 @@ use crate::{
     common::ClientFilter,
     fragment_message,
     server::Message,
-    world::{metadata::WorldMetadata, profiler::Profiler, Clients, MessageQueue},
+    world::{metadata::WorldMetadata, profiler::Profiler, system_profiler::SystemTimer, Clients, MessageQueue},
     EncodedMessageQueue, MessageType, RtcSenders, Transports,
 };
 
@@ -82,6 +82,7 @@ impl<'a> System<'a> for BroadcastSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
+        let _t = SystemTimer::new("broadcast");
         let (transports, clients, world_metadata, mut queue, mut encoded_queue, _profiler, rtc_senders_opt) = data;
 
         let messages_with_world_name: Vec<(Message, ClientFilter)> = queue
