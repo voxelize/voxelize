@@ -20,6 +20,36 @@ use super::peer::WebRTCPeer;
 
 pub type WebRTCPeers = Arc<Mutex<HashMap<String, WebRTCPeer>>>;
 
+fn get_ice_servers() -> Vec<RTCIceServer> {
+    let mut servers = vec![
+        RTCIceServer {
+            urls: vec![
+                "stun:stun.l.google.com:19302".to_owned(),
+                "stun:stun1.l.google.com:19302".to_owned(),
+            ],
+            ..Default::default()
+        },
+    ];
+
+    if let (Ok(turn_url), Ok(turn_username), Ok(turn_credential)) = (
+        std::env::var("TURN_URL"),
+        std::env::var("TURN_USERNAME"),
+        std::env::var("TURN_CREDENTIAL"),
+    ) {
+        info!("[WebRTC] TURN server configured: {}", turn_url);
+        servers.push(RTCIceServer {
+            urls: vec![turn_url],
+            username: turn_username,
+            credential: turn_credential,
+            ..Default::default()
+        });
+    } else {
+        warn!("[WebRTC] No TURN server configured. Set TURN_URL, TURN_USERNAME, TURN_CREDENTIAL env vars for better NAT traversal.");
+    }
+
+    servers
+}
+
 #[derive(Debug, Deserialize)]
 pub struct RtcOfferRequest {
     pub client_id: Option<String>,
@@ -69,11 +99,10 @@ pub async fn rtc_offer(
         client_id, body.is_transport
     );
 
+    let ice_servers = get_ice_servers();
+
     let config = RTCConfiguration {
-        ice_servers: vec![RTCIceServer {
-            urls: vec!["stun:stun.l.google.com:19302".to_owned()],
-            ..Default::default()
-        }],
+        ice_servers,
         ..Default::default()
     };
 

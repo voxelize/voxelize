@@ -1,5 +1,6 @@
 import { protocol } from "@voxelize/protocol";
 import * as fflate from "fflate";
+import * as lz4 from "lz4js";
 import {
   client as WebSocket,
   connection as WebSocketConnection,
@@ -8,6 +9,24 @@ import {
 import { MessageProtocol } from "./types";
 
 const { Message, Entity } = protocol;
+
+function tryParseJSON(str: string): unknown {
+  if (typeof str !== "string" || str.length === 0) return str;
+  const firstChar = str.charCodeAt(0);
+  if (firstChar !== 123 && firstChar !== 91 && firstChar !== 34) return str;
+  try {
+    return JSON.parse(str);
+  } catch {
+    return str;
+  }
+}
+
+function deepParseJSON(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const parsed = tryParseJSON(value);
+  if (parsed === value) return value;
+  return deepParseJSON(parsed);
+}
 
 /**
  * @noInheritDoc
@@ -179,7 +198,16 @@ export class Transport extends WebSocket {
   };
 
   static decodeSync = (buffer: any) => {
-    if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
+    const isLz4Frame =
+      buffer.length >= 4 &&
+      buffer[0] === 0x04 &&
+      buffer[1] === 0x22 &&
+      buffer[2] === 0x4d &&
+      buffer[3] === 0x18;
+
+    if (isLz4Frame) {
+      buffer = lz4.decompress(buffer);
+    } else if (buffer[0] === 0x78 && buffer[1] === 0x9c) {
       buffer = fflate.unzlibSync(buffer);
     }
 
@@ -189,76 +217,72 @@ export class Transport extends WebSocket {
     message.type = Message.Type[message.type];
 
     if (message.json) {
-      message.json = JSON.parse(message.json);
+      message.json = tryParseJSON(message.json);
     }
 
     if (message.entities) {
-      message.entities.forEach((entity) => {
+      for (let i = 0; i < message.entities.length; i++) {
+        const entity = message.entities[i];
         if (entity.metadata) {
-          entity.metadata = JSON.parse(entity.metadata);
+          entity.metadata = tryParseJSON(entity.metadata);
         }
         entity.operation = Entity.Operation[entity.operation];
-      });
+      }
     }
 
     if (message.peers) {
-      message.peers.forEach((peer) => {
+      for (let i = 0; i < message.peers.length; i++) {
+        const peer = message.peers[i];
         if (peer.metadata) {
-          peer.metadata = JSON.parse(peer.metadata);
+          peer.metadata = tryParseJSON(peer.metadata);
         }
-      });
+      }
     }
 
     if (message.events) {
-      message.events.forEach((event) => {
-        try {
-          let parsedPayload = event.payload;
-          for (let i = 0; i < 5; i++) {
-            try {
-              parsedPayload = JSON.parse(parsedPayload);
-            } catch {
-              break;
-            }
-          }
-          event.payload = parsedPayload;
-        } catch (e) {
-          console.log(e);
+      for (let i = 0; i < message.events.length; i++) {
+        const event = message.events[i];
+        if (event.payload) {
+          event.payload = deepParseJSON(event.payload);
         }
-      });
+      }
     }
 
     if (message.chunks) {
-      message.chunks.forEach((chunk) => {
-        ["lights", "voxels"].forEach((key) => {
-          if (chunk[key]) {
-            chunk[key] = new Uint32Array(chunk[key]);
-          }
-        });
+      for (let i = 0; i < message.chunks.length; i++) {
+        const chunk = message.chunks[i];
+        if (chunk.lights) {
+          chunk.lights = new Uint32Array(chunk.lights);
+        }
+        if (chunk.voxels) {
+          chunk.voxels = new Uint32Array(chunk.voxels);
+        }
 
         if (chunk.meshes) {
-          chunk.meshes.forEach((mesh) => {
-            mesh.geometries.forEach((geometry) => {
-              ["indices"].forEach((key) => {
-                if (geometry && geometry[key]) {
-                  geometry[key] = new Uint16Array(geometry[key]);
+          for (let j = 0; j < chunk.meshes.length; j++) {
+            const mesh = chunk.meshes[j];
+            if (mesh.geometries) {
+              for (let k = 0; k < mesh.geometries.length; k++) {
+                const geometry = mesh.geometries[k];
+                if (geometry) {
+                  if (geometry.indices) {
+                    geometry.indices = new Uint16Array(geometry.indices);
+                  }
+                  if (geometry.lights) {
+                    geometry.lights = new Int32Array(geometry.lights);
+                  }
+                  if (geometry.positions) {
+                    geometry.positions = new Float32Array(geometry.positions);
+                  }
+                  if (geometry.uvs) {
+                    geometry.uvs = new Float32Array(geometry.uvs);
+                  }
                 }
-              });
-
-              ["lights"].forEach((key) => {
-                if (geometry && geometry[key]) {
-                  geometry[key] = new Int32Array(geometry[key]);
-                }
-              });
-
-              ["positions", "uvs"].forEach((key) => {
-                if (geometry && geometry[key]) {
-                  geometry[key] = new Float32Array(geometry[key]);
-                }
-              });
-            });
-          });
+              }
+            }
+          }
         }
-      });
+      }
     }
 
     return message as any as MessageProtocol;

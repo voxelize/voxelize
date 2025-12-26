@@ -10,7 +10,7 @@ use webrtc::data_channel::RTCDataChannel;
 use crate::server::{ClientMessage, Server};
 use crate::decode_message;
 
-const MAX_FRAGMENT_SIZE: usize = 15000;
+const MAX_FRAGMENT_SIZE: usize = 32000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 
 fn create_fragment_header(message_id: u32, fragment_index: u16, total_fragments: u16, is_last: bool) -> [u8; FRAGMENT_HEADER_SIZE] {

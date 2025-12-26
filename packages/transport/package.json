@@ -26,6 +26,7 @@
   "dependencies": {
     "@voxelize/protocol": "workspace:*",
     "fflate": "^0.7.4",
+    "lz4js": "^0.2.0",
     "protobufjs": "^7.4.0",
     "websocket": "^1.0.35"
   },
