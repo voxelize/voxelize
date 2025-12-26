@@ -3,7 +3,10 @@ mod errors;
 mod libs;
 mod server;
 mod types;
+pub mod webrtc;
 mod world;
+
+use std::sync::Arc;
 
 use actix::{Actor, Addr};
 use actix_cors::Cors;
@@ -16,13 +19,21 @@ use actix_ws::AggregatedMessage;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
 use log::{info, warn};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 
 pub use common::*;
 pub use libs::*;
 pub use server::*;
 pub use types::*;
+pub use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
+pub use webrtc::{create_webrtc_api, datachannel::fragment_message};
 pub use world::*;
+
+pub type RtcSenders = Arc<tokio::sync::Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
+
+pub fn create_rtc_senders() -> RtcSenders {
+    Arc::new(tokio::sync::Mutex::new(HashMap::new()))
+}
 
 struct Config {
     serve: String,
@@ -206,6 +217,10 @@ impl Voxelize {
 
         let server_addr = server.start();
 
+        let webrtc_api = create_webrtc_api();
+        let webrtc_peers: WebRTCPeers = Arc::new(Mutex::new(HashMap::new()));
+        let rtc_senders = create_rtc_senders();
+
         if serve.is_empty() {
             info!("Attempting to serve static folder: {}", serve);
         }
@@ -222,9 +237,14 @@ impl Voxelize {
                 .app_data(web::Data::new(Config {
                     serve: serve.to_owned(),
                 }))
+                .app_data(web::Data::new(webrtc_api.clone()))
+                .app_data(web::Data::new(webrtc_peers.clone()))
+                .app_data(web::Data::new(rtc_senders.clone()))
                 .route("/", web::get().to(index))
                 .route("/ws/", web::get().to(ws_route))
-                .route("/info", web::get().to(info));
+                .route("/info", web::get().to(info))
+                .route("/rtc/offer", web::post().to(rtc_offer))
+                .route("/rtc/candidate", web::post().to(rtc_candidate));
 
             if serve.is_empty() {
                 app

@@ -6,7 +6,10 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use crate::{common::ClientFilter, encode_message, server::Message};
 
 #[derive(Clone)]
-pub struct EncodedMessage(pub Vec<u8>);
+pub struct EncodedMessage {
+    pub data: Vec<u8>,
+    pub msg_type: i32,
+}
 
 pub type MessageQueue = Vec<(Message, ClientFilter)>;
 
@@ -43,7 +46,11 @@ impl EncodedMessageQueue {
             let encoded: Vec<(EncodedMessage, ClientFilter)> = all_pending
                 .into_par_iter()
                 .map(|(message, filter)| {
-                    let encoded = EncodedMessage(encode_message(&message));
+                    let msg_type = message.r#type;
+                    let encoded = EncodedMessage {
+                        data: encode_message(&message),
+                        msg_type,
+                    };
                     (encoded, filter)
                 })
                 .collect();
