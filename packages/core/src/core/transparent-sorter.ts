@@ -12,6 +12,8 @@ export interface TransparentMeshData {
   distances: Float32Array;
   faceOrder: Uint32Array;
   lastCameraPos: Vector3;
+  sortKeys: Uint32Array;
+  sortTemp: Uint32Array;
 }
 
 const CAMERA_MOVE_THRESHOLD_SQ = 0.25;
@@ -48,6 +50,8 @@ export function prepareTransparentMesh(mesh: Mesh): TransparentMeshData | null {
     distances: new Float32Array(faceCount),
     faceOrder: new Uint32Array(faceCount),
     lastCameraPos: new Vector3(Infinity, Infinity, Infinity),
+    sortKeys: new Uint32Array(faceCount),
+    sortTemp: new Uint32Array(faceCount),
   };
 }
 
@@ -77,6 +81,53 @@ export function setupTransparentSorting(object: Object3D): void {
   });
 }
 
+const _floatView = new Float32Array(1);
+const _intView = new Uint32Array(_floatView.buffer);
+const _counts = new Uint32Array(256);
+
+function radixSortDescending(
+  distances: Float32Array,
+  faceOrder: Uint32Array,
+  faceCount: number,
+  keys: Uint32Array,
+  temp: Uint32Array
+): void {
+  for (let i = 0; i < faceCount; i++) {
+    _floatView[0] = distances[i];
+    const bits = _intView[0];
+    keys[i] = bits ^ (-(bits >> 31) | 0x80000000) ^ 0xffffffff;
+  }
+
+  let src = faceOrder;
+  let dst = temp;
+
+  for (let shift = 0; shift < 32; shift += 8) {
+    _counts.fill(0);
+
+    for (let i = 0; i < faceCount; i++) {
+      _counts[(keys[src[i]] >> shift) & 0xff]++;
+    }
+
+    for (let i = 1; i < 256; i++) {
+      _counts[i] += _counts[i - 1];
+    }
+
+    for (let i = faceCount - 1; i >= 0; i--) {
+      const idx = src[i];
+      const bucket = (keys[idx] >> shift) & 0xff;
+      dst[--_counts[bucket]] = idx;
+    }
+
+    const tmp = src;
+    src = dst;
+    dst = tmp;
+  }
+
+  if (src !== faceOrder) {
+    faceOrder.set(src);
+  }
+}
+
 export function sortTransparentMesh(
   mesh: Mesh,
   data: TransparentMeshData,
@@ -99,7 +150,8 @@ export function sortTransparentMesh(
   }
   data.lastCameraPos.copy(_camPos);
 
-  const { centroids, faceCount, distances, faceOrder } = data;
+  const { centroids, faceCount, distances, faceOrder, sortKeys, sortTemp } =
+    data;
 
   for (let f = 0; f < faceCount; f++) {
     const cx = centroids[f * 3] - _camPos.x;
@@ -109,17 +161,7 @@ export function sortTransparentMesh(
     faceOrder[f] = f;
   }
 
-  for (let i = 1; i < faceCount; i++) {
-    const idx = faceOrder[i];
-    const dist = distances[idx];
-    let j = i - 1;
-
-    while (j >= 0 && distances[faceOrder[j]] < dist) {
-      faceOrder[j + 1] = faceOrder[j];
-      j--;
-    }
-    faceOrder[j + 1] = idx;
-  }
+  radixSortDescending(distances, faceOrder, faceCount, sortKeys, sortTemp);
 
   const { originalIndices, sortedIndices } = data;
   for (let i = 0; i < faceCount; i++) {
@@ -137,8 +179,6 @@ export function sortTransparentMesh(
 
   const indexAttr = mesh.geometry.index!;
   const targetArray = indexAttr.array;
-  for (let i = 0; i < sortedIndices.length; i++) {
-    targetArray[i] = sortedIndices[i];
-  }
+  (targetArray as Uint32Array).set(sortedIndices);
   indexAttr.needsUpdate = true;
 }
