@@ -5,7 +5,6 @@ use voxelize_core::{
     BlockDynamicPattern, BlockFace, BlockRotation, BlockRule, BlockRuleLogic, CornerData,
     LightColor, LightUtils, VoxelAccess, AABB, UV,
 };
-
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Block {
@@ -1302,28 +1301,29 @@ fn evaluate_block_rule<S: VoxelAccess>(
                 pos[2] + offset[2].round() as i32,
             ];
 
+            let mut rule_ok = true;
+            let actual_id = space.get_voxel(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_id) = simple.id {
-                if space.get_voxel(check_pos[0], check_pos[1], check_pos[2]) != expected_id {
-                    return false;
+                if actual_id != expected_id {
+                    rule_ok = false;
                 }
             }
 
+            let actual_rotation = space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_rotation) = &simple.rotation {
-                let actual_rotation =
-                    space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
                 if actual_rotation != *expected_rotation {
-                    return false;
+                    rule_ok = false;
                 }
             }
 
+            let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_stage) = simple.stage {
-                let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
                 if actual_stage != expected_stage {
-                    return false;
+                    rule_ok = false;
                 }
             }
 
-            true
+            rule_ok
         }
         BlockRule::Combination { logic, rules } => match logic {
             BlockRuleLogic::And => rules
