@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex};
 use webrtc::api::API;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
+use webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
@@ -206,6 +207,24 @@ pub async fn rtc_offer(
             warn!("[WebRTC] Failed to set local description: {:?}", e);
             actix_web::error::ErrorInternalServerError("Failed to set local description")
         })?;
+
+    let pc_clone = Arc::clone(&peer_connection);
+    let gather_complete = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        async {
+            loop {
+                if pc_clone.ice_gathering_state() == RTCIceGatheringState::Complete {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        },
+    )
+    .await;
+
+    if gather_complete.is_err() {
+        warn!("[WebRTC] ICE gathering timeout, proceeding with available candidates");
+    }
 
     let local_desc = peer_connection.local_description().await.ok_or_else(|| {
         warn!("[WebRTC] No local description available");
