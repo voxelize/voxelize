@@ -116,7 +116,12 @@ export class WebRTCConnection {
       const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
 
       if (bytes.byteLength <= MAX_PAYLOAD_SIZE) {
-        this.dc.send(bytes);
+        this.dc.send(
+          bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength
+          )
+        );
       } else {
         this.sendFragmented(bytes);
       }
