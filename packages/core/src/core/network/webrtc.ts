@@ -20,8 +20,7 @@ export class WebRTCConnection {
     });
 
     this.dc = this.pc.createDataChannel("voxelize", {
-      ordered: true,
-      maxRetransmits: 3,
+      ordered: false,
     });
     this.dc.binaryType = "arraybuffer";
 
@@ -112,7 +111,7 @@ export class WebRTCConnection {
     const isFragment = view.getUint8(0) === 1;
 
     if (!isFragment) {
-      this.onMessage?.(data);
+      this.onMessage?.(data.slice(1));
       return;
     }
 

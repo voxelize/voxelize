@@ -6,7 +6,10 @@ const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 
 pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     if data.len() <= MAX_PAYLOAD_SIZE {
-        return vec![data.to_vec()];
+        let mut msg = Vec::with_capacity(1 + data.len());
+        msg.push(0);
+        msg.extend_from_slice(data);
+        return vec![msg];
     }
 
     let total_fragments = (data.len() + MAX_PAYLOAD_SIZE - 1) / MAX_PAYLOAD_SIZE;
