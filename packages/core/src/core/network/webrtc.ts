@@ -5,6 +5,8 @@ export interface WebRTCConnectionOptions {
 
 const FRAGMENT_MARKER = 0xff;
 const FRAGMENT_HEADER_SIZE = 9;
+const MAX_FRAGMENT_SIZE = 32000;
+const MAX_PAYLOAD_SIZE = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 
 interface FragmentBuffer {
   fragments: Map<number, Uint8Array>;
@@ -19,6 +21,7 @@ export class WebRTCConnection {
   private clientId = "";
   private secret = "";
   private fragmentBuffers: Map<number, FragmentBuffer> = new Map();
+  private sendMessageIdCounter = 0;
 
   onMessage: ((data: ArrayBuffer) => void) | null = null;
   onOpen: (() => void) | null = null;
@@ -110,11 +113,43 @@ export class WebRTCConnection {
 
   send(data: ArrayBuffer | Uint8Array) {
     if (this.dc?.readyState === "open") {
-      const buffer =
-        data instanceof ArrayBuffer ? data : new Uint8Array(data).buffer;
-      this.dc.send(buffer);
+      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+
+      if (bytes.byteLength <= MAX_PAYLOAD_SIZE) {
+        this.dc.send(bytes);
+      } else {
+        this.sendFragmented(bytes);
+      }
     } else {
       console.warn("[WebRTC] DataChannel not open, dropping message");
+    }
+  }
+
+  private sendFragmented(data: Uint8Array) {
+    if (!this.dc || this.dc.readyState !== "open") return;
+
+    const messageId = this.sendMessageIdCounter;
+    this.sendMessageIdCounter = (this.sendMessageIdCounter + 1) & 0xffffffff;
+
+    const totalFragments = Math.ceil(data.byteLength / MAX_PAYLOAD_SIZE);
+
+    for (let i = 0; i < totalFragments; i++) {
+      const start = i * MAX_PAYLOAD_SIZE;
+      const end = Math.min(start + MAX_PAYLOAD_SIZE, data.byteLength);
+      const payload = data.slice(start, end);
+
+      const fragment = new Uint8Array(
+        FRAGMENT_HEADER_SIZE + payload.byteLength
+      );
+      const view = new DataView(fragment.buffer);
+
+      fragment[0] = FRAGMENT_MARKER;
+      view.setUint32(1, messageId, false);
+      view.setUint16(5, i, false);
+      view.setUint16(7, totalFragments, false);
+      fragment.set(payload, FRAGMENT_HEADER_SIZE);
+
+      this.dc.send(fragment.buffer);
     }
   }
 

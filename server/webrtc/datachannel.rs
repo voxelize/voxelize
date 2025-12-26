@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix::Addr;
 use bytes::Bytes;
 use log::{info, warn};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::data_channel::RTCDataChannel;
 
@@ -12,6 +13,24 @@ use crate::decode_message;
 
 const MAX_FRAGMENT_SIZE: usize = 32000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
+const FRAGMENT_MARKER: u8 = 0xFF;
+
+struct FragmentBuffer {
+    fragments: HashMap<u16, Vec<u8>>,
+    total_fragments: u16,
+    total_size: usize,
+}
+
+fn is_fragment(data: &[u8]) -> bool {
+    data.len() >= FRAGMENT_HEADER_SIZE && data[0] == FRAGMENT_MARKER
+}
+
+fn parse_fragment_header(data: &[u8]) -> (u32, u16, u16) {
+    let message_id = u32::from_be_bytes([data[1], data[2], data[3], data[4]]);
+    let fragment_index = u16::from_be_bytes([data[5], data[6]]);
+    let total_fragments = u16::from_be_bytes([data[7], data[8]]);
+    (message_id, fragment_index, total_fragments)
+}
 
 fn create_fragment_header(message_id: u32, fragment_index: u16, total_fragments: u16, is_last: bool) -> [u8; FRAGMENT_HEADER_SIZE] {
     let mut header = [0u8; FRAGMENT_HEADER_SIZE];
@@ -75,26 +94,64 @@ pub async fn setup_datachannel_handlers(
     });
 
     let client_id_for_recv = client_id.clone();
+    let fragment_buffers: Arc<Mutex<HashMap<u32, FragmentBuffer>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
         let bytes = msg.data.to_vec();
         let server = server_addr.clone();
         let id = client_id_for_recv.clone();
+        let buffers = Arc::clone(&fragment_buffers);
 
         Box::pin(async move {
-            match decode_message(&bytes) {
-                Ok(message) => {
-                    if let Err(e) = server
-                        .send(ClientMessage {
-                            id: id.clone(),
-                            data: message,
-                        })
-                        .await
-                    {
-                        warn!("[WebRTC] Failed to send to server actor: {:?}", e);
-                    }
+            let final_bytes = if is_fragment(&bytes) {
+                let (message_id, fragment_index, total_fragments) = parse_fragment_header(&bytes);
+                let payload = bytes[FRAGMENT_HEADER_SIZE..].to_vec();
+
+                let mut buffers_guard = buffers.lock().await;
+                let buffer = buffers_guard.entry(message_id).or_insert_with(|| FragmentBuffer {
+                    fragments: HashMap::new(),
+                    total_fragments,
+                    total_size: 0,
+                });
+
+                if !buffer.fragments.contains_key(&fragment_index) {
+                    buffer.total_size += payload.len();
+                    buffer.fragments.insert(fragment_index, payload);
                 }
-                Err(e) => {
-                    warn!("[WebRTC] Failed to decode message from {}: {:?}", id, e);
+
+                if buffer.fragments.len() as u16 == buffer.total_fragments {
+                    let mut reassembled = Vec::with_capacity(buffer.total_size);
+                    for i in 0..buffer.total_fragments {
+                        if let Some(fragment) = buffer.fragments.get(&i) {
+                            reassembled.extend_from_slice(fragment);
+                        }
+                    }
+                    buffers_guard.remove(&message_id);
+                    Some(reassembled)
+                } else {
+                    None
+                }
+            } else {
+                Some(bytes)
+            };
+
+            if let Some(data) = final_bytes {
+                match decode_message(&data) {
+                    Ok(message) => {
+                        if let Err(e) = server
+                            .send(ClientMessage {
+                                id: id.clone(),
+                                data: message,
+                            })
+                            .await
+                        {
+                            warn!("[WebRTC] Failed to send to server actor: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("[WebRTC] Failed to decode message from {}: {:?}", id, e);
+                    }
                 }
             }
         })
