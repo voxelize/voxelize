@@ -404,7 +404,7 @@ impl Physics {
         let displaced = vol * ratio_in_fluid;
 
         // buoyant force = -gravity * fluid_density * volume_displaced
-        let scalar = config.fluid_density * displaced;
+        let scalar = config.fluid_density * displaced * body.gravity_multiplier;
 
         body.apply_force(
             -config.gravity[0] * scalar,
