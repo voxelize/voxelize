@@ -44,9 +44,12 @@ export class WebRTCConnection {
       "Content-Type": "application/json",
     };
 
-    const httpUrl = serverUrl.replace(/^ws/, "http");
+    const baseUrl = new URL(serverUrl);
+    baseUrl.protocol = baseUrl.protocol.replace(/^ws/, "http");
 
-    const response = await fetch(`${httpUrl}/rtc/offer`, {
+    const offerUrl = new URL("/rtc/offer", baseUrl);
+
+    const response = await fetch(offerUrl.toString(), {
       method: "POST",
       headers,
       body: JSON.stringify({
