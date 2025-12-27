@@ -255,7 +255,7 @@ importers:
         version: 0.165.0
       webpack:
         specifier: ^5.98.0
-        version: 5.98.0(@swc/core@1.15.5)(webpack-cli@4.10.0)
+        version: 5.98.0(@swc/core@1.15.5)(esbuild@0.14.54)(webpack-cli@4.10.0)
       webpack-cli:
         specifier: ^4.10.0
         version: 4.10.0(webpack-dev-server@4.15.2)(webpack@5.98.0)
@@ -301,6 +301,9 @@ importers:
       jsonfn:
         specifier: ^0.31.0
         version: 0.31.0
+      lz4js:
+        specifier: ^0.2.0
+        version: 0.2.0
       ndarray:
         specifier: ^1.0.19
         version: 1.0.19
@@ -410,7 +413,7 @@ importers:
         version: 3.0.2
       webpack:
         specifier: ^5.98.0
-        version: 5.98.0(@swc/core@1.15.5)(esbuild@0.14.54)(webpack-cli@4.10.0)
+        version: 5.98.0(@swc/core@1.15.5)(webpack-cli@4.10.0)
       webpack-cli:
         specifier: ^4.10.0
         version: 4.10.0(webpack-dev-server@4.15.2)(webpack@5.98.0)
@@ -497,6 +500,9 @@ importers:
       fflate:
         specifier: ^0.7.4
         version: 0.7.4
+      lz4js:
+        specifier: ^0.2.0
+        version: 0.2.0
       protobufjs:
         specifier: ^7.4.0
         version: 7.4.0
@@ -2049,6 +2055,7 @@ packages:
   '@lerna/legacy-package-management@6.6.2':
     resolution: {integrity: sha512-0hZxUPKnHwehUO2xC4ldtdX9bW0W1UosxebDIQlZL2STnZnA2IFmIk2lJVUyFW+cmTPQzV93jfS0i69T9Z+teg==}
     engines: {node: ^14.17.0 || >=16.0.0}
+    deprecated: In v9 of lerna, released in September 2025, the `lerna bootstrap`, `lerna add` and `lerna link` commands were finally fully removed after over 2 years of being deprecated. If you are still using these commands, please migrate to using your package manager's long-supported `workspaces` feature. You may find https://lerna.js.org/docs/legacy-package-management useful for this transition.
 
   '@mdx-js/mdx@3.1.0':
     resolution: {integrity: sha512-/QxEhPAvGwbQmy1Px8F899L5Uc2KZ6JtXwlCgJmjSTBedwOZkByYcBG4GceIGPXRDsmfxhHazuS+hlOShRLeDw==}
@@ -6466,6 +6473,9 @@ packages:
 
   lunr@2.3.9:
     resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
+
+  lz4js@0.2.0:
+    resolution: {integrity: sha512-gY2Ia9Lm7Ep8qMiuGRhvUq0Q7qUereeldZPP1PMEJxPtEWHJLqw9pgX68oHajBH0nzJK4MaZEA/YNV3jT8u8Bg==}
 
   magic-string@0.30.17:
     resolution: {integrity: sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==}
@@ -17570,6 +17580,8 @@ snapshots:
   lru-cache@7.18.3: {}
 
   lunr@2.3.9: {}
+
+  lz4js@0.2.0: {}
 
   magic-string@0.30.17:
     dependencies:

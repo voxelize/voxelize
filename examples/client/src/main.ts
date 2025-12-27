@@ -1,10 +1,24 @@
 import "./style.css";
+import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  SMAAEffect,
+} from "postprocessing";
 import * as THREE from "three";
 
-import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
+import LolImage from "./assets/lol.png";
+import {
+  BOT_HEAD_COLOR,
+  BOT_HEAD_FRONT_COLOR,
+  BOT_SCALE,
+} from "./config/constants";
+import { Map } from "./map";
+import { setupWorld } from "./world";
 
 const canvas = document.getElementById("main") as HTMLCanvasElement;
 
@@ -14,8 +28,6 @@ const canvas = document.getElementById("main") as HTMLCanvasElement;
 const world = new VOXELIZE.World({
   textureUnitDimension: 8,
 });
-
-import { setupWorld } from "./world";
 // actual world setup code handled later after network and world are initialized
 
 /* -------------------------------------------------------------------------- */
@@ -31,7 +43,10 @@ const camera = new THREE.PerspectiveCamera(
 const renderer = new THREE.WebGLRenderer({
   canvas,
 });
-renderer.setSize(renderer.domElement.offsetWidth, renderer.domElement.offsetHeight);
+renderer.setSize(
+  renderer.domElement.offsetWidth,
+  renderer.domElement.offsetHeight
+);
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -129,7 +144,13 @@ const controls = new VOXELIZE.RigidControls(
 
 controls.connect(inputs, "in-game");
 
-inputs.bind("KeyG", () => {controls.toggleGhostMode();}, "in-game");
+inputs.bind(
+  "KeyG",
+  () => {
+    controls.toggleGhostMode();
+  },
+  "in-game"
+);
 inputs.bind("KeyF", controls.toggleFly, "in-game");
 
 // To add/remove blocks
@@ -577,7 +598,7 @@ debug.registerDisplay("# of points", () => {
 });
 
 debug.registerDisplay("Concurrent WebWorkers", () => {
-  return VOXELIZE.SharedWorkerPool.WORKING_COUNT;
+  return VOXELIZE.WorkerPool.WORKING_COUNT;
 });
 
 // packet queue length defined after network is initialized
@@ -615,16 +636,6 @@ network
 /* -------------------------------------------------------------------------- */
 /*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
-import {
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
-
-import LolImage from "./assets/lol.png";
-import { Map } from "./map";
-import { BOT_HEAD_COLOR, BOT_HEAD_FRONT_COLOR, BOT_SCALE } from "./config/constants";
 
 const BACKEND_SERVER_INSTANCE = new URL(window.location.href);
 const VOXELIZE_LOCALSTORAGE_KEY = "voxelize-world";
@@ -669,7 +680,6 @@ inputs.on("namespace", (namespace) => {
 });
 inputs.setNamespace("menu");
 
-
 world.addChunkInitListener([0, 0], () => {
   controls.teleportToTop(0, 0);
 });
@@ -686,10 +696,7 @@ controls.on("unlock", () => {
 
 // let hand = "glass";
 
-
-
 VOXELIZE.ColorText.SPLITTER = "$";
-
 
 type BotData = {
   position: VOXELIZE.Coords3;
@@ -933,9 +940,8 @@ const update = () => {
   shadows.update();
 
   const inWater =
-  world.getBlockAt(
-    ...camera.getWorldPosition(new THREE.Vector3()).toArray()
-  )?.name === "Water";
+    world.getBlockAt(...camera.getWorldPosition(new THREE.Vector3()).toArray())
+      ?.name === "Water";
 
   const fogNear = inWater
     ? 0.1 * world.options.chunkSize * world.renderRadius
@@ -960,7 +966,7 @@ const update = () => {
   );
 
   world.chunks.uniforms.fogColor.value.lerp(fogColor, 0.08);
-  
+
   world.update(
     controls.object.position,
     camera.getWorldDirection(new THREE.Vector3())
@@ -972,7 +978,6 @@ const update = () => {
   debug.update();
 };
 
-let frame: any;
 let isFocused = true;
 
 const composer = new EffectComposer(renderer);
@@ -983,7 +988,7 @@ overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
 composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
 
 const animate = () => {
-  frame = requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
   if (isFocused) update();
   composer.render();
   renderer.clearDepth();
@@ -991,7 +996,6 @@ const animate = () => {
 };
 
 const start = async () => {
-
   let clearUpdate: any;
 
   const handleVisibilityChange = () => {
@@ -1017,22 +1021,22 @@ const start = async () => {
 
   await network.connect(BACKEND_SERVER, { secret: "test" });
   await network.join(currentWorldName);
-  
+
   await world.initialize();
   await setupWorld(world);
 
   gui
-  .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
-  .onFinishChange((time: number) => {
-    world.time = time;
-  });
+    .add({ time: world.time }, "time", 0, world.options.timePerDay, 0.01)
+    .onFinishChange((time: number) => {
+      world.time = time;
+    });
 
   gui
-  .add({ world: currentWorldName }, "world", ["terrain", "flat", "test"])
-  .onChange((worldName: string) => {
-    localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
-    window.location.reload();
-  });
+    .add({ world: currentWorldName }, "world", ["terrain", "flat", "test"])
+    .onChange((worldName: string) => {
+      localStorage.setItem(VOXELIZE_LOCALSTORAGE_KEY, worldName);
+      window.location.reload();
+    });
 
   gui.add(options, "pathVisible").onChange((value: boolean) => {
     options.pathVisible = value;
