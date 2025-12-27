@@ -54,7 +54,6 @@ custom_edit_url: null
 - [Registry](classes/Registry.md)
 - [Shadow](classes/Shadow.md)
 - [Shadows](classes/Shadows.md)
-- [SharedWorkerPool](classes/SharedWorkerPool.md)
 - [Sky](classes/Sky.md)
 - [SpriteText](classes/SpriteText.md)
 - [ThreeUtils](classes/ThreeUtils.md)
@@ -1166,36 +1165,6 @@ Parameters to create a shadow.
 | :------ | :------ | :------ |
 | `maxDistance` | `number` | The maximum distance from the object to the ground to cast a shadow. The shadow's scale scales inversely with distance. Defaults to `10`. |
 | `maxRadius` | `number` | The maximum radius the shadow can have. That is, the radius of the shadow when the object is on the ground. Defaults to `0.5`. |
-
-___
-
-### SharedWorkerPoolJob
-
-Ƭ **SharedWorkerPoolJob**: `Object`
-
-A worker pool job is queued to a worker pool and is executed by a worker.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `buffers?` | `ArrayBufferLike`[] | Any array buffers (transferable) that are passed to the worker. |
-| `message` | `any` | A JSON serializable object that is passed to the worker. |
-| `resolve` | (`value`: `any`) => `void` | - |
-
-___
-
-### SharedWorkerPoolOptions
-
-Ƭ **SharedWorkerPoolOptions**: `Object`
-
-Parameters to create a worker pool.
-
-#### Type declaration
-
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `maxWorker` | `number` | The maximum number of workers to create. Defaults to `8`. |
 
 ___
 

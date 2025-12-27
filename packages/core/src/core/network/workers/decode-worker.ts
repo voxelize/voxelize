@@ -1,21 +1,17 @@
 import { decodeMessage } from "./decode-utils";
 
-// @ts-ignore
-onconnect = (e: MessageEvent) => {
-  const port = e.ports[0];
+onmessage = (e: MessageEvent) => {
+  let { data: buffers } = e;
+  if (!Array.isArray(buffers)) {
+    buffers = [buffers];
+  }
 
-  port.onmessage = (e: MessageEvent) => {
-    let { data: buffers } = e;
-    if (!Array.isArray(buffers)) {
-      buffers = [buffers];
-    }
+  const transferables: ArrayBuffer[] = [];
+  const messages = buffers.map((buffer: Uint8Array) =>
+    decodeMessage(buffer, transferables)
+  );
 
-    const transferables: ArrayBuffer[] = [];
-    const messages = buffers.map((buffer: Uint8Array) =>
-      decodeMessage(buffer, transferables)
-    );
-
-    // @ts-ignore
-    port.postMessage(messages, transferables);
-  };
+  queueMicrotask(() => {
+    postMessage(messages, { transfer: transferables });
+  });
 };
