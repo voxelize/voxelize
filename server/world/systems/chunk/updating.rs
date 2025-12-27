@@ -19,6 +19,23 @@ pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
     [0, -1, 0],
 ];
 
+const VOXEL_NEIGHBORS_WITH_STAIRS: [[i32; 3]; 14] = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 0, 1],
+    [0, 0, -1],
+    [0, 1, 0],
+    [0, -1, 0],
+    [1, 1, 0],
+    [1, -1, 0],
+    [-1, 1, 0],
+    [-1, -1, 0],
+    [0, 1, 1],
+    [0, -1, 1],
+    [0, 1, -1],
+    [0, -1, -1],
+];
+
 const RED: LightColor = LightColor::Red;
 const GREEN: LightColor = LightColor::Green;
 const BLUE: LightColor = LightColor::Blue;
@@ -160,7 +177,7 @@ fn process_pending_updates(
                 chunks.mark_voxel_active(&Vec3(vx, vy, vz), ticks + current_tick);
             }
 
-            for [ox, oy, oz] in VOXEL_NEIGHBORS {
+            for [ox, oy, oz] in VOXEL_NEIGHBORS_WITH_STAIRS {
                 let nx = vx + ox;
                 let ny = vy + oy;
                 let nz = vz + oz;
