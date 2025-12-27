@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use crate::{
-    AStar, Chunks, PathComp, PathNode, Registry, RigidBodyComp, SystemTimer, TargetComp, Vec3,
-    VoxelAccess, WorldConfig,
+    world::system_profiler::SystemTimer, AStar, Chunks, PathComp, PathNode, Registry,
+    RigidBodyComp, TargetComp, Vec3, VoxelAccess, WorldConfig,
 };
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 

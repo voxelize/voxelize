@@ -29,6 +29,7 @@ use log::{error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
 use profiler::Profiler;
+use system_profiler::SystemTimer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
@@ -1327,6 +1328,7 @@ impl World {
 
         self.stats_mut().preloading = self.preloading;
 
+        let _tick_timer = SystemTimer::new("tick-total");
         let mut dispatcher = (self.dispatcher)().build();
         dispatcher.dispatch(&self.ecs);
 

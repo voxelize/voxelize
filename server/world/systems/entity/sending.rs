@@ -2,10 +2,10 @@ use hashbrown::{HashMap, HashSet};
 use specs::{Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    Bookkeeping, ChunkInterests, ChunkUtils, ClientFilter, Clients, CurrentChunkComp,
-    DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs, EntityOperation,
-    EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType, MetadataComp,
-    Physics, Vec2, VoxelComp, WorldConfig,
+    world::system_profiler::SystemTimer, Bookkeeping, ChunkInterests, ChunkUtils, ClientFilter,
+    Clients, CurrentChunkComp, DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs,
+    EntityOperation, EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType,
+    MetadataComp, Physics, Vec2, VoxelComp, WorldConfig,
 };
 
 #[derive(Default)]
@@ -37,6 +37,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
+        let _t = SystemTimer::new("entities-sending");
         let (
             entities,
             entities_saver,

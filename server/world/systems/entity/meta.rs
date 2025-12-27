@@ -1,7 +1,8 @@
 use specs::{ReadStorage, System, WriteStorage};
 
-use crate::world::components::{
-    DirectionComp, EntityFlag, JsonComp, MetadataComp, PositionComp, VoxelComp,
+use crate::world::{
+    components::{DirectionComp, EntityFlag, JsonComp, MetadataComp, PositionComp, VoxelComp},
+    system_profiler::SystemTimer,
 };
 
 pub struct EntitiesMetaSystem;
@@ -17,6 +18,7 @@ impl<'a> System<'a> for EntitiesMetaSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
+        let _t = SystemTimer::new("entities-meta");
         use rayon::prelude::*;
         use specs::ParJoin;
 
