@@ -89,6 +89,11 @@ export class Network {
 
   private packetQueue: ArrayBuffer[] = [];
 
+  private decodeGeneration = 0;
+  private decodeBatchId = 0;
+  private nextDecodeBatchToProcess = 0;
+  private decodedBatches = new Map<number, MessageProtocol[]>();
+
   private joinStartTime = 0;
 
   private waitingForInit = false;
@@ -114,6 +119,26 @@ export class Network {
       index;
     this.clientInfo.username = `Guest ${index}`;
   }
+
+  private resetDecodeState = () => {
+    this.decodeGeneration++;
+    this.packetQueue.length = 0;
+    this.decodedBatches.clear();
+    this.decodeBatchId = 0;
+    this.nextDecodeBatchToProcess = 0;
+  };
+
+  private drainDecodedBatches = () => {
+    while (this.decodedBatches.has(this.nextDecodeBatchToProcess)) {
+      const messages = this.decodedBatches.get(this.nextDecodeBatchToProcess);
+      this.decodedBatches.delete(this.nextDecodeBatchToProcess);
+      this.nextDecodeBatchToProcess++;
+      if (!messages) continue;
+      for (const message of messages) {
+        this.onMessage(message);
+      }
+    }
+  };
 
   connect = async (
     serverURL: string,
@@ -151,6 +176,8 @@ export class Network {
         clearTimeout(this.reconnection);
       }
     }
+
+    this.resetDecodeState();
 
     return new Promise<Network>((resolve) => {
       const ws = new WebSocket(this.socket.toString()) as ProtocolWS;
@@ -209,6 +236,8 @@ export class Network {
         );
 
         this.connected = false;
+        this.waitingForInit = false;
+        this.resetDecodeState();
         this.onDisconnect?.();
 
         if (options.reconnectTimeout) {
@@ -246,6 +275,7 @@ export class Network {
     this.waitingForInit = true;
     this.initPacketReceived = false;
     this.joinStartTime = performance.now();
+    this.resetDecodeState();
 
     this.send({
       type: "JOIN",
@@ -289,6 +319,7 @@ export class Network {
       return;
     }
 
+    const generation = this.decodeGeneration;
     const queueLength = this.packetQueue.length;
     const backlogFactor = Math.min(
       this.options.maxBacklogFactor,
@@ -296,6 +327,7 @@ export class Network {
     );
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
 
+    const batchId = this.decodeBatchId++;
     const packets = this.packetQueue
       .splice(0, Math.min(packetsToProcess, this.packetQueue.length))
       .map((buffer) => new Uint8Array(buffer));
@@ -308,18 +340,19 @@ export class Network {
       batches.push(packets.slice(i, i + perWorker));
     }
 
-    Promise.all(
-      batches.map((batch, idx) =>
-        this.decode(batch).then((msgs) => ({ idx, msgs }))
-      )
-    ).then((results) => {
-      results.sort((a, b) => a.idx - b.idx);
-      for (const { msgs } of results) {
-        for (const message of msgs) {
-          this.onMessage(message);
+    Promise.all(batches.map((batch) => this.decode(batch))).then(
+      (decodedBatches) => {
+        if (generation !== this.decodeGeneration) return;
+        const decodedMessages: MessageProtocol[] = [];
+        for (const decoded of decodedBatches) {
+          for (const message of decoded) {
+            decodedMessages.push(message);
+          }
         }
+        this.decodedBatches.set(batchId, decodedMessages);
+        this.drainDecodedBatches();
       }
-    });
+    );
   };
 
   flush = () => {
@@ -453,8 +486,10 @@ export class Network {
   }
 
   private decodePriority = (buffer: Uint8Array, originalData: ArrayBuffer) => {
+    const generation = this.decodeGeneration;
     const handler = (e: MessageEvent) => {
       this.priorityWorker.removeEventListener("message", handler);
+      if (generation !== this.decodeGeneration) return;
 
       const messages = e.data as MessageProtocol[];
       const decoded = messages[0];
