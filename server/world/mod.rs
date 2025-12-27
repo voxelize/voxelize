@@ -117,6 +117,23 @@ pub struct PeerUpdate {
     direction: Option<Vec3<f32>>,
 }
 
+/// Wrapper to make a non-Send/Sync type safely usable in contexts that require it.
+/// This is safe because the World is only ever accessed from a single SyncWorld actor thread.
+struct UnsafeSendSync<T>(T);
+
+unsafe impl<T> Send for UnsafeSendSync<T> {}
+unsafe impl<T> Sync for UnsafeSendSync<T> {}
+
+impl<T> UnsafeSendSync<T> {
+    fn new(value: T) -> Self {
+        Self(value)
+    }
+
+    fn get_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
 /// A voxelize world.
 pub struct World {
     /// ID of the world, generated from `nanoid!()`.
@@ -137,8 +154,13 @@ pub struct World {
     /// Entity component system world.
     ecs: ECSWorld,
 
-    /// The modifier of the ECS dispatcher.
+    /// The modifier of the ECS dispatcher (builder factory).
     dispatcher: Arc<dyn Fn() -> DispatcherBuilder<'static, 'static> + Send + Sync>,
+
+    /// Cached built dispatcher (built once, reused every tick).
+    /// Uses UnsafeSendSync wrapper because Dispatcher isn't Send+Sync,
+    /// but we only access it from the SyncWorld actor's single thread.
+    built_dispatcher: Arc<Mutex<Option<UnsafeSendSync<specs::Dispatcher<'static, 'static>>>>>,
 
     /// The modifier of any new client.
     client_modifier: Option<Arc<dyn Fn(&mut World, Entity) + Send + Sync>>,
@@ -491,6 +513,7 @@ impl World {
             ecs,
 
             dispatcher: Arc::new(dispatcher),
+            built_dispatcher: Arc::new(Mutex::new(None)),
             method_handles: HashMap::default(),
             event_handles: HashMap::default(),
             entity_loaders: HashMap::default(),
@@ -1332,15 +1355,17 @@ impl World {
 
         let tick_timer = SystemTimer::new("tick-total");
 
-        let (mut dispatcher, build_time) = {
-            let build_timer = SystemTimer::new("dispatcher-build");
-            let d = (self.dispatcher)().build();
-            (d, build_timer.elapsed_ms())
-        };
-
         let dispatch_time = {
+            let mut dispatcher_guard = self.built_dispatcher.lock().unwrap();
+            if dispatcher_guard.is_none() {
+                let build_timer = SystemTimer::new("dispatcher-build");
+                let dispatcher = (self.dispatcher)().build();
+                *dispatcher_guard = Some(UnsafeSendSync::new(dispatcher));
+                record_timing(&self.name, "dispatcher-build", build_timer.elapsed_ms());
+            }
+
             let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
-            dispatcher.dispatch(&self.ecs);
+            dispatcher_guard.as_mut().unwrap().get_mut().dispatch(&self.ecs);
             dispatch_timer.elapsed_ms()
         };
 
@@ -1355,14 +1380,8 @@ impl World {
         let total_time = tick_timer.elapsed_ms();
 
         record_timing(&self.name, "tick-total", total_time);
-        record_timing(&self.name, "dispatcher-build", build_time);
         record_timing(&self.name, "dispatcher-dispatch", dispatch_time);
         record_timing(&self.name, "ecs-maintain", maintain_time);
-
-        {
-            let _maintain_timer = SystemTimer::new("ecs-maintain");
-            self.ecs.maintain();
-        }
     }
 
     /// Handler for `Peer` type messages.
