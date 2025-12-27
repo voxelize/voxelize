@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use crate::{
-    world::system_profiler::SystemTimer, AStar, Chunks, PathComp, PathNode, Registry,
+    world::system_profiler::WorldTimingContext, AStar, Chunks, PathComp, PathNode, Registry,
     RigidBodyComp, TargetComp, Vec3, VoxelAccess, WorldConfig,
 };
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
@@ -16,17 +16,18 @@ impl<'a> System<'a> for PathFindingSystem {
         ReadExpect<'a, Chunks>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, WorldConfig>,
+        ReadExpect<'a, WorldTimingContext>,
         ReadStorage<'a, RigidBodyComp>,
         ReadStorage<'a, TargetComp>,
         WriteStorage<'a, PathComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let _t = SystemTimer::new("path-finding");
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (chunks, registry, _config, bodies, targets, mut paths) = data;
+        let (chunks, registry, _config, timing, bodies, targets, mut paths) = data;
+        let _t = timing.timer("path-finding");
 
         let voxel_cache = Arc::new(Mutex::new(HashMap::new()));
 

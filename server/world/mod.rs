@@ -13,8 +13,8 @@ mod metadata;
 mod physics;
 mod profiler;
 mod registry;
-pub mod system_profiler;
 mod stats;
+pub mod system_profiler;
 mod systems;
 mod types;
 mod utils;
@@ -29,7 +29,6 @@ use log::{error, info, warn};
 use metadata::WorldMetadata;
 use nanoid::nanoid;
 use profiler::Profiler;
-use system_profiler::SystemTimer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::{
@@ -45,6 +44,7 @@ use std::{
     fs::{self, File},
     time::Duration,
 };
+use system_profiler::{record_timing, SystemTimer, WorldTimingContext};
 
 use crate::{
     encode_message,
@@ -429,6 +429,7 @@ impl World {
         let world_metadata = WorldMetadata {
             world_name: name.to_owned(),
         };
+        let timing_context = WorldTimingContext::new(name);
 
         let mut ecs = ECSWorld::new();
 
@@ -456,6 +457,7 @@ impl World {
         ecs.insert(name.to_owned());
         ecs.insert(config.clone());
         ecs.insert(world_metadata);
+        ecs.insert(timing_context);
 
         ecs.insert(Chunks::new(config));
         ecs.insert(EntitiesSaver::new(&config));
@@ -1328,13 +1330,39 @@ impl World {
 
         self.stats_mut().preloading = self.preloading;
 
-        let _tick_timer = SystemTimer::new("tick-total");
-        let mut dispatcher = (self.dispatcher)().build();
-        dispatcher.dispatch(&self.ecs);
+        let tick_timer = SystemTimer::new("tick-total");
+
+        let (mut dispatcher, build_time) = {
+            let build_timer = SystemTimer::new("dispatcher-build");
+            let d = (self.dispatcher)().build();
+            (d, build_timer.elapsed_ms())
+        };
+
+        let dispatch_time = {
+            let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
+            dispatcher.dispatch(&self.ecs);
+            dispatch_timer.elapsed_ms()
+        };
 
         self.write_resource::<Profiler>().summarize();
 
-        self.ecs.maintain();
+        let maintain_time = {
+            let maintain_timer = SystemTimer::new("ecs-maintain");
+            self.ecs.maintain();
+            maintain_timer.elapsed_ms()
+        };
+
+        let total_time = tick_timer.elapsed_ms();
+
+        record_timing(&self.name, "tick-total", total_time);
+        record_timing(&self.name, "dispatcher-build", build_time);
+        record_timing(&self.name, "dispatcher-dispatch", dispatch_time);
+        record_timing(&self.name, "ecs-maintain", maintain_time);
+
+        {
+            let _maintain_timer = SystemTimer::new("ecs-maintain");
+            self.ecs.maintain();
+        }
     }
 
     /// Handler for `Peer` type messages.

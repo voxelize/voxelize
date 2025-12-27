@@ -12,7 +12,7 @@ use crate::{
         physics::Physics,
         registry::Registry,
         stats::Stats,
-        system_profiler::SystemTimer,
+        system_profiler::WorldTimingContext,
         voxels::Chunks,
         WorldConfig,
     },
@@ -31,6 +31,7 @@ impl<'a> System<'a> for PhysicsSystem {
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Chunks>,
         ReadExpect<'a, ChunkInterests>,
+        ReadExpect<'a, WorldTimingContext>,
         WriteExpect<'a, Physics>,
         WriteExpect<'a, Events>,
         ReadStorage<'a, IDComp>,
@@ -43,7 +44,6 @@ impl<'a> System<'a> for PhysicsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let _t = SystemTimer::new("physics");
         use rayon::prelude::*;
         use specs::{Join, ParJoin};
 
@@ -54,6 +54,7 @@ impl<'a> System<'a> for PhysicsSystem {
             config,
             chunks,
             interests,
+            timing,
             mut physics,
             mut events,
             ids,
@@ -64,6 +65,8 @@ impl<'a> System<'a> for PhysicsSystem {
             mut bodies,
             mut positions,
         ) = data;
+
+        let _t = timing.timer("physics");
 
         if stats.preloading {
             return;

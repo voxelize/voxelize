@@ -4,7 +4,11 @@ use specs::{ReadExpect, System, WriteExpect};
 use crate::{
     common::ClientFilter,
     server::Message,
-    world::{metadata::WorldMetadata, profiler::Profiler, system_profiler::SystemTimer, Clients, MessageQueue},
+    world::{
+        profiler::Profiler,
+        system_profiler::WorldTimingContext,
+        Clients, MessageQueue,
+    },
     EncodedMessageQueue, MessageType, Transports,
 };
 
@@ -73,21 +77,22 @@ impl<'a> System<'a> for BroadcastSystem {
     type SystemData = (
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
-        ReadExpect<'a, WorldMetadata>,
+        ReadExpect<'a, WorldTimingContext>,
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, Profiler>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let _t = SystemTimer::new("broadcast");
-        let (transports, clients, world_metadata, mut queue, mut encoded_queue, _profiler) = data;
+        let (transports, clients, timing, mut queue, mut encoded_queue, _profiler) = data;
+        let _t = timing.timer("broadcast");
+        let world_name = &*timing.world_name;
 
         let messages_with_world_name: Vec<(Message, ClientFilter)> = queue
             .drain(..)
             .map(|m| {
                 let mut message = m.0;
-                message.world_name = world_metadata.world_name.clone();
+                message.world_name = world_name.clone();
                 (message, m.1)
             })
             .collect();

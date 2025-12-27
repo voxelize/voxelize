@@ -66,9 +66,58 @@ pub struct SystemStats {
     pub samples: usize,
 }
 
+type WorldTimingsMap = HashMap<String, SystemTimings>;
+
 lazy_static! {
-    pub static ref GLOBAL_TIMINGS: Arc<RwLock<SystemTimings>> =
-        Arc::new(RwLock::new(SystemTimings::default()));
+    pub static ref WORLD_TIMINGS: Arc<RwLock<WorldTimingsMap>> =
+        Arc::new(RwLock::new(HashMap::new()));
+}
+
+pub fn record_timing(world_name: &str, system_name: &str, duration_ms: f64) {
+    if let Ok(mut world_timings) = WORLD_TIMINGS.write() {
+        let timings = world_timings.entry(world_name.to_string()).or_default();
+        timings.record(system_name, duration_ms);
+    }
+}
+
+#[derive(Clone)]
+pub struct WorldTimingContext {
+    pub world_name: Arc<String>,
+}
+
+impl WorldTimingContext {
+    pub fn new(world_name: &str) -> Self {
+        Self {
+            world_name: Arc::new(world_name.to_string()),
+        }
+    }
+
+    pub fn timer(&self, name: &'static str) -> WorldSystemTimer {
+        WorldSystemTimer {
+            name,
+            world_name: self.world_name.clone(),
+            start: Instant::now(),
+        }
+    }
+}
+
+pub struct WorldSystemTimer {
+    name: &'static str,
+    world_name: Arc<String>,
+    start: Instant,
+}
+
+impl WorldSystemTimer {
+    pub fn elapsed_ms(&self) -> f64 {
+        self.start.elapsed().as_secs_f64() * 1000.0
+    }
+}
+
+impl Drop for WorldSystemTimer {
+    fn drop(&mut self) {
+        let duration_ms = self.start.elapsed().as_secs_f64() * 1000.0;
+        record_timing(&self.world_name, self.name, duration_ms);
+    }
 }
 
 pub struct SystemTimer {
@@ -83,26 +132,38 @@ impl SystemTimer {
             start: Instant::now(),
         }
     }
-}
 
-impl Drop for SystemTimer {
-    fn drop(&mut self) {
-        let duration_ms = self.start.elapsed().as_secs_f64() * 1000.0;
-        if let Ok(mut timings) = GLOBAL_TIMINGS.write() {
-            timings.record(self.name, duration_ms);
-        }
+    pub fn elapsed_ms(&self) -> f64 {
+        self.start.elapsed().as_secs_f64() * 1000.0
+    }
+
+    pub fn name(&self) -> &'static str {
+        self.name
     }
 }
 
-pub fn get_timing_summary() -> HashMap<String, SystemStats> {
-    GLOBAL_TIMINGS
+pub fn get_timing_summary_for_world(world_name: &str) -> HashMap<String, SystemStats> {
+    WORLD_TIMINGS
         .read()
-        .map(|t| t.get_summary())
+        .map(|wt| {
+            wt.get(world_name)
+                .map(|t| t.get_summary())
+                .unwrap_or_default()
+        })
         .unwrap_or_default()
 }
 
-pub fn clear_timing_data() {
-    if let Ok(mut timings) = GLOBAL_TIMINGS.write() {
-        timings.clear();
+pub fn get_all_world_names() -> Vec<String> {
+    WORLD_TIMINGS
+        .read()
+        .map(|wt| wt.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
+pub fn clear_timing_data_for_world(world_name: &str) {
+    if let Ok(mut world_timings) = WORLD_TIMINGS.write() {
+        if let Some(timings) = world_timings.get_mut(world_name) {
+            timings.clear();
+        }
     }
 }
