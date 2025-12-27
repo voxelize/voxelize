@@ -9,7 +9,7 @@ declare module "*?sharedworker&inline" {
 }
 
 declare module "*?worker" {
-  const WebWorkerFactory: new () => Worker;
+  const WebWorkerFactory: new (options?: WorkerOptions) => Worker;
   export default WebWorkerFactory;
 }
 
@@ -19,7 +19,7 @@ declare module "*?worker&url" {
 }
 
 declare module "*?worker&inline" {
-  const WebWorkerFactory: new () => Worker;
+  const WebWorkerFactory: new (options?: WorkerOptions) => Worker;
   export default WebWorkerFactory;
 }
 

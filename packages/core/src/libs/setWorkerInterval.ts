@@ -1,7 +1,7 @@
 import IntervalWorker from "./workers/interval-worker?worker&inline";
 
 export function setWorkerInterval(func: () => void, interval: number) {
-  const worker = new IntervalWorker();
+  const worker = new IntervalWorker({ name: "interval-worker" });
 
   worker.postMessage({ signal: "start", interval });
 

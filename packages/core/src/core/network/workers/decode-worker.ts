@@ -7,9 +7,10 @@ onmessage = (e: MessageEvent) => {
   }
 
   const transferables: ArrayBuffer[] = [];
-  const messages = buffers.map((buffer: Uint8Array) =>
-    decodeMessage(buffer, transferables)
-  );
+  const messages = buffers.map((buffer: ArrayBuffer | Uint8Array) => {
+    const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    return decodeMessage(view, transferables);
+  });
 
   queueMicrotask(() => {
     postMessage(messages, { transfer: transferables });

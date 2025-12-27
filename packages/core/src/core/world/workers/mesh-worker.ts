@@ -88,6 +88,10 @@ type GeometryProtocol = {
 
 let wasmInitialized = false;
 
+const minArray = new Int32Array(3);
+const maxArray = new Int32Array(3);
+const emptyUint32Array = new Uint32Array(0);
+
 onmessage = async function (e) {
   const { type } = e.data;
 
@@ -132,21 +136,28 @@ onmessage = async function (e) {
         voxels:
           voxels && voxels.byteLength
             ? new Uint32Array(voxels)
-            : new Uint32Array(0),
+            : emptyUint32Array,
         lights:
           lights && lights.byteLength
             ? new Uint32Array(lights)
-            : new Uint32Array(0),
+            : emptyUint32Array,
         shape: [size, maxHeight, size] as [number, number, number],
         min: [x * size, 0, z * size] as [number, number, number],
       };
     }
   );
 
+  minArray[0] = min[0];
+  minArray[1] = min[1];
+  minArray[2] = min[2];
+  maxArray[0] = max[0];
+  maxArray[1] = max[1];
+  maxArray[2] = max[2];
+
   const result = mesh_chunk_fast(
     chunks,
-    new Int32Array(min),
-    new Int32Array(max),
+    minArray,
+    maxArray,
     chunkSize,
     greedyMeshing
   ) as { geometries: GeometryProtocol[] };

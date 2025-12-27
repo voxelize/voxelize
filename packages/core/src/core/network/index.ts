@@ -72,9 +72,12 @@ export class Network {
 
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
+    name: "decode-worker",
   });
 
-  private priorityWorker: Worker = new DecodeWorker();
+  private priorityWorker: Worker = new DecodeWorker({
+    name: "decode-priority",
+  });
 
   private reconnection: ReturnType<typeof setTimeout>;
 
@@ -197,8 +200,7 @@ export class Network {
         if (this.waitingForInit) {
           if (!this.initPacketReceived) {
             this.initPacketReceived = true;
-            const bufferCopy = new Uint8Array(arrayBuffer.slice(0));
-            this.decodePriority(bufferCopy, arrayBuffer);
+            this.decodePriority(arrayBuffer);
           } else {
             this.packetQueue.push(arrayBuffer);
           }
@@ -336,14 +338,15 @@ export class Network {
     );
     const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
 
-    const packets = this.packetQueue
-      .splice(0, Math.min(packetsToProcess, this.packetQueue.length))
-      .map((buffer) => new Uint8Array(buffer));
+    const packets = this.packetQueue.splice(
+      0,
+      Math.min(packetsToProcess, this.packetQueue.length)
+    );
 
     const availableWorkers = Math.max(1, this.pool.availableCount);
     const perWorker = Math.ceil(packets.length / availableWorkers);
 
-    const batches: Uint8Array[][] = [];
+    const batches: ArrayBuffer[][] = [];
     for (let i = 0; i < packets.length; i += perWorker) {
       batches.push(packets.slice(i, i + perWorker));
     }
@@ -363,15 +366,16 @@ export class Network {
   };
 
   flush = () => {
-    this.intercepts.forEach((intercept) => {
-      if (intercept.packets && intercept.packets.length) {
-        intercept.packets
-          .splice(0, intercept.packets.length)
-          .forEach((packet) => {
-            this.send(packet);
-          });
+    for (let i = 0; i < this.intercepts.length; i++) {
+      const intercept = this.intercepts[i];
+      const packets = intercept.packets;
+      if (packets && packets.length) {
+        const toSend = packets.splice(0, packets.length);
+        for (let j = 0; j < toSend.length; j++) {
+          this.send(toSend[j]);
+        }
       }
-    });
+    }
   };
 
   register = (...intercepts: NetIntercept[]) => {
@@ -507,7 +511,7 @@ export class Network {
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
-  private decodePriority = (buffer: Uint8Array, originalData: ArrayBuffer) => {
+  private decodePriority = (buffer: ArrayBuffer) => {
     const handler = (e: MessageEvent) => {
       this.priorityWorker.removeEventListener("message", handler);
 
@@ -517,19 +521,19 @@ export class Network {
       if (decoded.type === "INIT" && this.waitingForInit) {
         this.onMessage(decoded);
       } else {
-        this.packetQueue.push(originalData);
+        this.packetQueue.push(buffer);
       }
     };
 
     this.priorityWorker.addEventListener("message", handler);
-    this.priorityWorker.postMessage([buffer], [buffer.buffer]);
+    this.priorityWorker.postMessage([buffer]);
   };
 
-  private decode = (data: Uint8Array[]): Promise<MessageProtocol[]> => {
+  private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
     return new Promise<MessageProtocol[]>((resolve) => {
       this.pool.addJob({
         message: data,
-        buffers: data.map((d) => d.buffer),
+        buffers: data,
         resolve,
       });
     });

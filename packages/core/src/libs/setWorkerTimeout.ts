@@ -1,7 +1,7 @@
 import TimeoutWorker from "./workers/timeout-worker?worker&inline";
 
 export function setWorkerTimeout(func: () => void, timeout: number) {
-  const worker = new TimeoutWorker();
+  const worker = new TimeoutWorker({ name: "timeout-worker" });
   let messageId = 0; // Unique ID for each message
 
   const callbackWrapper = (id: number) => {

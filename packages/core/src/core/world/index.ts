@@ -644,6 +644,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private meshWorkerPool = new WorkerPool(MeshWorker, {
     maxWorker: navigator.hardwareConcurrency ?? 4,
+    name: "mesh-worker",
   });
 
   private lightWorkerPool!: WorkerPool;
@@ -685,6 +686,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.lightWorkerPool = new WorkerPool(LightWorker, {
       maxWorker: this.options.maxLightWorkers,
+      name: "light-worker",
     });
 
     this.setupComponents();
@@ -3767,11 +3769,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { level, geometries } = data;
     const heightPerSubChunk = Math.floor(maxHeight / subChunks);
 
-    chunk.meshes.get(level)?.forEach((mesh) => {
-      if (!mesh) return;
-      mesh.geometry.dispose();
-      chunk.group.remove(mesh);
-    });
+    const oldMeshes = chunk.meshes.get(level);
+    if (oldMeshes) {
+      for (let i = 0; i < oldMeshes.length; i++) {
+        const mesh = oldMeshes[i];
+        if (mesh) {
+          mesh.geometry.dispose();
+          chunk.group.remove(mesh);
+        }
+      }
+    }
 
     chunk.meshes.delete(level);
 
@@ -3834,20 +3841,27 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const [, geoMats] of materialToGeometries) {
         if (geoMats.length === 0) continue;
 
-        const geos = geoMats.map((gm) => gm.geometry);
         const material = geoMats[0].material;
         const voxel = geoMats[0].voxel;
 
         let finalGeometry: BufferGeometry;
-        if (geos.length === 1) {
-          finalGeometry = geos[0];
+        if (geoMats.length === 1) {
+          finalGeometry = geoMats[0].geometry;
         } else {
+          const geos: BufferGeometry[] = [];
+          for (let i = 0; i < geoMats.length; i++) {
+            geos.push(geoMats[i].geometry);
+          }
           const merged = mergeGeometries(geos, false);
           if (!merged) {
-            geos.forEach((g) => g.dispose());
+            for (let i = 0; i < geos.length; i++) {
+              geos[i].dispose();
+            }
             continue;
           }
-          geos.forEach((g) => g.dispose());
+          for (let i = 0; i < geos.length; i++) {
+            geos[i].dispose();
+          }
           finalGeometry = merged;
         }
 
@@ -3885,76 +3899,76 @@ export class World<T = any> extends Scene implements NetIntercept {
         meshes.push(mesh);
       }
     } else {
-      meshes = geometries
-        .map((geo) => {
-          const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
-          const geometry = new BufferGeometry();
+      meshes = [];
+      for (let i = 0; i < geometries.length; i++) {
+        const geo = geometries[i];
+        const { voxel, at, faceName, indices, lights, positions, uvs } = geo;
+        const geometry = new BufferGeometry();
 
-          geometry.setAttribute("position", new BufferAttribute(positions, 3));
-          geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
-          geometry.setAttribute("light", new BufferAttribute(lights, 1));
-          geometry.setIndex(new BufferAttribute(indices, 1));
-          geometry.computeVertexNormals();
-          geometry.computeBoundingSphere();
+        geometry.setAttribute("position", new BufferAttribute(positions, 3));
+        geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+        geometry.setAttribute("light", new BufferAttribute(lights, 1));
+        geometry.setIndex(new BufferAttribute(indices, 1));
+        geometry.computeVertexNormals();
+        geometry.computeBoundingSphere();
 
-          let material = this.getBlockFaceMaterial(
-            voxel,
-            faceName,
-            at && at.length ? at : undefined
-          );
-          if (!material) {
-            const block = this.getBlockById(voxel);
-            const face = block.faces.find((face) => face.name === faceName);
+        let material = this.getBlockFaceMaterial(
+          voxel,
+          faceName,
+          at && at.length ? at : undefined
+        );
+        if (!material) {
+          const block = this.getBlockById(voxel);
+          const face = block.faces.find((face) => face.name === faceName);
 
-            if (!face.isolated || !at) {
-              console.warn("Unlikely situation happened...");
-              return;
-            }
+          if (!face.isolated || !at) {
+            console.warn("Unlikely situation happened...");
+            continue;
+          }
 
-            try {
-              const isolatedMaterial = this.getOrCreateIsolatedBlockMaterial(
-                voxel,
-                at,
-                faceName
+          try {
+            material = this.getOrCreateIsolatedBlockMaterial(
+              voxel,
+              at,
+              faceName
+            );
+          } catch (e) {
+            console.error(e);
+            continue;
+          }
+        }
+
+        const mesh = new Mesh(geometry, material);
+        mesh.position.set(
+          cx * chunkSize,
+          level * heightPerSubChunk,
+          cz * chunkSize
+        );
+        mesh.updateMatrix();
+        mesh.matrixAutoUpdate = false;
+        mesh.matrixWorldAutoUpdate = false;
+        mesh.userData = { isChunk: true, voxel };
+        if (material.transparent) {
+          const block = this.getBlockByIdSafe(voxel);
+          mesh.renderOrder = block?.isFluid
+            ? TRANSPARENT_FLUID_RENDER_ORDER
+            : TRANSPARENT_RENDER_ORDER;
+          const sortData = prepareTransparentMesh(mesh);
+          if (sortData) {
+            mesh.userData.transparentSortData = sortData;
+            mesh.onBeforeRender = (_renderer, _scene, camera) => {
+              sortTransparentMesh(
+                mesh,
+                mesh.userData.transparentSortData as TransparentMeshData,
+                camera
               );
-              material = isolatedMaterial;
-            } catch (e) {
-              console.error(e);
-            }
+            };
           }
+        }
 
-          const mesh = new Mesh(geometry, material);
-          mesh.position.set(
-            cx * chunkSize,
-            level * heightPerSubChunk,
-            cz * chunkSize
-          );
-          mesh.updateMatrix();
-          mesh.matrixAutoUpdate = false;
-          mesh.matrixWorldAutoUpdate = false;
-          mesh.userData = { isChunk: true, voxel };
-          if (material.transparent) {
-            const block = this.getBlockByIdSafe(voxel);
-            mesh.renderOrder = block?.isFluid
-              ? TRANSPARENT_FLUID_RENDER_ORDER
-              : TRANSPARENT_RENDER_ORDER;
-            const sortData = prepareTransparentMesh(mesh);
-            if (sortData) {
-              mesh.userData.transparentSortData = sortData;
-              mesh.onBeforeRender = (_renderer, _scene, camera) => {
-                sortTransparentMesh(
-                  mesh,
-                  mesh.userData.transparentSortData as TransparentMeshData,
-                  camera
-                );
-              };
-            }
-          }
-
-          chunk.group.add(mesh);
-          return mesh;
-        })
-        .filter((m) => !!m);
+        chunk.group.add(mesh);
+        meshes.push(mesh);
+      }
     }
 
     if (!this.children.includes(chunk.group)) {

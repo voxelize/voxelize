@@ -21,6 +21,7 @@ export type CullOptionsType = {
 
 const cullPool = new WorkerPool(CullWorker, {
   maxWorker: 2,
+  name: "cull-worker",
 });
 
 export async function cull(

@@ -28,6 +28,12 @@ export type WorkerPoolOptions = {
    * The maximum number of workers to create. Defaults to `8`.
    */
   maxWorker: number;
+
+  /**
+   * The name prefix for workers in this pool. Workers will be named
+   * "{name}-0", "{name}-1", etc. Shows up in DevTools for debugging.
+   */
+  name?: string;
 };
 
 const defaultOptions: WorkerPoolOptions = {
@@ -69,13 +75,16 @@ export class WorkerPool {
    * @param options The options to create the worker pool.
    */
   constructor(
-    public Proto: new () => Worker,
+    public Proto: new (options?: WorkerOptions) => Worker,
     public options: WorkerPoolOptions = defaultOptions
   ) {
-    const { maxWorker } = options;
+    const { maxWorker, name } = options;
 
     for (let i = 0; i < maxWorker; i++) {
-      const worker = new Proto();
+      const workerOptions: WorkerOptions | undefined = name
+        ? { name: `${name}-${i}` }
+        : undefined;
+      const worker = new Proto(workerOptions);
       this.workers.push(worker);
       this.available.push(i);
     }
