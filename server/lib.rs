@@ -3,7 +3,10 @@ mod errors;
 mod libs;
 mod server;
 mod types;
+pub mod webrtc;
 mod world;
+
+use std::sync::Arc;
 
 use actix::{Actor, Addr};
 use actix_cors::Cors;
@@ -16,17 +19,25 @@ use actix_ws::AggregatedMessage;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
 use log::{info, warn};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 
 pub use common::*;
 pub use libs::*;
 pub use server::*;
 pub use types::*;
+pub use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
+pub use webrtc::{create_webrtc_api, datachannel::fragment_message};
 pub use world::system_profiler::{
     clear_timing_data_for_world, get_all_world_names, get_timing_summary_for_world, SystemTimer,
     WorldTimingContext,
 };
 pub use world::*;
+
+pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
+
+pub fn create_rtc_senders() -> RtcSenders {
+    Arc::new(Mutex::new(HashMap::new()))
+}
 
 struct Config {
     serve: String,

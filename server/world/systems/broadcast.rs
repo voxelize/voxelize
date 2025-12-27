@@ -3,13 +3,10 @@ use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
+    fragment_message,
     server::Message,
-    world::{
-        profiler::Profiler,
-        system_profiler::WorldTimingContext,
-        Clients, MessageQueue,
-    },
-    EncodedMessageQueue, MessageType, Transports,
+    world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueue},
+    EncodedMessageQueue, MessageType, RtcSenders, Transports,
 };
 
 pub struct BroadcastSystem;
@@ -81,10 +78,19 @@ impl<'a> System<'a> for BroadcastSystem {
         WriteExpect<'a, MessageQueue>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, Profiler>,
+        Option<ReadExpect<'a, RtcSenders>>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (transports, clients, timing, mut queue, mut encoded_queue, _profiler) = data;
+        let (
+            transports,
+            clients,
+            timing,
+            mut queue,
+            mut encoded_queue,
+            _profiler,
+            rtc_senders_opt,
+        ) = data;
         let _t = timing.timer("broadcast");
         let world_name = &*timing.world_name;
 
@@ -108,13 +114,29 @@ impl<'a> System<'a> for BroadcastSystem {
             return;
         }
 
+        let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
+
         for (encoded, filter) in done_messages {
+            let use_rtc = encoded.is_rtc_eligible;
+
             transports.values().for_each(|sender| {
                 let _ = sender.send(encoded.data.clone());
             });
 
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
+                    if use_rtc {
+                        if let Some(ref rtc_map) = rtc_map {
+                            if let Some(rtc_sender) = rtc_map.get(id) {
+                                for fragment in fragment_message(&encoded.data) {
+                                    if rtc_sender.send(fragment).is_err() {
+                                        break;
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     let _ = client.sender.send(encoded.data.clone());
                 }
                 continue;
@@ -135,6 +157,19 @@ impl<'a> System<'a> for BroadcastSystem {
                     }
                     _ => {}
                 };
+
+                if use_rtc {
+                    if let Some(ref rtc_map) = rtc_map {
+                        if let Some(rtc_sender) = rtc_map.get(id) {
+                            for fragment in fragment_message(&encoded.data) {
+                                if rtc_sender.send(fragment).is_err() {
+                                    break;
+                                }
+                            }
+                            return;
+                        }
+                    }
+                }
 
                 let _ = client.sender.send(encoded.data.clone());
             })

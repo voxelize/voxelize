@@ -3,12 +3,13 @@ use std::sync::Arc;
 use crossbeam_channel::{Receiver, Sender};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use crate::{common::ClientFilter, encode_message, server::Message};
+use crate::{common::ClientFilter, encode_message, server::Message, EntityOperation, MessageType};
 
 #[derive(Clone)]
 pub struct EncodedMessage {
     pub data: Vec<u8>,
     pub msg_type: i32,
+    pub is_rtc_eligible: bool,
 }
 
 pub type MessageQueue = Vec<(Message, ClientFilter)>;
@@ -47,9 +48,11 @@ impl EncodedMessageQueue {
                 .into_par_iter()
                 .map(|(message, filter)| {
                     let msg_type = message.r#type;
+                    let is_rtc_eligible = Self::compute_rtc_eligibility(&message);
                     let encoded = EncodedMessage {
                         data: encode_message(&message),
                         msg_type,
+                        is_rtc_eligible,
                     };
                     (encoded, filter)
                 })
@@ -64,5 +67,18 @@ impl EncodedMessageQueue {
             result.append(&mut messages);
         }
         result
+    }
+
+    fn compute_rtc_eligibility(message: &Message) -> bool {
+        match MessageType::try_from(message.r#type) {
+            Ok(MessageType::Entity) => {
+                !message.entities.is_empty()
+                    && message.entities.iter().all(|e| {
+                        EntityOperation::try_from(e.operation) == Ok(EntityOperation::Update)
+                    })
+            }
+            Ok(MessageType::Peer) => true,
+            _ => false,
+        }
     }
 }
