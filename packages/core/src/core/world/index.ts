@@ -235,6 +235,7 @@ export type ProcessedUpdate = {
   newBlock: Block;
   oldRotation: BlockRotation;
   newRotation: BlockRotation;
+  oldStage: number;
   stage: number;
 };
 
@@ -651,6 +652,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private chunksTracker: [Coords2, number][] = [];
   private meshingInProgress = new Set<string>();
+  private pendingRemeshAfterCurrent = new Set<string>();
 
   private isTrackingChunks = false;
 
@@ -4112,7 +4114,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const sunFlood: LightNode[] = [];
 
     for (const update of processedUpdates) {
-      const { voxel, oldBlock, newBlock, newRotation } = update;
+      const { voxel, oldBlock, newBlock, newRotation, oldStage } = update;
       const [vx, vy, vz] = voxel;
 
       let currentEmitsLight = oldBlock.isLight;
@@ -4132,12 +4134,19 @@ export class World<T = any> extends Scene implements NetIntercept {
               part.rule,
               [vx, vy, vz],
               {
-                getVoxelAt: (x: number, y: number, z: number) =>
-                  this.getVoxelAt(x, y, z),
-                getVoxelRotationAt: (x: number, y: number, z: number) =>
-                  this.getVoxelRotationAt(x, y, z),
-                getVoxelStageAt: (x: number, y: number, z: number) =>
-                  this.getVoxelStageAt(x, y, z),
+                getVoxelAt: (x: number, y: number, z: number) => {
+                  if (x === vx && y === vy && z === vz) return update.oldId;
+                  return this.getVoxelAt(x, y, z);
+                },
+                getVoxelRotationAt: (x: number, y: number, z: number) => {
+                  if (x === vx && y === vy && z === vz)
+                    return update.oldRotation;
+                  return this.getVoxelRotationAt(x, y, z);
+                },
+                getVoxelStageAt: (x: number, y: number, z: number) => {
+                  if (x === vx && y === vy && z === vz) return oldStage;
+                  return this.getVoxelStageAt(x, y, z);
+                },
               }
             );
 
@@ -4347,7 +4356,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
 
-      if (newBlock.isLight) {
+      if (
+        newBlock.isLight ||
+        (newBlock.dynamicPatterns && update.stage !== undefined)
+      ) {
         let redLevel = newBlock.redLightLevel;
         let greenLevel = newBlock.greenLightLevel;
         let blueLevel = newBlock.blueLightLevel;
@@ -4549,6 +4561,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const currentBlock = this.getBlockById(currentId);
       const newBlock = this.getBlockById(type);
       const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
+      const currentStage = this.getVoxelStageAt(vx, vy, vz);
       const newRotation = BlockRotation.encode(rotation, yRotation);
 
       const newValue = BlockUtils.insertAll(
@@ -4573,6 +4586,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         newBlock: newBlock,
         oldRotation: currentRotation,
         newRotation: this.getVoxelRotationAt(vx, vy, vz),
+        oldStage: currentStage,
         stage: stage,
       });
 
@@ -4662,9 +4676,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         await this.meshChunkLocally(cx, cz, level);
       } finally {
         this.meshingInProgress.delete(key);
+        if (this.pendingRemeshAfterCurrent.has(key)) {
+          this.pendingRemeshAfterCurrent.delete(key);
+          this.chunksTracker.push([coords, level]);
+        }
       }
     });
     await Promise.all(meshPromises);
+
+    if (this.chunksTracker.length > 0) {
+      this.processDirtyChunks();
+    }
   };
 
   private mergeLightOperations(
@@ -5386,8 +5408,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     for (let level = minLevel; level <= maxLevel; level++) {
       const key = `${coords[0]},${coords[1]}:${level}`;
-      if (
-        !this.meshingInProgress.has(key) &&
+      if (this.meshingInProgress.has(key)) {
+        this.pendingRemeshAfterCurrent.add(key);
+      } else if (
         !this.chunksTracker.some(
           ([c, l]) => c[0] === coords[0] && c[1] === coords[1] && l === level
         )
