@@ -24,6 +24,8 @@ import { UV } from "./uv";
  * @noInheritDoc
  */
 export class AtlasTexture extends CanvasTexture {
+  private static sharedUnknownTexture: AtlasTexture | null = null;
+
   /**
    * The number of textures per side of the texture atlas
    */
@@ -351,6 +353,10 @@ export class AtlasTexture extends CanvasTexture {
   }
 
   static makeUnknownTexture(dimension: number) {
+    if (AtlasTexture.sharedUnknownTexture) {
+      return AtlasTexture.sharedUnknownTexture;
+    }
+
     const newAtlas = new AtlasTexture(1, dimension);
     const image = AtlasTexture.makeUnknownImage(dimension);
 
@@ -370,6 +376,7 @@ export class AtlasTexture extends CanvasTexture {
     newAtlas.needsUpdate = true;
     newAtlas.colorSpace = SRGBColorSpace;
 
+    AtlasTexture.sharedUnknownTexture = newAtlas;
     return newAtlas;
   }
 }
