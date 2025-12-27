@@ -73,9 +73,10 @@ import {
   PY_ROTATION,
 } from "./block";
 import { Chunk } from "./chunk";
-import { Chunks } from "./chunks";
+import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
 import { Loader } from "./loader";
+import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
 import { DEFAULT_CHUNK_SHADERS } from "./shaders";
 import { Sky, SkyOptions } from "./sky";
@@ -86,8 +87,10 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 
 export * from "./block";
 export * from "./chunk";
+export * from "./chunk-renderer";
 export * from "./clouds";
 export * from "./loader";
+export * from "./pipelines";
 export * from "./registry";
 export * from "./shaders";
 export * from "./sky";
@@ -293,9 +296,11 @@ export type WorldClientOptions = {
   maxMeshesPerUpdate: number;
 
   /**
-   * Whether or not should the world generate ThreeJS meshes. Defaults to `true`.
+   * Whether to use client-only meshing. When true, chunks are always meshed locally.
+   * When false, server-provided meshes are used for initial chunk load.
+   * Defaults to `true`.
    */
-  shouldGenerateChunkMeshes: boolean;
+  clientOnlyMeshing: boolean;
 
   /**
    * The minimum light level even when sunlight and torch light levels are at zero. Defaults to `0.04`.
@@ -353,7 +358,7 @@ export type WorldClientOptions = {
   /**
    * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
    */
-  chunkUniformsOverwrite: Partial<Chunks["uniforms"]>;
+  chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
 
   /**
    * The threshold to force the server's time to the client's time. Defaults to `0.1`.
@@ -395,11 +400,11 @@ export type WorldClientOptions = {
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
-  maxProcessesPerUpdate: 4,
+  maxProcessesPerUpdate: 12,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
-  shouldGenerateChunkMeshes: true,
+  clientOnlyMeshing: false,
   minLightLevel: 0.04,
   chunkRerequestInterval: 10000,
   defaultRenderRadius: 6,
@@ -502,8 +507,7 @@ export type WorldOptions = WorldClientOptions & WorldServerOptions;
  * **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
  * This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
  * also implements {@link NetIntercept}, which means it intercepts chunk-related packets from the server
- * and constructs chunk meshes from them. You can optionally disable this by setting `shouldGenerateChunkMeshes` to `false`
- * in the options.
+ * and constructs chunk meshes from them.
  *
  * There are a couple components that are by default created by the world that holds data:
  * - {@link World.registry}: A block registry that handles block textures and block instances.
@@ -555,9 +559,19 @@ export class World<T = any> extends Scene implements NetIntercept {
   public loader: Loader;
 
   /**
-   * The manager that holds all chunk-related data, such as chunk meshes and voxel data.
+   * Pipeline for chunk lifecycle state machine (request -> processing -> loaded).
    */
-  public chunks: Chunks;
+  public chunkPipeline: ChunkPipeline;
+
+  /**
+   * Pipeline for mesh generation with ordering guarantees.
+   */
+  public meshPipeline: MeshPipeline;
+
+  /**
+   * Chunk rendering state (materials, uniforms).
+   */
+  public chunkRenderer: ChunkRenderer;
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -606,6 +620,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private chunkInitializeListeners = new Map<
     string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     ((chunk: Chunk) => void)[]
   >();
 
@@ -651,11 +666,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   private textureLoaderLastMap: Record<string, Date> = {};
 
-  private chunksTracker: [Coords2, number][] = [];
-  private meshingInProgress = new Set<string>();
-  private pendingRemeshAfterCurrent = new Set<string>();
-
   private isTrackingChunks = false;
+
+  private blockUpdatesQueue: BlockUpdateWithSource[] = [];
+  private blockUpdatesToEmit: BlockUpdate[] = [];
 
   private voxelDeltas = new Map<string, VoxelDelta[]>();
   private deltaSequenceCounter = 0;
@@ -721,7 +735,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }, 1000) as unknown as number;
   }
 
-  async meshChunkLocally(cx: number, cz: number, level: number) {
+  async meshChunkLocally(
+    cx: number,
+    cz: number,
+    level: number,
+    generation?: number
+  ) {
     if (this.lightJobQueue.length > 0 || this.activeLightBatch !== null) {
       await this.waitForLightJobsComplete();
     }
@@ -777,7 +796,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
 
     const name = ChunkUtils.getChunkName([cx, cz]);
-    if (this.chunks.toProcessSet.has(name)) {
+    if (this.chunkPipeline.isInStage(name, "processing")) {
       return;
     }
 
@@ -791,7 +810,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
     });
 
-    if (this.chunks.toProcessSet.has(name)) {
+    if (this.chunkPipeline.isInStage(name, "processing")) {
+      return;
+    }
+
+    const key = MeshPipeline.makeKey(cx, cz, level);
+    if (
+      generation !== undefined &&
+      !this.meshPipeline.onJobComplete(key, generation)
+    ) {
       return;
     }
 
@@ -1043,7 +1070,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (!mat) {
       const key = this.makeChunkMaterialKey(block.id, face.name, voxel);
-      this.chunks.materials.set(key, isolatedMat);
+      this.chunkRenderer.materials.set(key, isolatedMat);
     }
 
     return isolatedMat;
@@ -1399,7 +1426,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByName(name: string) {
     this.checkIsInitialized("get chunk by name", false);
-    return this.chunks.loaded.get(name);
+    return this.chunkPipeline.getLoadedChunk(name);
   }
 
   /**
@@ -1619,7 +1646,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!lightValues) return new Color(1, 1, 1);
 
     const { sunlight, red, green, blue } = lightValues;
-    const { sunlightIntensity, minLightLevel } = this.chunks.uniforms;
+    const { sunlightIntensity, minLightLevel } = this.chunkRenderer.uniforms;
 
     const s = Math.min(
       (sunlight / this.options.maxLightLevel) ** 2 *
@@ -1783,29 +1810,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   getChunkStatus(
     cx: number,
     cz: number
-  ): "to request" | "requested" | "processing" | "loaded" {
+  ): "to request" | "requested" | "processing" | "loaded" | null {
     const name = ChunkUtils.getChunkName([cx, cz]);
+    const stage = this.chunkPipeline.getStage(name);
 
-    const isRequested = this.chunks.requested.has(name);
-    const isLoaded = this.chunks.loaded.has(name);
-    const isProcessing = this.chunks.toProcessSet.has(name);
-    const isToRequest = this.chunks.toRequestSet.has(name);
-
-    // Check if more than one is true. If that is the case, throw an error.
-    if (
-      (isRequested && isProcessing) ||
-      (isRequested && isToRequest) ||
-      (isProcessing && isToRequest)
-    ) {
-      throw new Error(
-        `Chunk ${name} is in more than one state other than the loaded state. This should not happen. These are the states: requested: ${isRequested}, loaded: ${isLoaded}, processing: ${isProcessing}, to request: ${isToRequest}`
-      );
-    }
-
-    if (isLoaded) return "loaded";
-    if (isProcessing) return "processing";
-    if (isRequested) return "requested";
-    if (isToRequest) return "to request";
+    if (stage === "loaded") return "loaded";
+    if (stage === "processing") return "processing";
+    if (stage === "requested") return "requested";
 
     return null;
   }
@@ -1820,18 +1831,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     const block = this.getBlockOf(idOrName);
 
     if (voxel && faceName && block.isolatedFaces.has(faceName)) {
-      return this.chunks.materials.get(
+      return this.chunkRenderer.materials.get(
         this.makeChunkMaterialKey(block.id, faceName, voxel)
       );
     }
 
     if (faceName && block.independentFaces.has(faceName)) {
-      return this.chunks.materials.get(
+      return this.chunkRenderer.materials.get(
         this.makeChunkMaterialKey(block.id, faceName)
       );
     }
 
-    return this.chunks.materials.get(this.makeChunkMaterialKey(block.id));
+    return this.chunkRenderer.materials.get(
+      this.makeChunkMaterialKey(block.id)
+    );
   }
 
   getTextureInfo(): {
@@ -1856,7 +1869,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           id,
           isIndependent || isIsolated ? face.name : undefined
         );
-        const mat = this.chunks.materials.get(materialKey);
+        const mat = this.chunkRenderer.materials.get(materialKey);
 
         if (!mat) continue;
 
@@ -2384,7 +2397,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         return update;
       });
 
-    this.chunks.toUpdate.push(
+    this.blockUpdatesQueue.push(
       ...voxelUpdates.map((update) => ({ source, update }))
     );
 
@@ -3189,12 +3202,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { chunks } = message;
         chunks.forEach((chunk) => {
           const { x, z } = chunk;
-          const name = ChunkUtils.getChunkName([x, z]);
-
-          // Only process if we're interested.
-          this.chunks.requested.delete(name);
-          this.chunks.toProcess.push({ source: "load", data: chunk });
-          this.chunks.toProcessSet.add(name);
+          this.chunkPipeline.markProcessing([x, z], "load", chunk);
         });
 
         break;
@@ -3243,7 +3251,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.options.chunkSize
         );
         const chunkName = ChunkUtils.getChunkName(chunkCoords);
-        const chunk = this.chunks.loaded.get(chunkName);
+        const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
         // very iffy if statement. the intention is to check if chunk is
         // mesh-initialized.
         if (!chunk || chunk.meshes.size === 0) {
@@ -3289,7 +3297,7 @@ export class World<T = any> extends Scene implements NetIntercept {
                   material.dispose();
                   material.map?.dispose();
                 }
-                this.chunks.materials.delete(
+                this.chunkRenderer.materials.delete(
                   this.makeChunkMaterialKey(block.id, face.name, voxel)
                 );
               }
@@ -3341,8 +3349,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const { chunkSize } = this.options;
 
-    this.chunks.uniforms.fogNear.value = radius * 0.7 * chunkSize;
-    this.chunks.uniforms.fogFar.value = radius * chunkSize;
+    this.chunkRenderer.uniforms.fogNear.value = radius * 0.7 * chunkSize;
+    this.chunkRenderer.uniforms.fogFar.value = radius * chunkSize;
   }
 
   get deleteRadius() {
@@ -3359,13 +3367,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
     } = this;
 
-    const total =
-      this.chunks.loaded.size +
-      this.chunks.requested.size +
-      this.chunks.toRequest.length +
-      this.chunks.toProcess.length;
+    const total = this.chunkPipeline.totalCount;
+    const loadedCount = this.chunkPipeline.loadedCount;
 
-    const ratio = total === 0 ? 1 : this.chunks.loaded.size / total;
+    const ratio = total === 0 ? 1 : loadedCount / total;
     const hasDirection = direction.length() > 0;
 
     const angleThreshold =
@@ -3404,36 +3409,28 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const chunkName = ChunkUtils.getChunkName([cx, cz]);
 
-        if (this.chunks.loaded.has(chunkName)) {
+        const stage = this.chunkPipeline.getStage(chunkName);
+
+        if (stage === "loaded") {
           continue;
         }
 
-        if (this.chunks.requested.has(chunkName)) {
-          const name = ChunkUtils.getChunkName([cx, cz]);
-          const count = this.chunks.requested.get(name) || 0;
+        if (stage === "requested") {
+          const retryCount = this.chunkPipeline.incrementRetry(chunkName);
 
-          if (count + 1 > chunkRerequestInterval) {
-            this.chunks.requested.delete(name);
+          if (retryCount > chunkRerequestInterval) {
+            this.chunkPipeline.remove(chunkName);
             toRequestSet.add(`${cx},${cz}`);
-          } else {
-            this.chunks.requested.set(name, count + 1);
           }
 
           continue;
         }
 
-        if (
-          this.chunks.toProcessSet.has(chunkName) ||
-          this.chunks.toRequestSet.has(chunkName)
-        ) {
+        if (stage === "processing") {
           continue;
         }
 
-        const chunkCoords = `${cx},${cz}`;
-        if (!this.chunks.requested.has(ChunkUtils.getChunkName([cx, cz]))) {
-          toRequestSet.add(chunkCoords);
-        }
-        continue;
+        toRequestSet.add(`${cx},${cz}`);
       }
     }
 
@@ -3472,17 +3469,28 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
 
       toRequest.forEach((coords) => {
-        const name = ChunkUtils.getChunkName(coords as Coords2);
-        this.chunks.requested.set(name, 0);
+        this.chunkPipeline.markRequested(coords as Coords2);
       });
     }
   }
 
   private processChunks(center: Coords2) {
-    if (this.chunks.toProcess.length === 0) return;
+    const processingSet = this.chunkPipeline.getInStage("processing");
+    if (processingSet.size === 0) return;
 
-    // Sort the chunks by distance from the center, closest first.
-    this.chunks.toProcess.sort((a, b) => {
+    const toProcessArray: Array<{
+      name: string;
+      source: "update" | "load";
+      data: import("@voxelize/protocol").ChunkProtocol;
+    }> = [];
+    for (const name of processingSet) {
+      const procData = this.chunkPipeline.getProcessingData(name);
+      if (procData) {
+        toProcessArray.push({ name, ...procData });
+      }
+    }
+
+    toProcessArray.sort((a, b) => {
       const { x: ax, z: az } = a.data;
       const { x: bx, z: bz } = b.data;
 
@@ -3498,7 +3506,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxHeight,
       subChunks,
       maxLightLevel,
-      shouldGenerateChunkMeshes,
+      clientOnlyMeshing,
     } = this.options;
 
     const triggerInitListener = (chunk: Chunk) => {
@@ -3510,12 +3518,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     };
 
-    const toProcess = this.chunks.toProcess.splice(0, maxProcessesPerUpdate);
+    const toProcess = toProcessArray.slice(0, maxProcessesPerUpdate);
 
-    toProcess.forEach((data) => {
-      const { x, z, id, meshes } = data.data;
-      const name = ChunkUtils.getChunkName([x, z]);
-      this.chunks.toProcessSet.delete(name);
+    toProcess.forEach((item) => {
+      const { x, z, id } = item.data;
 
       let chunk = this.getChunkByCoords(x, z);
 
@@ -3528,10 +3534,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
       }
 
-      chunk.setData(data.data);
+      chunk.setData(item.data);
       chunk.isDirty = false;
 
-      this.chunks.loaded.set(name, chunk);
+      this.chunkPipeline.markLoaded([x, z], chunk);
 
       this.emitChunkEvent("chunk-data-loaded", {
         chunk,
@@ -3539,9 +3545,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       });
 
       const buildMeshes = () => {
-        if (shouldGenerateChunkMeshes) {
-          for (const mesh of meshes) {
+        if (clientOnlyMeshing) {
+          this.markChunkAndNeighborsForMeshing(x, z);
+        } else {
+          for (const mesh of item.data.meshes) {
             this.buildChunkMesh(x, z, mesh);
+            this.meshPipeline.markFreshFromServer(x, z, mesh.level);
           }
         }
       };
@@ -3563,18 +3572,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const [centerX, centerZ] = center;
     const deleted: Coords2[] = [];
+    const toRemove: string[] = [];
 
-    // Surrounding the center, delete all chunks that are too far away.
-    this.chunks.loaded.forEach((chunk) => {
-      const {
-        name,
-        coords: [x, z],
-      } = chunk;
+    this.chunkPipeline.forEachLoaded((chunk, name) => {
+      const [x, z] = chunk.coords;
 
-      // Too far away from center, delete.
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
-        const chunk = this.chunks.loaded.get(name);
-
         chunk.meshes.forEach((meshes, level) => {
           this.emitChunkEvent("chunk-mesh-unloaded", {
             chunk,
@@ -3591,46 +3594,35 @@ export class World<T = any> extends Scene implements NetIntercept {
         });
 
         chunk.dispose();
-
-        this.chunks.loaded.delete(name);
-
+        this.meshPipeline.remove(x, z);
+        toRemove.push(name);
         deleted.push(chunk.coords);
       }
     });
 
-    this.chunks.requested.forEach((_, name) => {
+    toRemove.forEach((name) => this.chunkPipeline.remove(name));
+
+    this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
-        this.chunks.requested.delete(name);
+        this.chunkPipeline.remove(name);
         deleted.push([x, z]);
       }
     });
 
-    const tempToRequest = [...this.chunks.toRequest];
-    this.chunks.toRequest.length = 0;
-    const filteredTempToRequest = tempToRequest.filter((name) => {
-      const [x, z] = ChunkUtils.parseChunkName(name);
-      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
+    const processingToRemove: string[] = [];
+    this.chunkPipeline.forEach("processing", (name) => {
+      const procData = this.chunkPipeline.getProcessingData(name);
+      if (procData) {
+        const { x, z } = procData.data;
+        if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+          processingToRemove.push(name);
+        }
+      }
     });
-    this.chunks.toRequest.push(...filteredTempToRequest);
-    this.chunks.toRequestSet.clear();
-    filteredTempToRequest.forEach((name) => this.chunks.toRequestSet.add(name));
+    processingToRemove.forEach((name) => this.chunkPipeline.remove(name));
 
-    const tempToProcess = [...this.chunks.toProcess];
-    this.chunks.toProcess.length = 0;
-    const filteredToProcess = tempToProcess.filter((chunk) => {
-      const { x, z } = chunk.data;
-      return (x - centerX) ** 2 + (z - centerZ) ** 2 <= deleteRadius ** 2;
-    });
-    this.chunks.toProcess.push(...filteredToProcess);
-    this.chunks.toProcessSet.clear();
-    filteredToProcess.forEach((chunk) => {
-      const name = ChunkUtils.getChunkName([chunk.data.x, chunk.data.z]);
-      this.chunks.toProcessSet.add(name);
-    });
-
-    // Remove any listeners for deleted chunks.
     deleted.forEach((coords) => {
       const name = ChunkUtils.getChunkName(coords);
       this.chunkInitializeListeners.delete(name);
@@ -3739,7 +3731,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         : 0.0
     );
 
-    this.chunks.uniforms.sunlightIntensity.value = sunlightIntensity;
+    this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
     // Update the clouds' colors based on the sky's colors.
     const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
@@ -3750,14 +3742,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       ThreeMathUtils.clamp(sunlightIntensity, 0, 1)
     );
 
-    this.chunks.uniforms.fogColor.value?.copy(this.sky.uMiddleColor.value);
+    this.chunkRenderer.uniforms.fogColor.value?.copy(
+      this.sky.uMiddleColor.value
+    );
   }
 
   /**
    * Update the uniform values.
    */
   private updateUniforms = () => {
-    this.chunks.uniforms.time.value = performance.now();
+    this.chunkRenderer.uniforms.time.value = performance.now();
   };
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
@@ -4002,10 +3996,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.registry = new Registry();
     this.loader = new Loader();
-    this.chunks = new Chunks();
+    this.chunkPipeline = new ChunkPipeline();
+    this.meshPipeline = new MeshPipeline();
+    this.chunkRenderer = new ChunkRenderer();
 
     if (!cloudsOptions.uFogColor) {
-      cloudsOptions.uFogColor = this.chunks.uniforms.fogColor;
+      cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
     }
 
     this.sky = new Sky(skyOptions);
@@ -4099,11 +4095,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   private setupUniforms() {
     const { minLightLevel } = this.options;
 
-    this.chunks.uniforms.minLightLevel.value = minLightLevel;
+    this.chunkRenderer.uniforms.minLightLevel.value = minLightLevel;
   }
 
   setShowGreedyDebug(show: boolean) {
-    this.chunks.uniforms.showGreedyDebug.value = show ? 1.0 : 0.0;
+    this.chunkRenderer.uniforms.showGreedyDebug.value = show ? 1.0 : 0.0;
   }
 
   private analyzeLightOperations(
@@ -4630,24 +4626,24 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private processClientUpdates = () => {
-    if (this.chunks.toUpdate.length === 0 || this.isTrackingChunks) {
+    if (this.blockUpdatesQueue.length === 0 || this.isTrackingChunks) {
       return;
     }
 
     this.isTrackingChunks = true;
 
     const processUpdatesInIdleTime = () => {
-      if (this.chunks.toUpdate.length > 0) {
-        const updates = this.chunks.toUpdate.splice(
+      if (this.blockUpdatesQueue.length > 0) {
+        const updates = this.blockUpdatesQueue.splice(
           0,
           this.options.maxUpdatesPerUpdate
         );
 
         const remainingUpdates = this.processLightUpdates(updates);
 
-        this.chunks.toUpdate.push(...remainingUpdates);
+        this.blockUpdatesQueue.push(...remainingUpdates);
 
-        this.chunks.toEmit.push(
+        this.blockUpdatesToEmit.push(
           ...updates
             .slice(
               0,
@@ -4657,7 +4653,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             .map(({ update }) => update)
         );
 
-        if (this.chunks.toUpdate.length > 0) {
+        if (this.blockUpdatesQueue.length > 0) {
           requestAnimationFrame(processUpdatesInIdleTime);
           return;
         }
@@ -4672,36 +4668,43 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   private processDirtyChunks = async () => {
-    const dirtyChunks = this.chunksTracker.splice(0, this.chunksTracker.length);
+    const dirtyKeys = this.meshPipeline.getDirtyKeys();
+    if (dirtyKeys.length === 0) return;
 
-    const chunksToMesh = dirtyChunks.filter(([coords, level]) => {
-      const key = `${coords[0]},${coords[1]}:${level}`;
-      if (this.meshingInProgress.has(key)) {
-        return false;
-      }
-      this.meshingInProgress.add(key);
-      return true;
-    });
+    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 4;
+    const keysToProcess = dirtyKeys.slice(0, maxConcurrentMeshJobs);
 
-    const meshPromises = chunksToMesh.map(async ([coords, level]) => {
-      const [cx, cz] = coords;
-      const key = `${cx},${cz}:${level}`;
+    const meshPromises = keysToProcess.map(async (key) => {
+      const { cx, cz, level } = MeshPipeline.parseKey(key);
+      const generation = this.meshPipeline.startJob(key);
+
       try {
-        await this.meshChunkLocally(cx, cz, level);
+        await this.meshChunkLocally(cx, cz, level, generation);
       } finally {
-        this.meshingInProgress.delete(key);
-        if (this.pendingRemeshAfterCurrent.has(key)) {
-          this.pendingRemeshAfterCurrent.delete(key);
-          this.chunksTracker.push([coords, level]);
+        if (this.meshPipeline.needsRemesh(key)) {
+          this.scheduleDirtyChunkProcessing();
         }
       }
     });
+
     await Promise.all(meshPromises);
 
-    if (this.chunksTracker.length > 0) {
-      this.processDirtyChunks();
+    if (this.meshPipeline.hasDirtyChunks()) {
+      this.scheduleDirtyChunkProcessing();
     }
   };
+
+  private scheduleDirtyChunkProcessing = (() => {
+    let scheduled = false;
+    return () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        this.processDirtyChunks();
+      });
+    };
+  })();
 
   private mergeLightOperations(
     existing: LightOperations,
@@ -5156,11 +5159,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Scaffold the server updates onto the network, including chunk requests and block updates.
    */
   private emitServerUpdates = () => {
-    if (this.chunks.toEmit.length === 0) {
+    if (this.blockUpdatesToEmit.length === 0) {
       return;
     }
 
-    const updates = this.chunks.toEmit.splice(
+    const updates = this.blockUpdatesToEmit.splice(
       0,
       this.options.maxUpdatesPerUpdate
     );
@@ -5214,7 +5217,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     uniforms: any = {}
   ) => {
     const chunksUniforms = {
-      ...this.chunks.uniforms,
+      ...this.chunkRenderer.uniforms,
       ...this.options.chunkUniformsOverwrite,
     };
 
@@ -5302,12 +5305,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const countPerSide = perSide(totalSlots);
     const atlas = new AtlasTexture(countPerSide, textureUnitDimension);
 
-    this.chunks.uniforms.atlasSize.value = countPerSide;
+    this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
 
     blocks.forEach((block) => {
       const mat = make(block.isSeeThrough, atlas, block.isFluid);
       const key = this.makeChunkMaterialKey(block.id);
-      this.chunks.materials.set(key, mat);
+      this.chunkRenderer.materials.set(key, mat);
 
       block.faces.forEach((face) => {
         if (!face.independent || face.isolated) return;
@@ -5318,7 +5321,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           block.isFluid
         );
         const independentKey = this.makeChunkMaterialKey(block.id, face.name);
-        this.chunks.materials.set(independentKey, independentMat);
+        this.chunkRenderer.materials.set(independentKey, independentMat);
       });
     });
   }
@@ -5365,17 +5368,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     levels.push(level);
 
-    const existingChunksTrackerSet: string[] = [];
-    this.chunksTracker.forEach((tracker) => {
-      existingChunksTrackerSet.push(tracker.join(","));
-    });
-
-    for (const [cx, cz] of chunkCoordsList) {
-      for (const level of levels) {
-        if (existingChunksTrackerSet.includes([cx, cz, level].join(","))) {
-          continue;
-        }
-        this.chunksTracker.push([[cx, cz], level]);
+    for (const [chunkX, chunkZ] of chunkCoordsList) {
+      for (const lvl of levels) {
+        this.meshPipeline.onVoxelChange(chunkX, chunkZ, lvl);
       }
     }
   }
@@ -5421,17 +5416,49 @@ export class World<T = any> extends Scene implements NetIntercept {
     maxLevel: number
   ) {
     for (let level = minLevel; level <= maxLevel; level++) {
-      const key = `${coords[0]},${coords[1]}:${level}`;
-      if (this.meshingInProgress.has(key)) {
-        this.pendingRemeshAfterCurrent.add(key);
-      } else if (
-        !this.chunksTracker.some(
-          ([c, l]) => c[0] === coords[0] && c[1] === coords[1] && l === level
-        )
-      ) {
-        this.chunksTracker.push([coords, level]);
+      this.meshPipeline.onVoxelChange(coords[0], coords[1], level);
+    }
+  }
+
+  private markChunkAndNeighborsForMeshing(cx: number, cz: number) {
+    const { subChunks } = this.options;
+    const neighborOffsets = [
+      [-1, -1],
+      [0, -1],
+      [1, -1],
+      [-1, 0],
+      [0, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
+    ];
+
+    for (const [dx, dz] of neighborOffsets) {
+      const nx = cx + dx;
+      const nz = cz + dz;
+      const neighborChunk = this.getChunkByCoords(nx, nz);
+
+      if (!neighborChunk || !neighborChunk.isReady) {
+        continue;
+      }
+
+      const allNeighborsReady = neighborOffsets.every(([ddx, ddz]) => {
+        const nnx = nx + ddx;
+        const nnz = nz + ddz;
+        if (!this.isWithinWorld(nnx, nnz)) return true;
+        const nn = this.getChunkByCoords(nnx, nnz);
+        return nn && nn.isReady;
+      });
+
+      if (allNeighborsReady) {
+        for (let level = 0; level < subChunks; level++) {
+          this.meshPipeline.onVoxelChange(nx, nz, level);
+        }
       }
     }
+
+    this.scheduleDirtyChunkProcessing();
   }
 
   /**

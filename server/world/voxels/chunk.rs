@@ -116,12 +116,12 @@ impl Chunk {
         let mut meshes = vec![];
 
         if mesh {
-            if self.meshes.is_some() {
-                levels.for_each(|level| {
-                    if let Some(mesh) = self.meshes.as_ref().unwrap().get(&level) {
+            if let Some(chunk_meshes) = &self.meshes {
+                for level in levels {
+                    if let Some(mesh) = chunk_meshes.get(&level) {
                         meshes.push(mesh.to_owned());
                     }
-                });
+                }
             }
         }
 

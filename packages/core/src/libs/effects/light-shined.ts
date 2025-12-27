@@ -254,7 +254,8 @@ export class LightShined {
       if (!lightValues) return;
 
       const { sunlight, red, green, blue } = lightValues;
-      const { sunlightIntensity, minLightLevel } = this.world.chunks.uniforms;
+      const { sunlightIntensity, minLightLevel } =
+        this.world.chunkRenderer.uniforms;
       const maxLightLevel = this.world.options.maxLightLevel;
 
       const s = Math.min(
