@@ -512,6 +512,7 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
     let mut total_height = self_height;
     let mut count = 1.0;
     let mut has_air_neighbor = false;
+    let mut has_solid_neighbor = false;
 
     for [dx, dz] in corner_offsets {
         let nx = vx + dx;
@@ -528,12 +529,14 @@ fn calculate_fluid_corner_height<S: VoxelAccess>(
             if let Some(neighbor_block) = registry.get_block_by_id(neighbor_id) {
                 if neighbor_block.is_empty {
                     has_air_neighbor = true;
+                } else {
+                    has_solid_neighbor = true;
                 }
             }
         }
     }
 
-    if count == 1.0 && has_air_neighbor {
+    if count == 1.0 && has_air_neighbor && !has_solid_neighbor {
         return 0.1;
     }
     total_height / count
@@ -816,7 +819,7 @@ fn should_render_face<S: VoxelAccess>(
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
             && !has_fluid_above(vx, vy, vz, voxel_id, space)
-            && !n_block_type.is_full_cube())
+            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
 fn compute_face_ao_and_light(
@@ -1464,7 +1467,7 @@ fn process_face<S: VoxelAccess>(
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
             && !has_fluid_above(vx, vy, vz, voxel_id, space)
-            && !n_block_type.is_full_cube());
+            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
 
     if !should_mesh {
         return;
