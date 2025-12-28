@@ -777,7 +777,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const arrayBuffers: ArrayBuffer[] = [];
 
     for (const chunk of chunks) {
-      if (!chunk) {
+      if (!chunk || !chunk.isReady) {
         chunksData.push(null);
         continue;
       }
@@ -815,10 +815,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const key = MeshPipeline.makeKey(cx, cz, level);
-    if (
-      generation !== undefined &&
-      !this.meshPipeline.onJobComplete(key, generation)
-    ) {
+    const accepted =
+      generation === undefined ||
+      this.meshPipeline.onJobComplete(key, generation);
+    if (generation !== undefined && !accepted) {
       return;
     }
 
@@ -4912,7 +4912,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
         const chunk = this.getChunkByCoords(cx, cz);
 
-        if (chunk) {
+        if (chunk && chunk.isReady) {
           const [data, buffers] = chunk.serialize();
           chunksData.push(data);
           arrayBuffers.push(...buffers);

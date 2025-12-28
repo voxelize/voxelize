@@ -161,14 +161,11 @@ interface MeshState {
   generation: number;
   inFlightGeneration: number | null;
   displayedGeneration: number;
-  lastMeshTime: number;
 }
 
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
-
-  constructor(private minInterval: number = 32) {}
 
   private getOrCreate(key: string): MeshState {
     let state = this.states.get(key);
@@ -177,7 +174,6 @@ export class MeshPipeline {
         generation: 0,
         inFlightGeneration: null,
         displayedGeneration: 0,
-        lastMeshTime: 0,
       };
       this.states.set(key, state);
     }
@@ -206,10 +202,6 @@ export class MeshPipeline {
     if (!state) return false;
     if (state.inFlightGeneration !== null) return false;
     if (state.generation === state.displayedGeneration) return false;
-
-    const now = performance.now();
-    if (now - state.lastMeshTime < this.minInterval) return false;
-
     return true;
   }
 
@@ -232,7 +224,6 @@ export class MeshPipeline {
     }
 
     state.displayedGeneration = jobGeneration;
-    state.lastMeshTime = performance.now();
     return true;
   }
 
@@ -250,7 +241,6 @@ export class MeshPipeline {
         generation: 0,
         inFlightGeneration: null,
         displayedGeneration: 0,
-        lastMeshTime: performance.now(),
       };
       this.states.set(key, state);
     }
