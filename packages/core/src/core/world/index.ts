@@ -408,6 +408,14 @@ export type WorldClientOptions = {
    * Whether to merge chunk geometries to reduce draw calls. Useful for mobile. Defaults to false.
    */
   mergeChunkGeometries: boolean;
+
+  /**
+   * Whether shader-based lighting is enabled for this world.
+   * When enabled, lighting uses GPU shaders with cascaded shadow maps.
+   * CPU light propagation still runs to provide sunlight exposure data.
+   * Defaults to `false`.
+   */
+  shaderBasedLighting: boolean;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -435,6 +443,7 @@ const defaultOptions: WorldClientOptions = {
   lightJobRetryLimit: 3,
   deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
+  shaderBasedLighting: false,
 };
 
 /**
@@ -507,13 +516,6 @@ export type WorldServerOptions = {
    * Whether greedy meshing is enabled for this world.
    */
   greedyMeshing: boolean;
-
-  /**
-   * Whether shader-based lighting is enabled for this world.
-   * When enabled, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
-   */
-  shaderBasedLighting: boolean;
 };
 
 /**
@@ -3116,9 +3118,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     // Loading the options
+    // Preserve client-side shaderBasedLighting (server may still send it for backwards compatibility)
+    const clientShaderBasedLighting = this.options.shaderBasedLighting;
     this.options = {
       ...this.options,
       ...options,
+      shaderBasedLighting: clientShaderBasedLighting,
     };
 
     this.physics.options = this.options;
