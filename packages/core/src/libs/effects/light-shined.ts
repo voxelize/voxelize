@@ -289,12 +289,13 @@ export class LightShined {
 
   private computeShaderBasedLight(pos: Vector3): Color {
     const { sunlightIntensity } = this.world.chunkRenderer.uniforms;
-    const { sunDirection, sunColor, ambientColor } =
+    const { sunColor, ambientColor } =
       this.world.chunkRenderer.shaderLightingUniforms;
 
-    const baseLight = sunlightIntensity.value;
+    const shadowFactor = this.computeShadowFactor(pos);
 
-    const sunContrib = Math.max(0, sunDirection.value.y) * baseLight;
+    const avgNdotL = 0.5;
+    const sunContrib = sunlightIntensity.value * avgNdotL * shadowFactor;
 
     const torchLight = this.getTorchLightAtPosition(pos);
 
@@ -337,5 +338,33 @@ export class LightShined {
     }
 
     return new Color(r, g, b);
+  }
+
+  private computeShadowFactor(pos: Vector3): number {
+    if (!this.world.usesShaderLighting || !this.world.csmRenderer) return 1.0;
+
+    const { sunDirection, shadowStrength } =
+      this.world.chunkRenderer.shaderLightingUniforms;
+
+    if (shadowStrength.value < 0.01) return 1.0;
+
+    const dir: [number, number, number] = [
+      sunDirection.value.x,
+      sunDirection.value.y,
+      sunDirection.value.z,
+    ];
+    const maxDist = 64;
+
+    const hit = this.world.raycastVoxels(
+      pos.toArray() as [number, number, number],
+      dir,
+      maxDist
+    );
+
+    if (hit) {
+      return 1.0 - shadowStrength.value;
+    }
+
+    return 1.0;
   }
 }
