@@ -24,6 +24,7 @@ struct TreeState {
     pub radius: f64,
     pub y_angle: f64,
     pub rot_angle: f64,
+    pub leaf_scale: f64,
 }
 
 #[derive(Clone)]
@@ -61,6 +62,7 @@ impl Trees {
         let &Tree {
             leaf_radius,
             leaf_height,
+            leaf_min_scale,
             leaf_id,
             trunk_id,
             branch_initial_radius,
@@ -77,6 +79,7 @@ impl Trees {
         let mut base = at.clone();
         let mut length = branch_initial_length as f64;
         let mut radius = branch_initial_radius as f64;
+        let mut leaf_scale = 1.0;
 
         let mut y_angle = 0.0;
         let mut rot_angle = 0.0;
@@ -122,13 +125,17 @@ impl Trees {
             } else if symbol == '@' {
                 length *= branch_length_factor;
                 length = length.max(branch_min_length as f64);
+                leaf_scale *= branch_length_factor;
+                leaf_scale = leaf_scale.max(leaf_min_scale);
             } else if symbol == '!' {
                 radius *= branch_radius_factor;
                 radius = radius.max(branch_min_radius as f64);
             } else if symbol == '%' {
+                let scaled_radius = ((leaf_radius as f64) * leaf_scale).round().max(1.0) as u32;
+                let scaled_height = ((leaf_height as f64) * leaf_scale).round().max(1.0) as u32;
                 Trees::place_leaves(
                     leaf_id,
-                    &Vec3(leaf_radius as u32, leaf_height as u32, leaf_radius as u32),
+                    &Vec3(scaled_radius, scaled_height, scaled_radius),
                     &base,
                 )
                 .into_iter()
@@ -144,14 +151,16 @@ impl Trees {
                     radius,
                     y_angle,
                     rot_angle,
+                    leaf_scale,
                 });
-            } else if symbol == ']' && stack.len() > 0 {
+            } else if symbol == ']' && !stack.is_empty() {
                 let state = stack.pop().unwrap();
                 base = state.base;
                 length = state.length;
                 radius = state.radius;
                 y_angle = state.y_angle;
                 rot_angle = state.rot_angle;
+                leaf_scale = state.leaf_scale;
             }
         }
 
@@ -280,6 +289,9 @@ pub struct Tree {
     /// The height of each bunch of leaves.
     pub leaf_height: i32,
 
+    /// The minimum scale factor for leaf clusters.
+    pub leaf_min_scale: f64,
+
     /// The starting radius of the base of the tree.
     pub branch_initial_radius: i32,
 
@@ -326,6 +338,7 @@ impl Tree {
 pub struct TreeBuilder {
     leaf_radius: i32,
     leaf_height: i32,
+    leaf_min_scale: f64,
     branch_min_radius: i32,
     branch_initial_radius: i32,
     branch_radius_factor: f64,
@@ -345,6 +358,7 @@ impl TreeBuilder {
         TreeBuilder {
             leaf_radius: 1,
             leaf_height: 1,
+            leaf_min_scale: 0.5,
 
             branch_initial_radius: 5,
             branch_min_radius: 1,
@@ -370,6 +384,11 @@ impl TreeBuilder {
 
     pub fn leaf_height(mut self, leaf_height: i32) -> TreeBuilder {
         self.leaf_height = leaf_height;
+        self
+    }
+
+    pub fn leaf_min_scale(mut self, leaf_min_scale: f64) -> TreeBuilder {
+        self.leaf_min_scale = leaf_min_scale;
         self
     }
 
@@ -448,6 +467,7 @@ impl TreeBuilder {
         Tree {
             leaf_radius: self.leaf_radius,
             leaf_height: self.leaf_height,
+            leaf_min_scale: self.leaf_min_scale,
             branch_initial_radius: self.branch_initial_radius,
             branch_min_radius: self.branch_min_radius,
             branch_radius_factor: self.branch_radius_factor,

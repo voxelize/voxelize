@@ -1,4 +1,4 @@
-import init, { set_registry, mesh_chunk_fast } from "@voxelize/wasm-mesher";
+import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
 
 import { Coords3 } from "../../../types";
 import { type WorldOptions } from "../index";
@@ -22,6 +22,7 @@ type WasmBlock = {
   isSeeThrough: boolean;
   isTransparent: [boolean, boolean, boolean, boolean, boolean, boolean];
   transparentStandalone: boolean;
+  occludesFluid: boolean;
   faces: {
     name: string;
     independent: boolean;
@@ -218,6 +219,7 @@ function convertRegistryToWasm(rawRegistry: {
           boolean
         ],
         transparentStandalone: block.transparentStandalone as boolean,
+        occludesFluid: (block.occludesFluid as boolean) ?? false,
         faces: convertFaces(block.faces as Record<string, unknown>[]),
         aabbs: convertAabbs(block.aabbs as Record<string, unknown>[]),
         dynamicPatterns: block.dynamicPatterns

@@ -21,6 +21,8 @@ pub struct Block {
     pub is_see_through: bool,
     pub is_transparent: [bool; 6],
     pub transparent_standalone: bool,
+    #[serde(default)]
+    pub occludes_fluid: bool,
     pub faces: Vec<BlockFace>,
     pub aabbs: Vec<AABB>,
     pub dynamic_patterns: Option<Vec<BlockDynamicPattern>>,
@@ -797,6 +799,10 @@ fn should_render_face<S: VoxelAccess>(
         return false;
     }
 
+    if is_fluid && n_block_type.occludes_fluid {
+        return false;
+    }
+
     (n_is_void || n_block_type.is_empty)
         || (see_through
             && !is_opaque
@@ -1438,6 +1444,10 @@ fn process_face<S: VoxelAccess>(
     };
 
     if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
+        return;
+    }
+
+    if is_fluid && n_block_type.occludes_fluid {
         return;
     }
 

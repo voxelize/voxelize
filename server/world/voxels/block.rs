@@ -1364,6 +1364,9 @@ pub struct Block {
     /// Is the block overall see-through? Opacity equals 0.1 or something?
     pub is_see_through: bool,
 
+    /// Does this block prevent fluids from rendering faces against it?
+    pub occludes_fluid: bool,
+
     /// Is this block transparent from looking from all 6 sides?
     /// The order is: px, py, pz, nx, ny, nz.
     pub is_transparent: [bool; 6],
@@ -1622,6 +1625,7 @@ impl Block {
             is_see_through: self.is_see_through,
             is_transparent: self.is_transparent,
             transparent_standalone: self.transparent_standalone,
+            occludes_fluid: self.occludes_fluid,
             faces: self.faces.iter().map(|f| f.to_mesher_face()).collect(),
             aabbs: self.aabbs.clone(),
             dynamic_patterns: self.dynamic_patterns.as_ref().map(|patterns| {
@@ -1664,6 +1668,7 @@ pub struct BlockBuilder {
     faces: Vec<BlockFace>,
     aabbs: Vec<AABB>,
     is_see_through: bool,
+    occludes_fluid: bool,
     is_px_transparent: bool,
     is_py_transparent: bool,
     is_pz_transparent: bool,
@@ -1808,6 +1813,12 @@ impl BlockBuilder {
     /// Is this block a see-through block? Should it be sorted to the transparent meshes?
     pub fn is_see_through(mut self, is_see_through: bool) -> Self {
         self.is_see_through = is_see_through;
+        self
+    }
+
+    /// Does this block prevent fluids from rendering faces against it?
+    pub fn occludes_fluid(mut self, occludes_fluid: bool) -> Self {
+        self.occludes_fluid = occludes_fluid;
         self
     }
 
@@ -1962,6 +1973,7 @@ impl BlockBuilder {
             faces: self.faces,
             aabbs: self.aabbs,
             is_see_through: self.is_see_through,
+            occludes_fluid: self.occludes_fluid,
             is_transparent: [
                 self.is_px_transparent,
                 self.is_py_transparent,
