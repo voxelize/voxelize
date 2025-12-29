@@ -273,8 +273,16 @@ export class CSMRenderer {
 
     scene.overrideMaterial = this.depthMaterial;
 
+    const cascadeFrustum = new Frustum();
+    const cascadeMatrix = new Matrix4();
+
     for (let i = 0; i < this.cascades.length; i++) {
       const cascade = this.cascades[i];
+
+      cascadeMatrix
+        .copy(cascade.camera.projectionMatrix)
+        .multiply(cascade.camera.matrixWorldInverse);
+      cascadeFrustum.setFromProjectionMatrix(cascadeMatrix);
 
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
@@ -283,10 +291,10 @@ export class CSMRenderer {
 
       if (entities && i < 2) {
         const entitiesToRender = entities.filter((e) => {
+          if (e.userData.castsShadow === false) return false;
           const dist = e.position.distanceTo(this.lastCameraPosition);
-          return (
-            dist < maxEntityShadowDistance && e.userData.castsShadow !== false
-          );
+          if (dist >= maxEntityShadowDistance) return false;
+          return cascadeFrustum.containsPoint(e.position);
         });
 
         for (const entity of entitiesToRender) {

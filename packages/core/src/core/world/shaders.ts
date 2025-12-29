@@ -383,6 +383,26 @@ varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
 
+float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
+  vec3 coord = shadowCoord.xyz / shadowCoord.w;
+  coord = coord * 0.5 + 0.5;
+
+  if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {
+    return 1.0;
+  }
+
+  float bias = uShadowBias + slopeBias;
+  vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
+
+  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
+  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, -1.0)).r) ? 0.0 : 1.0;
+  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, -1.0)).r) ? 0.0 : 1.0;
+  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, 1.0)).r) ? 0.0 : 1.0;
+  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, 1.0)).r) ? 0.0 : 1.0;
+
+  return shadow / 5.0;
+}
+
 float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
@@ -404,14 +424,36 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   poissonDisk[6] = vec2(0.97484398, 0.75648379);
   poissonDisk[7] = vec2(0.44323325, -0.97511554);
 
-  float angle = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.283185;
+  float blockerSum = 0.0;
+  float blockerCount = 0.0;
+  float searchRadius = 3.0;
+  for (int i = 0; i < 4; i++) {
+    vec2 offset = poissonDisk[i * 2] * texelSize * searchRadius;
+    float sampleDepth = texture(shadowMap, coord.xy + offset).r;
+    if (sampleDepth < coord.z - bias) {
+      blockerSum += sampleDepth;
+      blockerCount += 1.0;
+    }
+  }
+
+  if (blockerCount < 0.5) {
+    return 1.0;
+  }
+
+  float avgBlockerDepth = blockerSum / blockerCount;
+  float penumbraSize = (coord.z - avgBlockerDepth) / avgBlockerDepth;
+  float filterRadius = clamp(penumbraSize * 2.0, 1.0, 3.0);
+
+  float spatialNoise = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  float temporalOffset = fract(uTime * 0.0001 * 0.618033988749895);
+  float angle = (spatialNoise + temporalOffset) * 6.283185;
   float s = sin(angle);
   float c = cos(angle);
   mat2 rotation = mat2(c, -s, s, c);
 
   float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
   for (int i = 0; i < 8; i++) {
-    vec2 offset = rotation * poissonDisk[i] * texelSize * 1.5;
+    vec2 offset = rotation * poissonDisk[i] * texelSize * filterRadius;
     float depth = texture(shadowMap, coord.xy + offset).r;
     shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
   }
@@ -426,6 +468,11 @@ float getShadow() {
   }
 
   if (uShadowStrength < 0.01) {
+    return 1.0;
+  }
+
+  float sunExposure = vLight.a;
+  if (sunExposure < 0.05) {
     return 1.0;
   }
 
@@ -447,14 +494,14 @@ float getShadow() {
     float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5);
     float blendStart = uCascadeSplit1 * (1.0 - blendRegion);
     if (vViewDepth > blendStart) {
-      float shadow2 = sampleShadowMap(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+      float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
       float t = (vViewDepth - blendStart) / (uCascadeSplit1 - blendStart);
       rawShadow = mix(shadow1, shadow2, t);
     } else {
       rawShadow = shadow1;
     }
   } else if (vViewDepth < uCascadeSplit2) {
-    float shadow2 = sampleShadowMap(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+    float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
     float fadeStart = uCascadeSplit2 * (1.0 - blendRegion);
     if (vViewDepth > fadeStart) {
       float t = (vViewDepth - fadeStart) / (uCascadeSplit2 - fadeStart);
