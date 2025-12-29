@@ -69,6 +69,7 @@ uniform float uFogNear;
 uniform float uFogFar;
 uniform float uSunlightIntensity;
 uniform float uMinLightLevel;
+uniform float uBaseAmbient;
 uniform float uLightIntensityAdjustment;
 uniform float uTime;
 uniform float uAtlasSize;
@@ -148,11 +149,9 @@ varying vec3 vWorldNormal;
 
 // Adjusting light intensity for lighter voxel textures
 float scale = 2.0;
-float rawSunlight = vLight.a * vLight.a * uSunlightIntensity * uLightIntensityAdjustment;
-// Only apply minLightLevel to areas that have sunlight exposure (vLight.a > 0)
-// Areas without sunlight (caves, underground) should stay dark
-float s = vLight.a > 0.0 ? clamp(rawSunlight, uMinLightLevel, 1.0) : 0.0;
-s -= s * exp(-s) * 0.02; // Optimized smoothing with adjusted intensity
+float sunlightFactor = vLight.a * vLight.a * uSunlightIntensity * uLightIntensityAdjustment;
+float s = clamp(sunlightFactor + uMinLightLevel * vLight.a + uBaseAmbient, 0.0, 1.0);
+s -= s * exp(-s) * 0.02;
 
 // Applying adjusted light intensity
 outgoingLight.rgb *= s + pow(vLight.rgb * uLightIntensityAdjustment, vec3(scale));

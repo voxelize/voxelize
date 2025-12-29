@@ -254,16 +254,16 @@ export class LightShined {
       if (!lightValues) return;
 
       const { sunlight, red, green, blue } = lightValues;
-      const { sunlightIntensity, minLightLevel } =
+      const { sunlightIntensity, minLightLevel, baseAmbient } =
         this.world.chunkRenderer.uniforms;
       const maxLightLevel = this.world.options.maxLightLevel;
 
-      const rawSunlight =
-        (sunlight / maxLightLevel) ** 2 * sunlightIntensity.value;
-      const s =
-        sunlight > 0
-          ? Math.min(Math.max(rawSunlight, minLightLevel.value), 1)
-          : 0;
+      const sunlightNorm = sunlight / maxLightLevel;
+      const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
+      const s = Math.min(
+        sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
+        1
+      );
 
       color = tempColor.setRGB(
         s + (red / maxLightLevel) ** 2,

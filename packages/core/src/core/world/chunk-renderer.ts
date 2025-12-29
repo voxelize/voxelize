@@ -11,6 +11,7 @@ export class ChunkRenderer {
     fogFar: { value: number };
     ao: { value: Vector4 };
     minLightLevel: { value: number };
+    baseAmbient: { value: number };
     sunlightIntensity: { value: number };
     time: { value: number };
     lightIntensityAdjustment: { value: number };
@@ -22,6 +23,7 @@ export class ChunkRenderer {
     fogFar: { value: 200 },
     ao: { value: new Vector4(100.0, 170.0, 210.0, 255.0) },
     minLightLevel: { value: 0 },
+    baseAmbient: { value: 0.001 },
     sunlightIntensity: { value: 1 },
     time: { value: performance.now() },
     lightIntensityAdjustment: { value: 0.8 },

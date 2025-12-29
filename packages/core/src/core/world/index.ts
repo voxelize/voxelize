@@ -1646,20 +1646,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!lightValues) return new Color(1, 1, 1);
 
     const { sunlight, red, green, blue } = lightValues;
-    const { sunlightIntensity, minLightLevel } = this.chunkRenderer.uniforms;
-    const maxLightLevel = this.options.maxLightLevel;
+    const { sunlightIntensity, minLightLevel, baseAmbient } =
+      this.chunkRenderer.uniforms;
 
-    const rawSunlight =
-      (sunlight / maxLightLevel) ** 2 * sunlightIntensity.value;
-    const s =
-      sunlight > 0
-        ? Math.min(Math.max(rawSunlight, minLightLevel.value), 1)
-        : 0;
+    const sunlightNorm = sunlight / this.options.maxLightLevel;
+    const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
+    const s = Math.min(
+      sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
+      1
+    );
 
     return new Color(
-      s + Math.pow(red / maxLightLevel, 2),
-      s + Math.pow(green / maxLightLevel, 2),
-      s + Math.pow(blue / maxLightLevel, 2)
+      s + Math.pow(red / this.options.maxLightLevel, 2),
+      s + Math.pow(green / this.options.maxLightLevel, 2),
+      s + Math.pow(blue / this.options.maxLightLevel, 2)
     );
   }
 
@@ -5231,6 +5231,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uSunlightIntensity: chunksUniforms.sunlightIntensity,
         uAOTable: chunksUniforms.ao,
         uMinLightLevel: chunksUniforms.minLightLevel,
+        uBaseAmbient: chunksUniforms.baseAmbient,
         uFogNear: chunksUniforms.fogNear,
         uFogFar: chunksUniforms.fogFar,
         uFogColor: chunksUniforms.fogColor,
