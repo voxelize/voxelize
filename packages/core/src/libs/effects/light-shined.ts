@@ -291,6 +291,7 @@ export class LightShined {
     const { sunlightIntensity } = this.world.chunkRenderer.uniforms;
     const { sunColor, ambientColor } =
       this.world.chunkRenderer.shaderLightingUniforms;
+    const maxLightLevel = this.world.options.maxLightLevel;
 
     const shadowFactor = this.computeShadowFactor(pos);
 
@@ -299,12 +300,33 @@ export class LightShined {
 
     const torchLight = this.getTorchLightAtPosition(pos);
 
+    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
+    const lightValues = this.world.getLightValuesAt(...voxel);
+
+    let voxelR = 0,
+      voxelG = 0,
+      voxelB = 0;
+    if (lightValues) {
+      voxelR = (lightValues.red / maxLightLevel) ** 2;
+      voxelG = (lightValues.green / maxLightLevel) ** 2;
+      voxelB = (lightValues.blue / maxLightLevel) ** 2;
+    }
+
     const totalR =
-      ambientColor.value.r + sunColor.value.r * sunContrib + torchLight.r;
+      ambientColor.value.r +
+      sunColor.value.r * sunContrib +
+      torchLight.r +
+      voxelR;
     const totalG =
-      ambientColor.value.g + sunColor.value.g * sunContrib + torchLight.g;
+      ambientColor.value.g +
+      sunColor.value.g * sunContrib +
+      torchLight.g +
+      voxelG;
     const totalB =
-      ambientColor.value.b + sunColor.value.b * sunContrib + torchLight.b;
+      ambientColor.value.b +
+      sunColor.value.b * sunContrib +
+      torchLight.b +
+      voxelB;
 
     return tempColor.setRGB(
       Math.min(totalR, this.options.maxBrightness),
