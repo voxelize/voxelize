@@ -165,20 +165,30 @@ export class Shadows extends Array<Shadow> {
 
   /**
    * Loops through all tracked shadows and updates them. This should be called every frame.
-   * This also removes any shadows that are no longer attached to an object.
+   * This also removes any shadows that are no longer attached to an object or whose parent
+   * is no longer in the scene.
    */
   update = () => {
-    // Remove all shadows that don't have a parent.
-    this.forEach((shadow, i) => {
-      if (!shadow.parent) {
+    for (let i = this.length - 1; i >= 0; i--) {
+      const shadow = this[i];
+      if (!shadow.parent || !this.isInScene(shadow.parent)) {
         this.splice(i, 1);
       }
-    });
+    }
 
     this.forEach((shadow) => {
       shadow.update();
     });
   };
+
+  private isInScene(object: Object3D): boolean {
+    let current: Object3D | null = object;
+    while (current) {
+      if (current === this.world) return true;
+      current = current.parent;
+    }
+    return false;
+  }
 
   /**
    * Add a shadow to an object under the shadow manager.
