@@ -330,9 +330,13 @@ vWorldNormal = normalize(mat3(modelMatrix) * normal);
 vec4 viewPos = viewMatrix * worldPosition;
 vViewDepth = -viewPos.z;
 
-vShadowCoord0 = uShadowMatrix0 * worldPosition;
-vShadowCoord1 = uShadowMatrix1 * worldPosition;
-vShadowCoord2 = uShadowMatrix2 * worldPosition;
+float normalOffsetScale = 0.02;
+vec3 normalOffset = vWorldNormal * normalOffsetScale;
+vec4 offsetPosition = worldPosition + vec4(normalOffset, 0.0);
+
+vShadowCoord0 = uShadowMatrix0 * offsetPosition;
+vShadowCoord1 = uShadowMatrix1 * offsetPosition;
+vShadowCoord2 = uShadowMatrix2 * offsetPosition;
 `
     ),
   fragment: ShaderLib.basic.fragmentShader
@@ -382,45 +386,86 @@ varying vec4 vShadowCoord2;
 float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
-  
+
   if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {
     return 1.0;
   }
-  
+
   float bias = uShadowBias + slopeBias;
-  
-  float shadow = 0.0;
   vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
-  
-  for (int x = -1; x <= 1; x++) {
-    for (int y = -1; y <= 1; y++) {
-      float depth = texture(shadowMap, coord.xy + vec2(x, y) * texelSize).r;
-      shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
-    }
+
+  vec2 poissonDisk[8];
+  poissonDisk[0] = vec2(-0.94201624, -0.39906216);
+  poissonDisk[1] = vec2(0.94558609, -0.76890725);
+  poissonDisk[2] = vec2(-0.094184101, -0.92938870);
+  poissonDisk[3] = vec2(0.34495938, 0.29387760);
+  poissonDisk[4] = vec2(-0.91588581, 0.45771432);
+  poissonDisk[5] = vec2(-0.81544232, -0.87912464);
+  poissonDisk[6] = vec2(0.97484398, 0.75648379);
+  poissonDisk[7] = vec2(0.44323325, -0.97511554);
+
+  float angle = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.283185;
+  float s = sin(angle);
+  float c = cos(angle);
+  mat2 rotation = mat2(c, -s, s, c);
+
+  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
+  for (int i = 0; i < 8; i++) {
+    vec2 offset = rotation * poissonDisk[i] * texelSize * 1.5;
+    float depth = texture(shadowMap, coord.xy + offset).r;
+    shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
   }
-  
+
   return shadow / 9.0;
 }
 
 float getShadow() {
+  float NdotL = dot(vWorldNormal, uSunDirection);
+  if (NdotL <= 0.0) {
+    return mix(1.0, 0.0, uShadowStrength);
+  }
+
   if (uShadowStrength < 0.01) {
     return 1.0;
   }
-  
-  float NdotL = max(dot(vWorldNormal, uSunDirection), 0.0);
+
   float slopeBias = 0.005 * (1.0 - NdotL);
-  
+  float blendRegion = 0.1;
+
   float rawShadow;
   if (vViewDepth < uCascadeSplit0) {
-    rawShadow = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias);
+    float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias);
+    float blendStart = uCascadeSplit0 * (1.0 - blendRegion);
+    if (vViewDepth > blendStart) {
+      float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5);
+      float t = (vViewDepth - blendStart) / (uCascadeSplit0 - blendStart);
+      rawShadow = mix(shadow0, shadow1, t);
+    } else {
+      rawShadow = shadow0;
+    }
   } else if (vViewDepth < uCascadeSplit1) {
-    rawShadow = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5);
+    float shadow1 = sampleShadowMap(uShadowMap1, vShadowCoord1, slopeBias * 1.5);
+    float blendStart = uCascadeSplit1 * (1.0 - blendRegion);
+    if (vViewDepth > blendStart) {
+      float shadow2 = sampleShadowMap(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+      float t = (vViewDepth - blendStart) / (uCascadeSplit1 - blendStart);
+      rawShadow = mix(shadow1, shadow2, t);
+    } else {
+      rawShadow = shadow1;
+    }
   } else if (vViewDepth < uCascadeSplit2) {
-    rawShadow = sampleShadowMap(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+    float shadow2 = sampleShadowMap(uShadowMap2, vShadowCoord2, slopeBias * 2.0);
+    float fadeStart = uCascadeSplit2 * (1.0 - blendRegion);
+    if (vViewDepth > fadeStart) {
+      float t = (vViewDepth - fadeStart) / (uCascadeSplit2 - fadeStart);
+      rawShadow = mix(shadow2, 1.0, t);
+    } else {
+      rawShadow = shadow2;
+    }
   } else {
     return 1.0;
   }
-  
+
   return mix(1.0, rawShadow, uShadowStrength);
 }
 

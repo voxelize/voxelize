@@ -175,7 +175,7 @@ export class CSMRenderer {
     index: number,
     mainCamera: Camera,
     playerPosition: Vector3,
-    nearSplit: number,
+    _nearSplit: number,
     farSplit: number
   ) {
     const cascade = this.cascades[index];
@@ -184,7 +184,6 @@ export class CSMRenderer {
     const center = new Vector3();
     const corners: Vector3[] = [];
 
-    const near = nearSplit;
     const far = farSplit;
 
     const cameraDir = new Vector3();
@@ -217,6 +216,21 @@ export class CSMRenderer {
     if (Math.abs(this.lightDirection.dot(up)) > 0.999) {
       up.set(0, 0, 1);
     }
+
+    const shadowMapSize = cascade.renderTarget.width;
+    const texelSize = (2 * radius) / shadowMapSize;
+
+    const lightViewMatrix = new Matrix4();
+    lightViewMatrix.lookAt(
+      new Vector3().addVectors(center, this.lightDirection),
+      center,
+      up
+    );
+    const lightSpaceCenter = center.clone().applyMatrix4(lightViewMatrix);
+    lightSpaceCenter.x = Math.floor(lightSpaceCenter.x / texelSize) * texelSize;
+    lightSpaceCenter.y = Math.floor(lightSpaceCenter.y / texelSize) * texelSize;
+    const lightViewMatrixInverse = lightViewMatrix.clone().invert();
+    center.copy(lightSpaceCenter).applyMatrix4(lightViewMatrixInverse);
 
     cascade.camera.position
       .copy(center)
