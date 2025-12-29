@@ -5462,6 +5462,10 @@ export class World<T = any> extends Scene implements NetIntercept {
           uWaterAbsorption:
             this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
           uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
+          // #region agent log - Debug uniform
+          uShadowDebugMode:
+            this.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
+          // #endregion
         }
       : {};
 

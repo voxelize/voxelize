@@ -30,6 +30,9 @@ export interface ShaderLightingUniforms {
   waterTint: { value: Color };
   waterAbsorption: { value: number };
   waterLevel: { value: number };
+  // #region agent log - Debug uniform for shadow debugging
+  shadowDebugMode: { value: number };
+  // #endregion
 }
 
 export class ChunkRenderer {
@@ -82,5 +85,8 @@ export class ChunkRenderer {
     waterTint: { value: new Color(0.3, 0.5, 0.8) },
     waterAbsorption: { value: 0.5 },
     waterLevel: { value: 86 },
+    // #region agent log - Debug uniform for shadow debugging
+    shadowDebugMode: { value: 0 },
+    // #endregion
   };
 }

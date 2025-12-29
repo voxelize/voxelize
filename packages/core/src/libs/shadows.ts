@@ -149,6 +149,11 @@ export class Shadows extends Array<Shadow> {
   public world: World;
 
   /**
+   * Whether shadows are enabled. When disabled, all shadows are hidden.
+   */
+  public enabled = true;
+
+  /**
    * Create a shadow manager.
    *
    * @param world The world to cast shadows in.
@@ -177,7 +182,11 @@ export class Shadows extends Array<Shadow> {
     }
 
     this.forEach((shadow) => {
-      shadow.update();
+      if (this.enabled) {
+        shadow.update();
+      } else {
+        shadow.visible = false;
+      }
     });
   };
 

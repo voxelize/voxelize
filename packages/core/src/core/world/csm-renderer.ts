@@ -192,11 +192,12 @@ export class CSMRenderer {
 
     for (let x = -1; x <= 1; x += 2) {
       for (let y = -1; y <= 1; y += 2) {
-        for (let z = 0; z <= 1; z++) {
-          const t = z === 0 ? near : far;
-          const corner = playerPosition.clone().addScaledVector(cameraDir, t);
-          corner.x += x * t * 0.5;
+        for (let z = -1; z <= 1; z += 2) {
+          const t = far;
+          const corner = playerPosition.clone();
+          corner.x += x * t;
           corner.y += y * t * 0.3;
+          corner.z += z * t;
 
           corners.push(corner);
           center.add(corner);
@@ -244,6 +245,18 @@ export class CSMRenderer {
   ) {
     const originalOverrideMaterial = scene.overrideMaterial;
 
+    const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
+    scene.traverse((object) => {
+      if (
+        "material" in object &&
+        (object as { material: { transparent?: boolean } }).material
+          ?.transparent === true
+      ) {
+        hiddenObjects.push({ object, visible: object.visible });
+        object.visible = false;
+      }
+    });
+
     scene.overrideMaterial = this.depthMaterial;
 
     for (let i = 0; i < this.cascades.length; i++) {
@@ -266,6 +279,10 @@ export class CSMRenderer {
           renderer.render(entity as unknown as Scene, cascade.camera);
         }
       }
+    }
+
+    for (const { object, visible } of hiddenObjects) {
+      object.visible = visible;
     }
 
     scene.overrideMaterial = originalOverrideMaterial;
