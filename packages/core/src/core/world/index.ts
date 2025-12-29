@@ -14,6 +14,7 @@ import { raycast } from "@voxelize/raycast";
 import {
   BufferAttribute,
   BufferGeometry,
+  Camera,
   CanvasTexture,
   Clock,
   Color,
@@ -24,6 +25,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  Object3D,
   SRGBColorSpace,
   Scene,
   ShaderLib,
@@ -34,6 +36,7 @@ import {
   UniformsUtils,
   Vector2,
   Vector3,
+  WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
@@ -75,10 +78,16 @@ import {
 import { Chunk } from "./chunk";
 import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
+import { CSMRenderer } from "./csm-renderer";
+import { LightSourceRegistry } from "./light-registry";
+import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
 import { ChunkPipeline, MeshPipeline } from "./pipelines";
 import { Registry } from "./registry";
-import { DEFAULT_CHUNK_SHADERS } from "./shaders";
+import {
+  DEFAULT_CHUNK_SHADERS,
+  SHADER_LIGHTING_CHUNK_SHADERS,
+} from "./shaders";
 import { Sky, SkyOptions } from "./sky";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
@@ -89,6 +98,9 @@ export * from "./block";
 export * from "./chunk";
 export * from "./chunk-renderer";
 export * from "./clouds";
+export * from "./csm-renderer";
+export * from "./light-registry";
+export * from "./light-volume";
 export * from "./loader";
 export * from "./pipelines";
 export * from "./registry";
@@ -495,6 +507,13 @@ export type WorldServerOptions = {
    * Whether greedy meshing is enabled for this world.
    */
   greedyMeshing: boolean;
+
+  /**
+   * Whether shader-based lighting is enabled for this world.
+   * When enabled, lighting uses GPU shaders with cascaded shadow maps.
+   * CPU light propagation still runs to provide sunlight exposure data.
+   */
+  shaderBasedLighting: boolean;
 };
 
 /**
@@ -549,6 +568,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   public options: WorldOptions;
 
   /**
+   * Whether shader-based lighting is enabled for this world.
+   * When true, lighting uses GPU shaders with cascaded shadow maps.
+   * CPU light propagation still runs to provide sunlight exposure data.
+   */
+  public get usesShaderLighting(): boolean {
+    return this.options.shaderBasedLighting === true;
+  }
+
+  /**
    * The block registry that holds all block data, such as texture and block properties.
    */
   public registry: Registry;
@@ -587,6 +615,25 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The clouds that renders the cubical clouds.
    */
   public clouds: Clouds;
+
+  /**
+   * The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
+   * Only available when `shaderBasedLighting` is enabled.
+   */
+  public csmRenderer: CSMRenderer | null = null;
+
+  /**
+   * The light volume for shader-based lighting.
+   * Stores torch light data in a 3D texture for GPU sampling.
+   * Only available when `shaderBasedLighting` is enabled.
+   */
+  public lightVolume: LightVolume | null = null;
+
+  /**
+   * The light source registry for dynamic point lights.
+   * Only available when `shaderBasedLighting` is enabled.
+   */
+  public lightRegistry: LightSourceRegistry | null = null;
 
   /**
    * Whether or not this world is connected to the server and initialized with data from the server.
@@ -741,7 +788,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     level: number,
     generation?: number
   ) {
-    if (this.lightJobQueue.length > 0 || this.activeLightBatch !== null) {
+    if (
+      !this.options.shaderBasedLighting &&
+      (this.lightJobQueue.length > 0 || this.activeLightBatch !== null)
+    ) {
       await this.waitForLightJobsComplete();
     }
 
@@ -3073,6 +3123,23 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.physics.options = this.options;
 
+    // Initialize shader-based lighting components after server options are known
+    if (this.usesShaderLighting && !this.csmRenderer) {
+      this.csmRenderer = new CSMRenderer({
+        cascades: 3,
+        shadowMapSize: 2048,
+        maxShadowDistance: 128,
+        shadowBias: 0.0005,
+        shadowNormalBias: 0.02,
+        lightMargin: 32,
+      });
+      this.lightVolume = new LightVolume({
+        size: [128, 64, 128],
+        resolution: 1,
+      });
+      this.lightRegistry = new LightSourceRegistry();
+    }
+
     await this.loadMaterials();
 
     const registryData = this.registry.serialize();
@@ -3754,6 +3821,119 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.time.value = performance.now();
   };
 
+  updateShaderLighting(camera: Camera, position: Vector3) {
+    if (!this.usesShaderLighting) return;
+
+    const { timePerDay } = this.options;
+    const timeRatio = this.time / timePerDay;
+    const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
+
+    const sunDirection = this.chunkRenderer.shaderLightingUniforms.sunDirection;
+    sunDirection.value.set(Math.cos(sunAngle), Math.sin(sunAngle), 0.3);
+    sunDirection.value.normalize();
+
+    const sunlightIntensity = Math.max(0, Math.sin(sunAngle));
+    const warmColor = new Color(1.0, 0.95, 0.9);
+    const coolColor = new Color(0.9, 0.95, 1.0);
+    const nightColor = new Color(0.15, 0.18, 0.25);
+    const dayAmbient = new Color(0.4, 0.42, 0.45);
+    const nightAmbient = new Color(0.08, 0.1, 0.15);
+
+    if (sunlightIntensity > 0.5) {
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(warmColor);
+      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.lerpColors(
+        dayAmbient,
+        warmColor,
+        (sunlightIntensity - 0.5) * 0.3
+      );
+    } else if (sunlightIntensity > 0) {
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.lerpColors(
+        coolColor,
+        warmColor,
+        sunlightIntensity * 2
+      );
+      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.lerpColors(
+        nightAmbient,
+        dayAmbient,
+        sunlightIntensity * 2
+      );
+    } else {
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(nightColor);
+      this.chunkRenderer.shaderLightingUniforms.ambientColor.value.copy(
+        nightAmbient
+      );
+    }
+
+    this.chunkRenderer.uniforms.sunlightIntensity.value = Math.max(
+      0.05,
+      sunlightIntensity
+    );
+
+    if (this.csmRenderer) {
+      this.csmRenderer.update(camera, sunDirection.value, position);
+
+      const csmUniforms = this.csmRenderer.getUniforms();
+
+      if (csmUniforms.uShadowMaps[0]) {
+        this.chunkRenderer.shaderLightingUniforms.shadowMap0.value =
+          csmUniforms.uShadowMaps[0];
+      }
+      if (csmUniforms.uShadowMaps[1]) {
+        this.chunkRenderer.shaderLightingUniforms.shadowMap1.value =
+          csmUniforms.uShadowMaps[1];
+      }
+      if (csmUniforms.uShadowMaps[2]) {
+        this.chunkRenderer.shaderLightingUniforms.shadowMap2.value =
+          csmUniforms.uShadowMaps[2];
+      }
+
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix0.value.copy(
+        csmUniforms.uShadowMatrices[0]
+      );
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix1.value.copy(
+        csmUniforms.uShadowMatrices[1]
+      );
+      this.chunkRenderer.shaderLightingUniforms.shadowMatrix2.value.copy(
+        csmUniforms.uShadowMatrices[2]
+      );
+
+      this.chunkRenderer.shaderLightingUniforms.cascadeSplit0.value =
+        csmUniforms.uCascadeSplits[0];
+      this.chunkRenderer.shaderLightingUniforms.cascadeSplit1.value =
+        csmUniforms.uCascadeSplits[1];
+      this.chunkRenderer.shaderLightingUniforms.cascadeSplit2.value =
+        csmUniforms.uCascadeSplits[2];
+      this.chunkRenderer.shaderLightingUniforms.shadowBias.value =
+        csmUniforms.uShadowBias;
+
+      const shadowStrength = Math.max(
+        0,
+        Math.min(1, (sunlightIntensity - 0.15) / 0.35)
+      );
+      this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
+        shadowStrength;
+    }
+
+    if (this.lightVolume && this.lightRegistry) {
+      this.lightVolume.updateCenter(position);
+      this.lightVolume.updateFromRegistry(this.lightRegistry);
+
+      this.chunkRenderer.shaderLightingUniforms.lightVolume.value =
+        this.lightVolume.getTexture();
+      this.chunkRenderer.shaderLightingUniforms.lightVolumeMin.value.copy(
+        this.lightVolume.getVolumeMin()
+      );
+      this.chunkRenderer.shaderLightingUniforms.lightVolumeSize.value.copy(
+        this.lightVolume.getVolumeSize()
+      );
+    }
+  }
+
+  renderShadowMaps(renderer: WebGLRenderer, entities?: Object3D[]) {
+    if (!this.usesShaderLighting || !this.csmRenderer) return;
+    this.csmRenderer.render(renderer, this, entities);
+  }
+
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {
     const chunk = this.getChunkByCoords(cx, cz);
     if (!chunk) return;
@@ -3999,6 +4179,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline = new ChunkPipeline();
     this.meshPipeline = new MeshPipeline();
     this.chunkRenderer = new ChunkRenderer();
+
+    if (this.usesShaderLighting) {
+      this.csmRenderer = new CSMRenderer({
+        cascades: 3,
+        shadowMapSize: 2048,
+        maxShadowDistance: 128,
+        shadowBias: 0.0005,
+        shadowNormalBias: 0.02,
+        lightMargin: 32,
+      });
+      this.lightVolume = new LightVolume({
+        size: [128, 64, 128],
+        resolution: 1,
+      });
+      this.lightRegistry = new LightSourceRegistry();
+    }
 
     if (!cloudsOptions.uFogColor) {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
@@ -5212,19 +5408,62 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Make a chunk shader material with the current atlas.
    */
   private makeShaderMaterial = (
-    fragmentShader = DEFAULT_CHUNK_SHADERS.fragment,
-    vertexShader = DEFAULT_CHUNK_SHADERS.vertex,
-    uniforms: any = {}
+    fragmentShader?: string,
+    vertexShader?: string,
+    uniforms: Record<string, Uniform> = {}
   ) => {
+    const useShaderLighting = this.usesShaderLighting;
+    const baseShaders = useShaderLighting
+      ? SHADER_LIGHTING_CHUNK_SHADERS
+      : DEFAULT_CHUNK_SHADERS;
+
+    const actualFragmentShader = fragmentShader ?? baseShaders.fragment;
+    const actualVertexShader = vertexShader ?? baseShaders.vertex;
+
     const chunksUniforms = {
       ...this.chunkRenderer.uniforms,
       ...this.options.chunkUniformsOverwrite,
     };
 
+    const shaderLightingUniforms = useShaderLighting
+      ? {
+          uSunDirection: this.chunkRenderer.shaderLightingUniforms.sunDirection,
+          uSunColor: this.chunkRenderer.shaderLightingUniforms.sunColor,
+          uAmbientColor: this.chunkRenderer.shaderLightingUniforms.ambientColor,
+          uShadowMap0: this.chunkRenderer.shaderLightingUniforms.shadowMap0,
+          uShadowMap1: this.chunkRenderer.shaderLightingUniforms.shadowMap1,
+          uShadowMap2: this.chunkRenderer.shaderLightingUniforms.shadowMap2,
+          uShadowMatrix0:
+            this.chunkRenderer.shaderLightingUniforms.shadowMatrix0,
+          uShadowMatrix1:
+            this.chunkRenderer.shaderLightingUniforms.shadowMatrix1,
+          uShadowMatrix2:
+            this.chunkRenderer.shaderLightingUniforms.shadowMatrix2,
+          uCascadeSplit0:
+            this.chunkRenderer.shaderLightingUniforms.cascadeSplit0,
+          uCascadeSplit1:
+            this.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
+          uCascadeSplit2:
+            this.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
+          uShadowBias: this.chunkRenderer.shaderLightingUniforms.shadowBias,
+          uShadowStrength:
+            this.chunkRenderer.shaderLightingUniforms.shadowStrength,
+          uLightVolume: this.chunkRenderer.shaderLightingUniforms.lightVolume,
+          uLightVolumeMin:
+            this.chunkRenderer.shaderLightingUniforms.lightVolumeMin,
+          uLightVolumeSize:
+            this.chunkRenderer.shaderLightingUniforms.lightVolumeSize,
+          uWaterTint: this.chunkRenderer.shaderLightingUniforms.waterTint,
+          uWaterAbsorption:
+            this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
+          uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
+        }
+      : {};
+
     const material = new ShaderMaterial({
       vertexColors: true,
-      fragmentShader,
-      vertexShader,
+      fragmentShader: actualFragmentShader,
+      vertexShader: actualVertexShader,
       uniforms: {
         ...UniformsUtils.clone(ShaderLib.basic.uniforms),
         uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
@@ -5238,6 +5477,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uTime: chunksUniforms.time,
         uAtlasSize: chunksUniforms.atlasSize,
         uShowGreedyDebug: chunksUniforms.showGreedyDebug,
+        ...shaderLightingUniforms,
         ...uniforms,
       },
     }) as CustomChunkShaderMaterial;

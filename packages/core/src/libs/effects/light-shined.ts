@@ -249,31 +249,93 @@ export class LightShined {
     if (color === null) {
       obj.getWorldPosition(position);
 
-      const voxel = ChunkUtils.mapWorldToVoxel(position.toArray());
-      const lightValues = this.world.getLightValuesAt(...voxel);
-      if (!lightValues) return;
+      if (this.world.usesShaderLighting) {
+        color = this.computeShaderBasedLight(position);
+      } else {
+        color = this.computeCPUBasedLight(position);
+      }
 
-      const { sunlight, red, green, blue } = lightValues;
-      const { sunlightIntensity, minLightLevel, baseAmbient } =
-        this.world.chunkRenderer.uniforms;
-      const maxLightLevel = this.world.options.maxLightLevel;
-
-      const sunlightNorm = sunlight / maxLightLevel;
-      const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
-      const s = Math.min(
-        sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
-        1
-      );
-
-      color = tempColor.setRGB(
-        s + (red / maxLightLevel) ** 2,
-        s + (green / maxLightLevel) ** 2,
-        s + (blue / maxLightLevel) ** 2
-      );
+      if (!color) return;
     }
 
     obj.traverse((child) => {
       this.updateObject(child, color);
     });
   };
+
+  private computeCPUBasedLight(pos: Vector3): Color | null {
+    const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
+    const lightValues = this.world.getLightValuesAt(...voxel);
+    if (!lightValues) return null;
+
+    const { sunlight, red, green, blue } = lightValues;
+    const { sunlightIntensity, minLightLevel, baseAmbient } =
+      this.world.chunkRenderer.uniforms;
+    const maxLightLevel = this.world.options.maxLightLevel;
+
+    const sunlightNorm = sunlight / maxLightLevel;
+    const sunlightFactor = sunlightNorm ** 2 * sunlightIntensity.value;
+    const s = Math.min(
+      sunlightFactor + minLightLevel.value * sunlightNorm + baseAmbient.value,
+      1
+    );
+
+    return tempColor.setRGB(
+      s + (red / maxLightLevel) ** 2,
+      s + (green / maxLightLevel) ** 2,
+      s + (blue / maxLightLevel) ** 2
+    );
+  }
+
+  private computeShaderBasedLight(pos: Vector3): Color {
+    const { sunlightIntensity } = this.world.chunkRenderer.uniforms;
+    const { sunDirection, sunColor, ambientColor } =
+      this.world.chunkRenderer.shaderLightingUniforms;
+
+    const baseLight = sunlightIntensity.value;
+
+    const sunContrib = Math.max(0, sunDirection.value.y) * baseLight;
+
+    const torchLight = this.getTorchLightAtPosition(pos);
+
+    const totalR =
+      ambientColor.value.r + sunColor.value.r * sunContrib + torchLight.r;
+    const totalG =
+      ambientColor.value.g + sunColor.value.g * sunContrib + torchLight.g;
+    const totalB =
+      ambientColor.value.b + sunColor.value.b * sunContrib + torchLight.b;
+
+    return tempColor.setRGB(
+      Math.min(totalR, this.options.maxBrightness),
+      Math.min(totalG, this.options.maxBrightness),
+      Math.min(totalB, this.options.maxBrightness)
+    );
+  }
+
+  private getTorchLightAtPosition(pos: Vector3): Color {
+    const registry = this.world.lightRegistry;
+    if (!registry) return new Color(0, 0, 0);
+
+    const lights = registry.getLightsNearPoint(pos, 16);
+    let r = 0,
+      g = 0,
+      b = 0;
+
+    for (const light of lights) {
+      const dist = light.position.distanceTo(pos);
+      if (dist > light.radius) continue;
+
+      const attenuation = Math.pow(
+        Math.max(0, 1 - dist / light.radius),
+        light.falloffExponent
+      );
+      const intensity = light.intensity * attenuation;
+
+      r += light.color.r * intensity;
+      g += light.color.g * intensity;
+      b += light.color.b * intensity;
+    }
+
+    return new Color(r, g, b);
+  }
 }

@@ -100,6 +100,9 @@ pub struct WorldConfig {
 
     /// Whether to use greedy meshing for chunk generation. Default is true.
     pub greedy_meshing: bool,
+
+    /// Whether to use shader-based lighting instead of CPU light propagation. Default is false.
+    pub shader_based_lighting: bool,
 }
 
 impl Default for WorldConfig {
@@ -149,6 +152,7 @@ const DEFAULT_SAVE_DIR: &str = "";
 const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_GREEDY_MESHING: bool = true;
+const DEFAULT_SHADER_BASED_LIGHTING: bool = false;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -184,6 +188,7 @@ pub struct WorldConfigBuilder {
     command_symbol: String,
     save_entities: bool,
     greedy_meshing: bool,
+    shader_based_lighting: bool,
 }
 
 impl WorldConfigBuilder {
@@ -222,6 +227,7 @@ impl WorldConfigBuilder {
             command_symbol: DEFAULT_COMMAND_SYMBOL.to_owned(),
             save_entities: true,
             greedy_meshing: DEFAULT_GREEDY_MESHING,
+            shader_based_lighting: DEFAULT_SHADER_BASED_LIGHTING,
         }
     }
 
@@ -394,6 +400,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure whether to use shader-based lighting instead of CPU light propagation. Default is false.
+    pub fn shader_based_lighting(mut self, shader_based_lighting: bool) -> Self {
+        self.shader_based_lighting = shader_based_lighting;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -442,6 +454,7 @@ impl WorldConfigBuilder {
             command_symbol: self.command_symbol,
             save_entities: self.save_entities,
             greedy_meshing: self.greedy_meshing,
+            shader_based_lighting: self.shader_based_lighting,
         }
     }
 }

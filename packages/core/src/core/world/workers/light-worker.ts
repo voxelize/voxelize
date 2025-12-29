@@ -477,6 +477,15 @@ onmessage = function (e) {
       options,
     } = e.data;
 
+    if (options.shaderBasedLighting) {
+      postMessage({
+        jobId,
+        modifiedChunks: [],
+        appliedDeltas: { lastSequenceId: 0 },
+      });
+      return;
+    }
+
     const [gridWidth, gridDepth] = chunkGridDimensions;
     const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
 
