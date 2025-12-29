@@ -612,7 +612,8 @@ export class Engine {
   };
 
   tryAutoStepping = (body: RigidBody, oldBox: AABB, dx: number[]) => {
-    if (body.resting[1] >= 0 && !body.inFluid) return;
+    if (body.inFluid) return;
+    if (body.resting[1] >= 0) return;
 
     // // direction movement was blocked before trying a step
     const xBlocked = body.resting[0] !== 0;
