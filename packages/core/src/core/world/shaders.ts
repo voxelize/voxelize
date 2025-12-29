@@ -148,7 +148,10 @@ varying vec3 vWorldNormal;
 
 // Adjusting light intensity for lighter voxel textures
 float scale = 2.0;
-float s = clamp(vLight.a * vLight.a * uSunlightIntensity * uLightIntensityAdjustment, uMinLightLevel, 1.0);
+float rawSunlight = vLight.a * vLight.a * uSunlightIntensity * uLightIntensityAdjustment;
+// Only apply minLightLevel to areas that have sunlight exposure (vLight.a > 0)
+// Areas without sunlight (caves, underground) should stay dark
+float s = vLight.a > 0.0 ? clamp(rawSunlight, uMinLightLevel, 1.0) : 0.0;
 s -= s * exp(-s) * 0.02; // Optimized smoothing with adjusted intensity
 
 // Applying adjusted light intensity

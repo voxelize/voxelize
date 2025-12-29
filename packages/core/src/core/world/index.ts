@@ -1647,19 +1647,19 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const { sunlight, red, green, blue } = lightValues;
     const { sunlightIntensity, minLightLevel } = this.chunkRenderer.uniforms;
+    const maxLightLevel = this.options.maxLightLevel;
 
-    const s = Math.min(
-      (sunlight / this.options.maxLightLevel) ** 2 *
-        sunlightIntensity.value *
-        (1 - minLightLevel.value) +
-        minLightLevel.value,
-      1
-    );
+    const rawSunlight =
+      (sunlight / maxLightLevel) ** 2 * sunlightIntensity.value;
+    const s =
+      sunlight > 0
+        ? Math.min(Math.max(rawSunlight, minLightLevel.value), 1)
+        : 0;
 
     return new Color(
-      s + Math.pow(red / this.options.maxLightLevel, 2),
-      s + Math.pow(green / this.options.maxLightLevel, 2),
-      s + Math.pow(blue / this.options.maxLightLevel, 2)
+      s + Math.pow(red / maxLightLevel, 2),
+      s + Math.pow(green / maxLightLevel, 2),
+      s + Math.pow(blue / maxLightLevel, 2)
     );
   }
 
