@@ -14,14 +14,14 @@ export type LightShinedOptions = {
    */
   lerpFactor: number;
   /**
-   * The maximum brightness cap for the light effect. Defaults to `1.2`.
+   * The maximum brightness cap for the light effect. Defaults to `2.5`.
    */
   maxBrightness: number;
 };
 
 const defaultOptions: LightShinedOptions = {
   lerpFactor: 0.1,
-  maxBrightness: 0.8,
+  maxBrightness: 2.5,
 };
 
 /**
@@ -303,30 +303,36 @@ export class LightShined {
     const voxel = ChunkUtils.mapWorldToVoxel(pos.toArray());
     const lightValues = this.world.getLightValuesAt(...voxel);
 
-    let voxelR = 0,
-      voxelG = 0,
-      voxelB = 0;
+    let cpuTorchR = 0,
+      cpuTorchG = 0,
+      cpuTorchB = 0;
     if (lightValues) {
-      voxelR = (lightValues.red / maxLightLevel) ** 2;
-      voxelG = (lightValues.green / maxLightLevel) ** 2;
-      voxelB = (lightValues.blue / maxLightLevel) ** 2;
+      cpuTorchR = (lightValues.red / maxLightLevel) ** 2;
+      cpuTorchG = (lightValues.green / maxLightLevel) ** 2;
+      cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
     }
+
+    const torchBrightness = Math.max(cpuTorchR, cpuTorchG, cpuTorchB);
+    const torchBloom = torchBrightness * torchBrightness * 0.3;
 
     const totalR =
       ambientColor.value.r +
       sunColor.value.r * sunContrib +
       torchLight.r +
-      voxelR;
+      cpuTorchR * 1.2 +
+      torchBloom;
     const totalG =
       ambientColor.value.g +
       sunColor.value.g * sunContrib +
       torchLight.g +
-      voxelG;
+      cpuTorchG * 1.2 +
+      torchBloom;
     const totalB =
       ambientColor.value.b +
       sunColor.value.b * sunContrib +
       torchLight.b +
-      voxelB;
+      cpuTorchB * 1.2 +
+      torchBloom;
 
     return tempColor.setRGB(
       Math.min(totalR, this.options.maxBrightness),
