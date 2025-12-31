@@ -54,7 +54,6 @@ export class CSMRenderer {
   private tempVec3 = new Vector3();
 
   private transparentObjectsCache: Object3D[] = [];
-  private lastSceneChildCount = -1;
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -140,8 +139,17 @@ export class CSMRenderer {
     return cameraMovement > 1.0 || this.frameCount % 4 === index;
   }
 
-  invalidateTransparentCache() {
-    this.lastSceneChildCount = -1;
+  rebuildTransparentCache(scene: Scene) {
+    this.transparentObjectsCache = [];
+    scene.traverse((object) => {
+      if (
+        "material" in object &&
+        (object as { material: { transparent?: boolean } }).material
+          ?.transparent === true
+      ) {
+        this.transparentObjectsCache.push(object);
+      }
+    });
   }
 
   update(mainCamera: Camera, sunDirection: Vector3, playerPosition?: Vector3) {
@@ -278,6 +286,23 @@ export class CSMRenderer {
     cascade.matrix.multiply(cascade.camera.matrixWorldInverse);
   }
 
+  addTransparentObject(object: Object3D) {
+    if (
+      "material" in object &&
+      (object as { material: { transparent?: boolean } }).material
+        ?.transparent === true
+    ) {
+      this.transparentObjectsCache.push(object);
+    }
+  }
+
+  removeTransparentObject(object: Object3D) {
+    const idx = this.transparentObjectsCache.indexOf(object);
+    if (idx !== -1) {
+      this.transparentObjectsCache.splice(idx, 1);
+    }
+  }
+
   render(
     renderer: WebGLRenderer,
     scene: Scene,
@@ -285,21 +310,6 @@ export class CSMRenderer {
     maxEntityShadowDistance = 32
   ) {
     const originalOverrideMaterial = scene.overrideMaterial;
-
-    const currentChildCount = scene.children.length;
-    if (currentChildCount !== this.lastSceneChildCount) {
-      this.transparentObjectsCache = [];
-      scene.traverse((object) => {
-        if (
-          "material" in object &&
-          (object as { material: { transparent?: boolean } }).material
-            ?.transparent === true
-        ) {
-          this.transparentObjectsCache.push(object);
-        }
-      });
-      this.lastSceneChildCount = currentChildCount;
-    }
 
     const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
     for (const object of this.transparentObjectsCache) {

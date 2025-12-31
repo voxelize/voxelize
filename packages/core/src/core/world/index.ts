@@ -420,7 +420,7 @@ export type WorldClientOptions = {
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
-  maxProcessesPerUpdate: 12,
+  maxProcessesPerUpdate: 4,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
@@ -3657,6 +3657,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
         chunk.meshes.forEach((meshes, level) => {
+          for (const mesh of meshes) {
+            if (mesh) {
+              this.csmRenderer?.removeTransparentObject(mesh);
+            }
+          }
           this.emitChunkEvent("chunk-mesh-unloaded", {
             chunk,
             coords: chunk.coords,
@@ -3967,6 +3972,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (let i = 0; i < oldMeshes.length; i++) {
         const mesh = oldMeshes[i];
         if (mesh) {
+          this.csmRenderer?.removeTransparentObject(mesh);
           mesh.geometry.dispose();
           chunk.group.remove(mesh);
         }
@@ -4086,6 +4092,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               );
             };
           }
+          this.csmRenderer?.addTransparentObject(mesh);
         }
 
         chunk.group.add(mesh);
@@ -4157,6 +4164,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               );
             };
           }
+          this.csmRenderer?.addTransparentObject(mesh);
         }
 
         chunk.group.add(mesh);
