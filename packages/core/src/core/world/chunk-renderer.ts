@@ -30,9 +30,9 @@ export interface ShaderLightingUniforms {
   waterTint: { value: Color };
   waterAbsorption: { value: number };
   waterLevel: { value: number };
-  // #region agent log - Debug uniform for shadow debugging
+  skyTopColor: { value: Color };
+  skyMiddleColor: { value: Color };
   shadowDebugMode: { value: number };
-  // #endregion
 }
 
 export class ChunkRenderer {
@@ -85,8 +85,8 @@ export class ChunkRenderer {
     waterTint: { value: new Color(0.3, 0.5, 0.8) },
     waterAbsorption: { value: 0.5 },
     waterLevel: { value: 86 },
-    // #region agent log - Debug uniform for shadow debugging
+    skyTopColor: { value: new Color(0.4, 0.6, 0.9) },
+    skyMiddleColor: { value: new Color(0.7, 0.8, 0.95) },
     shadowDebugMode: { value: 0 },
-    // #endregion
   };
 }

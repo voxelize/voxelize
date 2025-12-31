@@ -95,6 +95,8 @@ vec4 unpackLight(int l) {
   return lightValues / 15.0;
 }
 
+${SIMPLEX_NOISE_GLSL}
+
 #include <common>
 `
     )
@@ -112,6 +114,24 @@ vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 
 vLight = unpackLight(light & 0xFFFF);
+`
+    )
+    .replace(
+      "#include <begin_vertex>",
+      `
+vec3 transformed = vec3(position);
+
+int isFluidForWave = (light >> 18) & 0x1;
+if (isFluidForWave == 1 && normal.y > 0.5) {
+  vec3 worldPosForWave = (modelMatrix * vec4(position, 1.0)).xyz;
+  float waveTime = uTime * 0.0006;
+
+  float wave1 = snoise(vec3(worldPosForWave.x * 0.15 + waveTime * 0.3, worldPosForWave.z * 0.15 - waveTime * 0.2, 0.0)) * 0.08;
+  float wave2 = snoise(vec3(worldPosForWave.x * 0.4 - waveTime * 0.5, worldPosForWave.z * 0.4 + waveTime * 0.4, 10.0)) * 0.04;
+  float wave3 = snoise(vec3(worldPosForWave.x * 0.8 + waveTime * 0.7, worldPosForWave.z * 0.8 - waveTime * 0.5, 20.0)) * 0.02;
+
+  transformed.y += wave1 + wave2 + wave3;
+}
 `
     )
     .replace(
@@ -298,6 +318,8 @@ vec4 unpackLight(int l) {
   return lightValues / 15.0;
 }
 
+${SIMPLEX_NOISE_GLSL}
+
 #include <common>
 `
     )
@@ -314,6 +336,24 @@ vAO = uAOTable[ao] / 255.0;
 vIsFluid = float(isFluid);
 vIsGreedy = float(isGreedy);
 vLight = unpackLight(light & 0xFFFF);
+`
+    )
+    .replace(
+      "#include <begin_vertex>",
+      `
+vec3 transformed = vec3(position);
+
+int isFluidForWave = (light >> 18) & 0x1;
+if (isFluidForWave == 1 && normal.y > 0.5) {
+  vec3 worldPosForWave = (modelMatrix * vec4(position, 1.0)).xyz;
+  float waveTime = uTime * 0.0006;
+
+  float wave1 = snoise(vec3(worldPosForWave.x * 0.15 + waveTime * 0.3, worldPosForWave.z * 0.15 - waveTime * 0.2, 0.0)) * 0.08;
+  float wave2 = snoise(vec3(worldPosForWave.x * 0.4 - waveTime * 0.5, worldPosForWave.z * 0.4 + waveTime * 0.4, 10.0)) * 0.04;
+  float wave3 = snoise(vec3(worldPosForWave.x * 0.8 + waveTime * 0.7, worldPosForWave.z * 0.8 - waveTime * 0.5, 20.0)) * 0.02;
+
+  transformed.y += wave1 + wave2 + wave3;
+}
 `
     )
     .replace(
@@ -372,6 +412,9 @@ uniform vec3 uWaterTint;
 uniform float uWaterAbsorption;
 uniform float uWaterLevel;
 
+uniform vec3 uSkyTopColor;
+uniform vec3 uSkyMiddleColor;
+
 varying float vAO;
 varying float vIsFluid;
 varying float vIsGreedy;
@@ -382,6 +425,8 @@ varying float vViewDepth;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
 varying vec4 vShadowCoord2;
+
+${SIMPLEX_NOISE_GLSL}
 
 float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
@@ -620,10 +665,87 @@ totalLight = min(totalLight, vec3(2.5));
 outgoingLight.rgb *= totalLight;
 
 if (vIsFluid > 0.5) {
-  outgoingLight.rgb = mix(outgoingLight.rgb, outgoingLight.rgb * uWaterTint, 0.5);
-  
+  float waveTime = uTime * 0.0005;
+  vec3 wPos = vWorldPosition.xyz;
+
+  float posVar = snoise(vec3(wPos.x * 0.1, wPos.z * 0.1, 0.0)) * 0.3 + 1.0;
+  float eps = 0.04;
+
+  float lg1 = snoise(vec3(wPos.x * 0.4 * posVar + waveTime * 0.25, wPos.z * 0.4 * posVar - waveTime * 0.2, 0.0));
+  float lg1x = snoise(vec3((wPos.x + eps) * 0.4 * posVar + waveTime * 0.25, wPos.z * 0.4 * posVar - waveTime * 0.2, 0.0));
+  float lg1z = snoise(vec3(wPos.x * 0.4 * posVar + waveTime * 0.25, (wPos.z + eps) * 0.4 * posVar - waveTime * 0.2, 0.0));
+
+  float md1 = snoise(vec3(wPos.x * 1.2 + waveTime * 0.4, wPos.z * 1.2 - waveTime * 0.35, 5.0));
+  float md2 = snoise(vec3(wPos.x * 1.8 - waveTime * 0.5, wPos.z * 1.8 + waveTime * 0.4, 10.0));
+  float md1x = snoise(vec3((wPos.x + eps) * 1.2 + waveTime * 0.4, wPos.z * 1.2 - waveTime * 0.35, 5.0));
+  float md2x = snoise(vec3((wPos.x + eps) * 1.8 - waveTime * 0.5, wPos.z * 1.8 + waveTime * 0.4, 10.0));
+  float md1z = snoise(vec3(wPos.x * 1.2 + waveTime * 0.4, (wPos.z + eps) * 1.2 - waveTime * 0.35, 5.0));
+  float md2z = snoise(vec3(wPos.x * 1.8 - waveTime * 0.5, (wPos.z + eps) * 1.8 + waveTime * 0.4, 10.0));
+
+  float fn1 = snoise(vec3(wPos.x * 4.0 + waveTime * 0.8, wPos.z * 4.0 - waveTime * 0.6, 20.0));
+  float fn2 = snoise(vec3(wPos.x * 6.0 - waveTime * 0.9, wPos.z * 6.0 + waveTime * 0.7, 25.0));
+  float fn1x = snoise(vec3((wPos.x + eps) * 4.0 + waveTime * 0.8, wPos.z * 4.0 - waveTime * 0.6, 20.0));
+  float fn2x = snoise(vec3((wPos.x + eps) * 6.0 - waveTime * 0.9, wPos.z * 6.0 + waveTime * 0.7, 25.0));
+  float fn1z = snoise(vec3(wPos.x * 4.0 + waveTime * 0.8, (wPos.z + eps) * 4.0 - waveTime * 0.6, 20.0));
+  float fn2z = snoise(vec3(wPos.x * 6.0 - waveTime * 0.9, (wPos.z + eps) * 6.0 + waveTime * 0.7, 25.0));
+
+  float hLg0 = lg1 * 0.25;
+  float hLgX = lg1x * 0.25;
+  float hLgZ = lg1z * 0.25;
+
+  float hMed0 = (md1 + md2) * 0.5;
+  float hMedX = (md1x + md2x) * 0.5;
+  float hMedZ = (md1z + md2z) * 0.5;
+
+  float hFine0 = (fn1 + fn2 * 0.6) * 0.08;
+  float hFineX = (fn1x + fn2x * 0.6) * 0.08;
+  float hFineZ = (fn1z + fn2z * 0.6) * 0.08;
+
+  vec3 waterNormal = normalize(vec3(
+    (hLg0 - hLgX) * 0.6 + (hMed0 - hMedX) * 1.0 + (hFine0 - hFineX) * 0.25,
+    1.0,
+    (hLg0 - hLgZ) * 0.6 + (hMed0 - hMedZ) * 1.0 + (hFine0 - hFineZ) * 0.25
+  ));
+
+  if (vWorldNormal.y < 0.5) {
+    waterNormal = vWorldNormal;
+  }
+
+  vec3 viewDir = normalize(cameraPosition - wPos);
+  float NdotV = max(dot(waterNormal, viewDir), 0.0);
+  float fresnel = 0.02 + 0.6 * pow(1.0 - NdotV, 4.0);
+  float fresnelNoise = snoise(vec3(wPos.x * 2.0, wPos.z * 2.0, waveTime * 0.5)) * 0.08;
+  fresnel = clamp(fresnel + fresnelNoise, 0.02, 0.55);
+
+  vec3 reflectDir = reflect(-viewDir, waterNormal);
+  float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
+  vec3 skyReflection = mix(uSkyMiddleColor, uSkyTopColor, skyBlend);
+  skyReflection = mix(skyReflection, skyReflection * 0.9, fresnelNoise * 2.0);
+
+  vec3 halfVec = normalize(uSunDirection + viewDir);
+  float specAngle = max(dot(waterNormal, halfVec), 0.0);
+  float specSoft = pow(specAngle, 32.0) * uSunlightIntensity * 0.3;
+  float specMed = pow(specAngle, 128.0) * uSunlightIntensity * 0.6;
+  float specSharp = pow(specAngle, 512.0) * uSunlightIntensity * 1.5;
+  float specNoise = snoise(vec3(wPos.x * 8.0, wPos.z * 8.0, waveTime)) * 0.15 + 0.85;
+  vec3 specularColor = uSunColor * (specSoft + specMed + specSharp) * specNoise;
+
+  vec3 baseWater = outgoingLight.rgb;
+
+  float colorVar = snoise(vec3(wPos.x * 0.3, wPos.z * 0.3, 50.0)) * 0.5 + 0.5;
+  vec3 tint1 = uWaterTint;
+  vec3 tint2 = uWaterTint * vec3(0.9, 1.05, 1.1);
+  vec3 localTint = mix(tint1, tint2, colorVar);
+
+  float distToCamera = length(cameraPosition - wPos);
+  float depthFactor = 1.0 - exp(-distToCamera * 0.008);
+  vec3 waterColor = baseWater * mix(vec3(1.0), localTint, 0.08 + depthFactor * 0.12);
+
+  outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
+  outgoingLight.rgb += specularColor;
+
   float waterDepth = max(0.0, uWaterLevel - vWorldPosition.y);
-  vec3 absorption = vec3(0.2, 0.1, 0.05);
+  vec3 absorption = vec3(0.025, 0.012, 0.004);
   outgoingLight.rgb *= exp(-absorption * waterDepth * uWaterAbsorption);
 }
 `
@@ -659,24 +781,44 @@ export function createSwayShader(
     ...options,
   };
 
-  return {
-    vertexShader: baseShaders.vertex
-      .replace("#include <common>", `${SIMPLEX_NOISE_GLSL}\n#include <common>`)
-      .replace(
-        "#include <begin_vertex>",
-        `
-vec3 transformed = vec3(position);
-float scale = uTime * 0.00002 * ${speed.toFixed(2)};
-transformed.x = position.x 
+  const swayCode = `
+float swayScale = uTime * 0.00002 * ${speed.toFixed(2)};
+transformed.x = transformed.x 
              + ${
                rooted ? "(position.y - floor(position.y))" : "1.0"
              } * ${scale.toFixed(
-          2
-        )} * snoise(vec3(position.x * scale, position.y * scale * ${yScale.toFixed(
-          2
-        )}, position.z * scale)) * 2.0 * ${amplitude.toFixed(2)};
-`
-      ),
+    2
+  )} * snoise(vec3(position.x * swayScale, position.y * swayScale * ${yScale.toFixed(
+    2
+  )}, position.z * swayScale)) * 2.0 * ${amplitude.toFixed(2)};
+`;
+
+  let vertexShader = baseShaders.vertex;
+
+  if (!vertexShader.includes("snoise")) {
+    vertexShader = vertexShader.replace(
+      "#include <common>",
+      `${SIMPLEX_NOISE_GLSL}\n#include <common>`
+    );
+  }
+
+  if (vertexShader.includes("#include <begin_vertex>")) {
+    vertexShader = vertexShader.replace(
+      "#include <begin_vertex>",
+      `
+vec3 transformed = vec3(position);
+${swayCode}`
+    );
+  } else if (vertexShader.includes("vec3 transformed = vec3(position);")) {
+    vertexShader = vertexShader.replace(
+      "vec3 transformed = vec3(position);",
+      `vec3 transformed = vec3(position);
+${swayCode}`
+    );
+  }
+
+  return {
+    vertexShader,
     fragmentShader: baseShaders.fragment,
   };
 }

@@ -3817,6 +3817,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.fogColor.value?.copy(
       this.sky.uMiddleColor.value
     );
+
+    if (this.usesShaderLighting) {
+      this.chunkRenderer.shaderLightingUniforms.skyTopColor.value.copy(
+        this.sky.uTopColor.value
+      );
+      this.chunkRenderer.shaderLightingUniforms.skyMiddleColor.value.copy(
+        this.sky.uMiddleColor.value
+      );
+    }
   }
 
   /**
@@ -5462,10 +5471,11 @@ export class World<T = any> extends Scene implements NetIntercept {
           uWaterAbsorption:
             this.chunkRenderer.shaderLightingUniforms.waterAbsorption,
           uWaterLevel: this.chunkRenderer.shaderLightingUniforms.waterLevel,
-          // #region agent log - Debug uniform
+          uSkyTopColor: this.chunkRenderer.shaderLightingUniforms.skyTopColor,
+          uSkyMiddleColor:
+            this.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
           uShadowDebugMode:
             this.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
-          // #endregion
         }
       : {};
 
