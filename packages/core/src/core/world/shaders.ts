@@ -448,6 +448,17 @@ float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias
   return shadow / 5.0;
 }
 
+const vec2 POISSON_DISK[8] = vec2[8](
+  vec2(-0.94201624, -0.39906216),
+  vec2(0.94558609, -0.76890725),
+  vec2(-0.094184101, -0.92938870),
+  vec2(0.34495938, 0.29387760),
+  vec2(-0.91588581, 0.45771432),
+  vec2(-0.81544232, -0.87912464),
+  vec2(0.97484398, 0.75648379),
+  vec2(0.44323325, -0.97511554)
+);
+
 float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
@@ -459,21 +470,11 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   float bias = uShadowBias + slopeBias;
   vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
 
-  vec2 poissonDisk[8];
-  poissonDisk[0] = vec2(-0.94201624, -0.39906216);
-  poissonDisk[1] = vec2(0.94558609, -0.76890725);
-  poissonDisk[2] = vec2(-0.094184101, -0.92938870);
-  poissonDisk[3] = vec2(0.34495938, 0.29387760);
-  poissonDisk[4] = vec2(-0.91588581, 0.45771432);
-  poissonDisk[5] = vec2(-0.81544232, -0.87912464);
-  poissonDisk[6] = vec2(0.97484398, 0.75648379);
-  poissonDisk[7] = vec2(0.44323325, -0.97511554);
-
   float blockerSum = 0.0;
   float blockerCount = 0.0;
   float searchRadius = 3.0;
   for (int i = 0; i < 4; i++) {
-    vec2 offset = poissonDisk[i * 2] * texelSize * searchRadius;
+    vec2 offset = POISSON_DISK[i * 2] * texelSize * searchRadius;
     float sampleDepth = texture(shadowMap, coord.xy + offset).r;
     if (sampleDepth < coord.z - bias) {
       blockerSum += sampleDepth;
@@ -490,7 +491,7 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   float filterRadius = clamp(penumbraSize * 2.0, 1.0, 3.0);
 
   float spatialNoise = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-  float temporalOffset = fract(uTime * 0.0001 * 0.618033988749895);
+  float temporalOffset = fract(uTime * 6.18033988749895e-05);
   float angle = (spatialNoise + temporalOffset) * 6.283185;
   float s = sin(angle);
   float c = cos(angle);
@@ -498,7 +499,7 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
 
   float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
   for (int i = 0; i < 8; i++) {
-    vec2 offset = rotation * poissonDisk[i] * texelSize * filterRadius;
+    vec2 offset = rotation * POISSON_DISK[i] * texelSize * filterRadius;
     float depth = texture(shadowMap, coord.xy + offset).r;
     shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
   }
@@ -668,43 +669,28 @@ if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;
   vec3 wPos = vWorldPosition.xyz;
 
-  float posVar = snoise(vec3(wPos.x * 0.1, wPos.z * 0.1, 0.0)) * 0.3 + 1.0;
-  float eps = 0.04;
+  float eps = 0.08;
 
-  float lg1 = snoise(vec3(wPos.x * 0.4 * posVar + waveTime * 0.25, wPos.z * 0.4 * posVar - waveTime * 0.2, 0.0));
-  float lg1x = snoise(vec3((wPos.x + eps) * 0.4 * posVar + waveTime * 0.25, wPos.z * 0.4 * posVar - waveTime * 0.2, 0.0));
-  float lg1z = snoise(vec3(wPos.x * 0.4 * posVar + waveTime * 0.25, (wPos.z + eps) * 0.4 * posVar - waveTime * 0.2, 0.0));
+  float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
+  float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
+  float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
 
-  float md1 = snoise(vec3(wPos.x * 1.2 + waveTime * 0.4, wPos.z * 1.2 - waveTime * 0.35, 5.0));
-  float md2 = snoise(vec3(wPos.x * 1.8 - waveTime * 0.5, wPos.z * 1.8 + waveTime * 0.4, 10.0));
-  float md1x = snoise(vec3((wPos.x + eps) * 1.2 + waveTime * 0.4, wPos.z * 1.2 - waveTime * 0.35, 5.0));
-  float md2x = snoise(vec3((wPos.x + eps) * 1.8 - waveTime * 0.5, wPos.z * 1.8 + waveTime * 0.4, 10.0));
-  float md1z = snoise(vec3(wPos.x * 1.2 + waveTime * 0.4, (wPos.z + eps) * 1.2 - waveTime * 0.35, 5.0));
-  float md2z = snoise(vec3(wPos.x * 1.8 - waveTime * 0.5, (wPos.z + eps) * 1.8 + waveTime * 0.4, 10.0));
+  float md1 = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
+  float md1x = snoise(vec3((wPos.x + eps) * 1.5 + waveTime * 0.4, wPos.z * 1.5 - waveTime * 0.35, 5.0));
+  float md1z = snoise(vec3(wPos.x * 1.5 + waveTime * 0.4, (wPos.z + eps) * 1.5 - waveTime * 0.35, 5.0));
 
-  float fn1 = snoise(vec3(wPos.x * 4.0 + waveTime * 0.8, wPos.z * 4.0 - waveTime * 0.6, 20.0));
-  float fn2 = snoise(vec3(wPos.x * 6.0 - waveTime * 0.9, wPos.z * 6.0 + waveTime * 0.7, 25.0));
-  float fn1x = snoise(vec3((wPos.x + eps) * 4.0 + waveTime * 0.8, wPos.z * 4.0 - waveTime * 0.6, 20.0));
-  float fn2x = snoise(vec3((wPos.x + eps) * 6.0 - waveTime * 0.9, wPos.z * 6.0 + waveTime * 0.7, 25.0));
-  float fn1z = snoise(vec3(wPos.x * 4.0 + waveTime * 0.8, (wPos.z + eps) * 4.0 - waveTime * 0.6, 20.0));
-  float fn2z = snoise(vec3(wPos.x * 6.0 - waveTime * 0.9, (wPos.z + eps) * 6.0 + waveTime * 0.7, 25.0));
+  float hLg0 = lg1 * 0.3;
+  float hLgX = lg1x * 0.3;
+  float hLgZ = lg1z * 0.3;
 
-  float hLg0 = lg1 * 0.25;
-  float hLgX = lg1x * 0.25;
-  float hLgZ = lg1z * 0.25;
-
-  float hMed0 = (md1 + md2) * 0.5;
-  float hMedX = (md1x + md2x) * 0.5;
-  float hMedZ = (md1z + md2z) * 0.5;
-
-  float hFine0 = (fn1 + fn2 * 0.6) * 0.08;
-  float hFineX = (fn1x + fn2x * 0.6) * 0.08;
-  float hFineZ = (fn1z + fn2z * 0.6) * 0.08;
+  float hMed0 = md1 * 0.6;
+  float hMedX = md1x * 0.6;
+  float hMedZ = md1z * 0.6;
 
   vec3 waterNormal = normalize(vec3(
-    (hLg0 - hLgX) * 0.6 + (hMed0 - hMedX) * 1.0 + (hFine0 - hFineX) * 0.25,
+    (hLg0 - hLgX) * 0.8 + (hMed0 - hMedX) * 1.2,
     1.0,
-    (hLg0 - hLgZ) * 0.6 + (hMed0 - hMedZ) * 1.0 + (hFine0 - hFineZ) * 0.25
+    (hLg0 - hLgZ) * 0.8 + (hMed0 - hMedZ) * 1.2
   ));
 
   if (vWorldNormal.y < 0.5) {
@@ -714,32 +700,28 @@ if (vIsFluid > 0.5) {
   vec3 viewDir = normalize(cameraPosition - wPos);
   float NdotV = max(dot(waterNormal, viewDir), 0.0);
   float fresnel = 0.02 + 0.6 * pow(1.0 - NdotV, 4.0);
-  float fresnelNoise = snoise(vec3(wPos.x * 2.0, wPos.z * 2.0, waveTime * 0.5)) * 0.08;
-  fresnel = clamp(fresnel + fresnelNoise, 0.02, 0.55);
+  fresnel = clamp(fresnel, 0.02, 0.55);
 
   vec3 reflectDir = reflect(-viewDir, waterNormal);
   float skyBlend = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
   vec3 skyReflection = mix(uSkyMiddleColor, uSkyTopColor, skyBlend);
-  skyReflection = mix(skyReflection, skyReflection * 0.9, fresnelNoise * 2.0);
 
   vec3 halfVec = normalize(uSunDirection + viewDir);
   float specAngle = max(dot(waterNormal, halfVec), 0.0);
-  float specSoft = pow(specAngle, 32.0) * uSunlightIntensity * 0.3;
-  float specMed = pow(specAngle, 128.0) * uSunlightIntensity * 0.6;
-  float specSharp = pow(specAngle, 512.0) * uSunlightIntensity * 1.5;
-  float specNoise = snoise(vec3(wPos.x * 8.0, wPos.z * 8.0, waveTime)) * 0.15 + 0.85;
-  vec3 specularColor = uSunColor * (specSoft + specMed + specSharp) * specNoise;
+  float spec32 = specAngle * specAngle;
+  spec32 *= spec32;
+  spec32 *= spec32;
+  spec32 *= spec32;
+  spec32 *= spec32;
+  float specMed = spec32 * spec32 * spec32 * spec32 * uSunlightIntensity * 0.6;
+  float specSharp = specMed * specMed * specMed * specMed * uSunlightIntensity * 1.5;
+  vec3 specularColor = uSunColor * (spec32 * uSunlightIntensity * 0.3 + specMed + specSharp);
 
   vec3 baseWater = outgoingLight.rgb;
 
-  float colorVar = snoise(vec3(wPos.x * 0.3, wPos.z * 0.3, 50.0)) * 0.5 + 0.5;
-  vec3 tint1 = uWaterTint;
-  vec3 tint2 = uWaterTint * vec3(0.9, 1.05, 1.1);
-  vec3 localTint = mix(tint1, tint2, colorVar);
-
   float distToCamera = length(cameraPosition - wPos);
   float depthFactor = 1.0 - exp(-distToCamera * 0.008);
-  vec3 waterColor = baseWater * mix(vec3(1.0), localTint, 0.08 + depthFactor * 0.12);
+  vec3 waterColor = baseWater * mix(vec3(1.0), uWaterTint, 0.08 + depthFactor * 0.12);
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;

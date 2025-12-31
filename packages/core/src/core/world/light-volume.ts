@@ -25,9 +25,15 @@ export class LightVolume {
   private data: Uint8Array;
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
-  private dirtyRegions = new Set<string>();
-  private pendingUpdate = false;
-  private maxUpdatesPerFrame = 4;
+  private lastCenterX = NaN;
+  private lastCenterY = NaN;
+  private lastCenterZ = NaN;
+  private lastRegistryVersion = -1;
+  private registryVersion = 0;
+
+  private tempHalfSize = new Vector3();
+  private tempVolumeMax = new Vector3();
+  private tempLocalPos = new Vector3();
 
   constructor(config: Partial<LightVolumeConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
@@ -54,18 +60,52 @@ export class LightVolume {
     this.volumeSize.set(width, height, depth);
   }
 
-  updateCenter(center: Vector3) {
-    const halfSize = this.volumeSize.clone().multiplyScalar(0.5);
-    this.volumeMin.copy(center).sub(halfSize);
-
-    this.volumeMin.x = Math.floor(this.volumeMin.x);
-    this.volumeMin.y = Math.floor(this.volumeMin.y);
-    this.volumeMin.z = Math.floor(this.volumeMin.z);
+  markDirty() {
+    this.registryVersion++;
   }
 
-  updateFromRegistry(registry: LightSourceRegistry) {
-    const volumeMax = this.volumeMin.clone().add(this.volumeSize);
-    const lights = registry.getLightsInRegion(this.volumeMin, volumeMax);
+  updateCenter(center: Vector3): boolean {
+    this.tempHalfSize.copy(this.volumeSize).multiplyScalar(0.5);
+
+    const newMinX = Math.floor(center.x - this.tempHalfSize.x);
+    const newMinY = Math.floor(center.y - this.tempHalfSize.y);
+    const newMinZ = Math.floor(center.z - this.tempHalfSize.z);
+
+    const moved =
+      newMinX !== this.lastCenterX ||
+      newMinY !== this.lastCenterY ||
+      newMinZ !== this.lastCenterZ;
+
+    if (moved) {
+      this.volumeMin.set(newMinX, newMinY, newMinZ);
+      this.lastCenterX = newMinX;
+      this.lastCenterY = newMinY;
+      this.lastCenterZ = newMinZ;
+      this.registryVersion++;
+    }
+
+    return moved;
+  }
+
+  updateFromRegistry(registry: LightSourceRegistry): boolean {
+    const dirtyRegions = registry.getDirtyRegions();
+    const hasDirtyRegions = dirtyRegions.length > 0;
+
+    if (hasDirtyRegions) {
+      this.registryVersion++;
+      registry.clearDirtyRegions();
+    }
+
+    if (this.registryVersion === this.lastRegistryVersion) {
+      return false;
+    }
+    this.lastRegistryVersion = this.registryVersion;
+
+    this.tempVolumeMax.copy(this.volumeMin).add(this.volumeSize);
+    const lights = registry.getLightsInRegion(
+      this.volumeMin,
+      this.tempVolumeMax
+    );
 
     this.data.fill(0);
 
@@ -80,6 +120,7 @@ export class LightVolume {
     }
 
     this.texture.needsUpdate = true;
+    return true;
   }
 
   private accumulateLight(
@@ -92,17 +133,23 @@ export class LightVolume {
     const radius = light.radius;
     const falloff = light.falloffExponent;
 
-    const localPos = light.position.clone().sub(this.volumeMin);
+    this.tempLocalPos.copy(light.position).sub(this.volumeMin);
 
-    const minX = Math.max(0, Math.floor((localPos.x - radius) / res));
-    const maxX = Math.min(texWidth - 1, Math.ceil((localPos.x + radius) / res));
-    const minY = Math.max(0, Math.floor((localPos.y - radius) / res));
+    const minX = Math.max(0, Math.floor((this.tempLocalPos.x - radius) / res));
+    const maxX = Math.min(
+      texWidth - 1,
+      Math.ceil((this.tempLocalPos.x + radius) / res)
+    );
+    const minY = Math.max(0, Math.floor((this.tempLocalPos.y - radius) / res));
     const maxY = Math.min(
       texHeight - 1,
-      Math.ceil((localPos.y + radius) / res)
+      Math.ceil((this.tempLocalPos.y + radius) / res)
     );
-    const minZ = Math.max(0, Math.floor((localPos.z - radius) / res));
-    const maxZ = Math.min(texDepth - 1, Math.ceil((localPos.z + radius) / res));
+    const minZ = Math.max(0, Math.floor((this.tempLocalPos.z - radius) / res));
+    const maxZ = Math.min(
+      texDepth - 1,
+      Math.ceil((this.tempLocalPos.z + radius) / res)
+    );
 
     for (let x = minX; x <= maxX; x++) {
       for (let y = minY; y <= maxY; y++) {
@@ -111,9 +158,9 @@ export class LightVolume {
           const worldY = y * res + res * 0.5;
           const worldZ = z * res + res * 0.5;
 
-          const dx = worldX - localPos.x;
-          const dy = worldY - localPos.y;
-          const dz = worldZ - localPos.z;
+          const dx = worldX - this.tempLocalPos.x;
+          const dy = worldY - this.tempLocalPos.y;
+          const dz = worldZ - this.tempLocalPos.z;
           const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
           if (dist > radius) continue;

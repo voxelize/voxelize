@@ -727,6 +727,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   private lightJobQueue: LightJob[] = [];
   private lightJobIdCounter = 0;
   private lightBatchIdCounter = 0;
+
+  private static readonly warmColor = new Color(1.0, 0.95, 0.9);
+  private static readonly coolColor = new Color(0.9, 0.95, 1.0);
+  private static readonly nightColor = new Color(0.15, 0.18, 0.25);
+  private static readonly dayAmbient = new Color(0.4, 0.42, 0.45);
+  private static readonly nightAmbient = new Color(0.08, 0.1, 0.15);
   private lightJobsCompleteResolvers: (() => void)[] = [];
   private activeLightBatch: LightBatch | null = null;
 
@@ -3847,34 +3853,33 @@ export class World<T = any> extends Scene implements NetIntercept {
     sunDirection.value.normalize();
 
     const sunlightIntensity = Math.max(0, Math.sin(sunAngle));
-    const warmColor = new Color(1.0, 0.95, 0.9);
-    const coolColor = new Color(0.9, 0.95, 1.0);
-    const nightColor = new Color(0.15, 0.18, 0.25);
-    const dayAmbient = new Color(0.4, 0.42, 0.45);
-    const nightAmbient = new Color(0.08, 0.1, 0.15);
 
     if (sunlightIntensity > 0.5) {
-      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(warmColor);
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
+        World.warmColor
+      );
       this.chunkRenderer.shaderLightingUniforms.ambientColor.value.lerpColors(
-        dayAmbient,
-        warmColor,
+        World.dayAmbient,
+        World.warmColor,
         (sunlightIntensity - 0.5) * 0.3
       );
     } else if (sunlightIntensity > 0) {
       this.chunkRenderer.shaderLightingUniforms.sunColor.value.lerpColors(
-        coolColor,
-        warmColor,
+        World.coolColor,
+        World.warmColor,
         sunlightIntensity * 2
       );
       this.chunkRenderer.shaderLightingUniforms.ambientColor.value.lerpColors(
-        nightAmbient,
-        dayAmbient,
+        World.nightAmbient,
+        World.dayAmbient,
         sunlightIntensity * 2
       );
     } else {
-      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(nightColor);
+      this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
+        World.nightColor
+      );
       this.chunkRenderer.shaderLightingUniforms.ambientColor.value.copy(
-        nightAmbient
+        World.nightAmbient
       );
     }
 

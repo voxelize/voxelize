@@ -53,6 +53,23 @@ export class CSMRenderer {
   private tempMatrix = new Matrix4();
   private tempVec3 = new Vector3();
 
+  private transparentObjectsCache: Object3D[] = [];
+  private lastSceneChildCount = -1;
+
+  private cascadeFrustum = new Frustum();
+  private cascadeMatrix = new Matrix4();
+
+  private frustumCenter = new Vector3();
+  private frustumCameraDir = new Vector3();
+  private frustumUp = new Vector3();
+  private lightViewMatrix = new Matrix4();
+  private lightViewMatrixInverse = new Matrix4();
+  private lightSpaceCenter = new Vector3();
+  private tempLookAtTarget = new Vector3();
+  private cornerPool: Vector3[] = Array(8)
+    .fill(null)
+    .map(() => new Vector3());
+
   constructor(config: Partial<CSMConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
 
@@ -123,6 +140,10 @@ export class CSMRenderer {
     return cameraMovement > 1.0 || this.frameCount % 4 === index;
   }
 
+  invalidateTransparentCache() {
+    this.lastSceneChildCount = -1;
+  }
+
   update(mainCamera: Camera, sunDirection: Vector3, playerPosition?: Vector3) {
     this.frameCount++;
     this.lightDirection.copy(sunDirection).normalize();
@@ -181,62 +202,68 @@ export class CSMRenderer {
     const cascade = this.cascades[index];
     const { lightMargin } = this.config;
 
-    const center = new Vector3();
-    const corners: Vector3[] = [];
+    this.frustumCenter.set(0, 0, 0);
 
     const far = farSplit;
 
-    const cameraDir = new Vector3();
-    mainCamera.getWorldDirection(cameraDir);
+    mainCamera.getWorldDirection(this.frustumCameraDir);
 
+    let cornerIdx = 0;
     for (let x = -1; x <= 1; x += 2) {
       for (let y = -1; y <= 1; y += 2) {
         for (let z = -1; z <= 1; z += 2) {
-          const t = far;
-          const corner = playerPosition.clone();
-          corner.x += x * t;
-          corner.y += y * t * 0.3;
-          corner.z += z * t;
-
-          corners.push(corner);
-          center.add(corner);
+          const corner = this.cornerPool[cornerIdx++];
+          corner.copy(playerPosition);
+          corner.x += x * far;
+          corner.y += y * far * 0.3;
+          corner.z += z * far;
+          this.frustumCenter.add(corner);
         }
       }
     }
 
-    center.divideScalar(8);
+    this.frustumCenter.divideScalar(8);
 
     let radius = 0;
-    for (const corner of corners) {
-      radius = Math.max(radius, corner.distanceTo(center));
+    for (let i = 0; i < 8; i++) {
+      radius = Math.max(
+        radius,
+        this.cornerPool[i].distanceTo(this.frustumCenter)
+      );
     }
     radius = Math.ceil(radius * 16) / 16;
 
-    const up = new Vector3(0, 1, 0);
-    if (Math.abs(this.lightDirection.dot(up)) > 0.999) {
-      up.set(0, 0, 1);
+    this.frustumUp.set(0, 1, 0);
+    if (Math.abs(this.lightDirection.dot(this.frustumUp)) > 0.999) {
+      this.frustumUp.set(0, 0, 1);
     }
 
     const shadowMapSize = cascade.renderTarget.width;
     const texelSize = (2 * radius) / shadowMapSize;
 
-    const lightViewMatrix = new Matrix4();
-    lightViewMatrix.lookAt(
-      new Vector3().addVectors(center, this.lightDirection),
-      center,
-      up
+    this.tempLookAtTarget.addVectors(this.frustumCenter, this.lightDirection);
+    this.lightViewMatrix.lookAt(
+      this.tempLookAtTarget,
+      this.frustumCenter,
+      this.frustumUp
     );
-    const lightSpaceCenter = center.clone().applyMatrix4(lightViewMatrix);
-    lightSpaceCenter.x = Math.floor(lightSpaceCenter.x / texelSize) * texelSize;
-    lightSpaceCenter.y = Math.floor(lightSpaceCenter.y / texelSize) * texelSize;
-    const lightViewMatrixInverse = lightViewMatrix.clone().invert();
-    center.copy(lightSpaceCenter).applyMatrix4(lightViewMatrixInverse);
+    this.lightSpaceCenter
+      .copy(this.frustumCenter)
+      .applyMatrix4(this.lightViewMatrix);
+    this.lightSpaceCenter.x =
+      Math.floor(this.lightSpaceCenter.x / texelSize) * texelSize;
+    this.lightSpaceCenter.y =
+      Math.floor(this.lightSpaceCenter.y / texelSize) * texelSize;
+    this.lightViewMatrixInverse.copy(this.lightViewMatrix).invert();
+    this.frustumCenter
+      .copy(this.lightSpaceCenter)
+      .applyMatrix4(this.lightViewMatrixInverse);
 
     cascade.camera.position
-      .copy(center)
+      .copy(this.frustumCenter)
       .addScaledVector(this.lightDirection, radius + lightMargin);
-    cascade.camera.lookAt(center);
-    cascade.camera.up.copy(up);
+    cascade.camera.lookAt(this.frustumCenter);
+    cascade.camera.up.copy(this.frustumUp);
     cascade.camera.updateMatrixWorld();
 
     cascade.camera.left = -radius;
@@ -259,30 +286,38 @@ export class CSMRenderer {
   ) {
     const originalOverrideMaterial = scene.overrideMaterial;
 
+    const currentChildCount = scene.children.length;
+    if (currentChildCount !== this.lastSceneChildCount) {
+      this.transparentObjectsCache = [];
+      scene.traverse((object) => {
+        if (
+          "material" in object &&
+          (object as { material: { transparent?: boolean } }).material
+            ?.transparent === true
+        ) {
+          this.transparentObjectsCache.push(object);
+        }
+      });
+      this.lastSceneChildCount = currentChildCount;
+    }
+
     const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
-    scene.traverse((object) => {
-      if (
-        "material" in object &&
-        (object as { material: { transparent?: boolean } }).material
-          ?.transparent === true
-      ) {
-        hiddenObjects.push({ object, visible: object.visible });
+    for (const object of this.transparentObjectsCache) {
+      if (object.visible) {
+        hiddenObjects.push({ object, visible: true });
         object.visible = false;
       }
-    });
+    }
 
     scene.overrideMaterial = this.depthMaterial;
-
-    const cascadeFrustum = new Frustum();
-    const cascadeMatrix = new Matrix4();
 
     for (let i = 0; i < this.cascades.length; i++) {
       const cascade = this.cascades[i];
 
-      cascadeMatrix
+      this.cascadeMatrix
         .copy(cascade.camera.projectionMatrix)
         .multiply(cascade.camera.matrixWorldInverse);
-      cascadeFrustum.setFromProjectionMatrix(cascadeMatrix);
+      this.cascadeFrustum.setFromProjectionMatrix(this.cascadeMatrix);
 
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
@@ -290,14 +325,14 @@ export class CSMRenderer {
       renderer.render(scene, cascade.camera);
 
       if (entities && i < 2) {
-        const entitiesToRender = entities.filter((e) => {
-          if (e.userData.castsShadow === false) return false;
-          const dist = e.position.distanceTo(this.lastCameraPosition);
-          if (dist >= maxEntityShadowDistance) return false;
-          return cascadeFrustum.containsPoint(e.position);
-        });
-
-        for (const entity of entitiesToRender) {
+        const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
+        for (const entity of entities) {
+          if (entity.userData.castsShadow === false) continue;
+          const distSq = entity.position.distanceToSquared(
+            this.lastCameraPosition
+          );
+          if (distSq >= maxDistSq) continue;
+          if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
           renderer.render(entity as unknown as Scene, cascade.camera);
         }
       }
