@@ -4074,7 +4074,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
-        mesh.matrixWorldAutoUpdate = false;
         mesh.userData = { isChunk: true, merged: true, voxel };
         if (material.transparent) {
           const block = this.getBlockByIdSafe(voxel);
@@ -4146,7 +4145,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         mesh.updateMatrix();
         mesh.matrixAutoUpdate = false;
-        mesh.matrixWorldAutoUpdate = false;
         mesh.userData = { isChunk: true, voxel };
         if (material.transparent) {
           const block = this.getBlockByIdSafe(voxel);
