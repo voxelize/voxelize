@@ -50,6 +50,7 @@ export class CSMRenderer {
   private frameCount = 0;
   private lastCameraPosition = new Vector3();
   private cascadeDirty: boolean[] = [];
+  private cascadeNeedsRender: boolean[] = [];
   private tempMatrix = new Matrix4();
   private tempVec3 = new Vector3();
 
@@ -109,6 +110,7 @@ export class CSMRenderer {
       });
 
       this.cascadeDirty.push(true);
+      this.cascadeNeedsRender.push(true);
     }
   }
 
@@ -120,6 +122,13 @@ export class CSMRenderer {
   private markAllCascadesDirty() {
     for (let i = 0; i < this.cascadeDirty.length; i++) {
       this.cascadeDirty[i] = true;
+      this.cascadeNeedsRender[i] = true;
+    }
+  }
+
+  markAllCascadesForRender() {
+    for (let i = 0; i < this.cascadeNeedsRender.length; i++) {
+      this.cascadeNeedsRender[i] = true;
     }
   }
 
@@ -129,14 +138,14 @@ export class CSMRenderer {
     }
 
     if (index === 0) {
-      return cameraMovement > 0.1;
+      return cameraMovement > 0.5;
     }
 
     if (index === 1) {
-      return cameraMovement > 0.5 || this.frameCount % 2 === 0;
+      return cameraMovement > 2.0 || this.frameCount % 3 === 0;
     }
 
-    return cameraMovement > 1.0 || this.frameCount % 4 === index;
+    return cameraMovement > 4.0 || this.frameCount % 6 === 0;
   }
 
   rebuildTransparentCache(scene: Scene) {
@@ -197,6 +206,7 @@ export class CSMRenderer {
       );
       prevSplit = this.cascades[i].split;
       this.cascadeDirty[i] = false;
+      this.cascadeNeedsRender[i] = true;
     }
   }
 
@@ -309,6 +319,11 @@ export class CSMRenderer {
     entities?: Object3D[],
     maxEntityShadowDistance = 32
   ) {
+    const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
+    if (!anyNeedsRender) {
+      return;
+    }
+
     const originalOverrideMaterial = scene.overrideMaterial;
 
     const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
@@ -322,6 +337,10 @@ export class CSMRenderer {
     scene.overrideMaterial = this.depthMaterial;
 
     for (let i = 0; i < this.cascades.length; i++) {
+      if (!this.cascadeNeedsRender[i]) {
+        continue;
+      }
+
       const cascade = this.cascades[i];
 
       this.cascadeMatrix
@@ -346,6 +365,8 @@ export class CSMRenderer {
           renderer.render(entity as unknown as Scene, cascade.camera);
         }
       }
+
+      this.cascadeNeedsRender[i] = false;
     }
 
     for (const { object, visible } of hiddenObjects) {

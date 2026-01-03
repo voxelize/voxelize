@@ -4182,6 +4182,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     chunk.meshes.get(level)?.push(...meshes);
 
+    this.csmRenderer?.markAllCascadesForRender();
+
     this.emitChunkEvent("chunk-mesh-loaded", {
       chunk,
       coords: [cx, cz],
