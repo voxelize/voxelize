@@ -377,6 +377,13 @@ export class CSMRenderer {
     renderer.setRenderTarget(null);
   }
 
+  markCascadesForEntityRender() {
+    this.cascadeNeedsRender[0] = true;
+    if (this.cascadeNeedsRender.length > 1) {
+      this.cascadeNeedsRender[1] = true;
+    }
+  }
+
   getUniforms(): {
     uShadowMaps: Texture[];
     uShadowMatrices: Matrix4[];

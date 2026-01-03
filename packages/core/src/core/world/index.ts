@@ -1714,10 +1714,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       1
     );
 
+    const torchR = Math.pow(red / this.options.maxLightLevel, 2);
+    const torchG = Math.pow(green / this.options.maxLightLevel, 2);
+    const torchB = Math.pow(blue / this.options.maxLightLevel, 2);
+    const torchAttenuation = 1.0 - s * 0.8;
+
     return new Color(
-      s + Math.pow(red / this.options.maxLightLevel, 2),
-      s + Math.pow(green / this.options.maxLightLevel, 2),
-      s + Math.pow(blue / this.options.maxLightLevel, 2)
+      s + torchR * torchAttenuation,
+      s + torchG * torchAttenuation,
+      s + torchB * torchAttenuation
     );
   }
 
@@ -3955,6 +3960,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   renderShadowMaps(renderer: WebGLRenderer, entities?: Object3D[]) {
     if (!this.usesShaderLighting || !this.csmRenderer) return;
+
+    if (entities && entities.length > 0) {
+      this.csmRenderer.markCascadesForEntityRender();
+    }
+
     this.csmRenderer.render(renderer, this, entities);
   }
 

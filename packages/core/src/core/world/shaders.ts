@@ -239,8 +239,13 @@ float sunlightFactor = vLight.a * vLight.a * uSunlightIntensity * uLightIntensit
 float s = clamp(sunlightFactor + uMinLightLevel * vLight.a + uBaseAmbient, 0.0, 1.0);
 s -= s * exp(-s) * 0.02;
 
+// Torch light with attenuation when sunlight is present (full brightness at night)
+vec3 torchLight = pow(vLight.rgb * uLightIntensityAdjustment, vec3(scale));
+float torchAttenuation = 1.0 - s * 0.8;
+vec3 combinedLight = s + torchLight * torchAttenuation;
+
 // Applying adjusted light intensity
-outgoingLight.rgb *= s + pow(vLight.rgb * uLightIntensityAdjustment, vec3(scale));
+outgoingLight.rgb *= combinedLight;
 
 // Apply AO with reduced impact for fluids
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);

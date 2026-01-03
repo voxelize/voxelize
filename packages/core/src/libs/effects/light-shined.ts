@@ -280,10 +280,15 @@ export class LightShined {
       1
     );
 
+    const torchR = (red / maxLightLevel) ** 2;
+    const torchG = (green / maxLightLevel) ** 2;
+    const torchB = (blue / maxLightLevel) ** 2;
+    const torchAttenuation = 1.0 - s * 0.8;
+
     return tempColor.setRGB(
-      s + (red / maxLightLevel) ** 2,
-      s + (green / maxLightLevel) ** 2,
-      s + (blue / maxLightLevel) ** 2
+      s + torchR * torchAttenuation,
+      s + torchG * torchAttenuation,
+      s + torchB * torchAttenuation
     );
   }
 
@@ -312,27 +317,21 @@ export class LightShined {
       cpuTorchB = (lightValues.blue / maxLightLevel) ** 2;
     }
 
-    const torchBrightness = Math.max(cpuTorchR, cpuTorchG, cpuTorchB);
-    const torchBloom = torchBrightness * torchBrightness * 0.3;
+    const sunBasedLight = ambientColor.value.r + sunColor.value.r * sunContrib;
+    const torchAttenuation = 1.0 - Math.min(sunBasedLight, 1.0) * 0.8;
 
     const totalR =
       ambientColor.value.r +
       sunColor.value.r * sunContrib +
-      torchLight.r +
-      cpuTorchR * 1.2 +
-      torchBloom;
+      (torchLight.r + cpuTorchR) * torchAttenuation;
     const totalG =
       ambientColor.value.g +
       sunColor.value.g * sunContrib +
-      torchLight.g +
-      cpuTorchG * 1.2 +
-      torchBloom;
+      (torchLight.g + cpuTorchG) * torchAttenuation;
     const totalB =
       ambientColor.value.b +
       sunColor.value.b * sunContrib +
-      torchLight.b +
-      cpuTorchB * 1.2 +
-      torchBloom;
+      (torchLight.b + cpuTorchB) * torchAttenuation;
 
     return tempColor.setRGB(
       Math.min(totalR, this.options.maxBrightness),
