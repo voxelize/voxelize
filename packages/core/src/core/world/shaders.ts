@@ -121,10 +121,8 @@ vLight = unpackLight(light & 0xFFFF);
       `
 vec3 transformed = vec3(position);
 
-int isFluidForWave = (light >> 18) & 0x1;
-float localY = fract(position.y);
-bool isTopVertex = localY > 0.01;
-if (isFluidForWave == 1 && isTopVertex) {
+int shouldWave = (light >> 20) & 0x1;
+if (shouldWave == 1) {
   vec3 worldPosForWave = (modelMatrix * vec4(position, 1.0)).xyz;
   float waveTime = uTime * 0.0006;
 
@@ -350,10 +348,8 @@ vLight = unpackLight(light & 0xFFFF);
       `
 vec3 transformed = vec3(position);
 
-int isFluidForWave = (light >> 18) & 0x1;
-float localY = fract(position.y);
-bool isTopVertex = localY > 0.01;
-if (isFluidForWave == 1 && isTopVertex) {
+int shouldWave = (light >> 20) & 0x1;
+if (shouldWave == 1) {
   vec3 worldPosForWave = (modelMatrix * vec4(position, 1.0)).xyz;
   float waveTime = uTime * 0.0006;
 

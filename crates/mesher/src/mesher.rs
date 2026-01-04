@@ -1706,7 +1706,13 @@ fn process_face<S: VoxelAccess>(
         light = LightUtils::insert_blue_light(light, blue_light);
         light = LightUtils::insert_sunlight(light, sunlight);
         let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
-        lights.push(light as i32 | ao << 16 | fluid_bit);
+        let fluid_surface_above = is_fluid && has_fluid_above(vx, vy, vz, voxel_id, space);
+        let wave_bit = if is_fluid && dy == 1 && !fluid_surface_above {
+            1 << 20
+        } else {
+            0
+        };
+        lights.push(light as i32 | ao << 16 | fluid_bit | wave_bit);
 
         four_sunlights.push(sunlight);
         four_red_lights.push(red_light);
