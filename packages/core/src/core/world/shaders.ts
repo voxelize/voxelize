@@ -288,6 +288,18 @@ export const customShaders = {
   ) {
     return createSwayShader(SHADER_LIGHTING_CHUNK_SHADERS, options);
   },
+
+  swayCrossShaderBased(
+    options: Partial<{
+      speed: number;
+      amplitude: number;
+      scale: number;
+      rooted: boolean;
+      yScale: number;
+    }> = {}
+  ) {
+    return createSwayShader(SHADER_LIGHTING_CROSS_CHUNK_SHADERS, options);
+  },
 };
 
 export const SHADER_LIGHTING_CHUNK_SHADERS = {
@@ -747,6 +759,33 @@ float fogFactor = smoothstep(uFogNear, uFogFar, depth);
 gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
 `
     ),
+};
+
+export const SHADER_LIGHTING_CROSS_CHUNK_SHADERS = {
+  vertex: SHADER_LIGHTING_CHUNK_SHADERS.vertex,
+  fragment: SHADER_LIGHTING_CHUNK_SHADERS.fragment
+    .replace(
+      `float NdotL = max(dot(vWorldNormal, uSunDirection), 0.0);
+float sunExposure = vLight.a;
+
+vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity;`,
+      `float sunExposure = vLight.a;
+
+vec3 sunContribution = vec3(sunExposure * sunExposure * uSunlightIntensity);`
+    )
+    .replace(
+      `float getShadow() {
+  float NdotL = dot(vWorldNormal, uSunDirection);
+  if (NdotL <= 0.0) {
+    return mix(1.0, 0.0, uShadowStrength);
+  }`,
+      `float getShadow() {
+  float NdotL = 0.5;
+  if (false) {
+    return mix(1.0, 0.0, uShadowStrength);
+  }`
+    )
+    .replace(`if (vIsFluid > 0.5) {`, `if (false) {`),
 };
 
 export function createSwayShader(
