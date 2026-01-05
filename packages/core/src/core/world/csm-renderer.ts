@@ -54,7 +54,7 @@ export class CSMRenderer {
   private tempMatrix = new Matrix4();
   private tempVec3 = new Vector3();
 
-  private transparentObjectsCache: Object3D[] = [];
+  private skipShadowObjectsCache: Object3D[] = [];
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -148,15 +148,15 @@ export class CSMRenderer {
     return cameraMovement > 4.0 || this.frameCount % 6 === 0;
   }
 
-  rebuildTransparentCache(scene: Scene) {
-    this.transparentObjectsCache = [];
+  rebuildSkipShadowCache(scene: Scene) {
+    this.skipShadowObjectsCache = [];
     scene.traverse((object) => {
       if (
         "material" in object &&
-        (object as { material: { transparent?: boolean } }).material
-          ?.transparent === true
+        (object as { material: { userData?: { skipShadow?: boolean } } })
+          .material?.userData?.skipShadow === true
       ) {
-        this.transparentObjectsCache.push(object);
+        this.skipShadowObjectsCache.push(object);
       }
     });
   }
@@ -296,20 +296,20 @@ export class CSMRenderer {
     cascade.matrix.multiply(cascade.camera.matrixWorldInverse);
   }
 
-  addTransparentObject(object: Object3D) {
+  addSkipShadowObject(object: Object3D) {
     if (
       "material" in object &&
-      (object as { material: { transparent?: boolean } }).material
-        ?.transparent === true
+      (object as { material: { userData?: { skipShadow?: boolean } } }).material
+        ?.userData?.skipShadow === true
     ) {
-      this.transparentObjectsCache.push(object);
+      this.skipShadowObjectsCache.push(object);
     }
   }
 
-  removeTransparentObject(object: Object3D) {
-    const idx = this.transparentObjectsCache.indexOf(object);
+  removeSkipShadowObject(object: Object3D) {
+    const idx = this.skipShadowObjectsCache.indexOf(object);
     if (idx !== -1) {
-      this.transparentObjectsCache.splice(idx, 1);
+      this.skipShadowObjectsCache.splice(idx, 1);
     }
   }
 
@@ -327,7 +327,7 @@ export class CSMRenderer {
     const originalOverrideMaterial = scene.overrideMaterial;
 
     const hiddenObjects: { object: Object3D; visible: boolean }[] = [];
-    for (const object of this.transparentObjectsCache) {
+    for (const object of this.skipShadowObjectsCache) {
       if (object.visible) {
         hiddenObjects.push({ object, visible: true });
         object.visible = false;

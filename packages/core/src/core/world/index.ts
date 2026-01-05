@@ -3664,7 +3664,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         chunk.meshes.forEach((meshes, level) => {
           for (const mesh of meshes) {
             if (mesh) {
-              this.csmRenderer?.removeTransparentObject(mesh);
+              this.csmRenderer?.removeSkipShadowObject(mesh);
             }
           }
           this.emitChunkEvent("chunk-mesh-unloaded", {
@@ -3858,11 +3858,43 @@ export class World<T = any> extends Scene implements NetIntercept {
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
 
+    const sunY = Math.sin(sunAngle);
+    const sunX = Math.cos(sunAngle);
+
+    const moonAngle = sunAngle + Math.PI;
+    const moonY = Math.sin(moonAngle);
+    const moonX = Math.cos(moonAngle);
+
     const sunDirection = this.chunkRenderer.shaderLightingUniforms.sunDirection;
-    sunDirection.value.set(Math.cos(sunAngle), Math.sin(sunAngle), 0.3);
+
+    const horizonThreshold = 0.15;
+    const minElevation = 0.35;
+
+    let lightX: number;
+    let lightY: number;
+    let shadowStrength: number;
+
+    if (sunY > horizonThreshold) {
+      lightX = sunX;
+      lightY = sunY;
+      shadowStrength = 1.0;
+    } else if (sunY < -horizonThreshold) {
+      lightX = moonX;
+      lightY = Math.max(moonY, minElevation);
+      shadowStrength = 0.6;
+    } else {
+      const t = (horizonThreshold - sunY) / (2 * horizonThreshold);
+      const smoothT = t * t * (3 - 2 * t);
+
+      lightX = sunX * (1 - smoothT) + moonX * smoothT;
+      lightY = Math.max(minElevation, sunY * (1 - smoothT) + moonY * smoothT);
+      shadowStrength = 1.0 * (1 - smoothT) + 0.6 * smoothT;
+    }
+
+    sunDirection.value.set(lightX, lightY, 0.3);
     sunDirection.value.normalize();
 
-    const sunlightIntensity = Math.max(0, Math.sin(sunAngle));
+    const sunlightIntensity = Math.max(0, sunY);
 
     if (sunlightIntensity > 0.5) {
       this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
@@ -3935,10 +3967,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.chunkRenderer.shaderLightingUniforms.shadowBias.value =
         csmUniforms.uShadowBias;
 
-      const shadowStrength = Math.max(
-        0,
-        Math.min(1, (sunlightIntensity - 0.15) / 0.35)
-      );
       this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
         shadowStrength;
     }
@@ -3982,7 +4010,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (let i = 0; i < oldMeshes.length; i++) {
         const mesh = oldMeshes[i];
         if (mesh) {
-          this.csmRenderer?.removeTransparentObject(mesh);
+          this.csmRenderer?.removeSkipShadowObject(mesh);
           mesh.geometry.dispose();
           chunk.group.remove(mesh);
         }
@@ -4101,7 +4129,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               );
             };
           }
-          this.csmRenderer?.addTransparentObject(mesh);
+          this.csmRenderer?.addSkipShadowObject(mesh);
         }
 
         chunk.group.add(mesh);
@@ -4172,7 +4200,7 @@ export class World<T = any> extends Scene implements NetIntercept {
               );
             };
           }
-          this.csmRenderer?.addTransparentObject(mesh);
+          this.csmRenderer?.addSkipShadowObject(mesh);
         }
 
         chunk.group.add(mesh);
@@ -5555,7 +5583,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       return countPerSide;
     };
 
-    const make = (transparent: boolean, map: Texture, isFluid = false) => {
+    const make = (
+      transparent: boolean,
+      map: Texture,
+      isFluid: boolean,
+      lightReduce: boolean
+    ) => {
       const mat = this.makeShaderMaterial();
 
       mat.side = transparent ? DoubleSide : FrontSide;
@@ -5566,6 +5599,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       mat.map = map;
       mat.uniforms.map.value = map;
+      mat.userData.skipShadow = isFluid || (transparent && !lightReduce);
 
       return mat;
     };
@@ -5591,7 +5625,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.atlasSize.value = countPerSide;
 
     blocks.forEach((block) => {
-      const mat = make(block.isSeeThrough, atlas, block.isFluid);
+      const mat = make(
+        block.isSeeThrough,
+        atlas,
+        block.isFluid,
+        block.lightReduce
+      );
       const key = this.makeChunkMaterialKey(block.id);
       this.chunkRenderer.materials.set(key, mat);
 
@@ -5601,7 +5640,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         const independentMat = make(
           block.isSeeThrough,
           AtlasTexture.makeUnknownTexture(textureUnitDimension),
-          block.isFluid
+          block.isFluid,
+          block.lightReduce
         );
         const independentKey = this.makeChunkMaterialKey(block.id, face.name);
         this.chunkRenderer.materials.set(independentKey, independentMat);
