@@ -1,9 +1,12 @@
-<a href="https://shaoruu.io">
-  <p align="center">
+<p align="center">
+  <a href="https://shaoruu.io">
     <img src="examples/client/src/assets/logo-circle.png" width="100px" height="100px" />
-  </p>
-  <h1 align="center">Voxelize</h1>
-</a>
+  </a>
+</p>
+
+<h1 align="center">
+  <a href="https://shaoruu.io">Voxelize</a>
+</h1>
 
 <p align="center">A multiplayer, <i>super fast</i>, voxel engine in your browser!</p>
 
@@ -15,11 +18,9 @@
   <img src="https://img.shields.io/crates/v/voxelize?style=for-the-badge"/>
 </p>
 
-<a href="https://shaoruu.io">
-  <p align="center">
-  LIVE DEMO
-  </p>
-</a>
+<p align="center">
+  <a href="https://shaoruu.io">LIVE DEMO</a>
+</p>
 
 ![](/assets/Screenshot%202024-02-19%20at%201.37.53 AM.png)
 ![](/assets/Screen%20Shot%202022-07-13%20at%201.01.08%20AM.png)
