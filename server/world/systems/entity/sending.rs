@@ -4,7 +4,7 @@ use specs::{Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, W
 use crate::{
     world::system_profiler::SystemTimer, Bookkeeping, ChunkInterests, ChunkUtils, ClientFilter,
     Clients, CurrentChunkComp, DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs,
-    EntityOperation, EntityProtocol, IDComp, InteractorComp, Message, MessageQueue, MessageType,
+    EntityOperation, EntityProtocol, IDComp, InteractorComp, Message, MessageQueues, MessageType,
     MetadataComp, Physics, Vec2, VoxelComp, WorldConfig,
 };
 
@@ -22,7 +22,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadExpect<'a, ChunkInterests>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldConfig>,
-        WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, Bookkeeping>,
         WriteExpect<'a, Physics>,
         WriteExpect<'a, EntityIDs>,

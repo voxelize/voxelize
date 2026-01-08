@@ -6,7 +6,7 @@ use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect};
 
 use crate::{
     BlockUtils, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag, IDComp,
-    JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueue, MessageType,
+    JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
     MetadataComp, Registry, Stats, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, WorldConfig,
 };
 
@@ -621,7 +621,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, Registry>,
         ReadExpect<'a, Stats>,
-        WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, Chunks>,
         WriteExpect<'a, Mesher>,
         ReadExpect<'a, LazyUpdate>,

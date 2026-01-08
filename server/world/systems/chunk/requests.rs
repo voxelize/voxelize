@@ -3,7 +3,7 @@ use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
-    Mesher, Message, MessageQueue, MessageType, Pipeline, Vec2, WorldConfig,
+    Mesher, Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;
@@ -15,7 +15,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         WriteExpect<'a, ChunkInterests>,
         WriteExpect<'a, Pipeline>,
         WriteExpect<'a, Mesher>,
-        WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, MessageQueues>,
         ReadStorage<'a, IDComp>,
         WriteStorage<'a, ChunkRequestsComp>,
     );

@@ -492,7 +492,7 @@ impl World {
         ecs.insert(Mesher::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
-        ecs.insert(MessageQueue::new());
+        ecs.insert(MessageQueues::new());
         ecs.insert(Physics::new());
         ecs.insert(Events::new());
         ecs.insert(Transports::new());
@@ -527,7 +527,7 @@ impl World {
 
         world.set_method_handle("vox-builtin:get-stats", |world, client_id, _| {
             let stats_json = world.stats().get_stats();
-            world.write_resource::<MessageQueue>().push((
+            world.write_resource::<MessageQueues>().push((
                 Message::new(&MessageType::Stats)
                     .json(&serde_json::to_string(&stats_json).unwrap())
                     .build(),
@@ -960,7 +960,7 @@ impl World {
 
     /// Broadcast a protobuf message to a subset or all of the clients in the world.
     pub fn broadcast(&mut self, data: Message, filter: ClientFilter) {
-        self.write_resource::<MessageQueue>().push((data, filter));
+        self.write_resource::<MessageQueues>().push((data, filter));
     }
 
     /// Send a direct message to an endpoint

@@ -20,7 +20,7 @@ use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
     ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo, Mesher,
-    MessageQueue, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick, TransportJoinRequest,
+    MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick, TransportJoinRequest,
     TransportLeaveRequest,
 };
 

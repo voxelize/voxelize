@@ -12,7 +12,46 @@ pub struct EncodedMessage {
     pub is_rtc_eligible: bool,
 }
 
-pub type MessageQueue = Vec<(Message, ClientFilter)>;
+pub struct MessageQueues {
+    critical: Vec<(Message, ClientFilter)>,
+    normal: Vec<(Message, ClientFilter)>,
+    bulk: Vec<(Message, ClientFilter)>,
+}
+
+impl MessageQueues {
+    pub fn new() -> Self {
+        Self {
+            critical: Vec::new(),
+            normal: Vec::new(),
+            bulk: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, item: (Message, ClientFilter)) {
+        let (message, filter) = item;
+        match MessageType::try_from(message.r#type) {
+            Ok(MessageType::Peer) | Ok(MessageType::Entity) | Ok(MessageType::Event) => {
+                self.critical.push((message, filter));
+            }
+            Ok(MessageType::Load) | Ok(MessageType::Unload) => {
+                self.bulk.push((message, filter));
+            }
+            _ => {
+                self.normal.push((message, filter));
+            }
+        }
+    }
+
+    pub fn drain_prioritized(&mut self) -> Vec<(Message, ClientFilter)> {
+        let mut result = Vec::with_capacity(
+            self.critical.len() + self.normal.len() + self.bulk.len()
+        );
+        result.append(&mut self.critical);
+        result.append(&mut self.normal);
+        result.append(&mut self.bulk);
+        result
+    }
+}
 
 pub struct EncodedMessageQueue {
     pub pending: Vec<(Message, ClientFilter)>,

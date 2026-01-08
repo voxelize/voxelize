@@ -2,7 +2,7 @@ use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     world::system_profiler::SystemTimer, ClientFilter, ClientFlag, Clients, IDComp, Message,
-    MessageQueue, MessageType, MetadataComp, NameComp, PeerProtocol, Stats,
+    MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol, Stats,
 };
 
 pub struct PeersSendingSystem;
@@ -10,7 +10,7 @@ pub struct PeersSendingSystem;
 impl<'a> System<'a> for PeersSendingSystem {
     type SystemData = (
         ReadExpect<'a, Clients>,
-        WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, MessageQueues>,
         ReadStorage<'a, ClientFlag>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, NameComp>,

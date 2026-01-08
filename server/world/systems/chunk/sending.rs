@@ -3,7 +3,7 @@ use specs::{ReadExpect, System, WriteExpect};
 use std::collections::VecDeque;
 
 use crate::{
-    ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueue, MessageType,
+    ChunkInterests, ChunkProtocol, Chunks, ClientFilter, Message, MessageQueues, MessageType,
     WorldConfig,
 };
 
@@ -21,7 +21,7 @@ impl<'a> System<'a> for ChunkSendingSystem {
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, ChunkInterests>,
         WriteExpect<'a, Chunks>,
-        WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, MessageQueues>,
     );
 
     fn run(&mut self, data: Self::SystemData) {

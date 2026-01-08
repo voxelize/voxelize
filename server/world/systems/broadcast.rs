@@ -5,7 +5,7 @@ use crate::{
     common::ClientFilter,
     fragment_message,
     server::Message,
-    world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueue},
+    world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues},
     EncodedMessageQueue, MessageType, RtcSenders, Transports,
 };
 
@@ -75,7 +75,7 @@ impl<'a> System<'a> for BroadcastSystem {
         ReadExpect<'a, Transports>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldTimingContext>,
-        WriteExpect<'a, MessageQueue>,
+        WriteExpect<'a, MessageQueues>,
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, Profiler>,
         Option<ReadExpect<'a, RtcSenders>>,
@@ -86,7 +86,7 @@ impl<'a> System<'a> for BroadcastSystem {
             transports,
             clients,
             timing,
-            mut queue,
+            mut queues,
             mut encoded_queue,
             _profiler,
             rtc_senders_opt,
@@ -94,12 +94,12 @@ impl<'a> System<'a> for BroadcastSystem {
         let _t = timing.timer("broadcast");
         let world_name = &*timing.world_name;
 
-        let messages_with_world_name: Vec<(Message, ClientFilter)> = queue
-            .drain(..)
-            .map(|m| {
-                let mut message = m.0;
+        let messages_with_world_name: Vec<(Message, ClientFilter)> = queues
+            .drain_prioritized()
+            .into_iter()
+            .map(|(mut message, filter)| {
                 message.world_name = world_name.clone();
-                (message, m.1)
+                (message, filter)
             })
             .collect();
 
