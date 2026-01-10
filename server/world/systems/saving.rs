@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
-use crate::{DoNotPersistComp, ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig};
+use crate::{DoNotPersistComp, ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig, WorldTimingContext};
 
 pub struct DataSavingSystem;
 
@@ -15,13 +15,15 @@ impl<'a> System<'a> for DataSavingSystem {
         ReadStorage<'a, ETypeComp>,
         ReadStorage<'a, DoNotPersistComp>,
         WriteStorage<'a, MetadataComp>,
+        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, config, entities_saver, ids, etypes, do_not_persist, mut metadatas) = data;
+        let (stats, config, entities_saver, ids, etypes, do_not_persist, mut metadatas, timing) = data;
+        let _t = timing.timer("data-saving");
 
         if !config.saving {
             return;

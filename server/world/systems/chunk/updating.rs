@@ -626,11 +626,13 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         WriteExpect<'a, Mesher>,
         ReadExpect<'a, LazyUpdate>,
         Entities<'a>,
+        ReadExpect<'a, crate::WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, stats, mut message_queue, mut chunks, mut mesher, lazy, entities) =
+        let (config, registry, stats, mut message_queue, mut chunks, mut mesher, lazy, entities, timing) =
             data;
+        let _t = timing.timer("chunk-updating");
 
         let current_tick = stats.tick as u64;
         let max_updates_per_tick = config.max_updates_per_tick;

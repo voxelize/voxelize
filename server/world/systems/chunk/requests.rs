@@ -3,7 +3,7 @@ use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
     ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
-    Mesher, Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig,
+    Mesher, Message, MessageQueues, MessageType, Pipeline, Vec2, WorldConfig, WorldTimingContext,
 };
 
 pub struct ChunkRequestsSystem;
@@ -18,11 +18,13 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         WriteExpect<'a, MessageQueues>,
         ReadStorage<'a, IDComp>,
         WriteStorage<'a, ChunkRequestsComp>,
+        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests) =
+        let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests, timing) =
             data;
+        let _t = timing.timer("chunk-requests");
 
         let max_response_per_tick = config.max_response_per_tick;
 

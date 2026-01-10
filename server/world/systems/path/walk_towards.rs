@@ -1,4 +1,4 @@
-use crate::{BrainComp, PathComp, RigidBodyComp, Stats, Vec3};
+use crate::{BrainComp, PathComp, RigidBodyComp, Stats, Vec3, WorldTimingContext};
 use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 const NODE_ADVANCE_THRESHOLD: f32 = 0.7;
@@ -15,13 +15,15 @@ impl<'a> System<'a> for WalkTowardsSystem {
         ReadStorage<'a, PathComp>,
         WriteStorage<'a, RigidBodyComp>,
         WriteStorage<'a, BrainComp>,
+        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;
         use specs::ParJoin;
 
-        let (stats, paths, mut bodies, mut brains) = data;
+        let (stats, paths, mut bodies, mut brains, timing) = data;
+        let _t = timing.timer("walk-towards");
 
         let delta = stats.delta;
 
