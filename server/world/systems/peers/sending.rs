@@ -1,7 +1,7 @@
 use specs::{ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    world::system_profiler::SystemTimer, ClientFilter, ClientFlag, Clients, IDComp, Message,
+    world::system_profiler::WorldTimingContext, ClientFilter, ClientFlag, Clients, IDComp, Message,
     MessageQueues, MessageType, MetadataComp, NameComp, PeerProtocol, Stats,
 };
 
@@ -15,13 +15,14 @@ impl<'a> System<'a> for PeersSendingSystem {
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, NameComp>,
         WriteStorage<'a, MetadataComp>,
+        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let _t = SystemTimer::new("peers-sending");
         use specs::Join;
 
-        let (clients, mut queue, flag, ids, names, mut metadatas) = data;
+        let (clients, mut queue, flag, ids, names, mut metadatas, timing) = data;
+        let _t = timing.timer("peers-sending");
 
         // if clients.len() <= 1 {
         //     return;

@@ -2,7 +2,7 @@ use hashbrown::{HashMap, HashSet};
 use specs::{Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    world::system_profiler::SystemTimer, Bookkeeping, ChunkInterests, ChunkUtils, ClientFilter,
+    world::system_profiler::WorldTimingContext, Bookkeeping, ChunkInterests, ChunkUtils, ClientFilter,
     Clients, CurrentChunkComp, DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs,
     EntityOperation, EntityProtocol, IDComp, InteractorComp, Message, MessageQueues, MessageType,
     MetadataComp, Physics, Vec2, VoxelComp, WorldConfig,
@@ -34,10 +34,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadStorage<'a, CurrentChunkComp>,
         ReadStorage<'a, VoxelComp>,
         WriteStorage<'a, MetadataComp>,
+        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let _t = SystemTimer::new("entities-sending");
         let (
             entities,
             entities_saver,
@@ -56,7 +56,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             curr_chunks,
             voxel_comps,
             mut metadatas,
+            timing,
         ) = data;
+        let _t = timing.timer("entities-sending");
 
         self.updated_entities_buffer.clear();
         self.entity_updates_buffer.clear();

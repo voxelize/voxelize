@@ -5,7 +5,7 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use specs::{ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
-use crate::world::system_profiler::SystemTimer;
+use crate::world::system_profiler::WorldTimingContext;
 use crate::{
     BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRequestsComp, ChunkStatus, ChunkUtils,
     Chunks, Clients, Mesher, MessageType, Pipeline, PositionComp, Registry, Stats, Vec2, Vec3,
@@ -27,10 +27,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         WriteExpect<'a, Mesher>,
         WriteExpect<'a, Profiler>,
         ReadStorage<'a, ChunkRequestsComp>,
+        ReadExpect<'a, WorldTimingContext>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let _t = SystemTimer::new("chunk-generating");
         let (
             config,
             registry,
@@ -42,7 +42,9 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             mut mesher,
             mut profiler,
             requests,
+            timing,
         ) = data;
+        let _t = timing.timer("chunk-generating");
 
         let chunk_size = config.chunk_size;
 
