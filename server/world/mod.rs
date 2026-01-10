@@ -213,6 +213,22 @@ pub struct WorldInfo {
 #[rtype(result = "WorldInfo")]
 pub(crate) struct GetInfo;
 
+#[derive(Serialize, Clone)]
+pub struct WorldStatsResponse {
+    pub name: String,
+    pub client_count: usize,
+    pub entity_count: usize,
+    pub message_queue_critical: usize,
+    pub message_queue_normal: usize,
+    pub message_queue_bulk: usize,
+    pub encoded_pending: usize,
+    pub encoded_processed: usize,
+}
+
+#[derive(ActixMessage)]
+#[rtype(result = "WorldStatsResponse")]
+pub(crate) struct GetWorldStats;
+
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
 pub(crate) struct Preload;
@@ -300,6 +316,15 @@ impl Handler<GetInfo> for SyncWorld {
             preloading: world.preloading,
             preload_progress: world.preload_progress,
         })
+    }
+}
+
+impl Handler<GetWorldStats> for SyncWorld {
+    type Result = MessageResult<GetWorldStats>;
+
+    fn handle(&mut self, _: GetWorldStats, _: &mut SyncContext<Self>) -> Self::Result {
+        let world = self.0.read().unwrap();
+        MessageResult(world.get_stats())
     }
 }
 
@@ -981,6 +1006,28 @@ impl World {
     /// Access a mutable clients map in the ECS world.
     pub fn clients_mut(&mut self) -> FetchMut<Clients> {
         self.write_resource::<Clients>()
+    }
+
+    /// Get world statistics for observability.
+    pub fn get_stats(&self) -> WorldStatsResponse {
+        let clients = self.read_resource::<Clients>();
+        let entity_ids = self.read_resource::<EntityIDs>();
+        let message_queues = self.read_resource::<MessageQueues>();
+        let encoded_queue = self.read_resource::<EncodedMessageQueue>();
+
+        let (critical, normal, bulk) = message_queues.queue_stats();
+        let (pending, processed) = encoded_queue.queue_stats();
+
+        WorldStatsResponse {
+            name: self.name.clone(),
+            client_count: clients.len(),
+            entity_count: entity_ids.len(),
+            message_queue_critical: critical,
+            message_queue_normal: normal,
+            message_queue_bulk: bulk,
+            encoded_pending: pending,
+            encoded_processed: processed,
+        }
     }
 
     /// Access all entity IDs in the ECS world.

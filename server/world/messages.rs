@@ -27,6 +27,10 @@ impl MessageQueues {
         }
     }
 
+    pub fn queue_stats(&self) -> (usize, usize, usize) {
+        (self.critical.len(), self.normal.len(), self.bulk.len())
+    }
+
     pub fn push(&mut self, item: (Message, ClientFilter)) {
         let (message, filter) = item;
         match MessageType::try_from(message.r#type) {
@@ -69,6 +73,10 @@ impl EncodedMessageQueue {
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
         }
+    }
+
+    pub fn queue_stats(&self) -> (usize, usize) {
+        (self.pending.len(), self.processed.len())
     }
 
     pub fn append(&mut self, mut list: Vec<(Message, ClientFilter)>) {

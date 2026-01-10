@@ -3,7 +3,8 @@ mod models;
 use std::time::{Duration, Instant};
 
 use actix::{
-    Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage, MessageResult,
+    fut::wrap_future, Actor, Addr, AsyncContext, Context, Handler, Message as ActixMessage,
+    MessageResult,
 };
 use fern::colors::{Color, ColoredLevelConfig};
 use futures_util::future::join_all;
@@ -19,9 +20,9 @@ use tokio::sync::mpsc;
 use crate::{
     errors::AddWorldError,
     world::{Registry, World, WorldConfig},
-    ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo, Mesher,
-    MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick, TransportJoinRequest,
-    TransportLeaveRequest,
+    ChunkStatus, ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetConfig, GetInfo,
+    GetWorldStats, Mesher, MessageQueues, Preload, Prepare, RtcSenders, Stats, SyncWorld, Tick,
+    TransportJoinRequest, TransportLeaveRequest, WorldStatsResponse,
 };
 
 pub use models::*;
@@ -539,6 +540,10 @@ pub struct Disconnect {
 #[rtype(result = "Value")]
 pub struct Info;
 
+#[derive(ActixMessage)]
+#[rtype(result = "Vec<WorldStatsResponse>")]
+pub struct GetAllWorldStats;
+
 /// Send message to specific world
 #[derive(ActixMessage)]
 #[rtype(result = "Option<String>")]
@@ -631,6 +636,25 @@ impl Handler<Info> for Server {
 
     fn handle(&mut self, _: Info, _: &mut Context<Self>) -> Self::Result {
         MessageResult(self.get_info())
+    }
+}
+
+/// Handler for getting all world stats.
+impl Handler<GetAllWorldStats> for Server {
+    type Result = actix::ResponseActFuture<Self, Vec<WorldStatsResponse>>;
+
+    fn handle(&mut self, _: GetAllWorldStats, _: &mut Context<Self>) -> Self::Result {
+        let world_addrs: Vec<_> = self.worlds.iter().map(|(_, addr)| addr.clone()).collect();
+
+        Box::pin(wrap_future(async move {
+            let mut stats = Vec::new();
+            for addr in world_addrs {
+                if let Ok(world_stats) = addr.send(GetWorldStats).await {
+                    stats.push(world_stats);
+                }
+            }
+            stats
+        }))
     }
 }
 
