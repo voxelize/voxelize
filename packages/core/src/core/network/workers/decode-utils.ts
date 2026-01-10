@@ -18,6 +18,62 @@ function isLz4Frame(buffer: Uint8Array): boolean {
   );
 }
 
+function decompressLz4Block(data: Uint8Array): Uint8Array {
+  if (data.length < 4) return new Uint8Array(0);
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const uncompressedSize = view.getUint32(0, true);
+  if (uncompressedSize === 0) return new Uint8Array(0);
+  const compressedData = data.subarray(4);
+  const result = new Uint8Array(uncompressedSize);
+  lz4.decompressBlock(compressedData, result, 0, compressedData.length, 0);
+  return result;
+}
+
+function decompressToUint32Array(
+  data: Uint8Array,
+  transferables: ArrayBuffer[]
+): Uint32Array {
+  if (!data || data.length === 0) return new Uint32Array(0);
+  const bytes = decompressLz4Block(data);
+  const result = new Uint32Array(
+    bytes.buffer,
+    bytes.byteOffset,
+    bytes.byteLength / 4
+  );
+  transferables.push(result.buffer as ArrayBuffer);
+  return result;
+}
+
+function decompressToInt32Array(
+  data: Uint8Array,
+  transferables: ArrayBuffer[]
+): Int32Array {
+  if (!data || data.length === 0) return new Int32Array(0);
+  const bytes = decompressLz4Block(data);
+  const result = new Int32Array(
+    bytes.buffer,
+    bytes.byteOffset,
+    bytes.byteLength / 4
+  );
+  transferables.push(result.buffer as ArrayBuffer);
+  return result;
+}
+
+function decompressToFloat32Array(
+  data: Uint8Array,
+  transferables: ArrayBuffer[]
+): Float32Array {
+  if (!data || data.length === 0) return new Float32Array(0);
+  const bytes = decompressLz4Block(data);
+  const result = new Float32Array(
+    bytes.buffer,
+    bytes.byteOffset,
+    bytes.byteLength / 4
+  );
+  transferables.push(result.buffer as ArrayBuffer);
+  return result;
+}
+
 function tryParseJSON(str: string): unknown {
   if (typeof str !== "string" || str.length === 0) return str;
   const firstChar = str.charCodeAt(0);
@@ -101,12 +157,16 @@ export function decodeMessage(
       const chunk = chunks[i];
 
       if (chunk.lights) {
-        chunk.lights = new Uint32Array(chunk.lights as ArrayLike<number>);
-        transferables.push((chunk.lights as Uint32Array).buffer as ArrayBuffer);
+        chunk.lights = decompressToUint32Array(
+          chunk.lights as Uint8Array,
+          transferables
+        );
       }
       if (chunk.voxels) {
-        chunk.voxels = new Uint32Array(chunk.voxels as ArrayLike<number>);
-        transferables.push((chunk.voxels as Uint32Array).buffer as ArrayBuffer);
+        chunk.voxels = decompressToUint32Array(
+          chunk.voxels as Uint8Array,
+          transferables
+        );
       }
 
       const meshes = chunk.meshes as Array<Record<string, unknown>> | undefined;
@@ -120,31 +180,33 @@ export function decodeMessage(
               const geo = geometries[k];
               if (geo) {
                 if (geo.indices) {
-                  geo.indices = new Uint16Array(
-                    geo.indices as ArrayLike<number>
+                  const decompressedI32 = decompressToInt32Array(
+                    geo.indices as Uint8Array,
+                    []
                   );
-                  transferables.push(
-                    (geo.indices as Uint16Array).buffer as ArrayBuffer
-                  );
+                  const indices = new Uint16Array(decompressedI32.length);
+                  for (let idx = 0; idx < decompressedI32.length; idx++) {
+                    indices[idx] = decompressedI32[idx];
+                  }
+                  geo.indices = indices;
+                  transferables.push(indices.buffer as ArrayBuffer);
                 }
                 if (geo.lights) {
-                  geo.lights = new Int32Array(geo.lights as ArrayLike<number>);
-                  transferables.push(
-                    (geo.lights as Int32Array).buffer as ArrayBuffer
+                  geo.lights = decompressToInt32Array(
+                    geo.lights as Uint8Array,
+                    transferables
                   );
                 }
                 if (geo.positions) {
-                  geo.positions = new Float32Array(
-                    geo.positions as ArrayLike<number>
-                  );
-                  transferables.push(
-                    (geo.positions as Float32Array).buffer as ArrayBuffer
+                  geo.positions = decompressToFloat32Array(
+                    geo.positions as Uint8Array,
+                    transferables
                   );
                 }
                 if (geo.uvs) {
-                  geo.uvs = new Float32Array(geo.uvs as ArrayLike<number>);
-                  transferables.push(
-                    (geo.uvs as Float32Array).buffer as ArrayBuffer
+                  geo.uvs = decompressToFloat32Array(
+                    geo.uvs as Uint8Array,
+                    transferables
                   );
                 }
               }

@@ -28,6 +28,35 @@ function deepParseJSON(value: unknown): unknown {
   return deepParseJSON(parsed);
 }
 
+function decompressLz4Block(data: Uint8Array): Uint8Array {
+  if (data.length < 4) return new Uint8Array(0);
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const uncompressedSize = view.getUint32(0, true);
+  if (uncompressedSize === 0) return new Uint8Array(0);
+  const compressedData = data.subarray(4);
+  const result = new Uint8Array(uncompressedSize);
+  lz4.decompressBlock(compressedData, result, 0, compressedData.length, 0);
+  return result;
+}
+
+function decompressToUint32Array(data: Uint8Array): Uint32Array {
+  if (!data || data.length === 0) return new Uint32Array(0);
+  const bytes = decompressLz4Block(data);
+  return new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
+}
+
+function decompressToInt32Array(data: Uint8Array): Int32Array {
+  if (!data || data.length === 0) return new Int32Array(0);
+  const bytes = decompressLz4Block(data);
+  return new Int32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
+}
+
+function decompressToFloat32Array(data: Uint8Array): Float32Array {
+  if (!data || data.length === 0) return new Float32Array(0);
+  const bytes = decompressLz4Block(data);
+  return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
+}
+
 /**
  * @noInheritDoc
  */
@@ -252,10 +281,10 @@ export class Transport extends WebSocket {
       for (let i = 0; i < message.chunks.length; i++) {
         const chunk = message.chunks[i];
         if (chunk.lights) {
-          chunk.lights = new Uint32Array(chunk.lights);
+          chunk.lights = decompressToUint32Array(chunk.lights);
         }
         if (chunk.voxels) {
-          chunk.voxels = new Uint32Array(chunk.voxels);
+          chunk.voxels = decompressToUint32Array(chunk.voxels);
         }
 
         if (chunk.meshes) {
@@ -266,16 +295,25 @@ export class Transport extends WebSocket {
                 const geometry = mesh.geometries[k];
                 if (geometry) {
                   if (geometry.indices) {
-                    geometry.indices = new Uint16Array(geometry.indices);
+                    const decompressedI32 = decompressToInt32Array(
+                      geometry.indices
+                    );
+                    const indices = new Uint16Array(decompressedI32.length);
+                    for (let idx = 0; idx < decompressedI32.length; idx++) {
+                      indices[idx] = decompressedI32[idx];
+                    }
+                    geometry.indices = indices;
                   }
                   if (geometry.lights) {
-                    geometry.lights = new Int32Array(geometry.lights);
+                    geometry.lights = decompressToInt32Array(geometry.lights);
                   }
                   if (geometry.positions) {
-                    geometry.positions = new Float32Array(geometry.positions);
+                    geometry.positions = decompressToFloat32Array(
+                      geometry.positions
+                    );
                   }
                   if (geometry.uvs) {
-                    geometry.uvs = new Float32Array(geometry.uvs);
+                    geometry.uvs = decompressToFloat32Array(geometry.uvs);
                   }
                 }
               }
