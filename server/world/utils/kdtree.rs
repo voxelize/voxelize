@@ -60,6 +60,17 @@ impl EntityTree {
             .collect()
     }
 
+    fn within(&self, point: &[f32; 3], radius_squared: f32) -> Vec<(f32, EntityId)> {
+        if self.tree.size() == 0 {
+            return Vec::new();
+        }
+        self.tree
+            .within::<SquaredEuclidean>(point, radius_squared)
+            .into_iter()
+            .map(|n| (n.distance, n.item))
+            .collect()
+    }
+
     fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(EntityId) -> bool,
@@ -247,6 +258,15 @@ impl KdTree {
             .into_iter()
             .skip(skip)
             .filter_map(|(dist, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist, e)))
+            .collect()
+    }
+
+    pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
+        let radius_squared = radius * radius;
+        let results = self.players.within(&[point.0, point.1, point.2], radius_squared);
+        results
+            .into_iter()
+            .filter_map(|(_, ent_id)| self.entity_map.get(&ent_id))
             .collect()
     }
 }

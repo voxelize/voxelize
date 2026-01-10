@@ -34,7 +34,10 @@ impl MessageQueues {
     pub fn push(&mut self, item: (Message, ClientFilter)) {
         let (message, filter) = item;
         match MessageType::try_from(message.r#type) {
-            Ok(MessageType::Peer) | Ok(MessageType::Entity) | Ok(MessageType::Event) => {
+            Ok(MessageType::Peer)
+            | Ok(MessageType::Entity)
+            | Ok(MessageType::Event)
+            | Ok(MessageType::Chat) => {
                 self.critical.push((message, filter));
             }
             Ok(MessageType::Load) | Ok(MessageType::Unload) => {

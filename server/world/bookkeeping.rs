@@ -1,15 +1,15 @@
 use hashbrown::{HashMap, HashSet};
 use specs::Entity;
 
-use crate::{MetadataComp, Vec2};
+use crate::{MetadataComp, Vec3};
 
 #[derive(Default)]
 pub struct Bookkeeping {
     // id -> (etype, entity, metadata, persisted)
     pub(crate) entities: HashMap<String, (String, Entity, MetadataComp, bool)>,
-    // Track entity chunk positions for interest-based sending
-    // entity_id -> chunk coords
-    pub(crate) entity_chunks: HashMap<String, Vec2<i32>>,
+    // Track entity positions for distance-based visibility
+    // entity_id -> position
+    pub(crate) entity_positions: HashMap<String, Vec3<f32>>,
     // Track which entities each client knows about
     // client_id -> set of entity_ids
     pub(crate) client_known_entities: HashMap<String, HashSet<String>>,

@@ -3,10 +3,10 @@ use specs::{ReadExpect, System, WriteExpect};
 
 use crate::{
     common::ClientFilter,
-    fragment_message,
+    encode_message, fragment_message,
     server::Message,
     world::{profiler::Profiler, system_profiler::WorldTimingContext, Clients, MessageQueues},
-    EncodedMessageQueue, MessageType, RtcSenders, Transports,
+    EncodedMessage, EncodedMessageQueue, MessageType, RtcSenders, Transports,
 };
 
 pub struct BroadcastSystem;
@@ -35,6 +35,13 @@ fn can_batch(msg_type: i32) -> bool {
             | Ok(MessageType::Entity)
             | Ok(MessageType::Update)
             | Ok(MessageType::Event)
+    )
+}
+
+fn is_immediate(msg_type: i32) -> bool {
+    matches!(
+        MessageType::try_from(msg_type),
+        Ok(MessageType::Chat) | Ok(MessageType::Method)
     )
 }
 
@@ -103,12 +110,31 @@ impl<'a> System<'a> for BroadcastSystem {
             })
             .collect();
 
-        let batched_messages = batch_messages(messages_with_world_name);
+        let (immediate_messages, deferred_messages): (Vec<_>, Vec<_>) = messages_with_world_name
+            .into_iter()
+            .partition(|(msg, _)| is_immediate(msg.r#type));
+
+        let immediate_encoded: Vec<(EncodedMessage, ClientFilter)> = immediate_messages
+            .into_iter()
+            .map(|(message, filter)| {
+                let msg_type = message.r#type;
+                let encoded = EncodedMessage {
+                    data: encode_message(&message),
+                    msg_type,
+                    is_rtc_eligible: false,
+                };
+                (encoded, filter)
+            })
+            .collect();
+
+        let batched_messages = batch_messages(deferred_messages);
 
         encoded_queue.append(batched_messages);
         encoded_queue.process();
 
-        let done_messages = encoded_queue.receive();
+        let async_messages = encoded_queue.receive();
+        let mut done_messages = immediate_encoded;
+        done_messages.extend(async_messages);
 
         if done_messages.is_empty() {
             return;
