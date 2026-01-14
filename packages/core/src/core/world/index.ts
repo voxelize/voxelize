@@ -3156,6 +3156,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       shaderBasedLighting: clientShaderBasedLighting,
     };
 
+    if (this.options.cubicChunks) {
+      this.chunkRenderer.uniforms.sunlightIntensity.value = 0;
+    }
+
     this.physics.options = this.options;
 
     // Initialize shader-based lighting components after server options are known
