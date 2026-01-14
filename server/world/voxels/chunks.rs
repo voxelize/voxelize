@@ -537,7 +537,11 @@ impl VoxelAccess for Chunks {
         }
 
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_raw_light(vx, vy, vz)
+            let light = chunk.get_raw_light(vx, vy, vz);
+            if self.config.cubic_chunks {
+                return light & 0x0fff;
+            }
+            light
         } else {
             0
         }

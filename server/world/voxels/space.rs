@@ -312,7 +312,11 @@ impl VoxelAccess for Space {
                 return 0;
             }
 
-            return lights[&[lx, ly, lz]];
+            let light = lights[&[lx, ly, lz]];
+            if self.options.cubic_chunks {
+                return light & 0x0fff;
+            }
+            return light;
         }
 
         0
