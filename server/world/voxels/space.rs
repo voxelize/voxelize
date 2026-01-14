@@ -345,10 +345,11 @@ impl VoxelAccess for Space {
 
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if self.options.cubic_chunks {
+            return 0;
+        }
+
         if !self.contains(vx, vy, vz) {
-            if self.options.cubic_chunks {
-                return 0;
-            }
             return if vy < 0 {
                 0
             } else {

@@ -557,9 +557,6 @@ impl VoxelAccess for Chunks {
 
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if self.config.cubic_chunks {
-            if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-                return chunk.get_sunlight(vx, vy, vz);
-            }
             return 0;
         }
 
