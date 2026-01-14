@@ -412,7 +412,7 @@ export type WorldClientOptions = {
   /**
    * Whether shader-based lighting is enabled for this world.
    * When enabled, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
+   * CPU light propagation still runs to provide sunlight exposure data unless cubic chunks are enabled.
    * Defaults to `false`.
    */
   shaderBasedLighting: boolean;
@@ -577,7 +577,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Whether shader-based lighting is enabled for this world.
    * When true, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
+   * CPU light propagation still runs to provide sunlight exposure data unless cubic chunks are enabled.
    */
   public get usesShaderLighting(): boolean {
     return this.options.shaderBasedLighting === true;
