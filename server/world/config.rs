@@ -103,6 +103,9 @@ pub struct WorldConfig {
 
     /// Whether to use shader-based lighting instead of CPU light propagation. Default is false.
     pub shader_based_lighting: bool,
+
+    /// Whether this world uses cubic chunks (infinite Y). When enabled, sunlight propagation is disabled.
+    pub cubic_chunks: bool,
 }
 
 impl Default for WorldConfig {
@@ -153,6 +156,7 @@ const DEFAULT_SAVE_INTERVAL: usize = 300;
 const DEFAULT_COMMAND_SYMBOL: &str = "/";
 const DEFAULT_GREEDY_MESHING: bool = true;
 const DEFAULT_SHADER_BASED_LIGHTING: bool = false;
+const DEFAULT_CUBIC_CHUNKS: bool = false;
 
 /// Builder for a world configuration.
 pub struct WorldConfigBuilder {
@@ -189,6 +193,7 @@ pub struct WorldConfigBuilder {
     save_entities: bool,
     greedy_meshing: bool,
     shader_based_lighting: bool,
+    cubic_chunks: bool,
 }
 
 impl WorldConfigBuilder {
@@ -228,6 +233,7 @@ impl WorldConfigBuilder {
             save_entities: true,
             greedy_meshing: DEFAULT_GREEDY_MESHING,
             shader_based_lighting: DEFAULT_SHADER_BASED_LIGHTING,
+            cubic_chunks: DEFAULT_CUBIC_CHUNKS,
         }
     }
 
@@ -406,6 +412,12 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Configure whether this world uses cubic chunks. When enabled, sunlight propagation is disabled. Default is false.
+    pub fn cubic_chunks(mut self, cubic_chunks: bool) -> Self {
+        self.cubic_chunks = cubic_chunks;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -455,6 +467,7 @@ impl WorldConfigBuilder {
             save_entities: self.save_entities,
             greedy_meshing: self.greedy_meshing,
             shader_based_lighting: self.shader_based_lighting,
+            cubic_chunks: self.cubic_chunks,
         }
     }
 }

@@ -516,6 +516,11 @@ export type WorldServerOptions = {
    * Whether greedy meshing is enabled for this world.
    */
   greedyMeshing: boolean;
+
+  /**
+   * Whether this world uses cubic chunks (infinite Y). When enabled, sunlight propagation is disabled.
+   */
+  cubicChunks: boolean;
 };
 
 /**
@@ -4366,7 +4371,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private analyzeLightOperations(
     processedUpdates: ProcessedUpdate[]
   ): LightOperations {
-    const { maxHeight, maxLightLevel } = this.options;
+    const { maxHeight, maxLightLevel, cubicChunks } = this.options;
 
     interface RemovedLightSource {
       voxel: Coords3;
@@ -4776,25 +4781,28 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
+    const finalSunlightRemoval = cubicChunks ? [] : sunlightRemoval;
+    const finalSunFlood = cubicChunks ? [] : sunFlood;
+
     const hasOperations =
       redRemoval.length > 0 ||
       greenRemoval.length > 0 ||
       blueRemoval.length > 0 ||
-      sunlightRemoval.length > 0 ||
+      finalSunlightRemoval.length > 0 ||
       redFlood.length > 0 ||
       greenFlood.length > 0 ||
       blueFlood.length > 0 ||
-      sunFlood.length > 0;
+      finalSunFlood.length > 0;
 
     return {
       removals: {
-        sunlight: sunlightRemoval,
+        sunlight: finalSunlightRemoval,
         red: redRemoval,
         green: greenRemoval,
         blue: blueRemoval,
       },
       floods: {
-        sunlight: sunFlood,
+        sunlight: finalSunFlood,
         red: redFlood,
         green: greenFlood,
         blue: blueFlood,
