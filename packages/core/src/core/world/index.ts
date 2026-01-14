@@ -3817,6 +3817,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       sunlightChangeSpan,
       timePerDay,
       minLightLevel,
+      cubicChunks,
     } = this.options;
 
     this.sky.update(position, this.time, timePerDay);
@@ -3827,18 +3828,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     const sunlightEndTime = Math.floor(sunlightEndTimeFrac * timePerDay);
     const sunlightChangeSpanTime = Math.floor(sunlightChangeSpan * timePerDay);
 
-    const sunlightIntensity = Math.max(
-      minLightLevel,
-      this.time < sunlightStartTime
-        ? 0.0
-        : this.time < sunlightStartTime + sunlightChangeSpanTime
-        ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
-        : this.time <= sunlightEndTime
-        ? 1.0
-        : this.time <= sunlightEndTime + sunlightChangeSpanTime
-        ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
-        : 0.0
-    );
+    const sunlightIntensity = cubicChunks
+      ? 0.0
+      : Math.max(
+          minLightLevel,
+          this.time < sunlightStartTime
+            ? 0.0
+            : this.time < sunlightStartTime + sunlightChangeSpanTime
+            ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
+            : this.time <= sunlightEndTime
+            ? 1.0
+            : this.time <= sunlightEndTime + sunlightChangeSpanTime
+            ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
+            : 0.0
+        );
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
@@ -3875,7 +3878,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   updateShaderLighting(camera: Camera, position: Vector3) {
     if (!this.usesShaderLighting) return;
 
-    const { timePerDay } = this.options;
+    const { timePerDay, cubicChunks } = this.options;
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
 
@@ -3915,7 +3918,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     sunDirection.value.set(lightX, lightY, 0.3);
     sunDirection.value.normalize();
 
-    const sunlightIntensity = Math.max(0, sunY);
+    const sunlightIntensity = cubicChunks ? 0 : Math.max(0, sunY);
 
     if (sunlightIntensity > 0.5) {
       this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
@@ -3946,10 +3949,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    this.chunkRenderer.uniforms.sunlightIntensity.value = Math.max(
-      0.05,
-      sunlightIntensity
-    );
+    this.chunkRenderer.uniforms.sunlightIntensity.value = cubicChunks
+      ? 0
+      : Math.max(0.05, sunlightIntensity);
 
     if (this.csmRenderer) {
       this.csmRenderer.update(camera, sunDirection.value, position);
