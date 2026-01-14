@@ -2542,13 +2542,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    const isSunlight = color === "SUNLIGHT";
+
+    if (isSunlight && this.options.cubicChunks) {
+      return;
+    }
+
     const { maxHeight, minChunk, maxChunk, maxLightLevel, chunkSize } =
       this.options;
 
     const [startCX, startCZ] = minChunk;
     const [endCX, endCZ] = maxChunk;
-
-    const isSunlight = color === "SUNLIGHT";
 
     const blockCache = new Map<string, Block>();
     const rotationCache = new Map<string, BlockRotation>();
@@ -2662,13 +2666,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
   public removeLight(voxel: Coords3, color: LightColor) {
-    const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
-      this.options;
-
     const fill: LightNode[] = [];
     const queue: LightNode[] = [];
 
     const isSunlight = color === "SUNLIGHT";
+
+    if (isSunlight && this.options.cubicChunks) {
+      return;
+    }
+
+    const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
+      this.options;
     const [vx, vy, vz] = voxel;
 
     queue.push({
@@ -2778,10 +2786,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * This drastically improves performance when many contiguous light sources are removed at once.
    */
   public removeLightsBatch(voxels: Coords3[], color: LightColor) {
+    const isSunlight = color === "SUNLIGHT";
+
+    if (isSunlight && this.options.cubicChunks) {
+      return;
+    }
+
     if (!voxels.length) return;
 
     const { maxHeight, maxLightLevel } = this.options;
-    const isSunlight = color === "SUNLIGHT";
+
 
     const queue: LightNode[] = [];
     const fill: LightNode[] = [];
