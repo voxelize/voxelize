@@ -381,6 +381,7 @@ impl Chunks {
                 sub_chunks: self.config.sub_chunks,
                 max_height: self.config.max_height,
                 max_light_level: self.config.max_light_level,
+                cubic_chunks: self.config.cubic_chunks,
             },
             needs_voxels: false,
             needs_lights: false,

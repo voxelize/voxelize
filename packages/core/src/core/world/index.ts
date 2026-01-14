@@ -3608,6 +3608,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxHeight,
       subChunks,
       maxLightLevel,
+      cubicChunks,
       clientOnlyMeshing,
     } = this.options;
 
@@ -3633,6 +3634,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           subChunks,
           size: chunkSize,
           maxLightLevel,
+          cubicChunks,
         });
       }
 

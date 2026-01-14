@@ -36,6 +36,9 @@ pub struct SpaceOptions {
 
     /// Maximum light of the voxelize world.
     pub max_light_level: u32,
+
+    /// Whether this world uses cubic chunks (no sunlight).
+    pub cubic_chunks: bool,
 }
 
 /// A data structure used in Voxelize to access voxel data of multiple chunks at
@@ -294,6 +297,9 @@ impl VoxelAccess for Space {
         }
 
         if vy > 0 && vy as usize >= self.options.max_height {
+            if self.options.cubic_chunks {
+                return 0;
+            }
             return LightUtils::insert_sunlight(0, self.options.max_light_level);
         } else if vy < 0 {
             return 0;
@@ -340,6 +346,9 @@ impl VoxelAccess for Space {
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if !self.contains(vx, vy, vz) {
+            if self.options.cubic_chunks {
+                return 0;
+            }
             return if vy < 0 {
                 0
             } else {

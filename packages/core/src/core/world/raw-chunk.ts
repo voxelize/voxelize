@@ -13,6 +13,7 @@ export type RawChunkOptions = {
   maxHeight: number;
   maxLightLevel: number;
   subChunks: number;
+  cubicChunks: boolean;
 };
 
 export class RawChunk {
@@ -433,6 +434,9 @@ export class RawChunk {
    */
   getSunlight(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) {
+      if (this.options.cubicChunks) {
+        return 0;
+      }
       if (vy < 0) {
         return 0;
       }
