@@ -428,6 +428,10 @@ impl voxelize_core::VoxelAccess for Space {
 
     fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
         let raw = VoxelAccess::get_raw_light(self, vx, vy, vz);
+        if self.options.cubic_chunks {
+            let (_, red, green, blue) = LightUtils::extract_all(raw);
+            return (0, red, green, blue);
+        }
         LightUtils::extract_all(raw)
     }
 
