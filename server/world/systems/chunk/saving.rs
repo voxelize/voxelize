@@ -5,7 +5,11 @@ use crate::{Chunks, WorldConfig, WorldTimingContext};
 pub struct ChunkSavingSystem;
 
 impl<'a> System<'a> for ChunkSavingSystem {
-    type SystemData = (ReadExpect<'a, WorldConfig>, WriteExpect<'a, Chunks>, ReadExpect<'a, WorldTimingContext>);
+    type SystemData = (
+        ReadExpect<'a, WorldConfig>,
+        WriteExpect<'a, Chunks>,
+        ReadExpect<'a, WorldTimingContext>,
+    );
 
     fn run(&mut self, data: Self::SystemData) {
         let (config, mut chunks, timing) = data;
