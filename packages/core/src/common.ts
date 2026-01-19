@@ -93,6 +93,12 @@ export const TRANSPARENT_SORT = (object: Object3D) => {
     const aObj = a.object;
     const bObj = b.object;
 
+    const aRenderOrder = aObj?.renderOrder ?? a.renderOrder ?? 0;
+    const bRenderOrder = bObj?.renderOrder ?? b.renderOrder ?? 0;
+    if (aRenderOrder !== bRenderOrder) {
+      return aRenderOrder - bRenderOrder;
+    }
+
     if (aObj?.isMesh && bObj?.isMesh) {
       if (!_camPosValid) {
         object.getWorldPosition(_camWorldPos);
@@ -114,16 +120,11 @@ export const TRANSPARENT_SORT = (object: Object3D) => {
       const aDist = getDistance(aObj, _lastCamX, _lastCamY, _lastCamZ);
       const bDist = getDistance(bObj, _lastCamX, _lastCamY, _lastCamZ);
 
-      if (aObj.renderOrder !== bObj.renderOrder) {
-        return aObj.renderOrder - bObj.renderOrder;
-      }
       return bDist - aDist > 0 ? 1 : -1;
     }
 
     if (a.groupOrder !== b.groupOrder) {
       return a.groupOrder - b.groupOrder;
-    } else if (a.renderOrder !== b.renderOrder) {
-      return a.renderOrder - b.renderOrder;
     } else if (a.z !== b.z) {
       return b.z - a.z;
     } else {

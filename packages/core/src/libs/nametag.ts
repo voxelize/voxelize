@@ -61,6 +61,7 @@ export class NameTag extends SpriteText {
     this.position.y += yOffset;
     this.backgroundColor = backgroundColor;
     this.material.depthTest = false;
+    this.material.depthWrite = false;
     this.renderOrder = 1000000000000;
     this.strokeColor = color;
 
