@@ -110,8 +110,9 @@ float getEntityShadow(vec3 worldNormal) {
   }
 
   float NdotL = dot(normalize(worldNormal), normalize(uSunDirection));
-  float normalBias = 0.015 * (1.0 - NdotL);
-  float bias = uShadowBias + 0.003 + normalBias;
+  // Large fixed bias to prevent self-shadowing on small entities like characters
+  // This ensures entity doesn't shadow itself while still receiving terrain shadows
+  float bias = uShadowBias + 0.05;
   float blendRegion = 0.1;
 
   float rawShadow;

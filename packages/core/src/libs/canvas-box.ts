@@ -369,7 +369,7 @@ ${ENTITY_SHADOW_FRAGMENT_PARS}
           .replace(
             "#include <dithering_fragment>",
             `#include <dithering_fragment>
-float shadow = getEntityShadow(uSunDirection);
+float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
 gl_FragColor.rgb *= shadow;
 `
           );
