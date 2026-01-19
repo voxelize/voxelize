@@ -662,6 +662,11 @@ export class World<T = any> extends Scene implements NetIntercept {
   private oldBlocks: Map<string, number[]> = new Map();
 
   /**
+   * Cache for block meshes created by makeBlockMesh with cached option.
+   */
+  private blockMeshCache = new Map<string, Group>();
+
+  /**
    * The internal clock.
    */
   private clock = new Clock();
@@ -2863,6 +2868,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @param options.separateFaces: Whether or not to separate the faces of the block into different meshes.
    * @param options.crumbs: Whether or not to mess up the block mesh's faces and UVs to make it look like crumbs.
    * @param options.centered: Whether or not to center the geometry vertices around origin (default: false).
+   * @param options.cached: Whether to return a cached mesh if available (default: false). When true, the same mesh instance is returned for identical options. Callers should clone the mesh if they need to modify it.
    * @returns A 3D mesh (group) of the block model.
    */
   makeBlockMesh = (
@@ -2872,6 +2878,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       crumbs: boolean;
       material: "basic" | "standard";
       centered: boolean;
+      cached: boolean;
     }> = {}
   ) => {
     this.checkIsInitialized("make block mesh", false);
@@ -2883,13 +2890,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     const block = this.getBlockOf(idOrName);
     if (!block) return null;
 
-    const { separateFaces, crumbs, material, centered } = {
+    const { separateFaces, crumbs, material, centered, cached } = {
       separateFaces: false,
       crumbs: false,
       material: "basic",
       centered: false,
+      cached: false,
       ...options,
     };
+
+    const canCache = cached && !crumbs && !separateFaces;
+
+    if (canCache) {
+      const cacheKey = `${block.id}-${material}-${centered}`;
+      const cachedMesh = this.blockMeshCache.get(cacheKey);
+      if (cachedMesh) return cachedMesh;
+    }
 
     let { faces } = block;
     const { isSeeThrough, dynamicPatterns } = block;
@@ -3001,6 +3017,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       group.position.x -= 0.5;
       group.position.y -= 0.5;
       group.position.z -= 0.5;
+    }
+
+    if (canCache) {
+      const cacheKey = `${block.id}-${material}-${centered}`;
+      this.blockMeshCache.set(cacheKey, group);
     }
 
     return group;

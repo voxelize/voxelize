@@ -31,7 +31,6 @@ export class VoxelOpacityVolume {
   private lastCenterY = NaN;
   private lastCenterZ = NaN;
   private isDirty = true;
-  private debugLogCounter = 0;
 
   private tempHalfSize = new Vector3();
 
@@ -114,25 +113,6 @@ export class VoxelOpacityVolume {
     }
 
     this.texture.needsUpdate = true;
-    // #region agent log
-    let opaqueCount = 0;
-    for (let i = 0; i < this.data.length; i++) {
-      if (this.data[i] > 0) opaqueCount++;
-    }
-    fetch("http://127.0.0.1:7242/ingest/8ae579de-fe86-4b58-ba03-5d1959a224d9", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "voxel-opacity-volume.ts:117",
-        message: "opacity volume updated",
-        data: { opaqueVoxelCount: opaqueCount, totalVoxels: this.data.length },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        hypothesisId: "H10",
-        runId: "post-fix-4",
-      }),
-    }).catch(() => {});
-    // #endregion
     return true;
   }
 
@@ -167,63 +147,6 @@ export class VoxelOpacityVolume {
     if (startX >= endX || startY >= endY || startZ >= endZ) {
       return;
     }
-    // #region agent log
-    if (this.debugLogCounter === undefined) this.debugLogCounter = 0;
-    if (this.debugLogCounter < 3) {
-      this.debugLogCounter++;
-      let foundOpaqueInChunk = 0;
-      for (let wy = startY; wy < endY; wy += res) {
-        for (let wz = startZ; wz < endZ; wz += res) {
-          for (let wx = startX; wx < endX; wx += res) {
-            const lx = wx - chunkMinX;
-            const ly = wy;
-            const lz = wz - chunkMinZ;
-            const voxel = chunk.getRawValue(lx, ly, lz);
-            const blockId = voxel & 0xffff;
-            if (blockId !== 0) {
-              const block = registry.blocksById.get(blockId);
-              if (
-                block &&
-                (block.isOpaque || (!block.isEmpty && !block.isSeeThrough))
-              ) {
-                foundOpaqueInChunk++;
-              }
-            }
-          }
-        }
-      }
-      fetch(
-        "http://127.0.0.1:7242/ingest/8ae579de-fe86-4b58-ba03-5d1959a224d9",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "voxel-opacity-volume.ts:writeChunkOpacity",
-            message: "chunk opacity scan",
-            data: {
-              chunkCoords: [cx, cz],
-              chunkMinX,
-              chunkMinZ,
-              volumeMin: [volumeMinX, volumeMinY, volumeMinZ],
-              volumeMax: [volumeMaxX, volumeMaxY, volumeMaxZ],
-              startX,
-              endX,
-              startY,
-              endY,
-              startZ,
-              endZ,
-              foundOpaqueInChunk,
-              chunkIsReady: chunk.isReady,
-            },
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-            hypothesisId: "H15",
-            runId: "post-fix-5",
-          }),
-        }
-      ).catch(() => {});
-    }
-    // #endregion
 
     for (let wy = startY; wy < endY; wy += res) {
       for (let wz = startZ; wz < endZ; wz += res) {
