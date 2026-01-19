@@ -1245,8 +1245,52 @@ fn process_greedy_quad(
     }
 
     let face_aos = quad.data.key.ao;
+    let face_lights = quad.data.key.light;
 
-    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2] {
+    let a_rt = LightUtils::extract_red_light(face_lights[0] as u32) as i32;
+    let b_rt = LightUtils::extract_red_light(face_lights[1] as u32) as i32;
+    let c_rt = LightUtils::extract_red_light(face_lights[2] as u32) as i32;
+    let d_rt = LightUtils::extract_red_light(face_lights[3] as u32) as i32;
+
+    let a_gt = LightUtils::extract_green_light(face_lights[0] as u32) as i32;
+    let b_gt = LightUtils::extract_green_light(face_lights[1] as u32) as i32;
+    let c_gt = LightUtils::extract_green_light(face_lights[2] as u32) as i32;
+    let d_gt = LightUtils::extract_green_light(face_lights[3] as u32) as i32;
+
+    let a_bt = LightUtils::extract_blue_light(face_lights[0] as u32) as i32;
+    let b_bt = LightUtils::extract_blue_light(face_lights[1] as u32) as i32;
+    let c_bt = LightUtils::extract_blue_light(face_lights[2] as u32) as i32;
+    let d_bt = LightUtils::extract_blue_light(face_lights[3] as u32) as i32;
+
+    let threshold = 0;
+
+    let one_tr0 = a_rt <= threshold || b_rt <= threshold || c_rt <= threshold || d_rt <= threshold;
+    let one_tg0 = a_gt <= threshold || b_gt <= threshold || c_gt <= threshold || d_gt <= threshold;
+    let one_tb0 = a_bt <= threshold || b_bt <= threshold || c_bt <= threshold || d_bt <= threshold;
+
+    let fequals = (face_aos[0] + face_aos[3]) == (face_aos[1] + face_aos[2]);
+    let ozao_r = a_rt + d_rt < b_rt + c_rt && fequals;
+    let ozao_g = a_gt + d_gt < b_gt + c_gt && fequals;
+    let ozao_b = a_bt + d_bt < b_bt + c_bt && fequals;
+
+    let anzp1_r = (b_rt as f32 > (a_rt + d_rt) as f32 / 2.0
+        && (a_rt + d_rt) as f32 / 2.0 > c_rt as f32)
+        || (c_rt as f32 > (a_rt + d_rt) as f32 / 2.0 && (a_rt + d_rt) as f32 / 2.0 > b_rt as f32);
+    let anzp1_g = (b_gt as f32 > (a_gt + d_gt) as f32 / 2.0
+        && (a_gt + d_gt) as f32 / 2.0 > c_gt as f32)
+        || (c_gt as f32 > (a_gt + d_gt) as f32 / 2.0 && (a_gt + d_gt) as f32 / 2.0 > b_gt as f32);
+    let anzp1_b = (b_bt as f32 > (a_bt + d_bt) as f32 / 2.0
+        && (a_bt + d_bt) as f32 / 2.0 > c_bt as f32)
+        || (c_bt as f32 > (a_bt + d_bt) as f32 / 2.0 && (a_bt + d_bt) as f32 / 2.0 > b_bt as f32);
+
+    let anz_r = one_tr0 && anzp1_r;
+    let anz_g = one_tg0 && anzp1_g;
+    let anz_b = one_tb0 && anzp1_b;
+
+    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
+        || (ozao_r || ozao_g || ozao_b)
+        || (anz_r || anz_g || anz_b)
+    {
         geometry.indices.push(ndx);
         geometry.indices.push(ndx + 1);
         geometry.indices.push(ndx + 3);
