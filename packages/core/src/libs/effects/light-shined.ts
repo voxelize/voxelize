@@ -246,6 +246,10 @@ export class LightShined {
       if (obj instanceof type) return;
     }
 
+    if (obj.userData.receiveShadows && this.world.usesShaderLighting) {
+      return;
+    }
+
     if (color === null) {
       obj.getWorldPosition(position);
 

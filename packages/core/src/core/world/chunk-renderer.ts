@@ -24,6 +24,7 @@ export interface ShaderLightingUniforms {
   cascadeSplit2: { value: number };
   shadowBias: { value: number };
   shadowStrength: { value: number };
+  sunlightIntensity: { value: number };
   lightVolume: { value: Data3DTexture | null };
   lightVolumeMin: { value: Vector3 };
   lightVolumeSize: { value: Vector3 };
@@ -79,6 +80,7 @@ export class ChunkRenderer {
     cascadeSplit2: { value: 128 },
     shadowBias: { value: 0.0005 },
     shadowStrength: { value: 1.0 },
+    sunlightIntensity: { value: 1.0 },
     lightVolume: { value: null },
     lightVolumeMin: { value: new Vector3() },
     lightVolumeSize: { value: new Vector3(128, 64, 128) },

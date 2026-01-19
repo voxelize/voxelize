@@ -2,7 +2,6 @@ import { IUniform, Matrix4, Texture, Vector3 } from "three";
 
 import { ShaderLightingUniforms } from "./chunk-renderer";
 import {
-  SHADOW_MIN_LIGHT,
   SHADOW_POISSON_DISK,
   SHADOW_SAMPLE_FUNCTIONS,
 } from "./shadow-sampling";
@@ -21,6 +20,7 @@ export interface EntityShadowUniforms {
   uCascadeSplit2: IUniform<number>;
   uShadowBias: IUniform<number>;
   uShadowStrength: IUniform<number>;
+  uSunlightIntensity: IUniform<number>;
   uSunDirection: IUniform<Vector3>;
 }
 
@@ -37,6 +37,7 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uCascadeSplit2: { value: 128 },
     uShadowBias: { value: 0.0005 },
     uShadowStrength: { value: 1.0 },
+    uSunlightIntensity: { value: 1.0 },
     uSunDirection: { value: new Vector3(0.5, 1.0, 0.3).normalize() },
   };
 }
@@ -56,6 +57,7 @@ export function updateEntityShadowUniforms(
   target.uCascadeSplit2.value = source.cascadeSplit2.value;
   target.uShadowBias.value = source.shadowBias.value;
   target.uShadowStrength.value = source.shadowStrength.value;
+  target.uSunlightIntensity.value = source.sunlightIntensity.value;
   target.uSunDirection.value.copy(source.sunDirection.value);
 }
 
@@ -88,6 +90,7 @@ uniform float uCascadeSplit1;
 uniform float uCascadeSplit2;
 uniform float uShadowBias;
 uniform float uShadowStrength;
+uniform float uSunlightIntensity;
 uniform vec3 uSunDirection;
 
 varying vec4 vShadowCoord0;
@@ -100,7 +103,9 @@ ${SHADOW_POISSON_DISK}
 ${SHADOW_SAMPLE_FUNCTIONS}
 
 float getEntityShadow(vec3 worldNormal) {
-  if (uShadowStrength < 0.01) {
+  float effectiveStrength = uShadowStrength * uSunlightIntensity;
+  
+  if (effectiveStrength < 0.01) {
     return 1.0;
   }
 
@@ -141,7 +146,7 @@ float getEntityShadow(vec3 worldNormal) {
     return 1.0;
   }
 
-  float shadowValue = mix(1.0, rawShadow, uShadowStrength);
-  return max(shadowValue, ${SHADOW_MIN_LIGHT});
+  float shadow = mix(1.0, rawShadow, effectiveStrength);
+  return max(shadow, 0.4);
 }
 `;

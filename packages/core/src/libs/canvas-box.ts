@@ -233,6 +233,7 @@ export class BoxLayer extends Mesh {
 
     if (receiveShadows) {
       this.shadowUniforms = createEntityShadowUniforms();
+      this.userData.receiveShadows = true;
     }
 
     for (const face of BOX_SIDES) {
@@ -466,6 +467,10 @@ export class CanvasBox extends Group {
       ...defaultOptions,
       ...options,
     };
+
+    if (this.options.receiveShadows) {
+      this.userData.receiveShadows = true;
+    }
 
     this.makeBoxes();
   }

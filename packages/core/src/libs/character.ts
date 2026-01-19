@@ -481,6 +481,10 @@ export class Character extends Group {
 
     this.createModel();
 
+    if (this.options.receiveShadows) {
+      this.userData.receiveShadows = true;
+    }
+
     const position = this.rightArmGroup.position;
     const quaternion = this.rightArmGroup.quaternion;
 

@@ -77,5 +77,3 @@ float sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {
   return shadow / 9.0;
 }
 `;
-
-export const SHADOW_MIN_LIGHT = 0.4;

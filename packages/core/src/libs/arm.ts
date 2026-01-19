@@ -1,6 +1,10 @@
 import * as THREE from "three";
 
 import { Inputs } from "../core/inputs";
+import {
+  ShaderLightingUniforms,
+  updateEntityShadowUniforms,
+} from "../core/world/entity-shadow-uniforms";
 import { AnimationUtils } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
@@ -60,6 +64,7 @@ export type ArmOptions = {
   armColor?: string | THREE.Color;
   armTexture?: THREE.Texture;
   customObjectOptions?: Record<string, ArmObjectOptions>;
+  receiveShadows?: boolean;
 };
 
 type ArmObjectOptions = {
@@ -159,7 +164,21 @@ export class Arm extends THREE.Group {
       );
     }
 
+    if (this.options.receiveShadows) {
+      this.userData.receiveShadows = true;
+    }
+
     this.setArm();
+  }
+
+  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
+    if (!this.options.receiveShadows) return;
+
+    this.traverse((child) => {
+      if (child instanceof CanvasBox && child.shadowUniforms) {
+        updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
+      }
+    });
   }
 
   /**
@@ -230,7 +249,12 @@ export class Arm extends THREE.Group {
   };
 
   private setArm = () => {
-    const arm = new CanvasBox({ width: 0.5, height: 1, depth: 0.3 });
+    const arm = new CanvasBox({
+      width: 0.5,
+      height: 1,
+      depth: 0.3,
+      receiveShadows: this.options.receiveShadows,
+    });
 
     if (this.options.armTexture) {
       const texture = this.options.armTexture;

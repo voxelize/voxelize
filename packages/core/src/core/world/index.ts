@@ -3931,6 +3931,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       0.05,
       sunlightIntensity
     );
+    this.chunkRenderer.shaderLightingUniforms.sunlightIntensity.value =
+      sunlightIntensity;
 
     if (this.csmRenderer) {
       this.csmRenderer.update(camera, sunDirection.value, position);
