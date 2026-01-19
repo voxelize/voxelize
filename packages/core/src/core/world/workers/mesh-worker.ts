@@ -115,7 +115,8 @@ onmessage = async function (e) {
   }
 
   const { chunksData, min, max } = e.data;
-  const { chunkSize, greedyMeshing = true } = e.data.options as WorldOptions;
+  const { chunkSize, greedyMeshing = true, cubicChunks } = e.data
+    .options as WorldOptions;
 
   const chunks = chunksData.map(
     (
@@ -133,15 +134,24 @@ onmessage = async function (e) {
       const { x, z, voxels, lights, options } = chunkData;
       const { size, maxHeight } = options;
 
+      const voxelsArray =
+        voxels && voxels.byteLength
+          ? new Uint32Array(voxels)
+          : emptyUint32Array;
+      const lightsArray =
+        lights && lights.byteLength
+          ? new Uint32Array(lights)
+          : emptyUint32Array;
+
+      if (cubicChunks && lightsArray.length) {
+        for (let i = 0; i < lightsArray.length; i++) {
+          lightsArray[i] &= 0x0fff;
+        }
+      }
+
       return {
-        voxels:
-          voxels && voxels.byteLength
-            ? new Uint32Array(voxels)
-            : emptyUint32Array,
-        lights:
-          lights && lights.byteLength
-            ? new Uint32Array(lights)
-            : emptyUint32Array,
+        voxels: voxelsArray,
+        lights: lightsArray,
         shape: [size, maxHeight, size] as [number, number, number],
         min: [x * size, 0, z * size] as [number, number, number],
       };

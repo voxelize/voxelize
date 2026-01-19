@@ -41,6 +41,12 @@ impl Lights {
         min: Option<&Vec3<i32>>,
         shape: Option<&Vec3<usize>>,
     ) {
+        let is_sunlight = *color == LightColor::Sunlight;
+
+        if is_sunlight && config.cubic_chunks {
+            return;
+        }
+
         let WorldConfig {
             max_height,
             min_chunk,
@@ -53,7 +59,6 @@ impl Lights {
         let [end_cx, end_cz] = *max_chunk;
 
         let max_height = *max_height as i32;
-        let is_sunlight = *color == LightColor::Sunlight;
 
         while let Some(LightNode { voxel, level }) = queue.pop_front() {
             if level == 0 {
@@ -153,6 +158,12 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
+        let is_sunlight = *color == LightColor::Sunlight;
+
+        if is_sunlight && config.cubic_chunks {
+            return;
+        }
+
         let max_height = config.max_height as i32;
         let max_light_level = config.max_light_level;
 
@@ -257,6 +268,7 @@ impl Lights {
         let &WorldConfig {
             max_height,
             max_light_level,
+            cubic_chunks,
             ..
         } = config;
 
@@ -268,7 +280,11 @@ impl Lights {
         let Vec3(start_x, _, start_z) = min;
         let shape = Vec3(shape.0 as i32, shape.1 as i32, shape.2 as i32);
 
-        let mut mask = vec![max_light_level; (shape.0 * shape.2) as usize];
+        let mut mask = if cubic_chunks {
+            vec![]
+        } else {
+            vec![max_light_level; (shape.0 * shape.2) as usize]
+        };
 
         for y in (0..max_height as i32).rev() {
             for x in 0..shape.0 {
@@ -321,58 +337,66 @@ impl Lights {
                         }
                     }
 
-                    let index = (x + z * shape.0) as usize;
+                    if !cubic_chunks {
+                        let index = (x + z * shape.0) as usize;
 
-                    let [px, py, pz, nx, ny, nz] = space
-                        .get_voxel_rotation(x + start_x, y, z + start_z)
-                        .rotate_transparency(is_transparent);
+                        let [px, py, pz, nx, ny, nz] = space
+                            .get_voxel_rotation(x + start_x, y, z + start_z)
+                            .rotate_transparency(is_transparent);
 
-                    if is_opaque {
-                        mask[index] = 0;
-                    } else {
-                        if !py || !ny {
+                        if is_opaque {
                             mask[index] = 0;
-
-                            continue;
-                        }
-
-                        // Let sunlight pass through if it can.
-                        if light_reduce {
-                            if mask[index] != 0 {
-                                space.set_sunlight(x + start_x, y, z + start_z, mask[index] - 1);
-
-                                sunlight_queue.push_back(LightNode {
-                                    level: mask[index] - 1,
-                                    voxel: [start_x + x, y, start_z + z],
-                                });
-
+                        } else {
+                            if !py || !ny {
                                 mask[index] = 0;
-                            }
-                        }
-                        // If the voxel is transparent, then it can pass sunlight through.
-                        else {
-                            space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
 
-                            if mask[index] == max_light_level {
-                                if (x < shape.0 - 1
-                                    && mask[(x + 1 + z * shape.0) as usize] == 0
-                                    && px)
-                                    || (x > 0 && mask[(x - 1 + z * shape.0) as usize] == 0 && nx)
-                                    || (z < shape.2 - 1
-                                        && mask[(x + (z + 1) * shape.0) as usize] == 0
-                                        && pz)
-                                    || (z > 0 && mask[(x + (z - 1) * shape.0) as usize] == 0 && nz)
-                                {
+                                continue;
+                            }
+
+                            if light_reduce {
+                                if mask[index] != 0 {
                                     space.set_sunlight(
                                         x + start_x,
                                         y,
                                         z + start_z,
-                                        max_light_level,
+                                        mask[index] - 1,
                                     );
+
                                     sunlight_queue.push_back(LightNode {
-                                        level: max_light_level,
+                                        level: mask[index] - 1,
                                         voxel: [start_x + x, y, start_z + z],
                                     });
+
+                                    mask[index] = 0;
+                                }
+                            } else {
+                                space.set_sunlight(x + start_x, y, z + start_z, mask[index]);
+
+                                if mask[index] == max_light_level {
+                                    if (x < shape.0 - 1
+                                        && mask[(x + 1 + z * shape.0) as usize] == 0
+                                        && px)
+                                        || (x > 0
+                                            && mask[(x - 1 + z * shape.0) as usize] == 0
+                                            && nx)
+                                        || (z < shape.2 - 1
+                                            && mask[(x + (z + 1) * shape.0) as usize] == 0
+                                            && pz)
+                                        || (z > 0
+                                            && mask[(x + (z - 1) * shape.0) as usize] == 0
+                                            && nz)
+                                    {
+                                        space.set_sunlight(
+                                            x + start_x,
+                                            y,
+                                            z + start_z,
+                                            max_light_level,
+                                        );
+                                        sunlight_queue.push_back(LightNode {
+                                            level: max_light_level,
+                                            voxel: [start_x + x, y, start_z + z],
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -471,6 +495,12 @@ impl Lights {
         config: &WorldConfig,
         registry: &Registry,
     ) {
+        let is_sunlight = *color == LightColor::Sunlight;
+
+        if is_sunlight && config.cubic_chunks {
+            return;
+        }
+
         if voxels.is_empty() {
             return;
         }
@@ -480,8 +510,6 @@ impl Lights {
 
         let mut fill = VecDeque::<LightNode>::new();
         let mut queue = VecDeque::<LightNode>::new();
-
-        let is_sunlight = *color == LightColor::Sunlight;
 
         // Initialize queue with all voxels to remove
         for &Vec3(vx, vy, vz) in voxels {

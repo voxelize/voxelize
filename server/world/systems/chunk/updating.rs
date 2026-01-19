@@ -416,7 +416,9 @@ fn process_pending_updates(
                 }
 
                 if nvy >= max_height {
-                    if Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz) {
+                    if !config.cubic_chunks
+                        && Lights::can_enter(&ALL_TRANSPARENT, &updated_transparency, ox, -1, oz)
+                    {
                         sun_flood.push_back(LightNode {
                             voxel: [vx + ox, vy, vz + oz],
                             level: max_light_level,
@@ -438,12 +440,15 @@ fn process_pending_updates(
                     && Lights::can_enter(&updated_transparency, &n_transparency, ox, oy, oz)
                 {
                     let reduce = if updated_type.light_reduce { 1 } else { 0 };
-                    let sun_val = chunks.get_sunlight(nvx, nvy, nvz);
-                    if sun_val > reduce {
-                        sun_flood.push_back(LightNode {
-                            voxel: n_voxel,
-                            level: sun_val - reduce,
-                        })
+
+                    if !config.cubic_chunks {
+                        let sun_val = chunks.get_sunlight(nvx, nvy, nvz);
+                        if sun_val > reduce {
+                            sun_flood.push_back(LightNode {
+                                voxel: n_voxel,
+                                level: sun_val - reduce,
+                            })
+                        }
                     }
 
                     if !is_removed_light_source {
@@ -630,8 +635,17 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, stats, mut message_queue, mut chunks, mut mesher, lazy, entities, timing) =
-            data;
+        let (
+            config,
+            registry,
+            stats,
+            mut message_queue,
+            mut chunks,
+            mut mesher,
+            lazy,
+            entities,
+            timing,
+        ) = data;
         let _t = timing.timer("chunk-updating");
 
         let current_tick = stats.tick as u64;

@@ -381,6 +381,7 @@ impl Chunks {
                 sub_chunks: self.config.sub_chunks,
                 max_height: self.config.max_height,
                 max_light_level: self.config.max_light_level,
+                cubic_chunks: self.config.cubic_chunks,
             },
             needs_voxels: false,
             needs_lights: false,
@@ -527,14 +528,20 @@ impl VoxelAccess for Chunks {
         false
     }
 
-    /// Get the raw light value at a voxel coordinate. If chunk not found, 0 is returned.
     fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
         if vy as usize >= self.config.max_height {
+            if self.config.cubic_chunks {
+                return 0;
+            }
             return LightUtils::insert_sunlight(0, self.config.max_light_level);
         }
 
         if let Some(chunk) = self.raw_chunk_by_voxel(vx, vy, vz) {
-            chunk.get_raw_light(vx, vy, vz)
+            let light = chunk.get_raw_light(vx, vy, vz);
+            if self.config.cubic_chunks {
+                return light & 0x0fff;
+            }
+            light
         } else {
             0
         }
@@ -552,8 +559,11 @@ impl VoxelAccess for Chunks {
         false
     }
 
-    /// Get the sunlight level at a voxel position. Returns 0 if chunk does not exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if self.config.cubic_chunks {
+            return 0;
+        }
+
         if vy >= self.config.max_height as i32 {
             return self.config.max_light_level;
         }

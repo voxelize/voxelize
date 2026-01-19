@@ -1374,6 +1374,7 @@ The options defined on the server-side, passed to the client on network joining.
 | `fluidDensity` | `number` | The density of the fluid in this world. |
 | `fluidDrag` | `number` | The fluid drag of everything physical. |
 | `gravity` | `number`[] | The gravity of everything physical in this world. |
+| `cubicChunks` | `boolean` | Whether this world uses cubic chunks (infinite Y). When enabled, sunlight propagation is disabled. |
 | `maxChunk` | [`number`, `number`] | The maximum chunk coordinate of this world, inclusive. |
 | `maxHeight` | `number` | The height of a chunk, in blocks. |
 | `maxLightLevel` | `number` | The maximum light level that propagates in this world, including sunlight and torch light. |

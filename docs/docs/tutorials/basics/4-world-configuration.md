@@ -25,6 +25,18 @@ For infinite worlds, skip the boundaries:
 let config = WorldConfig::new().build();
 ```
 
+## Cubic Chunks
+
+Enable cubic chunks to remove the fixed world height and disable sunlight propagation:
+
+```rust title="Cubic Chunks"
+let config = WorldConfig::new()
+    .cubic_chunks(true)
+    .build();
+```
+
+When `cubic_chunks` is enabled, sunlight is treated as zero and only torch lights propagate.
+
 ## Time and Day Cycle
 
 ```rust title="Time Settings"

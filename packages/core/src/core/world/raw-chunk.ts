@@ -13,6 +13,7 @@ export type RawChunkOptions = {
   maxHeight: number;
   maxLightLevel: number;
   subChunks: number;
+  cubicChunks: boolean;
 };
 
 export class RawChunk {
@@ -432,6 +433,10 @@ export class RawChunk {
    * @returns The sunlight level at the given voxel coordinate. If the voxel coordinate is out of bounds, returns 0.
    */
   getSunlight(vx: number, vy: number, vz: number) {
+    if (this.options.cubicChunks) {
+      return 0;
+    }
+
     if (!this.contains(vx, vy, vz)) {
       if (vy < 0) {
         return 0;

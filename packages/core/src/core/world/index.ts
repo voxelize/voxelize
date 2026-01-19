@@ -414,7 +414,7 @@ export type WorldClientOptions = {
   /**
    * Whether shader-based lighting is enabled for this world.
    * When enabled, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
+   * CPU light propagation still runs to provide sunlight exposure data unless cubic chunks are enabled.
    * Defaults to `false`.
    */
   shaderBasedLighting: boolean;
@@ -518,6 +518,11 @@ export type WorldServerOptions = {
    * Whether greedy meshing is enabled for this world.
    */
   greedyMeshing: boolean;
+
+  /**
+   * Whether this world uses cubic chunks (infinite Y). When enabled, sunlight propagation is disabled.
+   */
+  cubicChunks: boolean;
 };
 
 /**
@@ -574,7 +579,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Whether shader-based lighting is enabled for this world.
    * When true, lighting uses GPU shaders with cascaded shadow maps.
-   * CPU light propagation still runs to provide sunlight exposure data.
+   * CPU light propagation still runs to provide sunlight exposure data unless cubic chunks are enabled.
    */
   public get usesShaderLighting(): boolean {
     return this.options.shaderBasedLighting === true;
@@ -2539,13 +2544,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
+    const isSunlight = color === "SUNLIGHT";
+
+    if (isSunlight && this.options.cubicChunks) {
+      return;
+    }
+
     const { maxHeight, minChunk, maxChunk, maxLightLevel, chunkSize } =
       this.options;
 
     const [startCX, startCZ] = minChunk;
     const [endCX, endCZ] = maxChunk;
-
-    const isSunlight = color === "SUNLIGHT";
 
     const blockCache = new Map<string, Block>();
     const rotationCache = new Map<string, BlockRotation>();
@@ -2659,13 +2668,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
   public removeLight(voxel: Coords3, color: LightColor) {
-    const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
-      this.options;
-
     const fill: LightNode[] = [];
     const queue: LightNode[] = [];
 
     const isSunlight = color === "SUNLIGHT";
+
+    if (isSunlight && this.options.cubicChunks) {
+      return;
+    }
+
+    const { maxHeight, maxLightLevel, chunkSize, minChunk, maxChunk } =
+      this.options;
     const [vx, vy, vz] = voxel;
 
     queue.push({
@@ -2775,10 +2788,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * This drastically improves performance when many contiguous light sources are removed at once.
    */
   public removeLightsBatch(voxels: Coords3[], color: LightColor) {
+    const isSunlight = color === "SUNLIGHT";
+
+    if (isSunlight && this.options.cubicChunks) {
+      return;
+    }
+
     if (!voxels.length) return;
 
     const { maxHeight, maxLightLevel } = this.options;
-    const isSunlight = color === "SUNLIGHT";
+
 
     const queue: LightNode[] = [];
     const fill: LightNode[] = [];
@@ -3138,6 +3157,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
       shaderBasedLighting: clientShaderBasedLighting,
     };
+
+    if (this.options.cubicChunks) {
+      this.chunkRenderer.uniforms.sunlightIntensity.value = 0;
+    }
 
     this.physics.options = this.options;
 
@@ -3591,6 +3614,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       maxHeight,
       subChunks,
       maxLightLevel,
+      cubicChunks,
       clientOnlyMeshing,
     } = this.options;
 
@@ -3616,6 +3640,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           subChunks,
           size: chunkSize,
           maxLightLevel,
+          cubicChunks,
         });
       }
 
@@ -3798,6 +3823,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       sunlightChangeSpan,
       timePerDay,
       minLightLevel,
+      cubicChunks,
     } = this.options;
 
     this.sky.update(position, this.time, timePerDay);
@@ -3808,18 +3834,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     const sunlightEndTime = Math.floor(sunlightEndTimeFrac * timePerDay);
     const sunlightChangeSpanTime = Math.floor(sunlightChangeSpan * timePerDay);
 
-    const sunlightIntensity = Math.max(
-      minLightLevel,
-      this.time < sunlightStartTime
-        ? 0.0
-        : this.time < sunlightStartTime + sunlightChangeSpanTime
-        ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
-        : this.time <= sunlightEndTime
-        ? 1.0
-        : this.time <= sunlightEndTime + sunlightChangeSpanTime
-        ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
-        : 0.0
-    );
+    const sunlightIntensity = cubicChunks
+      ? 0.0
+      : Math.max(
+          minLightLevel,
+          this.time < sunlightStartTime
+            ? 0.0
+            : this.time < sunlightStartTime + sunlightChangeSpanTime
+            ? (this.time - sunlightStartTime) / sunlightChangeSpanTime
+            : this.time <= sunlightEndTime
+            ? 1.0
+            : this.time <= sunlightEndTime + sunlightChangeSpanTime
+            ? 1 - (this.time - sunlightEndTime) / sunlightChangeSpanTime
+            : 0.0
+        );
 
     this.chunkRenderer.uniforms.sunlightIntensity.value = sunlightIntensity;
 
@@ -3856,7 +3884,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   updateShaderLighting(camera: Camera, position: Vector3) {
     if (!this.usesShaderLighting) return;
 
-    const { timePerDay } = this.options;
+    const { timePerDay, cubicChunks } = this.options;
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
 
@@ -3896,7 +3924,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     sunDirection.value.set(lightX, lightY, 0.3);
     sunDirection.value.normalize();
 
-    const sunlightIntensity = Math.max(0, sunY);
+    const sunlightIntensity = cubicChunks ? 0 : Math.max(0, sunY);
 
     if (sunlightIntensity > 0.5) {
       this.chunkRenderer.shaderLightingUniforms.sunColor.value.copy(
@@ -3927,10 +3955,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    this.chunkRenderer.uniforms.sunlightIntensity.value = Math.max(
-      0.05,
-      sunlightIntensity
-    );
+    this.chunkRenderer.uniforms.sunlightIntensity.value = cubicChunks
+      ? 0
+      : Math.max(0.05, sunlightIntensity);
 
     if (this.csmRenderer) {
       this.csmRenderer.update(camera, sunDirection.value, position);
@@ -4368,7 +4395,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private analyzeLightOperations(
     processedUpdates: ProcessedUpdate[]
   ): LightOperations {
-    const { maxHeight, maxLightLevel } = this.options;
+    const { maxHeight, maxLightLevel, cubicChunks } = this.options;
 
     interface RemovedLightSource {
       voxel: Coords3;
@@ -4778,25 +4805,28 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
+    const finalSunlightRemoval = cubicChunks ? [] : sunlightRemoval;
+    const finalSunFlood = cubicChunks ? [] : sunFlood;
+
     const hasOperations =
       redRemoval.length > 0 ||
       greenRemoval.length > 0 ||
       blueRemoval.length > 0 ||
-      sunlightRemoval.length > 0 ||
+      finalSunlightRemoval.length > 0 ||
       redFlood.length > 0 ||
       greenFlood.length > 0 ||
       blueFlood.length > 0 ||
-      sunFlood.length > 0;
+      finalSunFlood.length > 0;
 
     return {
       removals: {
-        sunlight: sunlightRemoval,
+        sunlight: finalSunlightRemoval,
         red: redRemoval,
         green: greenRemoval,
         blue: blueRemoval,
       },
       floods: {
-        sunlight: sunFlood,
+        sunlight: finalSunFlood,
         red: redFlood,
         green: greenFlood,
         blue: blueFlood,

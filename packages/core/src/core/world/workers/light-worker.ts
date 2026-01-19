@@ -164,12 +164,16 @@ function floodLight(
   max: Coords3 | undefined,
   options: WorldOptions
 ) {
+  const isSunlight = color === "SUNLIGHT";
+
+  if (isSunlight && options.cubicChunks) {
+    return;
+  }
+
   const { maxHeight, minChunk, maxChunk, maxLightLevel, chunkSize } = options;
 
   const [startCX, startCZ] = minChunk;
   const [endCX, endCZ] = maxChunk;
-
-  const isSunlight = color === "SUNLIGHT";
 
   const blockCache = new Map<number, Block>();
   const rotationCache = new Map<number, BlockRotation>();
@@ -288,12 +292,16 @@ function removeLight(
   color: LightColor,
   options: WorldOptions
 ): LightNode[] {
+  const isSunlight = color === "SUNLIGHT";
+
+  if (isSunlight && options.cubicChunks) {
+    return [];
+  }
+
   const { maxHeight, maxLightLevel } = options;
 
   const fill: LightNode[] = [];
   const queue: LightNode[] = [];
-
-  const isSunlight = color === "SUNLIGHT";
   const [vx, vy, vz] = voxel;
 
   queue.push({
@@ -378,14 +386,18 @@ function removeLightsBatch(
   color: LightColor,
   options: WorldOptions
 ): LightNode[] {
+  const isSunlight = color === "SUNLIGHT";
+
+  if (isSunlight && options.cubicChunks) {
+    return [];
+  }
+
   if (!voxels.length) return [];
 
   const { maxHeight, maxLightLevel } = options;
 
   const fill: LightNode[] = [];
   const queue: LightNode[] = [];
-
-  const isSunlight = color === "SUNLIGHT";
 
   voxels.forEach(([vx, vy, vz]) => {
     const level = isSunlight

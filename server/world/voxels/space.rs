@@ -36,6 +36,9 @@ pub struct SpaceOptions {
 
     /// Maximum light of the voxelize world.
     pub max_light_level: u32,
+
+    /// Whether this world uses cubic chunks (no sunlight).
+    pub cubic_chunks: bool,
 }
 
 /// A data structure used in Voxelize to access voxel data of multiple chunks at
@@ -294,6 +297,9 @@ impl VoxelAccess for Space {
         }
 
         if vy > 0 && vy as usize >= self.options.max_height {
+            if self.options.cubic_chunks {
+                return 0;
+            }
             return LightUtils::insert_sunlight(0, self.options.max_light_level);
         } else if vy < 0 {
             return 0;
@@ -306,7 +312,11 @@ impl VoxelAccess for Space {
                 return 0;
             }
 
-            return lights[&[lx, ly, lz]];
+            let light = lights[&[lx, ly, lz]];
+            if self.options.cubic_chunks {
+                return light & 0x0fff;
+            }
+            return light;
         }
 
         0
@@ -339,6 +349,10 @@ impl VoxelAccess for Space {
 
     /// Get the sunlight level at the voxel position. Zero is returned if chunk doesn't exist.
     fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        if self.options.cubic_chunks {
+            return 0;
+        }
+
         if !self.contains(vx, vy, vz) {
             return if vy < 0 {
                 0
@@ -418,6 +432,10 @@ impl voxelize_core::VoxelAccess for Space {
 
     fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
         let raw = VoxelAccess::get_raw_light(self, vx, vy, vz);
+        if self.options.cubic_chunks {
+            let (_, red, green, blue) = LightUtils::extract_all(raw);
+            return (0, red, green, blue);
+        }
         LightUtils::extract_all(raw)
     }
 
