@@ -109,7 +109,9 @@ float getEntityShadow(vec3 worldNormal) {
     return 1.0;
   }
 
-  float bias = uShadowBias + 0.008;
+  float NdotL = dot(normalize(worldNormal), normalize(uSunDirection));
+  float normalBias = 0.015 * (1.0 - NdotL);
+  float bias = uShadowBias + 0.003 + normalBias;
   float blendRegion = 0.1;
 
   float rawShadow;
