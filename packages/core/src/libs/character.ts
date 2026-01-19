@@ -14,6 +14,10 @@ import {
   Vector3,
 } from "three";
 
+import {
+  ShaderLightingUniforms,
+  updateEntityShadowUniforms,
+} from "../core/world/entity-shadow-uniforms";
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
@@ -206,6 +210,11 @@ export type CharacterOptions = {
    * Parameters to create the character's arms.
    */
   arms?: Partial<ArmsOptions>;
+
+  /**
+   * Whether this character should receive shadows. Defaults to `false`.
+   */
+  receiveShadows?: boolean;
 };
 
 export const defaultCharacterOptions: CharacterOptions = {
@@ -604,6 +613,25 @@ export class Character extends Group {
     return this.options.arms.color;
   }
 
+  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
+    if (!this.options.receiveShadows) return;
+
+    const parts = [
+      this.head,
+      this.body,
+      this.leftArm,
+      this.rightArm,
+      this.leftLeg,
+      this.rightLeg,
+    ];
+
+    for (const part of parts) {
+      if (part?.shadowUniforms) {
+        updateEntityShadowUniforms(part.shadowUniforms, lightingUniforms);
+      }
+    }
+  }
+
   set legColor(color: string | Color) {
     this.leftLeg.paint("all", new Color(color));
     this.rightLeg.paint("all", new Color(color));
@@ -655,34 +683,42 @@ export class Character extends Group {
    * Create the character's model programmatically.
    */
   private createModel = () => {
+    const receiveShadows = this.options.receiveShadows ?? false;
+
     const head = new CanvasBox({
       ...defaultHeadOptions,
       ...(this.options.head ? this.options.head : {}),
+      receiveShadows,
     });
 
     const body = new CanvasBox({
       ...defaultBodyOptions,
       ...(this.options.body ? this.options.body : {}),
+      receiveShadows,
     });
 
     const leftArm = new CanvasBox({
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
+      receiveShadows,
     });
 
     const rightArm = new CanvasBox({
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
+      receiveShadows,
     });
 
     const leftLeg = new CanvasBox({
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
+      receiveShadows,
     });
 
     const rightLeg = new CanvasBox({
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
+      receiveShadows,
     });
 
     this.headGroup = new Group();

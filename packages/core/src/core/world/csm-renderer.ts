@@ -362,7 +362,10 @@ export class CSMRenderer {
           );
           if (distSq >= maxDistSq) continue;
           if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
-          renderer.render(entity as unknown as Scene, cascade.camera);
+          const entityAsScene = entity as unknown as Scene;
+          entityAsScene.overrideMaterial = this.depthMaterial;
+          renderer.render(entityAsScene, cascade.camera);
+          entityAsScene.overrideMaterial = null;
         }
       }
 

@@ -4,7 +4,9 @@ import {
   Color,
   FrontSide,
   Group,
+  IUniform,
   LinearMipMapLinearFilter,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
@@ -12,8 +14,16 @@ import {
   RepeatWrapping,
   Side,
   Texture,
+  Vector3,
 } from "three";
 
+import {
+  createEntityShadowUniforms,
+  ENTITY_SHADOW_FRAGMENT_PARS,
+  ENTITY_SHADOW_VERTEX_MAIN,
+  ENTITY_SHADOW_VERTEX_PARS,
+  EntityShadowUniforms,
+} from "../core/world/entity-shadow-uniforms";
 import { DOMUtils } from "../utils";
 
 /**
@@ -72,6 +82,11 @@ export type CanvasBoxOptions = {
    * Whether or not should this canvas box be rendered as transparent. Defaults to `false`.
    */
   transparent?: boolean;
+
+  /**
+   * Whether this canvas box should receive shadows. Defaults to `false`.
+   */
+  receiveShadows?: boolean;
 };
 
 /**
@@ -104,6 +119,7 @@ const defaultOptions: CanvasBoxOptions = {
   widthSegments: 8,
   side: FrontSide,
   transparent: false,
+  receiveShadows: false,
 };
 
 /**
@@ -128,6 +144,11 @@ export class BoxLayer extends Mesh {
    * The materials of the six faces of this box layer.
    */
   public materials: Map<string, MeshBasicMaterial> = new Map();
+
+  /**
+   * Shadow uniforms for this box layer (only set if receiveShadows is true).
+   */
+  public shadowUniforms: EntityShadowUniforms | null = null;
 
   /**
    * The width of the box layer.
@@ -170,6 +191,11 @@ export class BoxLayer extends Mesh {
   private transparent: boolean;
 
   /**
+   * Whether or not should this canvas box receive shadows.
+   */
+  private receiveShadows: boolean;
+
+  /**
    * Create a six-sided canvas box layer.
    *
    * @param width The width of the box layer.
@@ -180,11 +206,9 @@ export class BoxLayer extends Mesh {
    * @param depthSegments The depth segments of the box layer.
    * @param side The side of the box layer to render.
    * @param transparent Whether or not should this canvas box be rendered as transparent.
+   * @param receiveShadows Whether or not should this canvas box receive shadows.
    */
   constructor(
-    /**
-     * Test
-     */
     width: number,
     height: number,
     depth: number,
@@ -192,7 +216,8 @@ export class BoxLayer extends Mesh {
     heightSegments: number,
     depthSegments: number,
     side: Side,
-    transparent: boolean
+    transparent: boolean,
+    receiveShadows = false
   ) {
     super(new BoxGeometry(width, height, depth));
 
@@ -204,6 +229,11 @@ export class BoxLayer extends Mesh {
     this.depthSegments = depthSegments;
     this.side = side;
     this.transparent = transparent;
+    this.receiveShadows = receiveShadows;
+
+    if (receiveShadows) {
+      this.shadowUniforms = createEntityShadowUniforms();
+    }
 
     for (const face of BOX_SIDES) {
       this.materials.set(face, this.createCanvasMaterial(face));
@@ -216,7 +246,6 @@ export class BoxLayer extends Mesh {
 
     this.material = materials;
 
-    // NOTE FOR AGENT: This 90-degree Y rotation means the "depth" dimension extends along the X-axis, not "width"
     this.rotation.y = Math.PI / 2;
   }
 
@@ -289,7 +318,6 @@ export class BoxLayer extends Mesh {
     canvas.width = width;
     canvas.height = height;
 
-    // really curious about here. SRGBColorSpace seems really dark??
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = NoColorSpace;
 
@@ -308,6 +336,45 @@ export class BoxLayer extends Mesh {
       material.map.wrapS = RepeatWrapping;
       material.map.wrapT = RepeatWrapping;
       material.map.needsUpdate = true;
+    }
+
+    if (this.receiveShadows && this.shadowUniforms) {
+      const shadowUniforms = this.shadowUniforms;
+      material.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, shadowUniforms);
+
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            "#include <uv_pars_vertex>",
+            `#include <uv_pars_vertex>
+${ENTITY_SHADOW_VERTEX_PARS}
+`
+          )
+          .replace(
+            "#include <worldpos_vertex>",
+            `#include <worldpos_vertex>
+vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+${ENTITY_SHADOW_VERTEX_MAIN}
+`
+          );
+
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            "#include <common>",
+            `#include <common>
+${ENTITY_SHADOW_FRAGMENT_PARS}
+`
+          )
+          .replace(
+            "#include <dithering_fragment>",
+            `#include <dithering_fragment>
+float shadow = getEntityShadow(uSunDirection);
+gl_FragColor.rgb *= shadow;
+`
+          );
+      };
+
+      material.onBeforeCompile.toString = () => "canvasbox-shadow-shader";
     }
 
     return material;
@@ -404,6 +471,14 @@ export class CanvasBox extends Group {
   }
 
   /**
+   * Get the shadow uniforms for this canvas box (from the first layer).
+   * Returns null if receiveShadows is false.
+   */
+  get shadowUniforms(): EntityShadowUniforms | null {
+    return this.boxLayers[0]?.shadowUniforms ?? null;
+  }
+
+  /**
    * Add art to the canvas(s) of this box layer.
    *
    * @param side The side(s) of the box layer to draw on.
@@ -441,6 +516,7 @@ export class CanvasBox extends Group {
       heightSegments,
       depthSegments,
       transparent,
+      receiveShadows,
     } = this.options;
 
     if (!width) {
@@ -460,7 +536,8 @@ export class CanvasBox extends Group {
         heightSegments ? heightSegments : widthSegments,
         depthSegments ? depthSegments : widthSegments,
         side,
-        transparent
+        transparent,
+        receiveShadows
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer);
