@@ -1614,27 +1614,21 @@ impl World {
 
     /// Handler for `Event` type messages.
     fn on_event(&mut self, client_id: &str, data: Message) {
-        let client_ent = if let Some(client) = self.clients().get(client_id) {
-            client.entity.to_owned()
-        } else {
-            return;
-        };
+        let client_ent = self.clients().get(client_id).map(|c| c.entity.to_owned());
 
         data.events.into_iter().for_each(|event| {
             if !self.event_handles.contains_key(&event.name.to_lowercase()) {
-                let curr_chunk = self
-                    .read_component::<CurrentChunkComp>()
-                    .get(client_ent)
-                    .unwrap()
-                    .coords
-                    .clone();
+                let location = client_ent.and_then(|ent| {
+                    self.read_component::<CurrentChunkComp>()
+                        .get(ent)
+                        .map(|c| c.coords.clone())
+                });
 
-                self.events_mut().dispatch(
-                    Event::new(&event.name)
-                        .payload(event.payload)
-                        .location(curr_chunk)
-                        .build(),
-                );
+                let mut event_builder = Event::new(&event.name).payload(event.payload);
+                if let Some(loc) = location {
+                    event_builder = event_builder.location(loc);
+                }
+                self.events_mut().dispatch(event_builder.build());
                 return;
             }
 
