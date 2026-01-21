@@ -162,7 +162,8 @@ fn process_pending_updates(
                 lazy.insert(entity, MetadataComp::new());
                 lazy.insert(entity, VoxelComp::new(voxel.0, voxel.1, voxel.2));
                 lazy.insert(entity, CurrentChunkComp::default());
-                lazy.insert(entity, JsonComp::new("{}"));
+                let default_json = updated_type.default_entity_json.as_deref().unwrap_or("{}");
+                lazy.insert(entity, JsonComp::new(default_json));
             }
 
             chunks.set_voxel(vx, vy, vz, updated_id);
@@ -630,8 +631,17 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, registry, stats, mut message_queue, mut chunks, mut mesher, lazy, entities, timing) =
-            data;
+        let (
+            config,
+            registry,
+            stats,
+            mut message_queue,
+            mut chunks,
+            mut mesher,
+            lazy,
+            entities,
+            timing,
+        ) = data;
         let _t = timing.timer("chunk-updating");
 
         let current_tick = stats.tick as u64;
