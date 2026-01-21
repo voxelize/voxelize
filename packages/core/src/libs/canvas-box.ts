@@ -10,8 +10,8 @@ import {
   Mesh,
   MeshBasicMaterial,
   NearestFilter,
-  NoColorSpace,
   RepeatWrapping,
+  SRGBColorSpace,
   Side,
   Texture,
   Vector3,
@@ -320,7 +320,7 @@ export class BoxLayer extends Mesh {
     canvas.height = height;
 
     const texture = new CanvasTexture(canvas);
-    texture.colorSpace = NoColorSpace;
+    texture.colorSpace = SRGBColorSpace;
 
     const material = new MeshBasicMaterial({
       side: this.side,
