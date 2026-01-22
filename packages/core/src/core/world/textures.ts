@@ -199,8 +199,11 @@ export class AtlasTexture extends CanvasTexture {
     }
 
     if ((image as any as Color).isColor) {
-      const srgbColor = (image as any as Color).clone().convertLinearToSRGB();
-      context.fillStyle = `#${srgbColor.getHexString()}`;
+      const originalColor = image as any as Color;
+      // Use getHexString() directly - it returns the sRGB hex that was originally passed in
+      // Do NOT use convertLinearToSRGB() as that would double-convert and wash out colors
+      // When Color is created from hex string like "#9be9a8", getHexString() returns "9be9a8"
+      context.fillStyle = `#${originalColor.getHexString()}`;
       context.fillRect(
         (startU - this.atlasOffset) * canvasWidth,
         (1 - endV - this.atlasOffset) * canvasHeight,

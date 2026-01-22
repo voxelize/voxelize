@@ -212,6 +212,7 @@ varying vec3 vWorldNormal;
   
   
   vec4 sampledDiffuseColor = texture2D(map, finalUv);
+  
   #ifdef DECODE_VIDEO_TEXTURE
     sampledDiffuseColor = vec4(mix(pow(sampledDiffuseColor.rgb * 0.9478672986 + vec3(0.0521327014), vec3(2.4)), sampledDiffuseColor.rgb * 0.0773993808, vec3(lessThanEqual(sampledDiffuseColor.rgb, vec3(0.04045)))), sampledDiffuseColor.w);
   #endif
@@ -233,21 +234,17 @@ varying vec3 vWorldNormal;
       `
 #include <envmap_fragment>
 
-// Adjusting light intensity for lighter voxel textures
 float scale = 2.0;
 float sunlightFactor = vLight.a * vLight.a * uSunlightIntensity * uLightIntensityAdjustment;
 float s = clamp(sunlightFactor + uMinLightLevel * vLight.a + uBaseAmbient, 0.0, 1.0);
 s -= s * exp(-s) * 0.02;
 
-// Torch light with attenuation when sunlight is present (full brightness at night)
 vec3 torchLight = pow(vLight.rgb * uLightIntensityAdjustment, vec3(scale));
 float torchAttenuation = 1.0 - s * 0.8;
 vec3 combinedLight = s + torchLight * torchAttenuation;
 
-// Applying adjusted light intensity
 outgoingLight.rgb *= combinedLight;
 
-// Apply AO with reduced impact for fluids
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
 outgoingLight *= aoFactor;
 `
@@ -670,17 +667,33 @@ float torchBloom = torchBrightness * torchBrightness * 0.3;
 float ambientOcclusion = mix(0.5, 1.0, shadow);
 float inTunnel = step(sunExposure, 0.1);
 float tunnelDarkening = mix(1.0, mix(0.25, 1.0, sunExposure * 2.0), inTunnel);
-vec3 totalLight = uAmbientColor * ambientOcclusion * tunnelDarkening;
-totalLight += sunContribution;
+
+float hemisphereBlend = vWorldNormal.y * 0.5 + 0.5;
+vec3 groundColor = uAmbientColor * 0.4;
+vec3 skyAmbient = mix(groundColor, uAmbientColor, hemisphereBlend);
+
+float texLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+float isBrightTex = smoothstep(0.75, 0.95, texLuma);
+
+float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
+float enhancedAO = mix(aoFactor, aoFactor * aoFactor, isBrightTex * 0.5);
+
+vec3 totalLight = skyAmbient * ambientOcclusion * tunnelDarkening;
+vec3 reducedSun = sunContribution * mix(1.0, 0.7, isBrightTex);
+totalLight += reducedSun;
 totalLight += torchLight;
 totalLight += vec3(torchBloom);
 
-float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
-totalLight *= aoFactor;
+totalLight *= enhancedAO;
 
-totalLight = min(totalLight, vec3(2.5));
-
+totalLight = min(totalLight, vec3(1.1));
 outgoingLight.rgb *= totalLight;
+
+float maxChannel = max(max(outgoingLight.r, outgoingLight.g), outgoingLight.b);
+if (maxChannel > 0.7) {
+  float compression = 0.7 + (maxChannel - 0.7) * 0.2;
+  outgoingLight.rgb *= compression / maxChannel;
+}
 
 if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;
