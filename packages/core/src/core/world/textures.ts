@@ -199,7 +199,8 @@ export class AtlasTexture extends CanvasTexture {
     }
 
     if ((image as any as Color).isColor) {
-      context.fillStyle = `#${(image as any).getHexString()}`;
+      const srgbColor = (image as any as Color).clone().convertLinearToSRGB();
+      context.fillStyle = `#${srgbColor.getHexString()}`;
       context.fillRect(
         (startU - this.atlasOffset) * canvasWidth,
         (1 - endV - this.atlasOffset) * canvasHeight,
