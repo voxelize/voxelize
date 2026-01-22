@@ -1,4 +1,3 @@
-import { Inputs } from "core";
 import {
   AnimationAction,
   AnimationClip,
@@ -517,6 +516,12 @@ export class Character extends Group {
     this.playArmsWalkingAnimation();
     this.playLegsWalkingAnimation();
     this.lerpAll();
+  }
+
+  snapToTarget() {
+    this.position.copy(this.newPosition);
+    this.headGroup.rotation.setFromQuaternion(this.newDirection);
+    this.bodyGroup.quaternion.copy(this.newBodyDirection);
   }
 
   /**

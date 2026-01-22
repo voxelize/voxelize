@@ -137,6 +137,12 @@ export class Entities extends Group implements NetIntercept {
     });
   };
 
+  snapAllToTarget = () => {
+    this.map.forEach((entity) => {
+      (entity as Entity & { snapToTarget?: () => void }).snapToTarget?.();
+    });
+  };
+
   private createEntityOfType = (type: string, id: string) => {
     if (!this.types.has(type)) {
       console.warn(`Entity type ${type} is not registered.`);

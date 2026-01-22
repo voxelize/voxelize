@@ -384,4 +384,14 @@ export class Peers<
       });
     }
   }
+
+  snapAllToTarget() {
+    this.children.forEach((child) => {
+      if (child === this.ownPeer) return;
+
+      if (child instanceof Character) {
+        child.snapToTarget();
+      }
+    });
+  }
 }

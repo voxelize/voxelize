@@ -158,6 +158,11 @@ export class Creature extends Group {
     this.lerpAll();
   }
 
+  snapToTarget() {
+    this.position.copy(this.newPosition);
+    this.quaternion.copy(this.newDirection);
+  }
+
   set(position: number[], direction: number[]) {
     if (!position || !direction) return;
     this.newPosition.set(position[0], position[1], position[2]);
