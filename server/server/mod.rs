@@ -336,6 +336,13 @@ impl Server {
                 );
             }
 
+            if data.text.is_empty() {
+                return Some(format!(
+                    "Transport message missing world name (text field empty). Message type: {:?}",
+                    MessageType::try_from(data.r#type).map(|t| format!("{:?}", t)).unwrap_or_else(|_| data.r#type.to_string())
+                ));
+            }
+
             if let Some(world) = self.get_world_mut(&data.text) {
                 world.do_send(ClientRequest {
                     client_id: id.to_owned(),
@@ -344,9 +351,11 @@ impl Server {
 
                 return None;
             } else {
-                return Some(
-                    "Transport message did not have a world. Use the 'text' field.".to_owned(),
-                );
+                return Some(format!(
+                    "Transport message for unknown world '{}'. Message type: {:?}",
+                    data.text,
+                    MessageType::try_from(data.r#type).map(|t| format!("{:?}", t)).unwrap_or_else(|_| data.r#type.to_string())
+                ));
             }
         }
 
