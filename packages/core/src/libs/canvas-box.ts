@@ -292,8 +292,9 @@ export class BoxLayer extends Mesh {
       } else {
         if (isColor(art)) {
           context.save();
-          context.fillStyle = `rgb(${art.r * 255},${art.g * 255},${
-            art.b * 255
+          const srgbColor = art.clone().convertLinearToSRGB();
+          context.fillStyle = `rgb(${srgbColor.r * 255},${srgbColor.g * 255},${
+            srgbColor.b * 255
           })`;
           context.fillRect(0, 0, width, height);
           context.restore();
