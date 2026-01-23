@@ -231,6 +231,16 @@ impl Chunks {
         true
     }
 
+    pub fn prepare_save_data(&self, coords: &Vec2<i32>) -> Option<(String, String, Vec<u32>, Vec<u32>)> {
+        let chunk = self.get(coords)?;
+        Some((
+            chunk.name.clone(),
+            chunk.id.clone(),
+            chunk.voxels.data.clone(),
+            chunk.height_map.data.clone(),
+        ))
+    }
+
     /// Update a chunk, removing the old chunk instance and updating with a new one.
     pub fn renew(&mut self, chunk: Chunk, renew_mesh_only: bool) {
         if renew_mesh_only {

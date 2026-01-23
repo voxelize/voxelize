@@ -339,7 +339,9 @@ impl Server {
             if data.text.is_empty() {
                 return Some(format!(
                     "Transport message missing world name (text field empty). Message type: {:?}",
-                    MessageType::try_from(data.r#type).map(|t| format!("{:?}", t)).unwrap_or_else(|_| data.r#type.to_string())
+                    MessageType::try_from(data.r#type)
+                        .map(|t| format!("{:?}", t))
+                        .unwrap_or_else(|_| data.r#type.to_string())
                 ));
             }
 
@@ -354,7 +356,9 @@ impl Server {
                 return Some(format!(
                     "Transport message for unknown world '{}'. Message type: {:?}",
                     data.text,
-                    MessageType::try_from(data.r#type).map(|t| format!("{:?}", t)).unwrap_or_else(|_| data.r#type.to_string())
+                    MessageType::try_from(data.r#type)
+                        .map(|t| format!("{:?}", t))
+                        .unwrap_or_else(|_| data.r#type.to_string())
                 ));
             }
         }

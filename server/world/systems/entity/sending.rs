@@ -2,8 +2,8 @@ use hashbrown::{HashMap, HashSet};
 use specs::{Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    world::system_profiler::WorldTimingContext, Bookkeeping, ClientFilter,
-    Clients, DoNotPersistComp, ETypeComp, EntitiesSaver, EntityFlag, EntityIDs,
+    world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver, Bookkeeping, ClientFilter,
+    Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs,
     EntityOperation, EntityProtocol, IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType,
     MetadataComp, Physics, PositionComp, Vec3, WorldConfig,
 };
@@ -18,7 +18,7 @@ pub struct EntitiesSendingSystem {
 impl<'a> System<'a> for EntitiesSendingSystem {
     type SystemData = (
         Entities<'a>,
-        ReadExpect<'a, EntitiesSaver>,
+        ReadExpect<'a, BackgroundEntitiesSaver>,
         ReadExpect<'a, KdTree>,
         ReadExpect<'a, Clients>,
         ReadExpect<'a, WorldConfig>,
@@ -39,7 +39,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
     fn run(&mut self, data: Self::SystemData) {
         let (
             entities,
-            entities_saver,
+            bg_saver,
             kdtree,
             clients,
             config,
@@ -98,7 +98,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             }
 
             if *persisted {
-                entities_saver.remove(id);
+                bg_saver.remove(id);
             }
             entity_ids.remove(id);
 

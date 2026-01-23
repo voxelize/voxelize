@@ -507,7 +507,15 @@ impl World {
         ecs.insert(timing_context);
 
         ecs.insert(Chunks::new(config));
-        ecs.insert(EntitiesSaver::new(&config));
+        ecs.insert(BackgroundEntitiesSaver::new(&config));
+        let chunk_folder = if config.saving {
+            let mut folder = PathBuf::from(&config.save_dir);
+            folder.push("chunks");
+            Some(folder)
+        } else {
+            None
+        };
+        ecs.insert(BackgroundChunkSaver::new(chunk_folder));
         ecs.insert(Stats::new(
             config.saving,
             &config.save_dir,
@@ -1206,7 +1214,7 @@ impl World {
             let voxel = voxel_meta.0.clone();
             if self.chunks_mut().block_entities.contains_key(&voxel) {
                 warn!("Block entity already exists at voxel: {:?}", voxel);
-                self.read_resource::<EntitiesSaver>().remove(id);
+                self.read_resource::<BackgroundEntitiesSaver>().remove(id);
                 return None;
             }
             let entity = self
@@ -1412,7 +1420,11 @@ impl World {
             }
 
             let dispatch_timer = SystemTimer::new("dispatcher-dispatch");
-            dispatcher_guard.as_mut().unwrap().get_mut().dispatch(&self.ecs);
+            dispatcher_guard
+                .as_mut()
+                .unwrap()
+                .get_mut()
+                .dispatch(&self.ecs);
             dispatch_timer.elapsed_ms()
         };
 
@@ -1664,7 +1676,10 @@ impl World {
         if self.config().saving {
             // TODO: THIS FEELS HACKY
 
-            let folder = self.read_resource::<EntitiesSaver>().folder.clone();
+            let folder = self
+                .read_resource::<BackgroundEntitiesSaver>()
+                .folder()
+                .clone();
             fs::create_dir_all(&folder).ok();
             let paths = fs::read_dir(folder).unwrap();
             let mut loaded_entities = HashMap::new();

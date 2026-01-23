@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use specs::{Join, ReadExpect, ReadStorage, System, WriteStorage};
 
-use specs::{ReadExpect, ReadStorage, System, WriteStorage};
-
-use crate::{DoNotPersistComp, ETypeComp, EntitiesSaver, IDComp, MetadataComp, Stats, WorldConfig, WorldTimingContext};
+use crate::{
+    BackgroundEntitiesSaver, DoNotPersistComp, ETypeComp, IDComp, MetadataComp, Stats, WorldConfig,
+    WorldTimingContext,
+};
 
 pub struct DataSavingSystem;
 
@@ -10,7 +11,7 @@ impl<'a> System<'a> for DataSavingSystem {
     type SystemData = (
         ReadExpect<'a, Stats>,
         ReadExpect<'a, WorldConfig>,
-        ReadExpect<'a, EntitiesSaver>,
+        ReadExpect<'a, BackgroundEntitiesSaver>,
         ReadStorage<'a, IDComp>,
         ReadStorage<'a, ETypeComp>,
         ReadStorage<'a, DoNotPersistComp>,
@@ -19,10 +20,7 @@ impl<'a> System<'a> for DataSavingSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        use rayon::prelude::*;
-        use specs::ParJoin;
-
-        let (stats, config, entities_saver, ids, etypes, do_not_persist, mut metadatas, timing) = data;
+        let (stats, config, bg_saver, ids, etypes, do_not_persist, mut metadatas, timing) = data;
         let _t = timing.timer("data-saving");
 
         if !config.saving {
@@ -34,13 +32,10 @@ impl<'a> System<'a> for DataSavingSystem {
         }
 
         if config.save_entities {
-            let entities_saver = Arc::new(entities_saver);
-
-            (&ids, &etypes, !&do_not_persist, &mut metadatas)
-                .par_join()
-                .for_each(|(id, etype, _, metadata)| {
-                    entities_saver.save(&id.0, &etype.0, etype.1, &metadata);
-                });
+            for (id, etype, _, metadata) in (&ids, &etypes, !&do_not_persist, &mut metadatas).join()
+            {
+                bg_saver.queue_save(&id.0, &etype.0, etype.1, &metadata);
+            }
         }
 
         stats.save();

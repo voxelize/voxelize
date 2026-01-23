@@ -106,6 +106,7 @@ impl<'a> System<'a> for PhysicsSystem {
 
         // Tick the rapier physics engine, and add the collisions to individual entities.
         let collision_events = physics.step(stats.delta);
+
         let mut started_collisions = Vec::new();
         let mut stopped_collisions = Vec::new();
 
