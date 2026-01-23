@@ -1652,8 +1652,8 @@ impl World {
     /// Handler for `Chat` type messages.
     fn on_chat(&mut self, id: &str, data: Message) {
         if let Some(chat) = data.chat.clone() {
-            let sender = chat.sender;
-            let body = chat.body;
+            let sender = chat.sender.clone();
+            let body = chat.body.clone();
 
             info!("{}: {}", sender, body);
 

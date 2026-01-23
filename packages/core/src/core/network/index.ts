@@ -23,8 +23,8 @@ export type NetworkOptions = {
 };
 
 const defaultOptions: NetworkOptions = {
-  maxPacketsPerTick: 16,
-  maxBacklogFactor: 8,
+  maxPacketsPerTick: 64,
+  maxBacklogFactor: 16,
 };
 
 export type NetworkConnectionOptions = {

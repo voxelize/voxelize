@@ -123,6 +123,12 @@ export class Creature extends Group {
   onIdle: () => void;
 
   private clock = new Clock();
+  private positionBuffer: Array<{
+    time: number;
+    pos: Vector3;
+    dir: Quaternion;
+  }> = [];
+  private interpolationDelay = 50;
 
   constructor(options: Partial<CreatureOptions> = {}) {
     super();
@@ -152,10 +158,35 @@ export class Creature extends Group {
   }
 
   update() {
-    this.clock.getDelta();
+    const dt = this.clock.getDelta();
+    this.interpolateFromBuffer();
     this.calculateDelta();
     this.playLegsWalkingAnimation();
-    this.lerpAll();
+    this.lerpAll(dt);
+  }
+
+  private interpolateFromBuffer() {
+    if (this.positionBuffer.length === 0) return;
+    const renderTime = performance.now() - this.interpolationDelay;
+    while (
+      this.positionBuffer.length > 2 &&
+      this.positionBuffer[1].time <= renderTime
+    ) {
+      this.positionBuffer.shift();
+    }
+    if (this.positionBuffer.length >= 2) {
+      const p0 = this.positionBuffer[0];
+      const p1 = this.positionBuffer[1];
+      const t = Math.max(
+        0,
+        Math.min(1, (renderTime - p0.time) / (p1.time - p0.time))
+      );
+      this.newPosition.lerpVectors(p0.pos, p1.pos, t);
+      this.newDirection.slerpQuaternions(p0.dir, p1.dir, t);
+    } else if (this.positionBuffer.length === 1) {
+      this.newPosition.copy(this.positionBuffer[0].pos);
+      this.newDirection.copy(this.positionBuffer[0].dir);
+    }
   }
 
   snapToTarget() {
@@ -165,10 +196,17 @@ export class Creature extends Group {
 
   set(position: number[], direction: number[]) {
     if (!position || !direction) return;
-    this.newPosition.set(position[0], position[1], position[2]);
-    this.newDirection.copy(
-      VoxMathUtils.directionToQuaternion(direction[0], 0, direction[2])
+    const pos = new Vector3(position[0], position[1], position[2]);
+    const dir = VoxMathUtils.directionToQuaternion(
+      direction[0],
+      0,
+      direction[2]
     );
+    const now = performance.now();
+    this.positionBuffer.push({ time: now, pos, dir });
+    while (this.positionBuffer.length > 10) {
+      this.positionBuffer.shift();
+    }
   }
 
   set username(username: string) {
@@ -333,17 +371,21 @@ export class Creature extends Group {
     }
   };
 
-  private lerpAll = () => {
+  private lerpAll = (dt: number) => {
     if (this.newPosition.length() !== 0) {
-      const posLerp =
+      const baseLerp =
         this.positionLerpOverride ?? this.options.positionLerp ?? 0.7;
+      const targetFps = 60;
+      const dtNormalized = dt * targetFps;
+      const posLerp = 1 - Math.pow(1 - baseLerp, dtNormalized);
       this.position.lerp(this.newPosition, posLerp);
     }
     if (this.newDirection.length() !== 0) {
-      this.quaternion.slerp(
-        this.newDirection,
-        this.options.rotationLerp ?? 0.2
-      );
+      const baseRotLerp = this.options.rotationLerp ?? 0.2;
+      const targetFps = 60;
+      const dtNormalized = dt * targetFps;
+      const rotLerp = 1 - Math.pow(1 - baseRotLerp, dtNormalized);
+      this.quaternion.slerp(this.newDirection, rotLerp);
     }
   };
 

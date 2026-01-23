@@ -145,10 +145,6 @@ impl<'a> System<'a> for BroadcastSystem {
         for (encoded, filter) in done_messages {
             let use_rtc = encoded.is_rtc_eligible;
 
-            transports.values().for_each(|sender| {
-                let _ = sender.send(encoded.data.clone());
-            });
-
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
                     if use_rtc {

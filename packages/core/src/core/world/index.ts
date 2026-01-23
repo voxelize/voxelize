@@ -4011,14 +4011,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
-  renderShadowMaps(renderer: WebGLRenderer, entities?: Object3D[]) {
+  renderShadowMaps(
+    renderer: WebGLRenderer,
+    entities?: Object3D[],
+    instancePools?: Group[]
+  ) {
     if (!this.usesShaderLighting || !this.csmRenderer) return;
 
-    if (entities && entities.length > 0) {
+    if (
+      (entities && entities.length > 0) ||
+      (instancePools && instancePools.length > 0)
+    ) {
       this.csmRenderer.markCascadesForEntityRender();
     }
 
-    this.csmRenderer.render(renderer, this, entities);
+    this.csmRenderer.render(renderer, this, entities, 32, instancePools);
   }
 
   private buildChunkMesh(cx: number, cz: number, data: MeshProtocol) {

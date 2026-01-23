@@ -1,7 +1,9 @@
+import * as THREE from "three";
 import {
   Camera,
   DepthTexture,
   Frustum,
+  Group,
   Matrix4,
   MeshDepthMaterial,
   Object3D,
@@ -58,6 +60,7 @@ export class CSMRenderer {
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
+  private entityBatchGroup = new Group();
 
   private frustumCenter = new Vector3();
   private frustumCameraDir = new Vector3();
@@ -138,14 +141,14 @@ export class CSMRenderer {
     }
 
     if (index === 0) {
-      return cameraMovement > 0.5;
+      return cameraMovement > 0.3;
     }
 
     if (index === 1) {
-      return cameraMovement > 2.0 || this.frameCount % 3 === 0;
+      return cameraMovement > 1.5 || this.frameCount % 5 === 0;
     }
 
-    return cameraMovement > 4.0 || this.frameCount % 6 === 0;
+    return cameraMovement > 3.0 || this.frameCount % 10 === 0;
   }
 
   rebuildSkipShadowCache(scene: Scene) {
@@ -317,7 +320,8 @@ export class CSMRenderer {
     renderer: WebGLRenderer,
     scene: Scene,
     entities?: Object3D[],
-    maxEntityShadowDistance = 32
+    maxEntityShadowDistance = 32,
+    instancePools?: Group[]
   ) {
     const anyNeedsRender = this.cascadeNeedsRender.some((v) => v);
     if (!anyNeedsRender) {
@@ -331,6 +335,21 @@ export class CSMRenderer {
       if (object.visible) {
         hiddenObjects.push({ object, visible: true });
         object.visible = false;
+      }
+    }
+
+    const poolOriginalMaterials: Map<
+      Object3D,
+      THREE.Material | THREE.Material[]
+    > = new Map();
+    if (this.shouldRenderEntityShadows && instancePools) {
+      for (const pool of instancePools) {
+        pool.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.customDepthMaterial) {
+            poolOriginalMaterials.set(child, child.material);
+            child.material = child.customDepthMaterial;
+          }
+        });
       }
     }
 
@@ -353,8 +372,22 @@ export class CSMRenderer {
 
       renderer.render(scene, cascade.camera);
 
-      if (entities && i < 2) {
+      if (
+        this.shouldRenderEntityShadows &&
+        instancePools &&
+        instancePools.length > 0 &&
+        i < 2
+      ) {
+        scene.overrideMaterial = null;
+        for (const pool of instancePools) {
+          renderer.render(pool as unknown as Scene, cascade.camera);
+        }
+        scene.overrideMaterial = this.depthMaterial;
+      }
+
+      if (this.shouldRenderEntityShadows && entities && i < 2) {
         const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
+        const originalParents: Map<Object3D, Object3D | null> = new Map();
         for (const entity of entities) {
           if (entity.userData.castsShadow === false) continue;
           const distSq = entity.position.distanceToSquared(
@@ -362,14 +395,30 @@ export class CSMRenderer {
           );
           if (distSq >= maxDistSq) continue;
           if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
-          const entityAsScene = entity as unknown as Scene;
-          entityAsScene.overrideMaterial = this.depthMaterial;
-          renderer.render(entityAsScene, cascade.camera);
-          entityAsScene.overrideMaterial = null;
+          originalParents.set(entity, entity.parent);
+          this.entityBatchGroup.add(entity);
+        }
+        if (this.entityBatchGroup.children.length > 0) {
+          const batchAsScene = this.entityBatchGroup as unknown as Scene;
+          batchAsScene.overrideMaterial = this.depthMaterial;
+          renderer.render(batchAsScene, cascade.camera);
+          batchAsScene.overrideMaterial = null;
+          for (const [entity, originalParent] of originalParents) {
+            if (originalParent) {
+              originalParent.add(entity);
+            } else {
+              this.entityBatchGroup.remove(entity);
+            }
+          }
+          this.entityBatchGroup.children.length = 0;
         }
       }
 
       this.cascadeNeedsRender[i] = false;
+    }
+
+    for (const [mesh, originalMaterial] of poolOriginalMaterials) {
+      (mesh as THREE.Mesh).material = originalMaterial;
     }
 
     for (const { object, visible } of hiddenObjects) {
@@ -380,11 +429,16 @@ export class CSMRenderer {
     renderer.setRenderTarget(null);
   }
 
+  private entityShadowFrameCounter = 0;
+  private shouldRenderEntityShadows = false;
+
   markCascadesForEntityRender() {
-    this.cascadeNeedsRender[0] = true;
-    if (this.cascadeNeedsRender.length > 1) {
-      this.cascadeNeedsRender[1] = true;
+    this.entityShadowFrameCounter++;
+    this.shouldRenderEntityShadows = this.entityShadowFrameCounter % 3 === 0;
+    if (!this.shouldRenderEntityShadows) {
+      return;
     }
+    this.cascadeNeedsRender[0] = true;
   }
 
   getUniforms(): {
