@@ -37,7 +37,9 @@ impl MessageQueues {
             Ok(MessageType::Peer)
             | Ok(MessageType::Entity)
             | Ok(MessageType::Event)
-            | Ok(MessageType::Chat) => {
+            | Ok(MessageType::Chat)
+            | Ok(MessageType::Join)
+            | Ok(MessageType::Leave) => {
                 self.critical.push((message, filter));
             }
             Ok(MessageType::Load) | Ok(MessageType::Unload) => {

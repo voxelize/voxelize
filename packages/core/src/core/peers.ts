@@ -266,6 +266,7 @@ export class Peers<
 
         if (!object && !self) {
           object = internalOnJoin(peer.id);
+          this.onPeerJoin?.(peer.id, object);
         }
 
         if (!this.onPeerUpdate) {
