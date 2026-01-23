@@ -1,7 +1,7 @@
 :root {
-  --item-slots-slot-color: #393b44;
-  --item-slots-slot-color-hover: #393b44;
-  --item-slots-slot-color-focus: #c6cada;
+  --item-slots-slot-color: #2a2a2a;
+  --item-slots-slot-color-hover: #3a3a3a;
+  --item-slots-slot-color-focus: #4a4a4a;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -24,22 +24,23 @@
   align-items: center;
   justify-content: center;
   z-index: -1;
-  background: rgba(168, 168, 168, 0.05);
+  background: #141414;
   border-style: solid;
   border-color: var(--item-slots-slot-color);
   transition: 100ms ease-in-out;
+  box-shadow: none !important;
 }
 
 .item-slots-slot-hover {
-  box-shadow: none;
-  background: rgba(168, 168, 168, 0.15);
+  box-shadow: none !important;
+  background: #1e1e1e;
   border-color: var(--item-slots-slot-color-hover);
   transform: scale(1.06);
 }
 
 .item-slots-slot-focus {
-  box-shadow: none;
-  background: rgba(168, 168, 168, 0.4);
+  box-shadow: none !important;
+  background: #252525;
   border-color: var(--item-slots-slot-color-focus);
   transform: scale(1.1);
 }
