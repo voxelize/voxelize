@@ -3166,7 +3166,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (this.usesShaderLighting && !this.csmRenderer) {
       this.csmRenderer = new CSMRenderer({
         cascades: 3,
-        shadowMapSize: 1024,
+        shadowMapSize: 2048,
         maxShadowDistance: 128,
         shadowBias: 0.0005,
         shadowNormalBias: 0.02,
@@ -4280,7 +4280,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (this.usesShaderLighting) {
       this.csmRenderer = new CSMRenderer({
         cascades: 3,
-        shadowMapSize: 1024,
+        shadowMapSize: 2048,
         maxShadowDistance: 128,
         shadowBias: 0.0005,
         shadowNormalBias: 0.02,
