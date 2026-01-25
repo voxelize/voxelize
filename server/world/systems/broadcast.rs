@@ -45,6 +45,13 @@ fn is_immediate(msg_type: i32) -> bool {
     )
 }
 
+fn should_send_to_transport(msg_type: i32) -> bool {
+    matches!(
+        MessageType::try_from(msg_type),
+        Ok(MessageType::Entity) | Ok(MessageType::Peer)
+    )
+}
+
 fn merge_messages(base: &mut Message, other: Message) {
     base.peers.extend(other.peers);
     base.entities.extend(other.entities);
@@ -194,7 +201,13 @@ impl<'a> System<'a> for BroadcastSystem {
                 }
 
                 let _ = client.sender.send(encoded.data.clone());
-            })
+            });
+
+            if !transports.is_empty() && should_send_to_transport(encoded.msg_type) {
+                transports.values().for_each(|sender| {
+                    let _ = sender.send(encoded.data.clone());
+                });
+            }
         }
     }
 }
