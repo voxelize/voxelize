@@ -263,7 +263,9 @@ impl KdTree {
 
     pub fn players_within_radius(&self, point: &Vec3<f32>, radius: f32) -> Vec<&Entity> {
         let radius_squared = radius * radius;
-        let results = self.players.within(&[point.0, point.1, point.2], radius_squared);
+        let results = self
+            .players
+            .within(&[point.0, point.1, point.2], radius_squared);
         results
             .into_iter()
             .filter_map(|(_, ent_id)| self.entity_map.get(&ent_id))

@@ -231,7 +231,10 @@ impl Chunks {
         true
     }
 
-    pub fn prepare_save_data(&self, coords: &Vec2<i32>) -> Option<(String, String, Vec<u32>, Vec<u32>)> {
+    pub fn prepare_save_data(
+        &self,
+        coords: &Vec2<i32>,
+    ) -> Option<(String, String, Vec<u32>, Vec<u32>)> {
         let chunk = self.get(coords)?;
         Some((
             chunk.name.clone(),

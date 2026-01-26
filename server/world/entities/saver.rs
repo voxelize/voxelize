@@ -48,9 +48,7 @@ impl EntitiesSaver {
         map.insert("etype".to_owned(), json!(etype_value));
         map.insert("metadata".to_owned(), json!(metadata));
 
-        let sanitized_filename = etype_value
-            .replace("::", "-")
-            .replace(' ', "-");
+        let sanitized_filename = etype_value.replace("::", "-").replace(' ', "-");
         let new_filename = format!("{}-{}.json", sanitized_filename, id);
         let old_filename = format!("{}.json", id);
 

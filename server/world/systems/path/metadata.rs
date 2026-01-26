@@ -1,10 +1,14 @@
-use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 use crate::{MetadataComp, PathComp, WorldTimingContext};
+use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 
 pub struct PathMetadataSystem;
 
 impl<'a> System<'a> for PathMetadataSystem {
-    type SystemData = (ReadStorage<'a, PathComp>, WriteStorage<'a, MetadataComp>, ReadExpect<'a, WorldTimingContext>);
+    type SystemData = (
+        ReadStorage<'a, PathComp>,
+        WriteStorage<'a, MetadataComp>,
+        ReadExpect<'a, WorldTimingContext>,
+    );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;

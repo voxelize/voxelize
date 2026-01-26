@@ -57,10 +57,8 @@ impl<'a> System<'a> for ChunkSendingSystem {
             }
 
             if msg_type == MessageType::Load {
-                let mesh_model =
-                    chunk.to_model(true, false, 0..(config.sub_chunks as u32));
-                let data_model =
-                    chunk.to_model(false, true, 0..(config.sub_chunks as u32));
+                let mesh_model = chunk.to_model(true, false, 0..(config.sub_chunks as u32));
+                let data_model = chunk.to_model(false, true, 0..(config.sub_chunks as u32));
 
                 for client_id in &interested_clients {
                     client_load_mesh

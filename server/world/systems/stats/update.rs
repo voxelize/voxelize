@@ -7,7 +7,11 @@ use crate::{world::stats::Stats, WorldConfig, WorldTimingContext};
 pub struct UpdateStatsSystem;
 
 impl<'a> System<'a> for UpdateStatsSystem {
-    type SystemData = (ReadExpect<'a, WorldConfig>, WriteExpect<'a, Stats>, ReadExpect<'a, WorldTimingContext>);
+    type SystemData = (
+        ReadExpect<'a, WorldConfig>,
+        WriteExpect<'a, Stats>,
+        ReadExpect<'a, WorldTimingContext>,
+    );
 
     fn run(&mut self, data: Self::SystemData) {
         let (config, mut stats, timing) = data;

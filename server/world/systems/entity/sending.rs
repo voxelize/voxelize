@@ -1,11 +1,13 @@
 use hashbrown::{HashMap, HashSet};
-use specs::{Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{
+    Entities, Entity, Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage,
+};
 
 use crate::{
     world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver, Bookkeeping, ClientFilter,
-    Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs,
-    EntityOperation, EntityProtocol, IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType,
-    MetadataComp, Physics, PositionComp, Vec3, WorldConfig,
+    Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol,
+    IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType, MetadataComp, Physics,
+    PositionComp, Vec3, WorldConfig,
 };
 
 #[derive(Default)]
@@ -164,7 +166,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut client_updates: HashMap<String, Vec<EntityProtocol>> = HashMap::new();
 
         for (entity_id, (etype, metadata_str, is_new)) in &entity_metadata_map {
-            let pos = entity_positions.get(entity_id).cloned().unwrap_or(Vec3(0.0, 0.0, 0.0));
+            let pos = entity_positions
+                .get(entity_id)
+                .cloned()
+                .unwrap_or(Vec3(0.0, 0.0, 0.0));
             let nearby_players = kdtree.players_within_radius(&pos, entity_visible_radius);
 
             for player_entity in nearby_players {
@@ -279,7 +284,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         for (client_id, updates) in client_updates {
             if !updates.is_empty() {
                 queue.push((
-                    Message::new(&MessageType::Entity).entities(&updates).build(),
+                    Message::new(&MessageType::Entity)
+                        .entities(&updates)
+                        .build(),
                     ClientFilter::Direct(client_id),
                 ));
             }

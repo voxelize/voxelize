@@ -78,7 +78,10 @@ impl FragmentAssembler {
             self.next_message_id.saturating_sub(1)
         };
 
-        let entry = self.fragments.entry(message_id).or_insert_with(HashMap::new);
+        let entry = self
+            .fragments
+            .entry(message_id)
+            .or_insert_with(HashMap::new);
         entry.insert(index, payload.to_vec());
 
         if let Some(&expected) = self.expected_counts.get(&message_id) {

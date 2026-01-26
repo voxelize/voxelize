@@ -22,8 +22,17 @@ impl<'a> System<'a> for ChunkRequestsSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (chunks, config, mut interests, mut pipeline, mut mesher, mut queue, ids, mut requests, timing) =
-            data;
+        let (
+            chunks,
+            config,
+            mut interests,
+            mut pipeline,
+            mut mesher,
+            mut queue,
+            ids,
+            mut requests,
+            timing,
+        ) = data;
         let _t = timing.timer("chunk-requests");
 
         let max_response_per_tick = config.max_response_per_tick;

@@ -4,7 +4,11 @@ use specs::{ReadExpect, ReadStorage, System, WriteStorage};
 pub struct TargetMetadataSystem;
 
 impl<'a> System<'a> for TargetMetadataSystem {
-    type SystemData = (ReadStorage<'a, TargetComp>, WriteStorage<'a, MetadataComp>, ReadExpect<'a, WorldTimingContext>);
+    type SystemData = (
+        ReadStorage<'a, TargetComp>,
+        WriteStorage<'a, MetadataComp>,
+        ReadExpect<'a, WorldTimingContext>,
+    );
 
     fn run(&mut self, data: Self::SystemData) {
         use rayon::prelude::*;

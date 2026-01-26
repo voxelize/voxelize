@@ -5,8 +5,8 @@ use hashbrown::{HashMap, HashSet};
 use rayon::{iter::IntoParallelIterator, prelude::ParallelIterator, ThreadPool, ThreadPoolBuilder};
 
 use crate::{
-    Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry,
-    Space, Vec2, Vec3, VoxelAccess, WorldConfig,
+    Chunk, GeometryProtocol, LightColor, MeshProtocol, MessageType, Registry, Space, Vec2, Vec3,
+    VoxelAccess, WorldConfig,
 };
 
 use super::lights::Lights;
@@ -189,9 +189,19 @@ impl Mesher {
                         let max_arr = [max.0, max.1, max.2];
 
                         let mesher_geometries = if config.greedy_meshing {
-                            voxelize_mesher::mesh_space_greedy(&min_arr, &max_arr, &space, &mesher_registry)
+                            voxelize_mesher::mesh_space_greedy(
+                                &min_arr,
+                                &max_arr,
+                                &space,
+                                &mesher_registry,
+                            )
                         } else {
-                            voxelize_mesher::mesh_space(&min_arr, &max_arr, &space, &mesher_registry)
+                            voxelize_mesher::mesh_space(
+                                &min_arr,
+                                &max_arr,
+                                &space,
+                                &mesher_registry,
+                            )
                         };
 
                         let geometries: Vec<GeometryProtocol> = mesher_geometries

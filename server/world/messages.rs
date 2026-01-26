@@ -52,9 +52,8 @@ impl MessageQueues {
     }
 
     pub fn drain_prioritized(&mut self) -> Vec<(Message, ClientFilter)> {
-        let mut result = Vec::with_capacity(
-            self.critical.len() + self.normal.len() + self.bulk.len()
-        );
+        let mut result =
+            Vec::with_capacity(self.critical.len() + self.normal.len() + self.bulk.len());
         result.append(&mut self.critical);
         result.append(&mut self.normal);
         result.append(&mut self.bulk);

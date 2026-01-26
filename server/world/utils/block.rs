@@ -1,5 +1,5 @@
-pub use voxelize_core::BlockUtils;
 use crate::BlockRotation;
+pub use voxelize_core::BlockUtils;
 
 #[derive(Default)]
 pub struct VoxelPacker {
