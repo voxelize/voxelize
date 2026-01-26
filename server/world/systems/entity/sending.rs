@@ -7,7 +7,7 @@ use crate::{
     world::system_profiler::WorldTimingContext, BackgroundEntitiesSaver, Bookkeeping, ClientFilter,
     Clients, DoNotPersistComp, ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol,
     IDComp, InteractorComp, KdTree, Message, MessageQueues, MessageType, MetadataComp, Physics,
-    PositionComp, Vec3, WorldConfig,
+    PositionComp, Vec3, VoxelComp, WorldConfig,
 };
 
 #[derive(Default)]
@@ -34,6 +34,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadStorage<'a, InteractorComp>,
         ReadStorage<'a, DoNotPersistComp>,
         ReadStorage<'a, PositionComp>,
+        ReadStorage<'a, VoxelComp>,
         WriteStorage<'a, MetadataComp>,
         ReadExpect<'a, WorldTimingContext>,
     );
@@ -55,6 +56,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             interactors,
             do_not_persist,
             positions,
+            voxels,
             mut metadatas,
             timing,
         ) = data;
@@ -123,7 +125,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut entity_positions: HashMap<String, Vec3<f32>> = HashMap::new();
         let mut entity_metadata_map: HashMap<String, (String, String, bool)> = HashMap::new();
 
-        for (ent, id, metadata, etype, _, do_not_persist, position) in (
+        for (ent, id, metadata, etype, _, do_not_persist, position, voxel) in (
             &entities,
             &ids,
             &mut metadatas,
@@ -131,6 +133,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             &flags,
             do_not_persist.maybe(),
             positions.maybe(),
+            voxels.maybe(),
         )
             .join()
         {
@@ -145,7 +148,10 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 (etype.0.to_owned(), ent, metadata.to_owned(), persisted),
             );
 
-            let pos = position.map(|p| p.0.clone()).unwrap_or(Vec3(0.0, 0.0, 0.0));
+            let pos = position
+                .map(|p| p.0.clone())
+                .or_else(|| voxel.map(|v| Vec3(v.0 .0 as f32, v.0 .1 as f32, v.0 .2 as f32)))
+                .unwrap_or(Vec3(0.0, 0.0, 0.0));
             entity_positions.insert(id.0.clone(), pos);
 
             let is_new = self.new_entity_ids_buffer.contains(&id.0);
