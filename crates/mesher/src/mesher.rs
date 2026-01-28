@@ -755,6 +755,17 @@ fn create_fluid_faces<S: VoxelAccess>(
     ]
 }
 
+fn has_diagonal_faces(block: &Block) -> bool {
+    block.faces.iter().any(|f| f.dir == [0, 0, 0])
+}
+
+fn has_cardinal_faces(block: &Block) -> bool {
+    block.faces.iter().any(|f| {
+        let d = f.dir;
+        (d[0].abs() + d[1].abs() + d[2].abs()) == 1
+    })
+}
+
 fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
     !block.is_fluid
         && !block.rotatable
@@ -762,6 +773,7 @@ fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
         && block.dynamic_patterns.is_none()
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
+        && !(has_diagonal_faces(block) && has_cardinal_faces(block))
 }
 
 fn should_render_face<S: VoxelAccess>(
@@ -1362,7 +1374,8 @@ fn evaluate_block_rule<S: VoxelAccess>(
                 }
             }
 
-            let actual_rotation = space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
+            let actual_rotation =
+                space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_rotation) = &simple.rotation {
                 if actual_rotation != *expected_rotation {
                     rule_ok = false;
@@ -1408,7 +1421,14 @@ fn get_dynamic_faces<S: VoxelAccess>(
             let mut any_matched = false;
 
             for part in &pattern.parts {
-                let rule_result = evaluate_block_rule(&part.rule, pos, space, rotation, block.y_rotatable, part.world_space);
+                let rule_result = evaluate_block_rule(
+                    &part.rule,
+                    pos,
+                    space,
+                    rotation,
+                    block.y_rotatable,
+                    part.world_space,
+                );
                 if rule_result {
                     any_matched = true;
                     matched_faces.extend(part.faces.iter().cloned().map(|f| (f, part.world_space)));
@@ -1935,16 +1955,17 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
 
-                    let faces: Vec<(BlockFace, bool)> = if is_fluid && has_standard_six_faces(&block.faces) {
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                            .into_iter()
-                            .map(|f| (f, false))
-                            .collect()
-                    } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                    } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
-                    };
+                    let faces: Vec<(BlockFace, bool)> =
+                        if is_fluid && has_standard_six_faces(&block.faces) {
+                            create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                                .into_iter()
+                                .map(|f| (f, false))
+                                .collect()
+                        } else if block.dynamic_patterns.is_some() {
+                            get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                        } else {
+                            block.faces.iter().cloned().map(|f| (f, false)).collect()
+                        };
 
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
@@ -2088,8 +2109,19 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 process_greedy_quad(&quad, axis, slice, dir, min, block, geometry);
             }
 
-            for (vx, vy, vz, voxel_id, rotation, block, face, uv_range, is_see_through, is_fluid, world_space) in
-                non_greedy_faces.drain(..)
+            for (
+                vx,
+                vy,
+                vz,
+                voxel_id,
+                rotation,
+                block,
+                face,
+                uv_range,
+                is_see_through,
+                is_fluid,
+                world_space,
+            ) in non_greedy_faces.drain(..)
             {
                 let geo_key = if face.isolated {
                     format!(
@@ -2201,16 +2233,17 @@ pub fn mesh_space<S: VoxelAccess>(
                     }
                 }
 
-                let faces: Vec<(BlockFace, bool)> = if is_fluid && has_standard_six_faces(&block.faces) {
-                    create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
-                        .into_iter()
-                        .map(|f| (f, false))
-                        .collect()
-                } else if block.dynamic_patterns.is_some() {
-                    get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
-                } else {
-                    block.faces.iter().cloned().map(|f| (f, false)).collect()
-                };
+                let faces: Vec<(BlockFace, bool)> =
+                    if is_fluid && has_standard_six_faces(&block.faces) {
+                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                            .into_iter()
+                            .map(|f| (f, false))
+                            .collect()
+                    } else if block.dynamic_patterns.is_some() {
+                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                    } else {
+                        block.faces.iter().cloned().map(|f| (f, false)).collect()
+                    };
 
                 let mut uv_map = HashMap::new();
                 for (face, _) in &faces {
