@@ -31,7 +31,7 @@ export type WorkerPoolOptions = {
 
   /**
    * The name prefix for workers in this pool. Workers will be named
-   * "{name}-0", "{name}-1", etc. Shows up in DevTools for debugging.
+   * `{name}-0`, `{name}-1`, etc. Shows up in DevTools for debugging.
    */
   name?: string;
 };

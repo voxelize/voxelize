@@ -17,7 +17,6 @@ custom_edit_url: null
 - [Inputs](classes/Inputs.md)
 - [Loader](classes/Loader.md)
 - [MobileRigidControls](classes/MobileRigidControls.md)
-- [Network](classes/Network.md)
 - [Peers](classes/Peers.md)
 - [RigidControls](classes/RigidControls.md)
 - [World](classes/World.md)
@@ -36,9 +35,12 @@ custom_edit_url: null
 - [AtlasTexture](classes/AtlasTexture.md)
 - [BlockRotation](classes/BlockRotation.md)
 - [BoxLayer](classes/BoxLayer.md)
+- [CSMRenderer](classes/CSMRenderer.md)
 - [CanvasBox](classes/CanvasBox.md)
 - [Character](classes/Character.md)
 - [Chunk](classes/Chunk.md)
+- [ChunkPipeline](classes/ChunkPipeline.md)
+- [ChunkRenderer](classes/ChunkRenderer.md)
 - [Clouds](classes/Clouds.md)
 - [Creature](classes/Creature.md)
 - [Debug](classes/Debug.md)
@@ -47,8 +49,12 @@ custom_edit_url: null
 - [FaceAnimation](classes/FaceAnimation.md)
 - [ItemSlot](classes/ItemSlot.md)
 - [ItemSlots](classes/ItemSlots.md)
+- [LightSourceRegistry](classes/LightSourceRegistry.md)
+- [LightVolume](classes/LightVolume.md)
+- [MeshPipeline](classes/MeshPipeline.md)
 - [Method](classes/Method.md)
 - [NameTag](classes/NameTag.md)
+- [Network](classes/Network.md)
 - [Perspective](classes/Perspective.md)
 - [Portrait](classes/Portrait.md)
 - [Registry](classes/Registry.md)
@@ -58,6 +64,7 @@ custom_edit_url: null
 - [SpriteText](classes/SpriteText.md)
 - [ThreeUtils](classes/ThreeUtils.md)
 - [VoxelInteract](classes/VoxelInteract.md)
+- [WebRTCConnection](classes/WebRTCConnection.md)
 - [WorkerPool](classes/WorkerPool.md)
 
 ## Utils Classes
@@ -72,9 +79,34 @@ custom_edit_url: null
 
 - [BlockConditionalPart](interfaces/BlockConditionalPart.md)
 - [BlockDynamicPattern](interfaces/BlockDynamicPattern.md)
+- [CSMConfig](interfaces/CSMConfig.md)
+- [DynamicLight](interfaces/DynamicLight.md)
+- [EntityShadowUniforms](interfaces/EntityShadowUniforms.md)
+- [LightRegion](interfaces/LightRegion.md)
+- [LightVolumeConfig](interfaces/LightVolumeConfig.md)
 - [NetIntercept](interfaces/NetIntercept.md)
+- [ShaderLightingUniforms](interfaces/ShaderLightingUniforms.md)
+- [TransparentMeshData](interfaces/TransparentMeshData.md)
 
 ## Type Aliases
+
+### ArgMetadata
+
+Ƭ **ArgMetadata**: `Object`
+
+Metadata extracted from a Zod schema for UI purposes.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `defaultValue?` | `string` \| `number` \| `boolean` |
+| `name` | `string` |
+| `options?` | `string`[] |
+| `required` | `boolean` |
+| `type` | ``"string"`` \| ``"number"`` \| ``"enum"`` \| ``"boolean"`` |
+
+___
 
 ### ArmOptions
 
@@ -90,6 +122,7 @@ custom_edit_url: null
 | `armTexture?` | `THREE.Texture` |
 | `blockObjectOptions?` | `ArmObjectOptions` |
 | `customObjectOptions?` | `Record`\<`string`, `ArmObjectOptions`\> |
+| `receiveShadows?` | `boolean` |
 
 ___
 
@@ -172,7 +205,8 @@ A block type in the world. This is defined by the server.
 | `blueLightLevel` | `number` | The blue light level of the block. |
 | `dynamicFn` | (`pos`: [`Coords3`](modules.md#coords3)) => \{ `aabbs`: [`Block`](modules.md#block)[``"aabbs"``] ; `faces`: [`Block`](modules.md#block)[``"faces"``] ; `isTransparent`: [`Block`](modules.md#block)[``"isTransparent"``]  } | - |
 | `dynamicPatterns` | [`BlockDynamicPattern`](interfaces/BlockDynamicPattern.md)[] | - |
-| `faces` | \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](modules.md#uv)  }[] | A list of block face data that this block has. |
+| `faces` | \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](modules.md#uv) ; `textureGroup`: `string` \| ``null``  }[] | A list of block face data that this block has. |
+| `fluidFlowForce` | `number` | The force applied to entities in this fluid, pushing them in the flow direction. |
 | `greenLightLevel` | `number` | The green light level of the block. |
 | `id` | `number` | The block id. |
 | `independentFaces` | `Set`\<`string`\> | A set of block face names that are independent (high resolution or animated). This is generated on the client side. |
@@ -186,6 +220,7 @@ A block type in the world. This is defined by the server.
 | `isPassable` | `boolean` | Whether or not should physics ignore this block. |
 | `isSeeThrough` | `boolean` | Whether or not is this block see-through (can be opaque and see-through at the same time). |
 | `isTransparent` | [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`] | Whether or not is this block transparent viewing from all six sides. The sides are defined as PX, PY, PZ, NX, NY, NZ. |
+| `isWaterlogged` | `boolean` | Whether or not is the block waterlogged (exists inside water). |
 | `isolatedFaces` | `Set`\<`string`\> | - |
 | `lightReduce` | `boolean` | Whether or not should light reduce by 1 going through this block. |
 | `name` | `string` | The name of the block. |
@@ -395,6 +430,7 @@ Parameters to create a canvas box.
 | `height?` | `number` | The height of the box. Defaults to whatever `width` is. |
 | `heightSegments?` | `number` | The height segments of the box, which is the number of pixels of the canvases along the height. Defaults to whatever `widthSegments` is. |
 | `layers` | `number` | The number of layers of this box. Defaults to `1`. |
+| `receiveShadows?` | `boolean` | Whether this canvas box should receive shadows. Defaults to `false`. |
 | `side` | `Side` | The side of the box to render. Defaults to `THREE.FrontSide`. |
 | `transparent?` | `boolean` | Whether or not should this canvas box be rendered as transparent. Defaults to `false`. |
 | `width` | `number` | THe width of the box. Defaults to `1`. |
@@ -419,6 +455,7 @@ Parameters to create a character.
 | `legs?` | `Partial`\<[`LegOptions`](modules.md#legoptions)\> | Parameters to create the character's legs. |
 | `nameTagOptions?` | `Partial`\<[`NameTagOptions`](modules.md#nametagoptions)\> | - |
 | `positionLerp?` | `number` | The lerp factor of the character's position change. Defaults to `0.7`. |
+| `receiveShadows?` | `boolean` | Whether this character should receive shadows. Defaults to `false`. |
 | `rotationLerp?` | `number` | The lerp factor of the character's rotation change. Defaults to `0.2`. |
 | `swingLerp?` | `number` | The lerp factor of the swinging motion of the arms and legs. Defaults to `0.8`. |
 | `walkingSpeed?` | `number` | The speed at which the arms swing when the character is moving. Defaults to `1.4`. |
@@ -470,6 +507,12 @@ ___
 ### ChunkMeshUpdateEventData
 
 Ƭ **ChunkMeshUpdateEventData**: [`ChunkMeshEventData`](modules.md#chunkmesheventdata) & \{ `reason`: [`ChunkUpdateReason`](modules.md#chunkupdatereason)  }
+
+___
+
+### ChunkStage
+
+Ƭ **ChunkStage**: \{ `requestedAt`: `number` ; `retryCount`: `number` ; `stage`: ``"requested"``  } \| \{ `data`: `ChunkProtocol` ; `source`: ``"update"`` \| ``"load"`` ; `stage`: ``"processing"``  } \| \{ `chunk`: [`Chunk`](classes/Chunk.md) ; `stage`: ``"loaded"``  }
 
 ___
 
@@ -528,58 +571,50 @@ ___
 
 ### CommandInfo
 
-Ƭ **CommandInfo**: `Object`
+Ƭ **CommandInfo**\<`T`\>: `Object`
 
 Information about a command including its processor and documentation.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `ZodObject`\<`Record`\<`string`, `ZodTypeAny`\>\> = `ZodObject`\<`Record`\<`string`, `never`\>\> |
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
 | `aliases` | `string`[] |
+| `args` | `T` |
 | `category?` | `string` |
 | `description` | `string` |
 | `flags` | `string`[] |
-| `process` | [`CommandProcessor`](modules.md#commandprocessor) |
+| `process` | (`args`: `z.infer`\<`T`\>) => `void` |
 
 ___
 
 ### CommandOptions
 
-Ƭ **CommandOptions**: `Object`
+Ƭ **CommandOptions**\<`T`\>: `Object`
 
 Options for adding a command.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `ZodObject`\<`Record`\<`string`, `ZodTypeAny`\>\> = `ZodObject`\<`Record`\<`string`, `never`\>\> |
 
 #### Type declaration
 
 | Name | Type |
 | :------ | :------ |
 | `aliases?` | `string`[] |
+| `args?` | `T` |
 | `category?` | `string` |
-| `description?` | `string` |
+| `description` | `string` |
 | `flags?` | `string`[] |
-
-___
-
-### CommandProcessor
-
-Ƭ **CommandProcessor**: (`rest`: `string`) => `void`
-
-A process that gets run when a command is triggered.
-
-#### Type declaration
-
-▸ (`rest`): `void`
-
-##### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `rest` | `string` |
-
-##### Returns
-
-`void`
 
 ___
 
@@ -843,6 +878,37 @@ where `CHARACTER_SCALE` is 0.9.
 
 ___
 
+### LightBatch
+
+Ƭ **LightBatch**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `batchId` | `number` |
+| `completedJobs` | `number` |
+| `jobs` | [`LightJob`](modules.md#lightjob)[] |
+| `results` | [`LightBatchResult`](modules.md#lightbatchresult)[] |
+| `startSequenceId` | `number` |
+| `totalJobs` | `number` |
+
+___
+
+### LightBatchResult
+
+Ƭ **LightBatchResult**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `boundingBox` | [`BoundingBox`](modules.md#boundingbox) |
+| `color` | [`LightColor`](modules.md#lightcolor) |
+| `modifiedChunks` | \{ `coords`: [`Coords2`](modules.md#coords2) ; `lights`: `Uint32Array`  }[] |
+
+___
+
 ### LightColor
 
 Ƭ **LightColor**: ``"RED"`` \| ``"GREEN"`` \| ``"BLUE"`` \| ``"SUNLIGHT"``
@@ -859,6 +925,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
+| `batchId` | `number` |
 | `boundingBox` | [`BoundingBox`](modules.md#boundingbox) |
 | `color` | [`LightColor`](modules.md#lightcolor) |
 | `jobId` | `string` |
@@ -909,14 +976,12 @@ ___
 
 Ƭ **LightShinedOptions**: `Object`
 
-Parameters to create a light shine effect.
-
 #### Type declaration
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `lerpFactor` | `number` | The lerping factor of the brightness of each mesh. Defaults to `0.1`. |
-| `maxBrightness` | `number` | The maximum brightness cap for the light effect. Defaults to `1.2`. |
+| `maxBrightness` | `number` | The maximum brightness cap for the light effect. Defaults to `2.5`. |
 
 ___
 
@@ -971,15 +1036,13 @@ ___
 
 Ƭ **NetworkConnectionOptions**: `Object`
 
-Parameters to customize the connection to a Voxelize server. For example, setting a secret
-key to authenticate the connection with the server.
-
 #### Type declaration
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `reconnectTimeout?` | `number` | On disconnection, the timeout to attempt to reconnect. Defaults to 5000. |
-| `secret?` | `string` | The secret to joining a server, a key that if set on the server, then must be provided to connect to the server successfully. |
+| Name | Type |
+| :------ | :------ |
+| `reconnectTimeout?` | `number` |
+| `secret?` | `string` |
+| `useWebRTC?` | `boolean` |
 
 ___
 
@@ -991,6 +1054,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
+| `maxBacklogFactor` | `number` |
 | `maxPacketsPerTick` | `number` |
 
 ___
@@ -1075,6 +1139,7 @@ ___
 | `oldBlock` | [`Block`](modules.md#block) |
 | `oldId` | `number` |
 | `oldRotation` | [`BlockRotation`](classes/BlockRotation.md) |
+| `oldStage` | `number` |
 | `stage` | `number` |
 | `voxel` | [`Coords3`](modules.md#coords3) |
 
@@ -1083,8 +1148,6 @@ ___
 ### ProtocolWS
 
 Ƭ **ProtocolWS**: `WebSocket` & \{ `sendEvent`: (`event`: `any`) => `void`  }
-
-A custom WebSocket type that supports protocol buffer sending.
 
 ___
 
@@ -1207,6 +1270,24 @@ ___
 
 ___
 
+### TextureInfo
+
+Ƭ **TextureInfo**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `blockId` | `number` |
+| `blockName` | `string` |
+| `canvas` | `HTMLCanvasElement` \| ``null`` |
+| `faceName` | `string` |
+| `materialKey` | `string` |
+| `range` | [`UV`](modules.md#uv) \| ``null`` |
+| `type` | ``"shared"`` \| ``"independent"`` \| ``"isolated"`` |
+
+___
+
 ### UV
 
 Ƭ **UV**: `Object`
@@ -1293,6 +1374,7 @@ Parameters to create a worker pool.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `maxWorker` | `number` | The maximum number of workers to create. Defaults to `8`. |
+| `name?` | `string` | The name prefix for workers in this pool. Workers will be named `{name}-0`, `{name}-1`, etc. Shows up in DevTools for debugging. |
 
 ___
 
@@ -1326,7 +1408,8 @@ The client-side options to create a world. These are client-side only and can be
 | :------ | :------ | :------ |
 | `chunkLoadExponent` | `number` | The exponent applied to the ratio that chunks are loaded, which would then be used to determine whether an angle to a chunk is worth loading. Defaults to `8`. |
 | `chunkRerequestInterval` | `number` | The interval between each time a chunk is re-requested to the server. Defaults to `300` updates. |
-| `chunkUniformsOverwrite` | `Partial`\<`Chunks`[``"uniforms"``]\> | The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`. |
+| `chunkUniformsOverwrite` | `Partial`\<[`ChunkRenderer`](classes/ChunkRenderer.md)[``"uniforms"``]\> | The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`. |
+| `clientOnlyMeshing` | `boolean` | Whether to use client-only meshing. When true, chunks are always meshed locally. When false, server-provided meshes are used for initial chunk load. Defaults to `true`. |
 | `cloudsOptions` | `Partial`\<[`CloudsOptions`](modules.md#cloudsoptions)\> | The options to create the clouds. Defaults to `{}`. |
 | `defaultRenderRadius` | `number` | The default render radius of the world, in chunks. Change this through `world.renderRadius`. Defaults to `8` chunks. |
 | `deltaRetentionTime` | `number` | How long to retain delta history in milliseconds. Defaults to 5000ms. |
@@ -1337,8 +1420,9 @@ The client-side options to create a world. These are client-side only and can be
 | `maxMeshesPerUpdate` | `number` | - |
 | `maxProcessesPerUpdate` | `number` | The maximum amount of chunks received from the server that can be processed per world update. By process, it means to be turned into a `Chunk` instance. Defaults to `8` chunks. |
 | `maxUpdatesPerUpdate` | `number` | The maximum voxel updates that can be sent to the server per world update. Defaults to `1000` updates. |
+| `mergeChunkGeometries` | `boolean` | Whether to merge chunk geometries to reduce draw calls. Useful for mobile. Defaults to false. |
 | `minLightLevel` | `number` | The minimum light level even when sunlight and torch light levels are at zero. Defaults to `0.04`. |
-| `shouldGenerateChunkMeshes` | `boolean` | Whether or not should the world generate ThreeJS meshes. Defaults to `true`. |
+| `shaderBasedLighting` | `boolean` | Whether shader-based lighting is enabled for this world. When enabled, lighting uses GPU shaders with cascaded shadow maps. CPU light propagation still runs to provide sunlight exposure data. Defaults to `false`. |
 | `skyOptions` | `Partial`\<[`SkyOptions`](modules.md#skyoptions)\> | The options to create the sky. Defaults to `{}`. |
 | `statsSyncInterval` | `number` | The interval between each time the world requests the server for its stats. Defaults to 500ms. |
 | `sunlightChangeSpan` | `number` | The fraction of the day that sunlight takes to change from appearing to disappearing or disappearing to appearing. Defaults to `0.1`. |
@@ -1374,6 +1458,7 @@ The options defined on the server-side, passed to the client on network joining.
 | `fluidDensity` | `number` | The density of the fluid in this world. |
 | `fluidDrag` | `number` | The fluid drag of everything physical. |
 | `gravity` | `number`[] | The gravity of everything physical in this world. |
+| `greedyMeshing` | `boolean` | Whether greedy meshing is enabled for this world. |
 | `maxChunk` | [`number`, `number`] | The maximum chunk coordinate of this world, inclusive. |
 | `maxHeight` | `number` | The height of a chunk, in blocks. |
 | `maxLightLevel` | `number` | The maximum light level that propagates in this world, including sunlight and torch light. |
@@ -1412,6 +1497,24 @@ This is the default shaders used for the chunks.
 | :------ | :------ |
 | `fragment` | `string` |
 | `vertex` | `string` |
+
+___
+
+### ENTITY\_SHADOW\_FRAGMENT\_PARS
+
+• `Const` **ENTITY\_SHADOW\_FRAGMENT\_PARS**: ``"\nuniform sampler2D uShadowMap0;\nuniform sampler2D uShadowMap1;\nuniform sampler2D uShadowMap2;\nuniform float uCascadeSplit0;\nuniform float uCascadeSplit1;\nuniform float uCascadeSplit2;\nuniform float uShadowBias;\nuniform float uShadowStrength;\nuniform float uSunlightIntensity;\nuniform vec3 uSunDirection;\n\nvarying vec4 vShadowCoord0;\nvarying vec4 vShadowCoord1;\nvarying vec4 vShadowCoord2;\nvarying float vViewDepth;\n\n\nconst vec2 SHADOW_POISSON_DISK[8] = vec2[8](\n  vec2(-0.94201624, -0.39906216),\n  vec2(0.94558609, -0.76890725),\n  vec2(-0.094184101, -0.92938870),\n  vec2(0.34495938, 0.29387760),\n  vec2(-0.91588581, 0.45771432),\n  vec2(-0.81544232, -0.87912464),\n  vec2(0.97484398, 0.75648379),\n  vec2(0.44323325, -0.97511554)\n);\n\n\n\nfloat sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float bias) {\n  vec3 coord = shadowCoord.xyz / shadowCoord.w;\n  coord = coord * 0.5 + 0.5;\n\n  if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {\n    return 1.0;\n  }\n\n  vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));\n\n  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, -1.0)).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, -1.0)).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, 1.0)).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, 1.0)).r) ? 0.0 : 1.0;\n\n  return shadow / 5.0;\n}\n\nfloat sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {\n  vec3 coord = shadowCoord.xyz / shadowCoord.w;\n  coord = coord * 0.5 + 0.5;\n\n  if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {\n    return 1.0;\n  }\n\n  vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));\n\n  float blockerSum = 0.0;\n  float blockerCount = 0.0;\n  float searchRadius = 3.0;\n  for (int i = 0; i < 4; i++) {\n    vec2 offset = SHADOW_POISSON_DISK[i * 2] * texelSize * searchRadius;\n    float sampleDepth = texture(shadowMap, coord.xy + offset).r;\n    if (sampleDepth < coord.z - bias) {\n      blockerSum += sampleDepth;\n      blockerCount += 1.0;\n    }\n  }\n\n  if (blockerCount < 0.5) {\n    return 1.0;\n  }\n\n  float avgBlockerDepth = blockerSum / blockerCount;\n  float penumbraSize = (coord.z - avgBlockerDepth) / avgBlockerDepth;\n  float filterRadius = clamp(penumbraSize * 2.0, 1.0, 3.0);\n\n  float spatialNoise = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453);\n  float angle = spatialNoise * 6.283185;\n  float s = sin(angle);\n  float c = cos(angle);\n  mat2 rotation = mat2(c, -s, s, c);\n\n  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;\n  for (int i = 0; i < 8; i++) {\n    vec2 offset = rotation * SHADOW_POISSON_DISK[i] * texelSize * filterRadius;\n    float depth = texture(shadowMap, coord.xy + offset).r;\n    shadow += (coord.z - bias > depth) ? 0.0 : 1.0;\n  }\n\n  return shadow / 9.0;\n}\n\n\nfloat getEntityShadow(vec3 worldNormal) {\n  float effectiveStrength = uShadowStrength * uSunlightIntensity;\n  \n  if (effectiveStrength < 0.01) {\n    return 1.0;\n  }\n\n  float NdotL = dot(normalize(worldNormal), normalize(uSunDirection));\n  // Large fixed bias to prevent self-shadowing on small entities like characters\n  // This ensures entity doesn't shadow itself while still receiving terrain shadows\n  float bias = uShadowBias + 0.05;\n  float blendRegion = 0.1;\n\n  float rawShadow;\n  if (vViewDepth < uCascadeSplit0) {\n    float shadow0 = sampleShadowMapPCSS(uShadowMap0, vShadowCoord0, bias);\n    float blendStart = uCascadeSplit0 * (1.0 - blendRegion);\n    if (vViewDepth > blendStart) {\n      float shadow1 = sampleShadowMapPCSS(uShadowMap1, vShadowCoord1, bias * 1.5);\n      float t = (vViewDepth - blendStart) / (uCascadeSplit0 - blendStart);\n      rawShadow = mix(shadow0, shadow1, t);\n    } else {\n      rawShadow = shadow0;\n    }\n  } else if (vViewDepth < uCascadeSplit1) {\n    float shadow1 = sampleShadowMapPCSS(uShadowMap1, vShadowCoord1, bias * 1.5);\n    float blendStart = uCascadeSplit1 * (1.0 - blendRegion);\n    if (vViewDepth > blendStart) {\n      float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, bias * 2.0);\n      float t = (vViewDepth - blendStart) / (uCascadeSplit1 - blendStart);\n      rawShadow = mix(shadow1, shadow2, t);\n    } else {\n      rawShadow = shadow1;\n    }\n  } else if (vViewDepth < uCascadeSplit2) {\n    float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, bias * 2.0);\n    float fadeStart = uCascadeSplit2 * (1.0 - blendRegion);\n    if (vViewDepth > fadeStart) {\n      float t = (vViewDepth - fadeStart) / (uCascadeSplit2 - fadeStart);\n      rawShadow = mix(shadow2, 1.0, t);\n    } else {\n      rawShadow = shadow2;\n    }\n  } else {\n    return 1.0;\n  }\n\n  float shadow = mix(1.0, rawShadow, effectiveStrength);\n  return max(shadow, 0.4);\n}\n"``
+
+___
+
+### ENTITY\_SHADOW\_VERTEX\_MAIN
+
+• `Const` **ENTITY\_SHADOW\_VERTEX\_MAIN**: ``"\nvec4 worldPos4 = vec4(worldPosition.xyz, 1.0);\nvShadowCoord0 = uShadowMatrix0 * worldPos4;\nvShadowCoord1 = uShadowMatrix1 * worldPos4;\nvShadowCoord2 = uShadowMatrix2 * worldPos4;\nvec4 viewPos = viewMatrix * worldPos4;\nvViewDepth = -viewPos.z;\n"``
+
+___
+
+### ENTITY\_SHADOW\_VERTEX\_PARS
+
+• `Const` **ENTITY\_SHADOW\_VERTEX\_PARS**: ``"\nuniform mat4 uShadowMatrix0;\nuniform mat4 uShadowMatrix1;\nuniform mat4 uShadowMatrix2;\n\nvarying vec4 vShadowCoord0;\nvarying vec4 vShadowCoord1;\nvarying vec4 vShadowCoord2;\nvarying float vViewDepth;\n"``
 
 ___
 
@@ -1485,11 +1588,55 @@ The string representation of red light.
 
 ___
 
+### SHADER\_LIGHTING\_CHUNK\_SHADERS
+
+• `Const` **SHADER\_LIGHTING\_CHUNK\_SHADERS**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `fragment` | `string` |
+| `vertex` | `string` |
+
+___
+
+### SHADER\_LIGHTING\_CROSS\_CHUNK\_SHADERS
+
+• `Const` **SHADER\_LIGHTING\_CROSS\_CHUNK\_SHADERS**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `fragment` | `string` |
+| `vertex` | `string` |
+
+___
+
+### SHADOW\_POISSON\_DISK
+
+• `Const` **SHADOW\_POISSON\_DISK**: ``"\nconst vec2 SHADOW_POISSON_DISK[8] = vec2[8](\n  vec2(-0.94201624, -0.39906216),\n  vec2(0.94558609, -0.76890725),\n  vec2(-0.094184101, -0.92938870),\n  vec2(0.34495938, 0.29387760),\n  vec2(-0.91588581, 0.45771432),\n  vec2(-0.81544232, -0.87912464),\n  vec2(0.97484398, 0.75648379),\n  vec2(0.44323325, -0.97511554)\n);\n"``
+
+___
+
+### SHADOW\_SAMPLE\_FUNCTIONS
+
+• `Const` **SHADOW\_SAMPLE\_FUNCTIONS**: ``"\nfloat sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float bias) {\n  vec3 coord = shadowCoord.xyz / shadowCoord.w;\n  coord = coord * 0.5 + 0.5;\n\n  if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {\n    return 1.0;\n  }\n\n  vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));\n\n  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, -1.0)).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, -1.0)).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, 1.0)).r) ? 0.0 : 1.0;\n  shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, 1.0)).r) ? 0.0 : 1.0;\n\n  return shadow / 5.0;\n}\n\nfloat sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {\n  vec3 coord = shadowCoord.xyz / shadowCoord.w;\n  coord = coord * 0.5 + 0.5;\n\n  if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z < 0.0 || coord.z > 1.0) {\n    return 1.0;\n  }\n\n  vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));\n\n  float blockerSum = 0.0;\n  float blockerCount = 0.0;\n  float searchRadius = 3.0;\n  for (int i = 0; i < 4; i++) {\n    vec2 offset = SHADOW_POISSON_DISK[i * 2] * texelSize * searchRadius;\n    float sampleDepth = texture(shadowMap, coord.xy + offset).r;\n    if (sampleDepth < coord.z - bias) {\n      blockerSum += sampleDepth;\n      blockerCount += 1.0;\n    }\n  }\n\n  if (blockerCount < 0.5) {\n    return 1.0;\n  }\n\n  float avgBlockerDepth = blockerSum / blockerCount;\n  float penumbraSize = (coord.z - avgBlockerDepth) / avgBlockerDepth;\n  float filterRadius = clamp(penumbraSize * 2.0, 1.0, 3.0);\n\n  float spatialNoise = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453);\n  float angle = spatialNoise * 6.283185;\n  float s = sin(angle);\n  float c = cos(angle);\n  mat2 rotation = mat2(c, -s, s, c);\n\n  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;\n  for (int i = 0; i < 8; i++) {\n    vec2 offset = rotation * SHADOW_POISSON_DISK[i] * texelSize * filterRadius;\n    float depth = texture(shadowMap, coord.xy + offset).r;\n    shadow += (coord.z - bias > depth) ? 0.0 : 1.0;\n  }\n\n  return shadow / 9.0;\n}\n"``
+
+___
+
 ### SUNLIGHT
 
 • `Const` **SUNLIGHT**: ``"SUNLIGHT"``
 
 The string representation of sunlight.
+
+___
+
+### TRANSPARENT\_FLUID\_RENDER\_ORDER
+
+• `Const` **TRANSPARENT\_FLUID\_RENDER\_ORDER**: ``100001``
 
 ___
 
@@ -1557,7 +1704,9 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `sway` | (`options`: `Partial`\<\{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => \{ `fragmentShader`: `string` = DEFAULT\_CHUNK\_SHADERS.fragment; `vertexShader`: `string`  } |
+| `sway` | (`options`: `Partial`\<\{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => \{ `fragmentShader`: `string` = baseShaders.fragment; `vertexShader`: `string`  } |
+| `swayCrossShaderBased` | (`options`: `Partial`\<\{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => \{ `fragmentShader`: `string` = baseShaders.fragment; `vertexShader`: `string`  } |
+| `swayShaderBased` | (`options`: `Partial`\<\{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\>) => \{ `fragmentShader`: `string` = baseShaders.fragment; `vertexShader`: `string`  } |
 
 ___
 
@@ -1613,6 +1762,15 @@ ___
 
 • `Const` **defaultLegsOptions**: [`LegOptions`](modules.md#legoptions)
 
+___
+
+### restArgsSchema
+
+• `Const` **restArgsSchema**: `ZodObject`\<\{ `rest`: `ZodOptional`\<`ZodString`\>  }, ``"strip"``, `ZodTypeAny`, \{ `rest?`: `string`  }, \{ `rest?`: `string`  }\>
+
+Schema for commands that take a free-form string input.
+Use this for commands that need the raw rest string.
+
 ## Functions
 
 ### TRANSPARENT\_SORT
@@ -1641,6 +1799,40 @@ ___
 ##### Returns
 
 `number`
+
+___
+
+### createEntityShadowUniforms
+
+▸ **createEntityShadowUniforms**(): [`EntityShadowUniforms`](interfaces/EntityShadowUniforms.md)
+
+#### Returns
+
+[`EntityShadowUniforms`](interfaces/EntityShadowUniforms.md)
+
+___
+
+### createSwayShader
+
+▸ **createSwayShader**(`baseShaders`, `options?`): `Object`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `baseShaders` | `Object` |
+| `baseShaders.fragment` | `string` |
+| `baseShaders.vertex` | `string` |
+| `options` | `Partial`\<\{ `amplitude`: `number` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\> |
+
+#### Returns
+
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `fragmentShader` | `string` |
+| `vertexShader` | `string` |
 
 ___
 
@@ -1697,6 +1889,22 @@ ___
 
 ___
 
+### prepareTransparentMesh
+
+▸ **prepareTransparentMesh**(`mesh`): [`TransparentMeshData`](interfaces/TransparentMeshData.md) \| ``null``
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `mesh` | `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`\>, `Material` \| `Material`[], `Object3DEventMap`\> |
+
+#### Returns
+
+[`TransparentMeshData`](interfaces/TransparentMeshData.md) \| ``null``
+
+___
+
 ### requestWorkerAnimationFrame
 
 ▸ **requestWorkerAnimationFrame**(`callback`): `number`
@@ -1731,5 +1939,56 @@ ___
 ▸ (): `void`
 
 ##### Returns
+
+`void`
+
+___
+
+### setupTransparentSorting
+
+▸ **setupTransparentSorting**(`object`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `object` | `Object3D`\<`Object3DEventMap`\> |
+
+#### Returns
+
+`void`
+
+___
+
+### sortTransparentMesh
+
+▸ **sortTransparentMesh**(`mesh`, `data`, `camera`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `mesh` | `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`\>, `Material` \| `Material`[], `Object3DEventMap`\> |
+| `data` | [`TransparentMeshData`](interfaces/TransparentMeshData.md) |
+| `camera` | `Camera` |
+
+#### Returns
+
+`void`
+
+___
+
+### updateEntityShadowUniforms
+
+▸ **updateEntityShadowUniforms**(`target`, `source`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `target` | [`EntityShadowUniforms`](interfaces/EntityShadowUniforms.md) |
+| `source` | [`ShaderLightingUniforms`](interfaces/ShaderLightingUniforms.md) |
+
+#### Returns
 
 `void`
