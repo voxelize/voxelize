@@ -660,9 +660,9 @@ float sunExposure = vLight.a;
 vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity;
 
 vec3 cpuTorchLight = vLight.rgb;
-float torchBrightness = max(max(cpuTorchLight.r, cpuTorchLight.g), cpuTorchLight.b);
-vec3 torchLight = sampleLightVolume() + cpuTorchLight * 1.2;
-float torchBloom = torchBrightness * torchBrightness * 0.3;
+vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
+float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
+vec3 torchLight = sampleLightVolume() + smoothTorch * 1.2;
 
 float ambientOcclusion = mix(0.5, 1.0, shadow);
 float inTunnel = step(sunExposure, 0.1);
@@ -676,24 +676,27 @@ float texLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 float isBrightTex = smoothstep(0.75, 0.95, texLuma);
 
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
+float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution, vec3(0.33)) + 0.01);
+float torchAOReduction = torchDominance * 0.3;
 float enhancedAO = mix(aoFactor, aoFactor * aoFactor, isBrightTex * 0.5);
+enhancedAO = mix(enhancedAO, 1.0, torchAOReduction);
 
-vec3 totalLight = skyAmbient * ambientOcclusion * tunnelDarkening;
+vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening;
 vec3 reducedSun = sunContribution * mix(1.0, 0.7, isBrightTex);
-totalLight += reducedSun;
-totalLight += torchLight;
-totalLight += vec3(torchBloom);
+sunTotal += reducedSun;
+
+vec3 totalLight = 1.0 - (1.0 - sunTotal) * (1.0 - torchLight);
+
+vec3 warmTint = vec3(1.05, 0.92, 0.75);
+vec3 coolTint = vec3(0.92, 0.95, 1.05);
+vec3 temperatureShift = mix(coolTint, warmTint, torchDominance);
+totalLight *= temperatureShift;
 
 totalLight *= enhancedAO;
 
-totalLight = min(totalLight, vec3(1.1));
+totalLight = (totalLight * (2.51 * totalLight + 0.03))
+           / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
 outgoingLight.rgb *= totalLight;
-
-float maxChannel = max(max(outgoingLight.r, outgoingLight.g), outgoingLight.b);
-if (maxChannel > 0.7) {
-  float compression = 0.7 + (maxChannel - 0.7) * 0.2;
-  outgoingLight.rgb *= compression / maxChannel;
-}
 
 if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;
