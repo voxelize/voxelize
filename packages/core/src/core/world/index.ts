@@ -2169,7 +2169,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const dx = cx - tx;
     const dz = cz - tz;
 
-    if (dx * dx + dz * dz < (this.renderRadius >> 1) ** 2) {
+    const safeRadius = Math.max(this.renderRadius - 2, 1);
+    if (dx * dx + dz * dz < safeRadius * safeRadius) {
       return true;
     }
 
@@ -3556,16 +3557,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const [centerX, centerZ] = center;
     const toRequestSet = new Set<string>();
 
-    // Pre-calculate squared renderRadius to use in distance checks
-    const renderRadiusBounded = Math.floor(
-      Math.max(Math.min(ratio * renderRadius, renderRadius), 1)
-    );
-    const renderRadiusSquared = renderRadiusBounded * renderRadiusBounded;
+    const renderRadiusSquared = renderRadius * renderRadius;
 
-    // Surrounding the center, request all chunks that are not loaded.
-    for (let ox = -renderRadiusBounded; ox <= renderRadiusBounded; ox++) {
-      for (let oz = -renderRadiusBounded; oz <= renderRadiusBounded; oz++) {
-        // Use squared distance to avoid unnecessary Math.sqrt() call
+    for (let ox = -renderRadius; ox <= renderRadius; ox++) {
+      for (let oz = -renderRadius; oz <= renderRadius; oz++) {
         if (ox * ox + oz * oz > renderRadiusSquared) continue;
 
         const cx = centerX + ox;
@@ -3924,7 +3919,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const fogColor = this.chunkRenderer.uniforms.fogColor.value;
     if (fogColor) {
-      fogColor.lerpColors(this.sky.uMiddleColor.value, World.fogWarmTint, 0.55);
+      const fogWarmLerp = 0.55 * sunlightIntensity;
+      fogColor.lerpColors(
+        this.sky.uMiddleColor.value,
+        World.fogWarmTint,
+        fogWarmLerp
+      );
     }
 
     if (this.usesShaderLighting) {
