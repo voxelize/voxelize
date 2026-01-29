@@ -738,6 +738,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
   private static readonly nightColor = new Color(0.15, 0.18, 0.25);
+  private static readonly fogWarmTint = new Color(0.92, 0.93, 0.88);
   private static readonly dayAmbient = new Color(0.4, 0.42, 0.45);
   private static readonly nightAmbient = new Color(0.08, 0.1, 0.15);
   private lightJobsCompleteResolvers: (() => void)[] = [];
@@ -3853,9 +3854,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       ThreeMathUtils.clamp(sunlightIntensity, 0, 1)
     );
 
-    this.chunkRenderer.uniforms.fogColor.value?.copy(
-      this.sky.uMiddleColor.value
-    );
+    const fogColor = this.chunkRenderer.uniforms.fogColor.value;
+    if (fogColor) {
+      fogColor.lerpColors(this.sky.uMiddleColor.value, World.fogWarmTint, 0.45);
+    }
 
     if (this.usesShaderLighting) {
       this.chunkRenderer.shaderLightingUniforms.skyTopColor.value.copy(
@@ -3871,7 +3873,14 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Update the uniform values.
    */
   private updateUniforms = () => {
-    this.chunkRenderer.uniforms.time.value = performance.now();
+    const t = performance.now();
+    this.chunkRenderer.uniforms.time.value = t;
+
+    const windAngle = t * 0.00001 + Math.sin(t * 0.000003) * 0.5;
+    this.chunkRenderer.uniforms.windDirection.value.set(
+      Math.cos(windAngle),
+      Math.sin(windAngle)
+    );
   };
 
   updateShaderLighting(camera: Camera, position: Vector3) {
@@ -4299,6 +4308,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (!cloudsOptions.uFogColor) {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
+    }
+    if (!cloudsOptions.uWindDirection) {
+      cloudsOptions.uWindDirection = this.chunkRenderer.uniforms.windDirection;
+    }
+    if (!cloudsOptions.uWindSpeed) {
+      cloudsOptions.uWindSpeed = this.chunkRenderer.uniforms.windSpeed;
     }
 
     this.sky = new Sky(skyOptions);
@@ -5580,6 +5595,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         uFogNear: chunksUniforms.fogNear,
         uFogFar: chunksUniforms.fogFar,
         uFogColor: chunksUniforms.fogColor,
+        uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
+        uFogHeightDensity: chunksUniforms.fogHeightDensity,
+        uWindDirection: chunksUniforms.windDirection,
+        uWindSpeed: chunksUniforms.windSpeed,
         uTime: chunksUniforms.time,
         uAtlasSize: chunksUniforms.atlasSize,
         uShowGreedyDebug: chunksUniforms.showGreedyDebug,

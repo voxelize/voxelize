@@ -3,6 +3,7 @@ import {
   Data3DTexture,
   Matrix4,
   Texture,
+  Vector2,
   Vector3,
   Vector4,
 } from "three";
@@ -51,10 +52,18 @@ export class ChunkRenderer {
     lightIntensityAdjustment: { value: number };
     atlasSize: { value: number };
     showGreedyDebug: { value: number };
+    fogHeightOrigin: { value: number };
+    fogHeightDensity: { value: number };
+    windDirection: { value: Vector2 };
+    windSpeed: { value: number };
   } = {
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
     fogFar: { value: 200 },
+    fogHeightOrigin: { value: 80 },
+    fogHeightDensity: { value: 0.02 },
+    windDirection: { value: new Vector2(0.7, 0.7) },
+    windSpeed: { value: 1.0 },
     ao: { value: new Vector4(100.0, 170.0, 210.0, 255.0) },
     minLightLevel: { value: 0 },
     baseAmbient: { value: 0.001 },

@@ -153,6 +153,8 @@ vWorldNormal = normalize(mat3(modelMatrix) * normal);
 uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
+uniform float uFogHeightOrigin;
+uniform float uFogHeightDensity;
 uniform float uSunlightIntensity;
 uniform float uMinLightLevel;
 uniform float uBaseAmbient;
@@ -254,7 +256,9 @@ outgoingLight *= aoFactor;
       `
     vec2 fogDiff = vWorldPosition.xz - cameraPosition.xz;
     float depth = sqrt(dot(fogDiff, fogDiff));
-    float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+    float distFog = smoothstep(uFogNear, uFogFar, depth);
+    float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWorldPosition.y));
+    float fogFactor = max(distFog, heightFog);
 
     gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
     `
@@ -315,6 +319,8 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 uniform vec4 uAOTable;
 uniform float uTime;
+uniform vec2 uWindDirection;
+uniform float uWindSpeed;
 uniform mat4 uShadowMatrix0;
 uniform mat4 uShadowMatrix1;
 uniform mat4 uShadowMatrix2;
@@ -400,6 +406,8 @@ vShadowCoord2 = uShadowMatrix2 * offsetPosition;
 uniform vec3 uFogColor;
 uniform float uFogNear;
 uniform float uFogFar;
+uniform float uFogHeightOrigin;
+uniform float uFogHeightDensity;
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
@@ -694,6 +702,19 @@ totalLight *= temperatureShift;
 
 totalLight *= enhancedAO;
 
+if (vWorldPosition.y < uWaterLevel && vIsFluid < 0.5) {
+  float causticsTime = uTime * 0.0003;
+  float waterDepth = uWaterLevel - vWorldPosition.y;
+  float depthFade = exp(-waterDepth * 0.15);
+
+  float c1 = snoise(vec3(vWorldPosition.xz * 0.3 + causticsTime * 0.4, causticsTime));
+  float c2 = snoise(vec3(vWorldPosition.xz * 0.5 - causticsTime * 0.3, causticsTime * 1.3 + 5.0));
+  float caustic = (c1 * c1 + c2 * c2) * 0.5;
+
+  float causticStrength = depthFade * shadow * uSunlightIntensity * 0.25;
+  totalLight += vec3(caustic * causticStrength);
+}
+
 totalLight = (totalLight * (2.51 * totalLight + 0.03))
            / (totalLight * (2.43 * totalLight + 0.59) + 0.14);
 outgoingLight.rgb *= totalLight;
@@ -776,7 +797,9 @@ if (vIsFluid > 0.5) {
       `
 vec2 fogDiff = vWorldPosition.xz - cameraPosition.xz;
 float depth = sqrt(dot(fogDiff, fogDiff));
-float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+float distFog = smoothstep(uFogNear, uFogFar, depth);
+float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWorldPosition.y));
+float fogFactor = max(distFog, heightFog);
 
 gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
 `
@@ -831,14 +854,19 @@ export function createSwayShader(
 
   const swayCode = `
 float swayScale = uTime * 0.00002 * ${speed.toFixed(2)};
-transformed.x = transformed.x 
-             + ${
-               rooted ? "(position.y - floor(position.y))" : "1.0"
-             } * ${scale.toFixed(
+vec2 windOffset = uWindDirection * uWindSpeed * uTime * 0.00005;
+float rootScale = ${rooted ? "(position.y - floor(position.y))" : "1.0"};
+float swayNoise = snoise(vec3(
+  position.x * swayScale + windOffset.x,
+  position.y * swayScale * ${yScale.toFixed(2)},
+  position.z * swayScale + windOffset.y
+));
+transformed.x += rootScale * ${scale.toFixed(
     2
-  )} * snoise(vec3(position.x * swayScale, position.y * swayScale * ${yScale.toFixed(
+  )} * swayNoise * 2.0 * ${amplitude.toFixed(2)};
+transformed.z += rootScale * ${scale.toFixed(
     2
-  )}, position.z * swayScale)) * 2.0 * ${amplitude.toFixed(2)};
+  )} * swayNoise * ${amplitude.toFixed(2)} * uWindSpeed * 0.5;
 `;
 
   let vertexShader = baseShaders.vertex;
