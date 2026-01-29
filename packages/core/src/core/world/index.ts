@@ -4309,12 +4309,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!cloudsOptions.uFogColor) {
       cloudsOptions.uFogColor = this.chunkRenderer.uniforms.fogColor;
     }
-    if (!cloudsOptions.uWindDirection) {
-      cloudsOptions.uWindDirection = this.chunkRenderer.uniforms.windDirection;
-    }
-    if (!cloudsOptions.uWindSpeed) {
-      cloudsOptions.uWindSpeed = this.chunkRenderer.uniforms.windSpeed;
-    }
 
     this.sky = new Sky(skyOptions);
     this.clouds = new Clouds(cloudsOptions);
