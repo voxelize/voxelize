@@ -701,6 +701,12 @@ if (vIsFluid > 0.5) {
 
   float eps = 0.08;
 
+  float roughNoise = snoise(vec3(wPos.x * 0.04 - waveTime * 0.08, wPos.z * 0.04 + waveTime * 0.06, -10.0));
+  float roughMul = 0.3 + 0.7 * (roughNoise * 0.5 + 0.5);
+
+  float swellTiltX = snoise(vec3(wPos.x * 0.05 + waveTime * 0.07, wPos.z * 0.05 - waveTime * 0.05, -5.0)) * 0.07;
+  float swellTiltZ = snoise(vec3(wPos.x * 0.05 - waveTime * 0.04, wPos.z * 0.05 + waveTime * 0.07, -8.0)) * 0.07;
+
   float lg1 = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
   float lg1x = snoise(vec3((wPos.x + eps) * 0.3 + waveTime * 0.25, wPos.z * 0.3 - waveTime * 0.2, 0.0));
   float lg1z = snoise(vec3(wPos.x * 0.3 + waveTime * 0.25, (wPos.z + eps) * 0.3 - waveTime * 0.2, 0.0));
@@ -713,14 +719,14 @@ if (vIsFluid > 0.5) {
   float hLgX = lg1x * 0.3;
   float hLgZ = lg1z * 0.3;
 
-  float hMed0 = md1 * 0.6;
-  float hMedX = md1x * 0.6;
-  float hMedZ = md1z * 0.6;
+  float hMed0 = md1 * 0.6 * roughMul;
+  float hMedX = md1x * 0.6 * roughMul;
+  float hMedZ = md1z * 0.6 * roughMul;
 
   vec3 waterNormal = normalize(vec3(
-    (hLg0 - hLgX) * 0.8 + (hMed0 - hMedX) * 1.2,
+    swellTiltX + (hLg0 - hLgX) * 0.8 + (hMed0 - hMedX) * 1.2,
     1.0,
-    (hLg0 - hLgZ) * 0.8 + (hMed0 - hMedZ) * 1.2
+    swellTiltZ + (hLg0 - hLgZ) * 0.8 + (hMed0 - hMedZ) * 1.2
   ));
 
   if (vWorldNormal.y < 0.5) {
