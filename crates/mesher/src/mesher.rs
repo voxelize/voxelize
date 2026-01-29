@@ -759,6 +759,17 @@ fn has_diagonal_faces(block: &Block) -> bool {
     block.faces.iter().any(|f| f.dir == [0, 0, 0])
 }
 
+#[inline]
+fn diagonal_face_offsets(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
+    let h = (vx as u32).wrapping_mul(73856093)
+        ^ (vy as u32).wrapping_mul(19349663)
+        ^ (vz as u32).wrapping_mul(83492791);
+    let h = h.wrapping_mul(2654435761);
+    let ox = ((h >> 24) & 0xFF) as f32 / 255.0 * 0.04;
+    let oz = ((h >> 16) & 0xFF) as f32 / 255.0 * 0.04;
+    (ox, oz)
+}
+
 fn has_cardinal_faces(block: &Block) -> bool {
     block.faces.iter().any(|f| {
         let d = f.dir;
@@ -1564,6 +1575,26 @@ fn process_face<S: VoxelAccess>(
 
     let block_aabb = AABB::union_all(&block.aabbs);
 
+    let is_diagonal = dir == [0, 0, 0];
+    let has_diagonals = is_see_through && has_diagonal_faces(block);
+    let (hash_ox, hash_oz) = if has_diagonals {
+        diagonal_face_offsets(vx, vy, vz)
+    } else {
+        (0.0, 0.0)
+    };
+    let (diag_x_offset, diag_z_offset) = if is_diagonal {
+        (hash_ox, hash_oz)
+    } else {
+        (0.0, 0.0)
+    };
+    let face_inset = if is_opaque {
+        0.0
+    } else if has_diagonals && !is_diagonal {
+        0.0001 + hash_ox
+    } else {
+        0.0001
+    };
+
     for corner in face.corners.iter() {
         let mut pos = corner.pos;
 
@@ -1575,10 +1606,9 @@ fn process_face<S: VoxelAccess>(
         let pos_y = pos[1] + vy as f32;
         let pos_z = pos[2] + vz as f32;
 
-        let scale = if is_opaque { 0.0 } else { 0.0001 };
-        positions.push(pos_x - min_x as f32 - dir[0] as f32 * scale);
-        positions.push(pos_y - min_y as f32 - dir[1] as f32 * scale);
-        positions.push(pos_z - min_z as f32 - dir[2] as f32 * scale);
+        positions.push(pos_x - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset);
+        positions.push(pos_y - min_y as f32 - dir[1] as f32 * face_inset);
+        positions.push(pos_z - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset);
 
         uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
         uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
