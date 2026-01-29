@@ -204,6 +204,23 @@ The first layer of the canvas box.
 
 CanvasBox.boxMaterials
 
+___
+
+### shadowUniforms
+
+• `get` **shadowUniforms**(): [`EntityShadowUniforms`](../interfaces/EntityShadowUniforms.md)
+
+Get the shadow uniforms for this canvas box (from the first layer).
+Returns null if receiveShadows is false.
+
+#### Returns
+
+[`EntityShadowUniforms`](../interfaces/EntityShadowUniforms.md)
+
+#### Inherited from
+
+CanvasBox.shadowUniforms
+
 ## Methods
 
 ### getBottomColor

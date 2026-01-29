@@ -18,6 +18,22 @@ Renames and re-exports [protocol](namespaces/protocol.md)
 
 ## Type Aliases
 
+### BulkUpdateProtocol
+
+Ƭ **BulkUpdateProtocol**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `lights` | `number`[] |
+| `voxels` | `number`[] |
+| `vx` | `number`[] |
+| `vy` | `number`[] |
+| `vz` | `number`[] |
+
+___
+
 ### ChatProtocol
 
 Ƭ **ChatProtocol**: `Object`
@@ -145,6 +161,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
+| `bulkUpdate?` | [`BulkUpdateProtocol`](modules.md#bulkupdateprotocol) |
 | `chat?` | [`ChatProtocol`](modules.md#chatprotocol) |
 | `chunks?` | [`ChunkProtocol`](modules.md#chunkprotocol)[] |
 | `entities?` | [`EntityProtocol`](modules.md#entityprotocol)\<`Entity`\>[] |

@@ -33,6 +33,18 @@ Constructs a new Message.
 
 ## Properties
 
+### bulkUpdate
+
+• `Optional` **bulkUpdate**: [`IBulkUpdate`](../interfaces/protocol.IBulkUpdate.md)
+
+Message bulkUpdate.
+
+#### Implementation of
+
+[IMessage](../interfaces/protocol.IMessage.md).[bulkUpdate](../interfaces/protocol.IMessage.md#bulkupdate)
+
+___
+
 ### chat
 
 • `Optional` **chat**: [`IChatMessage`](../interfaces/protocol.IChatMessage.md)
@@ -195,7 +207,7 @@ Decodes a Message message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
+| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -224,7 +236,7 @@ Decodes a Message message from the specified reader or buffer, length delimited.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
+| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 
 #### Returns
 

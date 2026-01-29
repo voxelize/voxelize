@@ -347,6 +347,16 @@ ___
 
 ___
 
+### isSitting
+
+• `get` **isSitting**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
 ### legColor
 
 • `get` **legColor**(): `string` \| `Color`
@@ -461,6 +471,32 @@ Set the character's arm holding object.
 
 ___
 
+### setSitting
+
+▸ **setSitting**(`sitting`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `sitting` | `boolean` |
+
+#### Returns
+
+`void`
+
+___
+
+### snapToTarget
+
+▸ **snapToTarget**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
 ### update
 
 ▸ **update**(): `void`
@@ -468,6 +504,22 @@ ___
 Update the character's animation and rotation. After `set` is called, `update` must be called to
 actually lerp to the new position and rotation. Note that when a character is attached to a control,
 `update` is called automatically within the control's update loop.
+
+#### Returns
+
+`void`
+
+___
+
+### updateShadowUniforms
+
+▸ **updateShadowUniforms**(`lightingUniforms`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `lightingUniforms` | [`ShaderLightingUniforms`](../interfaces/ShaderLightingUniforms.md) |
 
 #### Returns
 

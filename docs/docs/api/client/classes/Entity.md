@@ -56,8 +56,6 @@ ___
 
 • **onCreate**: (`data`: `T`) => `void`
 
-Called when the entity is created.
-
 #### Type declaration
 
 ▸ (`data`): `void`

@@ -33,7 +33,7 @@ ___
 
 ### indices
 
-• `Optional` **indices**: `number`[]
+• `Optional` **indices**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Geometry indices
 
@@ -41,7 +41,7 @@ ___
 
 ### lights
 
-• `Optional` **lights**: `number`[]
+• `Optional` **lights**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Geometry lights
 
@@ -49,7 +49,7 @@ ___
 
 ### positions
 
-• `Optional` **positions**: `number`[]
+• `Optional` **positions**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Geometry positions
 
@@ -57,7 +57,7 @@ ___
 
 ### uvs
 
-• `Optional` **uvs**: `number`[]
+• `Optional` **uvs**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Geometry uvs
 

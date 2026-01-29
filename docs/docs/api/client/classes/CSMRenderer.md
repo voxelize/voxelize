@@ -190,7 +190,7 @@ ___
 
 ### render
 
-▸ **render**(`renderer`, `scene`, `entities?`, `maxEntityShadowDistance?`): `void`
+▸ **render**(`renderer`, `scene`, `entities?`, `maxEntityShadowDistance?`, `instancePools?`): `void`
 
 #### Parameters
 
@@ -200,6 +200,7 @@ ___
 | `scene` | `Scene` | `undefined` |
 | `entities?` | `Object3D`\<`Object3DEventMap`\>[] | `undefined` |
 | `maxEntityShadowDistance` | `number` | `32` |
+| `instancePools?` | `Group`\<`Object3DEventMap`\>[] | `undefined` |
 
 #### Returns
 

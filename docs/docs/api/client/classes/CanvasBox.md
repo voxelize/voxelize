@@ -22,6 +22,11 @@ box.paint("all", (ctx, canvas) => {
 
 ![Bobby from King of the Hill](/img/docs/bobby-canvas-box.png)
 
+# Rotation Conventions
+- `rotation.x`: Positive tilts backward (front face goes up), negative tilts forward
+- `rotation.y`: Positive rotates left (counter-clockwise from above), negative rotates right
+- `rotation.z`: Positive rolls counter-clockwise (from front view), negative rolls clockwise
+
 ## Hierarchy
 
 - `Group`
@@ -103,6 +108,19 @@ The first layer of the canvas box.
 #### Returns
 
 `Map`\<`string`, `MeshBasicMaterial`\>
+
+___
+
+### shadowUniforms
+
+• `get` **shadowUniforms**(): [`EntityShadowUniforms`](../interfaces/EntityShadowUniforms.md)
+
+Get the shadow uniforms for this canvas box (from the first layer).
+Returns null if receiveShadows is false.
+
+#### Returns
+
+[`EntityShadowUniforms`](../interfaces/EntityShadowUniforms.md)
 
 ## Methods
 

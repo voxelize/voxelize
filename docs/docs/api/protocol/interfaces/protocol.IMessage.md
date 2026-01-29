@@ -15,6 +15,14 @@ Properties of a Message.
 
 ## Properties
 
+### bulkUpdate
+
+• `Optional` **bulkUpdate**: [`IBulkUpdate`](protocol.IBulkUpdate.md)
+
+Message bulkUpdate
+
+___
+
 ### chat
 
 • `Optional` **chat**: [`IChatMessage`](protocol.IChatMessage.md)

@@ -141,3 +141,19 @@ Update the arm's animation. Note that when a arm is attached to a control,
 #### Returns
 
 `void`
+
+___
+
+### updateShadowUniforms
+
+▸ **updateShadowUniforms**(`lightingUniforms`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `lightingUniforms` | [`ShaderLightingUniforms`](../interfaces/ShaderLightingUniforms.md) |
+
+#### Returns
+
+`void`

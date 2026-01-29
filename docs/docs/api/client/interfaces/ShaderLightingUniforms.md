@@ -248,6 +248,18 @@ ___
 
 ___
 
+### sunlightIntensity
+
+• **sunlightIntensity**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
 ### waterAbsorption
 
 • **waterAbsorption**: `Object`

@@ -24,7 +24,7 @@ Create a new worker pool.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `Proto` | () => `Worker` | `undefined` | The worker class to create. |
+| `Proto` | (`options?`: `WorkerOptions`) => `Worker` | `undefined` | The worker class to create. |
 | `options` | [`WorkerPoolOptions`](../modules.md#workerpooloptions) | `defaultOptions` | The options to create the worker pool. |
 
 #### Returns
@@ -35,13 +35,19 @@ Create a new worker pool.
 
 ### Proto
 
-• **Proto**: () => `Worker`
+• **Proto**: (`options?`: `WorkerOptions`) => `Worker`
 
 The worker class to create.
 
 #### Type declaration
 
-• **new Proto**(): `Worker`
+• **new Proto**(`options?`): `Worker`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `options?` | `WorkerOptions` |
 
 ##### Returns
 

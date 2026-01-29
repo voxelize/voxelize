@@ -103,17 +103,23 @@ ___
 
 ### addCommand
 
-▸ **addCommand**(`trigger`, `process`, `options?`): () => `void`
+▸ **addCommand**\<`T`\>(`trigger`, `process`, `options`): () => `void`
 
 Add a command to the chat system. Commands are case sensitive.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `T` | extends `ZodObject`\<`Record`\<`string`, `ZodTypeAny`\>, `UnknownKeysParam`, `ZodTypeAny`, {}, {}\> = `ZodObject`\<`Record`\<`string`, `never`\>, `UnknownKeysParam`, `ZodTypeAny`, {}, {}\> |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `trigger` | `string` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | [`CommandProcessor`](../modules.md#commandprocessor) | The process run when this command is triggered. |
-| `options` | [`CommandOptions`](../modules.md#commandoptions) | Optional configuration for the command (description, category, aliases). |
+| `process` | (`args`: `TypeOf`\<`T`\>) => `void` | The process run when this command is triggered, receives parsed typed args. |
+| `options` | [`CommandOptions`](../modules.md#commandoptions)\<`T`\> | Configuration for the command including Zod schema for args. |
 
 #### Returns
 
@@ -129,16 +135,16 @@ ___
 
 ### getAllCommands
 
-▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
+▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
 
 Get all registered commands with their documentation.
 This filters out aliases and returns only the primary command triggers.
 
 #### Returns
 
-\{ `aliases`: `string`[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
+\{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `trigger`: `string`  }[]
 
-An array of command triggers with their descriptions, categories, and aliases.
+An array of command triggers with their descriptions, categories, aliases, and arg schemas.
 
 ___
 
@@ -188,7 +194,7 @@ Set a fallback command to be executed when no matching command is found.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `fallback` | [`CommandProcessor`](../modules.md#commandprocessor) | The fallback command processor. |
+| `fallback` | (`rest`: `string`) => `void` | The fallback command processor. |
 
 #### Returns
 

@@ -316,6 +316,16 @@ Set the client's own username. This will be broadcasted to the server.
 
 ___
 
+### snapAllToTarget
+
+▸ **snapAllToTarget**(): `void`
+
+#### Returns
+
+`void`
+
+___
+
 ### update
 
 ▸ **update**(): `void`

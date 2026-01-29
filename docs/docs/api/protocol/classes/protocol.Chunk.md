@@ -47,7 +47,7 @@ ___
 
 ### lights
 
-• **lights**: `number`[]
+• **lights**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Chunk lights.
 
@@ -71,7 +71,7 @@ ___
 
 ### voxels
 
-• **voxels**: `number`[]
+• **voxels**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Chunk voxels.
 
@@ -135,7 +135,7 @@ Decodes a Chunk message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
+| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -164,7 +164,7 @@ Decodes a Chunk message from the specified reader or buffer, length delimited.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Reader` \| `Uint8Array`\<`ArrayBufferLike`\> | Reader or buffer to decode from |
+| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 
 #### Returns
 

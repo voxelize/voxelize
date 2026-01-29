@@ -15,6 +15,7 @@ Namespace protocol.
 
 ## Classes
 
+- [BulkUpdate](../classes/protocol.BulkUpdate.md)
 - [ChatMessage](../classes/protocol.ChatMessage.md)
 - [Chunk](../classes/protocol.Chunk.md)
 - [Entity](../classes/protocol.Entity.md)
@@ -28,6 +29,7 @@ Namespace protocol.
 
 ## Interfaces
 
+- [IBulkUpdate](../interfaces/protocol.IBulkUpdate.md)
 - [IChatMessage](../interfaces/protocol.IChatMessage.md)
 - [IChunk](../interfaces/protocol.IChunk.md)
 - [IEntity](../interfaces/protocol.IEntity.md)

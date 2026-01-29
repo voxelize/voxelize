@@ -50,6 +50,14 @@ Array\&lt;Shadow\&gt;.constructor
 
 ## Properties
 
+### enabled
+
+• **enabled**: `boolean` = `true`
+
+Whether shadows are enabled. When disabled, all shadows are hidden.
+
+___
+
 ### world
 
 • **world**: [`World`](World.md)\<`any`\>
@@ -82,7 +90,8 @@ ___
 ▸ **update**(): `void`
 
 Loops through all tracked shadows and updates them. This should be called every frame.
-This also removes any shadows that are no longer attached to an object.
+This also removes any shadows that are no longer attached to an object or whose parent
+is no longer in the scene.
 
 #### Returns
 

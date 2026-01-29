@@ -17,7 +17,7 @@ use crate::{
         WorldConfig,
     },
     ClientFilter, ClientFlag, CollisionsComp, Event, EventBuilder, Events, IDComp, InteractorComp,
-    Vec3,
+    Vec2, Vec3,
 };
 
 #[derive(Default)]
@@ -80,6 +80,30 @@ impl<'a> System<'a> for PhysicsSystem {
             .par_join()
             .for_each(|(curr_chunk, body, position, _)| {
                 if !chunks.is_chunk_ready(&curr_chunk.coords) {
+                    return;
+                }
+
+                let cx = curr_chunk.coords.0;
+                let cz = curr_chunk.coords.1;
+                let mut neighbors_ready = true;
+                for dx in -1i32..=1 {
+                    for dz in -1i32..=1 {
+                        if dx == 0 && dz == 0 {
+                            continue;
+                        }
+                        let n = Vec2(cx + dx, cz + dz);
+                        if chunks.is_within_world(&n) && !chunks.is_chunk_ready(&n) {
+                            neighbors_ready = false;
+                            break;
+                        }
+                    }
+                    if !neighbors_ready {
+                        break;
+                    }
+                }
+                if !neighbors_ready {
+                    body.0.forces.set(0.0, 0.0, 0.0);
+                    body.0.impulses.set(0.0, 0.0, 0.0);
                     return;
                 }
 

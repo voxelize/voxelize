@@ -374,15 +374,18 @@ impl Physics {
             block.is_fluid
         };
 
-        if !test_fluid(center_x, y0, center_z) {
+        let y0 = if test_fluid(center_x, y0, center_z) {
+            y0
+        } else if y0 < y1 && test_fluid(center_x, y0 + 1, center_z) {
+            y0 + 1
+        } else {
             body.in_fluid = false;
             body.ratio_in_fluid = 0.0;
             return;
-        }
+        };
 
         body.in_fluid = true;
 
-        // body is in fluid - find out how much body is submerged
         let mut submerged = 1;
         let mut cy = y0 + 1;
 

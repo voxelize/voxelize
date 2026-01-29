@@ -10,12 +10,11 @@ A Voxelize world handles the chunk loading and rendering, as well as any 3D obje
 **This class extends the [ThreeJS `Scene` class](https://threejs.org/docs/#api/en/scenes/Scene).**
 This means that you can add any ThreeJS objects to the world, and they will be rendered. The world
 also implements [NetIntercept](../interfaces/NetIntercept.md), which means it intercepts chunk-related packets from the server
-and constructs chunk meshes from them. You can optionally disable this by setting `shouldGenerateChunkMeshes` to `false`
-in the options.
+and constructs chunk meshes from them.
 
 There are a couple components that are by default created by the world that holds data:
 - [World.registry](World.md#registry): A block registry that handles block textures and block instances.
-- [World.chunks](World.md#chunks): A chunk manager that stores all the chunks in the world.
+- World.chunks: A chunk manager that stores all the chunks in the world.
 - [World.physics](World.md#physics): A physics engine that handles voxel AABB physics simulation of client-side physics.
 - [World.loader](World.md#loader): An asset loader that handles loading textures and other assets.
 - [World.sky](World.md#sky): A sky that can render the sky and the sun.
@@ -89,11 +88,19 @@ Scene.constructor
 
 ## Properties
 
-### chunks
+### chunkPipeline
 
-• **chunks**: `Chunks`
+• **chunkPipeline**: [`ChunkPipeline`](ChunkPipeline.md)
 
-The manager that holds all chunk-related data, such as chunk meshes and voxel data.
+Pipeline for chunk lifecycle state machine (request -> processing -> loaded).
+
+___
+
+### chunkRenderer
+
+• **chunkRenderer**: [`ChunkRenderer`](ChunkRenderer.md)
+
+Chunk rendering state (materials, uniforms).
 
 ___
 
@@ -105,6 +112,15 @@ The clouds that renders the cubical clouds.
 
 ___
 
+### csmRenderer
+
+• **csmRenderer**: [`CSMRenderer`](CSMRenderer.md) = `null`
+
+The CSM (Cascaded Shadow Map) renderer for shader-based lighting.
+Only available when `shaderBasedLighting` is enabled.
+
+___
+
 ### isInitialized
 
 • **isInitialized**: `boolean` = `false`
@@ -113,11 +129,38 @@ Whether or not this world is connected to the server and initialized with data f
 
 ___
 
+### lightRegistry
+
+• **lightRegistry**: [`LightSourceRegistry`](LightSourceRegistry.md) = `null`
+
+The light source registry for dynamic point lights.
+Only available when `shaderBasedLighting` is enabled.
+
+___
+
+### lightVolume
+
+• **lightVolume**: [`LightVolume`](LightVolume.md) = `null`
+
+The light volume for shader-based lighting.
+Stores torch light data in a 3D texture for GPU sampling.
+Only available when `shaderBasedLighting` is enabled.
+
+___
+
 ### loader
 
 • **loader**: [`Loader`](Loader.md)
 
 An asset loader to load in things like textures, images, GIFs and audio buffers.
+
+___
+
+### meshPipeline
+
+• **meshPipeline**: [`MeshPipeline`](MeshPipeline.md)
+
+Pipeline for mesh generation with ordering guarantees.
 
 ___
 
@@ -205,6 +248,20 @@ ___
 
 `void`
 
+___
+
+### usesShaderLighting
+
+• `get` **usesShaderLighting**(): `boolean`
+
+Whether shader-based lighting is enabled for this world.
+When true, lighting uses GPU shaders with cascaded shadow maps.
+CPU light propagation still runs to provide sunlight exposure data.
+
+#### Returns
+
+`boolean`
+
 ## Methods
 
 ### addBlockEntityUpdateListener
@@ -255,15 +312,12 @@ ___
 
 ▸ **addChunkInitListener**(`coords`, `listener`): () => `void`
 
-Add a listener to a chunk. This listener will be called when this chunk is loaded and ready to be rendered.
-This is useful for, for example, teleporting the player to the top of the chunk when the player just joined.
-
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2) | The chunk coordinates to listen to. |
-| `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` | The listener to add. |
+| Name | Type |
+| :------ | :------ |
+| `coords` | [`Coords2`](../modules.md#coords2) |
+| `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` |
 
 #### Returns
 
@@ -340,6 +394,12 @@ and draw it onto the block's texture atlas.
 
 `void`
 
+**`Deprecated`**
+
+When applying the same texture to multiple faces, use texture groups instead
+for better atlas efficiency. Define texture_group on the server-side block faces and use
+[applyTextureGroup](World.md#applytexturegroup) or [applyTextureGroups](World.md#applytexturegroups) on the client.
+
 ___
 
 ### applyBlockTextureAt
@@ -379,6 +439,45 @@ Apply multiple block textures at once. See [applyBlockTexture](World.md#applyblo
 
 A promise that resolves when all the textures are applied.
 
+**`Deprecated`**
+
+When applying the same texture to multiple faces, use texture groups instead
+for better atlas efficiency. Define texture_group on the server-side block faces and use
+[applyTextureGroup](World.md#applytexturegroup) or [applyTextureGroups](World.md#applytexturegroups) on the client.
+
+___
+
+### applyTextureGroup
+
+▸ **applyTextureGroup**(`groupName`, `source`): `any`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `groupName` | `string` |
+| `source` | `string` \| `Color` \| `Texture` \| `HTMLImageElement` |
+
+#### Returns
+
+`any`
+
+___
+
+### applyTextureGroups
+
+▸ **applyTextureGroups**(`data`): `Promise`\<`any`[]\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `data` | \{ `groupName`: `string` ; `source`: `string` \| `Color` \| `Texture` \| `HTMLImageElement`  }[] |
+
+#### Returns
+
+`Promise`\<`any`[]\>
+
 ___
 
 ### customizeBlockDynamic
@@ -390,7 +489,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `idOrName` | `string` \| `number` |
-| `fn` | (`pos`: [`Coords3`](../modules.md#coords3)) => \{ `aabbs`: `AABB`[] ; `faces`: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[] ; `isTransparent`: [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`]  } |
+| `fn` | (`pos`: [`Coords3`](../modules.md#coords3)) => \{ `aabbs`: `AABB`[] ; `faces`: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[] ; `isTransparent`: [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`]  } |
 
 #### Returns
 
@@ -477,7 +576,7 @@ ___
 
 ### getBlockAABBsForDynamicPatterns
 
-▸ **getBlockAABBsForDynamicPatterns**(`vx`, `vy`, `vz`, `dynamicPatterns`): `AABB`[]
+▸ **getBlockAABBsForDynamicPatterns**(`vx`, `vy`, `vz`, `dynamicPatterns`): \{ `aabb`: `AABB` ; `worldSpace`: `boolean`  }[]
 
 #### Parameters
 
@@ -490,7 +589,7 @@ ___
 
 #### Returns
 
-`AABB`[]
+\{ `aabb`: `AABB` ; `worldSpace`: `boolean`  }[]
 
 ___
 
@@ -533,6 +632,22 @@ Get the block type data by a block id.
 [`Block`](../modules.md#block)
 
 The block data for the given id, or null if it does not exist.
+
+___
+
+### getBlockByIdSafe
+
+▸ **getBlockByIdSafe**(`id`): [`Block`](../modules.md#block)
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `number` |
+
+#### Returns
+
+[`Block`](../modules.md#block)
 
 ___
 
@@ -594,7 +709,7 @@ ___
 
 ### getBlockFacesByFaceNames
 
-▸ **getBlockFacesByFaceNames**(`id`, `faceNames`, `warnUnknown?`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[]
+▸ **getBlockFacesByFaceNames**(`id`, `faceNames`, `warnUnknown?`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
 
 #### Parameters
 
@@ -606,13 +721,13 @@ ___
 
 #### Returns
 
-\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[]
+\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
 
 ___
 
 ### getBlockFacesForDynamicPatterns
 
-▸ **getBlockFacesForDynamicPatterns**(`blockId`, `dynamicPatterns`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[]
+▸ **getBlockFacesForDynamicPatterns**(`blockId`, `dynamicPatterns`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
 
 #### Parameters
 
@@ -623,7 +738,7 @@ ___
 
 #### Returns
 
-\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv)  }[]
+\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
 
 ___
 
@@ -728,7 +843,7 @@ ___
 
 ### getChunkStatus
 
-▸ **getChunkStatus**(`cx`, `cz`): ``"to request"`` \| ``"requested"`` \| ``"processing"`` \| ``"loaded"``
+▸ **getChunkStatus**(`cx`, `cz`): ``"requested"`` \| ``"processing"`` \| ``"loaded"`` \| ``"to request"``
 
 Get the status of a chunk.
 
@@ -741,7 +856,7 @@ Get the status of a chunk.
 
 #### Returns
 
-``"to request"`` \| ``"requested"`` \| ``"processing"`` \| ``"loaded"``
+``"requested"`` \| ``"processing"`` \| ``"loaded"`` \| ``"to request"``
 
 The status of the chunk.
 
@@ -787,6 +902,31 @@ used in [LightShined](LightShined.md).
 `Color`
 
 The voxel's light color at the given coordinate.
+
+___
+
+### getLightValuesAt
+
+▸ **getLightValuesAt**(`vx`, `vy`, `vz`): `Object`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `blue` | `number` |
+| `green` | `number` |
+| `red` | `number` |
+| `sunlight` | `number` |
 
 ___
 
@@ -852,6 +992,23 @@ Get a voxel sunlight by a 3D world position.
 `number`
 
 The voxel sunlight at the given position, or 0 if it does not exist.
+
+___
+
+### getTextureInfo
+
+▸ **getTextureInfo**(): `Object`
+
+#### Returns
+
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `sharedAtlas` | \{ `canvas`: `HTMLCanvasElement` ; `countPerSide`: `number`  } |
+| `sharedAtlas.canvas` | `HTMLCanvasElement` |
+| `sharedAtlas.countPerSide` | `number` |
+| `textures` | [`TextureInfo`](../modules.md#textureinfo)[] |
 
 ___
 
@@ -1009,7 +1166,7 @@ Get a mesh of the model of the given block.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `idOrName` | `string` \| `number` | - |
-| `options` | `Partial`\<\{ `centered`: `boolean` ; `crumbs`: `boolean` ; `material`: ``"basic"`` \| ``"standard"`` ; `separateFaces`: `boolean`  }\> | The options of creating this block mesh. |
+| `options` | `Partial`\<\{ `cached`: `boolean` ; `centered`: `boolean` ; `crumbs`: `boolean` ; `material`: ``"basic"`` \| ``"standard"`` ; `separateFaces`: `boolean`  }\> | The options of creating this block mesh. |
 
 #### Returns
 
@@ -1021,7 +1178,7 @@ ___
 
 ### meshChunkLocally
 
-▸ **meshChunkLocally**(`cx`, `cz`, `level`): `Promise`\<`void`\>
+▸ **meshChunkLocally**(`cx`, `cz`, `level`, `generation?`): `Promise`\<`void`\>
 
 #### Parameters
 
@@ -1030,6 +1187,7 @@ ___
 | `cx` | `number` |
 | `cz` | `number` |
 | `level` | `number` |
+| `generation?` | `number` |
 
 #### Returns
 
@@ -1186,6 +1344,24 @@ This drastically improves performance when many contiguous light sources are rem
 
 ___
 
+### renderShadowMaps
+
+▸ **renderShadowMaps**(`renderer`, `entities?`, `instancePools?`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `renderer` | `WebGLRenderer` |
+| `entities?` | `Object3D`\<`Object3DEventMap`\>[] |
+| `instancePools?` | `Group`\<`Object3DEventMap`\>[] |
+
+#### Returns
+
+`void`
+
+___
+
 ### setBlockEntityDataAt
 
 ▸ **setBlockEntityDataAt**(`px`, `py`, `pz`, `data`): `void`
@@ -1223,6 +1399,22 @@ Keep in mind that this face or faces must be independent.
 #### Returns
 
 `Promise`\<`void`\>
+
+___
+
+### setShowGreedyDebug
+
+▸ **setShowGreedyDebug**(`show`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `show` | `boolean` |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -1341,6 +1533,23 @@ ___
 
 ___
 
+### updateShaderLighting
+
+▸ **updateShaderLighting**(`camera`, `position`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `camera` | `Camera` |
+| `position` | `Vector3` |
+
+#### Returns
+
+`void`
+
+___
+
 ### updateSkyAndClouds
 
 ▸ **updateSkyAndClouds**(`position`): `void`
@@ -1362,7 +1571,7 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `options`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks) and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions) times
+World.chunks | World.chunks.toUpdate and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 - Rotation: [PX_ROTATION](../modules.md#px_rotation) | [NX_ROTATION](../modules.md#nx_rotation) | [PY_ROTATION](../modules.md#py_rotation) | [NY_ROTATION](../modules.md#ny_rotation) | [PZ_ROTATION](../modules.md#pz_rotation) | [NZ_ROTATION](../modules.md#nz_rotation)
 - Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments) - 1.
@@ -1395,7 +1604,7 @@ ___
 ▸ **updateVoxels**(`updates`, `source?`): `void`
 
 This sends a list of block updates to the server and updates across the network. Block updates are queued to
-[World.chunks.toUpdate](World.md#chunks) and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions) times
+World.chunks | World.chunks.toUpdate and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
 
 - Rotation: [PX_ROTATION](../modules.md#px_rotation) | [NX_ROTATION](../modules.md#nx_rotation) | [PY_ROTATION](../modules.md#py_rotation) | [NY_ROTATION](../modules.md#ny_rotation) | [PZ_ROTATION](../modules.md#pz_rotation) | [NZ_ROTATION](../modules.md#nz_rotation)

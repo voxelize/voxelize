@@ -112,6 +112,12 @@ ___
 
 ___
 
+### manualSpeed
+
+• **manualSpeed**: `boolean` = `false`
+
+___
+
 ### nametag
 
 • **nametag**: [`NameTag`](NameTag.md)
@@ -161,6 +167,12 @@ ___
 ### options
 
 • **options**: [`CreatureOptions`](../modules.md#creatureoptions)
+
+___
+
+### positionLerpOverride
+
+• **positionLerpOverride**: `number` = `null`
 
 ___
 
@@ -300,6 +312,16 @@ ___
 | :------ | :------ |
 | `position` | `number`[] |
 | `direction` | `number`[] |
+
+#### Returns
+
+`void`
+
+___
+
+### snapToTarget
+
+▸ **snapToTarget**(): `void`
 
 #### Returns
 

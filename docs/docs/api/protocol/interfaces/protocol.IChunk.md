@@ -25,7 +25,7 @@ ___
 
 ### lights
 
-• `Optional` **lights**: `number`[]
+• `Optional` **lights**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Chunk lights
 
@@ -41,7 +41,7 @@ ___
 
 ### voxels
 
-• `Optional` **voxels**: `number`[]
+• `Optional` **voxels**: `Uint8Array`\<`ArrayBufferLike`\>
 
 Chunk voxels
 

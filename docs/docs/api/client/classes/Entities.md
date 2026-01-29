@@ -93,14 +93,22 @@ ___
 
 ▸ **setClass**(`type`, `entity`): `void`
 
-Set a new entity type to the entities manager.
-
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
-| `type` | `string` | The type of entity to register. |
-| `entity` | (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> | The entity class to register. |
+| Name | Type |
+| :------ | :------ |
+| `type` | `string` |
+| `entity` | (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> |
+
+#### Returns
+
+`void`
+
+___
+
+### snapAllToTarget
+
+▸ **snapAllToTarget**(): `void`
 
 #### Returns
 
