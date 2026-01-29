@@ -738,8 +738,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private static readonly warmColor = new Color(1.0, 0.95, 0.9);
   private static readonly coolColor = new Color(0.9, 0.95, 1.0);
   private static readonly nightColor = new Color(0.15, 0.18, 0.25);
-  private static readonly fogWarmTint = new Color(0.92, 0.93, 0.88);
-  private static readonly dayAmbient = new Color(0.4, 0.42, 0.45);
+  private static readonly fogWarmTint = new Color(0.95, 0.88, 0.75);
+  private static readonly dayAmbient = new Color(0.42, 0.42, 0.43);
   private static readonly nightAmbient = new Color(0.08, 0.1, 0.15);
   private lightJobsCompleteResolvers: (() => void)[] = [];
   private activeLightBatch: LightBatch | null = null;
@@ -3856,7 +3856,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const fogColor = this.chunkRenderer.uniforms.fogColor.value;
     if (fogColor) {
-      fogColor.lerpColors(this.sky.uMiddleColor.value, World.fogWarmTint, 0.45);
+      fogColor.lerpColors(this.sky.uMiddleColor.value, World.fogWarmTint, 0.55);
     }
 
     if (this.usesShaderLighting) {

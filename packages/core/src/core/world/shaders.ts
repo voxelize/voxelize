@@ -258,7 +258,8 @@ outgoingLight *= aoFactor;
     float depth = sqrt(dot(fogDiff, fogDiff));
     float distFog = smoothstep(uFogNear, uFogFar, depth);
     float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWorldPosition.y));
-    float fogFactor = max(distFog, heightFog);
+    float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
+    float fogFactor = max(distFog, heightFog * heightDistScale);
 
     gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
     `
@@ -799,7 +800,8 @@ vec2 fogDiff = vWorldPosition.xz - cameraPosition.xz;
 float depth = sqrt(dot(fogDiff, fogDiff));
 float distFog = smoothstep(uFogNear, uFogFar, depth);
 float heightFog = 1.0 - exp(-uFogHeightDensity * max(0.0, uFogHeightOrigin - vWorldPosition.y));
-float fogFactor = max(distFog, heightFog);
+float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
+float fogFactor = max(distFog, heightFog * heightDistScale);
 
 gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
 `
