@@ -469,8 +469,8 @@ export type WorldClientOptions = {
 };
 
 const defaultOptions: WorldClientOptions = {
-  maxChunkRequestsPerUpdate: 16,
-  maxProcessesPerUpdate: 8,
+  maxChunkRequestsPerUpdate: 12,
+  maxProcessesPerUpdate: 4,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
@@ -762,7 +762,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private _deleteRadius = 0;
 
   private meshWorkerPool = new WorkerPool(MeshWorker, {
-    maxWorker: navigator.hardwareConcurrency ?? 4,
+    maxWorker: Math.min(navigator.hardwareConcurrency ?? 4, 4),
     name: "mesh-worker",
   });
 
