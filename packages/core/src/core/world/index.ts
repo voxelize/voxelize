@@ -5739,15 +5739,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       transparent: boolean,
       map: Texture,
       isFluid: boolean,
-      lightReduce: boolean
+      lightReduce: boolean,
+      transparentStandalone: boolean
     ) => {
       const mat = this.makeShaderMaterial();
 
       mat.side = transparent ? DoubleSide : FrontSide;
       mat.transparent = transparent;
       if (transparent) {
-        mat.depthWrite = isFluid ? false : true;
+        mat.depthWrite = !isFluid && transparentStandalone;
         mat.alphaTest = 0.1;
+        mat.uniforms.alphaTest.value = 0.1;
       }
       mat.map = map;
       mat.uniforms.map.value = map;
@@ -5781,7 +5783,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         block.isSeeThrough,
         atlas,
         block.isFluid,
-        block.lightReduce
+        block.lightReduce,
+        block.transparentStandalone
       );
       const key = this.makeChunkMaterialKey(block.id);
       this.chunkRenderer.materials.set(key, mat);
@@ -5793,7 +5796,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           block.isSeeThrough,
           AtlasTexture.makeUnknownTexture(textureUnitDimension),
           block.isFluid,
-          block.lightReduce
+          block.lightReduce,
+          block.transparentStandalone
         );
         const independentKey = this.makeChunkMaterialKey(block.id, face.name);
         this.chunkRenderer.materials.set(independentKey, independentMat);
