@@ -30,6 +30,7 @@ import {
   Scene,
   ShaderLib,
   ShaderMaterial,
+  Sphere,
   Texture,
   MathUtils as ThreeMathUtils,
   Uniform,
@@ -66,6 +67,53 @@ import {
   findSimilar,
   formatSuggestion,
 } from "../../utils";
+
+function computeNormalsFromBuffers(
+  positions: ArrayLike<number>,
+  indices: ArrayLike<number>
+): Float32Array {
+  const normals = new Float32Array(positions.length);
+  for (let i = 0; i < indices.length; i += 3) {
+    const ia = indices[i] * 3;
+    const ib = indices[i + 1] * 3;
+    const ic = indices[i + 2] * 3;
+    const e1x = positions[ib] - positions[ia];
+    const e1y = positions[ib + 1] - positions[ia + 1];
+    const e1z = positions[ib + 2] - positions[ia + 2];
+    const e2x = positions[ic] - positions[ia];
+    const e2y = positions[ic + 1] - positions[ia + 1];
+    const e2z = positions[ic + 2] - positions[ia + 2];
+    let nx = e1y * e2z - e1z * e2y;
+    let ny = e1z * e2x - e1x * e2z;
+    let nz = e1x * e2y - e1y * e2x;
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (len > 0) {
+      nx /= len;
+      ny /= len;
+      nz /= len;
+    }
+    normals[ia] = nx;
+    normals[ia + 1] = ny;
+    normals[ia + 2] = nz;
+    normals[ib] = nx;
+    normals[ib + 1] = ny;
+    normals[ib + 2] = nz;
+    normals[ic] = nx;
+    normals[ic + 1] = ny;
+    normals[ic + 2] = nz;
+  }
+  return normals;
+}
+
+function computeFlatNormals(geometry: BufferGeometry) {
+  const pos = (geometry.getAttribute("position") as BufferAttribute).array;
+  const idx = geometry.getIndex();
+  if (!idx || idx.count < 3) return;
+  geometry.setAttribute(
+    "normal",
+    new BufferAttribute(computeNormalsFromBuffers(pos, idx.array), 3)
+  );
+}
 
 import {
   Block,
@@ -422,7 +470,7 @@ export type WorldClientOptions = {
 
 const defaultOptions: WorldClientOptions = {
   maxChunkRequestsPerUpdate: 16,
-  maxProcessesPerUpdate: 4,
+  maxProcessesPerUpdate: 8,
   maxUpdatesPerUpdate: 1000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 8,
@@ -798,12 +846,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     }, 1000) as unknown as number;
   }
 
-  async meshChunkLocally(
+  private async dispatchMeshWorker(
     cx: number,
     cz: number,
-    level: number,
-    generation?: number
-  ) {
+    level: number
+  ): Promise<GeometryProtocol[] | null> {
     if (
       !this.options.shaderBasedLighting &&
       (this.lightJobQueue.length > 0 || this.activeLightBatch !== null)
@@ -829,7 +876,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const centerChunk = chunks[4];
     if (!centerChunk) {
-      return;
+      return null;
     }
 
     const { min, max } = centerChunk;
@@ -863,7 +910,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const name = ChunkUtils.getChunkName([cx, cz]);
     if (this.chunkPipeline.isInStage(name, "processing")) {
-      return;
+      return null;
     }
 
     const { geometries } = await new Promise<{
@@ -877,9 +924,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
 
     if (this.chunkPipeline.isInStage(name, "processing")) {
-      return;
+      return null;
     }
 
+    return geometries;
+  }
+
+  private applyMeshResult(
+    cx: number,
+    cz: number,
+    level: number,
+    geometries: GeometryProtocol[],
+    generation?: number
+  ) {
     const key = MeshPipeline.makeKey(cx, cz, level);
     const accepted =
       generation === undefined ||
@@ -913,6 +970,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         reason: "voxel",
       });
     }
+  }
+
+  async meshChunkLocally(
+    cx: number,
+    cz: number,
+    level: number,
+    generation?: number
+  ) {
+    const geometries = await this.dispatchMeshWorker(cx, cz, level);
+    if (!geometries) return;
+    this.applyMeshResult(cx, cz, level, geometries, generation);
   }
 
   /**
@@ -3005,7 +3073,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
       geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
       geometry.setIndex(indices);
-      geometry.computeVertexNormals();
+      computeFlatNormals(geometry);
       geometry.computeBoundingSphere();
       const mesh = new Mesh(geometry, material);
       mesh.name = identifier;
@@ -4082,7 +4150,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
-        geometry.computeVertexNormals();
+        if (geo.normals && geo.normals.length > 0) {
+          geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
+        } else {
+          computeFlatNormals(geometry);
+        }
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -4103,7 +4175,6 @@ export class World<T = any> extends Scene implements NetIntercept {
             continue;
           }
         }
-
         const matKey = this.makeChunkMaterialKey(
           voxel,
           faceName,
@@ -4189,8 +4260,19 @@ export class World<T = any> extends Scene implements NetIntercept {
         geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
         geometry.setAttribute("light", new BufferAttribute(lights, 1));
         geometry.setIndex(new BufferAttribute(indices, 1));
-        geometry.computeVertexNormals();
-        geometry.computeBoundingSphere();
+        if (geo.normals && geo.normals.length > 0) {
+          geometry.setAttribute("normal", new BufferAttribute(geo.normals, 3));
+        } else {
+          computeFlatNormals(geometry);
+        }
+        if (geo.bsCenter && geo.bsRadius !== undefined) {
+          geometry.boundingSphere = new Sphere(
+            new Vector3(geo.bsCenter[0], geo.bsCenter[1], geo.bsCenter[2]),
+            geo.bsRadius
+          );
+        } else {
+          geometry.computeBoundingSphere();
+        }
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -4217,7 +4299,6 @@ export class World<T = any> extends Scene implements NetIntercept {
             continue;
           }
         }
-
         const mesh = new Mesh(geometry, material);
         mesh.position.set(
           cx * chunkSize,
@@ -4977,23 +5058,43 @@ export class World<T = any> extends Scene implements NetIntercept {
     const dirtyKeys = this.meshPipeline.getDirtyKeys();
     if (dirtyKeys.length === 0) return;
 
-    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 4;
+    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
     const keysToProcess = dirtyKeys.slice(0, maxConcurrentMeshJobs);
 
-    const meshPromises = keysToProcess.map(async (key) => {
+    const workerPromises = keysToProcess.map((key) => {
       const { cx, cz, level } = MeshPipeline.parseKey(key);
       const generation = this.meshPipeline.startJob(key);
 
-      try {
-        await this.meshChunkLocally(cx, cz, level, generation);
-      } finally {
-        if (this.meshPipeline.needsRemesh(key)) {
-          this.scheduleDirtyChunkProcessing();
-        }
-      }
+      return this.dispatchMeshWorker(cx, cz, level).then(
+        (geometries) =>
+          ({
+            cx,
+            cz,
+            level,
+            generation,
+            key,
+            geometries,
+          } as const)
+      );
     });
 
-    await Promise.all(meshPromises);
+    const results = await Promise.all(workerPromises);
+
+    for (const result of results) {
+      if (result.geometries) {
+        this.applyMeshResult(
+          result.cx,
+          result.cz,
+          result.level,
+          result.geometries,
+          result.generation
+        );
+      }
+
+      if (this.meshPipeline.needsRemesh(result.key)) {
+        this.scheduleDirtyChunkProcessing();
+      }
+    }
 
     if (this.meshPipeline.hasDirtyChunks()) {
       this.scheduleDirtyChunkProcessing();
@@ -5006,8 +5107,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (scheduled) return;
       scheduled = true;
       requestAnimationFrame(() => {
-        scheduled = false;
-        this.processDirtyChunks();
+        requestAnimationFrame(() => {
+          scheduled = false;
+          this.processDirtyChunks();
+        });
       });
     };
   })();
