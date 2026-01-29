@@ -87,6 +87,71 @@ type GeometryProtocol = {
   lights: number[];
 };
 
+function workerComputeNormals(
+  positions: Float32Array,
+  indices: Uint16Array
+): Float32Array {
+  const normals = new Float32Array(positions.length);
+  for (let i = 0; i < indices.length; i += 3) {
+    const ia = indices[i] * 3;
+    const ib = indices[i + 1] * 3;
+    const ic = indices[i + 2] * 3;
+    const e1x = positions[ib] - positions[ia];
+    const e1y = positions[ib + 1] - positions[ia + 1];
+    const e1z = positions[ib + 2] - positions[ia + 2];
+    const e2x = positions[ic] - positions[ia];
+    const e2y = positions[ic + 1] - positions[ia + 1];
+    const e2z = positions[ic + 2] - positions[ia + 2];
+    let nx = e1y * e2z - e1z * e2y;
+    let ny = e1z * e2x - e1x * e2z;
+    let nz = e1x * e2y - e1y * e2x;
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (len > 0) {
+      nx /= len;
+      ny /= len;
+      nz /= len;
+    }
+    normals[ia] = nx;
+    normals[ia + 1] = ny;
+    normals[ia + 2] = nz;
+    normals[ib] = nx;
+    normals[ib + 1] = ny;
+    normals[ib + 2] = nz;
+    normals[ic] = nx;
+    normals[ic + 1] = ny;
+    normals[ic + 2] = nz;
+  }
+  return normals;
+}
+
+function workerComputeBoundingSphere(positions: Float32Array): {
+  center: [number, number, number];
+  radius: number;
+} {
+  const count = positions.length / 3;
+  if (count === 0) return { center: [0, 0, 0], radius: 0 };
+  let cx = 0,
+    cy = 0,
+    cz = 0;
+  for (let i = 0; i < positions.length; i += 3) {
+    cx += positions[i];
+    cy += positions[i + 1];
+    cz += positions[i + 2];
+  }
+  cx /= count;
+  cy /= count;
+  cz /= count;
+  let maxR2 = 0;
+  for (let i = 0; i < positions.length; i += 3) {
+    const dx = positions[i] - cx;
+    const dy = positions[i + 1] - cy;
+    const dz = positions[i + 2] - cz;
+    const r2 = dx * dx + dy * dy + dz * dz;
+    if (r2 > maxR2) maxR2 = r2;
+  }
+  return { center: [cx, cy, cz], radius: Math.sqrt(maxR2) };
+}
+
 let wasmInitialized = false;
 
 const minArray = new Int32Array(3);
@@ -167,24 +232,33 @@ onmessage = async function (e) {
   const arrayBuffers: ArrayBuffer[] = [];
   const geometriesPacked = geometries
     .map((geometry) => {
+      const positions = new Float32Array(geometry.positions);
+      const indices = new Uint16Array(geometry.indices.length);
+      for (let i = 0; i < geometry.indices.length; i++) {
+        indices[i] = geometry.indices[i];
+      }
+
+      const normals = workerComputeNormals(positions, indices);
+      const bs = workerComputeBoundingSphere(positions);
+
       const packedGeometry = {
-        indices: new Uint16Array(geometry.indices.length),
+        indices,
         lights: new Int32Array(geometry.lights),
-        positions: new Float32Array(geometry.positions),
+        positions,
         uvs: new Float32Array(geometry.uvs),
+        normals,
+        bsCenter: bs.center,
+        bsRadius: bs.radius,
         voxel: geometry.voxel,
         faceName: geometry.faceName,
         at: geometry.at,
       };
 
-      for (let i = 0; i < geometry.indices.length; i++) {
-        packedGeometry.indices[i] = geometry.indices[i];
-      }
-
       arrayBuffers.push(packedGeometry.indices.buffer);
       arrayBuffers.push(packedGeometry.lights.buffer);
       arrayBuffers.push(packedGeometry.positions.buffer);
       arrayBuffers.push(packedGeometry.uvs.buffer);
+      arrayBuffers.push(packedGeometry.normals.buffer as ArrayBuffer);
 
       return packedGeometry;
     })

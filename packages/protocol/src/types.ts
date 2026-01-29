@@ -6,6 +6,9 @@ export type GeometryProtocol = {
   uvs: Float32Array;
   indices: Uint32Array;
   lights: Uint32Array;
+  normals?: Float32Array;
+  bsCenter?: [number, number, number];
+  bsRadius?: number;
 };
 
 export type MeshProtocol = {
