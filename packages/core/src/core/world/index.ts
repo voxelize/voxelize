@@ -4150,16 +4150,18 @@ export class World<T = any> extends Scene implements NetIntercept {
           mesh.renderOrder = block?.isFluid
             ? TRANSPARENT_FLUID_RENDER_ORDER
             : TRANSPARENT_RENDER_ORDER;
-          const sortData = prepareTransparentMesh(mesh);
-          if (sortData) {
-            mesh.userData.transparentSortData = sortData;
-            mesh.onBeforeRender = (_renderer, _scene, camera) => {
-              sortTransparentMesh(
-                mesh,
-                mesh.userData.transparentSortData as TransparentMeshData,
-                camera
-              );
-            };
+          if (!material.depthWrite) {
+            const sortData = prepareTransparentMesh(mesh);
+            if (sortData) {
+              mesh.userData.transparentSortData = sortData;
+              mesh.onBeforeRender = (_renderer, _scene, camera) => {
+                sortTransparentMesh(
+                  mesh,
+                  mesh.userData.transparentSortData as TransparentMeshData,
+                  camera
+                );
+              };
+            }
           }
           this.csmRenderer?.addSkipShadowObject(mesh);
         }
@@ -4221,16 +4223,18 @@ export class World<T = any> extends Scene implements NetIntercept {
           mesh.renderOrder = block?.isFluid
             ? TRANSPARENT_FLUID_RENDER_ORDER
             : TRANSPARENT_RENDER_ORDER;
-          const sortData = prepareTransparentMesh(mesh);
-          if (sortData) {
-            mesh.userData.transparentSortData = sortData;
-            mesh.onBeforeRender = (_renderer, _scene, camera) => {
-              sortTransparentMesh(
-                mesh,
-                mesh.userData.transparentSortData as TransparentMeshData,
-                camera
-              );
-            };
+          if (!material.depthWrite) {
+            const sortData = prepareTransparentMesh(mesh);
+            if (sortData) {
+              mesh.userData.transparentSortData = sortData;
+              mesh.onBeforeRender = (_renderer, _scene, camera) => {
+                sortTransparentMesh(
+                  mesh,
+                  mesh.userData.transparentSortData as TransparentMeshData,
+                  camera
+                );
+              };
+            }
           }
           this.csmRenderer?.addSkipShadowObject(mesh);
         }
