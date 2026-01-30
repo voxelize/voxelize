@@ -663,7 +663,8 @@ vec3 sampleLightVolume() {
 
 float shadow = getShadow();
 
-float NdotL = max(dot(vWorldNormal, uSunDirection), 0.0);
+float rawNdotL = dot(vWorldNormal, uSunDirection);
+float NdotL = max(rawNdotL * 0.85 + 0.15, 0.0);
 float sunExposure = vLight.a;
 
 vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity;
@@ -687,8 +688,7 @@ float isBrightTex = smoothstep(0.75, 0.95, texLuma);
 float aoFactor = mix(vAO, 1.0, vIsFluid * 0.8);
 float torchDominance = torchBrightness / (torchBrightness + dot(sunContribution, vec3(0.33)) + 0.01);
 float torchAOReduction = torchDominance * 0.3;
-float enhancedAO = mix(aoFactor, aoFactor * aoFactor, isBrightTex * 0.5);
-enhancedAO = mix(enhancedAO, 1.0, torchAOReduction);
+float enhancedAO = mix(aoFactor, 1.0, torchAOReduction);
 
 vec3 sunTotal = skyAmbient * ambientOcclusion * tunnelDarkening;
 vec3 reducedSun = sunContribution * mix(1.0, 0.7, isBrightTex);

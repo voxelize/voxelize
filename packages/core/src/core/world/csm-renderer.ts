@@ -434,7 +434,7 @@ export class CSMRenderer {
 
   markCascadesForEntityRender() {
     this.entityShadowFrameCounter++;
-    this.shouldRenderEntityShadows = this.entityShadowFrameCounter % 3 === 0;
+    this.shouldRenderEntityShadows = this.entityShadowFrameCounter % 1 === 0;
     if (!this.shouldRenderEntityShadows) {
       return;
     }
