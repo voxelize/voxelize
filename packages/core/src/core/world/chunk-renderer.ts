@@ -64,7 +64,7 @@ export class ChunkRenderer {
     fogHeightDensity: { value: 0.005 },
     windDirection: { value: new Vector2(0.7, 0.7) },
     windSpeed: { value: 1.0 },
-    ao: { value: new Vector4(100.0, 170.0, 210.0, 255.0) },
+    ao: { value: new Vector4(140.0, 185.0, 220.0, 255.0) },
     minLightLevel: { value: 0 },
     baseAmbient: { value: 0.001 },
     sunlightIntensity: { value: 1 },
