@@ -437,6 +437,7 @@ uniform float uWaterLevel;
 
 uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
+uniform float uShadowDebugMode;
 
 varying float vAO;
 varying float vIsFluid;
@@ -542,10 +543,10 @@ float getShadow() {
 
   float sunExposure = vLight.a;
   if (sunExposure < 0.05) {
-    return 1.0;
+    return mix(1.0, 0.0, uShadowStrength);
   }
 
-  float slopeBias = 0.005 * (1.0 - NdotL);
+  float slopeBias = max(0.005 * (1.0 - NdotL), 0.001);
   float blendRegion = 0.1;
 
   float rawShadow;
@@ -674,8 +675,7 @@ float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
 vec3 torchLight = sampleLightVolume() + smoothTorch * 1.2;
 
 float ambientOcclusion = mix(0.5, 1.0, shadow);
-float inTunnel = step(sunExposure, 0.1);
-float tunnelDarkening = mix(1.0, mix(0.25, 1.0, sunExposure * 2.0), inTunnel);
+float tunnelDarkening = 1.0;
 
 float hemisphereBlend = vWorldNormal.y * 0.5 + 0.5;
 vec3 groundColor = uAmbientColor * 0.4;
@@ -804,6 +804,35 @@ float heightDistScale = smoothstep(uFogNear * 0.3, uFogFar * 0.6, depth);
 float fogFactor = max(distFog, heightFog * heightDistScale);
 
 gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+
+if (uShadowDebugMode > 0.5) {
+  if (uShadowDebugMode < 1.5) {
+    gl_FragColor.rgb = vec3(shadow);
+  } else if (uShadowDebugMode < 2.5) {
+    float debugNdotL = max(dot(vWorldNormal, uSunDirection), 0.0);
+    gl_FragColor.rgb = vec3(debugNdotL);
+  } else if (uShadowDebugMode < 3.5) {
+    gl_FragColor.rgb = vec3(vAO);
+  } else if (uShadowDebugMode < 4.5) {
+    if (vViewDepth < uCascadeSplit0) {
+      gl_FragColor.rgb = vec3(1.0, 0.0, 0.0);
+    } else if (vViewDepth < uCascadeSplit1) {
+      gl_FragColor.rgb = vec3(0.0, 1.0, 0.0);
+    } else if (vViewDepth < uCascadeSplit2) {
+      gl_FragColor.rgb = vec3(0.0, 0.0, 1.0);
+    } else {
+      gl_FragColor.rgb = vec3(1.0, 1.0, 0.0);
+    }
+  } else if (uShadowDebugMode < 5.5) {
+    float debugNdotL2 = dot(vWorldNormal, uSunDirection);
+    float debugSlopeBias = max(0.005 * (1.0 - debugNdotL2), 0.001);
+    gl_FragColor.rgb = vec3(debugSlopeBias * 100.0);
+  } else if (uShadowDebugMode < 6.5) {
+    gl_FragColor.rgb = vec3(sunExposure);
+  } else if (uShadowDebugMode < 7.5) {
+    gl_FragColor.rgb = vec3(tunnelDarkening);
+  }
+}
 `
     ),
 };

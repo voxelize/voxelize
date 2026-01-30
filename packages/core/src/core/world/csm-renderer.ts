@@ -11,7 +11,7 @@ import {
   RGBADepthPacking,
   Scene,
   Texture,
-  UnsignedShortType,
+  UnsignedIntType,
   Vector3,
   WebGLRenderTarget,
   WebGLRenderer,
@@ -86,7 +86,7 @@ export class CSMRenderer {
   private initCascades() {
     const { cascades, shadowMapSize, maxShadowDistance } = this.config;
 
-    const lambda = 0.5;
+    const lambda = 2.0;
     const splits: number[] = [];
 
     for (let i = 0; i <= cascades; i++) {
@@ -101,7 +101,7 @@ export class CSMRenderer {
       const renderTarget = new WebGLRenderTarget(size, size, {
         depthTexture: new DepthTexture(size, size),
       });
-      renderTarget.depthTexture.type = UnsignedShortType;
+      renderTarget.depthTexture.type = UnsignedIntType;
 
       const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
 
