@@ -1247,7 +1247,12 @@ impl World {
             loader(self, metadata.to_owned()).build()
         })) {
             Ok(ent) => {
-                self.populate_entity(ent, id, etype, metadata);
+                self.populate_entity(ent, id, etype, metadata.clone());
+
+                if let Some(pos) = metadata.get::<PositionComp>("position") {
+                    set_position(self.ecs_mut(), ent, pos.0 .0, pos.0 .1, pos.0 .2);
+                }
+
                 Some(ent)
             }
             Err(e) => {
