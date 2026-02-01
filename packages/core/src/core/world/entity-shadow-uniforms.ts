@@ -22,6 +22,7 @@ export interface EntityShadowUniforms {
   uShadowStrength: IUniform<number>;
   uSunlightIntensity: IUniform<number>;
   uSunDirection: IUniform<Vector3>;
+  uWorldOffset: IUniform<Vector3>;
 }
 
 export function createEntityShadowUniforms(): EntityShadowUniforms {
@@ -39,6 +40,7 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uShadowStrength: { value: 1.0 },
     uSunlightIntensity: { value: 1.0 },
     uSunDirection: { value: new Vector3(0.5, 1.0, 0.3).normalize() },
+    uWorldOffset: { value: new Vector3(0, 0, 0) },
   };
 }
 
@@ -65,6 +67,7 @@ export const ENTITY_SHADOW_VERTEX_PARS = `
 uniform mat4 uShadowMatrix0;
 uniform mat4 uShadowMatrix1;
 uniform mat4 uShadowMatrix2;
+uniform vec3 uWorldOffset;
 
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
@@ -73,11 +76,11 @@ varying float vViewDepth;
 `;
 
 export const ENTITY_SHADOW_VERTEX_MAIN = `
-vec4 worldPos4 = vec4(worldPosition.xyz, 1.0);
-vShadowCoord0 = uShadowMatrix0 * worldPos4;
-vShadowCoord1 = uShadowMatrix1 * worldPos4;
-vShadowCoord2 = uShadowMatrix2 * worldPos4;
-vec4 viewPos = viewMatrix * worldPos4;
+vec4 shadowWorldPos = vec4(worldPosition.xyz + uWorldOffset, 1.0);
+vShadowCoord0 = uShadowMatrix0 * shadowWorldPos;
+vShadowCoord1 = uShadowMatrix1 * shadowWorldPos;
+vShadowCoord2 = uShadowMatrix2 * shadowWorldPos;
+vec4 viewPos = viewMatrix * vec4(worldPosition.xyz, 1.0);
 vViewDepth = -viewPos.z;
 `;
 
@@ -109,9 +112,6 @@ float getEntityShadow(vec3 worldNormal) {
     return 1.0;
   }
 
-  float NdotL = dot(normalize(worldNormal), normalize(uSunDirection));
-  // Large fixed bias to prevent self-shadowing on small entities like characters
-  // This ensures entity doesn't shadow itself while still receiving terrain shadows
   float bias = uShadowBias + 0.05;
   float blendRegion = 0.1;
 
@@ -149,7 +149,7 @@ float getEntityShadow(vec3 worldNormal) {
     return 1.0;
   }
 
-  float shadow = mix(1.0, rawShadow, effectiveStrength);
-  return max(shadow, 0.4);
+  float shadow = mix(1.0, rawShadow, effectiveStrength * 0.65);
+  return max(shadow, 0.6);
 }
 `;

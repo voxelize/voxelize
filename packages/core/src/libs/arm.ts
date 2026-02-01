@@ -2,6 +2,11 @@ import * as THREE from "three";
 
 import { Inputs } from "../core/inputs";
 import {
+  createEntityShadowUniforms,
+  ENTITY_SHADOW_FRAGMENT_PARS,
+  ENTITY_SHADOW_VERTEX_MAIN,
+  ENTITY_SHADOW_VERTEX_PARS,
+  EntityShadowUniforms,
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
@@ -123,6 +128,8 @@ export class Arm extends THREE.Group {
   private targetArmY = 0;
   private currentArmObject: THREE.Object3D | null = null;
 
+  private heldObjectShadowUniforms: EntityShadowUniforms[] = [];
+
   emitSwingEvent: () => void;
 
   constructor(options: Partial<ArmOptions> = {}) {
@@ -171,14 +178,27 @@ export class Arm extends THREE.Group {
     this.setArm();
   }
 
-  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
+  updateShadowUniforms(
+    lightingUniforms: ShaderLightingUniforms,
+    playerWorldPosition?: THREE.Vector3
+  ): void {
     if (!this.options.receiveShadows) return;
 
     this.traverse((child) => {
       if (child instanceof CanvasBox && child.shadowUniforms) {
         updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
+        if (playerWorldPosition) {
+          child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
+        }
       }
     });
+
+    for (const uniforms of this.heldObjectShadowUniforms) {
+      updateEntityShadowUniforms(uniforms, lightingUniforms);
+      if (playerWorldPosition) {
+        uniforms.uWorldOffset.value.copy(playerWorldPosition);
+      }
+    }
   }
 
   /**
@@ -249,6 +269,8 @@ export class Arm extends THREE.Group {
   };
 
   private setArm = () => {
+    this.heldObjectShadowUniforms = [];
+
     const arm = new CanvasBox({
       width: 0.5,
       height: 1,
@@ -296,6 +318,8 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(this.options.blockObjectOptions?.quaternion);
 
+    this.injectShadowShaders(object);
+
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -318,6 +342,8 @@ export class Arm extends THREE.Group {
     );
     object.quaternion.multiply(options.quaternion);
 
+    this.injectShadowShaders(object);
+
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.customSwingClips[type]);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -326,6 +352,63 @@ export class Arm extends THREE.Group {
     this.add(object);
     this.currentArmObject = object;
   };
+
+  private injectShadowShaders(object: THREE.Object3D): void {
+    if (!this.options.receiveShadows) return;
+
+    this.heldObjectShadowUniforms = [];
+
+    object.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+
+      for (const material of materials) {
+        if (!(material instanceof THREE.MeshBasicMaterial)) continue;
+
+        const shadowUniforms = createEntityShadowUniforms();
+        this.heldObjectShadowUniforms.push(shadowUniforms);
+
+        material.onBeforeCompile = (shader) => {
+          Object.assign(shader.uniforms, shadowUniforms);
+
+          shader.vertexShader = shader.vertexShader
+            .replace(
+              "#include <uv_pars_vertex>",
+              `#include <uv_pars_vertex>
+${ENTITY_SHADOW_VERTEX_PARS}
+`
+            )
+            .replace(
+              "#include <worldpos_vertex>",
+              `#include <worldpos_vertex>
+vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
+${ENTITY_SHADOW_VERTEX_MAIN}
+`
+            );
+
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              "#include <common>",
+              `#include <common>
+${ENTITY_SHADOW_FRAGMENT_PARS}
+`
+            )
+            .replace(
+              "#include <dithering_fragment>",
+              `#include <dithering_fragment>
+float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
+gl_FragColor.rgb *= shadow;
+`
+            );
+        };
+
+        material.onBeforeCompile.toString = () => "held-object-shadow-shader";
+        material.needsUpdate = true;
+      }
+    });
+  }
 
   /**
    *

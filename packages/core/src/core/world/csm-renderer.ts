@@ -141,7 +141,7 @@ export class CSMRenderer {
     }
 
     if (index === 0) {
-      return cameraMovement > 0.3;
+      return true;
     }
 
     if (index === 1) {
