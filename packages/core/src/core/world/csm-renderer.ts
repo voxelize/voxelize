@@ -338,6 +338,23 @@ export class CSMRenderer {
       }
     }
 
+    if (entities) {
+      for (const entity of entities) {
+        entity.traverse((child) => {
+          if (
+            child !== entity &&
+            child.visible &&
+            "material" in child &&
+            (child as { material: { userData?: { skipShadow?: boolean } } })
+              .material?.userData?.skipShadow === true
+          ) {
+            hiddenObjects.push({ object: child, visible: true });
+            child.visible = false;
+          }
+        });
+      }
+    }
+
     const poolOriginalMaterials: Map<
       Object3D,
       THREE.Material | THREE.Material[]
