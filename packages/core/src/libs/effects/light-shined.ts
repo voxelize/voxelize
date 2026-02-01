@@ -61,6 +61,8 @@ export class LightShined {
    */
   public ignored: Set<any> = new Set();
 
+  private positionOverrides = new Map<Object3D, Vector3>();
+
   /**
    * Construct a light shined effect manager.
    *
@@ -105,17 +107,14 @@ export class LightShined {
     });
   };
 
-  /**
-   * Ignore a certain type of object from being affected by this effect.
-   *
-   * @example
-   * ```ts
-   * // Ignore all shadows. (This is done by default)
-   * lightShined.ignore(VOXELIZE.Shadow);
-   * ```
-   *
-   * @param types A type or a list of types to be ignored by this effect.
-   */
+  setPositionOverride = (obj: Object3D, position: Vector3) => {
+    this.positionOverrides.set(obj, position);
+  };
+
+  clearPositionOverride = (obj: Object3D) => {
+    this.positionOverrides.delete(obj);
+  };
+
   ignore = (...types: any[]) => {
     types.forEach((type) => {
       this.ignored.add(type);
@@ -247,7 +246,12 @@ export class LightShined {
     }
 
     if (color === null) {
-      obj.getWorldPosition(position);
+      const override = this.positionOverrides.get(obj);
+      if (override) {
+        position.copy(override);
+      } else {
+        obj.getWorldPosition(position);
+      }
 
       if (this.world.usesShaderLighting) {
         color = this.computeShaderBasedLight(position);
