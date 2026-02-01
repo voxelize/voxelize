@@ -610,8 +610,23 @@ impl Handler<Connect> for Server {
             return MessageResult(id);
         }
 
-        if self.lost_sessions.contains_key(&id) {
-            return MessageResult(nanoid!());
+        let kick_msg = encode_message(
+            &Message::new(&MessageType::Error)
+                .text("Another session connected with your account.")
+                .build(),
+        );
+
+        if let Some(old_sender) = self.lost_sessions.remove(&id) {
+            info!("Kicking duplicate pre-join session: {}", id);
+            let _ = old_sender.send(kick_msg.clone());
+        }
+
+        if let Some((old_sender, world_name)) = self.connections.remove(&id) {
+            info!("Kicking duplicate in-world session: {}", id);
+            let _ = old_sender.send(kick_msg);
+            if let Some(world) = self.worlds.get_mut(&world_name) {
+                world.do_send(ClientLeaveRequest { id: id.clone() });
+            }
         }
 
         self.lost_sessions.insert(id.to_owned(), msg.sender);

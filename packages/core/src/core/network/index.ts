@@ -70,6 +70,8 @@ export class Network {
 
   public onDisconnect: () => void;
 
+  public disconnectReason = "";
+
   private pool: WorkerPool = new WorkerPool(DecodeWorker, {
     maxWorker: window.navigator.hardwareConcurrency || 4,
     name: "decode-worker",
@@ -130,6 +132,7 @@ export class Network {
     }
 
     this.useWebRTC = options.useWebRTC ?? false;
+    this.disconnectReason = "";
 
     this.url = new DOMUrl(serverURL);
     this.url.protocol = this.url.protocol.replace(/ws/, "http");
@@ -414,6 +417,9 @@ export class Network {
       this.rtc = null;
     }
 
+    this.connected = false;
+    this.onDisconnect?.();
+
     if (this.reconnection) {
       clearTimeout(this.reconnection);
     }
@@ -452,6 +458,7 @@ export class Network {
     if (type === "ERROR") {
       const { text } = message;
       console.error("[NETWORK] Received ERROR:", text);
+      this.disconnectReason = text || "";
       this.disconnect();
       this.waitingForInit = false;
       this.joinReject?.(text);
