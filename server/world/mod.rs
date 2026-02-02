@@ -184,6 +184,8 @@ pub struct World {
     entity_loaders:
         HashMap<String, Arc<dyn Fn(&mut World, MetadataComp) -> EntityBuilder + Send + Sync>>,
 
+    extra_init_data: HashMap<String, serde_json::Value>,
+
     addr: Option<Addr<SyncWorld>>,
 
     server_addr: Option<Addr<Server>>,
@@ -555,6 +557,7 @@ impl World {
             client_modifier: None,
             transport_handle: None,
             command_handle: None,
+            extra_init_data: HashMap::default(),
             addr: None,
             server_addr: None,
         };
@@ -619,7 +622,11 @@ impl World {
             }
 
             if to_update.is_empty() {
-                log::warn!("No entity found with ID: {} or voxel: {:?}", payload.id, payload.voxel);
+                log::warn!(
+                    "No entity found with ID: {} or voxel: {:?}",
+                    payload.id,
+                    payload.voxel
+                );
                 return;
             }
 
@@ -957,6 +964,10 @@ impl World {
         handle: F,
     ) {
         self.command_handle = Some(Arc::new(handle));
+    }
+
+    pub fn set_extra_init_data(&mut self, key: &str, value: serde_json::Value) {
+        self.extra_init_data.insert(key.to_owned(), value);
     }
 
     pub fn set_entity_loader<
@@ -1766,6 +1777,10 @@ impl World {
             "stats".to_owned(),
             json!(self.read_resource::<Stats>().get_stats()),
         );
+
+        for (key, value) in &self.extra_init_data {
+            json.insert(key.clone(), value.clone());
+        }
 
         /* ------------------------ Loading other the clients ----------------------- */
         let ids = self.read_component::<IDComp>();

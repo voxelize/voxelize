@@ -101,6 +101,10 @@ export class ItemSlot<T = number> {
 
   public subscriptElement: HTMLDivElement;
 
+  public durabilityElement: HTMLDivElement;
+
+  public durabilityBarElement: HTMLDivElement;
+
   public subscript: string;
 
   public content: T;
@@ -123,6 +127,28 @@ export class ItemSlot<T = number> {
     this.element = document.createElement("div");
     this.subscriptElement = document.createElement("div");
     this.element.appendChild(this.subscriptElement);
+
+    this.durabilityElement = document.createElement("div");
+    this.durabilityBarElement = document.createElement("div");
+    this.durabilityElement.appendChild(this.durabilityBarElement);
+    this.element.appendChild(this.durabilityElement);
+
+    DOMUtils.applyStyles(this.durabilityElement, {
+      position: "absolute",
+      left: "4px",
+      right: "4px",
+      bottom: "4px",
+      height: "2px",
+      background: "rgba(0, 0, 0, 0.4)",
+      display: "none",
+      zIndex: "1",
+      borderRadius: "1px",
+    });
+    DOMUtils.applyStyles(this.durabilityBarElement, {
+      height: "100%",
+      background: "#22c55e",
+      borderRadius: "1px",
+    });
 
     this.offset = new Vector3();
 
@@ -183,6 +209,17 @@ export class ItemSlot<T = number> {
     this.subscript = subscript;
     this.subscriptElement.innerText = subscript;
     this.triggerChange();
+  };
+
+  setDurability = (pct: number | null) => {
+    if (pct === null) {
+      this.durabilityElement.style.display = "none";
+      return;
+    }
+    this.durabilityElement.style.display = "block";
+    this.durabilityBarElement.style.width = `${
+      Math.max(0, Math.min(1, pct)) * 100
+    }%`;
   };
 
   triggerChange = () => {

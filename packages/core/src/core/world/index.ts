@@ -746,6 +746,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private initialData: any = null;
   private initialEntities: any = null;
 
+  public extraInitData: Record<string, unknown> = {};
+
   /**
    * The internal time in seconds.
    */
@@ -3181,7 +3183,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    const { blocks, options, stats } = this.initialData;
+    const { blocks, options, stats, ...extra } = this.initialData;
+    this.extraInitData = extra;
 
     this._time = stats.time;
 
