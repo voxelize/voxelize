@@ -455,6 +455,7 @@ struct BuiltInUpdateBlockEntityMethodPayload {
     id: String,
     json: String,
     is_partial: Option<bool>,
+    voxel: Option<[i32; 3]>,
 }
 
 impl World {
@@ -609,7 +610,16 @@ impl World {
             drop((entities, ids));
 
             if to_update.is_empty() {
-                log::warn!("No entity found with ID: {}", payload.id);
+                if let Some(voxel) = payload.voxel {
+                    let voxel_key = Vec3(voxel[0], voxel[1], voxel[2]);
+                    if let Some(&entity) = world.chunks().block_entities.get(&voxel_key) {
+                        to_update.push(entity);
+                    }
+                }
+            }
+
+            if to_update.is_empty() {
+                log::warn!("No entity found with ID: {} or voxel: {:?}", payload.id, payload.voxel);
                 return;
             }
 

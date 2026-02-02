@@ -1913,6 +1913,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.blockEntitiesMap.get(voxelName)?.data || null;
   }
 
+  getBlockEntityIdAt(px: number, py: number, pz: number): string | null {
+    this.checkIsInitialized("get block entity id", false);
+
+    const vx = Math.floor(px);
+    const vy = Math.floor(py);
+    const vz = Math.floor(pz);
+    const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+
+    return this.blockEntitiesMap.get(voxelName)?.id || null;
+  }
+
   setBlockEntityDataAt(px: number, py: number, pz: number, data: T) {
     this.checkIsInitialized("set block entity data", false);
 
