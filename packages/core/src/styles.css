@@ -26,22 +26,34 @@
   z-index: -1;
   background: #141414;
   border-style: solid;
-  border-color: var(--item-slots-slot-color);
+  border-top-color: #353535;
+  border-left-color: #353535;
+  border-bottom-color: #0e0e0e;
+  border-right-color: #0e0e0e;
   transition: 100ms ease-in-out;
-  box-shadow: none !important;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.04),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.3);
 }
 
 .item-slots-slot-hover {
-  box-shadow: none !important;
   background: #1e1e1e;
-  border-color: var(--item-slots-slot-color-hover);
+  border-top-color: #454545;
+  border-left-color: #454545;
+  border-bottom-color: #151515;
+  border-right-color: #151515;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.06),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.25);
   transform: scale(1.06);
 }
 
 .item-slots-slot-focus {
-  box-shadow: none !important;
   background: #252525;
-  border-color: var(--item-slots-slot-color-focus);
+  border-top-color: #555555;
+  border-left-color: #555555;
+  border-bottom-color: #1a1a1a;
+  border-right-color: #1a1a1a;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.08),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.2);
   transform: scale(1.1);
 }
 

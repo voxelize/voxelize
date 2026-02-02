@@ -1,5 +1,6 @@
 import merge from "deepmerge";
 import {
+  AmbientLight,
   DirectionalLight,
   Mesh,
   MeshBasicMaterial,
@@ -125,7 +126,8 @@ export class ItemSlot<T = number> {
 
     this.offset = new Vector3();
 
-    this.light = new DirectionalLight(0xffffff, 3);
+    this.scene.add(new AmbientLight(0xffffff, 0.35));
+    this.light = new DirectionalLight(0xffffff, 2.5);
     this.scene.add(this.light);
 
     this.updateCamera();
