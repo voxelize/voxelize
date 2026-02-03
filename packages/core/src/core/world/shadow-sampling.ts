@@ -12,6 +12,13 @@ const vec2 SHADOW_POISSON_DISK[8] = vec2[8](
 `;
 
 export const SHADOW_SAMPLE_FUNCTIONS = `
+float shadowMapEdgeFade(vec3 coord) {
+  float fadeWidth = 0.08;
+  float fx = smoothstep(0.0, fadeWidth, coord.x) * smoothstep(0.0, fadeWidth, 1.0 - coord.x);
+  float fy = smoothstep(0.0, fadeWidth, coord.y) * smoothstep(0.0, fadeWidth, 1.0 - coord.y);
+  return fx * fy;
+}
+
 float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float bias) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
@@ -28,7 +35,8 @@ float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float bias) {
   shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, 1.0)).r) ? 0.0 : 1.0;
   shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, 1.0)).r) ? 0.0 : 1.0;
 
-  return shadow / 5.0;
+  shadow /= 5.0;
+  return mix(1.0, shadow, shadowMapEdgeFade(coord));
 }
 
 float sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {
@@ -74,6 +82,7 @@ float sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {
     shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
   }
 
-  return shadow / 9.0;
+  shadow /= 9.0;
+  return mix(1.0, shadow, shadowMapEdgeFade(coord));
 }
 `;

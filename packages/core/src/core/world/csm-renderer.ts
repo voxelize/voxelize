@@ -35,7 +35,7 @@ interface Cascade {
 
 const defaultConfig: CSMConfig = {
   cascades: 3,
-  shadowMapSize: 2048,
+  shadowMapSize: 4096,
   maxShadowDistance: 128,
   shadowBias: 0.002,
   shadowNormalBias: 0.02,
@@ -96,7 +96,7 @@ export class CSMRenderer {
     }
 
     for (let i = 0; i < cascades; i++) {
-      const size = i < cascades - 1 ? shadowMapSize : shadowMapSize / 2;
+      const size = shadowMapSize;
 
       const renderTarget = new WebGLRenderTarget(size, size, {
         depthTexture: new DepthTexture(size, size),
@@ -226,6 +226,7 @@ export class CSMRenderer {
     this.frustumCenter.set(0, 0, 0);
 
     const far = farSplit;
+    const yScale = 0.3 + 0.7 * (index / (this.cascades.length - 1));
 
     mainCamera.getWorldDirection(this.frustumCameraDir);
 
@@ -236,7 +237,7 @@ export class CSMRenderer {
           const corner = this.cornerPool[cornerIdx++];
           corner.copy(playerPosition);
           corner.x += x * far;
-          corner.y += y * far * 0.3;
+          corner.y += y * far * yScale;
           corner.z += z * far;
           this.frustumCenter.add(corner);
         }
@@ -387,7 +388,29 @@ export class CSMRenderer {
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
 
+      const hiddenEntities: { object: Object3D; visible: boolean }[] = [];
+      if (i >= 2 && entities) {
+        for (const entity of entities) {
+          if (entity.visible) {
+            hiddenEntities.push({ object: entity, visible: true });
+            entity.visible = false;
+          }
+        }
+      }
+      if (i >= 2 && instancePools) {
+        for (const pool of instancePools) {
+          if (pool.visible) {
+            hiddenEntities.push({ object: pool, visible: true });
+            pool.visible = false;
+          }
+        }
+      }
+
       renderer.render(scene, cascade.camera);
+
+      for (const { object, visible } of hiddenEntities) {
+        object.visible = visible;
+      }
 
       if (
         this.shouldRenderEntityShadows &&

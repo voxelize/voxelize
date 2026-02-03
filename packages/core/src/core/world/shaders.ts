@@ -452,6 +452,14 @@ varying vec4 vShadowCoord2;
 
 ${SIMPLEX_NOISE_GLSL}
 
+float shadowMapEdgeFade(vec3 coord) {
+  float fadeWidth = 0.08;
+  float fx = smoothstep(0.0, fadeWidth, coord.x) * smoothstep(0.0, fadeWidth, 1.0 - coord.x);
+  float fy = smoothstep(0.0, fadeWidth, coord.y) * smoothstep(0.0, fadeWidth, 1.0 - coord.y);
+  return fx * fy;
+}
+
+
 float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   vec3 coord = shadowCoord.xyz / shadowCoord.w;
   coord = coord * 0.5 + 0.5;
@@ -469,7 +477,8 @@ float sampleShadowMapFast(sampler2D shadowMap, vec4 shadowCoord, float slopeBias
   shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(-1.0, 1.0)).r) ? 0.0 : 1.0;
   shadow += (coord.z - bias > texture(shadowMap, coord.xy + texelSize * vec2(1.0, 1.0)).r) ? 0.0 : 1.0;
 
-  return shadow / 5.0;
+  shadow /= 5.0;
+  return mix(1.0, shadow, shadowMapEdgeFade(coord));
 }
 
 const vec2 POISSON_DISK[8] = vec2[8](
@@ -494,41 +503,20 @@ float sampleShadowMap(sampler2D shadowMap, vec4 shadowCoord, float slopeBias) {
   float bias = uShadowBias + slopeBias;
   vec2 texelSize = vec2(1.0) / vec2(textureSize(shadowMap, 0));
 
-  float blockerSum = 0.0;
-  float blockerCount = 0.0;
-  float searchRadius = 3.0;
-  for (int i = 0; i < 4; i++) {
-    vec2 offset = POISSON_DISK[i * 2] * texelSize * searchRadius;
-    float sampleDepth = texture(shadowMap, coord.xy + offset).r;
-    if (sampleDepth < coord.z - bias) {
-      blockerSum += sampleDepth;
-      blockerCount += 1.0;
+  float shadow = 0.0;
+  float totalWeight = 0.0;
+  for (int x = -2; x <= 2; x++) {
+    for (int y = -2; y <= 2; y++) {
+      float weight = (3.0 - abs(float(x))) * (3.0 - abs(float(y)));
+      vec2 offset = vec2(float(x), float(y)) * texelSize;
+      float depth = texture(shadowMap, coord.xy + offset).r;
+      shadow += weight * ((coord.z - bias > depth) ? 0.0 : 1.0);
+      totalWeight += weight;
     }
   }
 
-  if (blockerCount < 0.5) {
-    return 1.0;
-  }
-
-  float avgBlockerDepth = blockerSum / blockerCount;
-  float penumbraSize = (coord.z - avgBlockerDepth) / avgBlockerDepth;
-  float filterRadius = clamp(penumbraSize * 2.0, 1.0, 3.0);
-
-  float spatialNoise = fract(sin(dot(coord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-  float temporalOffset = fract(uTime * 6.18033988749895e-05);
-  float angle = (spatialNoise + temporalOffset) * 6.283185;
-  float s = sin(angle);
-  float c = cos(angle);
-  mat2 rotation = mat2(c, -s, s, c);
-
-  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
-  for (int i = 0; i < 8; i++) {
-    vec2 offset = rotation * POISSON_DISK[i] * texelSize * filterRadius;
-    float depth = texture(shadowMap, coord.xy + offset).r;
-    shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
-  }
-
-  return shadow / 9.0;
+  shadow /= totalWeight;
+  return mix(1.0, shadow, shadowMapEdgeFade(coord));
 }
 
 float getShadow() {

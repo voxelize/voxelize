@@ -113,40 +113,17 @@ float getEntityShadow(vec3 worldNormal) {
   }
 
   float bias = uShadowBias + 0.05;
-  float blendRegion = 0.1;
 
-  float rawShadow;
-  if (vViewDepth < uCascadeSplit0) {
-    float shadow0 = sampleShadowMapPCSS(uShadowMap0, vShadowCoord0, bias);
-    float blendStart = uCascadeSplit0 * (1.0 - blendRegion);
-    if (vViewDepth > blendStart) {
-      float shadow1 = sampleShadowMapPCSS(uShadowMap1, vShadowCoord1, bias * 1.5);
-      float t = (vViewDepth - blendStart) / (uCascadeSplit0 - blendStart);
-      rawShadow = mix(shadow0, shadow1, t);
-    } else {
-      rawShadow = shadow0;
-    }
-  } else if (vViewDepth < uCascadeSplit1) {
-    float shadow1 = sampleShadowMapPCSS(uShadowMap1, vShadowCoord1, bias * 1.5);
-    float blendStart = uCascadeSplit1 * (1.0 - blendRegion);
-    if (vViewDepth > blendStart) {
-      float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, bias * 2.0);
-      float t = (vViewDepth - blendStart) / (uCascadeSplit1 - blendStart);
-      rawShadow = mix(shadow1, shadow2, t);
-    } else {
-      rawShadow = shadow1;
-    }
-  } else if (vViewDepth < uCascadeSplit2) {
-    float shadow2 = sampleShadowMapFast(uShadowMap2, vShadowCoord2, bias * 2.0);
-    float fadeStart = uCascadeSplit2 * (1.0 - blendRegion);
-    if (vViewDepth > fadeStart) {
-      float t = (vViewDepth - fadeStart) / (uCascadeSplit2 - fadeStart);
-      rawShadow = mix(shadow2, 1.0, t);
-    } else {
-      rawShadow = shadow2;
-    }
-  } else {
+  float rawShadow = sampleShadowMapPCSS(uShadowMap0, vShadowCoord0, bias);
+
+  float maxEntityDist = uCascadeSplit1;
+  if (vViewDepth > maxEntityDist) {
     return 1.0;
+  }
+  float fadeStart = maxEntityDist * 0.7;
+  if (vViewDepth > fadeStart) {
+    float t = (vViewDepth - fadeStart) / (maxEntityDist - fadeStart);
+    rawShadow = mix(rawShadow, 1.0, t);
   }
 
   float shadow = mix(1.0, rawShadow, effectiveStrength * 0.65);
