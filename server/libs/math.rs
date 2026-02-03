@@ -13,7 +13,6 @@ pub fn round(n: f32, digits: i32) -> f32 {
     (n * scale).round() / scale
 }
 
-/// Whether or not is a number within a range.
 pub fn between(x: f32, a: f32, b: f32) -> bool {
     x >= a && x <= b
 }

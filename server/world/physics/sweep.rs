@@ -137,43 +137,49 @@ pub fn sweep(
     let &Vec3(vx, vy, vz) = velocity;
     let mag = (vx * vx + vy * vy + vz * vz).sqrt();
 
-    // Calculate the broadphase of the target
+    // Calculate the broadphase of the target (with -1/+1 padding to match client)
     let min_x = (if vx > 0.0 {
         target.min_x
     } else {
         target.min_x + vx
     })
-    .floor();
+    .floor()
+        - 1.0;
     let min_y = (if vy > 0.0 {
         target.min_y
     } else {
         target.min_y + vy
     })
-    .floor();
+    .floor()
+        - 1.0;
     let min_z = (if vz > 0.0 {
         target.min_z
     } else {
         target.min_z + vz
     })
-    .floor();
+    .floor()
+        - 1.0;
     let max_x = (if vx > 0.0 {
         target.max_x + vx
     } else {
         target.max_x
     })
-    .floor();
+    .floor()
+        + 1.0;
     let max_y = (if vy > 0.0 {
         target.max_y + vy
     } else {
         target.max_y
     })
-    .floor();
+    .floor()
+        + 1.0;
     let max_z = (if vz > 0.0 {
         target.max_z + vz
     } else {
         target.max_z
     })
-    .floor();
+    .floor()
+        + 1.0;
 
     let mut closest = SweepResults {
         h: 1.0,
@@ -204,7 +210,6 @@ pub fn sweep(
                     block_aabb.translate(vx as f32, vy as f32, vz as f32);
                     let result = sweep_aabb(target, &block_aabb, &velocity);
 
-                    // Check if this collision is closer than the closest so far
                     if result.h < closest.h {
                         closest = result;
                     }
