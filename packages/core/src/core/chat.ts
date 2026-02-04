@@ -18,6 +18,7 @@ export type CommandOptions<
   aliases?: string[];
   flags?: string[];
   args?: T;
+  tabComplete?: Partial<Record<keyof z.infer<T>, () => string[]>>;
 };
 
 /**
@@ -34,6 +35,7 @@ export type CommandInfo<
   aliases: string[];
   flags: string[];
   args: T;
+  tabComplete: Partial<Record<string, () => string[]>>;
 };
 
 /**
@@ -45,6 +47,7 @@ export type ArgMetadata = {
   required: boolean;
   options?: string[];
   defaultValue?: string | number | boolean;
+  tabComplete?: () => string[];
 };
 
 /**
@@ -172,6 +175,39 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     });
   }
 
+  private splitQuotedTokens(raw: string): string[] {
+    const tokens: string[] = [];
+    let current = "";
+    let quoteChar: string | null = null;
+
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+
+      if (quoteChar) {
+        if (ch === quoteChar) {
+          quoteChar = null;
+        } else {
+          current += ch;
+        }
+      } else if (ch === '"' || ch === "'") {
+        quoteChar = ch;
+      } else if (ch === " ") {
+        if (current) {
+          tokens.push(current);
+          current = "";
+        }
+      } else {
+        current += ch;
+      }
+    }
+
+    if (current) {
+      tokens.push(current);
+    }
+
+    return tokens;
+  }
+
   private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
     raw: string,
     schema: T
@@ -183,7 +219,7 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       return schema.parse({ rest: raw });
     }
 
-    const words = raw.split(" ").filter(Boolean);
+    const words = this.splitQuotedTokens(raw);
     const rawObj: Record<string, string> = {};
     const keySet = new Set(keys);
     const assignedKeys = new Set<string>();
@@ -326,6 +362,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       aliases: options.aliases || [],
       flags: options.flags || [],
       args: (options.args ?? Chat.emptySchema) as T,
+      tabComplete:
+        (options.tabComplete as Partial<Record<string, () => string[]>>) ?? {},
     };
 
     this.commands.set(
@@ -451,7 +489,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
   }
 
   private extractArgMetadata(
-    schema: ZodObject<Record<string, ZodTypeAny>> | undefined
+    schema: ZodObject<Record<string, ZodTypeAny>> | undefined,
+    tabComplete?: Partial<Record<string, () => string[]>>
   ): ArgMetadata[] {
     if (!schema) {
       return [];
@@ -483,6 +522,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         innerType = innerType.unwrap();
       }
 
+      const tc = tabComplete?.[name];
+
       if (this.isEnumSchema(innerType)) {
         result.push({
           name,
@@ -490,13 +531,32 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
           required,
           options: innerType.options as string[],
           defaultValue,
+          tabComplete: tc,
         });
       } else if (this.isBooleanSchema(innerType)) {
-        result.push({ name, type: "boolean", required, defaultValue });
+        result.push({
+          name,
+          type: "boolean",
+          required,
+          defaultValue,
+          tabComplete: tc,
+        });
       } else if (this.isNumberSchema(innerType)) {
-        result.push({ name, type: "number", required, defaultValue });
+        result.push({
+          name,
+          type: "number",
+          required,
+          defaultValue,
+          tabComplete: tc,
+        });
       } else {
-        result.push({ name, type: "string", required, defaultValue });
+        result.push({
+          name,
+          type: "string",
+          required,
+          defaultValue,
+          tabComplete: tc,
+        });
       }
     }
 
@@ -543,7 +603,9 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         category: commandInfo.category,
         aliases: commandInfo.aliases,
         flags: commandInfo.flags,
-        args: commandInfo.args ? this.extractArgMetadata(commandInfo.args) : [],
+        args: commandInfo.args
+          ? this.extractArgMetadata(commandInfo.args, commandInfo.tabComplete)
+          : [],
       });
     });
 
