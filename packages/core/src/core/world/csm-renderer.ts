@@ -35,7 +35,7 @@ interface Cascade {
 
 const defaultConfig: CSMConfig = {
   cascades: 3,
-  shadowMapSize: 4096,
+  shadowMapSize: 2048,
   maxShadowDistance: 128,
   shadowBias: 0.002,
   shadowNormalBias: 0.02,
