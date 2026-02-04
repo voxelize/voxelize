@@ -127,6 +127,7 @@ import { Chunk } from "./chunk";
 import { ChunkRenderer } from "./chunk-renderer";
 import { Clouds, CloudsOptions } from "./clouds";
 import { CSMRenderer } from "./csm-renderer";
+import { ItemDef, ItemRegistry } from "./items";
 import { LightSourceRegistry } from "./light-registry";
 import { LightVolume } from "./light-volume";
 import { Loader } from "./loader";
@@ -148,6 +149,7 @@ export * from "./chunk-renderer";
 export * from "./clouds";
 export * from "./csm-renderer";
 export * from "./entity-shadow-uniforms";
+export * from "./items";
 export * from "./light-registry";
 export * from "./light-volume";
 export * from "./loader";
@@ -632,6 +634,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The block registry that holds all block data, such as texture and block properties.
    */
   public registry: Registry;
+
+  /**
+   * The item registry that holds all item definitions and provides utility methods for item operations.
+   */
+  public items: ItemRegistry;
 
   /**
    * An asset loader to load in things like textures, images, GIFs and audio buffers.
@@ -3183,12 +3190,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    const { blocks, options, stats, ...extra } = this.initialData;
+    const { blocks, items, options, stats, ...extra } = this.initialData;
     this.extraInitData = extra;
 
     this._time = stats.time;
 
-    // Loading the registry
+    // Loading the items registry
+    if (items && Array.isArray(items)) {
+      this.items.initialize(items as ItemDef[]);
+    }
+
+    // Loading the block registry
     Object.keys(blocks).forEach((name) => {
       const block = blocks[name];
       const { id, aabbs, isDynamic } = block;
@@ -4380,6 +4392,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { skyOptions, cloudsOptions } = this.options;
 
     this.registry = new Registry();
+    this.items = new ItemRegistry();
+    this.items.setWorld(this);
     this.loader = new Loader();
     this.chunkPipeline = new ChunkPipeline();
     this.meshPipeline = new MeshPipeline();

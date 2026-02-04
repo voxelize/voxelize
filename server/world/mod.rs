@@ -188,6 +188,8 @@ pub struct World {
 
     extra_init_data: HashMap<String, serde_json::Value>,
 
+    items: Option<ItemRegistry>,
+
     addr: Option<Addr<SyncWorld>>,
 
     server_addr: Option<Addr<Server>>,
@@ -560,6 +562,7 @@ impl World {
             transport_handle: None,
             command_handle: None,
             extra_init_data: HashMap::default(),
+            items: None,
             addr: None,
             server_addr: None,
         };
@@ -970,6 +973,14 @@ impl World {
 
     pub fn set_extra_init_data(&mut self, key: &str, value: serde_json::Value) {
         self.extra_init_data.insert(key.to_owned(), value);
+    }
+
+    pub fn set_item_registry(&mut self, registry: ItemRegistry) {
+        self.items = Some(registry);
+    }
+
+    pub fn item_registry(&self) -> Option<&ItemRegistry> {
+        self.items.as_ref()
     }
 
     pub fn set_entity_loader<
@@ -1779,6 +1790,10 @@ impl World {
             "stats".to_owned(),
             json!(self.read_resource::<Stats>().get_stats()),
         );
+
+        if let Some(items) = &self.items {
+            json.insert("items".to_owned(), items.to_client_json());
+        }
 
         for (key, value) in &self.extra_init_data {
             json.insert(key.clone(), value.clone());
