@@ -12,6 +12,7 @@ import {
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
 import {
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Camera,
@@ -3115,6 +3116,87 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     return group;
+  };
+
+  makeBlockFragments = (idOrName: number | string, count: number): Group[] => {
+    this.checkIsInitialized("make block fragments", false);
+
+    if (!idOrName) return [];
+
+    const block = this.getBlockOf(idOrName);
+    if (!block) return [];
+
+    let { faces } = block;
+    const { dynamicPatterns } = block;
+
+    if (dynamicPatterns && dynamicPatterns.length > 0) {
+      faces = this.getBlockFacesForDynamicPatterns(block.id, dynamicPatterns);
+    }
+
+    if (faces.length === 0) return [];
+
+    const fragments: Group[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const face = faces[Math.floor(Math.random() * faces.length)];
+      const { range, name } = face;
+
+      const chunkMat = face.isolated
+        ? {
+            map: AtlasTexture.makeUnknownTexture(
+              this.options.textureUnitDimension
+            ),
+          }
+        : this.getBlockFaceMaterial(block.id, name);
+
+      const uRange = range.endU - range.startU;
+      const vRange = range.endV - range.startV;
+      const patchFraction = 0.25;
+      const patchU = uRange * patchFraction;
+      const patchV = vRange * patchFraction;
+      const u0 = range.startU + Math.random() * (uRange - patchU);
+      const v0 = range.startV + Math.random() * (vRange - patchV);
+      const u1 = u0 + patchU;
+      const v1 = v0 + patchV;
+
+      const w = 0.04 + Math.random() * 0.08;
+      const h = 0.04 + Math.random() * 0.08;
+      const d = 0.04 + Math.random() * 0.08;
+      const geo = new BoxGeometry(w, h, d);
+
+      const uvAttr = geo.getAttribute("uv") as BufferAttribute;
+      for (let j = 0; j < uvAttr.count; j++) {
+        uvAttr.setXY(
+          j,
+          u0 + uvAttr.getX(j) * (u1 - u0),
+          v0 + uvAttr.getY(j) * (v1 - v0)
+        );
+      }
+      uvAttr.needsUpdate = true;
+
+      const posAttr = geo.getAttribute("position") as BufferAttribute;
+      const jitter = 0.015;
+      for (let j = 0; j < posAttr.count; j++) {
+        posAttr.setXYZ(
+          j,
+          posAttr.getX(j) + (Math.random() - 0.5) * jitter,
+          posAttr.getY(j) + (Math.random() - 0.5) * jitter,
+          posAttr.getZ(j) + (Math.random() - 0.5) * jitter
+        );
+      }
+      posAttr.needsUpdate = true;
+
+      geo.computeVertexNormals();
+      geo.computeBoundingSphere();
+
+      const mat = new MeshBasicMaterial({ map: chunkMat?.map });
+      const mesh = new Mesh(geo, mat);
+      const group = new Group();
+      group.add(mesh);
+      fragments.push(group);
+    }
+
+    return fragments;
   };
 
   customizeMaterialShaders = (
