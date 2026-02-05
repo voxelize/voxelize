@@ -656,7 +656,7 @@ float rawNdotL = dot(vWorldNormal, uSunDirection);
 float NdotL = max(rawNdotL * 0.85 + 0.15, 0.0);
 float sunExposure = vLight.a;
 
-vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity;
+vec3 sunContribution = uSunColor * NdotL * shadow * uSunlightIntensity * sunExposure;
 
 vec3 cpuTorchLight = vLight.rgb;
 vec3 smoothTorch = cpuTorchLight * cpuTorchLight * (3.0 - 2.0 * cpuTorchLight);
@@ -664,7 +664,7 @@ float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);
 vec3 torchLight = sampleLightVolume() + smoothTorch * 1.2;
 
 float ambientOcclusion = mix(0.5, 1.0, shadow);
-float tunnelDarkening = 1.0;
+float tunnelDarkening = sunExposure * sunExposure;
 
 float hemisphereBlend = vWorldNormal.y * 0.5 + 0.5;
 vec3 groundColor = uAmbientColor * 0.4;
