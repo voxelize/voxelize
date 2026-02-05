@@ -81,7 +81,10 @@ pub struct Chunks {
 
     pub block_entities: HashMap<Vec3<i32>, Entity>,
 
-    /// A copy of the world's config.
+    pub(crate) freshly_created: HashSet<Vec2<i32>>,
+
+    pub newly_generated: Vec<Vec2<i32>>,
+
     config: WorldConfig,
 
     /// The folder to store the chunks.

@@ -178,6 +178,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     },
                 );
 
+                chunks.freshly_created.insert(coords.to_owned());
                 chunks.renew(new_chunk, false);
             }
 
@@ -300,6 +301,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
 
             chunk.status = ChunkStatus::Ready;
             let is_updating = r#type == MessageType::Update;
+
+            if r#type == MessageType::Load && chunks.freshly_created.remove(&chunk.coords) {
+                chunks.newly_generated.push(chunk.coords.to_owned());
+            }
 
             chunks.add_chunk_to_send(&chunk.coords, &r#type, false);
 
