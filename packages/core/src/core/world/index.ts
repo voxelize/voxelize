@@ -3528,7 +3528,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const data: T | null = metadata.json ?? null;
 
-      const originalData = this.blockEntitiesMap.get(voxelId) ?? [];
+      const originalData = this.blockEntitiesMap.get(voxelId) ?? null;
       this.blockEntityUpdateListeners.forEach((listener) => {
         const chunkCoords = ChunkUtils.mapVoxelToChunk(
           [vx, vy, vz],
@@ -3536,32 +3536,25 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         const chunkName = ChunkUtils.getChunkName(chunkCoords);
         const chunk = this.chunkPipeline.getLoadedChunk(chunkName);
-        // very iffy if statement. the intention is to check if chunk is
-        // mesh-initialized.
-        if (!chunk || chunk.meshes.size === 0) {
-          const unbind = this.addChunkInitListener(chunkCoords, () => {
-            listener({
-              id,
-              voxel: [vx, vy, vz],
-              oldValue: (originalData as any)?.data ?? null,
-              newValue: data as T | null,
-              operation,
-              etype: type,
-            });
-            unbind();
-          });
-
-          return;
-        }
-
-        listener({
+        const updateData: BlockEntityUpdateData<T> = {
           id,
           voxel: [vx, vy, vz],
-          oldValue: (originalData as any)?.data ?? null,
+          oldValue: originalData?.data ?? null,
           newValue: data as T | null,
           operation,
           etype: type,
-        });
+        };
+
+        if (!this.isChunkReadyForEntityUpdates(chunk)) {
+          this.deferBlockEntityUpdateUntilChunkReady(
+            listener,
+            chunkCoords,
+            updateData
+          );
+          return;
+        }
+
+        listener(updateData);
       });
 
       switch (operation) {
@@ -3845,6 +3838,52 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
+  private isChunkReadyForEntityUpdates(
+    chunk: Chunk | undefined
+  ): chunk is Chunk {
+    return !!chunk && chunk.meshes.size > 0;
+  }
+
+  private deferBlockEntityUpdateUntilChunkReady(
+    listener: BlockEntityUpdateListener<T>,
+    chunkCoords: Coords2,
+    updateData: BlockEntityUpdateData<T>
+  ) {
+    let isResolved = false;
+    let unbind = () => {};
+    const fallbackTimeout = window.setTimeout(() => {
+      if (isResolved) return;
+      isResolved = true;
+      unbind();
+      listener(updateData);
+    }, 3000);
+
+    unbind = this.addChunkInitListener(chunkCoords, (chunk) => {
+      if (isResolved || !this.isChunkReadyForEntityUpdates(chunk)) return;
+      isResolved = true;
+      window.clearTimeout(fallbackTimeout);
+      listener(updateData);
+      unbind();
+    });
+  }
+
+  private pruneBlockEntitiesInChunk(chunkCoords: Coords2) {
+    const [chunkX, chunkZ] = chunkCoords;
+    const startX = chunkX * this.options.chunkSize;
+    const startZ = chunkZ * this.options.chunkSize;
+    const endX = startX + this.options.chunkSize;
+    const endZ = startZ + this.options.chunkSize;
+
+    for (let vx = startX; vx < endX; vx++) {
+      for (let vz = startZ; vz < endZ; vz++) {
+        for (let vy = 0; vy < this.options.maxHeight; vy++) {
+          const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
+          this.blockEntitiesMap.delete(voxelName);
+        }
+      }
+    }
+  }
+
   private maintainChunks(center: Coords2) {
     const { deleteRadius } = this;
 
@@ -3876,6 +3915,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           allMeshes: new Map(chunk.meshes),
         });
 
+        this.pruneBlockEntitiesInChunk(chunk.coords);
         chunk.dispose();
         this.meshPipeline.remove(x, z);
         toRemove.push(name);
