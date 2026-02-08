@@ -103,6 +103,8 @@ pub struct WorldConfig {
 
     /// Whether to use shader-based lighting instead of CPU light propagation. Default is false.
     pub shader_based_lighting: bool,
+
+    pub entity_visible_radius: f32,
 }
 
 impl Default for WorldConfig {
@@ -189,6 +191,7 @@ pub struct WorldConfigBuilder {
     save_entities: bool,
     greedy_meshing: bool,
     shader_based_lighting: bool,
+    entity_visible_radius: f32,
 }
 
 impl WorldConfigBuilder {

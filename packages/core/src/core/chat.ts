@@ -231,6 +231,12 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
       if (this.isOptionalSchema(innerType)) {
         innerType = innerType.unwrap();
       }
+      if (this.hasDefault(innerType)) {
+        const def = (
+          innerType as ZodTypeAny & { _def: { innerType: ZodTypeAny } }
+        )._def;
+        innerType = def.innerType;
+      }
       if (this.isBooleanSchema(innerType)) {
         booleanKeys.add(key);
       }
@@ -469,7 +475,8 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     if (!trueResult.success || !falseResult.success) return false;
     if (trueResult.data !== true || falseResult.data !== false) return false;
     const stringResult = schema.safeParse("not_a_boolean_string_xyz");
-    return !stringResult.success;
+    if (!stringResult.success) return true;
+    return stringResult.data === true;
   }
 
   private hasDefault(schema: ZodTypeAny): boolean {
