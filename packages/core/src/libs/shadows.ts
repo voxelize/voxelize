@@ -210,4 +210,19 @@ export class Shadows extends Array<Shadow> {
     object.add(shadow);
     this.push(shadow);
   };
+
+  /**
+   * Remove the shadow from an object and stop tracking it.
+   *
+   * @param object The object to remove the shadow from.
+   */
+  remove = (object: Object3D) => {
+    for (let i = this.length - 1; i >= 0; i--) {
+      const shadow = this[i];
+      if (shadow.parent === object) {
+        object.remove(shadow);
+        this.splice(i, 1);
+      }
+    }
+  };
 }
