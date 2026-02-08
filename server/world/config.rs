@@ -231,6 +231,7 @@ impl WorldConfigBuilder {
             save_entities: true,
             greedy_meshing: DEFAULT_GREEDY_MESHING,
             shader_based_lighting: DEFAULT_SHADER_BASED_LIGHTING,
+            entity_visible_radius: 0.0,
         }
     }
 
@@ -409,6 +410,11 @@ impl WorldConfigBuilder {
         self
     }
 
+    pub fn entity_visible_radius(mut self, entity_visible_radius: f32) -> Self {
+        self.entity_visible_radius = entity_visible_radius;
+        self
+    }
+
     /// Create a world configuration.
     pub fn build(self) -> WorldConfig {
         // Make sure there are still chunks in the world.
@@ -458,6 +464,11 @@ impl WorldConfigBuilder {
             save_entities: self.save_entities,
             greedy_meshing: self.greedy_meshing,
             shader_based_lighting: self.shader_based_lighting,
+            entity_visible_radius: if self.entity_visible_radius > 0.0 {
+                self.entity_visible_radius
+            } else {
+                24.0 * self.chunk_size as f32
+            },
         }
     }
 }

@@ -66,8 +66,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         self.entity_updates_buffer.clear();
         self.new_entity_ids_buffer.clear();
 
-        let entity_visible_radius =
-            (config.max_chunks_per_tick as f32) * (config.chunk_size as f32);
+        let entity_visible_radius = config.entity_visible_radius;
 
         let mut new_entity_handlers = HashMap::new();
 
