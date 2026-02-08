@@ -1,5 +1,5 @@
 import { MessageProtocol } from "@voxelize/protocol";
-import { Group } from "three";
+import { Group, Vector3 } from "three";
 
 import { NetIntercept } from "./network";
 
@@ -19,6 +19,8 @@ export class Entity<T = any> extends Group {
   onDelete: (data: T) => void;
 
   update?: () => void;
+
+  setHidden?: (hidden: boolean) => void;
 }
 
 /**
@@ -131,8 +133,18 @@ export class Entities extends Group implements NetIntercept {
    */
   getEntityById = (id: string) => this.map.get(id);
 
-  update = () => {
+  update = (cameraPos?: Vector3, renderDistance?: number) => {
+    const renderDistSq =
+      cameraPos && renderDistance ? renderDistance * renderDistance : 0;
+
     this.map.forEach((entity) => {
+      if (renderDistSq > 0 && cameraPos && entity.setHidden) {
+        const tooFar =
+          entity.position.distanceToSquared(cameraPos) > renderDistSq;
+        entity.setHidden(tooFar);
+        if (tooFar) return;
+      }
+
       entity.update?.();
     });
   };
