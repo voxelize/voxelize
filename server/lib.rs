@@ -109,7 +109,7 @@ async fn handle_ws_connection(
 ) {
     let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
-    let session_id = match server
+    let (session_id, connection_token) = match server
         .send(Connect {
             id: if initial_id.is_empty() {
                 None
@@ -121,7 +121,7 @@ async fn handle_ws_connection(
         })
         .await
     {
-        Ok(id) => id,
+        Ok(result) => result,
         Err(e) => {
             warn!("[WS] Failed to register session: {:?}", e);
             let _ = session.close(None).await;
@@ -188,7 +188,10 @@ async fn handle_ws_connection(
         }
     }
 
-    server.do_send(Disconnect { id: session_id });
+    server.do_send(Disconnect {
+        id: session_id,
+        token: connection_token,
+    });
     let _ = session.close(None).await;
 }
 

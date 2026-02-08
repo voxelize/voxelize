@@ -53,7 +53,7 @@ fn default_info_handle(server: &Server) -> Value {
 
     let mut connections = HashMap::new();
 
-    for (id, (_, world)) in server.connections.iter() {
+    for (id, (_, world, _)) in server.connections.iter() {
         connections.insert(id.to_owned(), json!(world));
     }
 
@@ -188,13 +188,15 @@ pub struct Server {
     pub registry: Registry,
 
     /// Session IDs and senders who haven't connected to a world.
-    pub lost_sessions: HashMap<String, WsSender>,
+    /// Value: (sender, connection_token)
+    pub lost_sessions: HashMap<String, (WsSender, String)>,
 
     /// Transport sessions, not connected to any particular world.
     pub transport_sessions: HashMap<String, WsSender>,
 
     /// What world each client ID is connected to, client ID <-> world ID.
-    pub connections: HashMap<String, (WsSender, String)>,
+    /// Value: (sender, world_name, connection_token)
+    pub connections: HashMap<String, (WsSender, String, String)>,
 
     /// The information sent to the client when requested.
     info_handle: ServerInfoHandle,
@@ -296,13 +298,14 @@ impl Server {
             }
 
             if let Some(world) = self.worlds.get_mut(&json.world) {
-                if let Some(sender) = self.lost_sessions.remove(id) {
+                if let Some((sender, token)) = self.lost_sessions.remove(id) {
                     world.do_send(ClientJoinRequest {
                         id: id.to_owned(),
                         username: json.username,
                         sender: sender.clone(),
                     });
-                    self.connections.insert(id.to_owned(), (sender, json.world));
+                    self.connections
+                        .insert(id.to_owned(), (sender, json.world, token));
                     return None;
                 }
 
@@ -315,8 +318,9 @@ impl Server {
             ));
         } else if data.r#type == MessageType::Leave as i32 {
             if let Some(world) = self.worlds.get_mut(&data.text) {
-                if let Some((sender, _)) = self.connections.remove(id) {
-                    self.lost_sessions.insert(id.to_owned(), sender);
+                if let Some((sender, _, token)) = self.connections.remove(id) {
+                    self.lost_sessions
+                        .insert(id.to_owned(), (sender, token));
 
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
@@ -368,7 +372,7 @@ impl Server {
             return Some("You are not connected to a world!".to_owned());
         }
 
-        let (_, world_name) = connection.unwrap().to_owned();
+        let (_, world_name, _) = connection.unwrap().to_owned();
 
         if let Some(world) = self.get_world_mut(&world_name) {
             world.do_send(ClientRequest {
@@ -533,9 +537,9 @@ impl Server {
     }
 }
 
-/// New chat session is created
+/// New chat session is created. Returns (client_id, connection_token).
 #[derive(ActixMessage)]
-#[rtype(result = "String")]
+#[rtype(result = "(String, String)")]
 pub struct Connect {
     pub id: Option<String>,
     pub is_transport: bool,
@@ -547,6 +551,9 @@ pub struct Connect {
 #[rtype(result = "()")]
 pub struct Disconnect {
     pub id: String,
+    /// The connection token assigned when this session was created.
+    /// Used to distinguish stale disconnects from kicked sessions.
+    pub token: String,
 }
 
 #[derive(ActixMessage)]
@@ -586,7 +593,8 @@ impl Actor for Server {
 
 /// Handler for Connect message.
 ///
-/// Register new session and assign unique id to this session
+/// Register new session and assign unique id to this session.
+/// Returns (client_id, connection_token).
 impl Handler<Connect> for Server {
     type Result = MessageResult<Connect>;
 
@@ -596,6 +604,8 @@ impl Handler<Connect> for Server {
         } else {
             msg.id.unwrap()
         };
+
+        let token = nanoid!();
 
         if msg.is_transport {
             self.worlds.values_mut().for_each(|world| {
@@ -607,7 +617,7 @@ impl Handler<Connect> for Server {
 
             self.transport_sessions.insert(id.to_owned(), msg.sender);
 
-            return MessageResult(id);
+            return MessageResult((id, token));
         }
 
         let kick_msg = encode_message(
@@ -616,12 +626,12 @@ impl Handler<Connect> for Server {
                 .build(),
         );
 
-        if let Some(old_sender) = self.lost_sessions.remove(&id) {
+        if let Some((old_sender, _old_token)) = self.lost_sessions.remove(&id) {
             info!("Kicking duplicate pre-join session: {}", id);
             let _ = old_sender.send(kick_msg.clone());
         }
 
-        if let Some((old_sender, world_name)) = self.connections.remove(&id) {
+        if let Some((old_sender, world_name, _old_token)) = self.connections.remove(&id) {
             info!("Kicking duplicate in-world session: {}", id);
             let _ = old_sender.send(kick_msg);
             if let Some(world) = self.worlds.get_mut(&world_name) {
@@ -629,20 +639,33 @@ impl Handler<Connect> for Server {
             }
         }
 
-        self.lost_sessions.insert(id.to_owned(), msg.sender);
+        self.lost_sessions
+            .insert(id.to_owned(), (msg.sender, token.clone()));
 
-        MessageResult(id)
+        MessageResult((id, token))
     }
 }
 
 /// Handler for Disconnect message.
+/// Only cleans up session state if the connection token matches the currently
+/// registered token, preventing stale disconnects from kicked sessions from
+/// removing the new session's state.
 impl Handler<Disconnect> for Server {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        if let Some((_, world_name)) = self.connections.remove(&msg.id) {
-            if let Some(world) = self.worlds.get_mut(&world_name) {
-                world.do_send(ClientLeaveRequest { id: msg.id.clone() });
+        // Check connections: only remove if the token matches the current session
+        if let Some((_, _, current_token)) = self.connections.get(&msg.id) {
+            if *current_token == msg.token {
+                let (_, world_name, _) = self.connections.remove(&msg.id).unwrap();
+                if let Some(world) = self.worlds.get_mut(&world_name) {
+                    world.do_send(ClientLeaveRequest { id: msg.id.clone() });
+                }
+            } else {
+                info!(
+                    "Ignoring stale disconnect for {} (token mismatch)",
+                    msg.id
+                );
             }
         }
 
@@ -654,7 +677,12 @@ impl Handler<Disconnect> for Server {
             info!("A transport server connection has ended.")
         }
 
-        self.lost_sessions.remove(&msg.id);
+        // Check lost_sessions: only remove if the token matches
+        if let Some((_, current_token)) = self.lost_sessions.get(&msg.id) {
+            if *current_token == msg.token {
+                self.lost_sessions.remove(&msg.id);
+            }
+        }
     }
 }
 
