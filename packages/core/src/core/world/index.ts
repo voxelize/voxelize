@@ -2074,17 +2074,16 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     const name = ChunkUtils.getChunkName(coords);
 
-    // if (this.chunks.loaded.has(name)) {
-    //   listener(this.chunks.loaded.get(name));
-    //   return;
-    // }
-
     const listeners = this.chunkInitializeListeners.get(name) || [];
     listeners.push(listener);
     this.chunkInitializeListeners.set(name, listeners);
 
     return () => {
-      this.chunkInitializeListeners.delete(name);
+      const current = this.chunkInitializeListeners.get(name);
+      if (!current) return;
+      const idx = current.indexOf(listener);
+      if (idx !== -1) current.splice(idx, 1);
+      if (current.length === 0) this.chunkInitializeListeners.delete(name);
     };
   };
 
@@ -3468,7 +3467,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         const { entities } = message;
 
         if (entities && entities.length) {
-          this.handleEntities(entities);
+          if (!this.isInitialized) {
+            this.initialEntities = [
+              ...(this.initialEntities ?? []),
+              ...entities,
+            ];
+          } else {
+            this.handleEntities(entities);
+          }
         }
 
         break;
@@ -3545,7 +3551,10 @@ export class World<T = any> extends Scene implements NetIntercept {
           etype: type,
         };
 
-        if (!this.isChunkReadyForEntityUpdates(chunk)) {
+        if (
+          operation !== "DELETE" &&
+          !this.isChunkReadyForEntityUpdates(chunk)
+        ) {
           this.deferBlockEntityUpdateUntilChunkReady(
             listener,
             chunkCoords,
@@ -3858,8 +3867,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       listener(updateData);
     }, 3000);
 
-    unbind = this.addChunkInitListener(chunkCoords, (chunk) => {
-      if (isResolved || !this.isChunkReadyForEntityUpdates(chunk)) return;
+    unbind = this.addChunkInitListener(chunkCoords, () => {
+      if (isResolved) return;
       isResolved = true;
       window.clearTimeout(fallbackTimeout);
       listener(updateData);
@@ -3868,18 +3877,17 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private pruneBlockEntitiesInChunk(chunkCoords: Coords2) {
-    const [chunkX, chunkZ] = chunkCoords;
-    const startX = chunkX * this.options.chunkSize;
-    const startZ = chunkZ * this.options.chunkSize;
-    const endX = startX + this.options.chunkSize;
-    const endZ = startZ + this.options.chunkSize;
+    const { chunkSize } = this.options;
 
-    for (let vx = startX; vx < endX; vx++) {
-      for (let vz = startZ; vz < endZ; vz++) {
-        for (let vy = 0; vy < this.options.maxHeight; vy++) {
-          const voxelName = ChunkUtils.getVoxelName([vx, vy, vz]);
-          this.blockEntitiesMap.delete(voxelName);
-        }
+    for (const key of this.blockEntitiesMap.keys()) {
+      const parts = key.split("|");
+      const vx = parseInt(parts[0], 10);
+      const vz = parseInt(parts[2], 10);
+      const cx = Math.floor(vx / chunkSize);
+      const cz = Math.floor(vz / chunkSize);
+
+      if (cx === chunkCoords[0] && cz === chunkCoords[1]) {
+        this.blockEntitiesMap.delete(key);
       }
     }
   }

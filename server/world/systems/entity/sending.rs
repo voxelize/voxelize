@@ -252,6 +252,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 let entities_to_delete: Vec<String> = known_entities
                     .iter()
                     .filter(|entity_id| {
+                        if let Some((etype, ..)) = new_bookkeeping_records.get(*entity_id) {
+                            if etype.starts_with("block::") {
+                                return false;
+                            }
+                        }
                         if let Some(entity_pos) = entity_positions.get(*entity_id) {
                             let dx = entity_pos.0 - client_pos.0;
                             let dy = entity_pos.1 - client_pos.1;

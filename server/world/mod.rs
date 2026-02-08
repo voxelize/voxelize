@@ -778,7 +778,7 @@ impl World {
 
     /// Add a transport sender to this world.
     pub(crate) fn add_transport(&mut self, id: &str, sender: &WsSender) {
-        let init_message = self.generate_init_message(id);
+        let (init_message, _) = self.generate_init_message(id);
         self.send(sender, &init_message);
         self.write_resource::<Transports>()
             .insert(id.to_owned(), sender.clone());
@@ -791,7 +791,7 @@ impl World {
 
     /// Add a client to the world by an ID and a WebSocket sender.
     pub(crate) fn add_client(&mut self, id: &str, username: &str, sender: &WsSender) {
-        let init_message = self.generate_init_message(id);
+        let (init_message, init_entity_ids) = self.generate_init_message(id);
 
         let body =
             RigidBody::new(&AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build()).build();
@@ -830,6 +830,17 @@ impl World {
         );
 
         self.entity_ids_mut().insert(id.to_owned(), ent.id());
+
+        {
+            let mut bookkeeping = self.write_resource::<Bookkeeping>();
+            let known = bookkeeping
+                .client_known_entities
+                .entry(id.to_owned())
+                .or_default();
+            for entity_id in init_entity_ids {
+                known.insert(entity_id);
+            }
+        }
 
         self.send(sender, &init_message);
 
@@ -1779,7 +1790,7 @@ impl World {
         }
     }
 
-    fn generate_init_message(&self, id: &str) -> Message {
+    fn generate_init_message(&self, id: &str) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
 
@@ -1820,17 +1831,17 @@ impl World {
         let metadatas = self.read_component::<MetadataComp>();
 
         let mut entities = vec![];
+        let mut entity_ids = vec![];
 
         for (id, etype, metadata) in (&ids, &etypes, &metadatas).join() {
-            if (!etype.0.starts_with("block::") && metadata.is_empty()) {
+            if !etype.0.starts_with("block::") && metadata.is_empty() {
                 continue;
             }
 
             let j_str = metadata.to_string();
 
+            entity_ids.push(id.0.to_owned());
             entities.push(EntityProtocol {
-                // Intentionally not using the `EntityOperation::Create` variant here
-                // because the entity is already technically created.
                 operation: EntityOperation::Update,
                 id: id.0.to_owned(),
                 r#type: etype.0.to_owned(),
@@ -1842,11 +1853,14 @@ impl World {
         drop(etypes);
         drop(metadatas);
 
-        Message::new(&MessageType::Init)
-            .world_name(&self.name)
-            .json(&serde_json::to_string(&json).unwrap())
-            .peers(&peers)
-            .entities(&entities)
-            .build()
+        (
+            Message::new(&MessageType::Init)
+                .world_name(&self.name)
+                .json(&serde_json::to_string(&json).unwrap())
+                .peers(&peers)
+                .entities(&entities)
+                .build(),
+            entity_ids,
+        )
     }
 }
