@@ -111,8 +111,8 @@ impl BrainComp {
         self.state.jumping = false;
     }
 
-    /// Mark entity to start sprinting
     pub fn sprint(&mut self) {
+        self.state.running = true;
         self.state.sprinting = true;
     }
 
