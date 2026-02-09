@@ -469,6 +469,15 @@ export type WorldClientOptions = {
    * Defaults to `false`.
    */
   shaderBasedLighting: boolean;
+
+  /**
+   * Ratio of render radius beyond which plant meshes are hidden.
+   * Plant meshes in chunks farther than `plantRenderRatio * renderRadius` chunks
+   * from the player are set invisible to reduce draw calls.
+   * Set to `1` to disable (show plants at full render distance).
+   * Defaults to `0.5`.
+   */
+  plantRenderRatio: number;
 };
 
 const defaultOptions: WorldClientOptions = {
@@ -497,6 +506,7 @@ const defaultOptions: WorldClientOptions = {
   deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
   shaderBasedLighting: false,
+  plantRenderRatio: 0.5,
 };
 
 /**
@@ -770,6 +780,9 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The internal delete radius in chunks.
    */
   private _deleteRadius = 0;
+
+  private _plantBlockIds = new Set<number>();
+  private _lastCenterChunk: Coords2 = [0, 0];
 
   private meshWorkerPool = new WorkerPool(MeshWorker, {
     maxWorker: Math.min(navigator.hardwareConcurrency ?? 4, 4),
@@ -3328,6 +3341,17 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.registry.idMap.set(id, lowerName);
     });
 
+    this._plantBlockIds.clear();
+    for (const [id, block] of this.registry.blocksById) {
+      if (block.faces.length === 0) continue;
+      const allDiagonal = block.faces.every(
+        (f) => f.dir[0] === 0 && f.dir[1] === 0 && f.dir[2] === 0
+      );
+      if (allDiagonal) {
+        this._plantBlockIds.add(id);
+      }
+    }
+
     // Loading the options
     // Preserve client-side shaderBasedLighting (server may still send it for backwards compatibility)
     const clientShaderBasedLighting = this.options.shaderBasedLighting;
@@ -3393,6 +3417,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     const startMaintainChunks = performance.now();
     this.maintainChunks(center);
     const maintainChunksDuration = performance.now() - startMaintainChunks;
+
+    if (
+      center[0] !== this._lastCenterChunk[0] ||
+      center[1] !== this._lastCenterChunk[1]
+    ) {
+      this._lastCenterChunk = center;
+      this.updatePlantVisibility(center);
+    }
 
     const startRequestChunks = performance.now();
     this.requestChunks(center, direction);
@@ -3969,6 +4001,32 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  private get plantRadiusSq() {
+    return (this.options.plantRenderRatio * this.renderRadius) ** 2;
+  }
+
+  private setPlantMeshVisibility(meshes: Mesh[], showPlants: boolean) {
+    for (const mesh of meshes) {
+      if (mesh && this._plantBlockIds.has(mesh.userData.voxel)) {
+        mesh.visible = showPlants;
+      }
+    }
+  }
+
+  private updatePlantVisibility(center: Coords2) {
+    const radiusSq = this.plantRadiusSq;
+    const [cx, cz] = center;
+
+    this.chunkPipeline.forEachLoaded((chunk) => {
+      const [x, z] = chunk.coords;
+      const showPlants = (x - cx) ** 2 + (z - cz) ** 2 <= radiusSq;
+
+      chunk.meshes.forEach((levelMeshes) => {
+        this.setPlantMeshVisibility(levelMeshes, showPlants);
+      });
+    });
+  }
+
   private triggerBlockUpdateListeners(
     vx: number,
     vy: number,
@@ -4499,6 +4557,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     chunk.meshes.get(level)?.push(...meshes);
+
+    const [pcx, pcz] = this._lastCenterChunk;
+    const showPlants = (cx - pcx) ** 2 + (cz - pcz) ** 2 <= this.plantRadiusSq;
+    if (!showPlants) {
+      this.setPlantMeshVisibility(meshes, false);
+    }
 
     this.csmRenderer?.markAllCascadesForRender();
 

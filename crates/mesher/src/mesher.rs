@@ -770,6 +770,17 @@ fn diagonal_face_offsets(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
     (ox, oz)
 }
 
+#[inline]
+fn plant_position_jitter(vx: i32, vy: i32, vz: i32) -> (f32, f32) {
+    let h = (vx as u32).wrapping_mul(73856093)
+        ^ (vy as u32).wrapping_mul(19349663)
+        ^ (vz as u32).wrapping_mul(83492791);
+    let h = h.wrapping_mul(2654435761);
+    let ox = ((h >> 24) & 0xFF) as f32 / 255.0 * 0.2 - 0.1;
+    let oz = ((h >> 16) & 0xFF) as f32 / 255.0 * 0.2 - 0.1;
+    (ox, oz)
+}
+
 fn has_cardinal_faces(block: &Block) -> bool {
     block.faces.iter().any(|f| {
         let d = f.dir;
@@ -1583,7 +1594,7 @@ fn process_face<S: VoxelAccess>(
         (0.0, 0.0)
     };
     let (diag_x_offset, diag_z_offset) = if is_diagonal {
-        (hash_ox, hash_oz)
+        plant_position_jitter(vx, vy, vz)
     } else {
         (0.0, 0.0)
     };
