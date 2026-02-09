@@ -4183,6 +4183,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const horizonThreshold = 0.15;
     const minElevation = 0.35;
+    const shadowFadeThreshold = 0.4;
 
     let lightX: number;
     let lightY: number;
@@ -4190,8 +4191,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (sunY > horizonThreshold) {
       lightX = sunX;
-      lightY = sunY;
-      shadowStrength = 1.0;
+      lightY = Math.max(sunY, minElevation);
+
+      if (sunY < shadowFadeThreshold) {
+        const fadeT =
+          (shadowFadeThreshold - sunY) /
+          (shadowFadeThreshold - horizonThreshold);
+        const smoothFadeT = fadeT * fadeT * (3 - 2 * fadeT);
+        shadowStrength = 1.0 - smoothFadeT * 0.7;
+      } else {
+        shadowStrength = 1.0;
+      }
     } else if (sunY < -horizonThreshold) {
       lightX = moonX;
       lightY = Math.max(moonY, minElevation);
@@ -4202,7 +4212,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       lightX = sunX * (1 - smoothT) + moonX * smoothT;
       lightY = Math.max(minElevation, sunY * (1 - smoothT) + moonY * smoothT);
-      shadowStrength = 1.0 * (1 - smoothT) + 0.6 * smoothT;
+      const dip = 1.0 - Math.sin(smoothT * Math.PI);
+      shadowStrength = (0.3 * (1 - smoothT) + 0.6 * smoothT) * dip;
     }
 
     sunDirection.value.set(lightX, lightY, 0.3);

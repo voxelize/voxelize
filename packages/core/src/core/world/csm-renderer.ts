@@ -24,6 +24,7 @@ export interface CSMConfig {
   shadowBias: number;
   shadowNormalBias: number;
   lightMargin: number;
+  shadowCasterDistance: number;
 }
 
 interface Cascade {
@@ -40,6 +41,7 @@ const defaultConfig: CSMConfig = {
   shadowBias: 0.002,
   shadowNormalBias: 0.02,
   lightMargin: 32,
+  shadowCasterDistance: 200,
 };
 
 export class CSMRenderer {
@@ -79,7 +81,6 @@ export class CSMRenderer {
     this.depthMaterial = new MeshDepthMaterial({
       depthPacking: RGBADepthPacking,
     });
-
     this.initCascades();
   }
 
@@ -281,9 +282,12 @@ export class CSMRenderer {
       .copy(this.lightSpaceCenter)
       .applyMatrix4(this.lightViewMatrixInverse);
 
+    const offset = radius + lightMargin;
+    const casterDepth = Math.max(offset, this.config.shadowCasterDistance);
+
     cascade.camera.position
       .copy(this.frustumCenter)
-      .addScaledVector(this.lightDirection, radius + lightMargin);
+      .addScaledVector(this.lightDirection, offset);
     cascade.camera.lookAt(this.frustumCenter);
     cascade.camera.up.copy(this.frustumUp);
     cascade.camera.updateMatrixWorld();
@@ -293,7 +297,7 @@ export class CSMRenderer {
     cascade.camera.top = radius;
     cascade.camera.bottom = -radius;
     cascade.camera.near = 0.1;
-    cascade.camera.far = radius * 2 + lightMargin * 2;
+    cascade.camera.far = offset + casterDepth;
     cascade.camera.updateProjectionMatrix();
 
     cascade.matrix.copy(cascade.camera.projectionMatrix);
