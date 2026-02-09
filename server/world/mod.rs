@@ -51,7 +51,7 @@ use crate::{
     encode_message,
     protocols::Peer,
     server::{Message, MessageType, WsSender},
-    EntityOperation, EntityProtocol, PeerProtocol, Server, Vec2, Vec3,
+    EntityOperation, EntityProtocol, MethodProtocol, PeerProtocol, Server, Vec2, Vec3,
 };
 
 use super::common::ClientFilter;
@@ -572,6 +572,18 @@ impl World {
             world.write_resource::<MessageQueues>().push((
                 Message::new(&MessageType::Stats)
                     .json(&serde_json::to_string(&stats_json).unwrap())
+                    .build(),
+                ClientFilter::Direct(client_id.to_owned()),
+            ));
+        });
+
+        world.set_method_handle("vox-builtin:ping", |world, client_id, payload| {
+            world.write_resource::<MessageQueues>().push((
+                Message::new(&MessageType::Method)
+                    .method(MethodProtocol {
+                        name: "vox-builtin:pong".to_string(),
+                        payload: payload.to_string(),
+                    })
                     .build(),
                 ClientFilter::Direct(client_id.to_owned()),
             ));

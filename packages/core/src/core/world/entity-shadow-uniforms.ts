@@ -112,7 +112,7 @@ float getEntityShadow(vec3 worldNormal) {
     return 1.0;
   }
 
-  float bias = uShadowBias + 0.05;
+  float bias = uShadowBias;
 
   float rawShadow = sampleShadowMapPCSS(uShadowMap0, vShadowCoord0, bias);
 
