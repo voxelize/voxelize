@@ -24,6 +24,7 @@ export interface EntityShadowUniforms {
   uSunlightIntensity: IUniform<number>;
   uSunDirection: IUniform<Vector3>;
   uWorldOffset: IUniform<Vector3>;
+  uMinOccluderDepth: IUniform<number>;
 }
 
 export function createEntityShadowUniforms(): EntityShadowUniforms {
@@ -43,6 +44,7 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uSunlightIntensity: { value: 1.0 },
     uSunDirection: { value: new Vector3(0.5, 1.0, 0.3).normalize() },
     uWorldOffset: { value: new Vector3(0, 0, 0) },
+    uMinOccluderDepth: { value: 0.0 },
   };
 }
 
@@ -98,6 +100,7 @@ uniform float uShadowNormalBias;
 uniform float uShadowStrength;
 uniform float uSunlightIntensity;
 uniform vec3 uSunDirection;
+uniform float uMinOccluderDepth;
 
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;

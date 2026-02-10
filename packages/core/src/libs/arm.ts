@@ -70,6 +70,7 @@ export type ArmOptions = {
   armTexture?: THREE.Texture;
   customObjectOptions?: Record<string, ArmObjectOptions>;
   receiveShadows?: boolean;
+  minOccluderDepth?: number;
 };
 
 type ArmObjectOptions = {
@@ -184,9 +185,12 @@ export class Arm extends THREE.Group {
   ): void {
     if (!this.options.receiveShadows) return;
 
+    const minDepth = this.options.minOccluderDepth ?? 0.0;
+
     this.traverse((child) => {
       if (child instanceof CanvasBox && child.shadowUniforms) {
         updateEntityShadowUniforms(child.shadowUniforms, lightingUniforms);
+        child.shadowUniforms.uMinOccluderDepth.value = minDepth;
         if (playerWorldPosition) {
           child.shadowUniforms.uWorldOffset.value.copy(playerWorldPosition);
         }
@@ -195,6 +199,7 @@ export class Arm extends THREE.Group {
 
     for (const uniforms of this.heldObjectShadowUniforms) {
       updateEntityShadowUniforms(uniforms, lightingUniforms);
+      uniforms.uMinOccluderDepth.value = minDepth;
       if (playerWorldPosition) {
         uniforms.uWorldOffset.value.copy(playerWorldPosition);
       }

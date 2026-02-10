@@ -55,7 +55,8 @@ float sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {
   for (int i = 0; i < 4; i++) {
     vec2 offset = SHADOW_POISSON_DISK[i * 2] * texelSize * searchRadius;
     float sampleDepth = texture(shadowMap, coord.xy + offset).r;
-    if (sampleDepth < coord.z - bias) {
+    float blockerDiff = coord.z - sampleDepth;
+    if (blockerDiff > bias && blockerDiff >= uMinOccluderDepth) {
       blockerSum += sampleDepth;
       blockerCount += 1.0;
     }
@@ -75,11 +76,14 @@ float sampleShadowMapPCSS(sampler2D shadowMap, vec4 shadowCoord, float bias) {
   float c = cos(angle);
   mat2 rotation = mat2(c, -s, s, c);
 
-  float shadow = (coord.z - bias > texture(shadowMap, coord.xy).r) ? 0.0 : 1.0;
+  float centerDepth = texture(shadowMap, coord.xy).r;
+  float centerDiff = coord.z - centerDepth;
+  float shadow = (centerDiff > bias && centerDiff >= uMinOccluderDepth) ? 0.0 : 1.0;
   for (int i = 0; i < 8; i++) {
     vec2 offset = rotation * SHADOW_POISSON_DISK[i] * texelSize * filterRadius;
     float depth = texture(shadowMap, coord.xy + offset).r;
-    shadow += (coord.z - bias > depth) ? 0.0 : 1.0;
+    float depthDiff = coord.z - depth;
+    shadow += (depthDiff > bias && depthDiff >= uMinOccluderDepth) ? 0.0 : 1.0;
   }
 
   shadow /= 9.0;
