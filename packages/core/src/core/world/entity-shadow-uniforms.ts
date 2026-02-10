@@ -19,6 +19,7 @@ export interface EntityShadowUniforms {
   uCascadeSplit1: IUniform<number>;
   uCascadeSplit2: IUniform<number>;
   uShadowBias: IUniform<number>;
+  uShadowNormalBias: IUniform<number>;
   uShadowStrength: IUniform<number>;
   uSunlightIntensity: IUniform<number>;
   uSunDirection: IUniform<Vector3>;
@@ -37,6 +38,7 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uCascadeSplit1: { value: 48 },
     uCascadeSplit2: { value: 128 },
     uShadowBias: { value: 0.0005 },
+    uShadowNormalBias: { value: 0.01 },
     uShadowStrength: { value: 1.0 },
     uSunlightIntensity: { value: 1.0 },
     uSunDirection: { value: new Vector3(0.5, 1.0, 0.3).normalize() },
@@ -92,6 +94,7 @@ uniform float uCascadeSplit0;
 uniform float uCascadeSplit1;
 uniform float uCascadeSplit2;
 uniform float uShadowBias;
+uniform float uShadowNormalBias;
 uniform float uShadowStrength;
 uniform float uSunlightIntensity;
 uniform vec3 uSunDirection;
@@ -112,7 +115,8 @@ float getEntityShadow(vec3 worldNormal) {
     return 1.0;
   }
 
-  float bias = uShadowBias;
+  float cosTheta = clamp(dot(worldNormal, uSunDirection), 0.0, 1.0);
+  float bias = uShadowBias + uShadowNormalBias * (1.0 - cosTheta);
 
   float rawShadow = sampleShadowMapPCSS(uShadowMap0, vShadowCoord0, bias);
 
