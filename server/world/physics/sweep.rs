@@ -1,10 +1,10 @@
-use crate::{approx_equals, between, Registry, Vec3, VoxelAccess};
+use crate::{between, Registry, Vec3, VoxelAccess};
 
 use super::aabb::AABB;
 
 fn line_to_plane(unit: &Vec3<f32>, vector: &[f32; 3], normal: &[f32; 3]) -> f32 {
     let n_dot_u = normal[0] * unit[0] + normal[1] * unit[1] + normal[2] * unit[2];
-    if approx_equals(n_dot_u, 0.0) {
+    if n_dot_u == 0.0 {
         return f32::INFINITY;
     }
 
@@ -229,7 +229,7 @@ pub fn sweep(
     }
 
     // No collision
-    if approx_equals(closest.h, 1.0) {
+    if closest.h == 1.0 {
         return;
     }
 
@@ -252,10 +252,8 @@ pub fn sweep(
     }
 
     // More to go
-    if !approx_equals(
-        leftover[0] * leftover[0] + leftover[1] * leftover[1] + leftover[2] * leftover[2],
-        0.0,
-    ) {
+    if leftover[0] * leftover[0] + leftover[1] * leftover[1] + leftover[2] * leftover[2] != 0.0
+    {
         sweep(
             space,
             registry,
