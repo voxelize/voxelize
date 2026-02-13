@@ -5268,16 +5268,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     const startSequenceId = this.deltaSequenceCounter;
 
     const { maxHeight, maxLightsUpdateTime } = this.options;
+    const updateDeadline = startTime + maxLightsUpdateTime;
 
     let consumedCount = 0;
     const processedClientUpdates: BlockUpdate[] = [];
     const processedUpdates: ProcessedUpdate[] = [];
 
     for (let index = startIndex; index < endIndex; index++) {
-      if (
-        consumedCount > 0 &&
-        performance.now() - startTime > maxLightsUpdateTime
-      ) {
+      if (consumedCount > 0 && performance.now() > updateDeadline) {
         if (Math.random() < 0.01) {
           console.warn(
             "Approaching maxLightsUpdateTime during light updates, continuing to ensure correctness"
