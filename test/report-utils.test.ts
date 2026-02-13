@@ -346,6 +346,16 @@ describe("report-utils", () => {
       "/workspace/final-report.json"
     );
 
+    const inlineNoBuildMisuseBeforeValidTrailingOutput = resolveOutputPath(
+      ["--output", "--verify=1", "--output=./final-report.json"],
+      "/workspace",
+      ["--output", "--no-build", "--verify"]
+    );
+    expect(inlineNoBuildMisuseBeforeValidTrailingOutput.error).toBeNull();
+    expect(inlineNoBuildMisuseBeforeValidTrailingOutput.outputPath).toBe(
+      "/workspace/final-report.json"
+    );
+
     const recognizedOnlyInlineTokenBeforeTrailingOutput = resolveOutputPath(
       ["--output", "--only=client", "--output=./final-report.json"],
       "/workspace",
@@ -604,6 +614,17 @@ describe("report-utils", () => {
       "./final-report.json"
     );
     expect(recognizedNoBuildAliasBeforeTrailingOutputValue.error).toBeNull();
+
+    const inlineNoBuildMisuseBeforeTrailingOutputValue = resolveLastOptionValue(
+      ["--output", "--verify=1", "--output=./final-report.json"],
+      "--output",
+      ["--output", "--no-build", "--verify"]
+    );
+    expect(inlineNoBuildMisuseBeforeTrailingOutputValue.hasOption).toBe(true);
+    expect(inlineNoBuildMisuseBeforeTrailingOutputValue.value).toBe(
+      "./final-report.json"
+    );
+    expect(inlineNoBuildMisuseBeforeTrailingOutputValue.error).toBeNull();
 
     const recognizedNoBuildAliasBeforeTrailingOnlyValue = resolveLastOptionValue(
       ["--only", "--verify", "--only=client"],
@@ -1981,6 +2002,56 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptions).toEqual([]);
     expect(diagnostics.unknownOptionCount).toBe(0);
     expect(diagnostics.unsupportedOptionsError).toBeNull();
+  });
+
+  it("keeps trailing output resolution with inline no-build misuse in strict output options", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--output", "--verify=1", "--output=./final-report.json"],
+      {
+        canonicalOptions: ["--no-build", "--output"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--output"],
+        optionsWithStrictValues: ["--output"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual(["--output"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual([
+      "--output",
+      "--output=./final-report.json",
+    ]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+      },
+      {
+        token: "--output=./final-report.json",
+        canonicalOption: "--output",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(2);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--output",
+        canonicalOption: "--output",
+        index: 0,
+      },
+      {
+        token: "--output=./final-report.json",
+        canonicalOption: "--output",
+        index: 2,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    expect(diagnostics.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --no-build=<value>. Supported options: --no-build, --output, --verify."
+    );
   });
 
   it("keeps strict only parsing active with inline output tokens before trailing only values", () => {

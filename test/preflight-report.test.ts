@@ -1218,6 +1218,195 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("uses the last output path when no-build aliases appear between only and output flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "preflight-only-alias-output-path-")
+    );
+    const firstOutputPath = path.join(tempDirectory, "first-report.json");
+    const secondOutputPath = path.join(tempDirectory, "second-report.json");
+    const commandArgs = [
+      preflightScript,
+      "--list-checks",
+      "--only",
+      "devEnvironment",
+      "--verify",
+      "--only",
+      "client",
+      "--output",
+      firstOutputPath,
+      "--output",
+      secondOutputPath,
+    ] as const;
+    const result = spawnSync(process.execPath, [...commandArgs], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(true);
+    expect(stdoutReport.exitCode).toBe(0);
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.noBuild).toBe(true);
+    expect(stdoutReport.selectedChecks).toEqual(["client"]);
+    expect(stdoutReport.selectedCheckCount).toBe(1);
+    expect(stdoutReport.requestedChecks).toEqual(["client"]);
+    expect(stdoutReport.requestedCheckCount).toBe(1);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(stdoutReport.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual([]);
+    expect(stdoutReport.unknownOptionCount).toBe(0);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--list-checks",
+      "--no-build",
+      "--only",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionCount).toBe(
+      stdoutReport.activeCliOptions.length
+    );
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--only",
+      "--verify",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions([
+        "--list-checks",
+        "--only",
+        "--verify",
+        "--output",
+      ])
+    );
+    expect(stdoutReport.activeCliOptionResolutionCount).toBe(
+      stdoutReport.activeCliOptionResolutions.length
+    );
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([...commandArgs.slice(1)])
+    );
+    expect(stdoutReport.activeCliOptionOccurrenceCount).toBe(
+      stdoutReport.activeCliOptionOccurrences.length
+    );
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(0);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
+  it("writes unsupported only validation to the last output path when inline no-build misuse appears between only and output flags", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "preflight-only-inline-output-path-")
+    );
+    const firstOutputPath = path.join(tempDirectory, "first-report.json");
+    const secondOutputPath = path.join(tempDirectory, "second-report.json");
+    const commandArgs = [
+      preflightScript,
+      "--list-checks",
+      "--only",
+      "devEnvironment",
+      "--verify=1",
+      "--only",
+      "client",
+      "--output",
+      firstOutputPath,
+      "--output",
+      secondOutputPath,
+    ] as const;
+    const result = spawnSync(process.execPath, [...commandArgs], {
+      cwd: rootDir,
+      encoding: "utf8",
+      shell: false,
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    const stdoutReport = JSON.parse(output) as PreflightReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as PreflightReport;
+
+    expect(stdoutReport.schemaVersion).toBe(1);
+    expect(stdoutReport.passed).toBe(false);
+    expect(stdoutReport.exitCode).toBe(1);
+    expect(stdoutReport.listChecksOnly).toBe(true);
+    expect(stdoutReport.noBuild).toBe(false);
+    expect(stdoutReport.validationErrorCode).toBe("unsupported_options");
+    expect(stdoutReport.message).toBe(
+      expectedUnsupportedOptionsMessage(["--no-build=<value>"])
+    );
+    expect(stdoutReport.selectedChecks).toEqual([]);
+    expect(stdoutReport.selectedCheckCount).toBe(0);
+    expect(stdoutReport.requestedChecks).toEqual(["client"]);
+    expect(stdoutReport.requestedCheckCount).toBe(1);
+    expect(stdoutReport.requestedCheckResolutions).toEqual([
+      {
+        token: "client",
+        normalizedToken: "client",
+        kind: "check",
+        resolvedTo: ["client"],
+      },
+    ]);
+    expect(stdoutReport.requestedCheckResolutionCounts).toEqual({
+      check: 1,
+      specialSelector: 0,
+      invalid: 0,
+    });
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(stdoutReport.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(stdoutReport.unknownOptionCount).toBe(1);
+    expect(stdoutReport.activeCliOptions).toEqual([
+      "--list-checks",
+      "--only",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionCount).toBe(
+      stdoutReport.activeCliOptions.length
+    );
+    expect(stdoutReport.activeCliOptionTokens).toEqual([
+      "--list-checks",
+      "--only",
+      "--output",
+    ]);
+    expect(stdoutReport.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions([
+        "--list-checks",
+        "--only",
+        "--output",
+      ])
+    );
+    expect(stdoutReport.activeCliOptionResolutionCount).toBe(
+      stdoutReport.activeCliOptionResolutions.length
+    );
+    expect(stdoutReport.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([...commandArgs.slice(1)])
+    );
+    expect(stdoutReport.activeCliOptionOccurrenceCount).toBe(
+      stdoutReport.activeCliOptionOccurrences.length
+    );
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(fileReport).toEqual(stdoutReport);
+    expect(result.status).toBe(1);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("fails when the last only flag is missing a value", () => {
     const result = spawnSync(
       process.execPath,
