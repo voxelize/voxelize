@@ -2542,38 +2542,60 @@ fn process_face<S: VoxelAccess>(
         let base_light_i32 = center_light_i32 | 3 << 16 | fluid_bit;
         if apply_wave_bit {
             let block_min_y_eps = block_min[1] + 0.01;
-            for corner in &face.corners {
-                let mut pos = corner.pos;
-
-                if needs_rotation {
+            if needs_rotation {
+                for corner in &face.corners {
+                    let mut pos = corner.pos;
                     rotation.rotate_node(&mut pos, y_rotatable, true);
+
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
+
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+
+                    let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                    lights.push(base_light_i32 | wave_bit);
                 }
+            } else {
+                for corner in &face.corners {
+                    let pos = corner.pos;
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
 
-                positions.push(pos[0] + base_x);
-                positions.push(pos[1] + base_y);
-                positions.push(pos[2] + base_z);
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
 
-                uvs.push(corner.uv[0] * uv_span_u + start_u);
-                uvs.push(corner.uv[1] * uv_span_v + start_v);
-
-                let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
-                lights.push(base_light_i32 | wave_bit);
+                    let wave_bit = if pos[1] > block_min_y_eps { 1 << 20 } else { 0 };
+                    lights.push(base_light_i32 | wave_bit);
+                }
             }
         } else {
-            for corner in &face.corners {
-                let mut pos = corner.pos;
-
-                if needs_rotation {
+            if needs_rotation {
+                for corner in &face.corners {
+                    let mut pos = corner.pos;
                     rotation.rotate_node(&mut pos, y_rotatable, true);
+
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
+
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+                    lights.push(base_light_i32);
                 }
+            } else {
+                for corner in &face.corners {
+                    let pos = corner.pos;
+                    positions.push(pos[0] + base_x);
+                    positions.push(pos[1] + base_y);
+                    positions.push(pos[2] + base_z);
 
-                positions.push(pos[0] + base_x);
-                positions.push(pos[1] + base_y);
-                positions.push(pos[2] + base_z);
-
-                uvs.push(corner.uv[0] * uv_span_u + start_u);
-                uvs.push(corner.uv[1] * uv_span_v + start_v);
-                lights.push(base_light_i32);
+                    uvs.push(corner.uv[0] * uv_span_u + start_u);
+                    uvs.push(corner.uv[1] * uv_span_v + start_v);
+                    lights.push(base_light_i32);
+                }
             }
         }
     } else {
