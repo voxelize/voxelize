@@ -2075,13 +2075,9 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             let has_expected_stage = simple.stage.is_some();
 
             if let Some(expected_id) = simple.id {
-                let actual_id = if has_expected_rotation || has_expected_stage {
-                    let raw = *raw_voxel
-                        .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
-                    extract_id(raw)
-                } else {
-                    space.get_voxel(check_x, check_y, check_z)
-                };
+                let raw = *raw_voxel
+                    .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
+                let actual_id = extract_id(raw);
                 if actual_id != expected_id {
                     return false;
                 }
