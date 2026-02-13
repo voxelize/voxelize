@@ -3408,13 +3408,15 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                     };
 
+                    let is_fluid = block.is_fluid;
+                    let is_opaque = block.is_opaque;
                     if block.is_empty {
                         continue;
                     }
                     let cache_ready = block.cache_ready;
                     let mut has_dynamic_patterns_cached_value = false;
                     let mut has_dynamic_patterns_cached_known = false;
-                    if !block.is_fluid && block.faces.is_empty() {
+                    if !is_fluid && block.faces.is_empty() {
                         has_dynamic_patterns_cached_value = if cache_ready {
                             block.has_dynamic_patterns
                         } else {
@@ -3433,7 +3435,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     };
                     let is_non_greedy_block = !greedy_without_rotation;
 
-                    let current_voxel_index = if block.is_opaque || is_non_greedy_block {
+                    let current_voxel_index = if is_opaque || is_non_greedy_block {
                         ((vx - min_x) as usize) * yz_span
                             + ((vy - min_y) as usize) * z_span
                             + (vz - min_z) as usize
@@ -3441,7 +3443,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         0
                     };
 
-                    if block.is_opaque {
+                    if is_opaque {
                         let cached = fully_occluded_opaque[current_voxel_index];
                         let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
                             let value = is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
@@ -3466,7 +3468,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     if is_non_greedy_block {
                         let non_greedy_voxel_index = current_voxel_index;
-                        let is_fluid = block.is_fluid;
                         let block_needs_rotation = block.rotatable || block.y_rotatable;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block_needs_rotation {
@@ -3717,7 +3718,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if !should_render {
                         continue;
                     }
-                    let is_fluid = block.is_fluid;
                     let current_mask_index =
                         (v - v_range.0) as usize * mask_width + u_mask_offset;
 
