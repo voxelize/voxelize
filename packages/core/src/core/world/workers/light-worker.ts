@@ -122,9 +122,33 @@ interface WasmLightBatchResult {
 let wasmInitialized = false;
 let registryInitialized = false;
 const pendingBatchMessages: LightBatchMessage[] = [];
+let pendingBatchMessagesHead = 0;
 const MAX_PENDING_BATCH_MESSAGES = 512;
 const reusableBoundsMin = new Int32Array(3);
 const reusableBoundsShape = new Uint32Array(3);
+
+const hasPendingBatchMessages = () =>
+  pendingBatchMessagesHead < pendingBatchMessages.length;
+
+const pendingBatchMessageCount = () =>
+  pendingBatchMessages.length - pendingBatchMessagesHead;
+
+const normalizePendingBatchMessages = () => {
+  if (pendingBatchMessagesHead === 0) {
+    return;
+  }
+
+  if (pendingBatchMessagesHead >= pendingBatchMessages.length) {
+    pendingBatchMessages.length = 0;
+    pendingBatchMessagesHead = 0;
+    return;
+  }
+
+  if (pendingBatchMessagesHead >= 1024) {
+    pendingBatchMessages.splice(0, pendingBatchMessagesHead);
+    pendingBatchMessagesHead = 0;
+  }
+};
 
 const postEmptyBatchResult = (jobId: string, lastSequenceId = 0) => {
   postMessage({
@@ -374,8 +398,10 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
     set_registry(wasmRegistry);
     registryInitialized = true;
 
-    if (pendingBatchMessages.length > 0) {
-      const toProcess = pendingBatchMessages.splice(0, pendingBatchMessages.length);
+    if (hasPendingBatchMessages()) {
+      const toProcess = pendingBatchMessages.slice(pendingBatchMessagesHead);
+      pendingBatchMessages.length = 0;
+      pendingBatchMessagesHead = 0;
       for (const pendingBatchMessage of toProcess) {
         processBatchMessage(pendingBatchMessage);
       }
@@ -387,11 +413,11 @@ onmessage = async (event: MessageEvent<LightWorkerMessage>) => {
   await ensureWasmInitialized();
 
   if (!registryInitialized) {
-    if (pendingBatchMessages.length >= MAX_PENDING_BATCH_MESSAGES) {
-      const dropped = pendingBatchMessages.shift();
-      if (dropped) {
-        postEmptyBatchResult(dropped.jobId, dropped.lastRelevantSequenceId);
-      }
+    if (pendingBatchMessageCount() >= MAX_PENDING_BATCH_MESSAGES) {
+      const dropped = pendingBatchMessages[pendingBatchMessagesHead];
+      pendingBatchMessagesHead++;
+      postEmptyBatchResult(dropped.jobId, dropped.lastRelevantSequenceId);
+      normalizePendingBatchMessages();
     }
     pendingBatchMessages.push(message);
     return;
