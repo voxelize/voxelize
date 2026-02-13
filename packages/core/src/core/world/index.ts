@@ -337,7 +337,17 @@ const VOXEL_NEIGHBORS = [
   [0, -1, 0],
 ];
 
-const LIGHT_COLORS: LightColor[] = ["SUNLIGHT", "RED", "GREEN", "BLUE"];
+type LightOpsChannel = keyof LightOperations["removals"];
+const LIGHT_COLOR_CHANNELS: ReadonlyArray<{
+  color: LightColor;
+  channel: LightOpsChannel;
+}> = [
+  { color: "SUNLIGHT", channel: "sunlight" },
+  { color: "RED", channel: "red" },
+  { color: "GREEN", channel: "green" },
+  { color: "BLUE", channel: "blue" },
+];
+
 const CHUNK_NEIGHBOR_OFFSETS: Coords2[] = [
   [-1, -1],
   [0, -1],
@@ -5555,52 +5565,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     const batchId = this.lightBatchIdCounter++;
     const jobsForBatch: LightJob[] = [];
 
-    const sunlightJob = this.createLightJob(
-      "SUNLIGHT",
-      lightOps.removals.sunlight,
-      lightOps.floods.sunlight,
-      startSequenceId,
-      batchId,
-      boundsConfig
-    );
-    if (sunlightJob) {
-      jobsForBatch.push(sunlightJob);
-    }
-
-    const redJob = this.createLightJob(
-      "RED",
-      lightOps.removals.red,
-      lightOps.floods.red,
-      startSequenceId,
-      batchId,
-      boundsConfig
-    );
-    if (redJob) {
-      jobsForBatch.push(redJob);
-    }
-
-    const greenJob = this.createLightJob(
-      "GREEN",
-      lightOps.removals.green,
-      lightOps.floods.green,
-      startSequenceId,
-      batchId,
-      boundsConfig
-    );
-    if (greenJob) {
-      jobsForBatch.push(greenJob);
-    }
-
-    const blueJob = this.createLightJob(
-      "BLUE",
-      lightOps.removals.blue,
-      lightOps.floods.blue,
-      startSequenceId,
-      batchId,
-      boundsConfig
-    );
-    if (blueJob) {
-      jobsForBatch.push(blueJob);
+    for (const { color, channel } of LIGHT_COLOR_CHANNELS) {
+      const job = this.createLightJob(
+        color,
+        lightOps.removals[channel],
+        lightOps.floods[channel],
+        startSequenceId,
+        batchId,
+        boundsConfig
+      );
+      if (job) {
+        jobsForBatch.push(job);
+      }
     }
 
     if (jobsForBatch.length === 0) return;
@@ -6080,10 +6056,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private executeLightOperationsSyncAll(lightOps: LightOperations) {
-    for (const color of LIGHT_COLORS) {
-      const key = color.toLowerCase() as "sunlight" | "red" | "green" | "blue";
-      const removals = lightOps.removals[key];
-      const floods = lightOps.floods[key];
+    for (const { color, channel } of LIGHT_COLOR_CHANNELS) {
+      const removals = lightOps.removals[channel];
+      const floods = lightOps.floods[channel];
 
       if (removals.length > 0 || floods.length > 0) {
         this.executeLightOperationsSync({ removals, floods }, color);
