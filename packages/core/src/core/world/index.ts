@@ -1998,11 +1998,28 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const vx = px | 0;
     const vz = pz | 0;
+    const chunk = this.getLoadedChunkAtVoxel(vx, vz);
+    if (!chunk) {
+      return 0;
+    }
+
+    let blockCache: Map<number, Block> | null = null;
+    const getCachedBlock = (id: number) => {
+      if (!blockCache) {
+        blockCache = new Map();
+      }
+
+      let block = blockCache.get(id);
+      if (!block) {
+        block = this.getBlockById(id);
+        blockCache.set(id, block);
+      }
+      return block;
+    };
 
     for (let vy = this.options.maxHeight - 1; vy >= 0; vy--) {
-      const block = this.getBlockAtUnchecked(vx, vy, vz);
-
-      if (block && !block.isEmpty) {
+      const block = getCachedBlock(chunk.getVoxel(vx, vy, vz));
+      if (!block.isEmpty) {
         return vy;
       }
     }
