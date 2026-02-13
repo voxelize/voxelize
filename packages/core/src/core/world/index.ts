@@ -4734,12 +4734,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     oldValue: number,
     newValue: number
   ) {
-    for (const listener of this.blockUpdateListeners) {
-      listener({
+    let listeners = this.blockUpdateListeners.values();
+    let listenerEntry = listeners.next();
+    while (!listenerEntry.done) {
+      listenerEntry.value({
         voxel: [vx, vy, vz],
         oldValue,
         newValue,
       });
+      listenerEntry = listeners.next();
     }
   }
 
