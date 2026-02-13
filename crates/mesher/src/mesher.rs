@@ -995,7 +995,8 @@ fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: 
 
 fn geometry_key_for_quad(block: &Block, face_name: Option<&str>, independent: bool) -> GeometryMapKey {
     if independent {
-        GeometryMapKey::Face(block.id, face_name.unwrap_or_default().to_string())
+        let name = face_name.expect("independent greedy quad must include a face name");
+        GeometryMapKey::Face(block.id, name.to_string())
     } else {
         GeometryMapKey::Block(block.id)
     }
