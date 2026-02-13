@@ -443,6 +443,40 @@ fn test_register_blocks_can_reuse_id_freed_earlier_in_batch() {
 }
 
 #[test]
+fn test_register_blocks_conflict_before_free_still_panics() {
+    let mut registry = create_test_registry();
+    let mesher_before = registry.mesher_registry();
+    let lighter_before = registry.lighter_registry();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        registry.register_blocks(&[
+            Block::new("reused-id-two").id(2).build(),
+            Block::new("torch").id(41).build(),
+        ]);
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(
+        registry.get_block_by_name("torch").id,
+        2,
+        "failed batch should leave existing registry mappings unchanged"
+    );
+    assert!(!registry.has_type(41));
+
+    let mesher_after = registry.mesher_registry();
+    let lighter_after = registry.lighter_registry();
+
+    assert!(
+        Arc::ptr_eq(&mesher_before, &mesher_after),
+        "mesher cache should remain intact when earlier explicit conflict panics"
+    );
+    assert!(
+        Arc::ptr_eq(&lighter_before, &lighter_after),
+        "lighter cache should remain intact when earlier explicit conflict panics"
+    );
+}
+
+#[test]
 fn test_register_blocks_auto_id_can_reuse_processed_explicit_id() {
     let mut registry = create_test_registry();
 
