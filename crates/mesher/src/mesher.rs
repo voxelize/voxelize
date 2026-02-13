@@ -2236,13 +2236,14 @@ fn process_face<S: VoxelAccess>(
     let block_min_x_eps = block_min_x + 0.01;
     let block_min_y_eps = block_min_y + 0.01;
     let block_min_z_eps = block_min_z + 0.01;
-    let needs_opaque_checks = !(is_see_through || is_all_transparent);
+    let skip_opaque_checks = is_see_through || is_all_transparent;
+    let needs_opaque_checks = !skip_opaque_checks;
     let opaque_mask = if needs_opaque_checks {
         cache.opaque_mask.as_ref()
     } else {
         None
     };
-    let center_lights = if is_see_through || is_all_transparent {
+    let center_lights = if skip_opaque_checks {
         cache.center_lights
     } else {
         None
@@ -2317,7 +2318,7 @@ fn process_face<S: VoxelAccess>(
             (false, false, false, false)
         };
 
-        let ao = if is_see_through || is_all_transparent {
+        let ao = if skip_opaque_checks {
             3
         } else if dir_is_x {
             vertex_ao(b110, b101, b111)
