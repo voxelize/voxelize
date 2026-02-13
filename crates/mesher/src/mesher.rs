@@ -3434,6 +3434,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         block.can_greedy_mesh_without_rotation()
                     };
                     let is_non_greedy_block = !greedy_without_rotation;
+                    let mut greedy_face_index = -1i16;
+                    if !is_non_greedy_block {
+                        greedy_face_index = block.greedy_face_indices[dir_index];
+                        if greedy_face_index == -1 {
+                            continue;
+                        }
+                    }
 
                     let current_voxel_index = if is_opaque || is_non_greedy_block {
                         ((vx - min_x) as usize) * yz_span
@@ -3700,10 +3707,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                         continue;
                     }
-                    let face_index = block.greedy_face_indices[dir_index];
-                    if face_index == -1 {
-                        continue;
-                    }
+                    let face_index = greedy_face_index;
 
                     let should_render = should_render_face(
                         vx,
