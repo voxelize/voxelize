@@ -475,7 +475,8 @@ const processBatchMessage = (message: LightBatchMessage) => {
         localX >= 0 &&
         localX < gridWidth &&
         localZ >= 0 &&
-        localZ < gridDepth
+        localZ < gridDepth &&
+        chunksData[localX * gridDepth + localZ]
       ) {
         hasPotentialRelevantDelta = true;
         break;
