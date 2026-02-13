@@ -2051,15 +2051,20 @@ fn evaluate_block_rule<S: VoxelAccess>(
     }
 }
 
-fn get_dynamic_faces<'a, S: VoxelAccess>(
-    block: &'a Block,
+fn visit_dynamic_faces<S, F>(
+    block: &Block,
     pos: [i32; 3],
     space: &S,
     rotation: &BlockRotation,
-) -> Vec<(&'a BlockFace, bool)> {
+    mut visitor: F,
+)
+where
+    S: VoxelAccess,
+    F: FnMut(&BlockFace, bool),
+{
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
         for pattern in dynamic_patterns {
-            let mut matched_faces: Option<Vec<(&BlockFace, bool)>> = None;
+            let mut matched_rule = false;
 
             for part in &pattern.parts {
                 let rule_result = evaluate_block_rule(
@@ -2071,26 +2076,22 @@ fn get_dynamic_faces<'a, S: VoxelAccess>(
                     part.world_space,
                 );
                 if rule_result {
-                    let faces =
-                        matched_faces.get_or_insert_with(|| Vec::with_capacity(part.faces.len()));
-                    faces.reserve(part.faces.len());
+                    matched_rule = true;
                     for face in &part.faces {
-                        faces.push((face, part.world_space));
+                        visitor(face, part.world_space);
                     }
                 }
             }
 
-            if let Some(matched_faces) = matched_faces {
-                return matched_faces;
+            if matched_rule {
+                return;
             }
         }
     }
 
-    let mut faces = Vec::with_capacity(block.faces.len());
     for face in &block.faces {
-        faces.push((face, false));
+        visitor(face, false);
     }
-    faces
 }
 
 struct FaceProcessCache {
@@ -2626,12 +2627,16 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                                 .map(|f| (f, false))
                                 .collect()
                         } else if block.dynamic_patterns.is_some() {
-                            let dynamic_faces =
-                                get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
-                            let mut faces = Vec::with_capacity(dynamic_faces.len());
-                            for (face, world_space) in dynamic_faces {
+                            let mut faces = Vec::with_capacity(8);
+                            visit_dynamic_faces(
+                                block,
+                                [vx, vy, vz],
+                                space,
+                                &rotation,
+                                |face, world_space| {
                                 faces.push((face.clone(), world_space));
-                            }
+                                },
+                            );
                             faces
                         } else {
                             block.faces.iter().cloned().map(|f| (f, false)).collect()
@@ -3047,8 +3052,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 );
                             }
                         } else if has_dynamic_patterns {
-                            let faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
-                            for (face, world_space) in faces {
+                            visit_dynamic_faces(
+                                block,
+                                [vx, vy, vz],
+                                space,
+                                &rotation,
+                                |face, world_space| {
                                 non_greedy_faces.push((
                                     vx,
                                     vy,
@@ -3057,7 +3066,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                     face.clone(),
                                     world_space,
                                 ));
-                            }
+                                },
+                            );
                         } else {
                             let neighbors = NeighborCache::populate(vx, vy, vz, space);
                             let face_cache = build_face_process_cache(
@@ -3564,10 +3574,9 @@ pub fn mesh_space<S: VoxelAccess>(
                         process_single_face(face, false);
                     }
                 } else if has_dynamic_patterns {
-                    let dynamic_faces = get_dynamic_faces(block, [vx, vy, vz], space, &rotation);
-                    for (face, world_space) in dynamic_faces {
+                    visit_dynamic_faces(block, [vx, vy, vz], space, &rotation, |face, world_space| {
                         process_single_face(face, world_space);
-                    }
+                    });
                 } else {
                     for face in &block.faces {
                         process_single_face(face, false);
