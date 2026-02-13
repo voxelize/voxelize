@@ -168,10 +168,9 @@ export class Network {
     }, 1000 / 60);
 
     const MAX = 10000;
+    const maxDigits = MAX.toString().length;
     let index = Math.floor(Math.random() * MAX).toString();
-    index =
-      new Array(MAX.toString().length - index.length).fill("0").join("") +
-      index;
+    index = index.padStart(maxDigits, "0");
     this.clientInfo.username = `Guest ${index}`;
   }
 
