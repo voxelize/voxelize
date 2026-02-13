@@ -50,18 +50,39 @@ impl Block {
         self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
         self.greedy_face_indices = default_greedy_face_indices();
         self.is_full_cube_cached = is_full_cube_from_aabbs(&self.aabbs);
-        for face in &mut self.faces {
-            face.compute_name_lower();
-        }
-        self.has_standard_six_faces = has_standard_six_faces(&self.faces);
-        self.fluid_face_uvs = if self.has_standard_six_faces {
-            Some(standard_face_uvs(&self.faces))
-        } else {
-            None
-        };
+        let mut has_standard_six_faces = false;
+        let mut fluid_face_uvs = std::array::from_fn(|_| UV::default());
         let mut has_diagonal = false;
         let mut has_cardinal = false;
-        for (face_index, face) in self.faces.iter().enumerate() {
+        for (face_index, face) in self.faces.iter_mut().enumerate() {
+            face.compute_name_lower();
+            match face.get_name_lower() {
+                "py" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[0] = face.range.clone();
+                }
+                "ny" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[1] = face.range.clone();
+                }
+                "px" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[2] = face.range.clone();
+                }
+                "nx" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[3] = face.range.clone();
+                }
+                "pz" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[4] = face.range.clone();
+                }
+                "nz" => {
+                    has_standard_six_faces = true;
+                    fluid_face_uvs[5] = face.range.clone();
+                }
+                _ => {}
+            }
             if face.dir == [0, 0, 0] {
                 has_diagonal = true;
             } else {
@@ -78,6 +99,12 @@ impl Block {
                 }
             }
         }
+        self.has_standard_six_faces = has_standard_six_faces;
+        self.fluid_face_uvs = if has_standard_six_faces {
+            Some(fluid_face_uvs)
+        } else {
+            None
+        };
         self.has_diagonal_faces = has_diagonal;
         self.has_mixed_diagonal_and_cardinal = has_diagonal && has_cardinal;
         self.greedy_mesh_eligible_no_rotation = !self.is_fluid
