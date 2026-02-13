@@ -781,6 +781,41 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-wasm-pack json mode redacts malformed inline option names", () => {
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      "--=secret",
+      "--=token",
+      "-=secret",
+    ]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.outputPath).toBeNull();
+    expect(report.supportedCliOptions).toEqual(expectedStandardCliOptions);
+    expectCliOptionCatalogMetadata(report, {}, expectedStandardCliOptions);
+    expect(report.unknownOptions).toEqual(["--=<value>", "-=<value>"]);
+    expect(report.unknownOptionCount).toBe(2);
+    expect(report.validationErrorCode).toBe("unsupported_options");
+    expect(report.message).toBe(
+      "Unsupported option(s): --=<value>, -=<value>. Supported options: --compact, --json, --output, --quiet."
+    );
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json"],
+      ["--json"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-wasm-pack json mode normalizes inline unsupported options", () => {
     const result = runScript("check-wasm-pack.mjs", [
       "--json",
@@ -982,6 +1017,18 @@ describe("root preflight scripts", () => {
     );
     expect(result.output).not.toContain("--json=1");
     expect(result.output).not.toContain("--mystery=alpha");
+  });
+
+  it("check-wasm-pack non-json mode redacts malformed inline option names", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--=secret", "--=token", "-=secret"]);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "Unsupported option(s): --=<value>, -=<value>. Supported options: --compact, --json, --output, --quiet."
+    );
+    expect(result.output).not.toContain("--=secret");
+    expect(result.output).not.toContain("--=token");
+    expect(result.output).not.toContain("-=secret");
   });
 
   it("check-wasm-pack non-json mode fails on missing output value", () => {

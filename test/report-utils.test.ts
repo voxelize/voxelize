@@ -541,6 +541,17 @@ describe("report-utils", () => {
       "--no-build=<value>",
       "--mystery",
     ]);
+
+    const unknownWithMalformedInlineOptionNames = parseUnknownCliOptions(
+      ["--=secret", "--=token", "-=secret", "-=token"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+    expect(unknownWithMalformedInlineOptionNames).toEqual([
+      "--=<value>",
+      "-=<value>",
+    ]);
   });
 
   it("creates structured cli option validation metadata", () => {
@@ -611,6 +622,25 @@ describe("report-utils", () => {
       "Unsupported option(s): --json=<value>, --mystery. Supported options: --json, --output."
     );
     expect(unsupportedInlineKnownFlagValue.validationErrorCode).toBe(
+      "unsupported_options"
+    );
+
+    const unsupportedMalformedInlineOptionNames = createCliOptionValidation(
+      ["--=secret", "--=token", "-=secret", "-=token"],
+      {
+        canonicalOptions: ["--json", "--output"],
+        optionsWithValues: ["--output"],
+      }
+    );
+    expect(unsupportedMalformedInlineOptionNames.unknownOptions).toEqual([
+      "--=<value>",
+      "-=<value>",
+    ]);
+    expect(unsupportedMalformedInlineOptionNames.unknownOptionCount).toBe(2);
+    expect(unsupportedMalformedInlineOptionNames.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --=<value>, -=<value>. Supported options: --json, --output."
+    );
+    expect(unsupportedMalformedInlineOptionNames.validationErrorCode).toBe(
       "unsupported_options"
     );
 
@@ -1019,6 +1049,21 @@ describe("report-utils", () => {
     expect(diagnostics.unknownOptionCount).toBe(3);
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --no-build=<value>, --json=<value>, --mystery. Supported options: --json, --no-build, --verify, -j."
+    );
+  });
+
+  it("redacts malformed inline option names in diagnostics", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--=secret", "--=token", "-=secret", "-=token"],
+      {
+        canonicalOptions: ["--json"],
+      }
+    );
+
+    expect(diagnostics.unknownOptions).toEqual(["--=<value>", "-=<value>"]);
+    expect(diagnostics.unknownOptionCount).toBe(2);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --=<value>, -=<value>. Supported options: --json."
     );
   });
 

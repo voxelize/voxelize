@@ -350,7 +350,7 @@ const normalizeUnknownOptionToken = (optionToken, canonicalOptionMap) => {
 
   const optionName = optionToken.slice(0, equalsIndex);
   if (optionName === "-" || optionName === "--") {
-    return optionToken;
+    return `${optionName}=<value>`;
   }
 
   if (canonicalOptionMap.has(optionName)) {
