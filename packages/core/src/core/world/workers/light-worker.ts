@@ -123,7 +123,8 @@ const getLastSequenceIdFromDeltas = (
 ): number => {
   let lastSequenceId = 0;
 
-  for (const deltas of Object.values(relevantDeltas)) {
+  for (const chunkName in relevantDeltas) {
+    const deltas = relevantDeltas[chunkName];
     for (const delta of deltas) {
       if (delta.sequenceId > lastSequenceId) {
         lastSequenceId = delta.sequenceId;
@@ -229,7 +230,8 @@ const applyRelevantDeltas = (
 ): number => {
   let lastSequenceId = 0;
 
-  for (const [chunkName, deltas] of Object.entries(relevantDeltas)) {
+  for (const chunkName in relevantDeltas) {
+    const deltas = relevantDeltas[chunkName];
     const [cx, cz] = ChunkUtils.parseChunkName(chunkName);
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
