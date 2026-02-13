@@ -375,6 +375,20 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
+
+  let hasAnyChunk = false;
+  for (let index = 0; index < chunksData.length; index++) {
+    if (chunksData[index]) {
+      hasAnyChunk = true;
+      break;
+    }
+  }
+
+  if (!hasAnyChunk) {
+    postEmptyBatchResult(jobId, 0);
+    return;
+  }
+
   let lastSequenceId = 0;
   let serializedChunks:
     | (
