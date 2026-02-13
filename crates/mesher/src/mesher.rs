@@ -3820,7 +3820,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let mut cached_ao_light: Option<([i32; 4], [i32; 4])> = None;
                     let mut isolated_neighbors: Option<NeighborCache> = None;
                     let mut isolated_face_cache: Option<FaceProcessCache> = None;
-                    let mut push_greedy_face = |face: &BlockFace| {
+                    let mut push_greedy_face = |face: &BlockFace, face_index: usize| {
                         if face.isolated {
                             if isolated_neighbors.is_none() {
                                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
@@ -3890,6 +3890,34 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             }
                         });
                         let uv_range = face.range;
+                        let [uv_start_u, uv_end_u, uv_start_v, uv_end_v] = if cache_ready {
+                            if let Some(face_dir_index) = cardinal_dir_index(face.dir) {
+                                if block.greedy_face_indices[face_dir_index] == face_index as i16 {
+                                    block.greedy_face_uv_quantized[face_dir_index]
+                                } else {
+                                    [
+                                        (uv_range.start_u * 1000000.0) as u32,
+                                        (uv_range.end_u * 1000000.0) as u32,
+                                        (uv_range.start_v * 1000000.0) as u32,
+                                        (uv_range.end_v * 1000000.0) as u32,
+                                    ]
+                                }
+                            } else {
+                                [
+                                    (uv_range.start_u * 1000000.0) as u32,
+                                    (uv_range.end_u * 1000000.0) as u32,
+                                    (uv_range.start_v * 1000000.0) as u32,
+                                    (uv_range.end_v * 1000000.0) as u32,
+                                ]
+                            }
+                        } else {
+                            [
+                                (uv_range.start_u * 1000000.0) as u32,
+                                (uv_range.end_u * 1000000.0) as u32,
+                                (uv_range.start_v * 1000000.0) as u32,
+                                (uv_range.end_v * 1000000.0) as u32,
+                            ]
+                        };
 
                         let key = FaceKey {
                             block_id: block.id,
@@ -3901,10 +3929,10 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                             independent: face.independent,
                             ao: aos,
                             light: lights,
-                            uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-                            uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-                            uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-                            uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+                            uv_start_u,
+                            uv_end_u,
+                            uv_start_v,
+                            uv_end_v,
                         };
                         greedy_mask[current_mask_index] = Some(FaceData {
                             key,
@@ -3914,12 +3942,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     };
 
                     if greedy_face_index >= 0 {
-                        let face = &block.faces[greedy_face_index as usize];
-                        push_greedy_face(face);
+                        let face_index = greedy_face_index as usize;
+                        let face = &block.faces[face_index];
+                        push_greedy_face(face, face_index);
                     } else {
-                        for face in &block.faces {
+                        for (face_index, face) in block.faces.iter().enumerate() {
                             if face.dir == dir {
-                                push_greedy_face(face);
+                                push_greedy_face(face, face_index);
                             }
                         }
                     }
