@@ -10,6 +10,8 @@ const __dirname = path.dirname(__filename);
 const pnpmCommand = resolvePnpmCommand();
 
 const runStep = (name, command, args) => {
+  console.log(`Running client check step: ${name}`);
+
   const result = spawnSync(command, args, {
     stdio: "inherit",
     shell: false,

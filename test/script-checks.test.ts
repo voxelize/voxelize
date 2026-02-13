@@ -61,6 +61,7 @@ describe("root preflight scripts", () => {
 
   it("check-client returns pass or fail summary", () => {
     const result = runScript("check-client.mjs");
+    expect(result.output).toContain("Running client check step:");
 
     if (result.status === 0) {
       expect(result.output).toContain("Client checks passed.");
