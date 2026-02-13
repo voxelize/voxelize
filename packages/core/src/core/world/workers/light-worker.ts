@@ -124,6 +124,10 @@ const getLastSequenceIdFromDeltas = (
   let lastSequenceId = 0;
 
   for (const chunkName in relevantDeltas) {
+    if (!Object.prototype.hasOwnProperty.call(relevantDeltas, chunkName)) {
+      continue;
+    }
+
     const deltas = relevantDeltas[chunkName];
     for (const delta of deltas) {
       if (delta.sequenceId > lastSequenceId) {
@@ -231,6 +235,10 @@ const applyRelevantDeltas = (
   let lastSequenceId = 0;
 
   for (const chunkName in relevantDeltas) {
+    if (!Object.prototype.hasOwnProperty.call(relevantDeltas, chunkName)) {
+      continue;
+    }
+
     const deltas = relevantDeltas[chunkName];
     const [cx, cz] = ChunkUtils.parseChunkNameAt(chunkName);
     const localX = cx - gridOffsetX;
