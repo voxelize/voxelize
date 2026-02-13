@@ -271,15 +271,26 @@ export class SpriteText extends Sprite {
 
     const lines = this.text.split("\n");
     const font = `${this.fontWeight} ${this.fontSize}px ${this.fontFace}`;
+    const lineTokens = new Array<Array<{ color: string; text: string }>>(
+      lines.length
+    );
+    const lineTokenWidths = new Array<number[]>(lines.length);
+    const lineWidths = new Array<number>(lines.length);
 
     ctx.font = font; // measure canvas with appropriate font
     let innerWidth = 0;
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const splitted = ColorText.split(lines[lineIndex]);
+      const splitted = ColorText.split(lines[lineIndex], this.strokeColor);
+      lineTokens[lineIndex] = splitted;
+      const widths = new Array<number>(splitted.length);
+      lineTokenWidths[lineIndex] = widths;
       let sumLength = 0;
       for (let tokenIndex = 0; tokenIndex < splitted.length; tokenIndex++) {
-        sumLength += ctx.measureText(splitted[tokenIndex].text).width;
+        const width = ctx.measureText(splitted[tokenIndex].text).width;
+        widths[tokenIndex] = width;
+        sumLength += width;
       }
+      lineWidths[lineIndex] = sumLength;
       if (sumLength > innerWidth) {
         innerWidth = sumLength;
       }
@@ -445,14 +456,9 @@ export class SpriteText extends Sprite {
     ctx.shadowBlur = this.fontSize * 0.04;
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const splitted = ColorText.split(lines[lineIndex], this.strokeColor);
-
-      let sumLength = 0;
-      for (let tokenIndex = 0; tokenIndex < splitted.length; tokenIndex++) {
-        sumLength += ctx.measureText(splitted[tokenIndex].text).width;
-      }
-
-      let lineX = (innerWidth - sumLength) / 2;
+      const splitted = lineTokens[lineIndex];
+      const widths = lineTokenWidths[lineIndex];
+      let lineX = (innerWidth - lineWidths[lineIndex]) / 2;
       const lineY = (lineIndex + 1) * this.fontSize;
 
       for (let tokenIndex = 0; tokenIndex < splitted.length; tokenIndex++) {
@@ -463,7 +469,7 @@ export class SpriteText extends Sprite {
           ctx.strokeText(text, lineX, lineY);
         }
         ctx.fillText(text, lineX, lineY);
-        lineX += ctx.measureText(text).width;
+        lineX += widths[tokenIndex];
       }
     }
 
