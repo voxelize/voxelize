@@ -135,6 +135,24 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 
+  it("supports compact json output formatting", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--compact"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`.trim();
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(output).not.toContain("\n  \"");
+    expect(report.schemaVersion).toBe(1);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
   it("writes aggregate report to output path when requested", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-report-")

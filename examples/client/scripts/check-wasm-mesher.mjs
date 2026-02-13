@@ -24,6 +24,8 @@ const pnpmCommand = resolvePnpmCommand();
 const cliArgs = process.argv.slice(2);
 const isJson = cliArgs.includes("--json");
 const isNoBuild = cliArgs.includes("--no-build");
+const isCompact = cliArgs.includes("--compact");
+const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
 
 if (isJson && outputPathError !== null) {
@@ -40,7 +42,7 @@ if (isJson && outputPathError !== null) {
       buildOutput: null,
       outputPath: null,
       message: outputPathError,
-    })
+    }, jsonFormat)
   );
   process.exit(1);
 }
@@ -51,7 +53,7 @@ const finish = (report) => {
       ...report,
       outputPath,
     };
-    const reportJson = toReportJson(finalizedReport);
+    const reportJson = toReportJson(finalizedReport, jsonFormat);
 
     if (outputPath !== null) {
       const writeError = writeReportToPath(reportJson, outputPath);
@@ -62,7 +64,7 @@ const finish = (report) => {
             passed: false,
             exitCode: 1,
             message: writeError,
-          })
+          }, jsonFormat)
         );
         process.exit(1);
       }

@@ -43,6 +43,17 @@ describe("report-utils", () => {
     expect(parsed.exitCode).toBe(1);
   });
 
+  it("supports compact json serialization option", () => {
+    const compactSerialized = toReportJson(
+      { passed: true, exitCode: 0 },
+      { compact: true }
+    );
+
+    expect(compactSerialized).toBe(
+      `{"passed":true,"exitCode":0,"schemaVersion":${REPORT_SCHEMA_VERSION}}`
+    );
+  });
+
   it("resolves output paths and validates missing values", () => {
     const resolved = resolveOutputPath(
       ["--json", "--output", "./report.json"],

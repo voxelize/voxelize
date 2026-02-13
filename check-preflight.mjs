@@ -13,6 +13,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
 const isNoBuild = cliArgs.includes("--no-build");
+const isCompact = cliArgs.includes("--compact");
+const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliArgs);
 const onlyArgIndex = cliArgs.indexOf("--only");
@@ -130,7 +132,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
       outputPath: null,
       message: outputPathError ?? selectedChecksError,
       availableChecks: availableCheckNames,
-    })
+    }, jsonFormat)
   );
   process.exit(1);
 }
@@ -234,7 +236,7 @@ const report = {
   outputPath: resolvedOutputPath,
   availableChecks: availableCheckNames,
 };
-const reportJson = toReportJson(report);
+const reportJson = toReportJson(report, jsonFormat);
 
 if (resolvedOutputPath !== null) {
   const writeError = writeReportToPath(reportJson, resolvedOutputPath);
@@ -245,7 +247,7 @@ if (resolvedOutputPath !== null) {
         passed: false,
         exitCode: 1,
         message: writeError,
-      })
+      }, jsonFormat)
     );
     process.exit(1);
   }

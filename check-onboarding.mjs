@@ -15,6 +15,8 @@ const cliArgs = process.argv.slice(2);
 const isQuiet = cliArgs.includes("--quiet");
 const isJson = cliArgs.includes("--json");
 const isNoBuild = cliArgs.includes("--no-build");
+const isCompact = cliArgs.includes("--compact");
+const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
 const stepResults = [];
 let exitCode = 0;
@@ -28,7 +30,7 @@ if (isJson && outputPathError !== null) {
       outputPath: null,
       steps: [],
       message: outputPathError,
-    })
+    }, jsonFormat)
   );
   process.exit(1);
 }
@@ -120,7 +122,7 @@ if (isJson) {
     outputPath,
     steps: stepResults,
   };
-  const reportJson = toReportJson(report);
+  const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath !== null) {
     const writeError = writeReportToPath(reportJson, outputPath);
@@ -131,7 +133,7 @@ if (isJson) {
           passed: false,
           exitCode: 1,
           message: writeError,
-        })
+        }, jsonFormat)
       );
       process.exit(1);
     }

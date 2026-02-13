@@ -22,8 +22,9 @@ export const toReport = (report) => {
   };
 };
 
-export const toReportJson = (report) => {
-  return JSON.stringify(toReport(report), null, 2);
+export const toReportJson = (report, options = {}) => {
+  const compact = options.compact === true;
+  return JSON.stringify(toReport(report), null, compact ? 0 : 2);
 };
 
 export const resolveOutputPath = (args, cwd = process.cwd()) => {

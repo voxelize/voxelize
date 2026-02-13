@@ -11,6 +11,8 @@ const wasmPackCommand = resolveCommand("wasm-pack");
 const cliArgs = process.argv.slice(2);
 const isQuiet = cliArgs.includes("--quiet");
 const isJson = cliArgs.includes("--json");
+const isCompact = cliArgs.includes("--compact");
+const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
 
 if (isJson && outputPathError !== null) {
@@ -22,7 +24,7 @@ if (isJson && outputPathError !== null) {
       version: null,
       outputPath: null,
       message: outputPathError,
-    })
+    }, jsonFormat)
   );
   process.exit(1);
 }
@@ -53,7 +55,7 @@ if (checkStatus === 0) {
       version: firstLine,
       outputPath,
     };
-    const reportJson = toReportJson(report);
+    const reportJson = toReportJson(report, jsonFormat);
 
     if (outputPath !== null) {
       const writeError = writeReportToPath(reportJson, outputPath);
@@ -65,7 +67,7 @@ if (checkStatus === 0) {
             exitCode: 1,
             version: null,
             message: writeError,
-          })
+          }, jsonFormat)
         );
         process.exit(1);
       }
@@ -87,7 +89,7 @@ if (isJson) {
     outputPath,
     message: failureMessage,
   };
-  const reportJson = toReportJson(report);
+  const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath !== null) {
     const writeError = writeReportToPath(reportJson, outputPath);
@@ -97,7 +99,7 @@ if (isJson) {
           ...report,
           exitCode: 1,
           message: writeError,
-        })
+        }, jsonFormat)
       );
       process.exit(1);
     }

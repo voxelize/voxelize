@@ -20,6 +20,8 @@ const __dirname = path.dirname(__filename);
 const cliArgs = process.argv.slice(2);
 const isQuiet = cliArgs.includes("--quiet");
 const isJson = cliArgs.includes("--json");
+const isCompact = cliArgs.includes("--compact");
+const jsonFormat = { compact: isCompact };
 const { outputPath, error: outputPathError } = resolveOutputPath(cliArgs);
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 
@@ -82,7 +84,7 @@ if (isJson && outputPathError !== null) {
       checks: [],
       outputPath: null,
       message: outputPathError,
-    })
+    }, jsonFormat)
   );
   process.exit(1);
 }
@@ -170,7 +172,7 @@ if (isJson) {
     checks: checkResults,
     outputPath,
   };
-  const reportJson = toReportJson(report);
+  const reportJson = toReportJson(report, jsonFormat);
 
   if (outputPath !== null) {
     const writeError = writeReportToPath(reportJson, outputPath);
@@ -181,7 +183,7 @@ if (isJson) {
           passed: false,
           exitCode: 1,
           message: writeError,
-        })
+        }, jsonFormat)
       );
       process.exit(1);
     }
