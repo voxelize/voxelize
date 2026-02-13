@@ -5800,8 +5800,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   })();
 
   private appendItems<T>(target: T[], source: T[]) {
-    for (const item of source) {
-      target.push(item);
+    const sourceCount = source.length;
+    if (sourceCount === 0) {
+      return;
+    }
+
+    const start = target.length;
+    target.length = start + sourceCount;
+    for (let index = 0; index < sourceCount; index++) {
+      target[start + index] = source[index];
     }
   }
 
