@@ -3053,15 +3053,27 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
-                        let has_independent_or_isolated_faces =
-                            block.has_independent_or_isolated_faces_cached();
-                        let has_dynamic_patterns = block.has_dynamic_patterns_cached();
+                        let has_independent_or_isolated_faces = if block.cache_ready {
+                            block.has_independent_or_isolated_faces
+                        } else {
+                            block.has_independent_or_isolated_faces_cached()
+                        };
+                        let has_dynamic_patterns = if block.cache_ready {
+                            block.has_dynamic_patterns
+                        } else {
+                            block.has_dynamic_patterns_cached()
+                        };
                         let mut rotation = BlockRotation::PY(0.0);
                         if block.rotatable || block.y_rotatable {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
                         processed_non_greedy[current_voxel_index] = true;
-                        if is_fluid && block.has_standard_six_faces_cached() {
+                        let has_standard_six_faces = if block.cache_ready {
+                            block.has_standard_six_faces
+                        } else {
+                            block.has_standard_six_faces_cached()
+                        };
+                        if is_fluid && has_standard_six_faces {
                             let fluid_faces =
                                 create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
                             let neighbors = NeighborCache::populate(vx, vy, vz, space);
@@ -3216,8 +3228,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         }
                         continue;
                     }
-                    let has_independent_or_isolated_faces =
-                        block.has_independent_or_isolated_faces_cached();
+                    let has_independent_or_isolated_faces = if block.cache_ready {
+                        block.has_independent_or_isolated_faces
+                    } else {
+                        block.has_independent_or_isolated_faces_cached()
+                    };
 
                     let face_index = block.greedy_face_indices[dir_index];
                     if face_index == -1 {
