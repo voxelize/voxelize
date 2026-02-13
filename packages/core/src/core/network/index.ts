@@ -656,14 +656,14 @@ export class Network {
     }
   };
 
-  private static encodeSync(message: Record<string, unknown>) {
+  private static encodeSync(message: Record<string, JsonValue | object>) {
     const messageJson = message.json;
     if (messageJson && typeof messageJson !== "string") {
       message.json = JSON.stringify(messageJson);
     }
     message.type = Message.Type[message.type as string];
     const entities = message.entities as Array<{
-      metadata: string | object | null;
+      metadata: string | JsonValue | null;
     }>;
     if (entities) {
       for (let index = 0; index < entities.length; index++) {
@@ -674,7 +674,7 @@ export class Network {
       }
     }
     const peers = message.peers as Array<{
-      metadata: string | object | null;
+      metadata: string | JsonValue | null;
     }>;
     if (peers) {
       for (let index = 0; index < peers.length; index++) {
