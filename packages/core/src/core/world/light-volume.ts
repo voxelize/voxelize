@@ -23,6 +23,9 @@ export class LightVolume {
   private config: LightVolumeConfig;
   private texture: Data3DTexture;
   private data: Uint8Array;
+  private texWidth = 0;
+  private texHeight = 0;
+  private texDepth = 0;
   private volumeMin = new Vector3();
   private volumeSize = new Vector3();
   private lastCenterX = NaN;
@@ -41,9 +44,12 @@ export class LightVolume {
 
     const [width, height, depth] = this.config.size;
     const res = this.config.resolution;
-    const texWidth = Math.ceil(width / res);
-    const texHeight = Math.ceil(height / res);
-    const texDepth = Math.ceil(depth / res);
+    this.texWidth = Math.ceil(width / res);
+    this.texHeight = Math.ceil(height / res);
+    this.texDepth = Math.ceil(depth / res);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
     this.data = new Uint8Array(texWidth * texHeight * texDepth * 4);
     this.data.fill(255);
@@ -111,11 +117,9 @@ export class LightVolume {
 
     this.data.fill(0);
 
-    const [width, height, depth] = this.config.size;
-    const res = this.config.resolution;
-    const texWidth = Math.ceil(width / res);
-    const texHeight = Math.ceil(height / res);
-    const texDepth = Math.ceil(depth / res);
+    const texWidth = this.texWidth;
+    const texHeight = this.texHeight;
+    const texDepth = this.texDepth;
 
     for (let lightIndex = 0; lightIndex < lightCount; lightIndex++) {
       this.accumulateLight(lights[lightIndex], texWidth, texHeight, texDepth);
@@ -213,13 +217,7 @@ export class LightVolume {
   }
 
   getResolution(): Vector3 {
-    const [width, height, depth] = this.config.size;
-    const res = this.config.resolution;
-    return new Vector3(
-      Math.ceil(width / res),
-      Math.ceil(height / res),
-      Math.ceil(depth / res)
-    );
+    return new Vector3(this.texWidth, this.texHeight, this.texDepth);
   }
 
   dispose() {
