@@ -3979,7 +3979,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
       }
     }
-    toRequestClosest.sort((a, b) => a.distance - b.distance);
+    if (toRequestClosest.length > 1) {
+      toRequestClosest.sort((a, b) => a.distance - b.distance);
+    }
     const toRequest = new Array<Coords2>(toRequestClosest.length);
     for (let index = 0; index < toRequestClosest.length; index++) {
       toRequest[index] = toRequestClosest[index].coords;
@@ -4071,7 +4073,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    toProcessArray.sort((a, b) => a.distance - b.distance);
+    if (toProcessArray.length > 1) {
+      toProcessArray.sort((a, b) => a.distance - b.distance);
+    }
 
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
