@@ -1021,6 +1021,58 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("prioritizes output validation while still reporting unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--output"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(result.status).toBe(1);
+  });
+
+  it("prioritizes only-selection validation while still reporting unsupported options", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--mystery", "--only", "invalidCheck"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.message).toBe(
+      "Invalid check name(s): invalidCheck. Available checks: devEnvironment, wasmPack, client. Special selectors: all (all-checks, all_checks, allchecks)."
+    );
+    expect(report.invalidChecks).toEqual(["invalidCheck"]);
+    expect(report.invalidCheckCount).toBe(1);
+    expect(report.unknownOptions).toEqual(["--mystery"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.supportedCliOptions).toEqual(expectedSupportedCliOptions);
+    expect(result.status).toBe(1);
+  });
+
   it("writes list-mode report to output path", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-preflight-list-report-")
