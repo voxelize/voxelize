@@ -17,13 +17,38 @@ function dataEqual(
   if (a === b) return true;
   if (!a && !b) return true;
   if (!a || !b) return false;
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-  for (const key of keysA) {
-    if (a[key] !== b[key]) return false;
+  const hasOwn = Object.prototype.hasOwnProperty;
+  let keysInA = 0;
+  for (const key in a) {
+    if (!hasOwn.call(a, key)) {
+      continue;
+    }
+    keysInA++;
+    if (!hasOwn.call(b, key) || a[key] !== b[key]) return false;
   }
-  return true;
+  let keysInB = 0;
+  for (const key in b) {
+    if (!hasOwn.call(b, key)) {
+      continue;
+    }
+    keysInB++;
+  }
+  return keysInA === keysInB;
+}
+
+function hasData<T extends object>(data: T | undefined): boolean {
+  if (!data) {
+    return false;
+  }
+
+  const hasOwn = Object.prototype.hasOwnProperty;
+  for (const key in data) {
+    if (hasOwn.call(data, key)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export class ItemRegistry {
@@ -157,10 +182,8 @@ export class ItemRegistry {
     if (a.type === "item" && b.type === "item") {
       if (a.id !== b.id) return false;
       if (this.getMaxStack(a) <= 1) return false;
-      const aData = a.data;
-      const bData = b.data;
-      const aHasData = aData && Object.keys(aData).length > 0;
-      const bHasData = bData && Object.keys(bData).length > 0;
+      const aHasData = hasData(a.data);
+      const bHasData = hasData(b.data);
       if (aHasData || bHasData) return false;
       return true;
     }
