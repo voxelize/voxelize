@@ -2861,31 +2861,21 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const isSunlight = color === "SUNLIGHT";
 
-    const blockCache = new Map<string, Block>();
-    const rotationCache = new Map<string, BlockRotation>();
-
-    const getCachedBlock = (vx: number, vy: number, vz: number): Block => {
-      const key = `${vx},${vy},${vz}`;
-      let block = blockCache.get(key);
-      if (!block) {
-        block = this.getBlockAtUnchecked(vx, vy, vz);
-        blockCache.set(key, block);
+    const voxelStateCache = new Map<
+      string,
+      { block: Block; rotation: BlockRotation }
+    >();
+    const getCachedVoxelState = (vx: number, vy: number, vz: number) => {
+      const key = ChunkUtils.getVoxelNameAt(vx, vy, vz);
+      let state = voxelStateCache.get(key);
+      if (!state) {
+        state = {
+          block: this.getBlockAtUnchecked(vx, vy, vz),
+          rotation: this.getVoxelRotationAtUnchecked(vx, vy, vz),
+        };
+        voxelStateCache.set(key, state);
       }
-      return block;
-    };
-
-    const getCachedRotation = (
-      vx: number,
-      vy: number,
-      vz: number
-    ): BlockRotation => {
-      const key = `${vx},${vy},${vz}`;
-      let rotation = rotationCache.get(key);
-      if (!rotation) {
-        rotation = this.getVoxelRotationAtUnchecked(vx, vy, vz);
-        rotationCache.set(key, rotation);
-      }
-      return rotation;
+      return state;
     };
 
     let head = 0;
@@ -2898,8 +2888,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       const [vx, vy, vz] = voxel;
-      const sourceBlock = getCachedBlock(vx, vy, vz);
-      const sourceRotation = getCachedRotation(vx, vy, vz);
+      const { block: sourceBlock, rotation: sourceRotation } =
+        getCachedVoxelState(vx, vy, vz);
       const sourceTransparency =
         !isSunlight &&
         BlockUtils.getBlockTorchLightLevel(sourceBlock, color) > 0
@@ -2930,8 +2920,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         const nextVoxel = [nvx, nvy, nvz] as Coords3;
-        const nBlock = getCachedBlock(nvx, nvy, nvz);
-        const nRotation = getCachedRotation(nvx, nvy, nvz);
+        const { block: nBlock, rotation: nRotation } = getCachedVoxelState(
+          nvx,
+          nvy,
+          nvz
+        );
         const nTransparency = BlockUtils.getBlockRotatedTransparency(
           nBlock,
           nRotation
