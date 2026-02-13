@@ -3408,18 +3408,22 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if block.is_empty {
                         continue;
                     }
+                    let cache_ready = block.cache_ready;
+                    let mut has_dynamic_patterns_cached_value = false;
+                    let mut has_dynamic_patterns_cached_known = false;
                     if !block.is_fluid && block.faces.is_empty() {
-                        let has_dynamic_patterns = if block.cache_ready {
+                        has_dynamic_patterns_cached_value = if cache_ready {
                             block.has_dynamic_patterns
                         } else {
                             block.has_dynamic_patterns_cached()
                         };
-                        if !has_dynamic_patterns {
+                        has_dynamic_patterns_cached_known = true;
+                        if !has_dynamic_patterns_cached_value {
                             continue;
                         }
                     }
 
-                    let greedy_without_rotation = if block.cache_ready {
+                    let greedy_without_rotation = if cache_ready {
                         block.greedy_mesh_eligible_no_rotation
                     } else {
                         block.can_greedy_mesh_without_rotation()
@@ -3458,7 +3462,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     if is_non_greedy_block {
                         let non_greedy_voxel_index = current_voxel_index;
                         let is_fluid = block.is_fluid;
-                        let cache_ready = block.cache_ready;
                         let block_needs_rotation = block.rotatable || block.y_rotatable;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block_needs_rotation {
@@ -3524,7 +3527,9 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 );
                             }
                         } else {
-                            let has_dynamic_patterns = if cache_ready {
+                            let has_dynamic_patterns = if has_dynamic_patterns_cached_known {
+                                has_dynamic_patterns_cached_value
+                            } else if cache_ready {
                                 block.has_dynamic_patterns
                             } else {
                                 block.has_dynamic_patterns_cached()
