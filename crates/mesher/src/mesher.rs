@@ -2263,7 +2263,7 @@ fn process_face<S: VoxelAccess>(
 
         if !is_fluid {
             if !see_through {
-                !is_opaque || !registry.has_type_and_is_opaque(neighbor_id).1
+                !registry.is_opaque_id(neighbor_id)
             } else if !is_opaque {
                 let (neighbor_has_type, neighbor_is_opaque) =
                     registry.has_type_and_is_opaque(neighbor_id);
