@@ -2151,6 +2151,9 @@ fn process_face<S: VoxelAccess>(
     } else {
         0.0001
     };
+    let base_x = vx as f32 - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset;
+    let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
+    let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
 
     for (corner_index, corner) in face.corners.iter().enumerate() {
         let mut pos = corner.pos;
@@ -2159,13 +2162,9 @@ fn process_face<S: VoxelAccess>(
             rotation.rotate_node(&mut pos, y_rotatable, true);
         }
 
-        let pos_x = pos[0] + vx as f32;
-        let pos_y = pos[1] + vy as f32;
-        let pos_z = pos[2] + vz as f32;
-
-        positions.push(pos_x - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset);
-        positions.push(pos_y - min_y as f32 - dir[1] as f32 * face_inset);
-        positions.push(pos_z - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset);
+        positions.push(pos[0] + base_x);
+        positions.push(pos[1] + base_y);
+        positions.push(pos[2] + base_z);
 
         uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
         uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
