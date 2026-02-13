@@ -20,6 +20,7 @@
     "typecheck:client": "pnpm --filter client run typecheck",
     "check:client:wasm": "pnpm --filter client run check:wasm",
     "check:client": "node ./check-client.mjs",
+    "check:onboarding": "pnpm run check:dev-env && pnpm run check:client",
     "test:rust": "cargo test --test mesher_tests --test lights_tests",
     "test:rust:all": "cargo test --lib --tests",
     "bench": "cargo bench --bench mesher_bench --bench lights_bench",

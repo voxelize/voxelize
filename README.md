@@ -103,6 +103,9 @@ pnpm run check:client:wasm
 
 # run both client checks in sequence
 pnpm run check:client
+
+# run full onboarding checks (tooling + client)
+pnpm run check:onboarding
 ```
 
 visit http://localhost:3000
