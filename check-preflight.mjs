@@ -67,7 +67,7 @@ const parseSelectedChecks = () => {
   if (onlyArgIndex === -1) {
     return {
       selectedChecks: availableCheckNames,
-      requestedChecks: availableCheckNames,
+      requestedChecks: [],
       error: null,
       invalidChecks: [],
     };
@@ -83,16 +83,12 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const parsedChecks = Array.from(
-    new Set(
-      onlyValue
-        .split(",")
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0)
-    )
-  );
+  const tokenizedChecks = onlyValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 
-  if (parsedChecks.length === 0) {
+  if (tokenizedChecks.length === 0) {
     return {
       selectedChecks: [],
       requestedChecks: [],
@@ -104,7 +100,7 @@ const parseSelectedChecks = () => {
   const invalidChecks = [];
   const resolvedChecks = [];
   const normalizedAllChecksAlias = normalizeCheckToken(ALL_CHECKS_ALIAS);
-  for (const parsedCheck of parsedChecks) {
+  for (const parsedCheck of tokenizedChecks) {
     if (normalizeCheckToken(parsedCheck) === normalizedAllChecksAlias) {
       resolvedChecks.push(...availableCheckNames);
       continue;
@@ -133,7 +129,7 @@ const parseSelectedChecks = () => {
 
     return {
       selectedChecks: [],
-      requestedChecks: parsedChecks,
+      requestedChecks: tokenizedChecks,
       error: `Invalid check name(s): ${uniqueInvalidChecks.join(", ")}. Available checks: ${availableCheckNames.join(", ")}.`,
       invalidChecks: uniqueInvalidChecks,
     };
@@ -146,7 +142,7 @@ const parseSelectedChecks = () => {
 
   return {
     selectedChecks: normalizedChecks,
-    requestedChecks: parsedChecks,
+    requestedChecks: tokenizedChecks,
     error: null,
     invalidChecks: [],
   };

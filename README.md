@@ -212,6 +212,7 @@ Invalid `--only` errors include available canonical check names for quick correc
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Aggregate preflight reports include `availableCheckAliases` so automation can map user-facing aliases to canonical check names.
 Aggregate preflight reports include `requestedChecks` so CI logs can capture the exact `--only` inputs after tokenization.
+When `--only` is omitted, `requestedChecks` is an empty array and `selectedChecks` contains the default aggregate checks.
 If report writing fails, JSON error reports include both `message` and `writeError`.
 Add `--compact` to each JSON preflight command for single-line JSON output.
 

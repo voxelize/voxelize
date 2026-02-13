@@ -96,7 +96,7 @@ describe("preflight aggregate report", () => {
     ]);
     expect(report.availableCheckAliases).toEqual(expectedAvailableCheckAliases);
     expect(report.selectedChecks).toEqual(report.availableChecks);
-    expect(report.requestedChecks).toEqual(report.availableChecks);
+    expect(report.requestedChecks).toEqual([]);
     expect(report.skippedChecks).toEqual([]);
     expect(report.invalidChecks).toEqual([]);
     expect(report.totalChecks).toBe(report.checks.length);
@@ -197,6 +197,7 @@ describe("preflight aggregate report", () => {
     expect(report.requestedChecks).toEqual([
       "devEnvironment",
       "client",
+      "devEnvironment",
     ]);
     expect(report.skippedChecks).toEqual(["wasmPack"]);
     expect(report.invalidChecks).toEqual([]);
@@ -367,6 +368,36 @@ describe("preflight aggregate report", () => {
     expect(report.checks.map((check) => check.name)).toEqual([
       "devEnvironment",
       "wasmPack",
+      "client",
+    ]);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
+  });
+
+  it("preserves duplicate requested checks while normalizing selected checks", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--no-build", "--only", "client,client,DEV_ENV,dev_env"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.selectedChecks).toEqual(["devEnvironment", "client"]);
+    expect(report.requestedChecks).toEqual([
+      "client",
+      "client",
+      "DEV_ENV",
+      "dev_env",
+    ]);
+    expect(report.skippedChecks).toEqual(["wasmPack"]);
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "devEnvironment",
       "client",
     ]);
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
