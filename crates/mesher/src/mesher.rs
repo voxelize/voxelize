@@ -3114,6 +3114,10 @@ pub fn mesh_space<S: VoxelAccess>(
                     continue;
                 }
 
+                if !is_fluid && block.dynamic_patterns.is_none() && block.faces.is_empty() {
+                    continue;
+                }
+
                 if is_opaque {
                     if is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry) {
                         continue;
