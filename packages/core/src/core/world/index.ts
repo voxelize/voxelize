@@ -2494,7 +2494,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     event: K,
     listener: WorldChunkEvents[K]
   ): this {
-    this.chunkEvents.on(event, listener as any);
+    this.chunkEvents.on(event, listener);
     return this;
   }
 
@@ -2509,7 +2509,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     event: K,
     listener: WorldChunkEvents[K]
   ): this {
-    this.chunkEvents.off(event, listener as any);
+    this.chunkEvents.off(event, listener);
     return this;
   }
 
@@ -2524,7 +2524,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     event: K,
     listener: WorldChunkEvents[K]
   ): this {
-    this.chunkEvents.once(event, listener as any);
+    this.chunkEvents.once(event, listener);
     return this;
   }
 
