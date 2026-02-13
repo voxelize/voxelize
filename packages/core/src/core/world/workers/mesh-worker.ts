@@ -292,6 +292,10 @@ const processMeshMessage = (message: MeshBatchMessage) => {
     greedyMeshing
   ) as { geometries: GeometryProtocol[] };
   const maxGeometryCount = result.geometries.length;
+  if (maxGeometryCount === 0) {
+    postEmptyMeshResult();
+    return;
+  }
   const arrayBuffers = new Array<ArrayBuffer>(maxGeometryCount * 5);
   const geometriesPacked = new Array<{
     indices: Uint16Array;
