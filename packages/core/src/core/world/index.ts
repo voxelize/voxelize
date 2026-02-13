@@ -2264,9 +2264,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) => {
     const name = ChunkUtils.getChunkNameAt(cx, cz);
 
-    const listeners = this.chunkInitializeListeners.get(name) ?? new Set();
+    let listeners = this.chunkInitializeListeners.get(name);
+    if (!listeners) {
+      listeners = new Set();
+      this.chunkInitializeListeners.set(name, listeners);
+    }
     listeners.add(listener);
-    this.chunkInitializeListeners.set(name, listeners);
 
     return () => {
       const current = this.chunkInitializeListeners.get(name);
