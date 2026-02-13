@@ -64,8 +64,7 @@ fn bench_mesh_space(c: &mut Criterion) {
     };
 
     let registry = create_test_registry();
-    let mut mesher_registry = registry.to_mesher_registry();
-    mesher_registry.build_cache();
+    let mesher_registry = registry.mesher_registry();
     let chunks = create_test_chunks(&config);
     let coords = Vec2(0, 0);
 
@@ -86,7 +85,7 @@ fn bench_mesh_space(c: &mut Criterion) {
                 black_box(&min_arr),
                 black_box(&max_arr),
                 black_box(&space),
-                black_box(&mesher_registry),
+                black_box(mesher_registry.as_ref()),
             )
         })
     });
@@ -104,8 +103,7 @@ fn bench_mesh_space_sizes(c: &mut Criterion) {
     };
 
     let registry = create_test_registry();
-    let mut mesher_registry = registry.to_mesher_registry();
-    mesher_registry.build_cache();
+    let mesher_registry = registry.mesher_registry();
 
     for height in [8, 16, 32, 64].iter() {
         let chunks = create_test_chunks(&config);
@@ -127,7 +125,7 @@ fn bench_mesh_space_sizes(c: &mut Criterion) {
                         black_box(&min_arr),
                         black_box(&max_arr),
                         black_box(&space),
-                        black_box(&mesher_registry),
+                        black_box(mesher_registry.as_ref()),
                     )
                 })
             },
