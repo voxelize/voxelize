@@ -134,8 +134,8 @@ onmessage = function (e) {
   }
 
   const positionsArray = new Float32Array(positions);
-  const normalsArray = new Float32Array(normals);
-  const indicesArray = new Float32Array(indices);
+  const normalsArray = new Int8Array(normals);
+  const indicesArray = new Uint32Array(indices);
 
   postMessage(
     {

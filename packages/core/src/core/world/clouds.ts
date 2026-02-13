@@ -1,5 +1,6 @@
 import ndarray from "ndarray";
 import {
+  BufferAttribute,
   BufferGeometry,
   Clock,
   Color,
@@ -473,7 +474,7 @@ export class Clouds extends Group {
     const geometry = mesh ? mesh.geometry : new BufferGeometry();
     geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new Int8BufferAttribute(normals, 3));
-    geometry.setIndex(Array.from(indices));
+    geometry.setIndex(new BufferAttribute(indices, 1));
     geometry.computeBoundingBox();
 
     mesh = mesh || new Mesh(geometry, this.material);

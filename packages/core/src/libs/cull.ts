@@ -7,8 +7,8 @@ import CullWorker from "./workers/cull-worker.ts?worker&inline";
 
 export type MeshResultType = {
   positions: Float32Array;
-  normals: Float32Array;
-  indices: Float32Array;
+  normals: Int8Array;
+  indices: Uint32Array;
 };
 
 export type CullOptionsType = {
