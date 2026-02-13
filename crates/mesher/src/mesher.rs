@@ -1994,9 +1994,9 @@ fn extract_greedy_quads_dense(
                     continue 'rows;
                 }
                 u_off = next_u_off;
-                continue;
+            } else {
+                u_off += 1;
             }
-            u_off += 1;
         }
         v_off += 1;
     }
