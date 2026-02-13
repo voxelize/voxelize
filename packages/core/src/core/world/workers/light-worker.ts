@@ -236,13 +236,6 @@ const applyRelevantDeltas = (
   let lastSequenceId = 0;
 
   for (const { cx, cz, deltas } of relevantDeltas) {
-    if (deltas.length > 0) {
-      const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
-      if (chunkLastSequenceId > lastSequenceId) {
-        lastSequenceId = chunkLastSequenceId;
-      }
-    }
-
     const localX = cx - gridOffsetX;
     const localZ = cz - gridOffsetZ;
 
@@ -258,6 +251,13 @@ const applyRelevantDeltas = (
     const chunk = chunkGrid[localX][localZ];
     if (!chunk) {
       continue;
+    }
+
+    if (deltas.length > 0) {
+      const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
+      if (chunkLastSequenceId > lastSequenceId) {
+        lastSequenceId = chunkLastSequenceId;
+      }
     }
 
     for (const delta of deltas) {
