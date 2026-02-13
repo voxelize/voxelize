@@ -2230,9 +2230,11 @@ fn process_face<S: VoxelAccess>(
         None
     };
     let center_lights = if skip_opaque_checks {
-        cache.center_lights
+        cache
+            .center_lights
+            .expect("center lights exist when opaque checks are skipped")
     } else {
-        None
+        (0, 0, 0, 0)
     };
     let fluid_surface_above = cache.fluid_surface_above;
     let fluid_bit = if is_fluid { 1 << 18 } else { 0 };
@@ -2319,11 +2321,11 @@ fn process_face<S: VoxelAccess>(
         let green_light;
         let blue_light;
 
-        if let Some((s, r, g, b)) = center_lights {
-            sunlight = s;
-            red_light = r;
-            green_light = g;
-            blue_light = b;
+        if skip_opaque_checks {
+            sunlight = center_lights.0;
+            red_light = center_lights.1;
+            green_light = center_lights.2;
+            blue_light = center_lights.3;
         } else {
             let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
             let mut sum_sunlights = 0u32;
