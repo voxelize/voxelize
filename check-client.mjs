@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const pnpmCommand = resolvePnpmCommand();
 const isQuiet = process.argv.includes("--quiet");
 const isJson = process.argv.includes("--json");
+const isNoBuild = process.argv.includes("--no-build");
 const stepResults = [];
 let exitCode = 0;
 
@@ -74,6 +75,7 @@ const wasmPreflightPassed = runStep(
   [
     path.resolve(__dirname, "./examples/client/scripts/check-wasm-mesher.mjs"),
     ...(isJson ? ["--json"] : []),
+    ...(isNoBuild ? ["--no-build"] : []),
   ]
 );
 
@@ -92,6 +94,7 @@ if (isJson) {
       {
         passed: exitCode === 0,
         exitCode,
+        noBuild: isNoBuild,
         steps: stepResults,
       },
       null,

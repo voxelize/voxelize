@@ -18,6 +18,7 @@ type WasmMesherJsonReport = {
   artifactPath: string;
   artifactFound: boolean;
   attemptedBuild: boolean;
+  buildSkipped: boolean;
   wasmPackAvailable: boolean | null;
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
@@ -48,11 +49,30 @@ describe("client wasm preflight script", () => {
     );
     expect(typeof report.artifactFound).toBe("boolean");
     expect(typeof report.attemptedBuild).toBe("boolean");
+    expect(typeof report.buildSkipped).toBe("boolean");
     expect(typeof report.message).toBe("string");
     expect(result.status).toBe(report.passed ? 0 : report.exitCode);
 
     if (report.wasmPackCheckReport !== null) {
       expect(report.wasmPackCheckReport.command).toContain("wasm-pack");
     }
+  });
+
+  it("respects no-build mode in machine-readable output", () => {
+    const result = spawnSync(
+      process.execPath,
+      [wasmMesherScript, "--json", "--no-build"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as WasmMesherJsonReport;
+
+    expect(report.buildSkipped).toBe(true);
+    expect(report.attemptedBuild).toBe(false);
+    expect(result.status).toBe(report.passed ? 0 : report.exitCode);
   });
 });

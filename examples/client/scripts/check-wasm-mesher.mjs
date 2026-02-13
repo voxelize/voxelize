@@ -16,6 +16,7 @@ const repositoryRoot = path.resolve(__dirname, "../../..");
 const rootWasmCheckScript = path.resolve(repositoryRoot, "check-wasm-pack.mjs");
 const pnpmCommand = resolvePnpmCommand();
 const isJson = process.argv.includes("--json");
+const isNoBuild = process.argv.includes("--no-build");
 
 const parseJsonOutput = (value) => {
   if (value.length === 0) {
@@ -46,10 +47,27 @@ if (fs.existsSync(wasmMesherEntry)) {
     artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
     artifactFound: true,
     attemptedBuild: false,
+    buildSkipped: isNoBuild,
     wasmPackAvailable: null,
     wasmPackCheckReport: null,
     buildOutput: null,
     message: "WASM mesher artifact already exists.",
+  });
+}
+
+if (isNoBuild) {
+  finish({
+    passed: false,
+    exitCode: 1,
+    artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
+    artifactFound: false,
+    attemptedBuild: false,
+    buildSkipped: true,
+    wasmPackAvailable: null,
+    wasmPackCheckReport: null,
+    buildOutput: null,
+    message:
+      "Missing crates/wasm-mesher/pkg/voxelize_wasm_mesher.js. Build was skipped due to --no-build. Run `pnpm build:wasm:dev` from the repository root.",
   });
 }
 
@@ -73,6 +91,7 @@ if (wasmPackCheckStatus !== 0) {
     artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
     artifactFound: false,
     attemptedBuild: false,
+    buildSkipped: false,
     wasmPackAvailable: false,
     wasmPackCheckReport,
     buildOutput: null,
@@ -100,6 +119,7 @@ if (buildStatus === 0 && fs.existsSync(wasmMesherEntry)) {
     artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
     artifactFound: true,
     attemptedBuild: true,
+    buildSkipped: false,
     wasmPackAvailable: true,
     wasmPackCheckReport,
     buildOutput: isJson ? buildOutput : null,
@@ -113,6 +133,7 @@ finish({
   artifactPath: "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js",
   artifactFound: fs.existsSync(wasmMesherEntry),
   attemptedBuild: true,
+  buildSkipped: false,
   wasmPackAvailable: true,
   wasmPackCheckReport,
   buildOutput: isJson ? buildOutput : null,

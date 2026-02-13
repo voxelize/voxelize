@@ -42,6 +42,7 @@ type WasmMesherJsonReport = {
   artifactPath: string;
   artifactFound: boolean;
   attemptedBuild: boolean;
+  buildSkipped: boolean;
   wasmPackAvailable: boolean | null;
   wasmPackCheckReport: WasmPackJsonReport | null;
   buildOutput: string | null;
@@ -59,6 +60,7 @@ type ClientJsonStep = {
 type ClientJsonReport = {
   passed: boolean;
   exitCode: number;
+  noBuild: boolean;
   steps: ClientJsonStep[];
 };
 
@@ -73,6 +75,7 @@ type OnboardingJsonStep = {
 type OnboardingJsonReport = {
   passed: boolean;
   exitCode: number;
+  noBuild: boolean;
   steps: OnboardingJsonStep[];
 };
 
@@ -186,6 +189,7 @@ describe("root preflight scripts", () => {
     const report = JSON.parse(result.output) as ClientJsonReport;
 
     expect(typeof report.passed).toBe("boolean");
+    expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
@@ -196,10 +200,24 @@ describe("root preflight scripts", () => {
         "crates/wasm-mesher/pkg/voxelize_wasm_mesher.js"
       );
       expect(typeof report.steps[0].report.passed).toBe("boolean");
+      expect(report.steps[0].report.buildSkipped).toBe(false);
     }
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running client check step:");
     expect(result.output).not.toContain("Client check failed:");
+  });
+
+  it("check-client json no-build mode reports skipped build intent", () => {
+    const result = runScript("check-client.mjs", ["--json", "--no-build"]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.noBuild).toBe(true);
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps[0].name).toBe("WASM artifact preflight");
+    if (report.steps[0].report !== null) {
+      expect(report.steps[0].report.buildSkipped).toBe(true);
+      expect(report.steps[0].report.attemptedBuild).toBe(false);
+    }
   });
 
   it("check-onboarding returns pass or fail summary", () => {
@@ -228,6 +246,7 @@ describe("root preflight scripts", () => {
     const report = JSON.parse(result.output) as OnboardingJsonReport;
 
     expect(typeof report.passed).toBe("boolean");
+    expect(report.noBuild).toBe(false);
     expect(report.exitCode).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(report.steps)).toBe(true);
     expect(report.steps.length).toBeGreaterThan(0);
@@ -239,5 +258,14 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(report.passed ? 0 : 1);
     expect(result.output).not.toContain("Running onboarding step:");
     expect(result.output).not.toContain("Onboarding check failed:");
+  });
+
+  it("check-onboarding json no-build mode propagates option", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--no-build"]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.noBuild).toBe(true);
+    expect(report.steps.length).toBeGreaterThan(0);
+    expect(report.steps[0].name).toBe("Developer environment preflight");
   });
 });

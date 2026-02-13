@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isQuiet = process.argv.includes("--quiet");
 const isJson = process.argv.includes("--json");
+const isNoBuild = process.argv.includes("--no-build");
 const stepResults = [];
 let exitCode = 0;
 
@@ -21,16 +22,16 @@ const parseJsonOutput = (value) => {
   }
 };
 
-const runStep = (name, scriptPath) => {
+const runStep = (name, scriptPath, extraArgs = []) => {
   if (!isQuiet && !isJson) {
     console.log(`Running onboarding step: ${name}`);
   }
 
   const scriptArgs = isJson
-    ? [scriptPath, "--json"]
+    ? [scriptPath, "--json", ...extraArgs]
     : isQuiet
-      ? [scriptPath, "--quiet"]
-      : [scriptPath];
+      ? [scriptPath, "--quiet", ...extraArgs]
+      : [scriptPath, ...extraArgs];
   const result = isJson
     ? spawnSync(process.execPath, scriptArgs, {
         encoding: "utf8",
@@ -75,7 +76,9 @@ const devEnvPassed = runStep(
 );
 
 if (devEnvPassed) {
-  runStep("Client checks", path.resolve(__dirname, "check-client.mjs"));
+  runStep("Client checks", path.resolve(__dirname, "check-client.mjs"), [
+    ...(isNoBuild ? ["--no-build"] : []),
+  ]);
 }
 
 if (isJson) {
@@ -84,6 +87,7 @@ if (isJson) {
       {
         passed: exitCode === 0,
         exitCode,
+        noBuild: isNoBuild,
         steps: stepResults,
       },
       null,
