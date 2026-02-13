@@ -4138,19 +4138,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       toProcessArray.sort((a, b) => a.distance - b.distance);
     }
 
-    const triggerInitListener = (chunk: Chunk) => {
-      const listeners = this.chunkInitializeListeners.get(chunk.name);
-
-      if (!listeners || listeners.size === 0) {
-        return;
-      }
-
-      this.chunkInitializeListeners.delete(chunk.name);
-      for (const listener of listeners) {
-        listener(chunk);
-      }
-    };
-
     const processCount = toProcessArray.length;
     for (let itemIndex = 0; itemIndex < processCount; itemIndex++) {
       const item = toProcessArray[itemIndex].data;
@@ -4189,7 +4176,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       };
       if (chunk.isReady) {
         buildMeshes();
-        triggerInitListener(chunk);
+        this.triggerChunkInitListeners(chunk);
       } else {
         let disposer = () => {};
         disposer = this.addChunkInitListenerAt(x, z, () => {
@@ -4204,6 +4191,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunk: Chunk | undefined
   ): chunk is Chunk {
     return !!chunk && chunk.meshes.size > 0;
+  }
+
+  private triggerChunkInitListeners(chunk: Chunk) {
+    const listeners = this.chunkInitializeListeners.get(chunk.name);
+
+    if (!listeners || listeners.size === 0) {
+      return;
+    }
+
+    this.chunkInitializeListeners.delete(chunk.name);
+    for (const listener of listeners) {
+      listener(chunk);
+    }
   }
 
   private deferBlockEntityUpdateUntilChunkReady(
