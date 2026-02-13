@@ -59,6 +59,12 @@ const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases)
 const specialSelectorChecks = {
   all: availableCheckNames,
 };
+const availableSpecialSelectorResolvedChecks = Object.fromEntries(
+  availableSpecialCheckSelectors.map((selector) => {
+    const selectorChecks = specialSelectorChecks[selector];
+    return [selector, selectorChecks === undefined ? [] : selectorChecks];
+  })
+);
 const specialSelectorHintText = availableSpecialCheckSelectors
   .map((selector) => {
     const selectorAliases = availableSpecialCheckAliases[selector].filter((alias) => {
@@ -287,6 +293,7 @@ if (outputPathError !== null || selectedChecksError !== null) {
     availableCheckAliases,
     availableSpecialCheckSelectors,
     availableSpecialCheckAliases,
+    availableSpecialSelectorResolvedChecks,
   });
   const { reportJson } = serializeReportWithOptionalWrite(report, {
     jsonFormat,
@@ -346,6 +353,7 @@ const report = buildTimedReport({
   availableCheckAliases,
   availableSpecialCheckSelectors,
   availableSpecialCheckAliases,
+  availableSpecialSelectorResolvedChecks,
 });
 const { reportJson, writeError } = serializeReportWithOptionalWrite(report, {
   jsonFormat,
