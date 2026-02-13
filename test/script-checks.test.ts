@@ -853,6 +853,39 @@ describe("root preflight scripts", () => {
     expect(result.status).toBe(1);
   });
 
+  it("check-dev-env json mode validates empty split output value", () => {
+    const result = runScript("check-dev-env.mjs", ["--json", "--output", ""]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("check-dev-env json mode validates empty inline output value", () => {
     const result = runScript("check-dev-env.mjs", ["--json", "--output="]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
@@ -1218,6 +1251,44 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-client json mode validates empty split output value", () => {
+    const result = runScript("check-client.mjs", ["--json", "--output", ""]);
+    const report = JSON.parse(result.output) as ClientJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--output"],
@@ -1720,6 +1791,44 @@ describe("root preflight scripts", () => {
     expect(report.skippedStepCount).toBe(0);
     expect(report.firstFailedStep).toBeNull();
     expect(report.message).toBe("Missing value for --output option.");
+    expectActiveCliOptionMetadata(
+      report,
+      ["--json", "--output"],
+      ["--json", "--output"],
+      [
+        {
+          token: "--json",
+          canonicalOption: "--json",
+          index: 0,
+        },
+        {
+          token: "--output",
+          canonicalOption: "--output",
+          index: 1,
+        },
+      ]
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("check-onboarding json mode validates empty split output value", () => {
+    const result = runScript("check-onboarding.mjs", ["--json", "--output", ""]);
+    const report = JSON.parse(result.output) as OnboardingJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expectOptionTerminatorMetadata(report);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.validationErrorCode).toBe("output_option_missing_value");
+    expect(report.totalSteps).toBe(0);
+    expect(report.passedStepCount).toBe(0);
+    expect(report.failedStepCount).toBe(0);
+    expect(report.skippedStepCount).toBe(0);
+    expect(report.firstFailedStep).toBeNull();
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(report.outputPath).toBeNull();
     expectActiveCliOptionMetadata(
       report,
       ["--json", "--output"],
