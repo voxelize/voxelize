@@ -2495,8 +2495,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       ignoreSeeThrough: false,
       ...options,
     };
-
-    const ignoreList = new Set(options.ignoreList || []);
+    const ignoreListSource = options.ignoreList;
+    const ignoreList =
+      ignoreListSource && ignoreListSource.length > 0
+        ? new Set(ignoreListSource)
+        : null;
 
     return raycast(
       (wx, wy, wz) => {
@@ -2518,14 +2521,8 @@ export class World<T = any> extends Scene implements NetIntercept {
           dynamicPatterns,
         } = block;
 
-        if (ignoreList.has(id)) {
+        if (ignoreList?.has(id)) {
           return [];
-        }
-
-        if (isDynamic && !dynamicFn) {
-          console.warn(
-            `Block of ID ${id} is dynamic but has no dynamic function.`
-          );
         }
 
         if (
