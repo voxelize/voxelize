@@ -132,7 +132,7 @@ export class WorkerPool {
    * when a new job is added to the queue.
    */
   private process = () => {
-    if (this.hasQueuedJobs() && this.available.length > 0) {
+    while (this.hasQueuedJobs() && this.available.length > 0) {
       const index = this.available.pop() as number;
       const worker = this.workers[index];
 
