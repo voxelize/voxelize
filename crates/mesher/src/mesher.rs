@@ -559,6 +559,9 @@ impl<'a> VoxelSpace<'a> {
 
     #[inline]
     fn get_index(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
+        if vy < 0 {
+            return None;
+        }
         let lx = vx.rem_euclid(self.chunk_size) as usize;
         let ly = vy as usize;
         let lz = vz.rem_euclid(self.chunk_size) as usize;
@@ -652,8 +655,11 @@ impl<'a> VoxelSpace<'a> {
 
     #[inline]
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        if vy < 0 {
+            return false;
+        }
         let coords = self.map_voxel_to_chunk(vx, vz);
-        self.get_chunk(coords).is_some() && vy >= 0
+        self.get_chunk(coords).is_some()
     }
 
     #[inline]
