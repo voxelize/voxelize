@@ -3559,8 +3559,11 @@ pub fn mesh_space<S: VoxelAccess>(
                     None => continue,
                 };
 
-                let is_see_through = block.is_see_through;
                 let is_empty = block.is_empty;
+                if is_empty {
+                    continue;
+                }
+                let is_see_through = block.is_see_through;
                 let is_opaque = block.is_opaque;
                 let is_fluid = block.is_fluid;
                 let cache_ready = block.cache_ready;
@@ -3569,10 +3572,6 @@ pub fn mesh_space<S: VoxelAccess>(
                 } else {
                     block.has_dynamic_patterns_cached()
                 };
-
-                if is_empty {
-                    continue;
-                }
 
                 if !is_fluid && !has_dynamic_patterns && block.faces.is_empty() {
                     continue;
