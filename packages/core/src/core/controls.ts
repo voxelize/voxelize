@@ -515,7 +515,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       case "EVENT": {
         const { events } = message;
 
-        for (const event of events) {
+        for (let eventIndex = 0; eventIndex < events.length; eventIndex++) {
+          const event = events[eventIndex];
           switch (event.name.toLowerCase()) {
             case "vox-builtin:position": {
               this.body.setPosition(event.payload);
@@ -708,10 +709,19 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   /**
    * Get the direction that the client is looking at.
    */
-  getDirection = () => {
-    return new Vector3(0, 0, -1)
+  getDirection = (target?: Vector3) => {
+    const direction = target ?? new Vector3();
+    return direction
+      .set(0, 0, -1)
       .applyQuaternion(this.object.quaternion)
       .normalize();
+  };
+
+  getPositionVector = (target?: Vector3) => {
+    const [x, y, z] = this.body.getPosition();
+    const position = target ?? new Vector3();
+    position.set(x, y - this.options.bodyHeight * 0.5, z);
+    return position;
   };
 
   /**
@@ -1004,9 +1014,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * The 3D world coordinates that the client is at. This is where the bottom of the client's body is located.
    */
   get position() {
-    const position = new Vector3(...this.body.getPosition());
-    position.y -= this.options.bodyHeight * 0.5;
-    return position;
+    return this.getPositionVector(new Vector3());
   }
 
   /**
