@@ -358,6 +358,23 @@ fn test_register_blocks_assigns_unique_auto_ids_and_refreshes_caches() {
 }
 
 #[test]
+fn test_register_blocks_panics_on_duplicate_ids_in_batch() {
+    let mut registry = create_test_registry();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        registry.register_blocks(&[
+            Block::new("dup-a").id(42).build(),
+            Block::new("dup-b").id(42).build(),
+        ]);
+    }));
+
+    assert!(
+        result.is_err(),
+        "register_blocks should panic when duplicate IDs appear in same batch"
+    );
+}
+
+#[test]
 fn test_registry_clone_keeps_conversion_caches_independent() {
     let registry = create_test_registry();
     let mesher_original = registry.mesher_registry();
