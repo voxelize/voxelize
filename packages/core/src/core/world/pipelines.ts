@@ -76,6 +76,13 @@ export class ChunkPipeline {
     return state?.stage === "requested" ? state.retryCount : 0;
   }
 
+  getRequestedCoords(
+    name: string
+  ): { cx: number; cz: number; retryCount: number } | undefined {
+    const state = this.states.get(name);
+    return state?.stage === "requested" ? state : undefined;
+  }
+
   shouldRequestAt(cx: number, cz: number, chunkRerequestInterval: number) {
     const name = ChunkUtils.getChunkNameAt(cx, cz);
     const state = this.states.get(name);

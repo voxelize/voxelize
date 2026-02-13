@@ -4484,7 +4484,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const deleteRadiusSquared = deleteRadius * deleteRadius;
     const deleted: Coords2[] = [];
 
-    for (const [name, chunk] of this.chunkPipeline.loadedEntries()) {
+    for (const name of this.chunkPipeline.getInStage("loaded")) {
+      const chunk = this.chunkPipeline.getLoadedChunk(name);
+      if (!chunk) {
+        continue;
+      }
+
       const [x, z] = chunk.coords;
       const dx = x - centerX;
       const dz = z - centerZ;
@@ -4520,7 +4525,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    for (const [name, x, z] of this.chunkPipeline.requestedEntries()) {
+    for (const name of this.chunkPipeline.getInStage("requested")) {
+      const requested = this.chunkPipeline.getRequestedCoords(name);
+      if (!requested) {
+        continue;
+      }
+
+      const x = requested.cx;
+      const z = requested.cz;
       const dx = x - centerX;
       const dz = z - centerZ;
       if (dx * dx + dz * dz > deleteRadiusSquared) {
@@ -4530,7 +4542,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    for (const [name, procData] of this.chunkPipeline.processingEntries()) {
+    for (const name of this.chunkPipeline.getInStage("processing")) {
+      const procData = this.chunkPipeline.getProcessingChunkData(name);
+      if (!procData) {
+        continue;
+      }
+
       const { x, z } = procData;
       const dx = x - centerX;
       const dz = z - centerZ;
@@ -4575,7 +4592,12 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const radiusSq = this.plantRadiusSq;
 
-    for (const [, chunk] of this.chunkPipeline.loadedEntries()) {
+    for (const name of this.chunkPipeline.getInStage("loaded")) {
+      const chunk = this.chunkPipeline.getLoadedChunk(name);
+      if (!chunk) {
+        continue;
+      }
+
       const [x, z] = chunk.coords;
       const dx = x - cx;
       const dz = z - cz;
