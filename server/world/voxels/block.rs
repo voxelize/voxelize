@@ -1272,6 +1272,12 @@ impl BlockDynamicPattern {
             parts: self.parts.iter().map(|p| p.to_mesher_part()).collect(),
         }
     }
+
+    pub fn to_lighter_pattern(&self) -> voxelize_lighter::LightDynamicPattern {
+        voxelize_lighter::LightDynamicPattern {
+            parts: self.parts.iter().map(|p| p.to_lighter_part()).collect(),
+        }
+    }
 }
 
 impl BlockConditionalPart {
@@ -1282,6 +1288,15 @@ impl BlockConditionalPart {
             aabbs: self.aabbs.clone(),
             is_transparent: self.is_transparent,
             world_space: self.world_space,
+        }
+    }
+
+    pub fn to_lighter_part(&self) -> voxelize_lighter::LightConditionalPart {
+        voxelize_lighter::LightConditionalPart {
+            rule: self.rule.to_mesher_rule(),
+            red_light_level: self.red_light_level,
+            green_light_level: self.green_light_level,
+            blue_light_level: self.blue_light_level,
         }
     }
 }
@@ -1646,6 +1661,23 @@ impl Block {
                 .dynamic_patterns
                 .as_ref()
                 .map(|patterns| patterns.iter().map(|p| p.to_mesher_pattern()).collect()),
+        }
+    }
+
+    pub fn to_lighter_block(&self) -> voxelize_lighter::LightBlock {
+        voxelize_lighter::LightBlock {
+            id: self.id,
+            is_transparent: self.is_transparent,
+            is_opaque: self.is_opaque,
+            is_light: self.is_light,
+            light_reduce: self.light_reduce,
+            red_light_level: self.red_light_level,
+            green_light_level: self.green_light_level,
+            blue_light_level: self.blue_light_level,
+            dynamic_patterns: self
+                .dynamic_patterns
+                .as_ref()
+                .map(|patterns| patterns.iter().map(|p| p.to_lighter_pattern()).collect()),
         }
     }
 }

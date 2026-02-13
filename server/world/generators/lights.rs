@@ -3,13 +3,12 @@ use std::{
     sync::{Arc, Mutex, OnceLock},
 };
 
-use crate::{Block, LightColor, Registry, Vec3, WorldConfig};
+use crate::{LightColor, Registry, Vec3, WorldConfig};
 use voxelize_lighter::{
     can_enter as lighter_can_enter, can_enter_into as lighter_can_enter_into,
     flood_light as lighter_flood_light, propagate as lighter_propagate,
-    remove_light as lighter_remove_light, remove_lights as lighter_remove_lights, LightBlock,
-    LightBounds, LightConditionalPart, LightConfig, LightDynamicPattern, LightNode as LighterNode,
-    LightRegistry, LightVoxelAccess,
+    remove_light as lighter_remove_light, remove_lights as lighter_remove_lights, LightBounds,
+    LightConfig, LightNode as LighterNode, LightRegistry, LightVoxelAccess,
 };
 
 pub type LightNode = LighterNode;
@@ -25,7 +24,7 @@ fn get_cached_light_registry(registry: &Registry) -> Arc<LightRegistry> {
         return Arc::clone(existing);
     }
 
-    let converted = Arc::new(convert_registry(registry));
+    let converted = Arc::new(registry.to_lighter_registry());
     cache_guard.insert(key, Arc::clone(&converted));
     converted
 }
@@ -67,52 +66,6 @@ fn convert_bounds(
         }
         _ => None,
     }
-}
-
-fn convert_dynamic_patterns(block: &Block) -> Option<Vec<LightDynamicPattern>> {
-    block.dynamic_patterns.as_ref().map(|patterns| {
-        patterns
-            .iter()
-            .map(|pattern| LightDynamicPattern {
-                parts: pattern
-                    .parts
-                    .iter()
-                    .map(|part| LightConditionalPart {
-                        rule: part.rule.to_mesher_rule(),
-                        red_light_level: part.red_light_level,
-                        green_light_level: part.green_light_level,
-                        blue_light_level: part.blue_light_level,
-                    })
-                    .collect(),
-            })
-            .collect()
-    })
-}
-
-#[inline]
-fn convert_block(block: &Block) -> LightBlock {
-    let mut light_block = LightBlock {
-        id: block.id,
-        is_transparent: block.is_transparent,
-        is_opaque: block.is_opaque,
-        is_light: block.is_light,
-        light_reduce: block.light_reduce,
-        red_light_level: block.red_light_level,
-        green_light_level: block.green_light_level,
-        blue_light_level: block.blue_light_level,
-        dynamic_patterns: convert_dynamic_patterns(block),
-    };
-    light_block.recompute_flags();
-    light_block
-}
-
-fn convert_registry(registry: &Registry) -> LightRegistry {
-    let blocks_by_id = registry
-        .blocks_by_id
-        .iter()
-        .map(|(id, block)| (*id, convert_block(block)))
-        .collect();
-    LightRegistry::new(blocks_by_id)
 }
 
 pub struct Lights;

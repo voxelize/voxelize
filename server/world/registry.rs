@@ -372,4 +372,14 @@ impl Registry {
 
         voxelize_mesher::Registry::new(blocks_by_id)
     }
+
+    pub fn to_lighter_registry(&self) -> voxelize_lighter::LightRegistry {
+        let blocks_by_id: Vec<(u32, voxelize_lighter::LightBlock)> = self
+            .blocks_by_id
+            .iter()
+            .map(|(id, block)| (*id, block.to_lighter_block()))
+            .collect();
+
+        voxelize_lighter::LightRegistry::new(blocks_by_id)
+    }
 }
