@@ -1,12 +1,8 @@
-import path from "path";
-
 import { defineConfig } from "vitest/config";
+import { workspaceVitestAliases } from "../../vitest.aliases";
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@voxelize/aabb": path.resolve(__dirname, "../aabb/src/index.ts"),
-      "@voxelize/ts-core": path.resolve(__dirname, "../ts-core/src/index.ts"),
-    },
+    alias: workspaceVitestAliases,
   },
 });
