@@ -267,6 +267,7 @@ fn base_block(id: u32, name: &str) -> Block {
         fluid_face_uvs: None,
         has_diagonal_faces: false,
         has_independent_or_isolated_faces: false,
+        block_min_cached: [0.0, 0.0, 0.0],
         is_full_cube_cached: false,
         has_mixed_diagonal_and_cardinal: false,
         greedy_mesh_eligible_no_rotation: false,

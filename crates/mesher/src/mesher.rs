@@ -35,6 +35,8 @@ pub struct Block {
     #[serde(skip, default)]
     pub has_independent_or_isolated_faces: bool,
     #[serde(skip, default)]
+    pub block_min_cached: [f32; 3],
+    #[serde(skip, default)]
     pub is_full_cube_cached: bool,
     #[serde(skip, default)]
     pub has_mixed_diagonal_and_cardinal: bool,
@@ -55,6 +57,12 @@ impl Block {
         self.is_all_transparent = self.is_transparent.iter().all(|transparent| *transparent);
         self.greedy_face_indices = default_greedy_face_indices();
         self.is_full_cube_cached = is_full_cube_from_aabbs(&self.aabbs);
+        self.block_min_cached = if self.is_full_cube_cached {
+            [0.0, 0.0, 0.0]
+        } else {
+            let block_aabb = AABB::union_all(&self.aabbs);
+            [block_aabb.min_x, block_aabb.min_y, block_aabb.min_z]
+        };
         let mut has_standard_six_faces = false;
         let mut fluid_face_uvs = std::array::from_fn(|_| UV::default());
         let mut has_diagonal = false;
@@ -1071,7 +1079,9 @@ fn geometry_key_for_quad(block: &Block, face_name: Option<&str>, independent: bo
 
 #[inline]
 fn block_min_corner(block: &Block) -> [f32; 3] {
-    if block.is_full_cube() {
+    if block.cache_ready {
+        block.block_min_cached
+    } else if block.is_full_cube() {
         [0.0, 0.0, 0.0]
     } else {
         let block_aabb = AABB::union_all(&block.aabbs);
