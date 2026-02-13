@@ -2436,16 +2436,6 @@ fn process_face<S: VoxelAccess>(
     } else {
         0.0001
     };
-    let (dir_is_x, dir_is_y, is_cardinal_dir, center_opaque) = if needs_opaque_checks {
-        let dir_is_x = dir[0].abs() == 1;
-        let dir_is_y = dir[1].abs() == 1;
-        let is_cardinal_dir = dir_is_x || dir_is_y || dir[2].abs() == 1;
-        let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
-        let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
-        (dir_is_x, dir_is_y, is_cardinal_dir, center_opaque)
-    } else {
-        (false, false, false, false)
-    };
     let base_x = vx as f32 - min_x as f32 - dir[0] as f32 * face_inset + diag_x_offset;
     let base_y = vy as f32 - min_y as f32 - dir[1] as f32 * face_inset;
     let base_z = vz as f32 - min_z as f32 - dir[2] as f32 * face_inset + diag_z_offset;
@@ -2483,6 +2473,10 @@ fn process_face<S: VoxelAccess>(
         let mut four_green_lights = [0u32; 4];
         let mut four_blue_lights = [0u32; 4];
         let mask = opaque_mask.expect("opaque mask exists when opaque checks are needed");
+        let dir_is_x = dir[0].abs() == 1;
+        let dir_is_y = dir[1].abs() == 1;
+        let is_cardinal_dir = dir_is_x || dir_is_y || dir[2].abs() == 1;
+        let center_opaque = neighbor_is_opaque(mask, 0, 0, 0);
         let block_min_x_eps = block_min[0] + 0.01;
         let block_min_z_eps = block_min[2] + 0.01;
         for (corner_index, corner) in face.corners.iter().enumerate() {
