@@ -93,6 +93,16 @@ export class LightSourceRegistry {
 
   getLightsNearPoint(point: Vector3, maxDistance: number): DynamicLight[] {
     const result: DynamicLight[] = [];
+    this.getLightsNearPointInto(point, maxDistance, result);
+    return result;
+  }
+
+  getLightsNearPointInto(
+    point: Vector3,
+    maxDistance: number,
+    out: DynamicLight[]
+  ): number {
+    let count = 0;
 
     for (const light of this.lights.values()) {
       const maxDist = maxDistance + light.radius;
@@ -100,11 +110,13 @@ export class LightSourceRegistry {
       const dy = light.position.y - point.y;
       const dz = light.position.z - point.z;
       if (dx * dx + dy * dy + dz * dz <= maxDist * maxDist) {
-        result.push(light);
+        out[count] = light;
+        count++;
       }
     }
 
-    return result;
+    out.length = count;
+    return count;
   }
 
   private markRegionDirty(center: Vector3, radius: number) {

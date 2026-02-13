@@ -4,6 +4,7 @@ import { World } from "../../core";
 import { ThreeUtils } from "../../utils";
 import { NameTag } from "../nametag";
 import { Shadow } from "../shadows";
+import type { DynamicLight } from "../../core/world/light-registry";
 
 const position = new Vector3();
 const tempColor = new Color();
@@ -69,6 +70,7 @@ export class LightShined {
   private traversalStack: Object3D[] = [];
   private raycastOrigin: [number, number, number] = [0, 0, 0];
   private raycastDirection: [number, number, number] = [0, 0, 0];
+  private nearbyLightsBuffer: DynamicLight[] = [];
 
   /**
    * Construct a light shined effect manager.
@@ -395,12 +397,13 @@ export class LightShined {
     const registry = this.world.lightRegistry;
     if (!registry) return LightShined.zeroColor;
 
-    const lights = registry.getLightsNearPoint(pos, 16);
+    const lights = this.nearbyLightsBuffer;
+    const lightCount = registry.getLightsNearPointInto(pos, 16, lights);
     let r = 0,
       g = 0,
       b = 0;
 
-    for (let lightIndex = 0; lightIndex < lights.length; lightIndex++) {
+    for (let lightIndex = 0; lightIndex < lightCount; lightIndex++) {
       const light = lights[lightIndex];
       const radius = light.radius;
       if (radius <= 0) {
