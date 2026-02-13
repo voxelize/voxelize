@@ -320,8 +320,12 @@ export class ItemSlots<T = number> {
     prevSlot: ItemSlot<T>,
     nextSlot: ItemSlot<T>
   ) => {
-    for (const callback of this.focusChangeCallbacks) {
-      callback(prevSlot, nextSlot);
+    for (
+      let callbackIndex = 0;
+      callbackIndex < this.focusChangeCallbacks.length;
+      callbackIndex++
+    ) {
+      this.focusChangeCallbacks[callbackIndex](prevSlot, nextSlot);
     }
   };
 
