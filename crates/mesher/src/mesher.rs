@@ -2009,14 +2009,22 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
                 (pos[0] + offset_x, pos[1] + offset_y, pos[2] + offset_z)
             };
             let mut raw_voxel = None;
+            let has_expected_rotation = simple.rotation.is_some();
+            let has_expected_stage = simple.stage.is_some();
 
             if let Some(expected_id) = simple.id {
-                let actual_id = space.get_voxel(check_x, check_y, check_z);
+                let actual_id = if has_expected_rotation || has_expected_stage {
+                    let raw = *raw_voxel
+                        .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
+                    extract_id(raw)
+                } else {
+                    space.get_voxel(check_x, check_y, check_z)
+                };
                 if actual_id != expected_id {
                     return false;
                 }
 
-                if simple.rotation.is_none() && simple.stage.is_none() {
+                if !has_expected_rotation && !has_expected_stage {
                     return true;
                 }
             }
@@ -2036,11 +2044,9 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             }
 
             if let Some(expected_stage) = simple.stage {
-                let actual_stage = if let Some(raw) = raw_voxel {
-                    (raw >> 24) & 0xF
-                } else {
-                    space.get_voxel_stage(check_x, check_y, check_z)
-                };
+                let raw = *raw_voxel
+                    .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
+                let actual_stage = (raw >> 24) & 0xF;
                 if actual_stage != expected_stage {
                     return false;
                 }
