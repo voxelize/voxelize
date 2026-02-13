@@ -73,6 +73,12 @@ const availableChecks = [
     extraArgs: [],
   },
   {
+    name: "tsCore",
+    scriptName: "check-ts-core.mjs",
+    supportsNoBuild: true,
+    extraArgs: isNoBuild ? ["--no-build"] : [],
+  },
+  {
     name: "client",
     scriptName: "check-client.mjs",
     supportsNoBuild: true,
@@ -101,6 +107,15 @@ const availableCheckAliases = {
     "devenvironment",
   ],
   wasmPack: ["wasmPack", "wasm", "wasm-pack", "wasm_pack", "wasmpack"],
+  tsCore: [
+    "tsCore",
+    "ts-core",
+    "ts_core",
+    "tscore",
+    "typescript-core",
+    "typescript_core",
+    "typescriptcore",
+  ],
   client: ["client"],
 };
 const availableSpecialCheckAliases = {

@@ -199,6 +199,10 @@ pnpm run check:preflight:list:verify:json:compact
 # list-mode aliases for single checks
 pnpm run check:preflight:list:dev:json
 pnpm run check:preflight:list:wasm:json
+pnpm run check:preflight:list:ts-core:json
+pnpm run check:preflight:list:ts-core:verify:json
+pnpm run check:preflight:list:ts:json
+pnpm run check:preflight:list:ts:verify:json
 pnpm run check:preflight:list:client:json
 # list-mode aliases for all checks
 pnpm run check:preflight:list:all:json
@@ -209,6 +213,10 @@ pnpm run check:preflight:list:all-checks:verify:json
 # compact list-mode aliases for single checks
 pnpm run check:preflight:list:dev:json:compact
 pnpm run check:preflight:list:wasm:json:compact
+pnpm run check:preflight:list:ts-core:json:compact
+pnpm run check:preflight:list:ts-core:verify:json:compact
+pnpm run check:preflight:list:ts:json:compact
+pnpm run check:preflight:list:ts:verify:json:compact
 pnpm run check:preflight:list:client:json:compact
 # compact list-mode aliases for all checks
 pnpm run check:preflight:list:all:json:compact
@@ -222,27 +230,35 @@ pnpm run check:preflight:all:verify:json
 # explicit separator variant aliases for all-check selection
 pnpm run check:preflight:all-checks:json
 pnpm run check:preflight:all-checks:verify:json
-# run only specific checks (available: devEnvironment, wasmPack, client)
+# run only specific checks (available: devEnvironment, wasmPack, tsCore, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
-# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, CLIENT, all/all-checks/all_checks/allchecks)
+# aliases and case-insensitive names are supported (for example: dev/dev-env/dev_env, wasm/wasm-pack/wasm_pack, ts/ts-core/ts_core/tscore, CLIENT, all/all-checks/all_checks/allchecks)
 # selected checks are normalized to the standard aggregate order
 # run pre-defined single-check aggregate reports
 pnpm run check:preflight:dev-env:json
 pnpm run check:preflight:wasm-pack:json
+pnpm run check:preflight:ts-core:json
+pnpm run check:preflight:ts-core:verify:json
 pnpm run check:preflight:client:json
 # shorthand aliases for single-check aggregate reports
 pnpm run check:preflight:dev:json
 pnpm run check:preflight:wasm:json
+pnpm run check:preflight:ts:json
+pnpm run check:preflight:ts:verify:json
 # single client check without auto-build
 pnpm run check:preflight:client:verify:json
 # compact single-check aggregate reports
 pnpm run check:preflight:dev-env:json:compact
 pnpm run check:preflight:wasm-pack:json:compact
+pnpm run check:preflight:ts-core:json:compact
+pnpm run check:preflight:ts-core:verify:json:compact
 pnpm run check:preflight:client:json:compact
 pnpm run check:preflight:client:verify:json:compact
 # shorthand compact aliases
 pnpm run check:preflight:dev:json:compact
 pnpm run check:preflight:wasm:json:compact
+pnpm run check:preflight:ts:json:compact
+pnpm run check:preflight:ts:verify:json:compact
 # compact all-check aliases
 pnpm run check:preflight:all:json:compact
 pnpm run check:preflight:all:verify:json:compact
