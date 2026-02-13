@@ -169,8 +169,18 @@ export class WorkerPool {
       };
 
       worker.addEventListener("message", workerCallback);
-      worker.postMessage(message, buffers);
-      WorkerPool.WORKING_COUNT++;
+      try {
+        if (buffers) {
+          worker.postMessage(message, buffers);
+        } else {
+          worker.postMessage(message);
+        }
+        WorkerPool.WORKING_COUNT++;
+      } catch (error) {
+        worker.removeEventListener("message", workerCallback);
+        this.available.push(index);
+        throw error;
+      }
     }
   };
 
