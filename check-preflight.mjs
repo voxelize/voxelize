@@ -57,12 +57,20 @@ const availableSpecialCheckAliases = {
   all: ["all", "all-checks", "all_checks", "allchecks"],
 };
 const availableSpecialCheckSelectors = Object.keys(availableSpecialCheckAliases);
+const specialSelectorChecks = {
+  all: availableCheckNames,
+};
 const normalizeCheckToken = (value) => {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 };
 const checkAliases = new Map(
   Object.entries(availableCheckAliases).flatMap(([checkName, aliases]) => {
     return aliases.map((alias) => [normalizeCheckToken(alias), checkName]);
+  })
+);
+const specialCheckAliases = new Map(
+  Object.entries(availableSpecialCheckAliases).flatMap(([selector, aliases]) => {
+    return aliases.map((alias) => [normalizeCheckToken(alias), selector]);
   })
 );
 
@@ -105,16 +113,18 @@ const parseSelectedChecks = () => {
 
   const invalidChecks = [];
   const resolvedChecks = [];
-  const normalizedAllChecksAliases = new Set(
-    availableSpecialCheckAliases.all.map((alias) => normalizeCheckToken(alias))
-  );
   for (const parsedCheck of tokenizedChecks) {
-    if (normalizedAllChecksAliases.has(normalizeCheckToken(parsedCheck))) {
-      resolvedChecks.push(...availableCheckNames);
+    const normalizedParsedCheck = normalizeCheckToken(parsedCheck);
+    const resolvedSpecialSelector = specialCheckAliases.get(normalizedParsedCheck);
+    if (resolvedSpecialSelector !== undefined) {
+      const resolvedSpecialChecks = specialSelectorChecks[resolvedSpecialSelector];
+      if (resolvedSpecialChecks !== undefined) {
+        resolvedChecks.push(...resolvedSpecialChecks);
+      }
       continue;
     }
 
-    const resolvedCheck = checkAliases.get(normalizeCheckToken(parsedCheck)) ?? null;
+    const resolvedCheck = checkAliases.get(normalizedParsedCheck) ?? null;
     if (resolvedCheck === null) {
       invalidChecks.push(parsedCheck);
       continue;
