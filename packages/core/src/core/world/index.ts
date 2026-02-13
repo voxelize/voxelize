@@ -7247,11 +7247,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   private makeChunkMaterialKey(id: number, faceName?: string, voxel?: Coords3) {
-    return voxel
-      ? `${id}-${faceName}-${voxel.join("-")}`
-      : faceName
-      ? `${id}-${faceName}`
-      : `${id}`;
+    if (voxel) {
+      return `${id}-${faceName}-${voxel[0]}-${voxel[1]}-${voxel[2]}`;
+    }
+    if (faceName) {
+      return `${id}-${faceName}`;
+    }
+    return `${id}`;
   }
 
   private findBlockFaceByName(block: Block, faceName: string) {
