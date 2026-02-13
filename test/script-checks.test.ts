@@ -310,6 +310,33 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-dev-env json mode uses the last output flag", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-dev-env-json-last-output-")
+    );
+    const firstOutputPath = path.resolve(tempDirectory, "first-report.json");
+    const secondOutputPath = path.resolve(tempDirectory, "second-report.json");
+
+    const result = runScript("check-dev-env.mjs", [
+      "--json",
+      "--output",
+      firstOutputPath,
+      "--output",
+      secondOutputPath,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as DevEnvJsonReport;
+    const secondFileReport = JSON.parse(
+      fs.readFileSync(secondOutputPath, "utf8")
+    ) as DevEnvJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(secondOutputPath);
+    expect(secondFileReport.outputPath).toBe(secondOutputPath);
+    expect(fs.existsSync(firstOutputPath)).toBe(false);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-dev-env json mode validates missing output value", () => {
     const result = runScript("check-dev-env.mjs", ["--json", "--output"]);
     const report = JSON.parse(result.output) as DevEnvJsonReport;
