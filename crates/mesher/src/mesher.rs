@@ -234,6 +234,13 @@ struct GreedyQuad {
     data: FaceData,
 }
 
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+enum GeometryMapKey {
+    Block(u32),
+    Face(u32, String),
+    Isolated(u32, String, i32, i32, i32),
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChunkData {
@@ -796,6 +803,24 @@ fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> bool {
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
         && !(has_diagonal_faces(block) && has_cardinal_faces(block))
+}
+
+fn geometry_key_for_face(block: &Block, face: &BlockFace, vx: i32, vy: i32, vz: i32) -> GeometryMapKey {
+    if face.isolated {
+        GeometryMapKey::Isolated(block.id, face.get_name_lower().to_string(), vx, vy, vz)
+    } else if face.independent {
+        GeometryMapKey::Face(block.id, face.get_name_lower().to_string())
+    } else {
+        GeometryMapKey::Block(block.id)
+    }
+}
+
+fn geometry_key_for_quad(block: &Block, face_name: &str, independent: bool) -> GeometryMapKey {
+    if independent {
+        GeometryMapKey::Face(block.id, face_name.to_lowercase())
+    } else {
+        GeometryMapKey::Block(block.id)
+    }
 }
 
 fn should_render_face<S: VoxelAccess>(
@@ -2197,7 +2222,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> = HashMap::new();
     let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
 
     let [min_x, min_y, min_z] = *min;
@@ -2434,15 +2459,11 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     Some(b) => b,
                     None => continue,
                 };
-                let geo_key = if quad.data.key.independent {
-                    format!(
-                        "{}::{}",
-                        block.get_name_lower(),
-                        quad.data.key.face_name.to_lowercase()
-                    )
-                } else {
-                    block.get_name_lower().to_string()
-                };
+                let geo_key = geometry_key_for_quad(
+                    block,
+                    &quad.data.key.face_name,
+                    quad.data.key.independent,
+                );
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
@@ -2470,20 +2491,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                 world_space,
             ) in non_greedy_faces.drain(..)
             {
-                let geo_key = if face.isolated {
-                    format!(
-                        "{}::{}::{}-{}-{}",
-                        block.get_name_lower(),
-                        face.get_name_lower(),
-                        vx,
-                        vy,
-                        vz
-                    )
-                } else if face.independent {
-                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                } else {
-                    block.get_name_lower().to_string()
-                };
+                let geo_key = geometry_key_for_face(&block, &face, vx, vy, vz);
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut g = GeometryProtocol::default();
@@ -2547,7 +2555,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> = HashMap::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -2782,15 +2790,11 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     Some(candidate) => candidate,
                     None => continue,
                 };
-                let geo_key = if quad.data.key.independent {
-                    format!(
-                        "{}::{}",
-                        block.get_name_lower(),
-                        quad.data.key.face_name.to_lowercase()
-                    )
-                } else {
-                    block.get_name_lower().to_string()
-                };
+                let geo_key = geometry_key_for_quad(
+                    block,
+                    &quad.data.key.face_name,
+                    quad.data.key.independent,
+                );
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut entry = GeometryProtocol::default();
@@ -2821,20 +2825,7 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     None => continue,
                 };
 
-                let geo_key = if face.isolated {
-                    format!(
-                        "{}::{}::{}-{}-{}",
-                        block.get_name_lower(),
-                        face.get_name_lower(),
-                        vx,
-                        vy,
-                        vz
-                    )
-                } else if face.independent {
-                    format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                } else {
-                    block.get_name_lower().to_string()
-                };
+                let geo_key = geometry_key_for_face(block, &face, vx, vy, vz);
 
                 let geometry = map.entry(geo_key).or_insert_with(|| {
                     let mut entry = GeometryProtocol::default();
@@ -2898,7 +2889,7 @@ pub fn mesh_space<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
+    let mut map: HashMap<GeometryMapKey, GeometryProtocol> = HashMap::new();
 
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -2960,20 +2951,7 @@ pub fn mesh_space<S: VoxelAccess>(
                 let neighbors = NeighborCache::populate(vx, vy, vz, space);
 
                 for (face, world_space) in faces.iter() {
-                    let key = if face.isolated {
-                        format!(
-                            "{}::{}::{}-{}-{}",
-                            block.get_name_lower(),
-                            face.get_name_lower(),
-                            vx,
-                            vy,
-                            vz
-                        )
-                    } else if face.independent {
-                        format!("{}::{}", block.get_name_lower(), face.get_name_lower())
-                    } else {
-                        block.get_name_lower().to_string()
-                    };
+                    let key = geometry_key_for_face(block, face, vx, vy, vz);
 
                     let geometry = map.entry(key).or_default();
 
