@@ -148,6 +148,12 @@ pnpm run check:preflight:json
 pnpm run check:preflight:verify:json
 # run only specific checks (available: devEnvironment, wasmPack, client)
 pnpm run check:preflight:json -- --only devEnvironment,client
+# run pre-defined single-check aggregate reports
+pnpm run check:preflight:dev-env:json
+pnpm run check:preflight:wasm-pack:json
+pnpm run check:preflight:client:json
+# single client check without auto-build
+pnpm run check:preflight:client:verify:json
 # includes per-check and total duration metadata
 # all json report commands include schemaVersion: 1
 # includes passedChecks/failedChecks and runtime metadata (platform/nodeVersion)
