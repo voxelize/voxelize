@@ -6099,29 +6099,46 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       workerPromises.length = workerCount;
 
-      const geometriesResults =
-        workerCount === 1
-          ? [await workerPromises[0]]
-          : await Promise.all(workerPromises);
       let shouldScheduleDirtyChunks = false;
-
-      for (let index = 0; index < geometriesResults.length; index++) {
-        const geometries = geometriesResults[index];
+      if (workerCount === 1) {
+        const geometries = await workerPromises[0];
         if (geometries) {
           const completionStatus = this.applyMeshResult(
-            jobCxs[index],
-            jobCzs[index],
-            jobLevels[index],
+            jobCxs[0],
+            jobCzs[0],
+            jobLevels[0],
             geometries,
-            jobGenerations[index]
+            jobGenerations[0]
           );
           if ((completionStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
             shouldScheduleDirtyChunks = true;
           }
         } else {
-          const abortStatus = this.meshPipeline.abortJob(jobKeys[index]);
+          const abortStatus = this.meshPipeline.abortJob(jobKeys[0]);
           if ((abortStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
             shouldScheduleDirtyChunks = true;
+          }
+        }
+      } else {
+        const geometriesResults = await Promise.all(workerPromises);
+        for (let index = 0; index < geometriesResults.length; index++) {
+          const geometries = geometriesResults[index];
+          if (geometries) {
+            const completionStatus = this.applyMeshResult(
+              jobCxs[index],
+              jobCzs[index],
+              jobLevels[index],
+              geometries,
+              jobGenerations[index]
+            );
+            if ((completionStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
+              shouldScheduleDirtyChunks = true;
+            }
+          } else {
+            const abortStatus = this.meshPipeline.abortJob(jobKeys[index]);
+            if ((abortStatus & MESH_JOB_NEEDS_REMESH) !== 0) {
+              shouldScheduleDirtyChunks = true;
+            }
           }
         }
       }
