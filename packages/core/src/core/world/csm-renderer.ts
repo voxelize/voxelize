@@ -71,8 +71,8 @@ export class CSMRenderer {
   private hiddenEntitiesBuffer: Object3D[] = [];
   private reparentedEntitiesBuffer: Object3D[] = [];
   private reparentedParentsBuffer: Array<Object3D | null> = [];
-  private poolOriginalMaterials: Map<Object3D, THREE.Material | THREE.Material[]> =
-    new Map();
+  private poolOriginalMaterialMeshes: THREE.Mesh[] = [];
+  private poolOriginalMaterials: Array<THREE.Material | THREE.Material[]> = [];
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
@@ -246,7 +246,8 @@ export class CSMRenderer {
 
   private applyPoolDepthMaterials(
     pool: Group,
-    poolOriginalMaterials: Map<Object3D, THREE.Material | THREE.Material[]>
+    poolOriginalMaterialMeshes: THREE.Mesh[],
+    poolOriginalMaterials: Array<THREE.Material | THREE.Material[]>
   ) {
     const objectTraversalStack = this.objectTraversalStack;
     objectTraversalStack.length = 0;
@@ -259,7 +260,8 @@ export class CSMRenderer {
       }
 
       if (child instanceof THREE.Mesh && child.customDepthMaterial) {
-        poolOriginalMaterials.set(child, child.material);
+        poolOriginalMaterialMeshes.push(child);
+        poolOriginalMaterials.push(child.material);
         child.material = child.customDepthMaterial;
       }
 
@@ -470,12 +472,15 @@ export class CSMRenderer {
       }
     }
 
+    const poolOriginalMaterialMeshes = this.poolOriginalMaterialMeshes;
+    poolOriginalMaterialMeshes.length = 0;
     const poolOriginalMaterials = this.poolOriginalMaterials;
-    poolOriginalMaterials.clear();
+    poolOriginalMaterials.length = 0;
     if (this.shouldRenderEntityShadows && instancePools) {
       for (let poolIndex = 0; poolIndex < instancePools.length; poolIndex++) {
         this.applyPoolDepthMaterials(
           instancePools[poolIndex],
+          poolOriginalMaterialMeshes,
           poolOriginalMaterials
         );
       }
@@ -581,10 +586,16 @@ export class CSMRenderer {
       this.cascadeNeedsRender[i] = false;
     }
 
-    for (const [mesh, originalMaterial] of poolOriginalMaterials) {
-      (mesh as THREE.Mesh).material = originalMaterial;
+    for (
+      let materialIndex = 0;
+      materialIndex < poolOriginalMaterialMeshes.length;
+      materialIndex++
+    ) {
+      poolOriginalMaterialMeshes[materialIndex].material =
+        poolOriginalMaterials[materialIndex];
     }
-    poolOriginalMaterials.clear();
+    poolOriginalMaterialMeshes.length = 0;
+    poolOriginalMaterials.length = 0;
 
     for (let hiddenIndex = 0; hiddenIndex < hiddenObjects.length; hiddenIndex++) {
       hiddenObjects[hiddenIndex].visible = true;
