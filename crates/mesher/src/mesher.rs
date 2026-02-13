@@ -336,6 +336,32 @@ impl Registry {
                 .unwrap_or(false)
         }
     }
+
+    #[inline(always)]
+    pub fn has_type_and_is_opaque(&self, id: u32) -> (bool, bool) {
+        if let Some(dense) = &self.dense_lookup {
+            if let Some(&idx) = dense.get(id as usize) {
+                if idx != usize::MAX {
+                    return (true, self.blocks_by_id[idx].1.is_opaque);
+                }
+            }
+            (false, false)
+        } else if let Some(cache) = &self.lookup_cache {
+            if let Some(&idx) = cache.get(&id) {
+                (true, self.blocks_by_id[idx].1.is_opaque)
+            } else {
+                (false, false)
+            }
+        } else if let Some((_, block)) = self
+            .blocks_by_id
+            .iter()
+            .find(|(block_id, _)| *block_id == id)
+        {
+            (true, block.is_opaque)
+        } else {
+            (false, false)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1180,24 +1206,25 @@ fn should_render_face<S: VoxelAccess>(
     let nvz = vz + dir[2];
 
     let neighbor_id = space.get_voxel(nvx, nvy, nvz);
+    let (neighbor_has_type, neighbor_is_opaque) = registry.has_type_and_is_opaque(neighbor_id);
 
     if !see_through {
-        if registry.is_opaque_id(neighbor_id) {
+        if neighbor_is_opaque {
             return false;
         }
-        if registry.has_type(neighbor_id) {
+        if neighbor_has_type {
             return true;
         }
         return !space.contains(nvx, nvy, nvz);
     }
 
-    if registry.is_opaque_id(neighbor_id) {
+    if neighbor_is_opaque {
         return false;
     }
     if neighbor_id == voxel_id {
         return !is_opaque && block.transparent_standalone;
     }
-    if !is_opaque && registry.has_type(neighbor_id) {
+    if !is_opaque && neighbor_has_type {
         return true;
     }
 
@@ -2236,14 +2263,16 @@ fn process_face<S: VoxelAccess>(
 
         if !is_fluid {
             if !see_through {
-                !is_opaque || !registry.is_opaque_id(neighbor_id)
+                !is_opaque || !registry.has_type_and_is_opaque(neighbor_id).1
             } else if !is_opaque {
-                if registry.is_opaque_id(neighbor_id) {
+                let (neighbor_has_type, neighbor_is_opaque) =
+                    registry.has_type_and_is_opaque(neighbor_id);
+                if neighbor_is_opaque {
                     false
                 } else if neighbor_id == voxel_id {
                     block.transparent_standalone
                 } else {
-                    registry.has_type(neighbor_id)
+                    neighbor_has_type
                 }
             } else {
                 let n_block_type = match registry.get_block_by_id(neighbor_id) {
