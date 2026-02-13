@@ -2223,11 +2223,7 @@ fn process_face<S: VoxelAccess>(
         return;
     }
 
-    let n_is_empty = if n_block_type.is_empty {
-        true
-    } else {
-        !space.contains(nvx, nvy, nvz)
-    };
+    let n_is_empty = n_block_type.is_empty;
 
     let should_mesh = n_is_empty
         || (see_through
