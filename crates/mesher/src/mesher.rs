@@ -386,10 +386,14 @@ impl NeighborCache {
         let mut data = [[0u32; 2]; 27];
         let mut idx = 0usize;
         for z in -1..=1 {
+            let sample_z = vz + z;
             for y in -1..=1 {
+                let sample_y = vy + y;
                 for x in -1..=1 {
-                    data[idx][0] = space.get_raw_voxel(vx + x, vy + y, vz + z);
-                    let (sun, red, green, blue) = space.get_all_lights(vx + x, vy + y, vz + z);
+                    let sample_x = vx + x;
+                    data[idx][0] = space.get_raw_voxel(sample_x, sample_y, sample_z);
+                    let (sun, red, green, blue) =
+                        space.get_all_lights(sample_x, sample_y, sample_z);
                     data[idx][1] = (sun << 12) | (red << 8) | (green << 4) | blue;
                     idx += 1;
                 }
