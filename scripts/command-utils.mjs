@@ -1,7 +1,7 @@
 export const isWindows = process.platform === "win32";
 
-export const resolveCommand = (command) => {
-  if (!isWindows) {
+export const resolveCommandForPlatform = (command, platform) => {
+  if (platform !== "win32") {
     return command;
   }
 
@@ -12,6 +12,14 @@ export const resolveCommand = (command) => {
   return `${command}.exe`;
 };
 
+export const resolveCommand = (command) => {
+  return resolveCommandForPlatform(command, process.platform);
+};
+
+export const resolvePnpmCommandForPlatform = (platform) => {
+  return resolveCommandForPlatform("pnpm", platform);
+};
+
 export const resolvePnpmCommand = () => {
-  return resolveCommand("pnpm");
+  return resolvePnpmCommandForPlatform(process.platform);
 };
