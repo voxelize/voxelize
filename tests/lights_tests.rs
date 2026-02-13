@@ -398,3 +398,73 @@ fn test_remove_lights_batch_through_server_wrapper() {
     assert_eq!(chunks.get_red_light(source_b.0, source_b.1, source_b.2), 0);
     assert_eq!(chunks.get_red_light(8, 8, 8), 0);
 }
+
+#[test]
+fn test_flood_light_respects_explicit_shape_bounds() {
+    let registry = create_test_registry();
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let source = Vec3(8, 8, 8);
+    chunks.set_voxel(source.0, source.1, source.2, 2);
+    chunks.set_red_light(source.0, source.1, source.2, 14);
+
+    let min = Vec3(8, 0, 8);
+    let shape = Vec3(2, 16, 2);
+
+    Lights::flood_light(
+        &mut chunks,
+        VecDeque::from(vec![voxelize::LightNode {
+            voxel: [source.0, source.1, source.2],
+            level: 14,
+        }]),
+        &LightColor::Red,
+        &registry,
+        &config,
+        Some(&min),
+        Some(&shape),
+    );
+
+    assert!(
+        chunks.get_red_light(9, 8, 8) > 0,
+        "light should propagate inside explicit xz bounds"
+    );
+    assert!(
+        chunks.get_red_light(8, 8, 9) > 0,
+        "light should propagate inside explicit xz bounds"
+    );
+    assert_eq!(
+        chunks.get_red_light(7, 8, 8),
+        0,
+        "light should not propagate outside min x bound"
+    );
+    assert_eq!(
+        chunks.get_red_light(10, 8, 8),
+        0,
+        "light should not propagate outside max x bound"
+    );
+    assert_eq!(
+        chunks.get_red_light(8, 8, 10),
+        0,
+        "light should not propagate outside max z bound"
+    );
+}
