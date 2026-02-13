@@ -1420,7 +1420,18 @@ fn compute_face_ao_and_light_fast(
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let block_aabb = AABB::union_all(&block.aabbs);
+    let (block_min_x, block_min_y, block_min_z) = if block.cache_ready {
+        (
+            block.block_min_cached[0],
+            block.block_min_cached[1],
+            block.block_min_cached[2],
+        )
+    } else if block.is_full_cube() {
+        (0.0, 0.0, 0.0)
+    } else {
+        let block_aabb = AABB::union_all(&block.aabbs);
+        (block_aabb.min_x, block_aabb.min_y, block_aabb.min_z)
+    };
 
     let is_see_through = block.is_see_through;
     let is_all_transparent = block.is_all_transparent;
@@ -1483,17 +1494,17 @@ fn compute_face_ao_and_light_fast(
     let mut lights = [0i32; 4];
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_aabb.min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x + 0.01 {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_aabb.min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y + 0.01 {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_aabb.min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z + 0.01 {
             -1
         } else {
             1
