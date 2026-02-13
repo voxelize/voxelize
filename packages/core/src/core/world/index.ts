@@ -1709,12 +1709,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   getChunkByPosition(px: number, py: number, pz: number) {
     this.checkIsInitialized("get chunk by position", false);
-    const chunkName = ChunkUtils.getChunkNameByVoxel(
-      px | 0,
-      pz | 0,
-      this.options.chunkSize
+    return this.getLoadedChunkAtVoxel(px, pz);
+  }
+
+  private getLoadedChunkAtVoxel(vx: number, vz: number) {
+    return this.chunkPipeline.getLoadedChunk(
+      ChunkUtils.getChunkNameByVoxel(vx | 0, vz | 0, this.options.chunkSize)
     );
-    return this.chunkPipeline.getLoadedChunk(chunkName);
   }
 
   /**
@@ -2698,7 +2699,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (vy < 0 || vy >= this.options.maxHeight) continue;
 
-      const chunk = this.getChunkByPosition(vx, vy, vz);
+      const chunk = this.getLoadedChunkAtVoxel(vx, vz);
       if (!chunk) {
         continue;
       }
@@ -5319,7 +5320,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (vy < 0 || vy >= maxHeight) continue;
 
-      const chunk = this.getChunkByPosition(vx, vy, vz);
+      const chunk = this.getLoadedChunkAtVoxel(vx, vz);
       if (!chunk) {
         continue;
       }
