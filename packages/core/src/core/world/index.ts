@@ -5319,11 +5319,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (vy < 0 || vy >= maxHeight) continue;
 
-      const currentId = this.getVoxelAt(vx, vy, vz);
+      const chunk = this.getChunkByPosition(vx, vy, vz);
+      if (!chunk) {
+        continue;
+      }
+
+      const currentRaw = chunk.getRawValue(vx, vy, vz);
+      const currentId = BlockUtils.extractID(currentRaw);
       const currentBlock = this.getBlockById(currentId);
       const newBlock = this.getBlockById(type);
-      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
-      const currentStage = this.getVoxelStageAt(vx, vy, vz);
+      const currentRotation = BlockUtils.extractRotation(currentRaw);
+      const currentStage = BlockUtils.extractStage(currentRaw);
       const normalizedStage =
         stage === undefined || Number.isNaN(stage) ? 0 : stage;
       const hasRotation = newBlock.rotatable || newBlock.yRotatable;
@@ -5340,14 +5346,36 @@ export class World<T = any> extends Scene implements NetIntercept {
         hasRotation ? finalRotation : undefined,
         normalizedStage
       );
-      this.attemptBlockCache(vx, vy, vz, newValue);
-
-      this.setVoxelAt(vx, vy, vz, type);
-      this.setVoxelStageAt(vx, vy, vz, normalizedStage);
-
-      if (hasRotation) {
-        this.setVoxelRotationAt(vx, vy, vz, finalRotation);
+      if (currentRaw === newValue) {
+        continue;
       }
+
+      this.attemptBlockCache(vx, vy, vz, newValue);
+      chunk.setRawValue(vx, vy, vz, newValue);
+
+      const voxelChanged = currentId !== type;
+      const rotationChanged =
+        currentRotation.value !== finalRotation.value ||
+        currentRotation.yRotation !== finalRotation.yRotation;
+      const stageChanged = currentStage !== normalizedStage;
+
+      const deltaData: Partial<
+        Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId">
+      > = {};
+      if (voxelChanged) {
+        deltaData.oldVoxel = currentId;
+        deltaData.newVoxel = type;
+      }
+      if (rotationChanged) {
+        deltaData.oldRotation = currentRotation;
+        deltaData.newRotation = finalRotation;
+      }
+      if (stageChanged) {
+        deltaData.oldStage = currentStage;
+        deltaData.newStage = normalizedStage;
+      }
+      this.recordVoxelDelta(vx, vy, vz, deltaData);
+      this.trackChunkAt(vx, vy, vz);
 
       processedUpdates.push({
         voxel: [vx, vy, vz],
