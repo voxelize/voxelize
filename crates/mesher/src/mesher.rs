@@ -1942,6 +1942,22 @@ fn process_greedy_quad(
         geometry.lights.push(light | (ao << 16) | light_flags);
     }
 
+    if face_aos[0] == face_aos[1]
+        && face_aos[1] == face_aos[2]
+        && face_aos[2] == face_aos[3]
+        && face_lights[0] == face_lights[1]
+        && face_lights[1] == face_lights[2]
+        && face_lights[2] == face_lights[3]
+    {
+        geometry.indices.push(ndx);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 3);
+        return;
+    }
+
     let ao_diag_sum = face_aos[0] + face_aos[3];
     let ao_off_sum = face_aos[1] + face_aos[2];
     let should_flip = if ao_diag_sum > ao_off_sum {
@@ -2574,6 +2590,16 @@ fn process_face<S: VoxelAccess>(
             four_blue_lights[corner_index] = blue_light;
             face_aos[corner_index] = ao;
         }
+    }
+
+    if skip_opaque_checks {
+        indices.push(ndx);
+        indices.push(ndx + 1);
+        indices.push(ndx + 2);
+        indices.push(ndx + 2);
+        indices.push(ndx + 1);
+        indices.push(ndx + 3);
+        return;
     }
 
     let a_rt = four_red_lights[0];
