@@ -25,11 +25,16 @@ const cullPool = new WorkerPool(CullWorker, {
 });
 
 export async function cull(
-  array: NdArray,
+  array: NdArray<Uint8Array>,
   options: CullOptionsType
 ): Promise<MeshResultType> {
   const { stride, data } = array;
   const { dimensions, min, max, realMin, realMax } = options;
+  const sourceBuffer = data.buffer as ArrayBuffer;
+  const transferBuffer = sourceBuffer.slice(
+    data.byteOffset,
+    data.byteOffset + data.byteLength
+  );
 
   return new Promise<MeshResultType>((resolve, reject) => {
     cullPool.addJob({
@@ -46,7 +51,7 @@ export async function cull(
       },
       resolve,
       reject,
-      buffers: [(<Uint8Array>data).buffer.slice(0)],
+      buffers: [transferBuffer],
     });
   });
 }
