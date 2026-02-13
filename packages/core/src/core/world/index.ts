@@ -2501,6 +2501,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
    * block is not {@link Block | Block.yRotatable}).
    *
+   * Numeric options are normalized before enqueueing:
+   * - `rotation` is rounded and clamped to `0..5`
+   * - `yRotation` is rounded and normalized to `0..15`
+   * - `stage` is rounded and clamped to `0..15`
+   *
    * @param vx The voxel's X position.
    * @param vy The voxel's Y position.
    * @param vz The voxel's Z position.
@@ -2545,6 +2550,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    *
    * This ignores blocks that are not defined, and also ignores rotations for blocks that are not {@link Block | Block.rotatable} (Same for if
    * block is not {@link Block | Block.yRotatable}).
+   *
+   * Numeric fields are normalized before enqueueing:
+   * - `rotation` is rounded and clamped to `0..5`
+   * - `yRotation` is rounded and normalized to `0..15`
+   * - `stage` is rounded and clamped to `0..15`
    *
    * @param updates A list of updates to send to the server.
    */
