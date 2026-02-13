@@ -2698,20 +2698,18 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       if (vy < 0 || vy >= this.options.maxHeight) continue;
 
+      const chunk = this.getChunkByPosition(vx, vy, vz);
+      if (!chunk) {
+        continue;
+      }
+
       const type = BlockUtils.extractID(voxel);
       const rotation = BlockUtils.extractRotation(voxel);
       const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
       const stage = BlockUtils.extractStage(voxel);
 
-      const currentType = this.getVoxelAt(vx, vy, vz);
-      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
-      const currentStage = this.getVoxelStageAt(vx, vy, vz);
-
-      const needsUpdate =
-        currentType !== type ||
-        currentRotation.value !== rotation.value ||
-        currentRotation.yRotation !== rotation.yRotation ||
-        currentStage !== stage;
+      const currentRaw = chunk.getRawValue(vx, vy, vz);
+      const needsUpdate = currentRaw !== voxel;
 
       if (needsUpdate) {
         blockUpdates.push({
