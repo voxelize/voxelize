@@ -298,6 +298,46 @@ const applyRelevantDeltas = (
   return lastSequenceId;
 };
 
+const getLastRelevantSequenceId = (
+  chunksData: (SerializedChunkData | null)[],
+  gridWidth: number,
+  gridDepth: number,
+  gridOffsetX: number,
+  gridOffsetZ: number,
+  relevantDeltas: DeltaBatch[]
+) => {
+  let lastSequenceId = 0;
+
+  for (let index = 0; index < relevantDeltas.length; index++) {
+    const { cx, cz, deltas } = relevantDeltas[index];
+    if (deltas.length === 0) {
+      continue;
+    }
+
+    const localX = cx - gridOffsetX;
+    const localZ = cz - gridOffsetZ;
+    if (
+      localX < 0 ||
+      localX >= gridWidth ||
+      localZ < 0 ||
+      localZ >= gridDepth
+    ) {
+      continue;
+    }
+
+    if (!chunksData[localX * gridDepth + localZ]) {
+      continue;
+    }
+
+    const chunkLastSequenceId = deltas[deltas.length - 1].sequenceId;
+    if (chunkLastSequenceId > lastSequenceId) {
+      lastSequenceId = chunkLastSequenceId;
+    }
+  }
+
+  return lastSequenceId;
+};
+
 const serializeChunkGrid = (
   chunkGrid: (RawChunk | null)[],
   gridWidth: number,
@@ -395,6 +435,21 @@ const processBatchMessage = (message: LightBatchMessage) => {
 
   const [gridWidth, gridDepth] = chunkGridDimensions;
   const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
+
+  if (lightOps.removals.length === 0 && lightOps.floods.length === 0) {
+    postEmptyBatchResult(
+      jobId,
+      getLastRelevantSequenceId(
+        chunksData,
+        gridWidth,
+        gridDepth,
+        gridOffsetX,
+        gridOffsetZ,
+        relevantDeltas
+      )
+    );
+    return;
+  }
 
   let lastSequenceId = 0;
   let serializedChunks:
