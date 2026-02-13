@@ -208,14 +208,11 @@ importers:
         specifier: ^1.7.6
         version: 1.7.7
       typescript:
-        specifier: ^4.9.5
-        version: 4.9.5
+        specifier: ^5.4.5
+        version: 5.4.5
       vite:
         specifier: ^4.5.9
         version: 4.5.14(@types/node@25.2.3)(terser@5.46.0)
-      vite-plugin-replace:
-        specifier: ^0.1.1
-        version: 0.1.1(vite@4.5.14(@types/node@25.2.3)(terser@5.46.0))
 
   packages/aabb:
     dependencies:
@@ -9723,11 +9720,6 @@ packages:
         optional: true
       esbuild:
         optional: true
-
-  vite-plugin-replace@0.1.1:
-    resolution: {integrity: sha512-v+okl3JNt2pf1jDYijw+WPVt6h9FWa/atTi+qnSFBqmKThLTDhlesx0r3bh+oFPmxRJmis5tNx9HtN6lGFoqWg==}
-    peerDependencies:
-      vite: ^2
 
   vite-plugin-string-replace@1.1.5:
     resolution: {integrity: sha512-6kxox6rs/v5mbmV7BvRmSjALyYEmXC/IRBVS5ymgaV9iXe/OW84s3XNJrQX8B8/u9M/LK3gbQ6hWiYiOzqSRYQ==}
@@ -21749,10 +21741,6 @@ snapshots:
       vite: 5.4.21(@types/node@25.2.3)(terser@5.46.0)
     optionalDependencies:
       '@rollup/pluginutils': 5.1.4(rollup@4.36.0)
-
-  vite-plugin-replace@0.1.1(vite@4.5.14(@types/node@25.2.3)(terser@5.46.0)):
-    dependencies:
-      vite: 4.5.14(@types/node@25.2.3)(terser@5.46.0)
 
   vite-plugin-string-replace@1.1.5:
     dependencies:
