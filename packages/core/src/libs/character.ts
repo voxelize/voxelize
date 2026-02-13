@@ -428,6 +428,7 @@ export class Character extends Group {
    * An internal clock instance for calculating delta time.
    */
   private clock = new Clock();
+  private shadowParts: CanvasBox[] = [];
 
   /**
    * Create a new Voxelize character.
@@ -625,16 +626,9 @@ export class Character extends Group {
   updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
     if (!this.options.receiveShadows) return;
 
-    const parts = [
-      this.head,
-      this.body,
-      this.leftArm,
-      this.rightArm,
-      this.leftLeg,
-      this.rightLeg,
-    ];
-
-    for (const part of parts) {
+    const parts = this.shadowParts;
+    for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+      const part = parts[partIndex];
       if (part?.shadowUniforms) {
         updateEntityShadowUniforms(part.shadowUniforms, lightingUniforms);
       }
@@ -815,6 +809,15 @@ export class Character extends Group {
     this.rightArm = rightArm;
     this.leftLeg = leftLeg;
     this.rightLeg = rightLeg;
+
+    const shadowParts = this.shadowParts;
+    shadowParts.length = 6;
+    shadowParts[0] = head;
+    shadowParts[1] = body;
+    shadowParts[2] = leftArm;
+    shadowParts[3] = rightArm;
+    shadowParts[4] = leftLeg;
+    shadowParts[5] = rightLeg;
   };
 
   /**
