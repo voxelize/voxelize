@@ -4021,7 +4021,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             blockNameEnd >= 0
               ? type.slice(blockNameStart, blockNameEnd)
               : type.slice(blockNameStart);
-          const block = this.getBlockByName(blockName);
+          const block = this.registry.blocksByName.get(blockName.toLowerCase());
           if (block) {
             for (const face of block.faces) {
               if (face.isolated) {
