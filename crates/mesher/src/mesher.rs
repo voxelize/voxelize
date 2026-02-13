@@ -2208,11 +2208,14 @@ fn process_face<S: VoxelAccess>(
 
     let neighbor_id = if !needs_rotation {
         neighbors.get_voxel(dir[0], dir[1], dir[2])
-    } else if (-1..=1).contains(&dir[0]) && (-1..=1).contains(&dir[1]) && (-1..=1).contains(&dir[2])
-    {
-        neighbors.get_voxel(dir[0], dir[1], dir[2])
     } else {
-        space.get_voxel(vx + dir[0], vy + dir[1], vz + dir[2])
+        let rotated_dir_in_cache =
+            dir[0] >= -1 && dir[0] <= 1 && dir[1] >= -1 && dir[1] <= 1 && dir[2] >= -1 && dir[2] <= 1;
+        if rotated_dir_in_cache {
+            neighbors.get_voxel(dir[0], dir[1], dir[2])
+        } else {
+            space.get_voxel(vx + dir[0], vy + dir[1], vz + dir[2])
+        }
     };
 
     let n_block_type = match registry.get_block_by_id(neighbor_id) {
