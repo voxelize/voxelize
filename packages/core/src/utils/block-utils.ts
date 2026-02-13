@@ -145,12 +145,12 @@ export class BlockUtils {
       const oy = offset[1] + vy;
       const oz = offset[2] + vz;
 
-      if (id !== null) {
+      if (id !== null && id !== undefined) {
         const voxelId = functions.getVoxelAt(ox, oy, oz);
         if (voxelId !== id) return false;
       }
 
-      if (rotation !== null) {
+      if (rotation !== null && rotation !== undefined) {
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
         if (
           voxelRotation.value !== rotation.value ||
@@ -159,7 +159,7 @@ export class BlockUtils {
           return false;
       }
 
-      if (stage !== null) {
+      if (stage !== null && stage !== undefined) {
         const voxelStage = functions.getVoxelStageAt(ox, oy, oz);
         if (voxelStage !== stage) return false;
       }
