@@ -4138,7 +4138,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const deleted: Coords2[] = [];
     const toRemove: string[] = [];
 
-    this.chunkPipeline.forEachLoaded((chunk, name) => {
+    for (const [name, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
 
       if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
@@ -4168,7 +4168,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         toRemove.push(name);
         deleted.push(chunk.coords);
       }
-    });
+    }
 
     for (let index = 0; index < toRemove.length; index++) {
       this.chunkPipeline.remove(toRemove[index]);
@@ -4229,14 +4229,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     const radiusSq = this.plantRadiusSq;
     const [cx, cz] = center;
 
-    this.chunkPipeline.forEachLoaded((chunk) => {
+    for (const [, chunk] of this.chunkPipeline.loadedEntries()) {
       const [x, z] = chunk.coords;
       const showPlants = (x - cx) ** 2 + (z - cz) ** 2 <= radiusSq;
 
       for (const levelMeshes of chunk.meshes.values()) {
         this.setPlantMeshVisibility(levelMeshes, showPlants);
       }
-    });
+    }
   }
 
   private triggerBlockUpdateListeners(

@@ -149,14 +149,22 @@ export class ChunkPipeline {
     return chunk;
   }
 
+  *loadedEntries(): IterableIterator<[string, Chunk]> {
+    for (const name of this.indices.loaded) {
+      const state = this.states.get(name);
+      if (state?.stage === "loaded") {
+        yield [name, state.chunk];
+      }
+    }
+  }
+
   forEach(stage: StageType, callback: (name: string) => void): void {
     this.indices[stage].forEach(callback);
   }
 
   forEachLoaded(callback: (chunk: Chunk, name: string) => void): void {
-    for (const name of this.indices.loaded) {
-      const chunk = this.getLoadedChunk(name);
-      if (chunk) callback(chunk, name);
+    for (const [name, chunk] of this.loadedEntries()) {
+      callback(chunk, name);
     }
   }
 
