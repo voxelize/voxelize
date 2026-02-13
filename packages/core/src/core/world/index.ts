@@ -5869,9 +5869,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const { maxHeight, subChunks, maxLightLevel } = this.options;
     const subChunkHeight = maxHeight / subChunks;
 
-    const chunkResults = new Map<
-      string,
-      { coords: Coords2; colorMap: Map<LightColor, Uint32Array> }
+    const chunkResultsByX = new Map<
+      number,
+      Map<number, { coords: Coords2; colorMap: Map<LightColor, Uint32Array> }>
     >();
 
     let globalMinY = maxHeight;
@@ -5890,14 +5890,21 @@ export class World<T = any> extends Scene implements NetIntercept {
       globalMaxY = Math.max(globalMaxY, maxY);
 
       for (const { coords, lights } of result.modifiedChunks) {
-        const key = `${coords[0]},${coords[1]}`;
-        let chunkResult = chunkResults.get(key);
+        const cx = coords[0];
+        const cz = coords[1];
+        let chunkResultsByZ = chunkResultsByX.get(cx);
+        if (!chunkResultsByZ) {
+          chunkResultsByZ = new Map();
+          chunkResultsByX.set(cx, chunkResultsByZ);
+        }
+
+        let chunkResult = chunkResultsByZ.get(cz);
         if (!chunkResult) {
           chunkResult = {
             coords,
             colorMap: new Map(),
           };
-          chunkResults.set(key, chunkResult);
+          chunkResultsByZ.set(cz, chunkResult);
         }
         chunkResult.colorMap.set(result.color, lights);
       }
@@ -5909,19 +5916,21 @@ export class World<T = any> extends Scene implements NetIntercept {
       Math.floor(globalMaxY / subChunkHeight)
     );
 
-    for (const { coords, colorMap } of chunkResults.values()) {
-      const chunk = this.getChunkByCoords(coords[0], coords[1]);
-      if (!chunk) continue;
+    for (const chunkResultsByZ of chunkResultsByX.values()) {
+      for (const { coords, colorMap } of chunkResultsByZ.values()) {
+        const chunk = this.getChunkByCoords(coords[0], coords[1]);
+        if (!chunk) continue;
 
-      if (colorMap.size === 1) {
-        const [color, lights] = colorMap.entries().next().value;
-        this.mergeSingleColorResult(chunk, lights, color);
-      } else {
-        this.mergeMultiColorResults(chunk, colorMap);
+        if (colorMap.size === 1) {
+          const [color, lights] = colorMap.entries().next().value;
+          this.mergeSingleColorResult(chunk, lights, color);
+        } else {
+          this.mergeMultiColorResults(chunk, colorMap);
+        }
+
+        chunk.isDirty = true;
+        this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
       }
-
-      chunk.isDirty = true;
-      this.markChunkForRemeshLevels(coords, minLevel, maxLevel);
     }
   }
 
