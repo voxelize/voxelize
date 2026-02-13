@@ -99,6 +99,8 @@ impl Registry {
         active_ticker: F1,
         active_updater: F2,
     ) {
+        self.invalidate_cached_registries();
+
         let mut air = self.blocks_by_id.remove(&0).unwrap();
 
         air.active_ticker = Some(Arc::new(active_ticker));
@@ -220,33 +222,22 @@ impl Registry {
 
     /// Register multiple blocks into this world. The block ID's are assigned to the length of the blocks at registration.
     pub fn register_blocks(&mut self, blocks: &[Block]) {
-        blocks.into_iter().for_each(|block| {
-            self.register_block(block);
-        });
+        if blocks.is_empty() {
+            return;
+        }
+
+        self.invalidate_cached_registries();
+        for block in blocks {
+            let block = self.prepare_block_for_registration(block);
+            self.record_block(&block);
+        }
     }
 
     /// Register a block into this world. The block ID is assigned to the length of the blocks registered.
     pub fn register_block(&mut self, block: &Block) {
-        let mut block = block.to_owned();
+        self.invalidate_cached_registries();
 
-        if block.id == 0 {
-            let mut next_available = 1;
-
-            loop {
-                if self.blocks_by_id.contains_key(&next_available) {
-                    next_available += 1;
-                } else {
-                    break;
-                }
-            }
-
-            block.id = next_available;
-        }
-
-        if self.blocks_by_id.contains_key(&block.id) {
-            panic!("Duplicated key: {}-{}", block.name, block.id);
-        }
-
+        let block = self.prepare_block_for_registration(block);
         self.record_block(&block);
     }
 
@@ -362,8 +353,6 @@ impl Registry {
 
     /// Record a block into the registry, adding this block into appropriate maps.
     fn record_block(&mut self, block: &Block) {
-        self.invalidate_cached_registries();
-
         let Block {
             id, name, faces, ..
         } = block;
@@ -382,6 +371,24 @@ impl Registry {
         for (idx, side) in faces.iter().enumerate() {
             self.textures.insert((*id, idx, side.independent));
         }
+    }
+
+    fn prepare_block_for_registration(&self, block: &Block) -> Block {
+        let mut block = block.to_owned();
+
+        if block.id == 0 {
+            let mut next_available = 1;
+            while self.blocks_by_id.contains_key(&next_available) {
+                next_available += 1;
+            }
+            block.id = next_available;
+        }
+
+        if self.blocks_by_id.contains_key(&block.id) {
+            panic!("Duplicated key: {}-{}", block.name, block.id);
+        }
+
+        block
     }
 
     pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
