@@ -571,6 +571,31 @@ impl NeighborCache {
         Self { data }
     }
 
+    fn populate_voxels_and_center_light<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
+        let mut data = [[0u32; 2]; 27];
+        let mut idx = 0usize;
+        for z in -1..=1 {
+            let sample_z = vz + z;
+            for y in -1..=1 {
+                let sample_y = vy + y;
+                for x in -1..=1 {
+                    let sample_x = vx + x;
+                    if x == 0 && y == 0 && z == 0 {
+                        let (raw_voxel, raw_light) =
+                            space.get_raw_voxel_and_raw_light(sample_x, sample_y, sample_z);
+                        data[idx][0] = raw_voxel;
+                        data[idx][1] = raw_light;
+                    } else {
+                        data[idx][0] = space.get_raw_voxel(sample_x, sample_y, sample_z);
+                    }
+                    idx += 1;
+                }
+            }
+        }
+
+        Self { data }
+    }
+
     #[inline(always)]
     fn get_raw_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
@@ -586,6 +611,21 @@ impl NeighborCache {
     fn get_raw_light(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][1]
+    }
+}
+
+#[inline(always)]
+fn populate_neighbors_for_face_processing<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    space: &S,
+    skip_opaque_checks: bool,
+) -> NeighborCache {
+    if skip_opaque_checks {
+        NeighborCache::populate_voxels_and_center_light(vx, vy, vz, space)
+    } else {
+        NeighborCache::populate(vx, vy, vz, space)
     }
 }
 
@@ -3047,6 +3087,7 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     let cache_ready = block.cache_ready;
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
+                    let skip_opaque_checks = is_see_through || block.is_all_transparent;
                     let block_needs_face_rotation = block.rotatable || block.y_rotatable;
                     let mut rotation = BlockRotation::PY(0.0);
                     if block_needs_face_rotation {
@@ -3174,8 +3215,15 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         }
 
                         let (aos, lights) = *cached_ao_light.get_or_insert_with(|| {
-                            let neighbors = cached_neighbors
-                                .get_or_insert_with(|| NeighborCache::populate(vx, vy, vz, space));
+                            let neighbors = cached_neighbors.get_or_insert_with(|| {
+                                populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                )
+                            });
                             compute_face_ao_and_light(dir, block, neighbors, registry)
                         });
 
@@ -3299,7 +3347,14 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                     g
                 });
 
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                let skip_opaque_checks = is_see_through || block.is_all_transparent;
+                let neighbors = populate_neighbors_for_face_processing(
+                    vx,
+                    vy,
+                    vz,
+                    space,
+                    skip_opaque_checks,
+                );
                 let face_cache = build_face_process_cache(
                     &block,
                     is_see_through,
@@ -3549,7 +3604,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         if has_standard_six_faces {
                             let fluid_faces =
                                 create_fluid_faces(vx, vy, vz, block.id, space, block, registry);
-                            let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                            let neighbors = populate_neighbors_for_face_processing(
+                                vx,
+                                vy,
+                                vz,
+                                space,
+                                skip_opaque_checks,
+                            );
                             let face_cache = build_face_process_cache(
                                 block,
                                 is_see_through,
@@ -3609,7 +3670,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 block.has_dynamic_patterns_cached()
                             };
                             if has_dynamic_patterns {
-                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                let neighbors = populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                );
                                 let face_cache = build_face_process_cache(
                                     block,
                                     is_see_through,
@@ -3680,7 +3747,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                                 } else {
                                     block.uses_main_geometry_only_cached()
                                 };
-                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                let neighbors = populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                );
                                 let face_cache = build_face_process_cache(
                                     block,
                                     is_see_through,
@@ -3839,7 +3912,13 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let mut push_greedy_face = |face: &BlockFace, face_index: usize| {
                         if face.isolated {
                             if isolated_neighbors.is_none() {
-                                let neighbors = NeighborCache::populate(vx, vy, vz, space);
+                                let neighbors = populate_neighbors_for_face_processing(
+                                    vx,
+                                    vy,
+                                    vz,
+                                    space,
+                                    skip_opaque_checks,
+                                );
                                 let face_cache = build_face_process_cache(
                                     block,
                                     is_see_through,
@@ -4126,9 +4205,15 @@ pub fn mesh_space<S: VoxelAccess>(
                 if block.rotatable || block.y_rotatable {
                     rotation = extract_rotation(raw_voxel);
                 }
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
                 let is_all_transparent = block.is_all_transparent;
                 let skip_opaque_checks = is_see_through || is_all_transparent;
+                let neighbors = populate_neighbors_for_face_processing(
+                    vx,
+                    vy,
+                    vz,
+                    space,
+                    skip_opaque_checks,
+                );
                 let center_light = if skip_opaque_checks {
                     Some(neighbors.get_raw_light(0, 0, 0) & 0xFFFF)
                 } else {
