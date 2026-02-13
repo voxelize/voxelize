@@ -1449,6 +1449,9 @@ fn compute_face_ao_and_light_fast(
     };
     let dir_is_x = dir[0].abs() == 1;
     let dir_is_y = dir[1].abs() == 1;
+    let block_min_x_eps = block_min_x + 0.01;
+    let block_min_y_eps = block_min_y + 0.01;
+    let block_min_z_eps = block_min_z + 0.01;
 
     let corner_positions: [[f32; 3]; 4] = match dir {
         [1, 0, 0] => [
@@ -1494,17 +1497,17 @@ fn compute_face_ao_and_light_fast(
     let mut lights = [0i32; 4];
 
     for (i, pos) in corner_positions.iter().enumerate() {
-        let dx = if pos[0] <= block_min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x_eps {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y_eps {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z_eps {
             -1
         } else {
             1
@@ -2209,6 +2212,9 @@ fn process_face<S: VoxelAccess>(
     let mut four_blue_lights = [0u32; 4];
 
     let [block_min_x, block_min_y, block_min_z] = cache.block_min;
+    let block_min_x_eps = block_min_x + 0.01;
+    let block_min_y_eps = block_min_y + 0.01;
+    let block_min_z_eps = block_min_z + 0.01;
     let needs_opaque_checks = !(is_see_through || is_all_transparent);
     let opaque_mask = if needs_opaque_checks {
         cache.opaque_mask.as_ref()
@@ -2261,17 +2267,17 @@ fn process_face<S: VoxelAccess>(
         uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
         uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
 
-        let dx = if pos[0] <= block_min_x + 0.01 {
+        let dx = if pos[0] <= block_min_x_eps {
             -1
         } else {
             1
         };
-        let dy = if pos[1] <= block_min_y + 0.01 {
+        let dy = if pos[1] <= block_min_y_eps {
             -1
         } else {
             1
         };
-        let dz = if pos[2] <= block_min_z + 0.01 {
+        let dz = if pos[2] <= block_min_z_eps {
             -1
         } else {
             1
