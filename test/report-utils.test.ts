@@ -530,6 +530,28 @@ describe("report-utils", () => {
       "Missing value for --only option."
     );
 
+    const missingTrailingOnlyAfterNoBuildAlias = resolveLastOptionValue(
+      ["--only", "devEnvironment", "--verify", "--only"],
+      "--only",
+      ["--only", "--no-build", "--verify"]
+    );
+    expect(missingTrailingOnlyAfterNoBuildAlias.hasOption).toBe(true);
+    expect(missingTrailingOnlyAfterNoBuildAlias.value).toBeNull();
+    expect(missingTrailingOnlyAfterNoBuildAlias.error).toBe(
+      "Missing value for --only option."
+    );
+
+    const missingTrailingOnlyAfterNoBuildInlineMisuse = resolveLastOptionValue(
+      ["--only", "devEnvironment", "--verify=1", "--only"],
+      "--only",
+      ["--only", "--no-build", "--verify"]
+    );
+    expect(missingTrailingOnlyAfterNoBuildInlineMisuse.hasOption).toBe(true);
+    expect(missingTrailingOnlyAfterNoBuildInlineMisuse.value).toBeNull();
+    expect(missingTrailingOnlyAfterNoBuildInlineMisuse.error).toBe(
+      "Missing value for --only option."
+    );
+
     const recognizedOutputLongAliasAsSplitValue = resolveLastOptionValue(
       ["--output", "--verify"],
       "--output",
@@ -2130,6 +2152,50 @@ describe("report-utils", () => {
     expect(diagnostics.activeCliOptionOccurrenceCount).toBe(1);
     expect(diagnostics.unknownOptions).toEqual(["--no-build=<value>"]);
     expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.unsupportedOptionsError).toBe(
+      "Unsupported option(s): --no-build=<value>. Supported options: --no-build, --only, --verify."
+    );
+  });
+
+  it("tracks strict only telemetry with inline no-build misuse and trailing only token", () => {
+    const diagnostics = createCliDiagnostics(
+      ["--only", "devEnvironment", "--verify=1", "--only"],
+      {
+        canonicalOptions: ["--no-build", "--only"],
+        optionAliases: {
+          "--no-build": ["--verify"],
+        },
+        optionsWithValues: ["--only"],
+        optionsWithStrictValues: ["--only"],
+      }
+    );
+
+    expect(diagnostics.activeCliOptions).toEqual(["--only"]);
+    expect(diagnostics.activeCliOptionCount).toBe(1);
+    expect(diagnostics.activeCliOptionTokens).toEqual(["--only"]);
+    expect(diagnostics.activeCliOptionResolutions).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+      },
+    ]);
+    expect(diagnostics.activeCliOptionResolutionCount).toBe(1);
+    expect(diagnostics.activeCliOptionOccurrences).toEqual([
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 0,
+      },
+      {
+        token: "--only",
+        canonicalOption: "--only",
+        index: 3,
+      },
+    ]);
+    expect(diagnostics.activeCliOptionOccurrenceCount).toBe(2);
+    expect(diagnostics.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(diagnostics.unknownOptionCount).toBe(1);
+    expect(diagnostics.validationErrorCode).toBe("unsupported_options");
     expect(diagnostics.unsupportedOptionsError).toBe(
       "Unsupported option(s): --no-build=<value>. Supported options: --no-build, --only, --verify."
     );

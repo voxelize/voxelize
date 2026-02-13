@@ -1247,6 +1247,128 @@ describe("preflight aggregate report", () => {
     expect(result.status).toBe(1);
   });
 
+  it("fails when the last only flag is missing after no-build aliases between only flags", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "devEnvironment", "--verify", "--only"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(true);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.validationErrorCode).toBe("only_option_missing_value");
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckCount).toBe(0);
+    expect(report.requestedCheckResolutions).toEqual([]);
+    expect(report.requestedCheckResolutionCounts).toEqual(
+      expectedEmptyRequestedCheckResolutionCounts
+    );
+    expect(report.selectedChecks).toEqual([]);
+    expect(report.selectedCheckCount).toBe(0);
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.unknownOptions).toEqual([]);
+    expect(report.unknownOptionCount).toBe(0);
+    expect(report.activeCliOptions).toEqual(["--no-build", "--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--only", "--verify"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--only", "--verify"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--only",
+        "devEnvironment",
+        "--verify",
+        "--only",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
+  it("fails when the last only flag is missing after inline no-build misuse between only flags", () => {
+    const result = spawnSync(
+      process.execPath,
+      [preflightScript, "--only", "devEnvironment", "--verify=1", "--only"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        shell: false,
+      }
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    const report = JSON.parse(output) as PreflightReport;
+
+    expect(report.schemaVersion).toBe(1);
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
+    expect(report.selectionMode).toBe("only");
+    expect(report.specialSelectorsUsed).toEqual([]);
+    expect(report.validationErrorCode).toBe("only_option_missing_value");
+    expect(report.message).toBe("Missing value for --only option.");
+    expect(report.invalidChecks).toEqual([]);
+    expect(report.invalidCheckCount).toBe(0);
+    expect(report.requestedChecks).toEqual([]);
+    expect(report.requestedCheckCount).toBe(0);
+    expect(report.requestedCheckResolutions).toEqual([]);
+    expect(report.requestedCheckResolutionCounts).toEqual(
+      expectedEmptyRequestedCheckResolutionCounts
+    );
+    expect(report.selectedChecks).toEqual([]);
+    expect(report.selectedCheckCount).toBe(0);
+    expect(report.skippedChecks).toEqual([
+      "devEnvironment",
+      "wasmPack",
+      "client",
+    ]);
+    expect(report.unknownOptions).toEqual(["--no-build=<value>"]);
+    expect(report.unknownOptionCount).toBe(1);
+    expect(report.activeCliOptions).toEqual(["--only"]);
+    expect(report.activeCliOptionCount).toBe(report.activeCliOptions.length);
+    expect(report.activeCliOptionTokens).toEqual(["--only"]);
+    expect(report.activeCliOptionResolutions).toEqual(
+      expectedActiveCliOptionResolutions(["--only"])
+    );
+    expect(report.activeCliOptionResolutionCount).toBe(
+      report.activeCliOptionResolutions.length
+    );
+    expect(report.activeCliOptionOccurrences).toEqual(
+      expectedActiveCliOptionOccurrences([
+        "--only",
+        "devEnvironment",
+        "--verify=1",
+        "--only",
+      ])
+    );
+    expect(report.activeCliOptionOccurrenceCount).toBe(
+      report.activeCliOptionOccurrences.length
+    );
+    expect(result.status).toBe(1);
+  });
+
   it("fails when inline only flag value is empty", () => {
     const result = spawnSync(process.execPath, [preflightScript, "--only="], {
       cwd: rootDir,
