@@ -1,5 +1,7 @@
 import {
+  BlockRule as TSCoreBlockRule,
   BlockRuleEvaluator as TSCoreBlockRuleEvaluator,
+  BlockRotation as TSCoreBlockRotation,
   BlockUtils as TSCoreBlockUtils,
 } from "@voxelize/ts-core";
 
@@ -7,6 +9,37 @@ import { Block, BlockRotation, BlockRule } from "../core/world/block";
 import { Coords3 } from "../types";
 
 import { LightColor } from "./light-utils";
+
+const toTSCoreRotation = (rotation: BlockRotation) => {
+  return new TSCoreBlockRotation(rotation.value, rotation.yRotation);
+};
+
+const toTSCoreRule = (rule: BlockRule): TSCoreBlockRule => {
+  if (rule.type === "none") {
+    return { type: "none" };
+  }
+
+  if (rule.type === "simple") {
+    let mappedRotation: TSCoreBlockRotation | undefined;
+    if (rule.rotation !== undefined) {
+      mappedRotation = toTSCoreRotation(rule.rotation);
+    }
+
+    return {
+      type: "simple",
+      offset: [...rule.offset],
+      id: rule.id,
+      stage: rule.stage,
+      rotation: mappedRotation,
+    };
+  }
+
+  return {
+    type: "combination",
+    logic: rule.logic,
+    rules: rule.rules.map((nestedRule) => toTSCoreRule(nestedRule)),
+  };
+};
 
 /**
  * A utility class for extracting and inserting voxel data from and into numbers.
@@ -66,7 +99,7 @@ export class BlockUtils {
    * @returns The inserted voxel value.
    */
   static insertRotation = (voxel: number, rotation: BlockRotation) => {
-    return TSCoreBlockUtils.insertRotation(voxel, rotation);
+    return TSCoreBlockUtils.insertRotation(voxel, toTSCoreRotation(rotation));
   };
 
   /**
@@ -129,15 +162,26 @@ export class BlockUtils {
       worldSpace?: boolean;
     } = {}
   ): boolean => {
+    const mappedRule = toTSCoreRule(rule);
+    const mappedOptions = {
+      ...options,
+      rotation:
+        options.rotation === undefined
+          ? undefined
+          : toTSCoreRotation(options.rotation),
+    };
+
     return TSCoreBlockRuleEvaluator.evaluate(
-      rule,
+      mappedRule,
       voxel,
       {
         getVoxel: functions.getVoxelAt,
-        getVoxelRotation: functions.getVoxelRotationAt,
+        getVoxelRotation: (x: number, y: number, z: number) => {
+          return toTSCoreRotation(functions.getVoxelRotationAt(x, y, z));
+        },
         getVoxelStage: functions.getVoxelStageAt,
       },
-      options
+      mappedOptions
     );
   };
 
