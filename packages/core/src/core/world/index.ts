@@ -942,10 +942,16 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       const cutoff = performance.now() - this.options.deltaRetentionTime;
 
-      for (const [chunkName, deltas] of this.voxelDeltas) {
+      let deltaEntries = this.voxelDeltas.entries();
+      let deltaEntry = deltaEntries.next();
+      while (!deltaEntry.done) {
+        const entry = deltaEntry.value;
+        const chunkName = entry[0];
+        const deltas = entry[1];
         if (this.pruneDeltasByCutoff(deltas, cutoff) === 0) {
           this.voxelDeltas.delete(chunkName);
         }
+        deltaEntry = deltaEntries.next();
       }
     }, 1000) as unknown as number;
   }
