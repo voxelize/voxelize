@@ -82,7 +82,11 @@ export class ChunkUtils {
    */
   static getVoxelName = (coords: Coords3, concat = "|") => {
     return (
-      (coords[0] | 0) + concat + (coords[1] | 0) + concat + (coords[2] | 0)
+      Math.floor(coords[0]) +
+      concat +
+      Math.floor(coords[1]) +
+      concat +
+      Math.floor(coords[2])
     );
   };
 
@@ -101,7 +105,9 @@ export class ChunkUtils {
     vz: number,
     concat = "|"
   ) => {
-    return (vx | 0) + concat + (vy | 0) + concat + (vz | 0);
+    return (
+      Math.floor(vx) + concat + Math.floor(vy) + concat + Math.floor(vz)
+    );
   };
 
   /**
