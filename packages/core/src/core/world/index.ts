@@ -3953,7 +3953,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     };
     const maybeQueueRequest = (cx: number, cz: number) => {
-      const distance = (cx - centerX) ** 2 + (cz - centerZ) ** 2;
+      const dx = cx - centerX;
+      const dz = cz - centerZ;
+      const distance = dx * dx + dz * dz;
       if (toRequestClosest.length < maxChunkRequestsPerUpdate) {
         toRequestClosest.push({
           coords: [cx, cz],
@@ -4082,7 +4084,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maybeQueueProcess = (
       data: import("@voxelize/protocol").ChunkProtocol
     ) => {
-      const distance = (data.x - centerX) ** 2 + (data.z - centerZ) ** 2;
+      const dx = data.x - centerX;
+      const dz = data.z - centerZ;
+      const distance = dx * dx + dz * dz;
       if (toProcessArray.length < maxProcessesPerUpdate) {
         toProcessArray.push({ data, distance });
         if (distance > farthestProcessDistance) {
