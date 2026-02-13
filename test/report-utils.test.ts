@@ -9,6 +9,7 @@ import {
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
   parseJsonOutput,
+  resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -174,6 +175,84 @@ describe("report-utils", () => {
     );
     expect(outputBeforeTerminator.error).toBeNull();
     expect(outputBeforeTerminator.outputPath).toBe("/workspace/report.json");
+
+    const inlineValue = resolveOutputPath(
+      ["--json", "--output=./inline-report.json"],
+      "/workspace"
+    );
+    expect(inlineValue.error).toBeNull();
+    expect(inlineValue.outputPath).toBe("/workspace/inline-report.json");
+
+    const inlineMissingValue = resolveOutputPath(
+      ["--json", "--output="],
+      "/workspace"
+    );
+    expect(inlineMissingValue.error).toBe("Missing value for --output option.");
+    expect(inlineMissingValue.outputPath).toBeNull();
+
+    const inlineBeforeMissingTrailing = resolveOutputPath(
+      ["--json", "--output=./first-inline.json", "--output="],
+      "/workspace"
+    );
+    expect(inlineBeforeMissingTrailing.error).toBe(
+      "Missing value for --output option."
+    );
+    expect(inlineBeforeMissingTrailing.outputPath).toBeNull();
+  });
+
+  it("resolves last option values for both split and inline forms", () => {
+    const noOption = resolveLastOptionValue(["--json"], "--output");
+    expect(noOption.hasOption).toBe(false);
+    expect(noOption.value).toBeNull();
+    expect(noOption.error).toBeNull();
+
+    const splitValue = resolveLastOptionValue(
+      ["--json", "--output", "./report.json"],
+      "--output"
+    );
+    expect(splitValue.hasOption).toBe(true);
+    expect(splitValue.value).toBe("./report.json");
+    expect(splitValue.error).toBeNull();
+
+    const inlineValue = resolveLastOptionValue(
+      ["--json", "--output=./report.json"],
+      "--output"
+    );
+    expect(inlineValue.hasOption).toBe(true);
+    expect(inlineValue.value).toBe("./report.json");
+    expect(inlineValue.error).toBeNull();
+
+    const missingSplitValue = resolveLastOptionValue(
+      ["--json", "--output"],
+      "--output"
+    );
+    expect(missingSplitValue.hasOption).toBe(true);
+    expect(missingSplitValue.value).toBeNull();
+    expect(missingSplitValue.error).toBe("Missing value for --output option.");
+
+    const missingInlineValue = resolveLastOptionValue(
+      ["--json", "--output="],
+      "--output"
+    );
+    expect(missingInlineValue.hasOption).toBe(true);
+    expect(missingInlineValue.value).toBeNull();
+    expect(missingInlineValue.error).toBe("Missing value for --output option.");
+
+    const inlineAfterMissingSplit = resolveLastOptionValue(
+      ["--json", "--output", "--quiet", "--output=./final.json"],
+      "--output"
+    );
+    expect(inlineAfterMissingSplit.hasOption).toBe(true);
+    expect(inlineAfterMissingSplit.value).toBe("./final.json");
+    expect(inlineAfterMissingSplit.error).toBeNull();
+
+    const ignoresAfterTerminator = resolveLastOptionValue(
+      ["--json", "--", "--output=./ignored.json"],
+      "--output"
+    );
+    expect(ignoresAfterTerminator.hasOption).toBe(false);
+    expect(ignoresAfterTerminator.value).toBeNull();
+    expect(ignoresAfterTerminator.error).toBeNull();
   });
 
   it("splits option and positional args using option terminator", () => {

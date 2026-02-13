@@ -246,6 +246,7 @@ JSON preflight commands include `startedAt`, `endedAt`, and `durationMs`.
 Client and onboarding JSON reports also include `totalSteps`, `passedStepCount`, `failedStepCount`, `skippedStepCount`, and `firstFailedStep`.
 If `--output` is provided without a value, JSON commands return a structured error report.
 If `--output` or `--only` is passed multiple times, the last value is used.
+`--output` and `--only` also support inline assignment forms such as `--output=./report.json` and `--only=client`.
 Invalid `--only` errors include available canonical check names and special selector aliases (for example `all`, `all-checks`, `all_checks`, `allchecks`) for quick correction.
 Invalid `--only` errors also include `invalidChecks` for machine-readable diagnostics.
 Unsupported CLI flags return structured errors and include `unknownOptions` for machine-readable diagnostics.

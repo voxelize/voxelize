@@ -6,6 +6,7 @@ import {
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
   parseJsonOutput,
+  resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
   splitCliArgs,
@@ -45,7 +46,6 @@ const supportedCliOptions = [
   "--output",
   "--quiet",
 ];
-const supportedCliOptionsSet = new Set(supportedCliOptions);
 const cliOptionsWithValues = new Set(["--only", "--output"]);
 const canonicalCliOptions = [
   "--compact",
@@ -64,6 +64,26 @@ for (const [canonicalOption, aliases] of Object.entries(availableCliOptionAliase
     cliOptionCanonicalMap.set(alias, canonicalOption);
   }
 }
+const parseCanonicalCliOption = (optionToken) => {
+  const directMatch = cliOptionCanonicalMap.get(optionToken);
+  if (directMatch !== undefined) {
+    return {
+      canonicalOption: directMatch,
+      hasInlineValue: false,
+    };
+  }
+
+  for (const optionName of cliOptionsWithValues) {
+    if (optionToken.startsWith(`${optionName}=`)) {
+      return {
+        canonicalOption: optionName,
+        hasInlineValue: true,
+      };
+    }
+  }
+
+  return null;
+};
 const availableCliOptionCanonicalMap = Object.fromEntries(
   supportedCliOptions.map((optionToken) => {
     const canonicalOption = cliOptionCanonicalMap.get(optionToken);
@@ -73,7 +93,11 @@ const availableCliOptionCanonicalMap = Object.fromEntries(
 const jsonFormat = { compact: isCompact };
 const { outputPath: resolvedOutputPath, error: outputPathError } =
   resolveOutputPath(cliOptionArgs);
-const onlyArgIndex = cliOptionArgs.lastIndexOf("--only");
+const {
+  hasOption: hasOnlyOption,
+  value: onlyOptionValue,
+  error: onlyOptionError,
+} = resolveLastOptionValue(cliOptionArgs, "--only");
 const buildTimedReport = createTimedReportBuilder();
 
 const availableChecks = [
@@ -160,7 +184,7 @@ const specialCheckAliases = new Map(
 );
 
 const parseSelectedChecks = () => {
-  if (onlyArgIndex === -1) {
+  if (!hasOnlyOption) {
     return {
       selectedChecks: availableCheckNames,
       requestedChecks: [],
@@ -172,20 +196,19 @@ const parseSelectedChecks = () => {
     };
   }
 
-  const onlyValue = cliOptionArgs[onlyArgIndex + 1] ?? null;
-  if (onlyValue === null || onlyValue.startsWith("--")) {
+  if (onlyOptionError !== null || onlyOptionValue === null) {
     return {
       selectedChecks: [],
       requestedChecks: [],
       requestedCheckResolutions: [],
       selectionMode: "only",
       specialSelectorsUsed: [],
-      error: "Missing value for --only option.",
+      error: onlyOptionError ?? "Missing value for --only option.",
       invalidChecks: [],
     };
   }
 
-  const tokenizedChecks = onlyValue
+  const tokenizedChecks = onlyOptionValue
     .split(",")
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
@@ -333,10 +356,13 @@ const parseUnknownOptions = (args) => {
     if (!arg.startsWith("-") || arg === "-" || arg === "--") {
       continue;
     }
-    const canonicalOption = cliOptionCanonicalMap.get(arg) ?? null;
-    if (canonicalOption !== null || supportedCliOptionsSet.has(arg)) {
-      const optionName = canonicalOption ?? arg;
+    const optionResolution = parseCanonicalCliOption(arg);
+    if (optionResolution !== null) {
+      const optionName = optionResolution.canonicalOption;
       if (cliOptionsWithValues.has(optionName)) {
+        if (optionResolution.hasInlineValue) {
+          continue;
+        }
         const nextArg = args[index + 1] ?? null;
         if (nextArg !== null && !nextArg.startsWith("--")) {
           index += 1;
@@ -358,9 +384,9 @@ const unknownOptions = parseUnknownOptions(cliOptionArgs);
 const parseActiveCliOptions = (args) => {
   const activeCliOptions = new Set();
   for (const arg of args) {
-    const canonicalOption = cliOptionCanonicalMap.get(arg);
-    if (canonicalOption !== undefined) {
-      activeCliOptions.add(canonicalOption);
+    const optionResolution = parseCanonicalCliOption(arg);
+    if (optionResolution !== null) {
+      activeCliOptions.add(optionResolution.canonicalOption);
     }
   }
 
@@ -373,8 +399,8 @@ const parseActiveCliOptionTokens = (args) => {
   const seenActiveTokens = new Set();
 
   for (const arg of args) {
-    const canonicalOption = cliOptionCanonicalMap.get(arg) ?? null;
-    if (canonicalOption === null) {
+    const optionResolution = parseCanonicalCliOption(arg);
+    if (optionResolution === null) {
       continue;
     }
     if (seenActiveTokens.has(arg)) {
@@ -389,10 +415,11 @@ const parseActiveCliOptionTokens = (args) => {
 };
 const activeCliOptionTokens = parseActiveCliOptionTokens(cliOptionArgs);
 const activeCliOptionResolutions = activeCliOptionTokens.map((token) => {
-  const canonicalOption = cliOptionCanonicalMap.get(token);
+  const optionResolution = parseCanonicalCliOption(token);
   return {
     token,
-    canonicalOption: canonicalOption ?? token,
+    canonicalOption:
+      optionResolution === null ? token : optionResolution.canonicalOption,
   };
 });
 const activeCliOptionResolutionCount = activeCliOptionResolutions.length;
@@ -401,14 +428,14 @@ const parseActiveCliOptionOccurrences = (args) => {
 
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
-    const canonicalOption = cliOptionCanonicalMap.get(token);
-    if (canonicalOption === undefined) {
+    const optionResolution = parseCanonicalCliOption(token);
+    if (optionResolution === null) {
       continue;
     }
 
     occurrences.push({
       token,
-      canonicalOption,
+      canonicalOption: optionResolution.canonicalOption,
       index,
     });
   }

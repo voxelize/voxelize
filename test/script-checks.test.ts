@@ -231,6 +231,28 @@ describe("root preflight scripts", () => {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
+  it("check-wasm-pack json mode supports inline output values", () => {
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "voxelize-wasm-pack-json-inline-output-")
+    );
+    const outputPath = path.resolve(tempDirectory, "inline-report.json");
+
+    const result = runScript("check-wasm-pack.mjs", [
+      "--json",
+      `--output=${outputPath}`,
+    ]);
+    const stdoutReport = JSON.parse(result.output) as WasmPackJsonReport;
+    const fileReport = JSON.parse(
+      fs.readFileSync(outputPath, "utf8")
+    ) as WasmPackJsonReport;
+
+    expect(stdoutReport.outputPath).toBe(outputPath);
+    expect(fileReport.outputPath).toBe(outputPath);
+    expect(result.status).toBe(stdoutReport.passed ? 0 : stdoutReport.exitCode);
+
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  });
+
   it("check-wasm-pack json mode uses the last output flag", () => {
     const tempDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), "voxelize-wasm-pack-json-last-output-")
@@ -260,6 +282,17 @@ describe("root preflight scripts", () => {
 
   it("check-wasm-pack json mode validates missing output value", () => {
     const result = runScript("check-wasm-pack.mjs", ["--json", "--output"]);
+    const report = JSON.parse(result.output) as WasmPackJsonReport;
+
+    expect(report.passed).toBe(false);
+    expect(report.exitCode).toBe(1);
+    expectTimingMetadata(report);
+    expect(report.message).toBe("Missing value for --output option.");
+    expect(result.status).toBe(1);
+  });
+
+  it("check-wasm-pack json mode validates empty inline output values", () => {
+    const result = runScript("check-wasm-pack.mjs", ["--json", "--output="]);
     const report = JSON.parse(result.output) as WasmPackJsonReport;
 
     expect(report.passed).toBe(false);

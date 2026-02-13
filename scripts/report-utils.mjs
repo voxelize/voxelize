@@ -228,26 +228,71 @@ export const splitCliArgs = (args) => {
   };
 };
 
-export const resolveOutputPath = (args, cwd = process.cwd()) => {
+export const resolveLastOptionValue = (args, optionName) => {
   const { optionArgs } = splitCliArgs(args);
-  const outputArgIndex = optionArgs.lastIndexOf("--output");
-  if (outputArgIndex === -1) {
+  const inlineOptionPrefix = `${optionName}=`;
+  let hasOption = false;
+  let resolvedValue = null;
+  let missingValue = false;
+
+  for (let index = 0; index < optionArgs.length; index += 1) {
+    const token = optionArgs[index];
+
+    if (token === optionName) {
+      hasOption = true;
+      const nextArg = optionArgs[index + 1] ?? null;
+      if (nextArg === null || nextArg.startsWith("--")) {
+        resolvedValue = null;
+        missingValue = true;
+      } else {
+        resolvedValue = nextArg;
+        missingValue = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (!token.startsWith(inlineOptionPrefix)) {
+      continue;
+    }
+
+    hasOption = true;
+    const inlineValue = token.slice(inlineOptionPrefix.length);
+    if (inlineValue.length === 0) {
+      resolvedValue = null;
+      missingValue = true;
+      continue;
+    }
+
+    resolvedValue = inlineValue;
+    missingValue = false;
+  }
+
+  return {
+    hasOption,
+    value: resolvedValue,
+    error: hasOption && missingValue ? `Missing value for ${optionName} option.` : null,
+  };
+};
+
+export const resolveOutputPath = (args, cwd = process.cwd()) => {
+  const outputPathValue = resolveLastOptionValue(args, "--output");
+  if (!outputPathValue.hasOption) {
     return {
       outputPath: null,
       error: null,
     };
   }
 
-  const outputArgValue = optionArgs[outputArgIndex + 1] ?? null;
-  if (outputArgValue === null || outputArgValue.startsWith("--")) {
+  if (outputPathValue.error !== null || outputPathValue.value === null) {
     return {
       outputPath: null,
-      error: "Missing value for --output option.",
+      error: outputPathValue.error ?? "Missing value for --output option.",
     };
   }
 
   return {
-    outputPath: path.resolve(cwd, outputArgValue),
+    outputPath: path.resolve(cwd, outputPathValue.value),
     error: null,
   };
 };
