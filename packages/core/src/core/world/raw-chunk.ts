@@ -15,6 +15,15 @@ export type RawChunkOptions = {
   subChunks: number;
 };
 
+export type SerializedRawChunk = {
+  id: string;
+  x: number;
+  z: number;
+  voxels: ArrayBuffer;
+  lights: ArrayBuffer;
+  options: RawChunkOptions;
+};
+
 export class RawChunk {
   public options: RawChunkOptions;
 
@@ -77,7 +86,7 @@ export class RawChunk {
     ];
   }
 
-  static deserialize(data: any): RawChunk {
+  static deserialize(data: SerializedRawChunk): RawChunk {
     const { id, x, z, voxels, lights, options } = data;
 
     const chunk = new RawChunk(id, [x, z], options);

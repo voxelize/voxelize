@@ -8,6 +8,7 @@ import { LightColor } from "../../../utils/light-utils";
 import { BlockRule } from "../block";
 import type { LightNode, VoxelDelta, WorldOptions } from "../index";
 import { RawChunk } from "../raw-chunk";
+import type { SerializedRawChunk } from "../raw-chunk";
 
 interface SerializedDynamicPart {
   rule: BlockRule;
@@ -63,20 +64,6 @@ interface WasmLightRegistry {
   blocksById: [number, WasmLightBlock][];
 }
 
-interface SerializedChunkData {
-  id: string;
-  x: number;
-  z: number;
-  voxels: ArrayBuffer;
-  lights: ArrayBuffer;
-  options: {
-    size: number;
-    maxHeight: number;
-    maxLightLevel: number;
-    subChunks: number;
-  };
-}
-
 interface DeltaBatch {
   cx: number;
   cz: number;
@@ -92,7 +79,7 @@ interface LightBatchMessage {
     min: Coords3;
     shape: Coords3;
   };
-  chunksData: (SerializedChunkData | null)[];
+  chunksData: (SerializedRawChunk | null)[];
   chunkGridDimensions: [number, number];
   chunkGridOffset: [number, number];
   lastRelevantSequenceId: number;
@@ -242,7 +229,7 @@ const colorToIndex = (color: LightColor): number => {
 };
 
 const deserializeChunkGrid = (
-  chunksData: (SerializedChunkData | null)[],
+  chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number
 ): { chunkGrid: (RawChunk | null)[]; hasAnyChunk: boolean } => {
@@ -356,7 +343,7 @@ const serializeChunkGrid = (
 };
 
 const serializeChunksData = (
-  chunksData: (SerializedChunkData | null)[],
+  chunksData: (SerializedRawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
   chunkShape: [number, number, number]
