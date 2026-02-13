@@ -1119,7 +1119,6 @@ fn should_render_face<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
     see_through: bool,
-    is_fluid: bool,
 ) -> bool {
     let nvx = vx + dir[0];
     let nvy = vy + dir[1];
@@ -1135,14 +1134,6 @@ fn should_render_face<S: VoxelAccess>(
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
 
-    if is_fluid && !block.is_waterlogged && n_block_type.is_waterlogged {
-        return false;
-    }
-
-    if is_fluid && n_block_type.occludes_fluid {
-        return false;
-    }
-
     (if n_block_type.is_empty {
         true
     } else {
@@ -1154,11 +1145,6 @@ fn should_render_face<S: VoxelAccess>(
             && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
                 || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
-        || (is_fluid
-            && n_block_type.is_opaque
-            && !n_block_type.is_fluid
-            && !has_fluid_above(vx, vy, vz, voxel_id, space)
-            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
 #[inline(always)]
@@ -2697,7 +2683,6 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
                         space,
                         registry,
                         is_see_through,
-                        is_fluid,
                     );
 
                     if !should_render {
@@ -3170,7 +3155,6 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         space,
                         registry,
                         is_see_through,
-                        is_fluid,
                     );
 
                     if !should_render {
