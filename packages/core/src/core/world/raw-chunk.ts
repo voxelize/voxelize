@@ -112,7 +112,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.voxels.get(lx, ly, lz);
   }
 
@@ -129,7 +129,7 @@ export class RawChunk {
    */
   setRawValue(vx: number, vy: number, vz: number, val: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.voxels.set(lx, ly, lz, val);
   }
 
@@ -143,7 +143,7 @@ export class RawChunk {
    */
   getRawLight(vx: number, vy: number, vz: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.lights.get(lx, ly, lz);
   }
 
@@ -160,7 +160,7 @@ export class RawChunk {
    */
   setRawLight(vx: number, vy: number, vz: number, level: number) {
     if (!this.contains(vx, vy, vz)) return 0;
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.lights.set(lx, ly, lz, level);
   }
 
@@ -272,7 +272,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.getLocalRedLight(lx, ly, lz);
   }
 
@@ -292,7 +292,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.setLocalRedLight(lx, ly, lz, level);
   }
 
@@ -309,7 +309,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.getLocalGreenLight(lx, ly, lz);
   }
 
@@ -329,7 +329,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.setLocalGreenLight(lx, ly, lz, level);
   }
 
@@ -346,7 +346,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.getLocalBlueLight(lx, ly, lz);
   }
 
@@ -366,7 +366,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.setLocalBlueLight(lx, ly, lz, level);
   }
 
@@ -439,7 +439,7 @@ export class RawChunk {
       return this.options.maxLightLevel;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.getLocalSunlight(lx, ly, lz);
   }
 
@@ -459,7 +459,7 @@ export class RawChunk {
       return 0;
     }
 
-    const [lx, ly, lz] = this.toLocal(vx, vy, vz);
+    const [lx, ly, lz] = this.localBuffer;
     return this.setLocalSunlight(lx, ly, lz, level);
   }
 
