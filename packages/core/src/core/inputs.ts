@@ -483,10 +483,7 @@ export class Inputs<T extends string = any> extends EventEmitter {
    */
   private modifyKey = (key: string) => {
     if (!key) return key;
-    // Make first character upper case
-    return (
-      key.length > 1 ? key.charAt(0).toUpperCase() + key.slice(1) : key
-    ).toLowerCase();
+    return key.toLowerCase();
   };
 
   /**
@@ -511,7 +508,8 @@ export class Inputs<T extends string = any> extends EventEmitter {
     };
 
     const runBounds = (e: KeyboardEvent, bounds: KeyBoundItem<T>[]) => {
-      for (const bound of bounds) {
+      for (let boundIndex = 0; boundIndex < bounds.length; boundIndex++) {
+        const bound = bounds[boundIndex];
         const { callback, namespaces } = bound;
 
         if (matchesNamespace(namespaces)) {
