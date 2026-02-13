@@ -112,6 +112,10 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
 
   private fallbackCommand: ((rest: string) => void) | null = null;
   private commandWordsBuffer: string[] = [];
+  private parseSchemaInfoBySchema = new WeakMap<
+    ZodObject<Record<string, ZodTypeAny>>,
+    { keys: string[]; booleanKeys: Set<string> }
+  >();
 
   /**
    * Send a chat to the server.
@@ -241,25 +245,25 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
     return tokens;
   }
 
-  private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
-    raw: string,
+  private getParseSchemaInfo<T extends ZodObject<Record<string, ZodTypeAny>>>(
     schema: T
-  ): z.infer<T> {
-    const shape = schema.shape;
-    const keys = Object.keys(shape);
-    const hasOwn = Object.prototype.hasOwnProperty;
-
-    if (keys.length === 1 && keys[0] === "rest") {
-      return schema.parse({ rest: raw });
+  ): { keys: string[]; booleanKeys: Set<string> } {
+    const cached = this.parseSchemaInfoBySchema.get(schema);
+    if (cached) {
+      return cached;
     }
 
-    const words = this.splitQuotedTokens(raw);
-    const rawObj: Record<string, string> = {};
-    const positionalValues: string[] = [];
-
+    const shape = schema.shape;
+    const hasOwn = Object.prototype.hasOwnProperty;
+    const keys: string[] = [];
     const booleanKeys = new Set<string>();
-    for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
-      const key = keys[keyIndex];
+
+    for (const key in shape) {
+      if (!hasOwn.call(shape, key)) {
+        continue;
+      }
+      keys.push(key);
+
       let innerType = shape[key] as ZodTypeAny;
       if (this.isOptionalSchema(innerType)) {
         innerType = innerType.unwrap();
@@ -274,6 +278,27 @@ export class Chat<T extends ChatProtocol = ChatProtocol>
         booleanKeys.add(key);
       }
     }
+
+    const info = { keys, booleanKeys };
+    this.parseSchemaInfoBySchema.set(schema, info);
+    return info;
+  }
+
+  private parseArgs<T extends ZodObject<Record<string, ZodTypeAny>>>(
+    raw: string,
+    schema: T
+  ): z.infer<T> {
+    const shape = schema.shape;
+    const { keys, booleanKeys } = this.getParseSchemaInfo(schema);
+    const hasOwn = Object.prototype.hasOwnProperty;
+
+    if (keys.length === 1 && keys[0] === "rest") {
+      return schema.parse({ rest: raw });
+    }
+
+    const words = this.splitQuotedTokens(raw);
+    const rawObj: Record<string, string> = {};
+    const positionalValues: string[] = [];
 
     for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
       const word = words[wordIndex];
