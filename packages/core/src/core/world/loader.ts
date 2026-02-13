@@ -293,9 +293,13 @@ class Loader {
    * Load all audio loader callbacks.
    */
   private loadAudios = async () => {
-    for (const [source, callback] of this.audioCallbacks) {
+    let audioEntries = this.audioCallbacks.entries();
+    let audioEntry = audioEntries.next();
+    while (!audioEntry.done) {
+      const [source, callback] = audioEntry.value;
       const buffer = await callback();
       this.audioBuffers.set(source, buffer);
+      audioEntry = audioEntries.next();
     }
 
     this.audioCallbacks.clear();
