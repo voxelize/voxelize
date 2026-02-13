@@ -4094,11 +4094,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     const triggerInitListener = (chunk: Chunk) => {
       const listeners = this.chunkInitializeListeners.get(chunk.name);
 
-      if (listeners) {
-        for (const listener of listeners) {
-          listener(chunk);
-        }
-        this.chunkInitializeListeners.delete(chunk.name);
+      if (!listeners || listeners.size === 0) {
+        return;
+      }
+
+      this.chunkInitializeListeners.delete(chunk.name);
+      for (const listener of listeners) {
+        listener(chunk);
       }
     };
 
