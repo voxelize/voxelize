@@ -521,3 +521,68 @@ fn test_flood_light_min_only_handles_large_world_bounds_without_overflow() {
         "higher x should still receive light with huge world bounds"
     );
 }
+
+#[test]
+fn test_remove_light_wrapper_clears_sunlight_column() {
+    let registry = create_test_registry();
+    let config = WorldConfig {
+        chunk_size: 16,
+        max_height: 16,
+        max_light_level: 15,
+        min_chunk: [0, 0],
+        max_chunk: [0, 0],
+        saving: false,
+        ..Default::default()
+    };
+
+    let mut chunks = Chunks::new(&config);
+    chunks.add(Chunk::new(
+        "chunk-0-0",
+        0,
+        0,
+        &ChunkOptions {
+            size: 16,
+            max_height: 16,
+            sub_chunks: 1,
+        },
+    ));
+
+    let source = Vec3(8, 12, 8);
+    chunks.set_sunlight(source.0, source.1, source.2, 15);
+
+    Lights::flood_light(
+        &mut chunks,
+        VecDeque::from(vec![voxelize::LightNode {
+            voxel: [source.0, source.1, source.2],
+            level: 15,
+        }]),
+        &LightColor::Sunlight,
+        &registry,
+        &config,
+        None,
+        None,
+    );
+
+    assert_eq!(
+        chunks.get_sunlight(8, 11, 8),
+        15,
+        "sunlight should continue downward at max through non-reducing air"
+    );
+    assert_eq!(
+        chunks.get_sunlight(8, 10, 8),
+        15,
+        "sunlight should continue downward at max through non-reducing air"
+    );
+
+    Lights::remove_light(
+        &mut chunks,
+        &source,
+        &LightColor::Sunlight,
+        &config,
+        &registry,
+    );
+
+    assert_eq!(chunks.get_sunlight(8, 12, 8), 0);
+    assert_eq!(chunks.get_sunlight(8, 11, 8), 0);
+    assert_eq!(chunks.get_sunlight(8, 10, 8), 0);
+}
