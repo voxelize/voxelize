@@ -2431,8 +2431,11 @@ fn process_face<S: VoxelAccess>(
             uvs.push(corner.uv[0] * (end_u - start_u) + start_u);
             uvs.push(corner.uv[1] * (end_v - start_v) + start_v);
 
-            let dy = if pos[1] <= block_min_y_eps { -1 } else { 1 };
-            let wave_bit = if apply_wave_bit && dy == 1 { 1 << 20 } else { 0 };
+            let wave_bit = if apply_wave_bit && pos[1] > block_min_y_eps {
+                1 << 20
+            } else {
+                0
+            };
             lights.push(center_light_i32 | 3 << 16 | fluid_bit | wave_bit);
         }
     } else {
