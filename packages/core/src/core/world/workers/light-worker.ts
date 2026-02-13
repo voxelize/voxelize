@@ -212,23 +212,19 @@ const deserializeChunkGrid = (
   chunksData: (SerializedChunkData | null)[],
   gridWidth: number,
   gridDepth: number
-): (RawChunk | null)[][] => {
-  const chunkGrid: (RawChunk | null)[][] = [];
-  let index = 0;
+): (RawChunk | null)[] => {
+  const chunkGrid: (RawChunk | null)[] = new Array(gridWidth * gridDepth);
 
-  for (let x = 0; x < gridWidth; x++) {
-    chunkGrid[x] = [];
-    for (let z = 0; z < gridDepth; z++) {
-      const chunkData = chunksData[index++];
-      chunkGrid[x][z] = chunkData ? RawChunk.deserialize(chunkData) : null;
-    }
+  for (let index = 0; index < chunkGrid.length; index++) {
+    const chunkData = chunksData[index];
+    chunkGrid[index] = chunkData ? RawChunk.deserialize(chunkData) : null;
   }
 
   return chunkGrid;
 };
 
 const applyRelevantDeltas = (
-  chunkGrid: (RawChunk | null)[][],
+  chunkGrid: (RawChunk | null)[],
   gridWidth: number,
   gridDepth: number,
   gridOffsetX: number,
@@ -250,7 +246,7 @@ const applyRelevantDeltas = (
       continue;
     }
 
-    const chunk = chunkGrid[localX][localZ];
+    const chunk = chunkGrid[localX * gridDepth + localZ];
     if (!chunk) {
       continue;
     }
@@ -278,7 +274,7 @@ const applyRelevantDeltas = (
 };
 
 const serializeChunkGrid = (
-  chunkGrid: (RawChunk | null)[][],
+  chunkGrid: (RawChunk | null)[],
   gridWidth: number,
   gridDepth: number
 ) => {
@@ -292,23 +288,21 @@ const serializeChunkGrid = (
   )[] = new Array(gridWidth * gridDepth);
   let index = 0;
 
-  for (let x = 0; x < gridWidth; x++) {
-    for (let z = 0; z < gridDepth; z++) {
-      const chunk = chunkGrid[x][z];
-      if (!chunk) {
-        serialized[index] = null;
-        index++;
-        continue;
-      }
-
-      const { size, maxHeight } = chunk.options;
-      serialized[index] = {
-        voxels: chunk.voxels.data,
-        lights: chunk.lights.data,
-        shape: [size, maxHeight, size],
-      };
+  for (let offset = 0; offset < gridWidth * gridDepth; offset++) {
+    const chunk = chunkGrid[offset];
+    if (!chunk) {
+      serialized[index] = null;
       index++;
+      continue;
     }
+
+    const { size, maxHeight } = chunk.options;
+    serialized[index] = {
+      voxels: chunk.voxels.data,
+      lights: chunk.lights.data,
+      shape: [size, maxHeight, size],
+    };
+    index++;
   }
 
   return serialized;
