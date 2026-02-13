@@ -368,6 +368,7 @@ const CHUNK_NEIGHBOR_OFFSETS: Coords2[] = [
 
 const ZERO_DIRECTION: [number, number] = [0, 0];
 const ZERO_VECTOR3 = new Vector3(0, 0, 0);
+const ZERO_BLOCK_ROTATION = new BlockRotation();
 const EMPTY_BLOCK_UPDATES: BlockUpdate[] = [];
 const NULL_GEOMETRY_RESULT = () => null;
 
@@ -2742,37 +2743,33 @@ export class World<T = any> extends Scene implements NetIntercept {
     blockId: number,
     dynamicPatterns: BlockDynamicPattern[]
   ): Block["faces"] => {
-    const vx = 0,
-      vy = 0,
-      vz = 0;
+    const voxelCoords: Coords3 = [0, 0, 0];
+    const ruleFunctions = {
+      getVoxelAt: () => blockId,
+      getVoxelRotationAt: () => ZERO_BLOCK_ROTATION,
+      getVoxelStageAt: () => 0,
+    };
 
-    const simulatedGetVoxelAt = () => blockId;
-
-    const simulatedGetVoxelRotationAt = () => new BlockRotation();
-    const simulatedGetVoxelStageAt = () => 0;
-
-    for (const dynamicPattern of dynamicPatterns) {
+    for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
+      const dynamicPattern = dynamicPatterns[patternIndex];
       const faces: Block["faces"] = [];
-      let patternsMatched = false;
+      const parts = dynamicPattern.parts;
 
-      for (const part of dynamicPattern.parts) {
-        const partMatched = BlockUtils.evaluateBlockRule(
-          part.rule,
-          [vx, vy, vz],
-          {
-            getVoxelAt: simulatedGetVoxelAt,
-            getVoxelRotationAt: simulatedGetVoxelRotationAt,
-            getVoxelStageAt: simulatedGetVoxelStageAt,
-          }
-        );
+      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+        const part = parts[partIndex];
+        if (!BlockUtils.evaluateBlockRule(part.rule, voxelCoords, ruleFunctions)) {
+          continue;
+        }
 
-        if (partMatched) {
-          patternsMatched = true;
-          faces.push(...part.faces);
+        const partFaces = part.faces;
+        const start = faces.length;
+        faces.length = start + partFaces.length;
+        for (let faceIndex = 0; faceIndex < partFaces.length; faceIndex++) {
+          faces[start + faceIndex] = partFaces[faceIndex];
         }
       }
 
-      if (patternsMatched && faces.length > 0) {
+      if (faces.length > 0) {
         return faces;
       }
     }
