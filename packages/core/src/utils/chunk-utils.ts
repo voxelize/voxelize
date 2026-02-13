@@ -1,5 +1,3 @@
-import vec3 from "gl-vec3";
-
 import { Coords2, Coords3 } from "../types";
 
 /**
@@ -148,9 +146,11 @@ export class ChunkUtils {
    * @returns The scaled and floored coordinates.
    */
   static scaleCoordsF = (coords: Coords3, factor: number): Coords3 => {
-    const result = [0, 0, 0];
-    const scaled = vec3.scale(result, coords, factor);
-    return <Coords3>vec3.floor(scaled, scaled);
+    return [
+      Math.floor(coords[0] * factor),
+      Math.floor(coords[1] * factor),
+      Math.floor(coords[2] * factor),
+    ];
   };
 
   /**
@@ -189,12 +189,7 @@ export class ChunkUtils {
    * @returns The mapped coordinate.
    */
   static mapChunkToVoxel = (chunkPos: Coords2, chunkSize: number): Coords3 => {
-    const result = <Coords3>[0, 0, 0];
-
-    vec3.copy(result, [chunkPos[0], 0, chunkPos[1]]);
-    vec3.scale(result, result, chunkSize);
-
-    return result;
+    return [chunkPos[0] * chunkSize, 0, chunkPos[1] * chunkSize];
   };
 
   /**
