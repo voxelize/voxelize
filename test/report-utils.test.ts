@@ -210,6 +210,13 @@ describe("report-utils", () => {
     expect(inlineMissingValue.error).toBe("Missing value for --output option.");
     expect(inlineMissingValue.outputPath).toBeNull();
 
+    const inlineWhitespaceValue = resolveOutputPath(
+      ["--json", "--output=   "],
+      "/workspace"
+    );
+    expect(inlineWhitespaceValue.error).toBe("Missing value for --output option.");
+    expect(inlineWhitespaceValue.outputPath).toBeNull();
+
     const inlineBeforeMissingTrailing = resolveOutputPath(
       ["--json", "--output=./first-inline.json", "--output="],
       "/workspace"
@@ -291,6 +298,24 @@ describe("report-utils", () => {
     expect(missingInlineValue.hasOption).toBe(true);
     expect(missingInlineValue.value).toBeNull();
     expect(missingInlineValue.error).toBe("Missing value for --output option.");
+
+    const whitespaceInlineValue = resolveLastOptionValue(
+      ["--json", "--output=   "],
+      "--output"
+    );
+    expect(whitespaceInlineValue.hasOption).toBe(true);
+    expect(whitespaceInlineValue.value).toBeNull();
+    expect(whitespaceInlineValue.error).toBe("Missing value for --output option.");
+
+    const whitespaceInlineOnlyValue = resolveLastOptionValue(
+      ["--json", "--only=   "],
+      "--only"
+    );
+    expect(whitespaceInlineOnlyValue.hasOption).toBe(true);
+    expect(whitespaceInlineOnlyValue.value).toBeNull();
+    expect(whitespaceInlineOnlyValue.error).toBe(
+      "Missing value for --only option."
+    );
 
     const inlineAfterMissingSplit = resolveLastOptionValue(
       ["--json", "--output", "--quiet", "--output=./final.json"],

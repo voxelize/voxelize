@@ -559,7 +559,7 @@ export const resolveLastOptionValue = (args, optionName) => {
 
     hasOption = true;
     const inlineValue = token.slice(inlineOptionPrefix.length);
-    if (inlineValue.length === 0) {
+    if (inlineValue.trim().length === 0) {
       resolvedValue = null;
       missingValue = true;
       continue;
