@@ -5195,7 +5195,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.physics = new PhysicsEngine(
       (vx: number, vy: number, vz: number) => {
-        const chunk = this.getChunkByPosition(vx, vy, vz);
+        const chunk = this.getLoadedChunkAtVoxel(vx, vz);
         if (!chunk) return [];
 
         const id = chunk.getVoxel(vx, vy, vz);
@@ -5245,7 +5245,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         return translatedAabbs;
       },
       (vx: number, vy: number, vz: number) => {
-        const chunk = this.getChunkByPosition(vx, vy, vz);
+        const chunk = this.getLoadedChunkAtVoxel(vx, vz);
         if (!chunk) return false;
 
         const id = chunk.getVoxel(vx, vy, vz);
@@ -5254,7 +5254,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         return block?.isFluid ?? false;
       },
       (vx: number, vy: number, vz: number) => {
-        const chunk = this.getChunkByPosition(vx, vy, vz);
+        const chunk = this.getLoadedChunkAtVoxel(vx, vz);
         if (!chunk) return [];
 
         const id = chunk.getVoxel(vx, vy, vz);
@@ -5276,11 +5276,11 @@ export class World<T = any> extends Scene implements NetIntercept {
         return translatedAabbs;
       },
       (vx: number, vy: number, vz: number) => {
-        const chunk = this.getChunkByPosition(vx, vy, vz);
+        const chunk = this.getLoadedChunkAtVoxel(vx, vz);
         return chunk?.getVoxelStage(vx, vy, vz) ?? 0;
       },
       (vx: number, vy: number, vz: number) => {
-        const chunk = this.getChunkByPosition(vx, vy, vz);
+        const chunk = this.getLoadedChunkAtVoxel(vx, vz);
         if (!chunk) return 0;
         const id = chunk.getVoxel(vx, vy, vz);
         const block = this.getBlockByIdSafe(id);
