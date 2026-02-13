@@ -2659,40 +2659,42 @@ export class World<T = any> extends Scene implements NetIntercept {
     vz: number,
     dynamicPatterns: BlockDynamicPattern[]
   ): { aabb: AABB; worldSpace: boolean }[] => {
-    for (const dynamicPattern of dynamicPatterns) {
+    const voxelCoords: Coords3 = [vx, vy, vz];
+    const ruleFunctions = {
+      getVoxelAt: (x: number, y: number, z: number) => this.getVoxelAt(x, y, z),
+      getVoxelRotationAt: (x: number, y: number, z: number) =>
+        this.getVoxelRotationAt(x, y, z),
+      getVoxelStageAt: (x: number, y: number, z: number) =>
+        this.getVoxelStageAt(x, y, z),
+    };
+
+    for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
+      const dynamicPattern = dynamicPatterns[patternIndex];
       const aabbsWithFlags: { aabb: AABB; worldSpace: boolean }[] = [];
+      const parts = dynamicPattern.parts;
 
-      for (const part of dynamicPattern.parts) {
-        const patternsMatched = BlockUtils.evaluateBlockRule(
-          part.rule,
-          [vx, vy, vz],
-          {
-            getVoxelAt: (vx: number, vy: number, vz: number) =>
-              this.getVoxelAt(vx, vy, vz),
-            getVoxelRotationAt: (vx: number, vy: number, vz: number) =>
-              this.getVoxelRotationAt(vx, vy, vz),
-            getVoxelStageAt: (vx: number, vy: number, vz: number) =>
-              this.getVoxelStageAt(vx, vy, vz),
-          }
-        );
+      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+        const part = parts[partIndex];
+        if (!BlockUtils.evaluateBlockRule(part.rule, voxelCoords, ruleFunctions)) {
+          continue;
+        }
 
-        if (patternsMatched) {
-          const worldSpace =
-            (part as { worldSpace?: boolean }).worldSpace ?? false;
-          for (const aabb of part.aabbs) {
-            const resolvedAabb =
-              aabb instanceof AABB
-                ? aabb
-                : new AABB(
-                    (aabb as AABB).minX,
-                    (aabb as AABB).minY,
-                    (aabb as AABB).minZ,
-                    (aabb as AABB).maxX,
-                    (aabb as AABB).maxY,
-                    (aabb as AABB).maxZ
-                  );
-            aabbsWithFlags.push({ aabb: resolvedAabb, worldSpace });
-          }
+        const worldSpace = (part as { worldSpace?: boolean }).worldSpace ?? false;
+        const partAabbs = part.aabbs;
+        for (let aabbIndex = 0; aabbIndex < partAabbs.length; aabbIndex++) {
+          const aabb = partAabbs[aabbIndex];
+          const resolvedAabb =
+            aabb instanceof AABB
+              ? aabb
+              : new AABB(
+                  (aabb as AABB).minX,
+                  (aabb as AABB).minY,
+                  (aabb as AABB).minZ,
+                  (aabb as AABB).maxX,
+                  (aabb as AABB).maxY,
+                  (aabb as AABB).maxZ
+                );
+          aabbsWithFlags.push({ aabb: resolvedAabb, worldSpace });
         }
       }
 
@@ -2711,22 +2713,23 @@ export class World<T = any> extends Scene implements NetIntercept {
     dynamicPatterns: BlockDynamicPattern[],
     defaultPassable: boolean
   ): boolean => {
-    for (const dynamicPattern of dynamicPatterns) {
-      for (const part of dynamicPattern.parts) {
-        const patternsMatched = BlockUtils.evaluateBlockRule(
-          part.rule,
-          [vx, vy, vz],
-          {
-            getVoxelAt: (vx: number, vy: number, vz: number) =>
-              this.getVoxelAt(vx, vy, vz),
-            getVoxelRotationAt: (vx: number, vy: number, vz: number) =>
-              this.getVoxelRotationAt(vx, vy, vz),
-            getVoxelStageAt: (vx: number, vy: number, vz: number) =>
-              this.getVoxelStageAt(vx, vy, vz),
-          }
-        );
+    const voxelCoords: Coords3 = [vx, vy, vz];
+    const ruleFunctions = {
+      getVoxelAt: (x: number, y: number, z: number) => this.getVoxelAt(x, y, z),
+      getVoxelRotationAt: (x: number, y: number, z: number) =>
+        this.getVoxelRotationAt(x, y, z),
+      getVoxelStageAt: (x: number, y: number, z: number) =>
+        this.getVoxelStageAt(x, y, z),
+    };
 
-        if (patternsMatched && part.isPassable !== undefined) {
+    for (let patternIndex = 0; patternIndex < dynamicPatterns.length; patternIndex++) {
+      const parts = dynamicPatterns[patternIndex].parts;
+      for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+        const part = parts[partIndex];
+        if (
+          BlockUtils.evaluateBlockRule(part.rule, voxelCoords, ruleFunctions) &&
+          part.isPassable !== undefined
+        ) {
           return part.isPassable;
         }
       }
