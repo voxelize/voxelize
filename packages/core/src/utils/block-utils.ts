@@ -174,16 +174,7 @@ export class BlockUtils {
 
       if (ruleRotation != null) {
         const voxelRotation = functions.getVoxelRotationAt(ox, oy, oz);
-        const actualRotation = new TSCoreBlockRotation(
-          voxelRotation.value,
-          voxelRotation.yRotation
-        );
-        const expectedRotation = new TSCoreBlockRotation(
-          ruleRotation.value,
-          ruleRotation.yRotation
-        );
-
-        if (!actualRotation.equals(expectedRotation))
+        if (!voxelRotation.equals(ruleRotation))
           return false;
       }
 

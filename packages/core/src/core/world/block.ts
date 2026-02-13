@@ -361,6 +361,12 @@ export class BlockRotation {
     return [value, yDecoded];
   };
 
+  equals = (other: BlockRotation) => {
+    const [value, yRotation] = BlockRotation.decode(this);
+    const [otherValue, otherYRotation] = BlockRotation.decode(other);
+    return value === otherValue && yRotation === otherYRotation;
+  };
+
   /**
    * Rotate a 3D coordinate by this block rotation.
    *

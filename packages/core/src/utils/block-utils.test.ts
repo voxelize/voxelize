@@ -121,4 +121,10 @@ describe("BlockRotation.rotateTransparency", () => {
     rotation.axis = 4;
     expect(rotation.value).toBe(4);
   });
+
+  it("supports semantic equality by decoded segment", () => {
+    const base = new BlockRotation(PY_ROTATION, Math.PI / 2);
+    const equivalent = BlockRotation.encode(PY_ROTATION, 4);
+    expect(base.equals(equivalent)).toBe(true);
+  });
 });
