@@ -4969,7 +4969,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           voxel: [vx, vy, vz],
           block: blockWithLevels,
         });
-        removedLightSourceKeys.add(`${vx},${vy},${vz}`);
+        removedLightSourceKeys.add(ChunkUtils.getVoxelNameAt(vx, vy, vz));
       }
     }
 
@@ -4990,7 +4990,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const [vx, vy, vz] = voxel;
 
       const isRemovedLightSource = removedLightSourceKeys.has(
-        `${vx},${vy},${vz}`
+        ChunkUtils.getVoxelNameAt(vx, vy, vz)
       );
 
       if (isRemovedLightSource && !oldBlock.isOpaque) {
