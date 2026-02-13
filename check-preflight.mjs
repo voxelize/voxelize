@@ -344,6 +344,8 @@ if (
   unsupportedOptionsError !== null
 ) {
   const effectiveInvalidChecks = outputPathError === null ? invalidChecks : [];
+  const invalidCheckCount = effectiveInvalidChecks.length;
+  const unknownOptionCount = unknownOptions.length;
   const report = buildTimedReport({
     passed: false,
     exitCode: 1,
@@ -363,7 +365,9 @@ if (
     outputPath: outputPathError === null ? resolvedOutputPath : null,
     message: outputPathError ?? selectedChecksError ?? unsupportedOptionsError,
     invalidChecks: effectiveInvalidChecks,
+    invalidCheckCount,
     unknownOptions,
+    unknownOptionCount,
     supportedCliOptions,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -389,6 +393,8 @@ const skippedChecks = availableCheckNames.filter((checkName) => {
 });
 
 if (isListChecks) {
+  const invalidCheckCount = 0;
+  const unknownOptionCount = unknownOptions.length;
   const report = buildTimedReport({
     passed: true,
     exitCode: 0,
@@ -408,7 +414,9 @@ if (isListChecks) {
     checks: [],
     outputPath: resolvedOutputPath,
     invalidChecks: [],
+    invalidCheckCount,
     unknownOptions,
+    unknownOptionCount,
     supportedCliOptions,
     availableChecks: availableCheckNames,
     availableCheckMetadata,
@@ -437,6 +445,8 @@ const checks = availableChecks
 const passed = checks.every((check) => check.passed);
 const exitCode = passed ? 0 : 1;
 const checkSummary = summarizeCheckResults(checks);
+const invalidCheckCount = 0;
+const unknownOptionCount = unknownOptions.length;
 const failureSummaries = checks
   .filter((check) => !check.passed)
   .map((check) => {
@@ -470,7 +480,9 @@ const report = buildTimedReport({
   checks,
   outputPath: resolvedOutputPath,
   invalidChecks: [],
+  invalidCheckCount,
   unknownOptions,
+  unknownOptionCount,
   supportedCliOptions,
   availableChecks: availableCheckNames,
   availableCheckMetadata,
