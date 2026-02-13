@@ -6922,7 +6922,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
       }
 
-      if (stage !== undefined) {
+      if (stage !== undefined && !Number.isNaN(stage)) {
         raw = BlockUtils.insertStage(raw, stage);
       }
 
