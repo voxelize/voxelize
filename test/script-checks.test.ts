@@ -12,6 +12,22 @@ type ScriptResult = {
   output: string;
 };
 
+type DevEnvJsonCheck = {
+  label: string;
+  required: boolean;
+  status: string;
+  message: string;
+  hint: string;
+  detectedVersion: string | null;
+  minimumVersion: string | null;
+};
+
+type DevEnvJsonReport = {
+  passed: boolean;
+  requiredFailures: number;
+  checks: DevEnvJsonCheck[];
+};
+
 const runScript = (scriptName: string, args: string[] = []): ScriptResult => {
   const scriptPath = path.resolve(rootDir, scriptName);
   const result = spawnSync(process.execPath, [scriptPath, ...args], {
@@ -64,6 +80,20 @@ describe("root preflight scripts", () => {
     const result = runScript("check-dev-env.mjs", ["--quiet"]);
 
     expect(result.output).not.toContain("✓ ");
+  });
+
+  it("check-dev-env json mode emits machine-readable report", () => {
+    const result = runScript("check-dev-env.mjs", ["--json"]);
+    const report = JSON.parse(result.output) as DevEnvJsonReport;
+
+    expect(report.requiredFailures).toBeGreaterThanOrEqual(0);
+    expect(typeof report.passed).toBe("boolean");
+    expect(Array.isArray(report.checks)).toBe(true);
+    expect(report.checks.length).toBeGreaterThan(0);
+    expect(report.checks.map((check) => check.label)).toContain("node");
+    expect(report.checks.map((check) => check.label)).toContain("pnpm");
+    expect(result.status).toBe(report.passed ? 0 : 1);
+    expect(result.output).not.toContain("Environment check failed:");
   });
 
   it("check-client returns pass or fail summary", () => {

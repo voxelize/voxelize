@@ -13,6 +13,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isQuiet = process.argv.includes("--quiet");
+const isJson = process.argv.includes("--json");
 const minimumVersions = loadWorkspaceMinimumVersions(__dirname);
 
 const checks = [
@@ -63,6 +64,7 @@ const checks = [
 ];
 
 let requiredFailures = 0;
+const checkResults = [];
 
 for (const check of checks) {
   const result = spawnSync(check.command, check.args, {
@@ -78,58 +80,90 @@ for (const check of checks) {
       .map((line) => line.trim())
       .find((line) => line.length > 0) ?? "ok";
 
-  const printFailure = (reason) => {
-    if (check.required) {
-      requiredFailures += 1;
-    }
-
-    const status = check.required ? "✗" : "!";
-    const requirement = check.required ? "required" : "optional";
-    console.error(`${status} ${check.label}: ${reason} (${requirement})`);
-    console.error(`  ${check.hint}`);
-  };
+  let status = "ok";
+  let message = firstLine;
+  let detectedVersion = null;
+  let minimumVersion = null;
 
   if (commandFailed) {
     if (result.error !== undefined) {
-      printFailure("missing");
-      continue;
+      status = "missing";
+      message = "missing";
+    } else {
+      const failureDetail =
+        firstLine === "ok" ? "command returned non-zero status" : firstLine;
+      status = "unavailable";
+      message = `unavailable (${failureDetail})`;
     }
+  } else if (check.minVersion !== undefined) {
+    const parsedVersion = parseSemver(firstLine);
+    minimumVersion = formatSemver(check.minVersion);
+    if (parsedVersion === null) {
+      status = "unparseable_version";
+      message = `unable to parse version from "${firstLine}"`;
+    } else {
+      detectedVersion = formatSemver(parsedVersion);
+      if (!isSemverAtLeast(parsedVersion, check.minVersion)) {
+        status = "version_below_minimum";
+        message = `version ${detectedVersion} is below ${minimumVersion}`;
+      }
+    }
+  }
 
-    const failureDetail =
-      firstLine === "ok" ? "command returned non-zero status" : firstLine;
-    printFailure(`unavailable (${failureDetail})`);
+  if (status !== "ok" && check.required) {
+    requiredFailures += 1;
+  }
+
+  checkResults.push({
+    label: check.label,
+    required: check.required,
+    status,
+    message,
+    hint: check.hint,
+    detectedVersion,
+    minimumVersion,
+  });
+
+  if (isJson) {
     continue;
   }
 
-  if (check.minVersion !== undefined) {
-    const parsedVersion = parseSemver(firstLine);
-    if (parsedVersion === null) {
-      printFailure(`unable to parse version from "${firstLine}"`);
-      continue;
+  if (status === "ok") {
+    if (!isQuiet) {
+      console.log(`✓ ${check.label}: ${firstLine}`);
     }
-
-    if (!isSemverAtLeast(parsedVersion, check.minVersion)) {
-      printFailure(
-        `version ${formatSemver(parsedVersion)} is below ${formatSemver(
-          check.minVersion
-        )}`
-      );
-      continue;
-    }
+    continue;
   }
 
-  if (!isQuiet) {
-    console.log(`✓ ${check.label}: ${firstLine}`);
-  }
+  const statusSymbol = check.required ? "✗" : "!";
+  const requirement = check.required ? "required" : "optional";
+  console.error(`${statusSymbol} ${check.label}: ${message} (${requirement})`);
+  console.error(`  ${check.hint}`);
+}
+
+if (isJson) {
+  console.log(
+    JSON.stringify(
+      {
+        passed: requiredFailures === 0,
+        requiredFailures,
+        checks: checkResults,
+      },
+      null,
+      2
+    )
+  );
 }
 
 if (requiredFailures > 0) {
-  console.error(
-    `Environment check failed: ${requiredFailures} required check(s) failed.`
-  );
+  if (!isJson) {
+    console.error(
+      `Environment check failed: ${requiredFailures} required check(s) failed.`
+    );
+  }
   process.exit(1);
 }
 
-if (!isQuiet) {
+if (!isQuiet && !isJson) {
   console.log("Environment check passed.");
 }
