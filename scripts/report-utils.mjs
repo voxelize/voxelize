@@ -27,13 +27,11 @@ export const parseJsonOutput = (value) => {
       ) {
         continue;
       }
+      const requiredEndToken = trimmedStart.startsWith("{") ? "}" : "]";
 
       for (let end = start; end < rawLines.length; end += 1) {
         const trimmedEnd = rawLines[end].trim();
-        if (
-          !trimmedEnd.endsWith("}") &&
-          !trimmedEnd.endsWith("]")
-        ) {
+        if (!trimmedEnd.endsWith(requiredEndToken)) {
           continue;
         }
 
