@@ -105,8 +105,21 @@ export class WorkerPool {
   };
 
   postMessage = (message: object, buffers?: ArrayBufferLike[]) => {
+    if (!buffers || buffers.length === 0) {
+      for (const worker of this.workers) {
+        worker.postMessage(message);
+      }
+      return;
+    }
+
     for (const worker of this.workers) {
-      worker.postMessage(message, buffers);
+      const transferBuffers = new Array<ArrayBufferLike>(buffers.length);
+      for (let index = 0; index < buffers.length; index++) {
+        const buffer = buffers[index];
+        transferBuffers[index] =
+          buffer instanceof ArrayBuffer ? buffer.slice(0) : buffer;
+      }
+      worker.postMessage(message, transferBuffers);
     }
   };
 
