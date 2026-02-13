@@ -1125,20 +1125,22 @@ fn should_render_face<S: VoxelAccess>(
         None => return !space.contains(nvx, nvy, nvz),
     };
 
-    let is_opaque = block.is_opaque;
-    let is_see_through = block.is_see_through;
+    if n_block_type.is_empty || !space.contains(nvx, nvy, nvz) {
+        return true;
+    }
 
-    (if n_block_type.is_empty {
-        true
-    } else {
-        !space.contains(nvx, nvy, nvz)
-    })
-        || (see_through
-            && !is_opaque
-            && !n_block_type.is_opaque
-            && ((is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
-                || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))))
-        || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+    let is_opaque = block.is_opaque;
+    if !see_through {
+        return !is_opaque || !n_block_type.is_opaque;
+    }
+
+    if is_opaque || n_block_type.is_opaque {
+        return false;
+    }
+
+    let is_see_through = block.is_see_through;
+    (is_see_through && neighbor_id == voxel_id && n_block_type.transparent_standalone)
+        || (neighbor_id != voxel_id && (is_see_through || n_block_type.is_see_through))
 }
 
 #[inline(always)]
