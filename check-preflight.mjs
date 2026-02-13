@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import {
   createTimedReportBuilder,
   deriveFailureMessageFromReport,
+  hasCliOption as hasCliOptionInArgs,
   parseJsonOutput,
+  parseUnknownCliOptions,
   resolveLastOptionValue,
   resolveOutputPath,
   serializeReportWithOptionalWrite,
@@ -23,16 +25,16 @@ const availableCliOptionAliases = {
   "--list-checks": ["--list", "-l"],
   "--no-build": ["--verify"],
 };
-const hasCliOption = (canonicalOption) => {
-  if (cliOptionArgs.includes(canonicalOption)) {
-    return true;
-  }
-
-  const optionAliases = availableCliOptionAliases[canonicalOption] ?? [];
-  return optionAliases.some((alias) => cliOptionArgs.includes(alias));
-};
-const isNoBuild = hasCliOption("--no-build");
-const isListChecks = hasCliOption("--list-checks");
+const isNoBuild = hasCliOptionInArgs(
+  cliOptionArgs,
+  "--no-build",
+  availableCliOptionAliases["--no-build"]
+);
+const isListChecks = hasCliOptionInArgs(
+  cliOptionArgs,
+  "--list-checks",
+  availableCliOptionAliases["--list-checks"]
+);
 const isCompact = cliOptionArgs.includes("--compact");
 const supportedCliOptions = [
   "-l",
@@ -347,40 +349,11 @@ const createRequestedCheckResolutionCounts = (resolutions) => {
 const requestedCheckResolutionCounts = createRequestedCheckResolutionCounts(
   requestedCheckResolutions
 );
-const parseUnknownOptions = (args) => {
-  const unknownOptions = [];
-  const seenUnknownOptions = new Set();
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (!arg.startsWith("-") || arg === "-" || arg === "--") {
-      continue;
-    }
-    const optionResolution = parseCanonicalCliOption(arg);
-    if (optionResolution !== null) {
-      const optionName = optionResolution.canonicalOption;
-      if (cliOptionsWithValues.has(optionName)) {
-        if (optionResolution.hasInlineValue) {
-          continue;
-        }
-        const nextArg = args[index + 1] ?? null;
-        if (nextArg !== null && !nextArg.startsWith("--")) {
-          index += 1;
-        }
-      }
-      continue;
-    }
-    if (seenUnknownOptions.has(arg)) {
-      continue;
-    }
-
-    seenUnknownOptions.add(arg);
-    unknownOptions.push(arg);
-  }
-
-  return unknownOptions;
-};
-const unknownOptions = parseUnknownOptions(cliOptionArgs);
+const unknownOptions = parseUnknownCliOptions(cliOptionArgs, {
+  canonicalOptions: canonicalCliOptions,
+  optionAliases: availableCliOptionAliases,
+  optionsWithValues: Array.from(cliOptionsWithValues),
+});
 const parseActiveCliOptions = (args) => {
   const activeCliOptions = new Set();
   for (const arg of args) {
