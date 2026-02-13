@@ -1601,19 +1601,17 @@ fn extract_greedy_quads_dense(
     min_v: i32,
     max_v: i32,
 ) -> Vec<GreedyQuad> {
-    let estimated_cells = ((max_u - min_u) * (max_v - min_v)).max(0) as usize;
+    let width = (max_u - min_u).max(0) as usize;
+    let height = (max_v - min_v).max(0) as usize;
+    let estimated_cells = width * height;
     let mut quads = Vec::with_capacity((estimated_cells / 2).max(16));
-    let width = (max_u - min_u) as usize;
-
-    let index = |u: i32, v: i32| -> usize { (v - min_v) as usize * width + (u - min_u) as usize };
-
-    for v in min_v..max_v {
-        for u in min_u..max_u {
-            let start_index = index(u, v);
+    for v_off in 0..height {
+        for u_off in 0..width {
+            let start_index = v_off * width + u_off;
             if let Some(data) = mask[start_index].take() {
-                let mut quad_width = 1;
-                while u + quad_width < max_u {
-                    let neighbor_index = index(u + quad_width, v);
+                let mut quad_width = 1usize;
+                while u_off + quad_width < width {
+                    let neighbor_index = start_index + quad_width;
                     if let Some(neighbor) = mask[neighbor_index].as_ref() {
                         if neighbor.key == data.key {
                             mask[neighbor_index] = None;
@@ -1626,10 +1624,11 @@ fn extract_greedy_quads_dense(
                     }
                 }
 
-                let mut quad_height = 1;
-                'height: while v + quad_height < max_v {
+                let mut quad_height = 1usize;
+                'height: while v_off + quad_height < height {
+                    let row_start = (v_off + quad_height) * width + u_off;
                     for du in 0..quad_width {
-                        let neighbor_index = index(u + du, v + quad_height);
+                        let neighbor_index = row_start + du;
                         if let Some(neighbor) = mask[neighbor_index].as_ref() {
                             if neighbor.key != data.key {
                                 break 'height;
@@ -1640,17 +1639,17 @@ fn extract_greedy_quads_dense(
                     }
 
                     for du in 0..quad_width {
-                        let neighbor_index = index(u + du, v + quad_height);
+                        let neighbor_index = row_start + du;
                         mask[neighbor_index] = None;
                     }
                     quad_height += 1;
                 }
 
                 quads.push(GreedyQuad {
-                    x: u,
-                    y: v,
-                    w: quad_width,
-                    h: quad_height,
+                    x: min_u + u_off as i32,
+                    y: min_v + v_off as i32,
+                    w: quad_width as i32,
+                    h: quad_height as i32,
                     data,
                 });
             }
