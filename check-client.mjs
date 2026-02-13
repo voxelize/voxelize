@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { resolvePnpmCommand } from "./scripts/command-utils.mjs";
 import {
+  createCliOptionCatalog,
   createCliDiagnostics,
   deriveCliValidationFailureMessage,
   createTimedReportBuilder,
@@ -42,11 +43,10 @@ const isJson = cliOptionArgs.includes("--json");
 const isNoBuild = hasCliOption(cliOptionArgs, "--no-build", noBuildOptionAliases);
 const isCompact = cliOptionArgs.includes("--compact");
 const jsonFormat = { compact: isCompact };
-const supportedCliOptionTokens = [
-  ...canonicalCliOptions,
-  ...Object.keys(optionAliases),
-  ...Object.values(optionAliases).flat(),
-];
+const { supportedCliOptions: supportedCliOptionTokens } = createCliOptionCatalog({
+  canonicalOptions: canonicalCliOptions,
+  optionAliases,
+});
 const { outputPath, error: outputPathError } = resolveOutputPath(
   cliOptionArgs,
   process.cwd(),
