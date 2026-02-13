@@ -4146,43 +4146,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     let selectedRequestCount = 0;
     let farthestRequestIndex = -1;
     let farthestRequestDistance = -1;
-    const recomputeFarthestRequest = () => {
-      farthestRequestIndex = -1;
-      farthestRequestDistance = -1;
-      for (let index = 0; index < selectedRequestCount; index++) {
-        const distance = requestDistances[index];
-        if (distance > farthestRequestDistance) {
-          farthestRequestDistance = distance;
-          farthestRequestIndex = index;
-        }
-      }
-    };
-    const maybeQueueRequest = (cx: number, cz: number) => {
-      const dx = cx - centerX;
-      const dz = cz - centerZ;
-      const distance = dx * dx + dz * dz;
-      if (selectedRequestCount < maxChunkRequestsPerUpdate) {
-        const writeIndex = selectedRequestCount;
-        requestCxs[writeIndex] = cx;
-        requestCzs[writeIndex] = cz;
-        requestDistances[writeIndex] = distance;
-        selectedRequestCount++;
-        if (distance > farthestRequestDistance) {
-          farthestRequestDistance = distance;
-          farthestRequestIndex = writeIndex;
-        }
-        return;
-      }
-
-      if (distance >= farthestRequestDistance) {
-        return;
-      }
-
-      requestCxs[farthestRequestIndex] = cx;
-      requestCzs[farthestRequestIndex] = cz;
-      requestDistances[farthestRequestIndex] = distance;
-      recomputeFarthestRequest();
-    };
 
     const renderRadiusSquared = renderRadius * renderRadius;
 
@@ -4214,7 +4177,34 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (this.chunkPipeline.shouldRequestAt(cx, cz, chunkRerequestInterval)) {
-          maybeQueueRequest(cx, cz);
+          const dx = cx - centerX;
+          const dz = cz - centerZ;
+          const distance = dx * dx + dz * dz;
+          if (selectedRequestCount < maxChunkRequestsPerUpdate) {
+            const writeIndex = selectedRequestCount;
+            requestCxs[writeIndex] = cx;
+            requestCzs[writeIndex] = cz;
+            requestDistances[writeIndex] = distance;
+            selectedRequestCount++;
+            if (distance > farthestRequestDistance) {
+              farthestRequestDistance = distance;
+              farthestRequestIndex = writeIndex;
+            }
+          } else if (distance < farthestRequestDistance) {
+            requestCxs[farthestRequestIndex] = cx;
+            requestCzs[farthestRequestIndex] = cz;
+            requestDistances[farthestRequestIndex] = distance;
+
+            farthestRequestIndex = -1;
+            farthestRequestDistance = -1;
+            for (let index = 0; index < selectedRequestCount; index++) {
+              const queuedDistance = requestDistances[index];
+              if (queuedDistance > farthestRequestDistance) {
+                farthestRequestDistance = queuedDistance;
+                farthestRequestIndex = index;
+              }
+            }
+          }
         }
       }
     }
