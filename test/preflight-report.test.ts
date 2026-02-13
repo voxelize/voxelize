@@ -1603,6 +1603,7 @@ describe("preflight aggregate report", () => {
     expect(report.listChecksOnly).toBe(true);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.activeCliOptions).toEqual(["--list-checks", "--json"]);
     expect(report.activeCliOptionCount).toBe(2);
@@ -1671,6 +1672,7 @@ describe("preflight aggregate report", () => {
     expect(report.listChecksOnly).toBe(false);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.activeCliOptions).toEqual([]);
     expect(report.activeCliOptionCount).toBe(0);
@@ -1722,6 +1724,7 @@ describe("preflight aggregate report", () => {
     expect(report.listChecksOnly).toBe(false);
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.validationErrorCode).toBe("unsupported_options");
     expect(report.activeCliOptions).toEqual([]);
     expect(report.activeCliOptionCount).toBe(0);

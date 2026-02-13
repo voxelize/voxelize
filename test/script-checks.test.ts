@@ -2481,6 +2481,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
     expectCliOptionCatalogMetadata(
@@ -2527,6 +2528,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
     expectCliOptionCatalogMetadata(
@@ -3693,6 +3695,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
     expectCliOptionCatalogMetadata(
@@ -3739,6 +3742,7 @@ describe("root preflight scripts", () => {
 
     expect(report.passed).toBe(false);
     expect(report.exitCode).toBe(1);
+    expect(report.noBuild).toBe(false);
     expect(report.outputPath).toBeNull();
     expect(report.supportedCliOptions).toEqual(expectedNoBuildCliOptions);
     expectCliOptionCatalogMetadata(

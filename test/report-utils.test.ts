@@ -372,6 +372,10 @@ describe("report-utils", () => {
       hasCliOption(["--json", "--", "--verify"], "--no-build", ["--verify"])
     ).toBe(false);
     expect(hasCliOption(["--json"], "--no-build", ["--verify"])).toBe(false);
+    expect(hasCliOption(["--json", "--no-build=1"], "--no-build")).toBe(false);
+    expect(
+      hasCliOption(["--json", "--verify=1"], "--no-build", ["--verify"])
+    ).toBe(false);
   });
 
   it("parses unknown cli options with alias and value support", () => {
