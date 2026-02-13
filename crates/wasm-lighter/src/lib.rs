@@ -1,0 +1,356 @@
+use std::{cell::RefCell, collections::VecDeque};
+
+use js_sys::{Array, Reflect, Uint32Array};
+use serde::Serialize;
+use wasm_bindgen::prelude::*;
+use voxelize_lighter::{
+    flood_light, remove_lights, BlockRotation, LightBounds, LightColor, LightConfig, LightNode,
+    LightRegistry, LightVoxelAccess,
+};
+
+thread_local! {
+    static CACHED_REGISTRY: RefCell<Option<LightRegistry>> = const { RefCell::new(None) };
+}
+
+#[derive(Clone)]
+struct ChunkData {
+    voxels: Vec<u32>,
+    lights: Vec<u32>,
+    shape: [usize; 3],
+}
+
+#[derive(Clone)]
+struct BatchSpace {
+    chunks: Vec<Option<ChunkData>>,
+    chunk_grid_width: usize,
+    chunk_grid_depth: usize,
+    chunk_grid_offset: [i32; 2],
+    chunk_size: i32,
+    modified_chunks: Vec<bool>,
+}
+
+impl BatchSpace {
+    fn new(
+        chunks: Vec<Option<ChunkData>>,
+        chunk_grid_width: usize,
+        chunk_grid_depth: usize,
+        chunk_grid_offset: [i32; 2],
+        chunk_size: i32,
+    ) -> Self {
+        let modified_chunks = vec![false; chunks.len()];
+        Self {
+            chunks,
+            chunk_grid_width,
+            chunk_grid_depth,
+            chunk_grid_offset,
+            chunk_size,
+            modified_chunks,
+        }
+    }
+
+    #[inline]
+    fn chunk_index_from_coords(&self, cx: i32, cz: i32) -> Option<usize> {
+        let local_x = cx - self.chunk_grid_offset[0];
+        let local_z = cz - self.chunk_grid_offset[1];
+
+        if local_x < 0
+            || local_z < 0
+            || local_x >= self.chunk_grid_width as i32
+            || local_z >= self.chunk_grid_depth as i32
+        {
+            return None;
+        }
+
+        Some(local_x as usize * self.chunk_grid_depth + local_z as usize)
+    }
+
+    #[inline]
+    fn map_voxel_to_chunk(&self, vx: i32, vz: i32) -> [i32; 2] {
+        [vx.div_euclid(self.chunk_size), vz.div_euclid(self.chunk_size)]
+    }
+
+    #[inline]
+    fn voxel_index_in_chunk(&self, chunk: &ChunkData, vx: i32, vy: i32, vz: i32) -> Option<usize> {
+        let lx = vx.rem_euclid(self.chunk_size) as usize;
+        let ly = vy as usize;
+        let lz = vz.rem_euclid(self.chunk_size) as usize;
+
+        if ly >= chunk.shape[1] {
+            return None;
+        }
+
+        let index = lx * chunk.shape[1] * chunk.shape[2] + ly * chunk.shape[2] + lz;
+        if index < chunk.voxels.len() && index < chunk.lights.len() {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    fn get_chunk_and_voxel_index(&self, vx: i32, vy: i32, vz: i32) -> Option<(usize, usize)> {
+        let [cx, cz] = self.map_voxel_to_chunk(vx, vz);
+        let chunk_index = self.chunk_index_from_coords(cx, cz)?;
+        let chunk = self.chunks.get(chunk_index)?.as_ref()?;
+        let voxel_index = self.voxel_index_in_chunk(chunk, vx, vy, vz)?;
+        Some((chunk_index, voxel_index))
+    }
+
+    fn get_chunk_and_voxel_index_mut(
+        &mut self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+    ) -> Option<(usize, usize)> {
+        let [cx, cz] = self.map_voxel_to_chunk(vx, vz);
+        let chunk_index = self.chunk_index_from_coords(cx, cz)?;
+        let chunk = self.chunks.get(chunk_index)?.as_ref()?;
+        let voxel_index = self.voxel_index_in_chunk(chunk, vx, vy, vz)?;
+        Some((chunk_index, voxel_index))
+    }
+
+    fn take_modified_chunks(&self) -> Vec<ModifiedChunkData> {
+        let mut modified = Vec::new();
+
+        for (index, is_modified) in self.modified_chunks.iter().enumerate() {
+            if !is_modified {
+                continue;
+            }
+
+            if let Some(Some(chunk)) = self.chunks.get(index) {
+                let local_x = index / self.chunk_grid_depth;
+                let local_z = index % self.chunk_grid_depth;
+                modified.push(ModifiedChunkData {
+                    coords: [
+                        self.chunk_grid_offset[0] + local_x as i32,
+                        self.chunk_grid_offset[1] + local_z as i32,
+                    ],
+                    lights: chunk.lights.clone(),
+                });
+            }
+        }
+
+        modified
+    }
+}
+
+impl LightVoxelAccess for BatchSpace {
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.get_chunk_and_voxel_index(vx, vy, vz)
+            .and_then(|(chunk_index, voxel_index)| {
+                self.chunks
+                    .get(chunk_index)
+                    .and_then(|chunk| chunk.as_ref())
+                    .map(|chunk| chunk.voxels[voxel_index])
+            })
+            .unwrap_or(0)
+    }
+
+    fn get_voxel_rotation(&self, vx: i32, vy: i32, vz: i32) -> BlockRotation {
+        let raw = self.get_raw_voxel(vx, vy, vz);
+        let rotation = (raw >> 16) & 0xF;
+        let y_rotation = (raw >> 20) & 0xF;
+        BlockRotation::encode(rotation, y_rotation)
+    }
+
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        (self.get_raw_voxel(vx, vy, vz) >> 24) & 0xF
+    }
+
+    fn get_raw_light(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.get_chunk_and_voxel_index(vx, vy, vz)
+            .and_then(|(chunk_index, voxel_index)| {
+                self.chunks
+                    .get(chunk_index)
+                    .and_then(|chunk| chunk.as_ref())
+                    .map(|chunk| chunk.lights[voxel_index])
+            })
+            .unwrap_or(0)
+    }
+
+    fn set_raw_light(&mut self, vx: i32, vy: i32, vz: i32, level: u32) -> bool {
+        if let Some((chunk_index, voxel_index)) = self.get_chunk_and_voxel_index_mut(vx, vy, vz) {
+            if let Some(Some(chunk)) = self.chunks.get_mut(chunk_index) {
+                chunk.lights[voxel_index] = level;
+                self.modified_chunks[chunk_index] = true;
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+        self.chunks
+            .iter()
+            .flatten()
+            .next()
+            .map_or(0, |chunk| chunk.shape[1] as u32)
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        self.get_chunk_and_voxel_index(vx, vy, vz).is_some()
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModifiedChunkData {
+    coords: [i32; 2],
+    lights: Vec<u32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BatchOutput {
+    modified_chunks: Vec<ModifiedChunkData>,
+}
+
+fn parse_chunks(chunks_data: &Array) -> Vec<Option<ChunkData>> {
+    let mut chunks = Vec::with_capacity(chunks_data.length() as usize);
+
+    for index in 0..chunks_data.length() {
+        let chunk_value = chunks_data.get(index);
+        if chunk_value.is_null() || chunk_value.is_undefined() {
+            chunks.push(None);
+            continue;
+        }
+
+        let chunk_obj = js_sys::Object::from(chunk_value);
+        let voxels_value = Reflect::get(&chunk_obj, &"voxels".into())
+            .expect("chunksData item is missing voxels");
+        let lights_value = Reflect::get(&chunk_obj, &"lights".into())
+            .expect("chunksData item is missing lights");
+        let shape_value =
+            Reflect::get(&chunk_obj, &"shape".into()).expect("chunksData item is missing shape");
+        let voxels = Uint32Array::from(voxels_value).to_vec();
+        let lights = Uint32Array::from(lights_value).to_vec();
+        let shape_array = Array::from(&shape_value);
+
+        let shape = [
+            shape_array.get(0).as_f64().expect("shape[0] must be number") as usize,
+            shape_array.get(1).as_f64().expect("shape[1] must be number") as usize,
+            shape_array.get(2).as_f64().expect("shape[2] must be number") as usize,
+        ];
+
+        chunks.push(Some(ChunkData {
+            voxels,
+            lights,
+            shape,
+        }));
+    }
+
+    chunks
+}
+
+#[wasm_bindgen]
+pub fn init() {}
+
+#[wasm_bindgen]
+pub fn set_registry(registry: JsValue) {
+    let mut parsed: LightRegistry =
+        serde_wasm_bindgen::from_value(registry).expect("Unable to deserialize light registry");
+    parsed.build_cache();
+    CACHED_REGISTRY.with(|cached| {
+        *cached.borrow_mut() = Some(parsed);
+    });
+}
+
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn process_light_batch_fast(
+    chunks_data: &Array,
+    chunk_grid_width: usize,
+    chunk_grid_depth: usize,
+    grid_offset_x: i32,
+    grid_offset_z: i32,
+    color: usize,
+    removals: JsValue,
+    floods: JsValue,
+    bounds_min: &[i32],
+    bounds_shape: &[u32],
+    chunk_size: i32,
+    max_height: i32,
+    max_light_level: u32,
+) -> JsValue {
+    let chunks = parse_chunks(chunks_data);
+    let mut space = BatchSpace::new(
+        chunks,
+        chunk_grid_width,
+        chunk_grid_depth,
+        [grid_offset_x, grid_offset_z],
+        chunk_size,
+    );
+
+    let light_color = LightColor::from(color);
+    let removal_nodes: Vec<[i32; 3]> =
+        serde_wasm_bindgen::from_value(removals).expect("Unable to deserialize removal nodes");
+    let flood_nodes: Vec<LightNode> =
+        serde_wasm_bindgen::from_value(floods).expect("Unable to deserialize flood nodes");
+
+    let bounds = if bounds_min.len() >= 3 && bounds_shape.len() >= 3 {
+        Some(LightBounds {
+            min: [bounds_min[0], bounds_min[1], bounds_min[2]],
+            shape: [
+                bounds_shape[0] as usize,
+                bounds_shape[1] as usize,
+                bounds_shape[2] as usize,
+            ],
+        })
+    } else {
+        None
+    };
+
+    let config = LightConfig {
+        chunk_size,
+        max_height,
+        max_light_level,
+        min_chunk: [grid_offset_x, grid_offset_z],
+        max_chunk: [
+            grid_offset_x + chunk_grid_width as i32 - 1,
+            grid_offset_z + chunk_grid_depth as i32 - 1,
+        ],
+    };
+
+    CACHED_REGISTRY.with(|cached| {
+        let registry_ref = cached.borrow();
+        let registry = registry_ref
+            .as_ref()
+            .expect("Registry not set. Call set_registry first.");
+
+        if !removal_nodes.is_empty() {
+            remove_lights(
+                &mut space,
+                &removal_nodes,
+                &light_color,
+                &config,
+                registry,
+            );
+        }
+
+        if !flood_nodes.is_empty() {
+            for node in &flood_nodes {
+                let [vx, vy, vz] = node.voxel;
+                if light_color == LightColor::Sunlight {
+                    space.set_sunlight(vx, vy, vz, node.level);
+                } else {
+                    space.set_torch_light(vx, vy, vz, node.level, &light_color);
+                }
+            }
+
+            flood_light(
+                &mut space,
+                VecDeque::from(flood_nodes),
+                &light_color,
+                &config,
+                bounds.as_ref(),
+                registry,
+            );
+        }
+    });
+
+    let output = BatchOutput {
+        modified_chunks: space.take_modified_chunks(),
+    };
+
+    serde_wasm_bindgen::to_value(&output).expect("Unable to serialize lighting output")
+}

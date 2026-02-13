@@ -1,0 +1,17 @@
+{
+  "name": "@voxelize/wasm-lighter",
+  "version": "1.0.0",
+  "description": "WebAssembly lighting for Voxelize",
+  "main": "./pkg/voxelize_wasm_lighter.js",
+  "module": "./pkg/voxelize_wasm_lighter.js",
+  "types": "./pkg/voxelize_wasm_lighter.d.ts",
+  "files": [
+    "pkg"
+  ],
+  "scripts": {
+    "build": "wasm-pack build --target web",
+    "build:dev": "wasm-pack build --target web --dev",
+    "build:release": "wasm-pack build --target web --release"
+  },
+  "license": "MIT"
+}
