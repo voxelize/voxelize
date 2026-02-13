@@ -2070,14 +2070,12 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             } else {
                 (pos[0] + offset_x, pos[1] + offset_y, pos[2] + offset_z)
             };
-            let mut raw_voxel = None;
             let has_expected_rotation = simple.rotation.is_some();
             let has_expected_stage = simple.stage.is_some();
+            let raw_voxel = space.get_raw_voxel(check_x, check_y, check_z);
 
             if let Some(expected_id) = simple.id {
-                let raw = *raw_voxel
-                    .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
-                let actual_id = extract_id(raw);
+                let actual_id = extract_id(raw_voxel);
                 if actual_id != expected_id {
                     return false;
                 }
@@ -2088,12 +2086,10 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             }
 
             if let Some(expected_rotation) = &simple.rotation {
-                let raw = *raw_voxel
-                    .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
                 let (expected_rotation_code, expected_y_rotation_code) =
                     BlockRotation::decode(expected_rotation);
-                let actual_rotation_code = (raw >> 16) & 0xF;
-                let actual_y_rotation_code = (raw >> 20) & 0xF;
+                let actual_rotation_code = (raw_voxel >> 16) & 0xF;
+                let actual_y_rotation_code = (raw_voxel >> 20) & 0xF;
                 if actual_rotation_code != expected_rotation_code
                     || actual_y_rotation_code != expected_y_rotation_code
                 {
@@ -2102,9 +2098,7 @@ fn evaluate_block_rule_with_trig<S: VoxelAccess>(
             }
 
             if let Some(expected_stage) = simple.stage {
-                let raw = *raw_voxel
-                    .get_or_insert_with(|| space.get_raw_voxel(check_x, check_y, check_z));
-                let actual_stage = (raw >> 24) & 0xF;
+                let actual_stage = (raw_voxel >> 24) & 0xF;
                 if actual_stage != expected_stage {
                     return false;
                 }
