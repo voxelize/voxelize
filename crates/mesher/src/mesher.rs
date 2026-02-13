@@ -2935,10 +2935,28 @@ fn mesh_space_greedy_legacy_impl<S: VoxelAccess>(
             let quads =
                 extract_greedy_quads(&mut greedy_mask, u_range.0, u_range.1, v_range.0, v_range.1);
 
+            let mut cached_quad_block_id = u32::MAX;
+            let mut cached_quad_block: Option<&Block> = None;
             for quad in quads {
-                let block = match registry.get_block_by_id(quad.data.key.block_id) {
-                    Some(b) => b,
-                    None => continue,
+                let block_id = quad.data.key.block_id;
+                let block = if cached_quad_block_id == block_id {
+                    match cached_quad_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
+                } else {
+                    match registry.get_block_by_id(block_id) {
+                        Some(block) => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = Some(block);
+                            block
+                        }
+                        None => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = None;
+                            continue;
+                        }
+                    }
                 };
                 let geo_key = geometry_key_for_quad(
                     block,
@@ -3585,10 +3603,28 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                 v_range.1,
             );
 
+            let mut cached_quad_block_id = u32::MAX;
+            let mut cached_quad_block: Option<&Block> = None;
             for quad in quads {
-                let block = match registry.get_block_by_id(quad.data.key.block_id) {
-                    Some(candidate) => candidate,
-                    None => continue,
+                let block_id = quad.data.key.block_id;
+                let block = if cached_quad_block_id == block_id {
+                    match cached_quad_block {
+                        Some(block) => block,
+                        None => continue,
+                    }
+                } else {
+                    match registry.get_block_by_id(block_id) {
+                        Some(block) => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = Some(block);
+                            block
+                        }
+                        None => {
+                            cached_quad_block_id = block_id;
+                            cached_quad_block = None;
+                            continue;
+                        }
+                    }
                 };
                 let geo_key = geometry_key_for_quad(
                     block,
