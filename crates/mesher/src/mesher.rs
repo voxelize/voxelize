@@ -3020,19 +3020,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                         continue;
                     }
 
-                    let mut current_voxel_index = None;
-                    let compute_current_voxel_index = || {
-                        ((vx - min_x) as usize) * yz_span
-                            + ((vy - min_y) as usize) * z_span
-                            + (vz - min_z) as usize
-                    };
+                    let mut current_voxel_index = usize::MAX;
                     if block.is_opaque {
-                        let index =
-                            *current_voxel_index.get_or_insert_with(compute_current_voxel_index);
-                        let cached = fully_occluded_opaque[index];
+                        if current_voxel_index == usize::MAX {
+                            current_voxel_index = ((vx - min_x) as usize) * yz_span
+                                + ((vy - min_y) as usize) * z_span
+                                + (vz - min_z) as usize;
+                        }
+                        let cached = fully_occluded_opaque[current_voxel_index];
                         let is_fully_occluded = if cached == OCCLUSION_UNKNOWN {
                             let value = is_surrounded_by_opaque_neighbors(vx, vy, vz, space, registry);
-                            fully_occluded_opaque[index] = if value { 1 } else { 0 };
+                            fully_occluded_opaque[current_voxel_index] = if value { 1 } else { 0 };
                             value
                         } else {
                             cached == 1
@@ -3049,9 +3047,12 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     };
                     let is_non_greedy_block = !greedy_without_rotation;
                     if is_non_greedy_block {
-                        let index =
-                            *current_voxel_index.get_or_insert_with(compute_current_voxel_index);
-                        if processed_non_greedy[index] {
+                        if current_voxel_index == usize::MAX {
+                            current_voxel_index = ((vx - min_x) as usize) * yz_span
+                                + ((vy - min_y) as usize) * z_span
+                                + (vz - min_z) as usize;
+                        }
+                        if processed_non_greedy[current_voxel_index] {
                             continue;
                         }
                     }
@@ -3060,14 +3061,17 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
                     let is_see_through = block.is_see_through;
 
                     if is_non_greedy_block {
-                        let index =
-                            *current_voxel_index.get_or_insert_with(compute_current_voxel_index);
+                        if current_voxel_index == usize::MAX {
+                            current_voxel_index = ((vx - min_x) as usize) * yz_span
+                                + ((vy - min_y) as usize) * z_span
+                                + (vz - min_z) as usize;
+                        }
                         let cache_ready = block.cache_ready;
                         let mut rotation = BlockRotation::PY(0.0);
                         if block.rotatable || block.y_rotatable {
                             rotation = space.get_voxel_rotation(vx, vy, vz);
                         }
-                        processed_non_greedy[index] = true;
+                        processed_non_greedy[current_voxel_index] = true;
                         let has_standard_six_faces = is_fluid
                             && if cache_ready {
                                 block.has_standard_six_faces
