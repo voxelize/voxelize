@@ -3467,7 +3467,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     const geometries = new Map<
       string,
       {
-        identifier: string;
         positions: number[];
         uvs: number[];
         indices: number[];
@@ -3508,12 +3507,12 @@ export class World<T = any> extends Scene implements NetIntercept {
             : new MeshStandardMaterial(matOptions);
 
         geometry = {
-          identifier,
           positions: [],
           uvs: [],
           indices: [],
           material: mat,
         };
+        geometries.set(identifier, geometry);
       }
 
       const { positions, uvs, indices } = geometry;
@@ -3548,14 +3547,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       indices.push(ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3);
-
-      geometries.set(identifier, geometry);
     }
 
     const group = new Group();
 
-    for (const geometryData of geometries.values()) {
-      const { identifier, positions, uvs, indices, material } = geometryData;
+    for (const [identifier, geometryData] of geometries) {
+      const { positions, uvs, indices, material } = geometryData;
       const geometry = new BufferGeometry();
       geometry.setAttribute(
         "position",
