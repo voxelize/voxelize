@@ -3293,6 +3293,8 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
         let dir = [dx, dy, dz];
         let dir_index =
             cardinal_dir_index(dir).expect("greedy directions are always cardinal unit vectors");
+        let mut cached_voxel_block_id = u32::MAX;
+        let mut cached_voxel_block: Option<&Block> = None;
 
         let (axis, u_axis, v_axis) = if dx != 0 {
             (0, 2, 1)
@@ -3339,9 +3341,24 @@ fn mesh_space_greedy_fast_impl<S: VoxelAccess>(
 
                     let raw_voxel = space.get_raw_voxel(vx, vy, vz);
                     let voxel_id = extract_id(raw_voxel);
-                    let block = match registry.get_block_by_id(voxel_id) {
-                        Some(candidate) => candidate,
-                        None => continue,
+                    let block = if cached_voxel_block_id == voxel_id {
+                        match cached_voxel_block {
+                            Some(block) => block,
+                            None => continue,
+                        }
+                    } else {
+                        match registry.get_block_by_id(voxel_id) {
+                            Some(candidate) => {
+                                cached_voxel_block_id = voxel_id;
+                                cached_voxel_block = Some(candidate);
+                                candidate
+                            }
+                            None => {
+                                cached_voxel_block_id = voxel_id;
+                                cached_voxel_block = None;
+                                continue;
+                            }
+                        }
                     };
 
                     if block.is_empty {
