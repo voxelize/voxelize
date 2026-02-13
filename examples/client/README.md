@@ -78,5 +78,6 @@ pnpm run check:wasm:verify:json -- --output ./wasm-verify-report.json
 
 All JSON report commands include `schemaVersion: 1` for compatibility checks.
 Skipped JSON steps are represented with `skipped: true` and `exitCode: null`.
+If `--output` is provided without a value, JSON commands return a structured error report.
 
 This runs client typechecking and wasm-artifact preflight in sequence.

@@ -159,6 +159,7 @@ pnpm run test:scripts
 ```
 
 In JSON mode, skipped steps are represented with `skipped: true` and `exitCode: null`.
+If `--output` is provided without a value, JSON commands return a structured error report.
 
 visit http://localhost:3000
 
