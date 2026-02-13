@@ -382,11 +382,19 @@ export class Network {
       const packets = this.packetQueue.slice(this.packetQueueHead, batchEnd);
       this.packetQueueHead = batchEnd;
       this.normalizePacketQueue();
-      this.decode(packets).then((messages) => {
-        for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
-          this.onMessage(messages[messageIndex]);
-        }
-      });
+      this.decode(packets)
+        .then((messages) => {
+          for (
+            let messageIndex = 0;
+            messageIndex < messages.length;
+            messageIndex++
+          ) {
+            this.onMessage(messages[messageIndex]);
+          }
+        })
+        .catch((error) => {
+          console.error("[NETWORK] Failed to decode packet batch.", error);
+        });
       return;
     }
 
@@ -406,14 +414,22 @@ export class Network {
     this.packetQueueHead = batchEnd;
     this.normalizePacketQueue();
 
-    Promise.all(decodePromises).then((results) => {
-      for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
-        const messages = results[batchIndex];
-        for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
-          this.onMessage(messages[messageIndex]);
+    Promise.all(decodePromises)
+      .then((results) => {
+        for (let batchIndex = 0; batchIndex < results.length; batchIndex++) {
+          const messages = results[batchIndex];
+          for (
+            let messageIndex = 0;
+            messageIndex < messages.length;
+            messageIndex++
+          ) {
+            this.onMessage(messages[messageIndex]);
+          }
         }
-      }
-    });
+      })
+      .catch((error) => {
+        console.error("[NETWORK] Failed to decode packet batches.", error);
+      });
   };
 
   flush = () => {
